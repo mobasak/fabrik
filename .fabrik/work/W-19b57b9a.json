@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-05T22:14:16.282854Z",
   "creator": "intel",
+  "effort": "high",
   "evidence": "",
   "id": "W-19b57b9a",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "decide whether the guards should key on (from, from-agent) under HUB_BEATS, then change should_auto_reply and _recent_from_count together with a test per beat pair",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'fails'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "infra"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T06:42:00.565401Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-8dd25072",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "_write_file_to_vps_path scp's the content into a pid-derived /tmp name BEFORE the sudo chmod 0600, so a local VPS user who pre-creates that path 0666 and keeps it open reads the owner DSN through the fd in that window (pre-existing for .env; the split adds .env.owner to the same path). Create the temp file remotely with mktemp -m 0600 (one extra ssh per write; the exact-ssh-count graders at tests/orchestrator/test_deployer_ssh.py move with it) — Finish review deployer-O6.",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "fleet checked 2026-10-15: not fixed — deployer_ssh.py:1201 still stages via predictable /tmp/fabrik-<pid>-<name> on the VPS (a security hole); one-function fix",
   "status": "open",
   "tags": [
     "deployer",
+    "queued",
     "security"
   ],
   "title": "deployer: the remote staging path /tmp/fabrik-<pid>-<name> is predictable; stage through a remote mktemp -m 0600"

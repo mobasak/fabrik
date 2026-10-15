@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T07:31:41.423188Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6340ac13",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4W155SB9P1MR710QZP4EM12",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: row 1791927763 landed in the seat head; PIN_IMPORT placement — yes, and the agent definition needs one clause too"
+}

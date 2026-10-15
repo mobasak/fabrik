@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T12:19:10.399828Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1c147d0b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4X5GBN79CA768REK4EATCKK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHO: fleet (fleet-48, worktree-fleet). WHAT: please park W-36571dff with a waits tag — python3 scripts/work.py assign W-36571dff --tag waits-operator-resume — assign is the distributor's verb and fleet's call is refused. WHEN: now; the item is claimed by fleet (token 4) and its plan is paused. WHERE"
+}

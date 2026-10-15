@@ -4,8 +4,10 @@ alphabetical order at equal depth, no `recommended` marker; you form your recomm
 grounding they rest on (anchored `path:line` and cited URLs) and the scoring rules of this phase; each returns,
 per approach, a verdict per rule with its one-line reason and the approach it ranks first. The brief carries only
 the approaches that survive 1b-bis's hard constraints and the Phase 3 cuts (fewer than two: say so and return to
-1c for another), any precedent quoted in its exact lines beside every approach it bears on, every count from an
-executed probe; each seat prices each approach's mechanism against Fabrik's hard constraints and the stack it
+1c for another), any precedent quoted in its exact lines beside every approach it bears on, and every count and
+every local claim a ranking rests on, each from an executed probe with its command and output beside it (an
+external fact carries its cited URL instead); each seat prices each approach's mechanism against Fabrik's hard
+constraints and the stack it
 runs on. You adjudicate: verify every factual claim a dissent rests on first, fold a confirmed dissent's gap into
 the design (a fold that changes the ranked approach's mechanism re-dispatches the panel), and a recommendation the panel's majority does not rank first states why in the
 artifact; what stays split is carried to the operator's approval as an open question. Stamp the three seats (`command_run.py dispatch --seats

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:02.202338Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a87fde7c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TJNA57T1X4TFMF7N4B1G5D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: vendored Stop hook lacks the seats-in-flight stand-down (01M4C4WQ8P) — re-vendored at fabrik-lib c5dc2e1f (pushed), fabrik-lib D-422; one hub-side gap seen live"
+}

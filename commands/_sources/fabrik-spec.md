@@ -10,7 +10,8 @@ it — until that spec is written and approved.
 
 **`--terminal` names both endings:** the `Size:` verdict lands in Phase 5 and `--terminal-amend` belongs to
 `/fabrik-task` alone, so start with `--terminal "the spec CONVERGED by /fabrik-spec-review and its approval
-gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /fabrik-plan-after-chat"`.
+gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /fabrik-plan-after-chat"`. A Phase 0
+DOWNGRADE is a `handoff`, not a terminal met, so it is named there and nowhere in `--terminal`.
 
 {{include:run-record}}
 {{include:orient}}
@@ -33,8 +34,30 @@ gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /f
   naming that same seed (handoff keeps a byte copy under `<state dir>/seeds/` and prints its path, also
   `resume_copy` on the run_close event, D-716 — carry that path into the restart, since the next `start`
   overwrites the record), and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
-  instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry a
-  one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
+  instead of writing a spec. **No matching refusal does NOT end the check (operator ruling 2026-10-14, the
+  `docs/DECISIONS.md` row widening D9): most specs open with no lane attempt behind them — 9 refusals against
+  77 spec closes since lane v2 shipped, and no DOWNGRADE ever fired — so apply the lane's tests to the brief
+  HERE, before any research seat, approach or judge panel is dispatched.** Name the brief's surface as the
+  `--file` list `/fabrik-task start` would take, answer its six declarations (`decision`, `heavy`,
+  `mechanism`, `oneway`, `tradeoffs`, `consumers`), run the contract-path test over that list
+  (`specs/services/`, any `openapi*` JSON or YAML file or `*.schema.json` outside dependency directories, case
+  ignored — `task_lane.contract_hit` is the authority), put the lane's `--appetite` in minutes on it, and
+  estimate the diff by Phase 5's own `Size: small` rule (D-169: ≤ ~400 code lines AND ≤ 5 code files, tests
+  excluded); state the six answers, the hits, the appetite and the estimate on one line of the response.
+  `decision=yes`, `oneway=no`, `tradeoffs=no`, `consumers=internal`, no contract hit, an appetite within the
+  lane's 240 minutes and a small estimate ⇒ `/fabrik-task` work: write the same seed, its `## RESUME` naming
+  `/fabrik-task <the brief>` as the restart (no `--from-downgrade` — no refusal id exists; the seed carries
+  the six answers, the appetite and the estimate instead), and close with the same `handoff`, its
+  `--reason "DOWNGRADE: no-refusal — <the six answers, the estimate>"` (`command_run.py` joins a `DOWNGRADE:`
+  reason to a refusal only on an `LR-` id, so this form records no `from_downgrade` and mis-joins nothing).
+  The same answers with `decision=no` ⇒ a pure fix, which `/fabrik-task start` refuses too (row 4b): right-now
+  and `/fabrik-review-scoped` — the full `/fabrik-review` on a sync or heavy surface, as the lane table's
+  precedence rule for 4b with 1 or 1b says — closed
+  with the same seed and `handoff`, the `## RESUME` naming the fix and that review. A refusal that no longer
+  holds (the brief DOES carry a one-way decision or an open trade-off), or a
+  brief that trips one-way, a trade-off, `consumers=external`, a contract path, the 240-minute appetite or
+  either size bound → proceed to the rest of Phase 0 unchanged; Phase 5 re-estimates on the deltas as today —
+  small work that DOES need a design (D10) is still a spec.
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
 - **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
   `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
@@ -112,7 +135,7 @@ For **every** external dependency the idea touches — 3rd-party API / SDK, vend
 library, framework, protocol, standard — ground it to **CURRENT truth**, never from training memory.
 
 - Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`) → then **live research**:
-  `mcp__exa__web_search_exa` → `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` →
+  `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to locate
   the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw'
   repos/<o>/<r>/contents/<path>` / `gh release list`) to read a dependency's
@@ -125,8 +148,12 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   readings when two vendor pages contradict each other.
 - **Local claims are executed, not cited:** every premise the brief states about the codebase, every mechanism
   the design relies on ("X fires", "Y catches this"), every design rule (an algebra, a classifier) and every
-  runtime-state claim is EXECUTED this session, its command and output cited in the spec, and Phase 3 waits on it
-  as on the BLOCKING bullet below. An executed in-repo measurement outranks a web answer about the repo's own
+  runtime-state claim is EXECUTED this session, its command and output cited in the spec (a key, token or credential
+  in that output is described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included:
+  the `detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it
+  as on the BLOCKING bullet below. A design rule that names stores (a matrix, an allowlist, an entity schema's
+  fields) is preceded by an executed census of each store's current members, and its invariants are written against
+  that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own
   code; a vendored or installed third-party package's behaviour stays an external claim under this gate.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
@@ -220,8 +247,8 @@ research is.** (Grounded in `agents-fabrik.md` § Planning Constraints + § Arch
 Grounding the FACTS (1a) is **not** grounding the APPROACH. Before Phase 3, research the CURRENT best way to
 build this — never pick an approach from training memory or first instinct:
 
-- Use the wired tools (`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search`
-  → `mcp__firecrawl__firecrawl_search`) to find, for the **core** of the design, the
+- Use the wired tools (`WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa`
+  / `mcp__firecrawl__firecrawl_search`) to find, for the **core** of the design, the
   **current best-practice / pro-grade / LEANEST / lowest-maintenance** way the field actually does this now:
   the standard library/pattern, the fewest moving parts, the simplest thing that is still production-grade
   (not a toy, not gold-plated).
@@ -361,7 +388,8 @@ spec's plan is drafted before it and approved with it).
 - Write to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` (allowlisted location). **Check before
   create** — if it exists, STOP and ask; never overwrite.
 - Open the spec with **`Status: DRAFT`** — this command writes DRAFT; the adversarial `/fabrik-spec-review`
-  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict —
+  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict, once its
+  design-approval panel has approved —
   **except a `Size: small` spec (below, spec § The delta D10): `/fabrik-plan-review` flips it, together
   with the plan, at its own approval gate, and `/fabrik-spec-review` never runs on it.**
 - **`Profile: delta` — the brief profile, declared on the line under `Status:` (hub ruling D-153:
@@ -381,14 +409,14 @@ spec's plan is drafted before it and approved with it).
   takes the full section set; state the profile verdict either way.
 - **`Size: small` (spec § The delta D10) — estimate the diff, skip the review loop.** Before Phase 6,
   estimate the code diff this spec's own deltas will produce using D-169's rule (the same rule
-  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md:210-222`): code
-  lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
+  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md` § SIZE THE DIFF
+  BEFORE THE SHAPE): code lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
   `Size: small (≈<lines> lines, <files> files)` on its own line directly under `Status:`** — a separate key
   from `Profile:` above, since `Profile: delta` already names the BRIEF's own shape, not the code estimate.
   A `Size: small` spec skips `/fabrik-spec-review` entirely: after the self-review below, hand it straight
   to **`/fabrik-plan-after-chat <spec path>`**, which plans it as `Profile: small` and whose own
-  `/fabrik-plan-review` grades the spec's sections together with the plan, flips BOTH to `CONVERGED`, and
-  holds the operator's design-approval gate in its place (Phase 6's exception, below). An estimate over
+  `/fabrik-plan-review` grades the spec's sections together with the plan, holds the operator's
+  design-approval gate in its place and flips BOTH to `CONVERGED` in the approval commit (Phase 6's exception, below). An estimate over
   either bound writes no `Size:` line and keeps the full chain — Phase 6 runs `/fabrik-spec-review` as today.
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
@@ -454,8 +482,8 @@ spec's plan is drafted before it and approved with it).
 
 **Exception — a `Size: small` spec (Phase 5, spec § The delta D10) skips this phase's call entirely:** do
 NOT invoke `/fabrik-spec-review`; hand the DRAFT straight to `/fabrik-plan-after-chat <spec path>` instead.
-Its own `/fabrik-plan-review` grades this spec's sections together with the plan, flips both to
-`CONVERGED`, and holds the operator's approval gate there — never twice. Everything else in this phase
+Its own `/fabrik-plan-review` grades this spec's sections together with the plan, holds the operator's
+approval gate there and flips both to `CONVERGED` in the approval commit — never twice. Everything else in this phase
 (the MANDATORY call, the comparison table, the approval gate below) is the full-profile path, unchanged.
 The two independent design critiques (the `design-critique` step) run at the command holding the approval
 gate — `/fabrik-spec-review`, or `/fabrik-plan-review` for a `Size: small` spec — never a second pair here.
@@ -464,14 +492,14 @@ gate — `/fabrik-spec-review`, or `/fabrik-plan-review` for a `Size: small` spe
 it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's self-review is the light inline
 pass; `/fabrik-spec-review` is the independent adversarial one that re-verifies every cited external fact
 against the live web, audits the fabrik-lib vendor→enhance→build verdict against real modules, iterates to a
-no-op round, and flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
+no-op round, and after its design-approval panel flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
 `/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (**Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — the only reasons to stop before
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and close with `python3 scripts/command_run.py handoff --command fabrik-spec --resume
 <scratch file> --reason "<the open question>" --feedback …`, the file's `## RESUME` block naming the question
 and the restart `/fabrik-spec <spec path>` — never by stopping on a `running` record.
 
-After `CONVERGED`, the hardened spec reaches the design-approval gate `/fabrik-spec-review` holds — answered by
+After the quiet closing round, the hardened spec reaches the design-approval gate `/fabrik-spec-review` holds — answered by
 the Opus + Fable panel in the operator's place (D-613; only a split reaches the operator) — and the gate is
 weighed against the **ask ↔ spec comparison table** (hub ruling D-153: *"present what I have asked and what was specced in a
 comparison table"*): **one row per item of the operator's brief** — the operator's OWN WORDS · what the spec
@@ -483,7 +511,7 @@ anchor; a brief item with no row is the SILENT DROP the inventory exists to catc
 the artifact grades coverage for the AGENT; this table is the same fact laid out for the OPERATOR, side by
 side, in their wording — how a 672-line spec got approved-for-review while its operator was "totally lost"
 . `/fabrik-spec-review` builds the same table, recomputed against the
-CONVERGED text, for its gate and keeps it in the spec's review receipt. On approval, the pipeline continues —
+closing-round text, for its gate and keeps it in the spec's review receipt. On approval, the pipeline continues —
 **data + UI contracts are frozen BEFORE planning** for anything data/GUI-shaped:
 
 ```

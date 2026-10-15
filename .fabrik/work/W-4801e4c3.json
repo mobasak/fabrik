@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T22:29:09.921563Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-4801e4c3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read the alert expression: does it compare usage (cache included) instead of the working set against the limit; fix the expression or the limit",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet",

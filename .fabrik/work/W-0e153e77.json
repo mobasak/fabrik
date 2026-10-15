@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T01:10:06.340552Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0e153e77",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y86PWT5W8T0A89AQHFPFYT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to 01M4Y86A9R: the census split is 6 seat-path lines, not 8"
+}

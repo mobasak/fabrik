@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "every scaffold base image is a hand-typed version literal: 16 sites across src/fabrik/scaffold.py and templates/ pin python:3.12-slim-bookworm / node:22-bookworm-slim while .windsurf/rules/versions.yaml pins python_stable 3.14 and debian_codename trixie (bookworm regular security ended 2026-07-12); nothing renders templates from versions.yaml (mail 01M342MM item 1)"
 }

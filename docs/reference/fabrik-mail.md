@@ -37,7 +37,7 @@ re: <id|empty>      # advisory threading hint — a DANGLING ref is harmless (fa
                     # both are exit-2 refusals
 kind: request|finding|relay|reply|upstream-feedback|merge-request
 ack: required|no
-agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel|kaizen). Emitted only when set,
+agent: <role>       # OPTIONAL intra-mailbox addressee (coordinator|infra|fleet|intel|kaizen). Emitted only when set,
                     # so a message without it is byte-identical to a legacy one. A FILTER, never a
                     # lock: `list --agent X` shows mail addressed to X PLUS every unaddressed
                     # message, so nothing can be hidden from a role by addressing it elsewhere.
@@ -115,10 +115,10 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   An `ack: required` OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age
   comes from the message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left
   alone rather than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
-- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs four
-  agents — `infra` · `fleet` · `intel` · `kaizen` — sharing one `fabrik` mailbox, so a message with no `agent:`
-  is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the four-beat guide) unless it
-  carries `--to-agent infra|fleet|intel|kaizen`, an explicit `--broadcast` (deliberately all-agents;
+- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs five
+  agents — `coordinator` · `infra` · `fleet` · `intel` · `kaizen` — sharing one `fabrik` mailbox, so a message with no `agent:`
+  is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the beat guide) unless it
+  carries `--to-agent coordinator|infra|fleet|intel|kaizen`, an explicit `--broadcast` (deliberately all-agents;
   refuses `ack:required` — an obligation nobody owns cannot be acked), or is a `kind=reply` thread
   (`--re` given — exempt). A reply with no `--to-agent` and a resolvable parent goes to the agent who ASKED: the parent's `from-agent:` when it names a hub beat other than the replier AND the parent came from this mailbox (its `from:` is the reply's `to:` — a role recorded under another repo or lane name is never trusted as a hub beat); else the parent's `agent:` is INHERITED when that is not the replier; else it goes out UNADDRESSED (visible to every beat), with a stderr hint when the only candidate was the replier itself — never into its own author's queue, where only the replier looks (fleet, 2026-09-29: 8 answers sat unread that way). Replies bound for a project mailbox are not addressed.
   A typo'd beat is refused at send AND at `route` (clearing with `''` stays legal). Set the
@@ -186,8 +186,8 @@ approval D-820). It is applied ONCE, at send, and every later reader shows its r
   anywhere; a trailing `/` is a directory prefix. `topics` match the body's `Subject:` line and
   only ever ADVISE: with no owned path, a single topic match fills the header with reason
   `topic "…"` and every reader shows it, but it never addresses mail and `route-report` does
-  not count it as the map's. `switches.auto_address` and `switches.fabrik_lib_address` ship
-  `false`. `scripts/enforcement/check_beat_owners.py` (a gate check) refuses an unknown owner, a
+  not count it as the map's. `switches.auto_address` is ON (operator, 2026-10-14) and
+  `switches.fabrik_lib_address` is ON (W-c687ce60; see the fabrik-lib bullet). `scripts/enforcement/check_beat_owners.py` (a gate check) refuses an unknown owner, a
   rule without `source`, a malformed or dead pattern, a rule fully shadowed by later rules of
   another owner, a beat whose rules cover every tracked file, and an unknown switch; it reports the unowned count with its denominator.
 - **At send** (hub-bound only): the cited paths — backticked tokens and `dir/…/file:line` tokens
@@ -213,9 +213,14 @@ approval D-820). It is applied ONCE, at send, and every later reader shows its r
   The send-time map's own trail lines and a first address given to unaddressed mail are not
   re-routes. `auto_address` is switched on by a one-line map commit only
   after kaizen reviews that the map beats the sender (spec § Lifecycle).
-- **fabrik-lib.** With `switches.fabrik_lib_address` on, an unaddressed send to `fabrik-lib`
-  whose cited modules all belong to one owner in fabrik-lib's `.fabrik/module-owners.json` is
-  addressed to that owner; it is off until the sentinel agrees.
+- **fabrik-lib.** With `switches.fabrik_lib_address` on (the sentinel agreed, fabrik-lib D-429),
+  an unaddressed, unthreaded (no `--re`), non-broadcast send to `fabrik-lib` whose cited modules
+  all belong to one owner in fabrik-lib's `.fabrik/module-owners.json` is addressed to that owner,
+  never to the sending agent itself. A module counts when cited as a path — absolute under
+  `/opt/fabrik-lib/<module>` (with or without a tail), or relative `<module>/…` unless the sender's own repo has that
+  top-level folder — or as a backticked HYPHENATED module name (`doc-crawl`). A bare single-word
+  name (`rag`, `account`) never routes on its own, but a second owner it names leaves the mail for
+  the sentinel (W-c687ce60).
 
 ## Kinds + the ack contract
 

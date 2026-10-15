@@ -572,6 +572,21 @@ def _command_run_save(sid: str, rec: dict) -> bool:
     return bool(command_run.save(sid, rec))
 
 
+def _mark_run_folders_done(rec: dict, sid: str) -> None:
+    """A `died` close ends the run, so its run-bound scratch folder — and every parked parent's —
+    is marked `done` (scratch lifecycle plan P11). Only AFTER the record saved, and never on an
+    `expired` close: a 12 h-stale `updated_ts` is no death evidence, and the folder of an operator
+    away overnight must survive (P9's dead-session rule keeps judging it)."""
+    mark = getattr(command_run, "_mark_run_scratch", None)
+    if mark is None:  # a synced command_run.py older than the scratch lifecycle plan
+        return
+    for frame in [rec, *[fr for fr in (rec.get("stack") or []) if isinstance(fr, dict)]]:
+        try:
+            mark(frame, "done", sid)
+        except Exception as exc:  # noqa: BLE001 — a marker never fails the sweep
+            _warn(f"run folder mark for {sid} failed open: {exc!r}")
+
+
 def _close_records(sources: Sources, evidence: set[str], now: float, report: CoronerReport) -> None:
     """Close what can no longer close itself. The ONLY mutations, ever:
 
@@ -623,7 +638,9 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                 rec["updated_ts"] = int(now)
                 if _command_run_save(stem, rec):
                     (report.records_died if dead else report.records_expired).append(raw_sid)
-                    if not dead:
+                    if dead:
+                        _mark_run_folders_done(rec, raw_sid)
+                    else:
                         _emit_ttl_end(sources, raw_sid, report)
         except Exception as exc:
             _warn(f"record close for {stem} failed open: {exc!r}")

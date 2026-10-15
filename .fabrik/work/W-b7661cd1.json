@@ -13,11 +13,13 @@
   },
   "next": "decide one home for the flywheel database and make the registrar match it",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "fabrik_analytics placement: documented on the WSL local Postgres (catalog-extraction design :144) yet created on postgres-main by every apply (orchestrator/infrastructure.py:690-715)"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T00:50:42.327601Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e39a8ca9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VXJ4TQ45XEWH5J237EZCK0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-execute-plan never says how the orchestrator waits for its background coders: 132 run-record Stop blocks in one session on 2026-10-13 (premature_stop_rate 8%->20%)"
+}

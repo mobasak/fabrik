@@ -17,7 +17,10 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "needs-owner",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Evaluate Jev as a severity/dedup pre-filter before the watchdog's LLM incident diagnosis (watchdog.py:577-590, incident_context.py:161-198) — intel advisory 01M3ZC4M (reported 39% lower cost; 15-33% of alerts closed at ~98% accuracy)"
 }

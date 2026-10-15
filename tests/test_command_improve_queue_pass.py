@@ -8,6 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "commands" / "_sources" / "fabrik-command-improve.md"
+# the three sentences rows 1792038532 / 1792033691 / 1792000873 amended (one subject), pinned whole
+B_CLAIM_CHECK = 'A sentence naming what a gate or script reads or refuses is checked against every branch of that function and every other path that filters or grades the same input, traced from the entry point that receives it, for every shape the sentence covers;'
+C_RUN_RULE = "A rule the edit adds is RUN before PHASE 4's first pin — applied to the edit's own grader and sentence, which obey it, and to the row's case quoted as the row gives it (or, when the row only describes it, the artifact it names, fetched and quoted), which it must flag, each verdict written beside its quote."
+A_GROUNDING = "the tool's own runtime output when a verdict is about a gate, a check or a tool, and its code, read live, when the edit restates the gate's conditions — every condition and value copied, never the prose describing them;"
 
 
 def _phase(start: str, end: str) -> str:
@@ -144,8 +148,7 @@ def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> N
     section, and an edit that cites the sentence without running the check — the review seats own that."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert (
-        "and must be obeyable in each. A rule the edit adds is checked before PHASE 4's pin on the edit's own grader and"
-        " sentence, which obey it, and on the case that raised it, which it must flag. A sentence that describes"
+        "and must be obeyable in each. " + C_RUN_RULE + " A mechanism the edit adds"
         in p3
     )
 
@@ -162,3 +165,184 @@ def test_a_reject_reason_cites_a_line_the_command_reaches() -> None:
         " it loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites"
         " the command's current text)." in p2
     )
+
+
+def test_a_count_lives_at_its_list() -> None:
+    """W-66f398a3: a paragraph that says how MANY ("wrong in FIVE ways") away from its list goes stale when the next
+    edit adds an item, and Phase D's scoped review-fix rounds kept confirming that residue. The rule lives once, in
+    the hub CLAUDE.md's § Behavior, beside READ BEFORE YOU EDIT, which every hub session loads, including the review-fix loops
+    that never render /fabrik-command-improve's PHASE 3."""
+    text = re.sub(r"\s+", " ", (ROOT / "CLAUDE.md").read_text())
+    behavior = text[text.index("## Behavior") : text.index("## ⚠️ THE FIX DIRECTIVE")]
+    assert (
+        "- **A count lives at its list.** An enumeration states how many in the clause that opens the list, or not at"
+        " all (`the ways below`, never `five ways` a sentence away), and an edit that adds an item to a list, or"
+        " removes one, re-counts every place that list's count is stated. **A worked example is re-read** against"
+        " every caveat in its own paragraph before it is pinned or committed." in behavior
+    )
+
+
+def test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consumer() -> None:
+    """Rows 1791937927 and 1791940094 (kaizen's own closes, 2026-10-14): a count rule first written per command
+    never reached the review-fix loops that wrote the stale count, and a panel's coder time box was written in
+    before anyone checked that D6, the step meant to read its `TIMEOUT:` token, never reads it. The placement rule
+    is § Drive's consistency rule (which the row names), PHASE 2 may target the home it names, and PHASE 3 checks a
+    mechanism against its consumer."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    drive = text[text.index("## Drive") : text.index("## PHASE 1")]
+    assert (
+        "a rule that binds more than this command lives where every loop that WRITES the text it governs loads it"
+        " — a fragment those commands INCLUDE, else the `CLAUDE.md` or pack they all load — never restated per"
+        " command;" in drive
+    )
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to."
+        in p2
+    )
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule, or the pack you would edit"
+        in p2
+    )
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert (
+        "A mechanism the edit adds — a token, a field, a report shape, a panel's proposal included — is checked"
+        " against the step or code that must consume it, and is written in only when that consumer reads it or"
+        " this edit wires it in." in p3
+    )
+
+
+def test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home() -> None:
+    """Rows 1791941814 and 1791944106 (kaizen's own closes, 2026-10-14): a planned HELD reject said /fabrik-spec Phase 0
+    dispatches no capped seat brief, but delegated-reads.md, which it includes, does; and a never-execute seat rule was
+    first written into subagents-core alone. The reject search reads the rendered command; a seat rule goes to every
+    home a grep names, and PHASE 2 admits the agent files those homes include."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "to FIND that line, grep the rendered command (`~/.claude/commands/<command>.md`: every fragment, the"
+        " appended close and every parameter), each file it points at for the rule, and the loaded `CLAUDE.md` for"
+        " the row's subject, then cite the line in the file it renders from." in p2
+    )
+    assert "to a seat file under `commands/_agents/` (PHASE 3's seat rules)" in p2
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule" in p2
+    )
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "An edit to what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in"
+        " the others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>' commands"
+        " .claude/workflows .claude/hooks docs/reference` names them" in p3
+    )
+    for home in (
+        "commands/_fragments/subagents-core.md",
+        "commands/_sources/fabrik-review.md",
+        "commands/_fragments/design-critique.md",
+        "docs/reference/convergence-prompts.md",
+        ".claude/workflows/fabrik-review-loop.js",
+        ".claude/hooks/seat_guard.py",
+        "commands/_agents/fabrik-reviewer.md",
+    ):
+        assert (ROOT / home).exists(), home
+    assert "const SEAT_ISOLATION" in (ROOT / ".claude/workflows/fabrik-review-loop.js").read_text()
+
+
+def test_a_row_prescribing_how_the_command_works_goes_to_the_panel_first() -> None:
+    """Row 1791961631: a row whose prescribed step contradicts another line of the command is a decision."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "A row that prescribes how the command works — a step, an order, a commit or a hand-off, not a wording — and"
+        " contradicts a line that reading finds is a decision (a NEW mechanism still routes per PHASE 2), settled"
+        ' before the first draft in CLAUDE.md § Autonomy\'s order ("the self-service sources first", then the Opus +'
+        " Fable panel), and the draft is that answer."
+    ) in p3
+
+
+def test_the_held_subject_search_reads_the_reasons_view() -> None:
+    """Mail 01M4VX84J0 (infra, D-837): the held-subject search greps `--reasons` output by reason, not by tag."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "Before rejecting, search earlier reject reasons for the subject: `python3"
+        " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
+        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
+        " output into an audit seat's scratch, never the seat."
+    ) in text
+
+
+def test_fabrik_task_third_queue_pass_lines() -> None:
+    """/fabrik-task rows 1791971413, 1791966319, 1791953313, 1791973990, 1791958891, 1791975925 (D-856):
+    subprocess-run tests found by name, a relied-on grader red-proved, vendored copies searched, the
+    live-store pin named, and MEASURE's slice re-run on the built tree."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-task.md").read_text())
+    for needle in (
+        "the tests that import, grade or run the declared files (grep the tests for each file's name and every mode"
+        " or flag the change extends, since a test that runs a script by subprocess never imports it)",
+        "a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing"
+        " until it can fail",
+        "and every vendored copy outside it (`find /opt` by the file's name)",
+        "A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail"
+        " root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there",
+        "before phase 4, MEASURE's test slice re-runs on the built tree.",
+    ):
+        assert needle in text, needle
+
+
+def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None:
+    """Row 1792031068 (kaizen, the fabrik-review Residual-sentence run): a ten-word gloss of Phase 2's by-design rule
+    became a THIRD wording beside the rule and term-edit's restatement, and cost a round. :249's clause covered a rule
+    adapted from CLAUDE.md or a fragment and forbade only narrowing; a rule stated in another command or another section
+    of the target, glossed without narrowing, was not covered. A recurrence of the held
+    other-tool-behaviour-one-fact-plus-pointer subject (D-711). Written as an EXTENSION of :249's rule (it points at
+    that rule by its own subject words, neither restating nor cutting a quote of it — the round-2 Opus seat caught a
+    quote cut mid-clause), placed between two pinned spans, so the drive test's
+    :247-252 pin and this file's :252-254 pin stay whole. Mutants, each run by the round-1 Opus seat on a copy: delete
+    the sentence; 'carries a gloss' → 'carries a long gloss'; drop 'another command or another section'; 'only where' →
+    'where'; drop 'names its source'; 'neither the pointer nor the quote' → 'the quote' (the raising case was a glossed
+    POINTER); move the sentence after the script-behaviour sentence; append a gloss-allowing sentence after it (the
+    seat's surviving mutant, killed by the follows-directly assertion)."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    head = "The rule above for a rule adapted from `CLAUDE.md` or a fragment holds"
+    assert p3.count(head) == 1, "the pointer rule left PHASE 3, or is stated twice"
+    tail = "keeps the words that do fit, and names its source."
+    sentence = p3[p3.index(head) :]
+    sentence = sentence[: sentence.index(tail) + len(tail)]
+    assert (
+        "holds for a rule stated in another command or another section of the target too, and neither the pointer nor"
+        " the quote carries a gloss: a gloss is a new wording that drifts, and a fresh wording is written only where the"
+        " rule's words do not fit the new subject, keeps the words that do fit, and names its source."
+    ) in sentence, "the extension, its gloss ban and its bounded allowance are one contiguous sentence"
+    for weakener in ("where practical", "where possible", "optionally"):
+        assert weakener not in sentence, weakener
+    # it sits between the two pinned spans — directly after the mechanism sentence and directly before the
+    # script-behaviour sentence, so nothing can be slipped in beside it
+    before = p3[: p3.index(head)]
+    assert before.rstrip().endswith("this edit wires it in."), before[-80:]
+    after = p3[p3.index(head) + len(sentence) :]
+    assert after.lstrip().startswith("A sentence that describes what a script, tool or another step DOES"), after[:80]
+
+
+def test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case() -> None:
+    """Rows 1792038532, 1792033691 and 1792000873 (kaizen, 2026-10-15) — one subject: a claim about a gate or script
+    is grounded in the real artifact, never a stand-in. (1) "every branch of that function" let two misreadings through
+    in one run, each a second code path the named function did not show (a sibling grader of the same plan text, a
+    COMMANDS tuple filtering `--init`'s input): the check now reaches every other path that filters or grades the same
+    input. (2) "checked … on the case that raised it" was satisfied by READING: a quote ban was drafted while the raising
+    case was a glossed pointer; the rule is now RUN on the row's case quoted as the row gives it. (3) an edit restating a
+    gate's conditions was drafted from the lane table's prose and dropped three of the gate's conditions: § Drive's
+    Grounding bullet now names the gate's code, every condition and value copied. Rows (2) and (3) are second sightings
+    of held subjects (apply-rule-to-origin-case, open-enforcing-code-before-restating; D-711). Mutants, each a failing
+    assertion: drop "or refuses"; drop "and every other path that filters or grades the same input"; RUN → checked;
+    drop "quoted as the row gives it"; drop the Grounding clause; "every condition and value" → "the conditions".
+    Round 1 bounded each rule with its method: the other paths are traced from the entry point that receives the
+    input (a grep of call sites is not a trace); the run names its route when the row only describes its case (the
+    artifact it names, fetched and quoted) and writes each verdict beside its quote; the code is read live."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert B_CLAIM_CHECK in p3
+    assert C_RUN_RULE in p3
+    drive = text[text.index("- **Grounding — before drafting, not after review.**") : text.index("- **Time.**")]
+    assert A_GROUNDING in drive
+    # each rule is stated once — a restatement elsewhere in the file would drift
+    assert text.count("filters or grades the same input") == 1
+    assert text.count("quoted as the row gives it") == 1
+    assert text.count("every condition and value copied") == 1

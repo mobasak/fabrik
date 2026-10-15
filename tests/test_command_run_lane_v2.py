@@ -780,8 +780,8 @@ def test_the_documented_multi_commit_close_parses_as_separate_shas(tmp_path: Pat
 
     root = Path(__file__).resolve().parents[1]
     src = (root / "commands/_sources/fabrik-task.md").read_text(encoding="utf-8")
-    assert "git rev-parse -q --verify HEAD >> <scratchpad>" in src, "the capture must append"
-    m = _re.search(r"--commit (\$\(cat <scratchpad>[^)]*\))", src)
+    assert "git rev-parse -q --verify HEAD >> <durable>" in src, "the capture must append"
+    m = _re.search(r"--commit (\$\(cat <durable>[^)]*\))", src)
     assert m, "the done line must expand the capture file UNQUOTED"
     cap = tmp_path / "commit.sha"
     cap.write_text("aaaa111\nbbbb222\n", encoding="utf-8")
@@ -1131,3 +1131,240 @@ def test_v2_a_quoted_multi_sha_commit_value_names_the_fix(run_dir: Path, tmp_pat
     assert r.returncode == 1, r.stdout + r.stderr
     assert "takes one sha per value" in r.stdout, r.stdout
     assert _rec(run_dir)["state"] == "running"
+
+
+# ── the two-sided gate (kaizen 01M4XQN131A897DAFH628FJFKJ, D-858): `/fabrik-spec start` through
+# `task_lane.admit`, opt-in on `--file`/`--declare` ──────────────────────────────────────────────
+
+
+def _spec_start(*extra: str) -> list[str]:
+    return ["start", "--command", "fabrik-spec", "--phases", "7", "--terminal", "a DRAFT", *extra]
+
+
+def _spec_handoff(run_dir: Path, repo: Path, reason: str, sid: str = "s1"):
+    seed = repo / "docs" / "seed.md"
+    seed.parent.mkdir(parents=True, exist_ok=True)
+    seed.write_text("# seed\n\n## RESUME\n- /fabrik-task the brief\n", encoding="utf-8")
+    return _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-spec",
+        "--resume",
+        "docs/seed.md",
+        "--reason",
+        reason,
+        "--feedback",
+        _FB,
+        cwd=repo,
+        sid=sid,
+    )
+
+
+def test_spec_gate_a_flagless_spec_start_is_admitted_and_noted_as_ungated(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 1 + fold 3: no `--file`/`--declare` keeps today's start, and the start says the
+    gate did not run; its close row carries `lane_gate: none` so the ungated population is
+    counted."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start(), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "lane gate not run — pass --file/--declare" in r.stderr
+    assert _rec(run_dir).get("lane_gate") == "none" and "declared" not in _rec(run_dir)
+    assert _ledger(run_dir) == []
+    r = _spec_handoff(run_dir, repo, "the brief needs a design after all")
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _rows(run_dir)[-1]
+    assert row["lane_gate"] == "none" and "downgrade" not in row and "from_downgrade" not in row
+
+
+def test_spec_gate_a_lane_verdict_refuses_the_spec_naming_why(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 2: the gate routes the declaration to the lane → refused, no record, no row."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start("--file", "src/a.py", "--declare", _V2), cwd=repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-spec: admitted → lane" in r.stdout
+    assert '--why "<the test the gate cannot see>"' in r.stdout
+    assert not (run_dir / "s1.json").exists()
+    assert _ledger(run_dir) == []
+
+
+def test_spec_gate_an_overridden_spec_start_is_admitted_and_ledgered(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 3 + folds 2, 3, 8: `--why` admits; one `spec-start` row with the verdict, the why
+    and the restart; the record carries the id; the close row joins it."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/a.py", "--declare", _V2, "--why", "the UI contract is unknown"),
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rows = _ledger(run_dir)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["route"] == "spec-start" and row["verdict"] == "lane"
+    assert row["why"] == "the UI contract is unknown" and row["files"] == ["src/a.py"]
+    assert row["restart"] == f"/fabrik-task --from-downgrade {row['id']}"
+    assert row["session"] == "s1" and Path(row["repo"]) == (repo / ".git").resolve()
+    d = _rec(run_dir)["declared"]
+    assert (d["gate"], d["verdict"], d["spec_refusal"], d["why"]) == (
+        2,
+        "lane",
+        row["id"],
+        "the UI contract is unknown",
+    )
+    assert _rec(run_dir)["lane_gate"] == "lane"
+    assert f"lane gate: lane · spec-start refusal {row['id']}" in r.stdout
+    assert "review: None" not in r.stdout and "appetite: None" not in r.stdout
+    # the handoff joins the record's OWN refusal even in the no-refusal reason form
+    r = _spec_handoff(run_dir, repo, "DOWNGRADE: no-refusal — six answers, small")
+    assert r.returncode == 0, r.stdout + r.stderr
+    fb = _rows(run_dir)[-1]
+    assert (fb["lane_gate"], fb["spec_refusal"], fb["downgrade"], fb["from_downgrade"]) == (
+        "lane",
+        row["id"],
+        "refusal",
+        row["id"],
+    )
+    # C-S-2: a reason's LR- id never overrides the record's own row (a pasted id cannot mis-join)
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/b.py", "--declare", _V2, "--why", "unknown"),
+        cwd=repo,
+        sid="s2",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    own = _rec(run_dir, "s2")["declared"]["spec_refusal"]
+    r = _spec_handoff(run_dir, repo, "DOWNGRADE: LR-0a1b2c3d — stale id pasted", sid="s2")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["from_downgrade"] == own
+
+
+def test_spec_gate_a_chain_verdict_is_admitted_without_a_row_and_stamped(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 4 + fold 3: the chain is where the work belongs — no row, but the verdict rides
+    the record and the close row (the chain-shaped cobra is a counted verdict)."""
+    repo = _repo(tmp_path, lane=2)
+    decl = _V2.replace("tradeoffs=no", "tradeoffs=yes")
+    r = _cr(
+        run_dir, *_spec_start("--file", "src/a.py", "--declare", decl, "--why", "A vs B"), cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir) == []
+    d = _rec(run_dir)["declared"]
+    assert (d["verdict"], d["why"], d.get("spec_refusal")) == ("chain: tradeoffs", "A vs B", None)
+    assert "lane gate: chain: tradeoffs" in r.stdout
+    # C-S-1: an explicit --appetite reaches the record (the `--appetite 241` lie is counted)
+    r = _cr(
+        run_dir,
+        *_spec_start(
+            "--file", "src/b.py", "--declare", decl, "--why", "A vs B", "--appetite", "60"
+        ),
+        cwd=repo,
+        sid="s2",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir, "s2")["declared"]["appetite"] == 60
+    r = _spec_handoff(run_dir, repo, "the brief needs a design after all")
+    assert _rows(run_dir)[-1]["lane_gate"] == "chain: tradeoffs"
+
+
+def test_spec_gate_a_right_now_verdict_is_refused_outright(run_dir: Path, tmp_path: Path) -> None:
+    """Fold 6: `decision=no` is a pure fix — a spec is not openable over it by prose."""
+    repo = _repo(tmp_path, lane=2)
+    decl = _V2.replace("decision=yes", "decision=no")
+    for extra in ((), ("--why", "please")):
+        r = _cr(run_dir, *_spec_start("--file", "src/a.py", "--declare", decl, *extra), cwd=repo)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "REFUSED — fabrik-spec: decision=no → right-now + /fabrik-review-scoped" in r.stdout
+        assert "re-declare decision=yes" in r.stdout
+    assert not (run_dir / "s1.json").exists() and _ledger(run_dir) == []
+
+
+def test_spec_gate_from_downgrade_stays_task_only_and_v1_ignores_the_flags(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 5 + fold 4: `--from-downgrade` names a task restarted FROM a spec; a v1 repo takes
+    the flags, notes them and never runs the v1 router (which would refuse a spec INTO the
+    chain)."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start("--from-downgrade", "LR-0a1b2c3d"), cwd=repo)
+    assert r.returncode == 1 and "belong to --command fabrik-task" in r.stdout
+    v1 = _repo(tmp_path / "v1", lane=1)
+    four = _files("src/a.py", "src/b.py", "src/c.py", "src/d.py")
+    decl = _V2.replace("oneway=no", "oneway=yes")
+    r = _cr(run_dir, *_spec_start(*four, "--declare", decl), cwd=v1, sid="s9")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "--file, --declare ignored — this repo runs lane v1" in r.stderr
+    assert "declared" not in _rec(run_dir, "s9") and _ledger(run_dir) == []
+
+
+def test_spec_gate_a_dirty_path_or_a_directory_never_refuses_a_spec(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Fold 5: a spec designs — a sibling's WIP on the surface is a note, and a directory is a
+    legitimate surface."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "src" / "a.py").write_text("x = 2\n", encoding="utf-8")  # dirty
+    r = _cr(
+        run_dir,
+        *_spec_start(
+            "--file", "src/a.py", "--file", "api", "--declare", _V2, "--why", "unknown UI"
+        ),
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "src/a.py dirty at start" in r.stderr and "REFUSED" not in r.stdout
+    d = _rec(run_dir)["declared"]
+    assert d["dirty"] == ["src/a.py"] and d["files"] == ["src/a.py", "api"]
+
+
+def test_spec_gate_the_no_refusal_downgrade_writes_downgrade_never_a_fake_id(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 6 + fold 1: on a flagless spec the no-refusal form records `downgrade:
+    no-refusal` and NO `from_downgrade` (kaizen's text: "this form records no from_downgrade and
+    mis-joins nothing"); the `LR-` form records both."""
+    repo = _repo(tmp_path, lane=2)
+    for sid, reason, want in (
+        ("s1", "DOWNGRADE: no-refusal — six answers, small", ("no-refusal", None)),
+        ("s2", "DOWNGRADE: LR-0a1b2c3d — one reversible decision", ("refusal", "LR-0a1b2c3d")),
+        ("s3", "DOWNGRADE: none — nope", (None, None)),
+    ):
+        r = _cr(run_dir, *_spec_start(), cwd=repo, sid=sid)
+        assert r.returncode == 0, r.stdout + r.stderr
+        r = _spec_handoff(run_dir, repo, reason, sid=sid)
+        assert r.returncode == 0, r.stdout + r.stderr
+        row = _rows(run_dir)[-1]
+        assert (row.get("downgrade"), row.get("from_downgrade")) == want, reason
+
+
+def test_spec_gate_a_lone_flag_and_a_dead_git_name_the_spec_not_the_task(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A-S-3/C-S-3: `--why` or `--appetite` without `--file/--declare` on a spec is refused and
+    the refusal says how they ride; A-S-1: an exception inside the gate names the command that
+    started."""
+    repo = _repo(tmp_path, lane=2)
+    for flag, val in (("--why", "x"), ("--appetite", "30")):
+        r = _cr(run_dir, *_spec_start(flag, val), cwd=repo)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "belong to --command fabrik-task" in r.stdout
+        assert "ride with --file/--declare" in r.stdout
+    nobin = tmp_path / "nobin"
+    nobin.mkdir()
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/a.py", "--declare", _V2),
+        cwd=repo,
+        extra_env={"PATH": str(nobin)},
+    )
+    assert r.returncode == 1
+    assert "REFUSED — fabrik-spec: start could not complete (FileNotFoundError)" in r.stdout
+    assert "fabrik-task" not in r.stdout

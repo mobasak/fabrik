@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T06:15:54.362574Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e75653fd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YHDCJWEEAC5X12D2F17DT4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_hub_write_root.py is red on master — src/fabrik/orchestrator/deployer_ssh.py hard-codes a hub write root (since e7057ec0a, deployer T01)"
+}

@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-06T11:33:15.963380Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-2f54dfd4",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "give each spec its own database name (the generator's id-derived default) and a shape block; the reconciler refuses a doubly-claimed database",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

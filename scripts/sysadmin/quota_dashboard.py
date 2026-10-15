@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import math
 import os
@@ -56,11 +57,22 @@ REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "20"))
 # window (or is cap-walled) — the cron tick (*/5) stays as the backstop; the board is the fast path.
 PROBE_INTERVAL_S = float(os.getenv("QUOTA_DASH_PROBE_INTERVAL_S", "20"))
 TRIGGER_THRESHOLD = float(
-    os.getenv("ROTATE_THRESHOLD", "98")
+    os.getenv("ROTATE_THRESHOLD", "99")
 )  # the tick's own default (claude_rotate._rotate_threshold) — keep the two literals equal;
 # `test_quota_dashboard.py` asserts the equality, because a dashboard that triggers at a different
 # line than the tick acts on is a trigger that either fires late or fires into a no-op.
 TRIGGER_COOLDOWN_S = float(os.getenv("QUOTA_DASH_TRIGGER_COOLDOWN_S", "120"))
+
+
+def _trip_line(acct: dict | None) -> float:
+    """The flip line for ONE account: its `session_threshold` (claude_rotate's thresholds.json, carried
+    on the status row) when set, else TRIGGER_THRESHOLD — the mirror of `claude_rotate._row_threshold`."""
+    v = (acct or {}).get("session_threshold")
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return TRIGGER_THRESHOLD
+    return float(v)
+
+
 # The URGENT-DRAIN tier (operator rule 2026-09-03): at/over 90% session the tick must run within
 # one probe interval so that, if NO successor is eligible, every repo gets the "stop gracefully,
 # hook to the next reset" mail in seconds, not in the cron's 5 minutes. Its cooldown is SEPARATE
@@ -95,6 +107,23 @@ _JSON = OUT_DIR / "quota.json"
 # The fleet's active-account pointer (a symlink). Read on every view so a flip — by the tick, a
 # --switch, or the button — regenerates the board at once instead of waiting out the floor.
 _POINTER = Path(os.getenv("QUOTA_DASH_POINTER", str(Path.home() / ".claude-fleet" / "active")))
+# The rotation's per-account WEEKLY caps (`claude_rotate._caps_file`: {email: cap%}, the operator's
+# browser reserve; 0 parks). The board edits it in place — same root as the rotation reads.
+_THRESHOLDS_FILE = Path(
+    os.getenv(
+        "QUOTA_DASH_THRESHOLDS_FILE",
+        str(
+            Path(os.getenv("CLAUDE_FLEET_ROOT", str(Path.home() / ".claude-fleet")))
+            / "thresholds.json"
+        ),
+    )
+)
+_CAPS_FILE = Path(
+    os.getenv(
+        "QUOTA_DASH_CAPS_FILE",
+        str(Path(os.getenv("CLAUDE_FLEET_ROOT", str(Path.home() / ".claude-fleet"))) / "caps.json"),
+    )
+)
 
 # ── The OpenRouter pool balance: the fleet's OTHER quota ──────────────────────────────────────
 # Until 2026-09-04 nothing on this box watched it. The pool ran to -$0.0015 of $225 and three
@@ -842,7 +871,7 @@ def _row(acct: dict, active: str | None, rank: str | None = None, posture: objec
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S, _posture_sub(posture, 'five_hour') if is_active else '')}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'seven_day') if is_active else '')}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'fable') if is_active else '')}"
-        f"{_switch_cell(slug, is_active, email, parked)}"
+        f"{_switch_cell(slug, is_active, email, parked, cap, acct.get('session_threshold'))}"
         "</tr>"
     )
 
@@ -904,7 +933,14 @@ def _pending_row(slug: str) -> str:
     )
 
 
-def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = False) -> str:
+def _switch_cell(
+    slug: str,
+    is_active: bool,
+    email: str = "",
+    parked: bool = False,
+    cap: object = None,
+    threshold: object = None,
+) -> str:
     """The manual controls. `switch →` on every row that is NOT the active pointer (switching to
     the account you are already on is not a rotation) and not PARKED (a parked account is out of
     service until enabled); `disable`/`enable` on every row with an email — the operator parks an
@@ -920,6 +956,24 @@ def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = Fal
         toggle = (
             f' <button type="button" class="switch park" data-email="{escape(email)}" '
             f'data-verb="{verb}" title="{escape(tip)}">{label}</button>'
+        )
+        # the weekly cap, editable in place: empty + cap = clear; 0 parks (the loader's contract)
+        cap_value = "" if cap is None or parked else str(int(cap))
+        toggle += (
+            f' <span class="capctl" title="Weekly cap for {escape(email)} — the fleet never picks it at or '
+            f'over this %, the rest is your browser reserve; empty clears, 0 parks">'
+            f'<input type="number" min="0" max="100" step="1" class="capin" '
+            f'data-email="{escape(email)}" value="{cap_value}" placeholder="cap %">'
+            f'<button type="button" class="switch capset" data-email="{escape(email)}">cap</button></span>'
+        )
+        thr_value = "" if threshold is None else f"{float(threshold):g}"
+        toggle += (
+            f' <span class="capctl" title="Rotate threshold for {escape(email)} — the fleet flips away at '
+            f"this % on the 5h window (and weekly when no cap is set); empty = the fleet default "
+            f'{TRIGGER_THRESHOLD:g}%">'
+            f'<input type="number" min="50" max="100" step="0.5" class="thrin" '
+            f'data-email="{escape(email)}" value="{thr_value}" placeholder="{TRIGGER_THRESHOLD:g}">'
+            f'<button type="button" class="switch thrset" data-email="{escape(email)}">rotate at</button></span>'
         )
     if parked:
         return f'<td class="act"><span class="muted">parked</span>{toggle}</td>'
@@ -1281,7 +1335,7 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
         a = head[0]
         five = _util(a, "five_hour", now)
         ra = _returns_at(a, now)
-        leaving = five is not None and five >= TRIGGER_THRESHOLD
+        leaving = five is not None and five >= _trip_line(a)
         if not leaving and _relief_candidate(payload, a, now) is not None:
             # the tick will relief-flip this active away (D-171, R6): it returns when its
             # hottest window resets, not when it trips
@@ -1357,7 +1411,8 @@ def _eligible(a: dict, now: float | None = None) -> bool:
     five, seven = _util(a, "five_hour", now), _util(a, "seven_day", now)
     if a.get("cap_walled") is True or five is None or seven is None:
         return False
-    if five >= 100.0 or seven >= 100.0 or five >= TRIGGER_THRESHOLD or seven >= TRIGGER_THRESHOLD:
+    line = _trip_line(a)
+    if five >= 100.0 or seven >= 100.0 or five >= line or seven >= line:
         return False
     return five <= _session_bar()
 
@@ -2187,10 +2242,10 @@ def _ext_matrix_table(rows: list[dict]) -> str:
 # can neither stall the 20 s probe loop nor delay the rotation trigger, and the main page never
 # carries the ~0.5 MB of rows. Every git call work.py makes here is capped at 1 s
 # (`_hook_git_budget`); a repo that still fails shows its own banner and the others list.
-_HUB_OWNERS = ("infra", "fleet", "intel", "kaizen", "operator")
+_HUB_OWNERS = ("coordinator", "infra", "fleet", "intel", "kaizen", "operator")
 # The hub agents whose owner chip and section show in every repo pane, even with nothing open, so
 # "kaizen has nothing" and "kaizen is missing" never look the same (operator ask 2026-10-11).
-_HUB_AGENTS = ("infra", "fleet", "intel", "kaizen")
+_HUB_AGENTS = ("coordinator", "infra", "fleet", "intel", "kaizen")
 REPOS_TTL_S = float(os.getenv("QUOTA_DASH_REPOS_TTL_S", "20"))
 NEXT_CAP = 160  # `next` is the bulk of the rows (1.0 MB of 1.4 MB measured); the cell is capped
 NEXT_TIP_CAP = (
@@ -2659,6 +2714,8 @@ def render(
    border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer; }}
  button.switch:hover {{ background:color-mix(in srgb, var(--accent) 12%, transparent); }}
  button.switch[disabled] {{ opacity:.5; cursor:progress; }}
+ .capctl {{ white-space:nowrap; margin-left:6px; }}
+ .capin {{ width:4.6em; font:inherit; font-size:13px; padding:5px 6px; border-radius:8px; border:1px solid var(--line, #888); background:transparent; color:inherit; margin-right:4px; }}
  @media (max-width:720px) {{ .num {{ width:auto; }} th:nth-child(1) {{ width:40%; }} }}
  nav.tabs {{ display:flex; gap:6px; margin-bottom:14px; border-bottom:1px solid var(--line); }}
  nav.tabs button {{ font:inherit; font-size:13.5px; font-weight:600; padding:8px 14px; border:1px solid transparent;
@@ -2812,7 +2869,51 @@ every session bound to the pointer follows it — no restart.</footer>
         .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
     }});
   }});
-  document.querySelectorAll("button.switch:not(.park)").forEach(function (btn) {{
+  document.querySelectorAll("button.capset").forEach(function (btn) {{
+    btn.addEventListener("click", function () {{
+      var email = btn.getAttribute("data-email");
+      var inp = btn.parentNode.querySelector("input.capin");
+      var raw = inp ? inp.value.trim() : "";
+      var cap = raw === "" ? null : Number(raw);
+      if (cap !== null && (!Number.isInteger(cap) || cap < 0 || cap > 100)) {{ alert("cap must be a whole number 0–100, or empty to clear"); return; }}
+      var ask = cap === null ? "Clear the weekly cap on " + email + "?" : "Set the weekly cap on " + email + " to " + cap + "%?" + (cap === 0 ? "\\n\\n0 PARKS it." : "");
+      if (!confirm(ask)) {{ return; }}
+      btn.disabled = true;
+      fetch("/cap", {{method: "POST", cache: "no-store",
+        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
+        body: JSON.stringify({{account: email, cap: cap}})}})
+        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
+        .then(function (sj) {{
+          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
+          alert("Cap failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
+          btn.disabled = false;
+        }})
+        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
+    }});
+  }});
+  document.querySelectorAll("button.thrset").forEach(function (btn) {{
+    btn.addEventListener("click", function () {{
+      var email = btn.getAttribute("data-email");
+      var inp = btn.parentNode.querySelector("input.thrin");
+      var raw = inp ? inp.value.trim() : "";
+      var thr = raw === "" ? null : Number(raw);
+      if (thr !== null && (!isFinite(thr) || thr < 50 || thr > 100)) {{ alert("threshold must be 50–100, or empty for the fleet default"); return; }}
+      var ask = thr === null ? "Use the fleet default threshold for " + email + "?" : "Rotate away from " + email + " at " + thr + "%?";
+      if (!confirm(ask)) {{ return; }}
+      btn.disabled = true;
+      fetch("/threshold", {{method: "POST", cache: "no-store",
+        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
+        body: JSON.stringify({{account: email, threshold: thr}})}})
+        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
+        .then(function (sj) {{
+          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
+          alert("Threshold failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
+          btn.disabled = false;
+        }})
+        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
+    }});
+  }});
+  document.querySelectorAll("button.switch:not(.park):not(.capset):not(.thrset)").forEach(function (btn) {{
     btn.addEventListener("click", function () {{
       var slug = btn.getAttribute("data-slug");
       if (!confirm("Switch the active account to " + slug + " now?\\n\\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
@@ -3019,7 +3120,7 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
         return None
     five = (row.get("five_hour") or {}).get("utilization")
     blind = bool(payload.get("probe_failed"))  # the last GOOD reading, minutes old — bar drops
-    bar = _drain_band() if blind else TRIGGER_THRESHOLD
+    bar = _drain_band() if blind else _trip_line(row)
     sess = float(five) if isinstance(five, (int, float)) else None
     hot = sess is not None and sess >= bar
     drain = sess is not None and sess >= DRAIN_TRIGGER_THRESHOLD
@@ -3184,6 +3285,90 @@ def switch_account(slug: object) -> tuple[int, dict]:
     return _run_rotate(["--switch", slug])
 
 
+def _edit_account_map(path: Path, key: str, value: object, what: str) -> tuple[int, dict]:
+    """Set (value) or clear (None) ONE account's entry in a {email: number} file the rotation reads
+    (caps.json, thresholds.json), then re-render. 502 when the file cannot be read or parsed: rewriting
+    it from {} would silently drop every other account's entry. Read-modify-write under a lock file
+    beside it (a second click or a second board could otherwise drop an entry — the tick only READS
+    these two files), written atomically. Every case-variant of the key is dropped first: the loaders
+    lowercase keys and the last duplicate wins, so a hand-written `OB@…` survived a clear of `ob@…`. The caller validated `key` against the board and `value` against the loader."""
+    lock_path = path.with_name(path.name + ".lock")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                data = {}
+            except ValueError as e:
+                return 502, {
+                    "ok": False,
+                    "error": f"{path} is not valid JSON ({e}) — fix it by hand",
+                }
+            if not isinstance(data, dict):
+                return 502, {"ok": False, "error": f"{path} is not a JSON object — fix it by hand"}
+            for k in [k for k in data if str(k).lower() == key.lower()]:
+                del data[k]
+            if value is not None:
+                data[key] = value
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            os.replace(tmp, path)
+    except OSError as exc:
+        return 502, {"ok": False, "error": f"cannot write {path}: {exc}"[:400]}
+    shown = "cleared" if value is None else f"{value}%"
+    sys.stderr.write(f"quota_dashboard: {what} {key} -> {shown} ({path})\n")
+    _rerender()
+    return 200, {"ok": True, what: data}
+
+
+def set_account_cap(email: object, cap: object) -> tuple[int, dict]:
+    """ONE account's WEEKLY cap in caps.json (`claude_rotate._caps_file`): int 0..100 (0 parks), or None
+    to clear. A bool is a typo, never a cap."""
+    if not isinstance(email, str) or email.lower() not in _known_emails():
+        return 400, {"ok": False, "error": f"unknown account {email!r} — not on the board"}
+    if cap is not None and (
+        isinstance(cap, bool) or not isinstance(cap, int) or not 0 <= cap <= 100
+    ):
+        return 400, {"ok": False, "error": "cap must be a whole number 0..100, or null to clear"}
+    return _edit_account_map(_CAPS_FILE, email.lower(), cap, "caps")
+
+
+def set_account_threshold(email: object, threshold: object) -> tuple[int, dict]:
+    """ONE account's ROTATE threshold in thresholds.json (`claude_rotate._thresholds_file`): a number
+    50..100, or None for the fleet default. Under 50 is refused — a line that low flips away from a
+    half-full account every tick (churn, not a threshold); a bool is a typo."""
+    if not isinstance(email, str) or email.lower() not in _known_emails():
+        return 400, {"ok": False, "error": f"unknown account {email!r} — not on the board"}
+    if threshold is not None and (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not math.isfinite(threshold)
+        or not 50 <= threshold <= 100
+    ):
+        return 400, {
+            "ok": False,
+            "error": "threshold must be a number 50..100, or null for the default",
+        }
+    value = (
+        None
+        if threshold is None
+        else (int(threshold) if float(threshold).is_integer() else float(threshold))
+    )
+    return _edit_account_map(_THRESHOLDS_FILE, email.lower(), value, "thresholds")
+
+
+def _rerender() -> None:
+    """After a board-driven mutation: invalidate the banner cache and render the board NOW."""
+    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
+        _budget_cache.update(ts=0.0, html="")
+        _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
+    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
+    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
+    generate()
+
+
 def _run_rotate(verb_args: list[str]) -> tuple[int, dict]:
     """Run one validated rotation-CLI verb, then invalidate the banner and re-render the board."""
     try:
@@ -3198,12 +3383,7 @@ def _run_rotate(verb_args: list[str]) -> tuple[int, dict]:
     if proc.returncode != 0:
         err = (proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")[:400]
         return 502, {"ok": False, "error": err}
-    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
-        _budget_cache.update(ts=0.0, html="")
-        _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
-    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
-    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
-    generate()
+    _rerender()
     return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
 
 
@@ -3225,7 +3405,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
-        if path not in ("/switch", "/park"):
+        if path not in ("/switch", "/park", "/cap", "/threshold"):
             self.send_error(404)
             return
         if not self.headers.get(SWITCH_HEADER):
@@ -3249,7 +3429,25 @@ class _Handler(BaseHTTPRequestHandler):
             return
         slug = (body or {}).get("account") if isinstance(body, dict) else None
         t0 = time.time()
-        if path == "/park":
+        if path == "/threshold":
+            if not isinstance(body, dict) or "threshold" not in body:
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "body needs a threshold (50..100) or null for the default",
+                    },
+                )
+                return
+            status, out = set_account_threshold(slug, body.get("threshold"))
+        elif path == "/cap":
+            if not isinstance(body, dict) or "cap" not in body:
+                self._json(
+                    400, {"ok": False, "error": "body needs a cap (0..100) or null to clear"}
+                )
+                return
+            status, out = set_account_cap(slug, body.get("cap"))
+        elif path == "/park":
             status, out = park_account(slug, body.get("park") if isinstance(body, dict) else None)
         else:
             status, out = switch_account(slug)

@@ -995,6 +995,9 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         # Derived per-stop instead, it evaporated at the session's next `start` (Phase C review
         # round 1, F5).
         "first_review_reach",
+        # every review-family `done` of the session, by what it NAMED, for the Stop hook's sixth
+        # cause — a nested review's surface otherwise died with its record (W-bdcff87a)
+        "reviewed_surfaces",
         "session_id",
         "command",
         "phases",
@@ -1015,6 +1018,8 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         "agent",
         "surface",
         "account",
+        # the run's persistent scratch dir (kaizen 01M4V0B03B) — under COMMAND_RUN_DIR in tests
+        "scratch",
     }, sorted(rec)
     assert rec["state"] == "running"
     assert _cr(run_dir, "line").stdout.rstrip("\n") == (
@@ -2901,6 +2906,21 @@ def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_di
         assert row["feedback"] == "none", f"{text!r} -> {row['feedback']}"
         assert row["feedback_to"] == [], f"{text!r} -> {row['feedback_to']}"
         (run_dir / "s1.json").unlink()
+
+
+def test_the_coordinator_is_never_a_filing_beat(run_dir: Path) -> None:
+    """Coordinator-role Finish review, pass 1 (B-sonnet 1): `_BEATS` is the FEEDBACK grammar's
+    list, four beats, and the coordinator owns none (plan 2026-10-15-plan-1-coordinator-role
+    § Decisions taken here; D-875). A `filed:` value that mentions the coordinator — the word
+    this plan puts into most closes — is never attributed to it."""
+    text = (
+        "confusion: none · waste: none · change: lean: name the coordinator rungs · "
+        "filed: mentioned the coordinator cause but no mail id"
+    )
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
+    row = _events(run_dir, "s1")[-1]
+    assert "coordinator" not in row["feedback_to"], row["feedback_to"]
 
 
 def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
@@ -8033,3 +8053,122 @@ def test_resumed_task_appetite_counts_active_time_not_the_gap(
     # ten minutes of active time, floored to whole minutes (the gap's second-rounding can shave one)
     assert re.search(r"elapsed (9|10|11)/240", line), line
     assert "past 2×" not in line and "UPGRADE" not in line
+
+
+# --- W-bdcff87a: a closed review's NAMED surface outlives the record that held it -----------------
+#
+# A nested review's surface lived only on its own record, which the pop folds into `nested` and the
+# session's next top-level `start` drops; and a nested review never stamps `first_review_reach`. So
+# an edit made before the session's first run, reviewed only by nested reviews, stayed UNREVIEWED
+# SPONTANEOUS WORK forever (site-provisioner 01M49X4BZT, 01M4AH24H7). Each review-family `done` now
+# records `{surface, adds, closed}` in the session-durable `reviewed_surfaces` list.
+
+
+def _start_cmd(run_dir: Path, command: str, sid: str, *extra: str) -> None:
+    _cr(run_dir, "start", "--command", command, "--phases", "1", "--terminal", "t", *extra, sid=sid)
+
+
+def test_only_a_done_review_records_its_surface(run_dir: Path) -> None:
+    sid = "rs-done"
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "uncommitted: api/early.py")
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "e",
+        "--surface",
+        "uncommitted: api/late.py",
+        sid=sid,
+    )
+    got = _rec(run_dir, sid).get("reviewed_surfaces")
+    assert isinstance(got, list) and len(got) == 1, got
+    assert got[0]["surface"] == "uncommitted: api/late.py", (
+        "a late `done --surface` is the one recorded"
+    )
+    assert isinstance(got[0]["closed"], int) and got[0]["closed"] > 0, got
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/blocked.py")
+    _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-review-scoped",
+        "--reason",
+        "missing infra",
+        sid=sid,
+    )
+    _start_cmd(run_dir, _PROBE, sid, "--surface", "api/probe.py")
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    got = _rec(run_dir, sid).get("reviewed_surfaces")
+    assert [e["surface"] for e in got] == ["uncommitted: api/late.py"], (
+        "a blocked review and a non-review command record nothing"
+    )
+
+
+def test_reviewed_surfaces_carry_across_start_and_join_at_pop(run_dir: Path) -> None:
+    sid = "rs-carry"
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/w.py")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    _start_cmd(run_dir, _PROBE, sid)
+    assert [e["surface"] for e in _rec(run_dir, sid)["reviewed_surfaces"]] == ["api/w.py"]
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/x.py")
+    assert _rec(run_dir, sid).get("reviewed_surfaces") == [], (
+        "a nested child starts empty — inheriting the caller's list would double it at the pop"
+    )
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    parent = _rec(run_dir, sid)
+    assert parent["command"] == _PROBE
+    assert [e["surface"] for e in parent["reviewed_surfaces"]] == ["api/w.py", "api/x.py"], parent
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    _start_cmd(run_dir, _PROBE, sid)
+    after = _rec(run_dir, sid)
+    assert "nested" not in after, "the fixture's premise: `nested` is dropped by the next start"
+    assert [e["surface"] for e in after["reviewed_surfaces"]] == ["api/w.py", "api/x.py"], (
+        "carried across the next top-level start, each once"
+    )
+
+
+def test_a_nested_review_done_records_its_surface_for_the_parent(run_dir: Path) -> None:
+    """End to end, the reported shape: an edit before any run, every review nested, the hook asked."""
+    import importlib.util as _u
+
+    spec = _u.spec_from_file_location("fgs_rs", _HOOK)
+    fgs = _u.module_from_spec(spec)
+    spec.loader.exec_module(fgs)
+    sid = "rs-e2e"
+    edit = int(time.time()) - 5
+    _start_cmd(run_dir, "fabrik-execute-plan", sid)
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "uncommitted: api/x.py")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    _cr(run_dir, "done", "--command", "fabrik-execute-plan", "--evidence", "e", sid=sid)
+    rec = _rec(run_dir, sid)
+    assert rec.get("first_review_reach") is None, "the premise: a nested review stamps no reach"
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 600) == []
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/y.py": edit}, edit - 600) == ["api/y.py"], (
+        "a path the review did not name stays unreviewed"
+    )
+
+
+def test_a_corrupt_reviewed_surfaces_value_never_wedges_a_close_or_a_start(run_dir: Path) -> None:
+    """Round 1, C4: a non-list `reviewed_surfaces` raised inside `done`, which swallowed it and left
+    the record `running` — the wedge the Stop hook then blocks on — and the same inside `start`."""
+    sid = "rs-corrupt"
+    for bad in (5, True, "x", {"closed": 1}):
+        _start_cmd(run_dir, "fabrik-review-scoped", sid)
+        f = run_dir / f"{sid}.json"
+        r = json.loads(f.read_text(encoding="utf-8"))
+        r["reviewed_surfaces"] = bad
+        f.write_text(json.dumps(r), encoding="utf-8")
+        _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+        got = _rec(run_dir, sid)
+        assert got["state"] == "done", (bad, got.get("state"))
+        assert isinstance(got["reviewed_surfaces"], list) and len(got["reviewed_surfaces"]) == 1, (
+            bad
+        )
+        r = json.loads(f.read_text(encoding="utf-8"))
+        r["reviewed_surfaces"] = bad
+        f.write_text(json.dumps(r), encoding="utf-8")
+        _start_cmd(run_dir, _PROBE, sid)
+        assert _rec(run_dir, sid)["command"] == _PROBE, ("start opened no record", bad)
+        _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)

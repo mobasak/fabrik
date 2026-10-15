@@ -17,6 +17,11 @@ from hypothesis import Phase, settings
 for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"):
     os.environ.pop(_var, None)
 
+# No test writes the live mailbox: a `monkeypatch.undo()` inside a test also undoes the fixture that
+# redirected FABRIK_MAIL_ROOT, and four test mails reached fabrik-lib's real inbox (01M4WZ36J6). The
+# process-level default below survives any undo; a test that wants a root still sets its own.
+os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
+
 settings.register_profile(
     "ci",
     max_examples=100,
@@ -267,6 +272,15 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # graders would otherwise append to the operator's real ~/.claude/state/agent-identity.jsonl.
     # Same class as the three pins above: one autouse pin, no opt-in.
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(tmp_path / "agent-identity.jsonl"))
+    # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
+    # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
+    # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.
+    monkeypatch.setenv("SCRATCH_SWEEP_ROOT", str(tmp_path / "harness"))
+    monkeypatch.delenv("SCRATCH_RUN_GRACE_S", raising=False)  # the thresholds' test seams
+    monkeypatch.delenv("SCRATCH_RUN_HEARTBEAT_S", raising=False)
+    monkeypatch.setenv(
+        "FABRIK_SCRATCH_SWEEP_LIB", str(Path(__file__).resolve().parents[1] / "scripts")
+    )
     # The caller's ROLE (`CLAUDE_AGENT`, the first source `whoami_agent.resolve_agent_name` reads):
     # a hub window runs with it set, and mail.py stamps it into every sent message's `from-agent:`
     # and reply addressing (01M3PT248G7A) — so a grader's verdict would depend on which window ran

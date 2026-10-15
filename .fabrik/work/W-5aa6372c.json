@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:30:59.375968Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5aa6372c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4XB7GJF7HNS3BQGQXY4M1SW, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "open",
+  "tags": [
+    "mail-01m4xb7gjf7hns3bqgqxy4m1sw"
+  ],
+  "title": "review_receipt.py / work-hook code changes asked by five /fabrik-review feedback rows (mail 01M4XB7GJF7HNS3BQGQXY4M1SW)"
+}

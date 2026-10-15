@@ -412,6 +412,10 @@ def record_refusal(ledger: Path, row: dict[str, Any]) -> str:
         "ts": time.time(),
         **{k: v for k, v in row.items() if k not in ("id", "ts")},
     }
+    # A `restart` the caller writes as `/fabrik-task --from-downgrade {id}` names the id this call
+    # mints (D-858: a `spec-start` row's hand-back line) — the one field that may carry it.
+    if isinstance(out.get("restart"), str) and "{id}" in out["restart"]:
+        out["restart"] = out["restart"].replace("{id}", refusal_id)
     ledger = Path(ledger)
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="ascii") as fh:

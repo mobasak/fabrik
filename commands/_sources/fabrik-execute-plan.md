@@ -55,9 +55,17 @@ TASK terminator, and the record is what proves the task is actually over.
    ticket files is NOT a set (run phase mode and report the anomaly). A
    monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`**
    (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the
-   orchestrator in the main checkout (no worktree coder, no dispatch wait — a set's tickets carry
+   orchestrator in its own working tree (no worktree coder, no dispatch wait — a set's tickets carry
    `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the
-   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged).
+   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged). In the
+   main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync`
+   files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree`
+   path even with no other plan-lock active, because every main-checkout commit on such a path distributes
+   fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases
+   still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch
+   and the merge's own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted
+   merge is concluded with a commit). That hook run is the Finish sync; run
+   `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure.
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
@@ -157,11 +165,13 @@ TASK terminator, and the record is what proves the task is actually over.
      take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch
      per unit, same Merge Protocol, no nested worktree.
    - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any
-     *other* plan-lock is `active`, run this plan in its **own git worktree, entered with `EnterWorktree`**
+     *other* plan-lock is `active`, or this is a `Profile: small` plan whose owned paths include a
+     governance-sync trigger path (§ Before You Start), run this plan in its **own git worktree, entered with
+     `EnterWorktree`**
      (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter
      for DISPATCHED coders, a different thing), so
-     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); if
-     yours is the only active run, the main checkout is fine. **Already in a linked worktree — a named
+     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); otherwise
+     the main checkout is fine. **Already in a linked worktree — a named
      agent's window, or an isolation tree a prior step created — work in place: that tree IS your
      isolation**, and a second orchestrator level would push the coders to a third, against the two-level
      rule above.
@@ -212,7 +222,7 @@ When you encounter uncertainty, resolve it yourself in this order — do NOT ask
 | 4 | `agents-fabrik.md` (the canonical map; `AGENTS.md` is a stub) | Infra map, service topology, DB schemas |
 | 5 | `docs/` + `AFCL.md` | Configuration, troubleshooting, known friction |
 | 6 | `grep` / `Read` the codebase | Existing patterns, function signatures, imports |
-| 7 | official-docs `WebFetch` (library detail) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
+| 7 | official-docs `WebFetch` (library detail) → `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
 | 8 | **STOP and ask the user** | Only after 3 failed resolution attempts across levels 1-7 |
 
 Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missing: <what you need>`
@@ -471,7 +481,8 @@ FIRST dispatch commit flips spine Status: CONVERGED → IN-PROGRESS
 while the Board has non-terminal tickets:
     eligible = ⬜ tickets with every Depends: row ✅, no pending Serialized: barrier,
                and (spine carries Epic:) Touches inside the epic's owned_paths — an escape is refused → 🔴
-    dispatch up to 3 coders, Merge-Order position order, runtime per Complexity (D2)
+    dispatch up to 3 coders in ONE message of FOREGROUND Agent calls (the turn holds until the wave returns),
+               Merge-Order position order, runtime per Complexity (D2)
     when the WAVE's coders have all returned: its per-ticket review loop as ONE run, a slice per ticket (D4)
     merge in Merge Order: squash-apply code + Board flip + applied Deltas in ONE commit (D5)
     timeout / dead coder → salvage procedure (D6); 3 same-test strikes → 🔴, CONTINUE the Board
@@ -509,6 +520,11 @@ its Touches (contract violation → its diff is rejected at acceptance).
   run the coders' tests yourself (that collapses coder and reviewer — the separation is what
   catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
   capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing (01M2803TM, 01M1S923X).
+- **A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a
+  checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a
+  throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched
+  and never commits (it is no ticket code); a gap it reports, or a shape
+  it cannot see, becomes a ticket added to the Board up front rather than a find in review.
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
@@ -546,11 +562,14 @@ its Touches (contract violation → its diff is rejected at acceptance).
   Merge Order is an authoring defect `/fabrik-plan-review` should have caught).
 - **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
   stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
-  consecutive timeouts on one ticket → 🔴.
+  consecutive timeouts on one ticket → 🔴. Every coder dispatch — a wave, a fixup, a salvage
+  review, a re-dispatch — is a FOREGROUND Agent call, so this check runs when the call returns, against the
+  coder's wall-clock from dispatch; a coder that never returns holds the turn, and what bounds it is the
+  explicit command timeouts its brief demands (§ Dispatched subagents run their work SYNCHRONOUSLY).
 - **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` —
   gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
   commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no
-  polling loop · **`simple`** →
+  dispatch wait · **`simple`** →
   a NATIVE worktree coder (Sonnet) · **`complex`** → a NATIVE worktree coder (Sonnet; Opus when the ticket
   says design-heavy) — the pool is OFF (D-181, on top of D-170's sandbox suspension), so no `NO-POOL:` is
   owed<!-- POOL OFF (D-181): `simple` → `pick_models("code", prefer="value")` pool unit · `complex` → mid pool coder — both via `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")`; D-170 (2026-09-06: 3 of 3 pool coders failed — the write sandbox has no venv; 01M1V98VN3QNS73GCR3GYF9FXH) had already suspended them with `NO-POOL: sandbox` per ticket --> · **`never-route`** →
@@ -559,7 +578,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
   AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
   carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). No `NO-POOL:` declaration is owed while the pool is OFF (D-181). Native coder tier: Sonnet default; Opus for design-heavy (auth
   flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more
-  tickets are eligible than free slots, dispatch in `## Merge Order` position order (deterministic
+  tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (deterministic
   across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at
   a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
 - **Dispatch economics (budgeted rules, not vibes):**
@@ -582,6 +601,12 @@ its Touches (contract violation → its diff is rejected at acceptance).
     what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a
     named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
     not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
+  - **Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so
+    on the Board. At GREEN, when the `QUOTA:` line's `successor` reads `none`, compare its
+    `wall in ~<m>m` forecast for the hot window with the wave's summed ticket `Appetite:` (no
+    `Appetite:`, as in a pre-rollout plan → the 30-minute estimate the dispatch timeout above uses); when the
+    wall comes first, say so on the Board, dispatch only the tickets that fit, and hold the rest until
+    `claude_rotate.py --status` (the authority) shows the reset or a rotation, so no coder is cut mid-ticket with only its WIP checkpoints.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
     reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
@@ -870,23 +895,32 @@ Report: list of files changed, tests passing (count), any issues encountered.
 
 ### Dispatch pattern
 
-Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls. This runs them truly in parallel:
+Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls, each passing
+`run_in_background=False`: they still run in parallel, and the turn holds until every one returns. The Agent
+tool's default is background, and a backgrounded wave lets the orchestrator end its turn while its coders
+run, which the Stop hook blocks (its stand-down covers stamped review seats only):
 
 ```python
 # Example: Phase B with 3 parallel subagents
 Agent(
     description="Phase B Task 4 — audit-log vendor",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 4 of the fabrik-lib integration plan..."
 )
 Agent(
     description="Phase B Task 5 — GDPR schema + routes",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 5 of the fabrik-lib integration plan..."
 )
 Agent(
     description="Phase B Task 6 — audit wiring",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 6 of the fabrik-lib integration plan..."
 )
 # All three dispatch in ONE message → true parallel execution
@@ -914,12 +948,16 @@ your context and is **re-read on every later turn** — a real session hit 42k c
 history. Conserve the orchestrator's context:
 
 - **Brief as a file:** write the phase's brief (its steps + `Interfaces` + `Global Constraints`) to a scratch
-  file (e.g. `<scratchpad>/phase-<X>-brief.md`) and give the subagent the **path**, introduced as "read this
+  file (e.g. `<run scratch>/phase-<X>-brief.md`) and give the subagent the **path**, introduced as "read this
   first — your requirements, use its exact values verbatim." Exact values (signatures, magic strings, test
   cases) live only in the brief.
-- **Report as a file:** tell the subagent to write its full report to `<scratchpad>/phase-<X>-task-<N>-report.md`
+- **Report as a file:** tell the subagent to write its full report to `<run scratch>/phase-<X>-task-<N>-report.md`
   and **return only** status + commit range + a one-line test summary + concerns. The reviewer reads the
-  brief + report + the diff (`git diff <base>..<head>`) as files.
+  brief + report + the diff (`git diff <base>..<head>`) as files. `<run scratch>` is the path this run's `start`
+  printed as `RUN-SCRATCH:` (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph); the folder
+  goes when the run is consumed, which is why the salvage diff above is written elsewhere, and why a review in a
+  later run (a resume's acceptance review of salvaged work) re-derives the brief from the plan and the ticket,
+  never from a folder another run owned.
 - **Never paste session history / prior-phase summaries into a dispatch.** A cold subagent needs only its
   brief, the `Interfaces` it touches, the Global Constraints, and your resolution of any ambiguity you
   spotted. Nothing else — not "state after Phases A–C."
@@ -1150,8 +1188,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
 
 - **(a) Main checkout** (`BASE` = `master`): the commits already sit on the branch everything integrates
   on. Nothing to merge, nothing to remove; step 7 pushes it.
-- **(b) An isolation worktree THIS run created** (step 8's concurrent-run path; `BASE` = that tree's own
-  branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
+- **(b) An isolation worktree THIS run created** (step 8's concurrent-run or sync-path isolation; `BASE` = that
+  tree's own branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
   While the session is isolated the harness refuses every route into the main checkout (`git -C`,
   `--git-dir`/`GIT_DIR`/`GIT_WORK_TREE`, a `cd` redirect, any command whose cwd resolves there), so a
   merge attempted from the worktree does not fail cleanly — it is simply blocked. The sequence is

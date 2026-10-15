@@ -149,7 +149,8 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
         in (_section(cat, "## Prose and docs fixes", "## Seat isolation"))
     )
     assert (
-        "on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path"
+        "on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff"
+        " writes `.ruff_cache` in its working directory and fails inside a read-only pin without `--no-cache`"
         in (_section(cat, "## Seat isolation", "## Loop bookkeeping"))
     )
 
@@ -328,3 +329,245 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         " red-on-revert overlays"
         " the revert on its archive copy" in iso
     )
+
+
+def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
+    """W-eaa66f83: term-coverage's scope paragraph said every obligation 'binds all five consumers alike' while round
+    zero (:16) runs before round one and every re-dispatch of a consumer that runs delta rounds, which a certification
+    gauntlet runs only where its own text names one, and rule (5) governs only a fix to a checker or a gate."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
+        " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
+    ) in text
+
+
+def test_rule_three_pointer_is_opened_before_the_pin() -> None:
+    """W-c9b727ab: rule (3) let a restating sentence be replaced by 'at most a pointer to where the fact is
+    re-derivable' without anyone opening that pointer, so a pointer to a place that no longer holds the fact passed as
+    a deletion. The pointer is now read before the pin, as rule (2)'s sweep reads each mirror, and recorded."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the"
+        " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
+        " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
+    ) in text
+
+
+def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
+    """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
+    and points at the recipe, and the pointed-at recipe still says the same."""
+    assert (
+        "never `sys.path.insert` the live tree, puts the directory that holds the top-level import name"
+        " (`<extract>/src` for `import fabrik`) at the index of the first entry ending in `site-packages` or"
+        " `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib"
+        " module shadows the stdlib, runs every probe as `python -P -B` with any PYTHONPATH entries dropped from"
+        " sys.path (without `-P` the working directory, the live repo, sits ahead of the extract) — `PIN_IMPORT` in"
+        " `.claude/workflows/fabrik-review-loop.js` is the recipe"
+    ) in _norm(SRC)
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
+    recipe = js[js.index("const PIN_IMPORT") : js.index("const SEAT_ISOLATION")]
+    assert (
+        "at the index of the first entry ending in site-packages or dist-packages, or at the end when"
+        in recipe
+    )
+    assert "never at index 0" in recipe
+    assert "run every probe as \\`python -P -B\\`" in recipe
+    assert "drop its entries from sys.path" in recipe
+
+
+def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> None:
+    """Row 1791937766: a no-op mutant (an f-string that renders the same) survived and was reported as a gap; both
+    homes of the mutant rule now require a survivor to change observable behaviour first."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "shown applied by a diff of the copy against the pin, never a grep count; a survivor is reported only once"
+        " shown to change observable behaviour (an output, return value, exit code, raised exception or written state"
+        " diffed against the unmutated copy), and an equivalent mutant, a named one included, is struck with that diff"
+        " quoted, never reported as a test gap"
+    ) in cov
+    assert (
+        "survivors reported only once shown to change observable behaviour (an output, return value, exit code, raised"
+        " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
+        " diff quoted, never a test gap"
+    ) in _norm(CAT)
+
+
+def test_fourth_review_queue_pass_lines() -> None:
+    """/fabrik-review queue, fourth pass (2026-10-14): overlay copy and pin currency (1791933800, 1791937887,
+    1791958467, 1791961253, 1791965991, 1791967675, 1791972544, 1791958633, 1791971384), write-path isolation
+    seams (1791935553), visible text of real builds (1791936682, 1791950533, 1791953413, 1791958187), re-vendor
+    tests that assume a co-located hub (1791959728), identity keys (1791982821) and predicate readers (1791985566)."""
+    text = _norm(CAT)
+    for needle in (
+        "a fix's identity or dedup key (byte vs text read, line endings, recycled ids such as inode reuse),",
+        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), named"
+        " before the closing round.",
+        "and whether that test assumes a co-located hub tree, so a standalone run of it is a known false red;",
+        "a change that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a"
+        " `HOME` or `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.",
+        "a page-type or reader move: base and head are built and each page's visible text and heading outline (h1-h3"
+        " counts) are diffed independently of any identity diff the change ships",
+        "a seat copies each file to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never"
+        " `cp -r <pin> <dest>` onto a directory that exists",
+        "`git archive` omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's"
+        " `.worktreeinclude` list, `.env` excepted)",
+        "Each later pass's brief names its own pin dir and digest, cut after the last fix, never the round-1 pin,",
+    ):
+        assert needle in text, needle
+
+
+def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None:
+    """Rows 1792001701 and 1792016553 (fabrik-review): a closing pass accepted a selector-to-id fix that dropped the
+    scoped shape the selector had matched, and a restored test guard that covered fewer pages and languages than
+    the test it replaced; 22 of 542 rejected reasons had already named the mirror clause, so the held subject
+    recurs and is edited (D-711). Phase 3's verify-the-fix list gains the question — the shapes enumerated from the
+    OLD form and listed in the fix's ledger row — and the catalogue's closing-pass brief re-checks every replaced
+    form against them. Mutants: delete the question, drop 'EVERY shape', drop 'before the fix is drafted', 'never
+    from the new one' to 'or from the new one', drop a named shape, drop a cite, move the question or a shape past
+    its '?', drop the catalogue's re-check — each fails an assertion (the question is bounded by its own '?', so a
+    clause moved elsewhere in the paragraph is not found)."""
+    text = _norm(SRC)
+    para = _section(
+        text, "verify the FIX, not just the finding", "**Never apply a fix you can't stand behind"
+    )
+    head = "does the new form still hold EVERY shape the form it replaces held"
+    assert head in para, "the question left Phase 3's verify-the-fix list"
+    rest = para[para.index(head) :]
+    assert "?" in rest, "the question lost its question mark"
+    q = rest[: rest.index("?") + 1]
+    assert q.endswith(
+        'population before it widens or narrows", asked here of every replaced form)?'
+    ), q[-80:]
+    assert (
+        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in"
+        " the fix's Pass Ledger `method:` cell beside its `round-zero probe` note"
+    ) in q, (
+        "the enumeration, its source and its record are one contiguous clause; an insertion breaks it"
+    )
+    for shape in (
+        "a selector replaced by an id or a scoped lookup",
+        "a guard replaced by a narrower one",
+        "a restored test by one covering fewer pages or languages",
+    ):
+        assert shape in q, shape
+    # the two cites quote their sources, which must still carry the quoted words
+    cite_cat = "what a replaced guard covered that its replacement does not"
+    cite_cov = "against its live population before it widens or narrows"
+    assert cite_cat in q and cite_cov in q
+    assert cite_cat in _norm(CAT), "the cite names a catalogue line that no longer exists"
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert cite_cov in cov, "the cite names a round-zero clause that no longer exists"
+    assert "; round-zero probe — <what>" in cov, (
+        "the method-cell note the question points at is gone"
+    )
+    assert "for a matcher or replacer" in q, (
+        "the cite must name the subject term-coverage gives the phrase"
+    )
+    assert "matcher clause" not in q, "an invented label a reader cannot grep for"
+    assert "or from the new one" not in q
+    assert "2026-" not in q, "a rule carries no dated incident"
+    # the closing-pass seats re-check the lead's enumeration, so the lead's step is not the only reader
+    assert (
+        "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
+        " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
+    ) in _norm(CAT)
+
+
+def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> None:
+    """Row 1792019529 (wef2, a /fabrik-review under /fabrik-task over a TypeScript reader): four rounds and 10.7 h
+    went to a tokenizer that a strict line grammar replaced in one; the catalogue's Parsers row said 'the parsing
+    model before tokens' but never that the grammar REFUSES unknown lines, that its refusal is executed before
+    every pin, or where the seats aim. The second verdict on a held parser subject (parser-residue-replace,
+    parser-fix-scope-growth-early-exit), so the subject is edited (D-711). Round 1 of its review added the
+    fail-closed COST (the lead runs the grammar over the live files and classes every refusal) and closed the
+    renamed-tokenizer and trivial-fixture escapes. Mutants: delete the clause, 'REFUSES' to 'flags', drop 'none a
+    catch-all', 'every pin' to 'the pin', drop the live-files run, drop the tokenizer escape, append 'where time
+    allows' — each fails an assertion (the clause is bounded to the Parsers row)."""
+    text = _norm(CAT)
+    row = text[text.index("- Parsers: the producer's real output contract first") :]
+    row = row[: row.index(" - ", 1)]
+    assert (
+        "a hand-written reader whose input is source in a language other than its own (TypeScript read by Python,"
+        " SQL, a Dockerfile), with no real parser of that language at hand, starts from a strict grammar that REFUSES"
+        " any line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line"
+        " of that language's own syntax that no named form admits, and run by the lead over the live files the reader"
+        " will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats attack what the"
+        " grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form can"
+        " hold."
+    ) in row, (
+        "the grammar-first rule, its executed refusal, its fail-closed cost and its escape are one clause"
+    )
+    assert row.rstrip().endswith("no line form can hold."), row[-80:]
+    assert "attack only" not in row, "'only' forbade probing wrongful refusals (round-1 finding)"
+    assert "hand-written reader" in row and "no real parser of that language at hand" in row, (
+        "a reader that uses the language's real parser is outside the clause (round-2 finding)"
+    )
+    for weakener in ("where time allows", "where practical", "optionally", "should"):
+        assert weakener not in row.lower(), weakener
+    assert "the parsing model before tokens" in row, (
+        "the clause sharpens the existing model-before-tokens rule"
+    )
+
+
+def test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses() -> None:
+    """Row 1792029250 (infra, the coordinator-role whole-plan review): one gate round-trip on by-design rows,
+    because the receipt-time sentence of the Residual section repeated the owner-and-round rule without the
+    owners-only / reason-after rule Phase 2's bullet states 240 lines earlier; the third verdict on the by-design
+    grammar (two earlier rows were routed to the receipt skeleton, infra's code), so the text is edited (D-711).
+    The clause is a POINTER in the rule's own words ("and nothing else … the reason follows them"), never a third
+    wording — term-edit.md:21 already carries a second. Mutants: delete the clause, drop 'and nothing else', drop
+    'the reason follows them', drop the Phase 2 pointer, move the clause after `Pass N`, move the by-design bullet
+    out of Phase 2 — each fails an assertion."""
+    text = _norm(SRC)
+    residual = text[text.index("**Every candidate that did not enter `confirmed:` is rowed") :]
+    sentence = residual[: residual.index("That section is NOT a parking lot")]
+    assert (
+        "(or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows them, as"
+        " Phase 2's `by design` bullet shows; the gate refuses an absent owner"
+    ) in sentence, (
+        "the receipt-time sentence must carry the owners-only rule as a pointer to Phase 2"
+    )
+    assert "owners only" not in sentence, (
+        "a third wording of the rule (round-1 finding); point, do not restate"
+    )
+    # the pointer's target is INSIDE Phase 2 and still states the rule it points at
+    phase2 = _section(text, "## Phase 2 — EXECUTE", "## Phase 3")
+    assert "The parentheses hold the owner and nothing else" in phase2
+    assert "a reason inside them, `(D-432: <why>)`, is refused as an absent owner" in phase2
+
+
+def test_the_catalogue_probes_a_deletion_surface() -> None:
+    """Rows 1792031092 and 1792030357 (kaizen, 2026-10-15), the third and fourth sightings of the held deletion-probe
+    subject 1790199460 (a whole-tree grep for deletions, HELD 2026-10-08; the review-scoped queue held the
+    removal-vs-classification half the same day): a deleting probe left an emptied directory behind and a `readdirSync`
+    on it stayed hidden; a test seed restored inputs the code under test read by name. The catalogue's hunt lines had
+    no deletion shape (0 probe rows matched 'delet' among the 7 bullets). One row now names the shape and its four
+    probes, each a command a seat can run: a `.git`-pruned `find -type d -empty` run before and after the deletion
+    (an unpruned one prints `.git/` and pre-existing empty directories, a false red; `-name .git` prunes whatever
+    way `<root>` is spelled), a grep of the code under test for each input read by name or by listing a directory,
+    the Callers grep above run from the hub and the fleet
+    repos for each deleted path, basename and directory (pointed at, not restated narrower), and, per guard on a
+    deleted input, whether it re-runs at removal or only at classification. Mutants, each a failing assertion: drop
+    the row; drop 'up to the root'; drop 'by grepping the code under test'; 'never the package' → 'the package';
+    drop the removal-vs-classification clause; drop the head's bound; a second deletion row under any head."""
+    cat = _norm(CAT)
+    hunt = _section(cat, "## The brief's hunt lines", "## Graders")
+    row = (
+        "- Deletions (a change that deletes a file, directory or input): a deleting probe also removes every directory it"
+        " empties, up to the root, as `git rm` does (`find <root> -name .git -prune -o -type d -empty -print`, run before"
+        " and after the deletion, prints no new line; a leftover hides a `readdirSync`); a seed restoring deleted inputs"
+        " first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores"
+        " no other; the Callers grep above runs for each deleted path, basename and directory from the hub and the fleet"
+        " repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at"
+        " classification."
+    )
+    assert hunt.count(row) == 1, "the Deletions hunt row is stated once, in § The brief's hunt lines"
+    # it sits between the Surfaces row and The premise row, the shape order the lead reads top to bottom
+    assert hunt.index("- Surfaces:") < hunt.index("- Deletions (") < hunt.index("- The premise:")
+    # one deletion row, however a second one is headed: the probe's own phrase appears once in the whole catalogue
+    assert cat.count("- Deletions (") == 1
+    assert cat.count("deleting probe") == 1
+    # the grep clause points at the Callers row above it instead of restating it narrower
+    callers = hunt[hunt.index("- Callers and consumers:") : hunt.index("- Deletions (")]
+    assert "the hub and the fleet repos for the file's path, basename and directory" in callers

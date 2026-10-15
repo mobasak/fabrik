@@ -227,7 +227,7 @@ to the session's EARLIEST covered window and stamps `first_review_reach` there, 
 non-review command (`/fabrik-plan-review`, `/fabrik-spec`) is covered too (D-574); a nested review, or a
 ledger holding a pair it cannot read, keeps the latest-close reach. `REVIEW_FAMILY` (`fabrik-review` +
 `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a `blocked` or `handoff`
-reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+reviewed nothing and caps the window. Every review-family `done`, nested included, also appends what it NAMED — `{surface, adds, closed}` — to the session-durable `reviewed_surfaces` list (a nested child starts it empty and joins it to the caller at the pop; `start` carries it like `covered`), and the Stop hook clears an edited path a closed entry names when the entry closed at or after the edit — so work reviewed only by nested reviews, which stamp no reach, is no longer unclearable (W-bdcff87a). Two consequences the review-family pass-3 plan
 wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
 record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
 its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND
@@ -336,7 +336,11 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   marks its rows — `command_feedback_report.py --mark-answered <command> --rows <ts,…> --commit
   <sha>`, which refuses a commit touching no corpus path and writes
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
-  rows and states how many it dropped. In a repo with a work store, TAKING a command's queue
+  rows and states how many it dropped. `--reasons <command> [--held]` is the read-only view of the
+  REJECTED rows: their ts handle, held tags and reason text, newest reject first. A D-711 audit greps it,
+  because tag names alone miss a subject held under a near-synonym. It exits rc 1 on an unreadable index, and
+  its output is large, so the orchestrator pins it into a seat's scratch rather than having the seat read
+  `~/.claude`. In a repo with a work store, TAKING a command's queue
   (`command_feedback_report.py --take <command>`) opens (or reports held) the one `kind: feedback`
   work-store item for that queue's `/fabrik-command-improve` run, and `--mark-answered` closes it
   `done` with the note `answered by <sha prefix>` — but NOT always at the same depth the `QUEUE:` line
@@ -547,8 +551,11 @@ the command?", that moment is the Stop hook.
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
 | `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
-| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints |
-| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints — and the run-folder sweep `start` launches, so consumed run folders then wait for the nightly run |
+| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to, and the run-folder sweep `start` launches; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP_LIB` | `/opt/fabrik/scripts` | the directory whose `scratch_sweep.py` the run-folder mint loads by file location (never a `sys.path` insert) |
+| `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a seat folder over this many apparent bytes prints the advisory line at `round` |
+| `COMMAND_RUN_SEAT_DU_DEADLINE_S` | `10` | the shared deadline for those `du` calls; past it a seat reads `size unmeasured` |
 
 ## The scratch advisory on a top-level close
 
@@ -573,6 +580,69 @@ Three properties are load-bearing and each has a grader:
   a grader that timed `line` passed with the call relocated into the lock, and now times `step`.
 - **It advises, it never acts.** The sweeper is invoked in dry-run `--brief`; `--apply` is the
   agent's own next command. That is the operator's constraint: nothing is deleted blindly.
+
+## A run's persistent scratch
+
+Since 2026-10-14 (kaizen 01M4V0B03B) every `start` gives its run a scratch dir that outlives the session,
+records it as `scratch`, and prints `SCRATCH: <absolute path>` after its other start lines. The session
+scratchpad lives under `/tmp`, which a WSL shutdown clears. On 2026-10-13 it took phase-2 `measure.md`,
+critique briefs and review pins with it; the record survived, because it lives under `~/.claude/state`.
+
+- **Where:** `<main checkout>/.tmp/runs/<session>/<command>-<record key>/`, rooted at the parent of
+  `git rev-parse --git-common-dir`. A linked worktree's run therefore survives `git worktree remove` at
+  merge; a submodule keeps its own root. Seats may read it (never `$HOME/.claude*`), and it is never
+  committed.
+- **Ignored or absent:** `start` makes sure git ignores `.tmp/runs/`. If git does not already, it appends
+  `/.tmp/runs/` once to the untracked `.git/info/exclude` shared by every worktree, then re-checks. If git
+  still does not ignore it (a `.gitignore` negation), no dir is made and a NOTE says why. The run itself
+  always starts.
+- **Resume:** `scratch` rides in `_RESUME_CARRY`. A `start --resume-from` keeps the seed's dir when it lies under
+  the run's root, even if the repo has since stopped ignoring it (with a NOTE), or builds the path from the seed's session, never
+  the new one's. A resume in a new session says the scratch is kept.
+- **Pruned by `start`, not scratch_sweep** (which never touches `.tmp`): a run dir goes once its newest
+  file is over 14 days old (`SCRATCH_RETENTION_S`), unless it is the current run's, a record or kept seed
+  names it, or it holds a git worktree (reported, never removed). Empty session dirs go too.
+- **Tests:** when `COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST` is set, the root is the state dir's own
+  `scratch/` (`$COMMAND_RUN_DIR/scratch`, or `$HOME/.claude/state/command-runs/scratch` under a `HOME`
+  override) with no exclude step, so a suite never writes into a live checkout.
+
+COBRA (D-253): the cheapest way to "have scratch" without the outcome is to keep writing resume
+artifacts to the `/tmp` scratchpad. The counter is the command text naming the printed `SCRATCH:` path.
+
+## A run's disposable folder (run-bound scratch)
+
+Since 2026-10-15 (plan `2026-10-15-plan-1-scratch-lifecycle`, D-867/D-870/D-877) `start` also mints the
+run's DISPOSABLE folder — the bulky seat copies, pins and probes — and prints `RUN-SCRATCH: <path>`
+after `SCRATCH:` (or `RUN-SCRATCH: none — <why>`; a start is never refused). The two differ in kind:
+`SCRATCH` is durable (resume artifacts, the design, the commit window); `RUN-SCRATCH` is removed once the
+run is consumed. The removal rules live in `docs/workstation/cleanup-automation.md` § F.
+
+- **Where:** `<harness session dir>/scratchpad/run-<command>-<started_at>-<6 hex>/`, the session dir
+  FOUND by the hub's `scratch_sweep.find_session_dirs` (two candidates and no cwd match → none, never a
+  guess). The record keeps it as `run_scratch`; a `.owner` marker beside the work carries `sid`, `key`,
+  `command`, `repo` (the common git dir), `created`, `state` and `closed_at`.
+- **Marked at every close:** `done`, `handoff` and a plain `blocked` write `done`; a quota wall writes
+  `resumable` (or `done` when its seed could not be kept). A `died` coroner close, and the next `start`
+  over a closed non-wall record, mark a still-`running` folder `done`. A run started over a forgotten
+  wall resume records the wall folder as `superseded_run_scratch` and marks it `done` at its own `done`.
+- **Heartbeat:** `step`, `round` and `dispatch` refresh the marker's mtime.
+- **Handoff refusal:** a `handoff` whose `--resume` text names this run's own folder (its basename as a
+  whole token) is refused — the successor is a new run and this folder goes after the grace.
+- **Adoption:** `start --resume-from` moves the seed's `resumable` folder into the new session as
+  `run-<new key>` and rewrites its marker's `sid`/`key`; once the resumed record is saved the marker
+  reads `running` with an `adopted` time (until then a crash leaves it `resumable` at its new path,
+  which the seed no longer names: the 72 h alarm names it and `--run-folders --retire` ends it — unless
+  the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
+  session, `--retire` refuses it and only a hand edit of `.owner` ends it).
+- **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
+  <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
+  `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.
+- **Tests:** a test seam (`COMMAND_RUN_DIR`/`PYTEST_CURRENT_TEST`) without `SCRATCH_SWEEP_ROOT` mints
+  nothing, and launches the sweep only for an explicit `FABRIK_SCRATCH_SWEEP_SCRIPT`.
+
+COBRA (D-253): the cheapest way to dodge the removal is to write bulky work outside `RUN-SCRATCH` or to
+keep a run open; the nightly size report counts the session's bytes outside running folders and names a
+run folder still open after 72 h.
 
 ## Tests
 

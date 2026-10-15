@@ -272,6 +272,59 @@ def test_fabrik_spec_phase0_downgrade_write_instruction_names_resume_heading_and
     assert "refusal id" in write_sentence
 
 
+def test_fabrik_spec_phase0_applies_the_lane_tests_when_no_refusal_row_exists():
+    """Operator ruling 2026-10-14 (widening spec D9; the recurrence of the HELD row
+    `downgrade-without-refusal`): most specs open with no `/fabrik-task` attempt behind them, so a
+    missing refusal row must not end the DOWNGRADE check. Phase 0 applies the six lane declarations,
+    the contract-path test and Phase 5's `Size: small` rule to the brief itself, BEFORE any seat, and a
+    small, reversible, internal brief hands off to `/fabrik-task <the brief>` with a reason form that
+    `command_run.py`'s `_DOWNGRADE_REASON` (an `LR-` id) cannot mis-join to a refusal."""
+    phase0 = _spec_phase0()
+    tail = _section(phase0, r"Only THEN close this run", r"Explore project context first")
+    flat = " ".join(tail.split())
+    # The no-refusal branch exists and runs before any seat (loose on wording, firm on the fact).
+    assert re.search(r"refusal\b.{0,80}\b(NOT|never) ends?\b", flat), flat
+    assert re.search(r"before any research seat", flat), flat
+    # The three tests the branch runs on the brief, each named: the mutants that dropped one survived.
+    assert "`task_lane.contract_hit` is the authority" in flat, flat
+    assert re.search(r"`--appetite` in minutes", flat), flat
+    for key in ("`decision`", "`heavy`", "`mechanism`", "`oneway`", "`tradeoffs`", "`consumers`"):
+        assert key in flat, key
+    # The gate's tokens WITH their values: a polarity flip (oneway=yes, consumers=external, "a
+    # contract hit", "over 240") must break this test, as the round-1 seats' mutants showed.
+    for tok in (
+        "`decision=yes`",
+        "`oneway=no`",
+        "`tradeoffs=no`",
+        "`consumers=internal`",
+        "no contract hit",
+        "an appetite within",
+        "240",
+        "`Size: small` rule (D-169",
+    ):
+        assert tok in flat, tok
+    # The pass verdict names the lane restart and a reason form no `LR-` join can mistake.
+    assert re.search(r"## RESUME`? naming `?/fabrik-task <the brief>", flat), flat
+    assert re.search(r'--reason "DOWNGRADE:\s*no-refusal\b', flat), flat
+    # `decision=no` is a pure fix: the lane refuses it (row 4b), so the branch must send it to
+    # right-now + /fabrik-review-scoped, never to `/fabrik-task <the brief>`.
+    assert re.search(r"`decision=no`.{0,120}/fabrik-review-scoped", flat), flat
+    # A heavy or sync pure fix owes the FULL review (task_lane.admit: decision=no + heavy/sync).
+    assert re.search(r"`decision=no`.{0,220}full `/fabrik-review`", flat), flat
+    # The trip list keeps every test's TRIPPING value, so a flipped or dropped item breaks this.
+    assert re.search(
+        r"trips one-way, a trade-off, `consumers=external`, a contract path, the 240-minute appetite"
+        r" or either size bound → proceed",
+        flat,
+    ), flat
+    # The refusal-keyed branch and its reason form are unchanged, and the no-refusal branch sits
+    # AFTER it — a cold agent reads the ledger first, then applies the tests itself.
+    assert re.search(r'--reason\s+"DOWNGRADE:\s*<[^>]*refusal id[^>]*>', phase0), phase0
+    assert phase0.index("`decision=yes`") > phase0.index("Only THEN close this run")
+    # Small work that DOES need a design stays a spec (D10): the branch names what still proceeds.
+    assert re.search(r"D10\b.{0,20}still a spec", flat), flat
+
+
 def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
     """/fabrik-spec queue (kaizen D-711 audit, 9 rows): `--terminal` is fixed at start, the
     `Size: small` verdict that decides where the run ends lands in Phase 5, and command_run.py
@@ -367,9 +420,9 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
     assert "WebFetch" not in quote_rule, "a WebFetch reply is not a raw source"
     d = norm(_section(src, r"^\*\*D\) Completeness", r"^\*\*E\) Fabrik"))
     assert ("A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it "
-            "touches); the executable sequence belongs to the plan, so when the edit loop's TWO CONSECUTIVE RESIDUE "
-            "PASSES rule forces a rewrite inside such a section, the rewrite re-shapes it to invariants + touchpoints "
-            "rather than re-wording the sequence.") in d
+            "touches); the executable sequence belongs to the plan, so every fix inside such a section is written as "
+            "invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE "
+            "PASSES rule forces a rewrite there — and never as a re-worded sequence or new mechanism.") in d
     te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
     assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
@@ -421,7 +474,7 @@ def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
             "counts twice there too)") in text
     assert "each row on ONE physical line, since the gate reads only the first line of a wrapped row" in text
     assert "surface those and stop" not in text
-    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same commit)" in text
+    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips both in the panel's approval commit)" in text
     assert ("or a cited spec that is not CONVERGED and carries no `Size: small` (`check_stage_artifacts.py` refuses "
             "a plan flip over ANY") in text
     assert ("any other goes to `/fabrik-spec-review` first) — surface those and close with `python3 "
@@ -452,17 +505,28 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
 
     text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
+    reads = norm((REPO / "commands" / "_fragments" / "delegated-reads.md").read_text(encoding="utf-8"))
+    assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
+            "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
+            "and a part the return never reaches is asked again, never read as empty.") in reads
     assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
             "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
-            "this session, its command and output cited in the spec, and Phase 3 waits on it as on the BLOCKING bullet "
-            "below. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
+            "this session, its command and output cited in the spec (a key, token or credential in that output is "
+            "described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included: the "
+            "`detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it as on the "
+            "BLOCKING bullet "
+            "below. A design rule that names stores (a matrix, an allowlist, an entity schema's fields) is preceded by an "
+            "executed census of each store's current members, and its invariants are written against that census, "
+            "never against one member. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
             "installed third-party package's behaviour stays an external claim under this gate.") in text
     assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
             "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "
             "two vendor pages contradict each other.") in text
     assert ("The brief carries only the approaches that survive 1b-bis's hard constraints and the Phase 3 cuts (fewer "
             "than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every "
-            "approach it bears on, every count from an executed probe; each seat prices each approach's mechanism "
+            "approach it bears on, and every count and every local claim a ranking rests on, each from an executed "
+            "probe with its command and output beside it (an external fact carries its cited URL instead); each "
+            "seat prices each approach's mechanism "
             "against Fabrik's hard constraints and the stack it runs on.") in panel
     assert ("verify every factual claim a dissent rests on first, fold a confirmed dissent's gap into the design (a fold "
             "that changes the ranked approach's mechanism re-dispatches the panel)") in panel
@@ -494,3 +558,24 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
               if '"run_close"' in ln]
     assert f"kept at {kept[0]}" in p.stdout, p.stdout
     assert any(kept[0] in (c.get("resume_copy"), (c.get("fields") or {}).get("resume_copy")) for c in closes), closes
+
+
+def test_fabrik_spec_phase0_no_refusal_reason_form_matches_command_run():
+    """Fold 1 (kaizen 01M4XQN131A897DAFH628FJFKJ): the reason form Phase 0 tells the agent to write
+    for a spec with no refusal row is the one `command_run.py` reads as `downgrade: no-refusal` —
+    text and code pinned to each other, and the text's own sentence ("records no `from_downgrade`")
+    stays true because that form never carries an id."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "command_run_under_test", Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    phase0 = _spec_phase0()
+    m = re.search(r'--reason "(DOWNGRADE: no-refusal — [^"]*)"', phase0)
+    assert m, "Phase 0 names the no-refusal reason form"
+    assert mod._DOWNGRADE_NOREF.match(m.group(1)), m.group(1)
+    assert mod._DOWNGRADE_REASON.match(m.group(1)) is None, "never an LR- join"
+    assert "records no `from_downgrade`" in phase0

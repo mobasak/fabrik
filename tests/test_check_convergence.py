@@ -2677,3 +2677,241 @@ def test_executed_plan_citing_an_unfilled_init_skeleton_fails(
     # The CITATION refuses — not some other check that also dislikes an unfilled receipt.
     assert gate.returncode == 1
     assert "plan-x.md: claims EXECUTED but its cited whole-plan review" in gate.stdout, gate.stdout
+
+
+# W-39d8d1fd (web-ecommerce-factory 01M493W8G3): a /fabrik-spec-review or /fabrik-plan-review
+# receipt converges by its own Pass Ledger, never by a code-review final_gate embed.
+_DESIGN_LEDGER = (
+    "\n## Pass Ledger\n\n| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
+    "| Pass 1 | opus×1 | found: 4, new: 4, confirmed: 3, fixed: 3 | method: citation |\n"
+    "| Pass 2 | opus×1 | found: 0, new: 0, confirmed: 0, fixed: 0 | method: re-derivation |\n"
+)
+
+
+def _design_receipt(tmp_path: Path, command_line: str, ledger: str = _DESIGN_LEDGER) -> Path:
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / "2026-10-14-x-spec-review.md"
+    f.write_text(
+        "# Spec review — x\n\nStatus: CONVERGED\n\n**Spec:** `docs/superpowers/specs/x.md`\n\n"
+        f"{command_line}\n" + ledger,
+        encoding="utf-8",
+    )
+    return f
+
+
+def test_a_design_review_receipt_is_graded_by_its_ledger(tmp_path: Path) -> None:
+    cc = _cc()
+    for cmd in ("/fabrik-spec-review", "/fabrik-plan-review"):
+        f = _design_receipt(tmp_path, f"**Command:** `{cmd}` (2026-10-14).")
+        assert cc._check_review(tmp_path, f) == [], cmd
+
+
+def test_a_design_review_receipt_without_a_quiet_round_fails(tmp_path: Path) -> None:
+    cc = _cc()
+    loud = _DESIGN_LEDGER.replace(
+        "found: 0, new: 0, confirmed: 0, fixed: 0", "found: 2, new: 2, confirmed: 1, fixed: 1"
+    )
+    f = _design_receipt(tmp_path, "**Command:** `/fabrik-spec-review`", loud)
+    fails = cc._check_review(tmp_path, f)
+    assert fails and "Pass Ledger" in fails[0], fails
+    assert not any("final_gate" in x for x in fails), (
+        "a design receipt is never asked for a gate embed"
+    )
+
+
+def test_a_code_review_receipt_still_needs_the_embed(tmp_path: Path) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-review · **Changed:** `a.py`")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f))
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        "Reviewed with `/fabrik-spec-review` in spirit.",  # body prose, no label
+        "**Command:** /fabrik-review of `commands/_sources/fabrik-spec-review.md`",  # second token
+        "**Command:** /fabrik-spec-review-scoped",  # a longer name
+        "**Command:** /fabrik-plan-review.md",  # a file name
+        "**Command:** /fabrik-plan-after-chat + /fabrik-plan-review",  # not the first token
+    ],
+)
+def test_the_design_route_keys_on_the_header_command_only(
+    tmp_path: Path, command_line: str
+) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, command_line)
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f)), command_line
+    # past the header zone (line 10) the label routes nothing
+    late = _design_receipt(tmp_path, "\n" * 8 + "**Command:** /fabrik-spec-review")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, late))
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        "**Command:** /fabrik-spec-review",
+        "**command:** `/Fabrik-Plan-Review`, nested under `/fabrik-plan-after-chat`",
+        "- **Command:** `/fabrik-spec-review` · **Owner:** a",
+        "> Command: /fabrik-plan-review",
+        "Command: `/fabrik-spec-review`,",
+        "**Command**: /fabrik-spec-review",
+    ],
+)
+def test_the_command_label_tolerates_markup(tmp_path: Path, command_line: str) -> None:
+    cc = _cc()
+    assert cc._check_review(tmp_path, _design_receipt(tmp_path, command_line)) == [], command_line
+
+
+def test_a_design_review_receipt_whose_last_round_confirmed_fails(tmp_path: Path) -> None:
+    """A quiet round is not the end of the loop when a LATER round confirmed defects."""
+    cc = _cc()
+    reopened = _DESIGN_LEDGER + (
+        "| Pass 3 | opus×1 | found: 1, new: 1, confirmed: 1, fixed: 1 | method: delta |\n"
+    )
+    f = _design_receipt(tmp_path, "**Command:** `/fabrik-plan-review`", reopened)
+    fails = cc._check_review(tmp_path, f)
+    assert fails and "confirmed: 1" in fails[0], fails
+
+
+def test_a_design_review_receipt_never_quiet_under_the_old_grammar_fails(tmp_path: Path) -> None:
+    """A ledger with no `confirmed:` counter (the pre-D-206 grammar) has no closing row to read, so
+    it is refused (D-842's stated cost) — never passed on a `found: 0` row."""
+    cc = _cc()
+    old = (
+        "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n"
+        "| Pass 1 | found: 4, fixed: 4 |\n| Pass 2 | found: 1, fixed: 1 |\n"
+    )
+    fails = cc._check_review(
+        tmp_path, _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old)
+    )
+    assert fails and "`confirmed:` counter" in fails[0], fails
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        # a SECOND Command line in the header must not reroute a /fabrik-review receipt
+        "header:**Command:** /fabrik-spec-review (nested citation)",
+        # a Coverage Checklist marks a code review, whatever it is labelled
+        "body:\n## Coverage Checklist\n\n| Class | Status |\n|---|---|\n",
+    ],
+)
+def test_a_code_receipt_is_never_rerouted(tmp_path: Path, extra: str) -> None:
+    cc = _cc()
+    where, line = extra.split(":", 1)
+    if where == "header":
+        f = _design_receipt(tmp_path, "**Command:** /fabrik-review\n" + line)
+    else:
+        f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", _DESIGN_LEDGER + line)
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f)), extra
+
+
+@pytest.mark.parametrize(
+    "quoted",
+    [
+        "```\n| Pass 3 | found: 0, fixed: 0 |\n```\n",  # a fence
+        "<!--\n| Pass 3 | found: 0, fixed: 0 |\n-->\n",  # a multi-line HTML comment
+        "`Pass 3 - found: 0, fixed: 0` is the quiet shape.\n",  # a code span
+    ],
+)
+def test_a_quoted_quiet_row_never_closes_a_design_loop(tmp_path: Path, quoted: str) -> None:
+    cc = _cc()
+    old = "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 4, fixed: 4 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-plan-review", old + quoted)
+    assert cc._check_review(tmp_path, f), quoted
+
+
+def test_a_later_loud_list_row_reopens_a_design_loop(tmp_path: Path) -> None:
+    """The LAST `confirmed:` row decides — a later loud round after a quiet one reopens the loop."""
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-spec-review",
+        _DESIGN_LEDGER + "| Pass 3 | opus×1 | found: 2, new: 2, confirmed: 2, fixed: 2 | m |\n",
+    )
+    assert cc._check_review(tmp_path, f)
+
+
+@pytest.mark.parametrize("tail", ["/", ":foo"])
+def test_a_command_path_suffix_does_not_route(tmp_path: Path, tail: str) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, f"**Command:** /fabrik-spec-review{tail}")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f))
+
+
+def test_a_round_heading_after_the_ledger_is_not_a_round(tmp_path: Path) -> None:
+    """A `## Round 1 — dispositions` heading is ledger-shaped but counts nothing (the live
+    web-ecommerce-factory bhdtrade receipt's shape) — only a COUNTER row closes the loop."""
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-spec-review",
+        _DESIGN_LEDGER + "\n## Round 1 — dispositions\n\nO1 fixed.\n",
+    )
+    assert cc._check_review(tmp_path, f) == []
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        "\n## Notes\n\n| Pass | Note |\n|---|---|\n| Pass 1 | found 3 stale anchors, all fixed |\n",
+        "\n## What changed\n\nRound 2 — confirmed: 2 of the round-1 claims were re-verified.\n",
+        "\n## Round 1 — found 4\n",
+        "\n## Panel\n\n- Pass 1: found 2 nits, RECORDED\n",
+    ],
+)
+def test_a_counter_outside_a_confirmed_pass_row_is_not_a_round(tmp_path: Path, after: str) -> None:
+    """Review r2: prose, headings, list items and rows without a `confirmed:` counter never reopen a
+    quiet loop — only a `| Pass N |` row carrying `confirmed:` is a round."""
+    cc = _cc()
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", _DESIGN_LEDGER + after)
+    assert cc._check_review(tmp_path, f) == [], after
+
+
+def test_a_commented_out_checklist_does_not_unroute_a_design_receipt(tmp_path: Path) -> None:
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-plan-review",
+        _DESIGN_LEDGER + "\n<!--\n## Coverage Checklist\n-->\n",
+    )
+    assert cc._check_review(tmp_path, f) == []
+
+
+def test_a_reopened_ledger_continuation_is_graded(tmp_path: Path) -> None:
+    """Review r3: a `(continued)` ledger in the pre-D-206 grammar is refused for its missing
+    `confirmed:` counters — never passed on an earlier `found: 0` row."""
+    cc = _cc()
+    old = (
+        "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 0, fixed: 0 |\n"
+        "\n## Pass Ledger (continued)\n\n| Pass 2 | found: 3, fixed: 3 |\n"
+    )
+    assert cc._check_review(
+        tmp_path, _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old)
+    )
+
+
+def test_a_later_pass_row_with_a_confirmed_counter_is_read_as_a_round(tmp_path: Path) -> None:
+    """D-842's stated cost, pinned: the one Pass-Ledger law reads every `| Pass N |` row, so a later
+    Notes row carrying `confirmed: 9` refuses the receipt — fail-closed, exactly as on a plan spine."""
+    cc = _cc()
+    notes = "\n## Notes\n\n| Pass 1 | found: 9, confirmed: 9, fixed: 9 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-plan-review", _DESIGN_LEDGER + notes)
+    assert cc._check_review(tmp_path, f)
+
+
+@pytest.mark.parametrize(
+    "quoted",
+    [
+        "```\n| Pass 2 | found: 0, confirmed: 0, fixed: 0 |\n```\n",
+        "<!--\n| Pass 2 | found: 0, confirmed: 0, fixed: 0 |\n-->\n",
+    ],
+)
+def test_a_quoted_confirmed_row_is_not_a_live_round(tmp_path: Path, quoted: str) -> None:
+    """A `confirmed:` row that exists only inside a fence or an HTML comment is a quotation — it
+    never stands in for the live ledger the pre-D-206 rows lack."""
+    cc = _cc()
+    old = "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 4, fixed: 4 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old + quoted)
+    assert cc._check_review(tmp_path, f), quoted

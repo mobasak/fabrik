@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "done",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "**Scaffold a captured-event GlitchTip secret-leak test (+ vacuity guard)** (tryton-crm `01M145D3N`, passed back 2026-08-28 after fixing the emitter leak `f273064c`). The emitter now sets `include_l..."
 }

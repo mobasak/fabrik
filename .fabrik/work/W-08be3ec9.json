@@ -1,0 +1,25 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T21:40:52.203114Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-08be3ec9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
+  },
+  "next": "when the plan for docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md is written, sweep this row's recorded items into the plan's wording and close it",
+  "note": "RECORDED — measured at the review's round 4 (Opus seat), not fixed: (1) D2 lists 'a refused sudo' among the unknown-stdout cases, but a refused sudo exits non-zero and lands in the RuntimeError branch ('could not reach'); the guarantee holds, the label is wrong. (2) V2's placeholder `<quoted dir>/compose.yaml` quotes differently from D2's shlex.quote(path + '/compose.yaml') for a path with a space. (3) V8's '6 in this tree' __pycache__ count moves with test runs (9 at the round-4 read). (4) D11's 'remaining Coolify words (:5, :395, :736, :759)' in vps_sync.py reads as complete; the file also carries Coolify words at :134-184, :247, :319-358, :729-732. | Round 5 (Opus seat): (5) D3 still says refresh_infrastructure wraps 'its two find_existing calls' in the host swap while D2/D3 replace them with the probe_app walk — the walk must run under _target_vps_env(ctx); V3 says the same of find_existing. (6) D2 'every caller runs probe_app' is too broad: reconcile-all's match rule compares app_dir candidates against ls ConfigFiles parents, no probe. (7) refresh_infrastructure's behaviour when the walk stops on error is unstated (a ProvisioningError 'could not reach <host>' is the natural shape). (8) D2's 'no <dir>/compose.yaml on <host>' should list every probed candidate. (9) V8 'seven non-import hits' covers eight grep lines (test_health_app :38 and :52).",
+  "owner": "kaizen",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Wording residue inside the W-36571dff spec review's own fixes (D-355 scope-growth exit at round 3, 2026-10-14): any further own-fix defect the remainder round raises is recorded here, not re-reviewed"
+}

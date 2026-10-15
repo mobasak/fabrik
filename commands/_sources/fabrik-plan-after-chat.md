@@ -56,13 +56,13 @@ First capture the **source of truth** — do NOT invent scope:
   skip only what the spec approval's own row minted — and the skip is VERIFIED, never assumed:
   `grep docs/DECISIONS.md` for the spec path first; row absent (the approval arrived in a bare
   conversational turn no command contract bound) → mint it HERE before planning, then proceed
-  (`/fabrik-spec-review` § after-CONVERGED owns that
+  (`/fabrik-spec-review`'s panel section, gate then flip, owns that
   mint) — a decision made HERE always rows HERE.
   **Exception — a `Size: small` spec (its own `Size:` line under `Status:`, spec § The delta D10): the
   row-absent branch above does NOT apply.** Its approval never minted at `/fabrik-spec-review` time (that
   review never ran on it) and does not mint HERE either — mint NO approval row in this phase for it.
   `/fabrik-plan-review` mints it at its own approval gate, once this plan's spec and ticket sections have
-  converged together (`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same
+  converged together (`/fabrik-plan-review`'s Small-spec exception, which flips both in the panel's approval
   commit). Proceed straight to planning.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.
@@ -187,9 +187,16 @@ Treat every intended step as unproven until verified against the real code/schem
   common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file
   strings the language server doesn't index.
 - For each table/field/migration, confirm it exists with the stated type/constraints in the real schema.
+- A rule the plan derives from data (a mapping, a ref rule, a classifier) names, for every value it reads,
+  the store that fills that value in the case the plan builds, and is grounded against those stores, never
+  against one existing instance's values: before the plan's first phase or ticket is written, an executed census
+  of each store, its command and output cited in the plan's Evidence, reads its shape (every field and its type,
+  recursing into nested items and marking which are required) and the values it holds (for a large store, each
+  read field's distinct values with counts, never a sample or one instance); a value an operator enters (a ref,
+  an id, a config key) counts as a store, and the source that accepts it is censused too.
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
-  research: `mcp__exa__web_search_exa` → `WebSearch` → `mcp__brave-search__brave_web_search` →
+  research: `WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape`** (and official-docs `WebFetch` for library detail). Capture the
   **real** endpoint / signature / auth headers / rate limits
   and **cite the source URL in the plan**. If 3 research passes still can't confirm it, record it as a
@@ -243,9 +250,12 @@ The profile's floor is about an hour of execution; larger than that ⇒ the shap
 shapes.** Write `Appetite: <minutes>` on its own line for every ticket (spine+ticket set), before its first
 `##`–`######` heading (the only zone the gate reads in a ticket), or for every phase (monolith), inside its
 own `## Phase <id>` section — state a number you actually expect THAT phase/ticket to take, never a placeholder.
-`scripts/enforcement/check_plan_tickets.py` and `check_plan_quality.py` refuse a plan carrying none, for
-plans dated on or after the rollout (older plans are not re-graded). `/fabrik-execute-plan` passes it at
-`step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>` at the phase marker; past 2×
+`scripts/enforcement/check_plan_tickets.py --plan-dir <dir>` (a plan set only — it refuses a monolith file)
+refuses a set carrying none; `check_plan_quality.py` grades every plan, a monolith included, but only under
+`final_gate.py --systemic` and as a WARN while the plan is DRAFT/PLANNED, so a monolith's lines are
+self-checked. Both apply to plans dated on or after the rollout (older plans are not re-graded).
+`/fabrik-execute-plan` passes it at `step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>`
+at the phase marker; past 2×
 elapsed it prints the standing order to stop and re-plan the rest of the phase with
 `/fabrik-plan-after-chat`, and the close records `phase_marks: <n>` / `over_appetite_phases: <k>` — an order and
 a recorded verdict, never a forced cancel.
@@ -446,6 +456,16 @@ Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A 
 byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
 bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
+
+**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem spine).
+Before writing each ticket, measure its Touches plus Context Files with the shape decision's `find … wc -c`,
+minus the exempt shared reads, packs and generated artifacts the gate drops, against `READ_BUDGET_BYTES`. A
+file the coder only reads that would put the ticket over is cited inline as `path:line` with the quoted lines
+instead of listed, only when those lines are all the coder needs from it (the cold-agent simulation decides);
+a file the ticket edits that alone exceeds the budget goes to the set's single `Integration: true` ticket.
+Then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while Touches are
+still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set completes. Build the
+spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never by retyping them.
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;
 `docs_updater`'s checkbox counters stay RAW, so never fence a DONE-WHEN checklist; copy the

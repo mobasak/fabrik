@@ -72,7 +72,7 @@ Click-based CLI. The commands below are the only public entry points for deploym
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
 | `fabrik scaffold <name> --type <t>` | 1779 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
-| `fabrik apply <spec.yaml>` | 415 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
+| `fabrik apply <spec.yaml>` | 415 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep) — the only path.** Flags: `--dry-run`, `-s KEY=VALUE`, `--yes` (accepted for compatibility; the orchestrator path never prompts), `--skip-health-check`, `--keep-on-failure` (proof-run only), `--target-vps`. The legacy flags (`--legacy`, `--use-orchestrator`, `--skip-dns`, `--skip-deploy`) were retired 2026-10-14 (plan T05, spec D1) — a stale flag gets click's `No such option`. | `orchestrator/DeploymentOrchestrator.deploy()` |
 | `fabrik redeploy <app>` | 1279 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
 | `fabrik destroy <spec>` | 950 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
 | `fabrik vps-sync [--dry-run]` | 1224 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
@@ -134,7 +134,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 
 | File | Status | Notes |
 |---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
+| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
 
 **Shape-driven registrar drivers (all implemented):**
 
@@ -158,7 +158,6 @@ Site provisioning (domain → DNS → initial deploy) is not implemented inside 
 
 | File | Role |
 |---|---|
-| `src/fabrik/deploy.py` | **Dead code.** `deploy_to_coolify(app_name, compose_content)` — legacy Coolify API deployment. Not wired to any active CLI command. Superseded by SSHDeployer. |
 | `src/fabrik/deploy_router.py` | `route_deploy(project_dir, project_type, dry_run=False)` — dispatches to WordPress pipeline vs. service pipeline based on `project_type`. Central switch used by `fabrik apply` when resolving a spec from `project.yaml`. |
 | `src/fabrik/deploy_validator.py` | `validate(project_dir)` — scaffold-level readiness (Dockerfile exists, `.env` populated, healthcheck declared, platform directive). Returns `ValidationResult` list; CLI prints them as warnings. |
 | `src/fabrik/verify.py` | `PostconditionChecker`, `verify_postconditions` decorator — general postcondition framework (HTTP 200, file-exists, env-var-set, etc.). Used by both legacy pipeline and orchestrator/verifier. |

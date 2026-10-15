@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "stale: the plan it concerns was executed and archived (bea6cafab, D-529)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "# Merge precondition for fleet's merge request 01M419R9ZS53T7KBCGKSV3GPFR (plan-1, D-529)"
 }

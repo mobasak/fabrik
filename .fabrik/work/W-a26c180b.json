@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:54:44.991951Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "b0a272d048806a0a51e7ea0840168cc239deb5c8",
+  "id": "W-a26c180b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: claim mail 01M4Z8X2JE, fix the placeholder wording in commands/_sources/fabrik-task.md, merge-request",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "Operator-flagged scratch-lifecycle gap; fleet stays paused until scratch works as designed",
+  "status": "done",
+  "tags": [
+    "mail-01m4z8x2je",
+    "queued",
+    "scratch-gap"
+  ],
+  "title": "/fabrik-task's <run-scratch> placeholder names the DURABLE folder, the opposite of the new RUN-SCRATCH: line (mail 01M4Z8X2JE; scratch-lifecycle gap, operator 2026-10-15: handle asap)"
+}

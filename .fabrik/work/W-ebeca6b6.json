@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T23:57:16.306415Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-ebeca6b6",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "emit the env var at src/fabrik/drivers/watchdog.py near the WATCHDOG_SYSTEM_PROMPT render, plus a test in tests/test_watchdog_project_prompt.py",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

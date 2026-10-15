@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T06:09:05.112204Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-49175c24",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "name the file in a ruff-row note when ruff refuses a path; decide whether --json escapes surrogates as \\\\uFFFD or keeps them",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'fails'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "title": "final_gate on a non-UTF-8 tracked name: ruff fails with 'InvalidPathCharacters' instead of the gate naming the file, and --json carries a lone \\\\udcXX escape some strict JSON parsers refuse (recorded in the git-names review)"
 }

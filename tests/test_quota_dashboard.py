@@ -709,15 +709,24 @@ def test_the_server_probes_on_its_own_cadence_without_a_viewer(tmp_path, monkeyp
 def test_the_active_account_crossing_the_session_threshold_triggers_the_tick_at_once(
     tmp_path, monkeypatch
 ):
-    """Operator rule: rotate as soon as the 5h window hits 98%. The board, which now probes every
-    20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
-    once per cooldown, never at 90%."""
+    """Operator rule: rotate as soon as the 5h window hits the flip line. The board, which probes
+    every 20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
+    once per cooldown. The drain tier is pushed to 100 so ONLY the flip tier can fire here (a literal
+    98.2 under the 99 default passed on the drain tier with the flip check dead — D-855 review)."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd, stub = _tick_env(
+        tmp_path,
+        monkeypatch,
+        session=86.0,
+        QUOTA_DASH_TRIGGER_COOLDOWN_S="60",
+        ROTATE_URGENT_DRAIN_PCT="100",
+    )
     qd.generate()
     assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
     assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
-    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=98.2)))
+    (tmp_path / "stub_rotate.py.payload").write_text(
+        json.dumps(_payload(session=qd.TRIGGER_THRESHOLD + 0.2))
+    )
     qd.generate()
     payload = json.loads(qd._JSON.read_text())
     t = qd._maybe_trigger_rotation(payload)
@@ -779,6 +788,7 @@ def test_the_trigger_runs_the_tick_under_the_cron_lock_and_off_the_loop_thread(
     """The cron runs `flock -n ~/.claude/state/rotate.lock … --tick`; the board's tick must take the
     SAME lock (two ticks deciding at once is the double-flip race) and must not stall the probe
     loop for up to TICK_TIMEOUT_S — it runs on its own thread, which the trigger returns."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     lockfile = tmp_path / "rotate.lock"
     qd, stub = _tick_env(tmp_path, monkeypatch, session=98.5, QUOTA_DASH_ROTATE_LOCK=str(lockfile))
     assert lockfile == qd.ROTATE_LOCK
@@ -815,7 +825,7 @@ def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatc
     # 98 since 2026-09-08 (D-201). The literal is pinned deliberately — deriving BOTH sides from
     # the code would let the two drift together silently, which is the only failure this grader
     # exists to catch. Update it in the same change that moves the constants, never after.
-    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 99.0
     # and the no-successor mail must stay BELOW the flip line: with a successor the flip is the
     # remedy, without one this is, and it needs runway. 90 < 98 is the design (D-201).
     assert qd.DRAIN_TRIGGER_THRESHOLD < qd.TRIGGER_THRESHOLD
@@ -3567,6 +3577,7 @@ def test_a_repo_shows_only_remaining_work_grouped_by_owner(tmp_path, monkeypatch
         assert gone not in page, gone
     heads = re.findall(r'<h3 class="owner">([^<]+)<', page)
     assert [h.split(" ")[0] for h in heads] == [
+        "coordinator",
         "infra",
         "fleet",
         "intel",
@@ -3709,6 +3720,7 @@ def test_the_owner_chips_name_the_hub_agents_and_unassigned_even_at_zero(tmp_pat
     chips = [(a, t.strip(), n) for a, t, n in _chips(qd._repos_page(fresh=True), "fabrik")]
     assert chips == [
         ("data-all", "All", "3"),
+        ('data-owner="coordinator"', "coordinator", "0"),
         ('data-owner="infra"', "infra", "2"),
         ('data-owner="fleet"', "fleet", "0"),
         ('data-owner="intel"', "intel", "0"),
@@ -3723,7 +3735,7 @@ def test_every_owner_section_is_a_closed_details_and_empty_ones_say_so(tmp_path,
     qd = _load(tmp_path, monkeypatch)
     pane = _pane(qd._repos_page(fresh=True), "fabrik")
     owners = re.findall(r'<details class="og" data-owner="([^"]*)">', pane)
-    assert owners == ["infra", "fleet", "intel", "kaizen", ""], owners
+    assert owners == ["coordinator", "infra", "fleet", "intel", "kaizen", ""], owners
     # the cache is shared by every viewer: no section is opened on the server
     assert "<details" in pane and not re.search(r"<details[^>]*\bopen\b", pane)
     kaizen = pane.split('<details class="og" data-owner="kaizen">')[1].split("</details>")[0]
@@ -3846,7 +3858,7 @@ def test_the_owner_chips_filter_remember_and_default_to_all(tmp_path, monkeypatc
     _work_repo(_opt(), "other", [{"id": "W-0000000c", "owner": "kaizen"}])
     qd = _load(tmp_path, monkeypatch)
     page = qd._repos_page(fresh=True)
-    every = ["infra", "fleet", "intel", "kaizen", ""]
+    every = ["coordinator", "infra", "fleet", "intel", "kaizen", ""]
     # nothing stored: All, every section shown and closed, in every pane
     out = _run_owner_js(page, {}, [{"pane": 0, "click": ""}, {"pane": 0, "all": True}])
     assert out["load"][0] == {"repo": "fabrik", "on": ["*"], "shown": every, "open": []}
@@ -3926,3 +3938,218 @@ def test_a_section_toggle_never_writes_back_a_stale_open_list(tmp_path, monkeypa
     steps = [{"pane": 0, "store": {"repo-open:fabrik": '["=kaizen"]'}, "toggle": "infra"}]
     out = _run_owner_js(page, {}, steps)
     assert json.loads(out["storage"]["repo-open:fabrik"]) == ["=kaizen", "=infra"]
+
+
+# ── per-account weekly caps from the board (operator ask 2026-10-14) ───────────────────────────
+
+
+def _caps_env(tmp_path, monkeypatch, seed: dict | None):
+    caps = tmp_path / "caps.json"
+    if seed is not None:
+        caps.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(caps))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, caps
+
+
+def test_cap_without_the_custom_header_is_refused(tmp_path, monkeypatch):
+    """`/cap` writes caps.json — the same CSRF guard as `/switch` and `/park`."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}')
+        assert status == 403, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_rejects_an_unknown_account_or_a_bad_value(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        for bad in (
+            b'{"account": "nobody@x.com", "cap": 80}',
+            b'{"account": "sarp@ocoron.com", "cap": "80"}',
+            b'{"account": "sarp@ocoron.com", "cap": 150}',
+            b'{"account": "sarp@ocoron.com", "cap": -1}',
+            b'{"account": "sarp@ocoron.com", "cap": true}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/cap", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_set_and_clear_write_caps_json_and_regenerate(tmp_path, monkeypatch):
+    """One click sets (or clears, with null) ONE account's weekly cap, keeps every other entry,
+    lowercases the key the rotation loader compares on, and re-renders the board."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        before = _calls(stub)
+        status, body = _post(
+            f"{base}/cap", b'{"account": "SARP@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99, "sarp@ocoron.com": 80}
+        assert ["--status", "--json"] in _calls(stub)[len(before) :]  # re-rendered after the write
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": null}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+        assert caps.with_name("caps.json.tmp").exists() is False
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_never_overwrites_an_unreadable_caps_file(tmp_path, monkeypatch):
+    """A caps.json that does not parse is refused, not replaced — rewriting it from {} would
+    silently drop every other account's reserve."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    caps.write_text("{not json")
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 502, body
+        assert caps.read_text() == "{not json"
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_on_a_missing_caps_file_creates_it(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    assert not caps.exists()
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 0}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200, body
+        assert json.loads(caps.read_text()) == {"sarp@ocoron.com": 0}
+    finally:
+        httpd.shutdown()
+
+
+def test_every_row_offers_a_cap_control_showing_the_current_cap(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _multi_payload)
+    html = qd.generate()
+    for acct in _multi_payload()["accounts"]:
+        email = acct["email"]
+        cap = acct.get("weekly_cap")
+        assert f'class="capin" data-email="{email}"' in html, email
+        want = f'value="{int(cap)}"' if cap is not None else 'value=""'
+        row = html[html.index(f'class="capin" data-email="{email}"') :][:200]
+        assert want in row, (email, row)
+        assert f'class="switch capset" data-email="{email}"' in html, email
+
+
+# ── per-account rotate thresholds from the board (operator 2026-10-14) ─────────────────────────
+
+
+def _thr_env(tmp_path, monkeypatch, seed: dict | None):
+    f = tmp_path / "thresholds.json"
+    if seed is not None:
+        f.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_THRESHOLDS_FILE", str(f))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(tmp_path / "caps.json"))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, f
+
+
+def test_threshold_set_clear_and_refusals(tmp_path, monkeypatch):
+    qd, stub, f = _thr_env(tmp_path, monkeypatch, {"mob@ocoron.com": 98})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/threshold", b'{"account": "sarp@ocoron.com", "threshold": 97}'
+        )
+        assert status == 403, body
+        for bad in (
+            b'{"account": "nobody@x.com", "threshold": 97}',
+            b'{"account": "sarp@ocoron.com", "threshold": 49}',
+            b'{"account": "sarp@ocoron.com", "threshold": 101}',
+            b'{"account": "sarp@ocoron.com", "threshold": "97"}',
+            b'{"account": "sarp@ocoron.com", "threshold": false}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/threshold", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "SARP@ocoron.com", "threshold": 97}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98, "sarp@ocoron.com": 97}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "mob@ocoron.com", "threshold": null}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"sarp@ocoron.com": 97}
+    finally:
+        httpd.shutdown()
+
+
+def test_every_row_offers_a_threshold_control_and_the_trigger_reads_the_override(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+
+    def payload():
+        p = _multi_payload()
+        p["accounts"][0]["session_threshold"] = 97.0
+        return p
+
+    monkeypatch.setattr(qd, "_probe", payload)
+    html = qd.generate()
+    for acct in payload()["accounts"]:
+        email = acct["email"]
+        assert f'class="thrin" data-email="{email}"' in html, email
+        assert f'class="switch thrset" data-email="{email}"' in html, email
+    first = payload()["accounts"][0]["email"]
+    row = html[html.index(f'class="thrin" data-email="{first}"') :][:220]
+    assert 'value="97"' in row, row
+    assert qd._trip_line(payload()["accounts"][0]) == 97.0
+    assert qd._trip_line(payload()["accounts"][1]) == qd.TRIGGER_THRESHOLD
+
+
+def test_the_account_map_writer_drops_case_variants_and_holds_the_lock(tmp_path, monkeypatch):
+    """D-855 review: a hand-written `OB@…` survived a board clear of `ob@…` (the loaders lowercase and
+    the last duplicate wins), and no grader died when the flock was removed. The writer must drop every
+    case-variant, and a write must WAIT while another holder has `<file>.lock`."""
+    import fcntl
+    import threading
+
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_rerender", lambda: None)
+    f = tmp_path / "thresholds.json"
+    f.write_text(json.dumps({"OB@ocoron.com": 60, "x@y.co": 97}))
+    status, _body = qd._edit_account_map(f, "ob@ocoron.com", None, "thresholds")
+    assert status == 200 and json.loads(f.read_text()) == {"x@y.co": 97}
+    status, _body = qd._edit_account_map(f, "x@y.co", 95, "thresholds")
+    assert json.loads(f.read_text()) == {"x@y.co": 95}
+
+    done = threading.Event()
+    th = threading.Thread(
+        target=lambda: (qd._edit_account_map(f, "z@y.co", 90, "thresholds"), done.set())
+    )
+    with open(tmp_path / "thresholds.json.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        th.start()
+        try:
+            assert not done.wait(0.5), "the writer did not wait for the lock holder"
+            assert "z@y.co" not in json.loads(f.read_text())
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+    th.join(5)
+    assert done.is_set() and json.loads(f.read_text()) == {"x@y.co": 95, "z@y.co": 90}

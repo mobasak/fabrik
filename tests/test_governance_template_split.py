@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3345-3351`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3356-3362`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:543-556` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3326-3343` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3337-3354` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -200,12 +200,17 @@ T6_CLAIMS = (
     "committing by PATHSPEC",
     "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "
     "commit",
+    # W-a7bdd766 (2026-10-15) — run-bound scratch shipped at 1da14fcd7 but neither contract told an
+    # agent to use it, so seat copies kept landing loose in the session scratchpad (D-879's residue).
+    "**A `/fabrik-*` run's disposable bulk goes in its `RUN-SCRATCH:` folder**",
+    "never loose in the scratchpad",
+    "a seat reads its brief, not this file",
 )
 
 
 def test_the_shared_tree_commit_rules_are_identical_in_both_contracts() -> None:
-    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry the same three
-    sentences, byte for byte.
+    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry every T6_CLAIMS
+    span exactly once each, byte for byte.
 
     The two files are deliberately NOT byte-identical overall — the hub's is the hub agents' own
     contract — so nothing binds a shared rule across them except a grader like this one. A rule
@@ -783,13 +788,33 @@ def test_the_lane_table_is_mirrored_into_the_fleet_template_row_for_row() -> Non
 
 
 def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
-    """The lane table ships with three PROSE paragraphs — the precedence sentence, the no-code
-    clause and the tripwire — and the row-comparison above reads none of them. Executed: inverting
-    the template's no-code verdict to "take the `/fabrik-task` lane anyway", gutting the tripwire,
-    and deleting both paragraphs outright each passed the whole suite."""
+    """The lane table ships with four PROSE paragraphs — the precedence sentence, the under-doubt
+    default (D-858: `/fabrik-task` is the lane under doubt, the spec chain the exception a tripped
+    test earns), the no-code clause and the tripwire — and the row-comparison above reads none of
+    them. Executed: inverting the template's no-code verdict to "take the `/fabrik-task` lane
+    anyway", gutting the tripwire, and deleting both paragraphs outright each passed the whole
+    suite; the default paragraph was added 2026-10-14 after at least 52 of 77 specs since lane v2
+    never met the lane gate, so its mirror and its VERDICT are pinned here too."""
     hub_s = _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
     tpl_s = _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
-    for lead in ("**No code surface at all**", "**Tripwire:**"):
+    # The default paragraph's VERDICT and its ordering: it sits between the table and the no-code
+    # clause in BOTH contracts, so a reader who stops at the table's last row still meets it first.
+    for s in (hub_s, tpl_s):
+        assert "**Under doubt the lane is `/fabrik-task`.**" in s, s[:200]
+        assert "The spec chain is the exception a tripped test earns" in s
+        # the closing verdict too — a round-1 seat deleted it from BOTH contracts and the mirror
+        # check (h == t) passed, so the mirror alone pins nothing about what the paragraph says
+        assert "feature-sized included, starts here." in s
+        assert (
+            s.index("| 6 |")
+            < s.index("**Under doubt the lane is")
+            < s.index("**No code surface at all**")
+        )
+    for lead in (
+        "**Under doubt the lane is `/fabrik-task`.**",
+        "**No code surface at all**",
+        "**Tripwire:**",
+    ):
         assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
         h = hub_s[hub_s.index(lead) :].split("\n", 1)[0]
         t = tpl_s[tpl_s.index(lead) :].split("\n", 1)[0]
@@ -876,10 +901,18 @@ _GATE_CITES = {
     "final_gate.py:1621-1631": "if (",
     ":1288": "elif code == 5:",
     ":1331": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3326-3343": "missing = _toolchain_missing(PYTHON)",
-    ":3345-3351": "# Determine tier",
+    ":3337-3354": "missing = _toolchain_missing(PYTHON)",
+    ":3356-3362": "# Determine tier",
 }
 
+
+# A range cite's END line too: a start-only check let a wrong end number pass (review of the +11 move).
+_GATE_CITE_ENDS = {
+    ":543-556": "}",
+    "final_gate.py:1621-1631": "):",
+    ":3337-3354": "return 2",
+    ":3356-3362": "tier = 2",
+}
 
 # The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
 _HUB_ONLY_GATE_CITES = {":82": "RUFF = str(VENV_RUFF)"}
@@ -897,6 +930,12 @@ def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
             assert gate[first - 1].strip().startswith(construct), (
                 f"final_gate.py:{first} no longer holds {construct!r} — move the cite in BOTH contracts"
             )
+            if cite in _GATE_CITE_ENDS:
+                last = int(cite.rsplit("-", 1)[1])
+                assert gate[last - 1].strip().startswith(_GATE_CITE_ENDS[cite]), (
+                    f"final_gate.py:{last} no longer ends {cite} with {_GATE_CITE_ENDS[cite]!r} — "
+                    "move the cite's end in BOTH contracts"
+                )
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     for cite, construct in _HUB_ONLY_GATE_CITES.items():
         assert cite in hub, f"CLAUDE.md: the cite {cite} is gone — re-derive it"
@@ -1585,6 +1624,7 @@ def _check_hub_shared_repo(text: str) -> None:
         assert needle in opening, f"§ Shared repo's opening does not name {needle!r}: {opening!r}"
     head = item[:900]
     for wt in (
+        "`.claude/worktrees/infra`",
         "`.claude/worktrees/fleet`",
         "`.claude/worktrees/intel`",
         "`.claude/worktrees/kaizen`",
@@ -1657,18 +1697,19 @@ _HUB_MUTANTS = (
     ),
     (
         "shared-old-opening",
-        "- **Shared repo — the MAIN CHECKOUT's writers are agent-1 (infra, the merge owner) and "
-        "the daily pipeline.**",
+        "- **Shared repo — the MAIN CHECKOUT's writers are agent-1 (the coordinator, the merge "
+        "owner, D-874) and the daily pipeline.**",
         "- **Shared repo — you are ONE of THREE concurrent Claude sessions here (plus the daily "
         "pipeline).**",
         _check_hub_shared_repo,
     ),
     (
         "shared-fleet-intel-edit-main",
-        "Fleet, intel and kaizen work in `.claude/worktrees/fleet`, `.claude/worktrees/intel` and "
-        "`.claude/worktrees/kaizen` and never edit the main checkout, yet",
-        "Fleet, intel and kaizen also edit the main checkout; `.claude/worktrees/fleet`, "
-        "`.claude/worktrees/intel` and `.claude/worktrees/kaizen` stay unused, yet",
+        "Infra, fleet, intel and kaizen work in `.claude/worktrees/infra`, `.claude/worktrees/fleet`, "
+        "`.claude/worktrees/intel` and `.claude/worktrees/kaizen` and never edit the main checkout, yet",
+        "Infra, fleet, intel and kaizen also edit the main checkout; `.claude/worktrees/infra`, "
+        "`.claude/worktrees/fleet`, `.claude/worktrees/intel` and `.claude/worktrees/kaizen` stay "
+        "unused, yet",
         _check_hub_shared_repo,
     ),
     (
@@ -1809,7 +1850,9 @@ def _check_hub_exit_finish_duty(text: str) -> None:
     assert "[--item <W-id>]" in flat, "the --item option is not named"
     assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
     assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
-    assert "infra (the merge owner) merges it" in flat, "the hub's merge owner is not named"
+    assert "the coordinator (the merge owner) merges it" in flat, (
+        "the hub's merge owner is not named"
+    )
     assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
     adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
     assert len(adhoc) == 2, "the ad-hoc clause moved"
@@ -1826,7 +1869,7 @@ def test_the_hubs_exit_names_the_merge_request_as_the_worktree_finish() -> None:
 
 _T05B_MUTANTS = (
     ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
-    ("owner-dropped", "infra (the merge owner) merges it", "someone merges it"),
+    ("owner-dropped", "the coordinator (the merge owner) merges it", "someone merges it"),
     (
         "lead-in-broadened",
         "In a linked worktree, finished work is a merge request:",
@@ -1876,3 +1919,73 @@ def test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_chec
         "treat the condition as TRUE by default",
     ):
         assert hub.count(phrase) == 1 and template.count(phrase) == 1, phrase
+
+
+# ── The coordinator's duties reach the hub agents too (W-cfff98dd a) ──────────────────────────────
+
+COORDINATOR_LEAD = "**The coordinator role (hub D-868, D-871).**"
+
+
+def _paragraph_led_by(text: str, lead: str) -> list[str]:
+    """Every paragraph (maximal run of non-blank lines) whose first line starts with `lead`."""
+    out, cur = [], []
+    for line in text.splitlines() + [""]:
+        if line.strip():
+            cur.append(line)
+            continue
+        if cur and cur[0].startswith(lead):
+            out.append("\n".join(cur))
+        cur = []
+    return out
+
+
+def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None:
+    """Operator 2026-10-15: "you and all these agents will know their duties by heart even though they
+    lose context? if not you must". A project loads the template as its CLAUDE.md on every session start,
+    compact and resume; the hub loads only its own CLAUDE.md, so the hub coordinator held a pointer to its
+    duties, not the duties. The hub carries the paragraph too, byte-identical, once each. (A hook include
+    was rejected: the hook output would pass the 10,000-character hook cap - D-888.)"""
+    # bytes, not read_text, and no CR at all: universal newlines and splitlines() would both hide a CRLF
+    # drift (review O-6, N-2)
+    hub = (FABRIK / "CLAUDE.md").read_bytes().decode("utf-8")
+    template = (FABRIK / TEMPLATE_REL).read_bytes().decode("utf-8")
+    assert "\r" not in hub and "\r" not in template, "a contract picked up CRLF line endings"
+    # a raw count too: an indented or glued-on second copy is no paragraph lead, yet still a copy (review S-3)
+    assert hub.count(COORDINATOR_LEAD) == 1 and template.count(COORDINATOR_LEAD) == 1, (
+        hub.count(COORDINATOR_LEAD), template.count(COORDINATOR_LEAD))
+    in_hub = _paragraph_led_by(hub, COORDINATOR_LEAD)
+    in_template = _paragraph_led_by(template, COORDINATOR_LEAD)
+    assert len(in_template) == 1, len(in_template)
+    assert len(in_hub) == 1, f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
+    assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
+    # the hub-only sentence that settles where the hub rulings outrank the paragraph (review O-6)
+    assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1
+
+
+def test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere() -> None:
+    """W-2bc42fc3 (operator 2026-10-15: "why did you say this needs full fabrik-review for just editing an md file"):
+    the trigger read as ANY operator request. Row 1b now scopes it in both contracts; every other site points there.
+    Mutants: drop the clause from either row 1b; restore "anything an operator asked for by name" in either 1a;
+    restore the bare trigger in the scoped source or "anything the owner asked for by name" in the rules pack."""
+    clause = (
+        "operator-named work (the operator explicitly asked for the full `/fabrik-review`, or asked by name for a "
+        "code or config change — naming alone never routes up a diff with no code surface, the "
+        "\"No code surface at all\" paragraph's set)"
+    )
+    for rel, end in (("CLAUDE.md", _STEP0_END), (TEMPLATE_REL, _STEP0_END_TPL)):
+        path = FABRIK / rel
+        text = path.read_text(encoding="utf-8")
+        rows = {r[0]: r for r in _lane_table(text, end)[1:]}
+        assert clause in rows["1b"][1], path.name
+        assert "anything an operator asked for by name" not in text, path.name
+        assert ">5 files, or operator-named work, lane row 1b — never a no-code-surface diff on naming alone)" in text
+    scoped = (FABRIK / "commands/_sources/fabrik-review-scoped.md").read_text(encoding="utf-8")
+    assert (
+        "or operator-named work (`CLAUDE.md` lane row 1b — never a no-code-surface diff on naming alone)"
+        " → open NO record"
+        in scoped
+    )
+    assert ">5 files, operator-named work (lane row 1b), or" in scoped
+    pack = " ".join((FABRIK / ".windsurf/rules/core/50-code-review.md").read_text(encoding="utf-8").split())
+    assert "operator-named work (CLAUDE.md lane row 1b — never a no-code-surface diff on naming alone)" in pack
+    assert "anything the owner asked for by name" not in pack

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T21:02:28.873833Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-ea9bfb04",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "exclude public-prefix keys in _is_likely_secret with a red-first test; regenerate test-mobile's from_env; add the EAS env note to the pack (infra)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "fleet checked 2026-10-15: not fixed — _is_likely_secret over-flags EXPO_PUBLIC_/NEXT_PUBLIC_/VITE_ public keys; harmless false positive, small change",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "queued"
   ],
   "title": "scaffold._is_likely_secret classifies public client-bundle values (EXPO_PUBLIC_*_KEY, and likely NEXT_PUBLIC_/VITE_) as secrets, so every generated mobile spec lists the RevenueCat keys under secrets.from_env and fabrik plan/apply warn they are missing; also specs/services/test-mobile.yaml still lists the retired EXPO_PUBLIC_REVENUECAT_API_KEY, and 81-mobile-billing.md does not say EAS builds need the keys as EAS env vars (.env is not uploaded)"
 }

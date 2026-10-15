@@ -55,6 +55,8 @@ def _run(
         "PATH": "/usr/bin:/bin",
         "HOME": os.environ.get("HOME", "/tmp"),
         "SCRATCH_SWEEP_NOW": str(NOW),
+        # never the live hub's worktrees — the janitor pass (W-18e66a92) reads this seam
+        "SCRATCH_SWEEP_JANITOR_REPO": "",
     }
     e.update(env or {})
     return subprocess.run(
@@ -2184,3 +2186,287 @@ def test_an_ignored_output_dir_is_data_only_tool_caches_go_by_name(repo: Path) -
     (tree / "dist" / "important-notes.txt").write_text("only copy\n", encoding="utf-8")
     rows = _rows(mod, repo)
     assert rows["wt-ign-dist"].cls == "wt-ignored-data", rows["wt-ign-dist"]
+
+
+# ── W-18e66a92: the janitor takes dead subagents' harness worktrees ────────────────────────────
+#
+# Every harness tree is born holding the `.worktreeinclude` copy of `.env`; once main's `.env` is
+# rotated that copy differs and the tree reads `wt-ignored-data` forever. A copy whose bytes are
+# preserved in the main checkout's `backups/` is not data, and `--dead` now runs a harness pass.
+
+
+def _w18_module(tag: str):
+    name = f"scratch_sweep_{tag}"
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # @dataclass resolves its module through sys.modules
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _janitor_repo(tmp_path: Path) -> Path:
+    main = tmp_path / "hub"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "main")
+    _git(main, "config", "user.email", "t@t")
+    _git(main, "config", "user.name", "t")
+    (main / "a.txt").write_text("base", encoding="utf-8")
+    (main / ".gitignore").write_text(".env\nbackups/\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "base")
+    (main / ".env").write_text("CURRENT=1\n", encoding="utf-8")
+    (main / "backups").mkdir()
+    (main / "backups" / "hub.env.retired.backup").write_text("RETIRED=1\n", encoding="utf-8")
+    return main
+
+
+def _harness_tree(main: Path, name: str, env: str | None, *, age_s: float, now: float) -> Path:
+    path = main / ".claude" / "worktrees" / name
+    _git(main, "worktree", "add", "-q", str(path), "-b", f"worktree-{name}")
+    if env is not None:
+        (path / ".env").write_text(env, encoding="utf-8")
+    meta = main / ".git" / "worktrees" / name
+    for f in ("gitdir", "index", "HEAD", "logs/HEAD"):
+        if (meta / f).exists():
+            os.utime(meta / f, (now - age_s, now - age_s))
+    return path
+
+
+def test_an_ignored_copy_preserved_in_backups_is_not_data(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_rebuild")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    wt = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=0, now=now)
+    assert sweep._rebuildable(wt, ".env", main, ignored=True), "a preserved copy is not data"
+    assert not sweep._rebuildable(wt, ".env", main, ignored=False), "the untracked path never"
+    (wt / ".env").write_text("UNPRESERVED=1\n", encoding="utf-8")
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "an unpreserved copy is data"
+    (wt / ".env").write_text("", encoding="utf-8")
+    (main / "backups" / "empty.backup").write_text("", encoding="utf-8")
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "an empty file proves nothing"
+    (wt / ".env").write_text("LINKED=1\n", encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere.txt"
+    elsewhere.write_text("LINKED=1\n", encoding="utf-8")
+    (main / "backups" / "link.backup").symlink_to(elsewhere)
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "a symlinked backup never"
+
+
+def test_the_janitor_removes_a_dormant_harness_worktree(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_remove")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    old = 4 * DAY
+    dead = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=old, now=now)
+    gone = _harness_tree(main, "agent-bbbbbbbbbbbbbbbb", "RETIRED=1\n", age_s=old, now=now)
+    subprocess.run(["rm", "-rf", str(gone)], check=True)  # a stale registration: prunable
+    _git(main, "merge", "-q", "worktree-agent-aaaaaaaaaaaaaaaa")
+    _git(main, "merge", "-q", "worktree-agent-bbbbbbbbbbbbbbbb")
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    assert not dead.exists(), "a dormant, merged, clean harness tree whose .env is preserved goes"
+    assert "agent-bbbbbbbbbbbbbbbb" in _git(main, "worktree", "list", "--porcelain"), (
+        "no repo-wide `git worktree prune` from the janitor"
+    )
+
+
+def test_the_janitor_spares_named_fresh_and_unremovable_worktrees(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_spare")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    old = 4 * DAY
+    named = _harness_tree(main, "fleet", "RETIRED=1\n", age_s=old, now=now)
+    fresh = _harness_tree(main, "agent-cccccccccccccccc", "RETIRED=1\n", age_s=60, now=now)
+    active = _harness_tree(main, "agent-dddddddddddddddd", "RETIRED=1\n", age_s=old, now=now)
+    os.utime(main / ".git" / "worktrees" / "agent-dddddddddddddddd" / "logs" / "HEAD", (now, now))
+    unpreserved = _harness_tree(main, "agent-eeeeeeeeeeeeeeee", "SECRET=only\n", age_s=old, now=now)
+    dirty = _harness_tree(main, "agent-ffffffffffffffff", "RETIRED=1\n", age_s=old, now=now)
+    (dirty / "work.txt").write_text("in flight", encoding="utf-8")
+    for b in ("fleet", *(f"agent-{c * 16}" for c in "cdef")):
+        _git(main, "merge", "-q", f"worktree-{b}")
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    for tree, why in (
+        (named, "a named worktree is a peer's, never the janitor's"),
+        (fresh, "a fresh tree may belong to a running subagent"),
+        (active, "recent git activity is not dormancy, whatever the creation time"),
+        (unpreserved, "an unpreserved .env is the only copy of its bytes"),
+        (dirty, "uncommitted work stays"),
+    ):
+        assert tree.exists(), why
+
+
+def test_the_dead_mode_runs_the_janitor_pass(monkeypatch, tmp_path: Path) -> None:
+    sweep = _w18_module("w18_wire")
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        sweep, "janitor_worktrees", lambda *a, **k: calls.append(k.get("apply")) or []
+    )
+    monkeypatch.setattr(sweep, "dead_sessions", lambda *a, **k: ([], [], []))
+    monkeypatch.setattr(sweep, "_scratch_root", lambda: tmp_path)
+    monkeypatch.setattr(sweep, "_janitor_repo_root", lambda: tmp_path)
+    sweep.main(["--dead"])
+    assert calls == [False], "the dry run lists the janitor's harness rows"
+
+
+def test_the_janitor_repo_is_a_seam_never_the_live_hub(
+    graveyard: tuple[Path, Path, Path], tmp_path: Path, monkeypatch
+) -> None:
+    """Round 1, C1: the repo came from the script's own path, so every `--dead --apply` test ran
+    the real janitor against the live hub. `SCRATCH_SWEEP_JANITOR_REPO` names it; empty = skip."""
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    dead = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=4 * DAY, now=now)
+    _git(main, "merge", "-q", "worktree-agent-aaaaaaaaaaaaaaaa")
+    env = _dead_env(graveyard, SCRATCH_SWEEP_NOW=str(now), SCRATCH_SWEEP_JANITOR_REPO=str(main))
+    proc = _run("--dead", "--apply", env=env)
+    assert proc.returncode == 0, proc.stderr
+    assert not dead.exists(), proc.stdout
+    sweep = _w18_module("w18_seam")
+    monkeypatch.setenv("SCRATCH_SWEEP_JANITOR_REPO", "")
+    assert sweep._janitor_repo_root() is None, "empty means no janitor pass"
+
+
+def test_the_janitor_reads_the_trees_own_registration(tmp_path: Path) -> None:
+    """Round 1, C2: two trees sharing a basename get suffixed registrations; the dormancy check
+    read `.git/worktrees/<basename>` and so judged a fresh tree by an old one's clock."""
+    sweep = _w18_module("w18_collide")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    elsewhere = main / "elsewhere"
+    elsewhere.mkdir()
+    old = elsewhere / "agent-dddddddddddddddd"
+    _git(main, "worktree", "add", "-q", str(old), "-b", "worktree-old")
+    _git(main, "merge", "-q", "worktree-old")
+    meta_old = main / ".git" / "worktrees" / "agent-dddddddddddddddd"
+    fresh = _harness_tree(main, "agent-dddddddddddddddd", "RETIRED=1\n", age_s=0, now=now)
+    _git(main, "merge", "-q", "worktree-agent-dddddddddddddddd")
+    for f in ("gitdir", "HEAD", "logs/HEAD"):
+        if (meta_old / f).exists():
+            os.utime(meta_old / f, (now - 4 * DAY, now - 4 * DAY))
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    assert fresh.exists(), "a fresh tree is never judged by another registration's clock"
+
+
+def test_a_backup_swapped_for_a_fifo_or_symlink_never_hangs_or_follows(tmp_path: Path) -> None:
+    """Round 1, C3: the index is cached on the directory's mtime, so an entry swapped for a FIFO
+    or a symlink inside one tick was read blind — a FIFO hung the janitor, a symlink was followed."""
+    import threading
+
+    sweep = _w18_module("w18_swap")
+    main = _janitor_repo(tmp_path)
+    data = b"RETIRED=1\n"
+    entry = main / "backups" / "hub.env.retired.backup"
+    st = (main / "backups").stat()
+    assert sweep._preserved_in_backups(main, data, ".env"), "control: the regular file matches"
+    entry.unlink()
+    target = tmp_path / "t.env"
+    target.write_bytes(data)
+    entry.symlink_to(target)
+    os.utime(main / "backups", ns=(st.st_atime_ns, st.st_mtime_ns))
+    assert not sweep._preserved_in_backups(main, data, ".env"), "a swapped-in symlink is followed"
+    entry.unlink()
+    os.mkfifo(entry)
+    os.utime(main / "backups", ns=(st.st_atime_ns, st.st_mtime_ns))
+    got: list[bool] = []
+    t = threading.Thread(
+        target=lambda: got.append(sweep._preserved_in_backups(main, data, ".env")), daemon=True
+    )
+    t.start()
+    t.join(5)
+    if t.is_alive():
+        os.close(os.open(entry, os.O_WRONLY | os.O_NONBLOCK))
+        t.join(5)
+        raise AssertionError("a swapped-in FIFO hung the backups match")
+    assert got == [False]
+
+
+def test_an_unrelated_backup_with_the_same_bytes_never_matches(tmp_path: Path) -> None:
+    """Round 1, S1: any top-level backup with equal bytes matched, whatever it was a backup OF; a
+    short generic file could collide. The backup's name must name the file it preserves."""
+    sweep = _w18_module("w18_unrelated")
+    main = _janitor_repo(tmp_path)
+    (main / "backups" / "settings.json.backup").write_text("DEBUG=1\n", encoding="utf-8")
+    assert not sweep._preserved_in_backups(main, b"DEBUG=1\n", ".env")
+    assert sweep._preserved_in_backups(main, b"RETIRED=1\n", ".env")
+
+
+# ── V6: untagged entries classify exactly as before run-bound scratch (scratch lifecycle plan B6) ──
+def _golden_rows(stdout: str, root: Path) -> list[tuple[str, str, str]]:
+    """`(path relative to the root, class, reason)` per table row — the summary line excluded."""
+    rows: list[tuple[str, str, str]] = []
+    for line in stdout.splitlines():
+        cells = [c.strip() for c in line.split(" · ")]
+        if len(cells) < 4 or not cells[0].startswith(str(root)):
+            continue
+        rows.append((str(Path(cells[0]).relative_to(root)), cells[2], cells[3]))
+    return sorted(rows)
+
+
+# Captured from the PRE-change code (Phase A commit 5bed978ff, before any Phase B edit).
+_S = "-opt-fixture/11111111-2222-3333-4444-555555555555/scratchpad/"
+GOLDEN_SESSION: list[tuple[str, str, str]] = [
+    (_S + ".keep", "kept", "the keep list itself — kept at any age"),
+    (_S + "a-link", "unclassified", "a symlink — never followed, never removed"),
+    (_S + "fresh-dir", "fresh", "newest file 60m old"),
+    (_S + "held-dir", "stale", "newest file 7.0h old"),
+    (_S + "kept-dir", "kept", "named in .keep"),
+    (
+        _S + "old.bak",
+        "holds-backups",
+        "stale, but holds a backup shape (--include-backups to remove)",
+    ),
+    (_S + "stale-dir", "stale", "newest file 7.0h old"),
+]
+GOLDEN_DEAD: list[tuple[str, str, str]] = [
+    (
+        "-opt-fixture/11111111-2222-3333-4444-555555555555",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/aaaaaaaa-1111-1111-1111-111111111111",
+        "live",
+        "a sessions file matches a running pid + procStart",
+    ),
+    (
+        "-opt-fixture/bbbbbbbb-2222-2222-2222-222222222222",
+        "dead",
+        "its sessions file names a pid that is gone; dir idle 30.0d",
+    ),
+    (
+        "-opt-fixture/cccccccc-3333-3333-3333-333333333333",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/dddddddd-4444-4444-4444-444444444444",
+        "unclassified",
+        "its sessions file names a pid that is gone, but its dir was touched 8m ago — a gone pid is not a finished session",
+    ),
+    (
+        "-opt-fixture/eeeeeeee-5555-5555-5555-555555555555",
+        "dead-holds-backups",
+        "its sessions file names a pid that is gone; holds a backup shape (--include-backups)",
+    ),
+    (
+        "-opt-old-project/ffffffff-6666-6666-6666-666666666666",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    ("fe-pristine", "protected", "holds a backup shape — the root level is where baselines sit"),
+    ("mcp-health-cache", "protected", "live system state, by name"),
+    ("payments-c4", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+    ("recent-thing", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+]
+
+
+def test_untagged_classification_golden(scratch: Path, graveyard: tuple[Path, Path, Path]) -> None:
+    """Spec V6: a scratchpad with no `run-*` folder classifies row for row as it did before the
+    marker existed, in session mode and in `--dead` (plan B6)."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    (pad / "old.bak").write_text("the only copy", encoding="utf-8")
+    _age(pad / "old.bak", 9 * HOUR)
+    (pad / "a-link").symlink_to(pad / "stale-dir")
+    session = _run("--session", SID, env=_env(scratch))
+    dead = _run("--dead", env=_dead_env(graveyard))
+    assert session.returncode == 0 and dead.returncode == 0, session.stderr + dead.stderr
+    assert _golden_rows(session.stdout, scratch) == GOLDEN_SESSION, session.stdout
+    assert _golden_rows(dead.stdout, graveyard[0]) == GOLDEN_DEAD, dead.stdout

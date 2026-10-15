@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:02.206301Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-39ca9acc",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4YTXV0F7G8Z6G9RWVM4WGK1, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "open",
+  "tags": [
+    "mail-01m4ytxv0f7g8z6g9rwvm4wgk1"
+  ],
+  "title": "Flaky test: test_final_gate_stop_hook coroner-reaped case went red once under a concurrent 30-file run (mail 01M4YTXV0F7G8Z6G9RWVM4WGK1)"
+}

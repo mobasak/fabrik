@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T07:57:06.986407Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "17fea6635c5c23c5b1e1cd9bf232caa59938dd18",
+  "id": "W-2bc42fc3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: one wording edit via /fabrik-command-improve fabrik-review-scoped; CLAUDE.md lines need the coordinator or infra to land",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "Every agent over-escalates small doc edits to the multi-seat review, burning quota; one wording edit",
+  "status": "done",
+  "tags": [
+    "queued",
+    "wording"
+  ],
+  "title": "The 'operator-named work' escalation trigger sends a 5-file doc-only edit to the full /fabrik-review (coordinator, 2026-10-15: charter edits the operator asked for by name were routed up; operator: 'why did you say this needs full fabrik-review for just editing an md file' / 'nothing needs full fabrik-review'). Wording in commands/_sources/fabrik-review-scoped.md (step 1 classify + SKIP/ESCALATE list) and CLAUDE.md § Completion Contract 1a / lane row 1b reads as ANY operator request; scope it to operator-named HEAVY work, and state that a docs-only diff off the sync path never routes up on that trigger alone"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "0cf4d202aee160c9a24c133211aa6630900571d8e5646e183da75fd326f46269",
+  "blocked_by": [],
+  "created": "2026-10-14T12:18:22.214342Z",
+  "creator": "d976e95f-ac1a-49a0-8cb4-f127571fac20",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-63a5d70f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "eb6a424641ef0146c956a7d6aeea00828bb3e5f0e42327bedb291665c93a3733"
+  ],
+  "next": "",
+  "note": "operator 2026-10-14: 'find a way so that we can dispatch claude cloud subagents ... utilize the credits' — fired as the probe, run cse_016DNpeaBhzoJ7xxMHRtAZUP",
+  "owner": "",
+  "priority": 2,
+  "question": "Fire the routine once now to prove the cloud side can clone and push mobasak/fabrik?",
+  "status": "done",
+  "title": "Fire the routine once now to prove the cloud side can clone and push mobasak/fabrik?"
+}

@@ -1,8 +1,9 @@
 # Review probe catalogue
 
 The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE — never
-all of them — before every pin, the first and each delta, and while writing every brief. Each is a step, not a check
-box: execute it, or name in the brief why the shape does not have it.
+all of them, § Seat isolation excepted: it applies whole in every brief that runs tests — before every pin, the first
+and each delta, and while writing every brief. Each is a step, not a check box: execute it, or name in the brief why
+the shape does not have it.
 
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
@@ -17,9 +18,10 @@ box: execute it, or name in the brief why the shape does not have it.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
-- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode whitespace
-  class, the real committed files' shapes counted by an independent parser) and probe it again before each delta; keep
-  an adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
+- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or
+  dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, the
+  real committed files' shapes counted by an independent parser) and probe it again before each delta; keep an
+  adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
   false green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
@@ -46,21 +48,28 @@ box: execute it, or name in the brief why the shape does not have it.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
-  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
-  hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
-  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every reader of a
-  changed or vendored file's text that never imports it (a scaffold fold such as
+  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link
+  fields, hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not
+  only what its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every
+  reader of a changed or vendored file's text that never imports it (a scaffold fold such as
   `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
-  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
-  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
+  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a
+  glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
   `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
-  repo-wide service lists and absence statements.
+  repo-wide service lists and absence statements; every reader of a changed predicate's verdict (a notice, message or
+  wall line that reads the same hold), named before the closing round.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
   interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's format, and a
-  skip check reuses the consumer's own parser.
+  skip check reuses the consumer's own parser; a hand-written reader whose input is source in a language other than
+  its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand, starts from a
+  strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal executed before
+  every pin on a line of that language's own syntax that no named form admits, and run by the lead over the live
+  files the reader will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats
+  attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line
+  form can hold.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every
@@ -68,7 +77,9 @@ box: execute it, or name in the brief why the shape does not have it.
   the rule's cost on the previous behaviour; the reader reports each escape shape as executed or read.
 - State and concurrency: who waits on a new lock and behind what; new module-level state reset on every return; every
   value a changed predicate sees from each writer (0 vs NULL); whether a filtered counter keeps its own records; which
-  fixture scopes run before an autouse pin; an env-leak fix where `delenv` on an absent key records nothing.
+  fixture scopes run before an autouse pin; an env-leak fix where `delenv` on an absent key records nothing; a change
+  that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a `HOME` or
+  `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.
 - Failure paths: what a fix does when its own fallback fails; the configuration-failure path; a fail-soft mail or
   report path fed malformed stored data; a shell chain whose failing step must fail the chain (a gate line gates the
   commit, never only prints); a dry-run and write path diffed field by field; a validator's direct-call path.
@@ -76,24 +87,35 @@ box: execute it, or name in the brief why the shape does not have it.
   machine-parsed section markers; a literal pipe inside a table cell; a moved reference and which sentence branch
   reaches it; each mechanism claim at every lane or version it names; `git check-ignore` on the bare directory;
   defects split between a hook and its generator; a changed compose overlay read through its merged render (`docker
-  compose -f <base> -f <overlay> config`), where precedence and port exposure show.
+  compose -f <base> -f <overlay> config`), where precedence and port exposure show; a page-type or reader move: base
+  and head are built and each page's visible text and heading outline (h1-h3 counts) are diffed independently of any
+  identity diff the change ships, and the preview server runs on each language root, since a dist diff cannot see dev-
+  or preview-only settings.
+- Deletions (a change that deletes a file, directory or input): a deleting probe also removes every directory it
+  empties, up to the root, as `git rm` does (`find <root> -name .git -prune -o -type d -empty -print`, run before
+  and after the deletion, prints no new line; a leftover hides a `readdirSync`); a seed restoring deleted inputs
+  first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores
+  no other; the Callers grep above runs for each deleted path, basename and directory from the hub and the fleet
+  repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at
+  classification.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
-  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
-  `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
-  for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs sentence
-  about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers
-  — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe —
-  never only the cases the author listed; a seat names the whole input class of a finding it raises; a re-vendor brief
-  hands the
-  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
-  the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header, else the `Vendored-From:` trailer
-  of the commit that vendored it; HEAD when neither does: `git -C <source> show <sha>:<source path>`) against the copy
-  minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief
-  names the source's own regression test for the file at that SHA, run with its import path pointed at the copy (or says
-  the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the
-  vendored copy's own header, every importer of it, and every name it reads from each module vendored beside it (its
-  `from … import` names and each `module.attr` use), each shown present in that module's copy.
+  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to
+  a `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and
+  asks for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs
+  sentence about its behaviour) is checked against every case the dependency defines for the keys or behaviour the
+  claim covers — each branch and alias in its source at that version, else its versioned reference docs plus an
+  executed probe — never only the cases the author listed; a seat names the whole input class of a finding it raises;
+  a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a
+  claim to attack — the diff reads the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header,
+  else the `Vendored-From:` trailer of the commit that vendored it; HEAD when neither does: `git -C <source> show
+  <sha>:<source path>`) against the copy minus that header, never the source's working file, where a sibling's
+  uncommitted edit reads as drift — and the brief names the source's own regression test for the file at that SHA, run
+  with its import path pointed at the copy (or says the source has none) and whether that test assumes a co-located
+  hub tree, so a standalone run of it is a known false red; they re-run that command and that test first, then spend
+  on what byte identity cannot show: the vendored copy's own header, every importer of it, and every name it reads
+  from each module vendored beside it (its `from … import` names and each `module.attr` use), each shown present in
+  that module's copy.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
@@ -110,9 +132,11 @@ box: execute it, or name in the brief why the shape does not have it.
   first; pin the exact stdout line a count reads; a lock-order fix ships an executed concurrency probe.
 - Mutants: one per new comparison or constant AND one against every existing assertion whose input changed, each
   anchored on a token the formatter cannot rewrap, the mutated line shown changed before a green is trusted, survivors
-  reported; a counter or guard is gutted in the same round to show it can fail; a regression test fails when the
-  caller is reverted; one reader mutates the guarded behaviour; graders are written, and named, before the next round
-  goes out.
+  reported only once shown to change observable behaviour (an output, return value, exit code, raised exception or
+  written state diffed against the unmutated copy), and an equivalent mutant is struck with that diff quoted, never
+  a test gap; a counter or guard is gutted in the same round
+  to show it can fail; a regression test fails when the caller is reverted; one reader mutates the guarded
+  behaviour; graders are written, and named, before the next round goes out.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned
@@ -152,7 +176,10 @@ box: execute it, or name in the brief why the shape does not have it.
 ## Seat isolation
 - The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped
   diff, never a bare range on a branch others commit to (a range carries every sibling commit landed in it). Seats
-  copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
+  copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path
+  (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that folder) — and
+  assert its md5s first; a tree is staged there only by the archive or the clone this section gives, never by
+  copying the live checkout; tests run against an archive of the pinned SHA by the seat
   prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
   `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
   recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
@@ -170,7 +197,8 @@ box: execute it, or name in the brief why the shape does not have it.
   that test's red-on-revert overlays the revert on the clone. Branch, worktree and stash state the test creates lands
   in the clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the
   lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy: ruff
-  `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path); tests run by exact node id. A script a
+  `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache` in
+  its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id. A script a
   seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
   write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
   refuses the whole list when one path is missing, a symlink or outside the repo root).
@@ -181,9 +209,23 @@ box: execute it, or name in the brief why the shape does not have it.
   ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home
   directory can settle is recorded up front for the lead.
 - Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
-  claim is proven on a pinned input; a concurrent sibling run on a shared DB is a known false red; a seen-red on a
-  DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger
-  hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base copy.
+  claim is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database
+  variable: no `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
+  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses
+  the same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where
+  TCP `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
+  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so
+  no seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false
+  red; a seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
+  CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base
+  copy.
+- Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
+  to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
+  directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`
+  omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's `.worktreeinclude`
+  list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief names its own pin dir and
+  digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier rounds are kept until the
+  close, so a seat re-runs its saved probes.
 
 ## Loop bookkeeping
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
@@ -195,7 +237,9 @@ box: execute it, or name in the brief why the shape does not have it.
   relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
   planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each brief
-  embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta brief
+  embeds its ledger text and states what the seat must report (a count, a verdict, an output), never the value the
+  lead expects; the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix
+  that replaced a form against the shapes the OLD form held, as the fix's ledger row lists them; a delta brief
   lists the exact mutant ids executed, reads a unified diff, and checks ROUTED claims for routing only; a one-hop edit
   found mid-fix is named in the next brief, and a guard a fix adds goes into every brief from that next one on, by name,
   with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary; stale pre-existing

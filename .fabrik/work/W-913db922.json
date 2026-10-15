@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:04.075794Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-913db922",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VAVP790PMYX9VYWD1G6MR4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: mirror the hub's quota RED-clause verbs — DONE at fabrik-lib 3a702d29 (fabrik-lib D-431)"
+}

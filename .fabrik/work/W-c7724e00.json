@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:32:35.703422Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c7724e00",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VB91YA401GMXP328VK3NZ8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: pgurl findings shipped — re-taken byte-identical (fabrik-lib 8c287fbc); one more downgrade alias (requiressl) and a set -f grader gap"
+}

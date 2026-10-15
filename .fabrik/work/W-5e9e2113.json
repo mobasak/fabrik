@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already delivered by d53d0db2c: the fabrik-review-loop.js pass-2+ brief (:232) and the ledger_status schema (:90) now define STILL_TRUE as 'the defect is still there' and NOW_FALSE as 'the claimed defect is absent', the mail's own second option (keep the names, add the defining sentence); and a row with no command+output 're-verifies nothing', which is the optional fail-safe's intent. The file is intel's live surface (D-829/D-832), so any further label rename is theirs.",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m48mq2hs",
     "waits-2026-10-13"

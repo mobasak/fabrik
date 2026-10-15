@@ -3786,3 +3786,235 @@ def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(
     assert r.returncode == 0, (r.stdout, r.stderr)
     assert "no work store" in r.stdout and "nothing taken" in r.stdout, r.stdout
     assert not (repo / ".fabrik").exists()
+
+
+# ── --reasons: the read-only view of rejected rows (kaizen 01M4V1BCW7) ─────────────────────────────
+
+
+def _reasons_index(tmp_path: Path) -> tuple[Path, Path]:
+    """A ledger path and the answered index beside it, holding string `ts` handles as `reject()` writes."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    index = tmp_path / "command-feedback-answered.jsonl"
+    rows = [
+        {
+            "ts": "1791000001.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 300.0,
+            "reason": "x.md:1 HELD:pin-recipe one-off, tab\there",
+        },
+        {
+            "ts": "1791000002.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 100.0,
+            "reason": "untagged — no recurrence",
+        },
+        {
+            "ts": "1791000003.5",
+            "command": "fabrik-review",
+            "commit": "abc123",
+            "at": 400.0,
+            "reason": "HELD:answered-not-rejected",
+        },
+        {
+            "ts": "9.0",
+            "command": "fabrik-task",
+            "commit": "rejected",
+            "at": 500.0,
+            "reason": "HELD:other-command",
+        },
+        {
+            "ts": "1791000004.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 200.0,
+            "reason": "y.md:2 HELD:closing-pass-seat-count",
+        },
+    ]
+    index.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return ledger, index
+
+
+def test_reasons_prints_the_rejected_rows_of_one_command(tmp_path: Path, capsys) -> None:
+    """Behaviour 1: only this command's REJECTED rows, newest reject (`at`) first, tags and escaping."""
+    m = _cfr()
+    ledger, _ = _reasons_index(tmp_path)
+    for name in ("fabrik-review", "/fabrik-review"):
+        assert m.main(["--reasons", name, "--ledger", str(ledger)]) == 0
+        out = capsys.readouterr().out.splitlines()
+        assert out[0].startswith(
+            "reasons: 3 of 3 rejected row(s) of /fabrik-review — 2 with a HELD tag"
+        ), out
+        assert "command-feedback-answered.jsonl" in out[0]
+        assert [ln.split("\t")[0] for ln in out[1:]] == [
+            "1791000001.5",
+            "1791000004.5",
+            "1791000002.5",
+        ], out
+        assert out[1] == "1791000001.5\tpin-recipe\tx.md:1 HELD:pin-recipe one-off, tab\\there"
+        assert out[3].split("\t")[1] == "-"
+        assert "answered-not-rejected" not in "\n".join(out) and "other-command" not in "\n".join(
+            out
+        )
+
+
+def test_reasons_held_keeps_only_tagged_rows(tmp_path: Path, capsys) -> None:
+    """Behaviour 2: --held narrows to tagged rows; the header says how many of how many were shown."""
+    m = _cfr()
+    ledger, _ = _reasons_index(tmp_path)
+    assert m.main(["--reasons", "fabrik-review", "--held", "--ledger", str(ledger)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith(
+        "reasons: 2 of 3 rejected row(s) of /fabrik-review — 2 with a HELD tag · held only"
+    ), out
+    assert [ln.split("\t")[1] for ln in out[1:]] == ["pin-recipe", "closing-pass-seat-count"]
+
+
+def test_reasons_runs_alone_and_refuses_near_misses(tmp_path: Path, capsys) -> None:
+    """Behaviour 3: no write or report flag rides along; a stray --held or --reason is refused; nothing written."""
+    m = _cfr()
+    ledger, index = _reasons_index(tmp_path)
+    before = index.read_bytes()
+    for argv in (
+        [
+            "--reasons",
+            "fabrik-review",
+            "--reject",
+            "fabrik-review",
+            "--rows",
+            "1791000002.5",
+            "--reason",
+            "a reason long enough to pass the floor",
+        ],
+        [
+            "--reasons",
+            "fabrik-review",
+            "--mark-answered",
+            "fabrik-review",
+            "--rows",
+            "1",
+            "--commit",
+            "abc",
+        ],
+        ["--reasons", "fabrik-review", "--take", "fabrik-review"],
+        ["--reasons", "fabrik-review", "--depths"],
+        ["--reasons", "fabrik-review", "--queue", "fabrik-review"],
+        ["--reasons", "fabrik-review", "--json"],
+        ["--reasons", "fabrik-review", "--lane"],
+        ["--reasons", "fabrik-review", "--stages"],
+        ["--held"],
+        ["--reason", "fabrik-review"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            rc = m.main([*argv, "--ledger", str(ledger)])
+            raise SystemExit(rc)
+        assert exc.value.code == 2, argv
+        capsys.readouterr()
+    assert index.read_bytes() == before, "a refused --reasons call writes nothing"
+
+
+def test_reasons_on_a_missing_index_is_loud(tmp_path: Path, capsys) -> None:
+    """Behaviour 4: no index means rc 1 and a stderr line — never a silent 'nothing held'."""
+    m = _cfr()
+    ledger = tmp_path / "command-feedback.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    assert m.main(["--reasons", "fabrik-review", "--ledger", str(ledger)]) == 1
+    err = capsys.readouterr().err
+    assert "command-feedback-answered.jsonl" in err and "not a readable file" in err, err
+
+
+def test_reasons_survives_an_ascii_stdout(tmp_path: Path) -> None:
+    """Behaviour 5: a non-UTF-8 stdout prints replacement characters, never a UnicodeEncodeError."""
+    ledger, index = _reasons_index(tmp_path)
+    index.write_text(
+        json.dumps(
+            {
+                "ts": "1.0",
+                "command": "fabrik-review",
+                "commit": "rejected",
+                "at": 1.0,
+                "reason": "held — § ⚠️ ’ ok",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--reasons", "fabrik-review", "--ledger", str(ledger)],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "ok" in r.stdout and "Traceback" not in r.stderr
+
+
+def test_reasons_review_fixes_hold(tmp_path: Path, capsys) -> None:
+    """Scoped-review round 1: every column escaped (ts handle too), a wrong command name is SAID,
+    `--since`/`--repo`/`--reason ""`/an empty `--ledger` never ride along, and the stdout policy is restored."""
+    m = _cfr()
+    ledger, index = _reasons_index(tmp_path)
+    with index.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "ts": "w\tx\ny",
+                    "command": "c5",
+                    "commit": "rejected",
+                    "at": 1.0,
+                    "reason": "line1\nline2\r\\end",
+                }
+            )
+            + "\n"
+        )
+    assert m.main(["--reasons", "c5", "--ledger", str(ledger)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:] == ["w\\tx\\ny\t-\tline1\\nline2\\r\\\\end"], out
+    assert m.main(["--reasons", "no-such-command", "--ledger", str(ledger)]) == 0
+    assert "NO row of any kind for /no-such-command" in capsys.readouterr().out
+    for argv in (
+        ["--reasons", "c5", "--since", "3", "--ledger", str(ledger)],
+        ["--reasons", "c5", "--repo", str(tmp_path), "--ledger", str(ledger)],
+        ["--reasons", "c5", "--reason", ""],
+        ["--queue", "c5", "--reason", ""],
+        ["--reasons", "c5", "--ledger", ""],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            raise SystemExit(m.main(argv))
+        assert exc.value.code == 2, argv
+        capsys.readouterr()
+    import io
+
+    buf = io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
+    real = sys.stdout
+    sys.stdout = buf
+    try:
+        assert m.main(["--reasons", "c5", "--ledger", str(ledger)]) == 0
+        assert buf.errors == "strict", "the caller's stdout error policy is restored"
+    finally:
+        sys.stdout = real
+
+
+def test_reasons_refusal_survives_an_ascii_stdout(tmp_path: Path) -> None:
+    """Scoped-review round 1: the REFUSED line (it carries an em dash) never crashes an ascii stdout."""
+    ledger, _ = _reasons_index(tmp_path)
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--reasons",
+            "fabrik-review",
+            "--json",
+            "--ledger",
+            str(ledger),
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        timeout=60,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Traceback" not in r.stderr

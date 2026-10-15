@@ -4,6 +4,591 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 5's PIN rule: in a brief the lead writes, pinned files totalling
+  under 8 KB are also pasted whole beside their line counts, so a seat whose Read or `cat` of a copy is refused still
+  has the bytes (the copy stays the authority; a paste reader is judged on line counts, not re-dispatched for
+  lacking a hash). The ESCAPE-VARIANTS ask now carries the probe catalogue's "both directions — false green and
+  false red" rule verbatim. Rows 1792052465, 1792052358 and 1792059931 (the second sighting of HELD
+  guard-false-positives-negatives-against); 1792037763 and 1792057870 rejected as already stated; 1792048250 routed
+  to infra. Pinned by `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — "operator-named work" routes up only for code, config or an explicit full-review ask (2026-10-15)
+
+- Lane row 1b in `CLAUDE.md` and `templates/governance/CLAUDE.md` scopes the trigger: an explicit ask for the full
+  `/fabrik-review` always routes up; naming alone routes up a code or config change, never a diff with no code
+  surface. § 1a in both contracts, `commands/_sources/fabrik-review-scoped.md` (classify step and
+  description) and `.windsurf/rules/core/50-code-review.md` point at row 1b instead of "anything an operator (or
+  owner) asked for by name". Pinned by `tests/test_governance_template_split.py`. D-892, W-2bc42fc3.
+
+### Fixed — /fabrik-task: the durable-folder placeholder no longer reads as RUN-SCRATCH (2026-10-15)
+
+- `commands/_sources/fabrik-task.md` named the `SCRATCH:` folder (design.md, measure.md, commit.sha — durable)
+  `<run-scratch>`, which reads as the `RUN-SCRATCH:` folder `start` now also prints and the sweeper removes once
+  the run is consumed. The placeholder is `<durable>` at all nine sites, its definition says "never
+  `RUN-SCRATCH:`", and the no-`SCRATCH:` fallback says it is in /tmp; the source stays under its D-856 byte cap
+  (20904 → 20900). Pinned in `tests/test_fabrik_task_source.py` (the old name must not return) and
+  `tests/test_command_run_lane_v2.py`. Mail 01M4Z8X2JEZFX4ACC5KCWW7C6P, W-a26c180b.
+### Fixed — every hub charter names the ledger's merge owner, and a test keeps them current (2026-10-15)
+
+- The five charters in `docs/reference/agents/` carry one canonical merge-owner sentence; kaizen.md no longer routes merges to infra and coordinator.md states the handover done. `tests/test_agent_role_hook.py::test_every_charter_names_the_current_merge_owner` reads the owner from `scripts/decisions.py --merge-owner` and fails on a charter that lacks the sentence or names another agent as merger. W-cfff98dd, D-891.
+
+### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
+
+- `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
+
+### Changed — seat briefs name RUN-SCRATCH as the root of every seat folder (2026-10-15)
+
+- D7 of the scratch-lifecycle spec (`docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md`, D-864/D-866;
+  W-8bbd9538, fleet mails 01M4Y6ZXRSFPPTJJMVF2WX0A1K and 01M4Y86A9RKAP0ASCAY85CSE2V):
+  `commands/_fragments/subagents-core.md` (included by 21 command sources) states the rule once — the scratch dir a
+  brief names is a seat folder
+  `<run scratch>/seat-<n>/` under the path `command_run.py start` printed as `RUN-SCRATCH:`, never the session
+  scratchpad root; nothing durable goes there; the pins dir sits under the same root; a tree is staged there only as
+  the probe catalogue's § Seat isolation says (an archive of the pinned SHA, or a `clone --shared --no-checkout`),
+  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation and `fabrik-execute-plan.md`
+  (the brief and report files) point at it by its hub path and name `<run scratch>` in place of the bare
+  scratchpad; `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
+  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was.
+  `fabrik-review.md` and `fabrik-review-scoped.md` keep infra's `scratch_dir` wording (D-886). Pinned by
+  `tests/test_run_scratch_brief_wording.py` (5 tests).
+
+### Fixed — review and critique seats write under the run's RUN-SCRATCH folder (2026-10-15)
+
+- `.claude/workflows/fabrik-review-loop.js` names every seat folder `<scratch_dir>/seat-p<pass>-<digest8>-…/`, so `round`'s size line sees it and no pass reuses another's; the four partitioned review commands say `scratch_dir` is the run's `RUN-SCRATCH:` folder; design-critique seats use `<RUN-SCRATCH>/seat-critique-<model>-<k>/`; the clean-own-scratch gloss matches cleanup-automation.md § F. Mail 01M4Z8X09Y, D-886.
+
+### Changed — both CLAUDE.md contracts: a run's disposable bulk goes in its RUN-SCRATCH folder (2026-10-15)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT gain one identical sentence group beside "CLEAN your own scratch": seat copies, pins and probes go in the run's `RUN-SCRATCH:` folder (seats under `seat-<n>/`), every seat brief names that folder, durable artifacts stay under `SCRATCH:`, and a missing or `none` line falls back to the scratchpad. Pinned by three T6 spans in `tests/test_governance_template_split.py`. D-883.
+
+### Fixed — work.py triage: a major held behind the in-flight one is no longer counted as in flight (2026-10-15)
+
+- `scripts/work.py` `cmd_triage`: a high/high item the coordinator holds behind the in-flight major with `assign --blocked-by` now prints as `major held: <id> behind <id>` instead of a second `major in flight` line; a major waiting on its own prerequisite still holds the slot, and an all-held store fails closed. The live hub store read 7 in flight (6 held); it now reads 1 in flight and 6 held, with the same plan. D-881.
+
+### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
+
+`supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,
+`queue_floor: 1` and `coordinator_mode: true`; `.fabrik/beat-owners.json` maps the `merge request` and `work item`
+topics to the coordinator. `CLAUDE.md` § Shared repo, § EXIT and § Autonomy, `docs/reference/agents/infra.md` and
+`docs/reference/multi-agent-operating-model.md` name the coordinator as agent-1 and put infra in
+`.claude/worktrees/infra`; the phrase graders in `tests/test_governance_template_split.py` follow. Plan
+`2026-10-15-plan-1-coordinator-role` Phase C — lands on master only when the coordinator window is live.
+### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
+
+- `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a
+  file, directory or input) — a deleting probe also removes every directory it empties, up to the root, as `git rm`
+  does (a `.git`-pruned `find -type d -empty` before and after prints no new line); a seed restoring deleted inputs
+  first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores no
+  other; the Callers grep runs for each deleted path, basename and directory from the hub and the fleet repos, never
+  the package; seats name, per guard on a deleted input, whether it re-runs at removal or only at classification.
+  Answers rows 1792031092 (an emptied directory left behind hid a `readdirSync`) and 1792030357 (a seed restored
+  inputs the code read by name), the third and fourth sightings of the held deletion-probe subject (1790199460; the
+  review-scoped queue held the removal-vs-classification half today; D-711). Pinned by
+  `tests/test_review_queue_pass.py::test_the_catalogue_probes_a_deletion_surface`. Row 1792040243 rejected as already
+  stated (the gate and the skeleton refuse an absent owner), 1792034184 as misfiled (the lane gate's printed line,
+  routed to infra), 1792036161 HELD.
+
+### Changed — /fabrik-command-improve: a claim about a gate is grounded in its code and run on the row's own case (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md`, three amendments in place, one subject: § Drive's Grounding bullet
+  names the gate's CODE, read live, when an edit restates a gate's conditions (every condition and value copied,
+  never the prose describing them); PHASE 3's claim check reaches what a gate reads or refuses, every branch of that
+  function and every other path that filters or grades the same input, traced from the entry point that receives it;
+  a rule the edit adds is RUN before PHASE 4's first pin — applied to the row's case quoted as the row gives it (or
+  the artifact the row names, fetched and quoted), each verdict written beside its quote. Answers rows 1792038532, 1792033691 and 1792000873 (kaizen's own
+  closes: two misreadings that were a second code path, a quote ban drafted for a glossed pointer, a lane-gate
+  restatement that dropped three conditions); the last two are second sightings of held subjects (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case`,
+  with the two existing pins on the amended sentences re-pinned. Row 1792036364 (the pins dir name) rejected as
+  misfiled — its sentence is `/fabrik-review-scoped` step 5's, carried to that queue's next run.
+
+### Changed — /fabrik-plan-review: both the plan and its receipt carry the Pass Ledger; what the gate grades in each (2026-10-15)
+
+- `commands/_sources/fabrik-plan-review.md` Phase 1: the sentence that put the Pass Ledger in the review receipt alone
+  now says the plan and its receipt both carry it and its Residual — at the flip `check_convergence.py` grades the
+  PLAN's own rows (a `method: re-derivation` Pass row and a last counter row reading `confirmed: 0`, graded by
+  `_check_plan` for a monolith and `_check_spine_set` for a spine) beside the plan's
+  adjudicated Coverage Checklist, and the receipt carries the same ledger plus the panel and ask↔spec tables, graded by
+  its ledger only under the `**Command:** /fabrik-plan-review` label and with no `## Coverage Checklist` heading of its
+  own (`review_receipt.py --init` writes only the two code-review commands' receipts and always emits that heading).
+  Answers feedback row 1792013533 (the one-door monolith
+  loop found the ledger's home by precedent, not from the text). Pinned by
+  `tests/test_plan_review_queue_pass.py::test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt`. Row
+  1791998552 (a handoff `.md` seed `start --resume-from` cannot read) routed to infra as 01M4YVAV7H; one row rejected
+  as already stated (term-edit rule (1)); one HELD.
+
+### Changed — /fabrik-review-scoped: a fix that must carry a clause quotes it whole, never paraphrases it (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 3: the fix step's rule for something already stated — pointed at,
+  never paraphrased — gains its quote branch, bounded: where the fix must carry its words, it is quoted whole,
+  verbatim, with no gloss and naming its source. Answers feedback row 1792025649 (every own-fix of a run was a
+  paraphrase drift of a spec clause the doc fix restated; a pointer could not stand there), the second verdict on
+  that sentence (D-711). Pinned by
+  `tests/test_review_scoped_queue_pass.py::test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases`.
+  Three rows refused with reasons (a seat-per-slice delta cut as bar-lowering, re-proposed to the operator; an
+  include-only includer count as contradicting; the pin-after-ruff row as already stated) and four HELD.
+
+### Added — Run-bound scratch: every run gets a marked folder, removed by its marker once consumed (2026-10-15)
+
+- Removal (Phase B): `command_run.py start` launches `scratch_sweep.py --run-folders --session <sid> --cwd <repo> --apply` detached after its record lock drops; that mode removes this session's CONSUMED run folders walk-free (rename to `.trash-<key>`, then `rmtree`) under a per-session lock beside `scratchpad/`, never the global one. `--dead --apply` consumes every session's run folders first (a dead session's `running` folder needs a 7-day-stale heartbeat), and a dead session still holding an ACTIVE folder keeps its directory and that folder while every other entry goes. Session mode never judges a run folder by age; `--hook` leaves run folders out. A registered worktree inside a consumed folder goes first when it is merged and clean (or detached, clean and contained in a ref); otherwise the folder is kept. `--run-folders --retire run-<key>` ends one `resumable` folder by hand.
+- A same-uid `/proc` gap keeps a run folder only when its process started after the folder's marker was written (or either time is unknown); a zombie is no gap. This box carries three such daemons permanently, which under the spec's "any gap keeps" would have kept every folder for ever.
+- Advisory measures (Phase C): `round` prints `seat-<n>: <size> — copied a tree instead of archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`), measured after the record lock drops; `--dead --apply` writes `~/.claude/state/scratch-size-report.json` (per-session bytes outside running run folders, run folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook prints one `SCRATCH ALARM` line from it or when disk use passes 85 %. Neither removes anything. The pre-existing untagged residue is an operator-signed list (`docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md`), never automated. Docs: `docs/workstation/cleanup-automation.md` § F, `docs/workstation/hooks-index.md`, `docs/reference/command-run-protocol.md`.
+- Finish review fixes: once a resume's record persists, the adopted folder's marker reads `state: running` with an `adopted` time, so neither the nightly report nor `--retire` treats it as a wall leftover; any adoption failure (not only `OSError`) marks the old folder `done`; a heartbeat never raises; holders are re-probed after a worktree removal and before the rename; a corrupted boolean `created` stays an unknown age. Receipt `docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-review.md` (5 → 2 → 0).
+- Docs review fixes: `--dead --apply` judges a dead session again after the run pass, so a run folder the removal-time re-check kept (a changed marker, a holder, a failed worktree removal) keeps its session directory instead of going with it; a split dead session now removes an agent's own `run-tests/` like any other entry (only the mint's keyed name is marker-governed). The three docs now state the adoption endings, every alarm trigger, and that `FABRIK_SCRATCH_SWEEP=0` also stops the start-time sweep.
+- `start --resume-from` adopts the wall run's `resumable` folder into the new session (one rename, the marker's `sid`/`key` rewritten); a folder holding a git tree, or no longer `resumable`, is not moved and is marked `done`. A wall close whose seed could not be kept writes `done`; a plain start over a wall record ends that folder at its own `done`.
+
+- `scripts/command_run.py start` mints `<harness session dir>/scratchpad/run-<key>/` with a `.owner` marker (`sid`, `key`, `command`, `repo` = the common git dir, `created`, `state: running`) and prints `RUN-SCRATCH: <path>` (or `RUN-SCRATCH: none — <why>`; a start is never refused). The session directory is found by the hub's `scratch_sweep.find_session_dirs`, loaded by file location — never a `sys.path` insert, because `command_run.py` is fleet-synced and `scratch_sweep.py` is not.
+- Every close rewrites the marker: `done`, `handoff` and a plain `blocked` → `done`; a quota wall (`--wall` or the reason regex) → `resumable`. A handoff whose `--resume` text names its own run folder is refused. `step`, `round` and `dispatch` refresh the marker (the heartbeat). A `died` coroner close, and the next `start` over a closed non-wall record, mark a still-`running` folder `done`.
+- `scripts/scratch_sweep.py` gains `classify_run_folder`, the one ACTIVE/CONSUMED classifier (grace: 30 min when no seat wrote after the close, else 36 h; a dead `running` run only past a 7-day heartbeat). Plan `docs/development/plans/2026-10-15-plan-1-scratch-lifecycle.md` Phases A-C; tests `tests/test_scratch_sweep_run_folders.py`, `tests/test_command_run_scratch.py`, `tests/test_kaizen_coroner.py`.
+
+### Changed — /fabrik-command-improve: PHASE 3 points at a rule stated elsewhere, never glosses it (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 3: a new sentence after the mechanism-wiring sentence extends the
+  rule for a rule adapted from CLAUDE.md or a fragment (pointed at, or quoted in its own words) to a rule stated in
+  another command or another section of the target, and neither the pointer nor the quote carries a gloss: a gloss is a
+  new wording that drifts, and a fresh wording is written only where the rule's words do not fit the new subject, keeps
+  the words that do fit, and names its source. Answers feedback row 1792031068 (a ten-word gloss of the by-design rule
+  became a third wording and cost a round), a recurrence of the held one-fact-plus-pointer subject (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss`.
+  Six first-sighting rows HELD; row 1792000873 (PHASE 2 Grounding reads the gate's code) left open for the next run.
+
+### Fixed — by-design verdicts: the receipt skeleton states the owner-only grammar, and the gate refuses a D-owner that is not a ledger row (2026-10-15)
+
+- `scripts/review_receipt.py`: the `--init` skeleton's verdict grammar says a by-design verdict's parentheses hold owner ids only and its reason follows them (`… (F4, round 3; D-203) — <why>`); every other RECORDED reason stays parenthesised. Three `/fabrik-review` feedback rows had copied the old "every reason is parenthesised" text.
+- `scripts/enforcement/check_review_coverage.py`: V5 refuses `RECORDED — by design (D-nnn)` when the receipt's own checkout's `docs/DECISIONS.md` has no such row (integer compare, `D-1` = `D-001`; bounded at the first `.git` ancestor; fail-open with no readable rows). Measured first: 2 of 485 by-design D-owners in 1651 receipts would fire (D-874, held on an unmerged branch). D-876; kaizen 01M4YMKN78.
+
+### Changed — /fabrik-review: the receipt-time Residual sentence points at the owners-only by-design rule (2026-10-15)
+
+- `commands/_sources/fabrik-review.md` § Residual: the sentence a receipt-writer reads while rowing residuals now says a `RECORDED — by design` parenthetical holds the owner and nothing else, the reason following it, as Phase 2's `by design` bullet shows — a pointer in the rule's own words, never a third wording (term-edit already carries a second). Answers feedback row 1792029250, the third verdict on the by-design grammar after two rows were routed to the receipt skeleton (infra's code, re-routed with the three rows and a gate gap: a D-id is checked by shape, not existence). Pinned by `tests/test_review_queue_pass.py::test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses`.
+
+### Added — the coordinator role: hub beat lists, charter and fleet carrier (2026-10-15)
+
+`coordinator` joins every hub beat list (`mail.py::HUB_BEATS`, `mail_notify.py::_HUB_BEATS`,
+the quota dashboard's owner lists, CLAUDE.md's `route --to-agent` line and trailer row),
+so mail and merge requests can address it; `command_run.py::_BEATS` stays four-beat, since its only reader is
+the FEEDBACK verdict and the coordinator owns no beat (D-875). New charter `docs/reference/agents/coordinator.md`.
+`templates/governance/CLAUDE.md` carries the role fleet-wide: the seven jobs, Never, escalation and the
+impact × effort priority table, and narrows D-471 (D-872) and D-442 (D-873). Plan
+`2026-10-15-plan-1-coordinator-role` Phase B. The role text reaches every synced repo at the next sync; the builder-facing
+behaviours (the builder filter, the doorbell, triage's scored-first order) switch on only where a repo commits
+`coordinator_mode`.
+
+### Added — work.py: impact × effort scores, holds, and coordinator mode (2026-10-15)
+
+- `scripts/work.py assign` gains `--impact high|low`, `--effort high|low` (each needs `--why`, stored as `score_reason`), `--blocked-by <id>` and `--unblock <id>`. A scored item's `priority` is derived (high/low 1, high/high 2, low/low 3); low impact with high effort is refused as a time sink with the `drop --why` pointer; on a scored item only `--priority 0` (the incident override) is accepted, a re-score clears it and says so, and a P0 set before the first score survives it. A half-scored item keeps today's `--priority`. Checks run on the item as it will be written, so a score split across two calls is judged as one. Holds refuse an unknown id, the item itself, a cycle, an `--unblock` of an id not held, and the same id in both flags.
+- `triage` prints `unscored <n>: <ids>` and the major project in flight, never plans a second high/high item while one is owned or claimed and `open`/`blocked` (a fresh store scan), and plans at most one high/high item per run.
+- **Coordinator mode** (`"coordinator_mode": true` in `.fabrik/work/config.json`, opt-in per repo because `work.py` is fleet-synced): a builder's `next`, default `ready` and prompt `ready` count show only its own items (`ready --all [--mine]` stays unfiltered); `triage` plans scored items before unscored ones; the no-live-coordinator Stop doorbell names `work.py ready --all --mine` instead of `next`. The Stop hook's caller-name resolution is factored into `_caller_name`, which the builder filter and `next`/`ready`'s own `mine` lookup share; a builder is a pool worker, so the feedback owner keeps today's view. Plan `docs/development/plans/2026-10-15-plan-1-coordinator-role.md` Phase A (D-871); 23 tests in `tests/test_work_coordinator.py`, each seen red first.
+
+### Changed — review probe catalogue: a reader over another language starts from a fail-closed grammar (2026-10-15)
+
+- `commands/_fragments/review-probe-catalogue.md` Parsers row (applied by every review-family brief): a hand-written reader whose input is source in a language other than its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand, starts from a strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line of that language's own syntax that no named form admits, and run by the lead over the live files the reader will read with every refusal classed a grammar gap or a true out-of-grammar line; the seats attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form can hold. Answers /fabrik-review feedback row 1792019529 (four rounds and 10.7 h on a TypeScript tokenizer a strict line grammar replaced in one); the second verdict on a held parser subject (D-711). Row 1792024182 (a pre-existing-red claim names its commit and dist) is HELD as first-time advice, its home the caller's step-8 baseline. Pinned by `tests/test_review_queue_pass.py::test_a_reader_over_another_language_starts_from_a_fail_closed_grammar`.
+
+### Changed — /fabrik-spec-review: an accepted panel change is written as required behaviour, not mechanism (2026-10-15)
+
+- `commands/_sources/fabrik-spec-review.md`: Phase 1 D's flow rule now covers a parenthesis or example beside the sentence and the one-way decision the spec must settle (stated as the decision and its constraint, never the steps that carry it out) — one rule for loop fixes and panel fixes alike; § After the quiet closing round gains one bullet after the design-gate-panel include pointing an ACCEPTED panel change at that rule (named as this command's fix-shape rule), with a seat's proposed mechanism translated to the behaviour it secures and its verb, flag or sequence left to the plan. `commands/_fragments/design-gate-panel.md` (rendered into the four design-gate reviews): step 2 writes the change as the command's own fix-shape rule says, where it states one, and the Cobra counter lists each change as written, a translated mechanism as the behaviour it secures. Answers feedback row 1792016473 (seven pass-5 residue findings from panel fixes written as mechanism text); the row's `--slices` half is already stated at `design-critique.md`. Pinned by `tests/test_spec_review_queue_pass.py::test_an_accepted_panel_change_is_written_as_required_behaviour`.
+
+### Changed — /fabrik-features: a Planned row carries every condition of its spec clause in the spec's own words (2026-10-15)
+
+- `commands/_sources/fabrik-features.md` Phase 0 EARLY: a Planned row's Description states the behaviour as Phase 2 asks, then carries `Spec §<n>:` and EVERY condition of its clause (each when, unless, only-if, limit or other condition, wherever in the spec it sits) in the spec's own words or figures, quoted as whole spans cut only at their ends, never reworded and never elided, the section cited for each span (`Spec §3: … · §7: …`, on the row's one table line) — a paraphrase still traces to the spec and still drops the condition the plan then builds without; REFRESH's Planned-to-shipped flip keeps those conditions on the row until a test asserts each. Answers feedback row 1792017544 (14 confirmed findings in one round from paraphrased rows); the D-711 audit read the "traceable" test as the text defect. Pinned by `tests/test_features_queue_pass.py::test_a_planned_row_quotes_every_condition_of_its_spec_clause`.
+
+### Changed — /fabrik-review: a fix is checked against every shape the form it replaces held (2026-10-15)
+
+- `commands/_sources/fabrik-review.md` Phase 3, the verify-the-fix question list: one question added — does the new form still hold EVERY shape the form it replaces held (a selector replaced by an id or a scoped lookup, a guard replaced by a narrower one, a restored test covering fewer pages or languages), the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in the fix's Pass Ledger `method:` cell beside its `round-zero probe` note — quoting the probe catalogue's "what a replaced guard covered that its replacement does not" and the discipline `term-coverage` round zero states for a matcher or replacer, "against its live population before it widens or narrows", asked here of every replaced form. `commands/_fragments/review-probe-catalogue.md`'s closing-pass row: every closing seat re-checks each replaced form against the shapes the OLD form held, as the ledger row lists them. Answers feedback rows 1792001701 and 1792016553, a held subject that recurred (D-711). Pinned by `tests/test_review_queue_pass.py::test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held`.
+
+### Changed — term-edit: an artifact's executable rule runs every round, not only at the close (2026-10-15)
+
+- `commands/_fragments/term-edit.md` (rendered into 17 review-family commands): obligation (4) THE ARTIFACT'S OWN RULE joins the before-every-pin list — when the artifact states an executable rule (a classifier, state machine, truth table, comparator) it is run as a throwaway script over every case the artifact lists, at pass 1 and before any pin after a fix touched it; the closing round re-executes it and points at (4). Answers /fabrik-spec-review feedback row 1792014614 (a state contradiction read past in three delta rounds) and row 1791448830, rejected earlier as already landed at the close; pinned in `tests/test_spec_review_queue_pass.py`.
+- Fixed two pre-existing test reds: `commands/_sources/fabrik-review-scoped.md` now points seats at this repo's fleet-synced `.claude/workflows/fabrik-review-loop.js`, never the hub copy (`test_review_loop_workflow`); `tests/test_plan_review_recurring_rules.py` pins round zero's current wording.
+
+### Changed — /fabrik-review-scoped: § Seat isolation applies to every brief that runs tests (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 5: the probe catalogue's § Seat isolation is named shape-independent — a brief that runs tests runs them from an archive and derives its roots from what the tests import, read or run, never a hand-listed path set; the sentence locates the recipe (`PIN_IMPORT`/`PYTEST_PINS` in `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`) instead of restating it. `commands/_fragments/review-probe-catalogue.md` header: "never all of them, § Seat isolation excepted". Answers feedback row 1792005608 and a six-reject recurrence; pinned in `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — one-door lane plan + spec APPROVED by the Opus + Fable panel and flipped CONVERGED (2026-10-15)
+
+- `docs/development/plans/2026-10-14-plan-2-one-door-lane.md` and `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` flip `Status: DRAFT → CONVERGED` in one commit (D-865): six review rounds (the `Size: small` joint loop), the panel's 16 accepted changes folded — top-level-only door checks with `nested`/`downgrade` outcomes, `render_q1()`, `small-named`, the joined kill denominator, the over-route alarm and the `deny` bar, `_is_hub` kept off `_sync_verdict`, `deny_after_days` dropped. Receipt: `docs/development/reviews/2026-10-14-one-door-lane-plan-review.md`. Next: `/fabrik-execute-plan docs/development/plans/2026-10-14-plan-2-one-door-lane.md` (code owner infra).
+
+### Added — the lane gate is two-sided: `/fabrik-spec start` through `task_lane.admit` (2026-10-14)
+
+- `scripts/command_run.py`: `start --command fabrik-spec` takes `--file`/`--declare` (opt-in; `--appetite`/`--why` ride with them) and runs the same `task_lane.admit`: a `chain` verdict admits the spec (no row; the verdict rides the record and the close row as `lane_gate`), a `right-now` verdict refuses it outright (a pure fix needs no spec), a `lane` verdict refuses it unless `--why "<the test the gate cannot see>"`, in which case the override is ledgered as a `spec-start` row (verdict, why, files, `restart: /fabrik-task --from-downgrade <id>`) whose id the record keeps as `spec_refusal`. A flagless spec start at lane v2 prints a NOTE and its close row carries `lane_gate: none`, so the ungated population is counted from day one; a spec's dirty path or directory is noted, never refused; v1 repos take the flags with a note. `handoff --reason "DOWNGRADE: no-refusal — …"` writes `downgrade: no-refusal` and NO `from_downgrade` (an id field holds ids only); the record's own `spec_refusal` is the ground truth over a reason's pasted id. `scripts/command_feedback_report.py --lane`: `spec starts: gated N of M (ungated, unknown) · chain · overridden by --why · override rows, handed back`, `spec-start` rows tallied as overrides (never task refusals), no-refusal downgrades counted beside the ratio (never excluded), the latest close naming a spec's gate, undated rows split by route. `scripts/task_lane.py`: `record_refusal` substitutes `{id}` in `restart`. 12 tests red-first + 6 from the full review's round 1 (14 confirmed: a mis-named exception template, an override row written before its record, help/refusal text, the resume stamp, three report tallies, three coverage gaps, three long lines); closing pass confirmed 0 (`docs/development/reviews/2026-10-14-two-sided-lane-gate-review.md`). Kaizen mail 01M4XQN131A897DAFH628FJFKJ, operator ruling 2026-10-14 via D-858 (D-862).
+
+### Added — one-door lane decision spec: one rule, one executed verb, three refusing doors (2026-10-14)
+
+- `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` (DRAFT, Size: small, Profile: delta on the 2026-10-02 lane spec): the now/task/spec decision routed by the cost of a wrong first attempt, a `command_run.py lane` verb that executes the measurable trips and records one verdict, refusals at the `/fabrik-spec`, `/fabrik-task` and `/fabrik-review-scoped` doors, a weekly verdict-vs-outcome report and a kill rule; rollout warn/dryrun then deny. Operator ruling 2026-10-14 (D-861); design panel and judge panel unanimous for approach B. Research ledger `docs/reference/research/2026-10-14-one-door-lane-ledger.md` (42 rows). Hands off to `/fabrik-plan-after-chat`; code is infra's, text kaizen's.
+
+### Added — cloud dispatch credit guard: per-run cost, dollar counter, pause, expiry (2026-10-14)
+
+- `scripts/cloud_dispatch.py`: `settle` (auto after `wait`; `--all` before every `dispatch`) reads a run's raw events with the account's OAuth access token and ledgers its cumulative `total_cost_usd`, token counts and the raw `rate_limit_info`; an expired standby token is rolled by ONE in-place `claude -p ok` probe (ledgered `token_refresh`, once per account per 8 h), else the run is `settle_pending`. Spend = latest real-cost settle per fired session, unsettled sessions provisioned at the margin from dispatch, `calibrate <slug> --balance` as the base, `plan_usage` rows excluded; margin `max($10, 10 %)`. Pause state is ledger rows (`pause`/`unpause`, latest wins), never the registry; automatic at spent ≥ claimed − margin or on overage; the plan-reading rise is advisory. `dispatch`/`--pick` refuse a paused account and any account within 6 h of 00:00 UTC of its `credit.expires` (exit 7); `--allow-plan-usage` bypasses both, picks the coolest account and tags the row. `wait` keeps the sha alone on stdout. Registry accounts carry `credit: {claimed_usd, expires}`. 17 tests red-first, 12/13 mutants killed in a throwaway worktree (the 13th equivalent: the generic `http_<n>` branch yields the same `http_401`), the live events page measured newest-first on ob's probe session; the scoped review's round 1 confirmed 6 (a settle read-compute-append race that could skip the pause → `LedgerTxn`, `--pick` counting guard rows as dispatches, a ts-less row skipped under a calibration, settle rows unscoped by account, one bad `expires` date aborting the fleet's pick → validated at load, an unthrottled 401 retry → 8 h backoff), each fixed with its test red on the pass-1 pin (95 tests in the file). Operator rulings: "when credits consumed, it must be paused"; "weekly usage is different than cloud 250$ credits" (D-860).
+
+### Changed — the lane table states its default: under doubt the lane is /fabrik-task (2026-10-14)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Orient step 0: one paragraph after the lane table's row 6 — under doubt the lane is `/fabrik-task`, the spec chain is the exception a tripped test earns, a mid-build trip upgrades cheaply while a needless spec spends its research and judge seats first (at least 52 of 77 specs since lane v2 never met the lane gate, D-858). Operator ruling 2026-10-14 (D-859); fabrik-lib's hand-kept copy requested by mail 01M4XTZ9PZRMTJV4HJ5D49M60G. Pinned hub↔template in `tests/test_governance_template_split.py`.
+
+### Changed — /fabrik-spec Phase 0 applies the lane tests when no refusal row exists (2026-10-14)
+
+- `commands/_sources/fabrik-spec.md` Phase 0: a missing lane-refusal row no longer ends the DOWNGRADE check. Before any research seat, approach or judge panel, the spec answers the six lane declarations, runs the contract-path test and Phase 5's `Size: small` rule on the brief; a small, reversible, internal brief with a decision (`decision=yes`) hands off to `/fabrik-task <the brief>` with `--reason "DOWNGRADE: no-refusal — …"`, a pure fix (`decision=no`) goes right-now with the review row 4b names, and anything that trips a test proceeds as today. Operator ruling 2026-10-14 (D-858, widening lane spec D9); the code half (a `/fabrik-spec start` gate, an LR row for a spec start, the no-refusal reason in the downgrade share) is mailed to infra. Pinned in `tests/test_spec_plan_lane_text.py`.
+
+### Added — cloud subagents that spend the per-account cloud-session credit (2026-10-14)
+
+- `scripts/cloud_dispatch.py` + `.fabrik/cloud-routines.json`: `dispatch` fires a fleet account's claude.ai routine `fabrik-cloud-worker` (token path when `~/.claude-fleet/<slug>/routine-token` exists — zero local quota, 401 → exit 3, 429 → exit 4, never a fallback; else a headless `claude -p '/schedule run …'` from a scratch dir, a wall → exit 5, a dead chain → exit 6); `--pick` spends the credits evenly (usable path, then fewest dispatches this week, then weekly %; no qualifying account refuses); `wait` accepts only a `claude/<slug>` tip carrying the `Cloud-Dispatch: done` trailer; `log` reads a run headlessly; every attempt is a ledger row in `<state>/cloud-dispatch.jsonl`. Four accounts proven end to end (ob, ozgurbasak, can, mob — push access granted with `/web-setup`). 66 tests red-first (31 of them red on the review's pass-1 pin), 16/16 mutants killed by name; the scoped review's 18 confirmed findings (a task text tripping the wall regex, a stale branch read as done, FETCH_HEAD races, token-file content, argparse parents, exception paths that skipped the ledger) fixed in-run. Doc: `docs/workstation/cloud-dispatch.md` (D-857).
+
+### Changed — review probe catalogue: overlay and pin currency, isolation seams, real-build text diffs, identity keys and predicate readers (2026-10-14)
+
+The fourth pass over the `/fabrik-review` feedback queue adds five clauses and one bullet to the probe catalogue:
+- The input class now names a fix's identity or dedup key: byte vs text read, line endings, recycled ids.
+- The callers line names every reader of a changed predicate's verdict.
+- A re-vendor brief says whether the source's regression test assumes a co-located hub tree.
+- A change that writes outside its state dir names every isolation seam its callers' tests use.
+- A page-type or reader move diffs the visible text and heading outline of real base and head builds, independently of any identity diff, and runs the preview server on each language root.
+- A new seat-isolation bullet covers overlay and pin currency. Each pinned file is copied to its own path, or with `cp -r <pin>/. <dest>/` then made writable, and md5-checked. The pin carries the gitignored inputs the tests read (`.worktreeinclude`, `.env` excepted) and sibling-repo symlinks. Each later pass names its own pin, and seat scratch from earlier rounds is kept until the close.
+
+`tests/test_review_queue_pass.py` pins the new lines, and `tests/test_review_scoped_queue_pass.py` re-pins the re-vendor sentence.
+
+### Changed — /fabrik-review-scoped step 5: ruff findings are the lead's, and a sync-excluded repo runs the hub's ledger script (2026-10-14)
+
+Step 5's pre-pin ruff run still fixes what it reports, so the touched files stay format-clean for the completion gate. The brief now tells the seats that ruff's output is the lead's, so no seat reports a lint or format finding, including a pre-existing one (row 1791982905). The step also says every `review_loop_ledger.py` call in it runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a sync-excluded repo, because a vendored copy there may lack `pin` or `read --pins` (rows 1791982896, 1791981699). `tests/test_review_scoped_queue_pass.py` pins both.
+
+### Changed — /fabrik-execute-plan: a wave checks the fleet's headroom first, and a plan-named checker is dry-run before its coders (2026-10-14)
+
+Before dispatching a wave, the dispatcher now acts on the fleet's band: at AMBER or RED it dispatches no new wave. At GREEN, when the `QUOTA:` line's `successor` reads `none`, it compares that line's `wall in` forecast with the wave's summed ticket `Appetite:` (a ticket without one counts as the 30-minute estimate the dispatch timeout uses). When the wall comes first, it says so on the Board, dispatches only the tickets that fit and holds the rest until the reset or a rotation, so no coder is cut mid-ticket (rows 1791975800, 1791971650). A ticket whose acceptance rests on a checker the plan names, such as an identity diff, now has that checker run once on a throwaway head of the ticket's unit (a scratch build the orchestrator never commits) before the coder starts, so the checker's gaps become Board tickets up front (rows 1791973720, 1791950554). `tests/test_execute_plan_queue_pass.py` pins both.
+
+### Changed — /fabrik-task: subprocess-run tests, a red-proved relied-on grader, vendored copies and the live-store pin (2026-10-14)
+
+Phase 1 MEASURE now finds the tests that run a declared file by subprocess, not only those that import it, by grepping for the file's name and every mode or flag the change extends. It also shows a grader the design relies on going red on a deliberately broken input. Phase 2's MIRROR search adds every vendored copy outside the tracked tree. Phase 3 pins a test that writes a live store to a tmp root (the hub's `tests/conftest.py` pins the mail root and state files; a work-store test passes a tmp repo) and re-runs MEASURE's test slice on the built tree before review. These answer six `/fabrik-task` feedback rows (D-856, which also raises the source's size cap from 20285 to 20904 bytes). `tests/test_command_improve_queue_pass.py` pins the new lines.
+
+### Changed — review probe catalogue: a seat brief names the database connection the lead proved (2026-10-14)
+
+No `.env` reaches a review seat, so seats in three projects skipped a database test, re-implemented it or failed on password auth (`/fabrik-review-scoped` rows 1791980872, 1790801583 and 1791515801). The catalogue's seat-isolation section now says that a test that needs a database runs with the variable the suite reads (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of the import-only `.invalid` dummy, and that a seat probe that must connect uses the same variable. Both connect over the form the lead proved by one connect before the pin, such as a unix-socket DSN where TCP `localhost` fails password auth, and the brief names the variable and the form. Where only a password form connects, the lead runs that test or probe itself and quotes its result; a password is never written into a brief. `tests/test_review_scoped_queue_pass.py` pins the clause.
+
+### Fixed — fabrik-mail's fabrik-lib addressing leg spares threads and senders, and is switched on (2026-10-14)
+
+- `scripts/mail.py`: an unaddressed send to `fabrik-lib` is addressed to the one module owner only when it is unthreaded and not a broadcast, never to the sender's own role; a module counts as an absolute `/opt/fabrik-lib/<m>` path, a relative `<m>/…` path (not the sender's own top-level folder, `..` refused), or a backticked hyphenated name; a bare single-word name never routes but a second owner it names unaddresses the mail (W-c687ce60, D-853).
+- `.fabrik/beat-owners.json`: `switches.fabrik_lib_address` on (fabrik-lib D-429).
+- `tests/conftest.py`: `FABRIK_MAIL_ROOT` defaults to a scratch dir for the whole session, so an undone monkeypatch can never write the live mailbox (four test mails reached fabrik-lib's inbox, 01M4WZ36J6).
+
+### Changed — hub mail routing: `auto_address` is on; the fabrik-lib leg stays off until it spares replies (2026-10-14)
+
+- `.fabrik/beat-owners.json`: `switches.auto_address` is now true, so a hub-bound send that names no agent is addressed to the map's path owner instead of being refused. It never overrides an explicit addressee, a thread reply or a broadcast. `switches.fabrik_lib_address` stays false: the review found the fabrik-lib leg addressing replies and broadcasts and matching common backticked words as module names (W-c687ce60). D-852.
+
+### Fixed — the daily janitor removes dead subagents' harness worktrees (W-18e66a92) (2026-10-14)
+
+- `scripts/scratch_sweep.py`: `--dead` (the 04:20 cron) now runs a harness pass over the hub's main checkout, `janitor_worktrees`. It takes only `.claude/worktrees/agent-<hex>` trees (never the named `fleet`/`intel`/`kaizen` worktrees) whose chain verdict is removable and that have had no commit or checkout for 3 days, and it runs no repo-wide `git worktree prune`. 21 such trees had accumulated, 6–8 days old.
+- An ignored file whose bytes equal a top-level file in the hub's `backups/` now counts as a creation copy. Every harness tree holds the `.worktreeinclude` copy of `.env`, and once main's `.env` was rotated (2026-10-12) that copy differed, so every older tree read `wt-ignored-data` forever. The two retired `.env` versions were archived to `backups/` once by hand.
+- A backup counts only when its file NAME contains the copy's basename, and it is opened without following links or blocking. The janitor reads each tree's own registration (git suffixes a colliding name), and `SCRATCH_SWEEP_JANITOR_REPO` names its repo, so the test suite can never reach the live hub. The classifier's own `git status` rewrites a tree's `index`, so dormancy reads `gitdir`/`HEAD`/`logs/HEAD` only.
+- Graded by 9 new tests, each seen red, with every new guard mutation-killed; full /fabrik-review converged in 3 rounds (4, 1, 0 confirmed). D-851.
+
+### Changed — round zero: a narrowing fix replays every confirmed shape, not only a regex fix (2026-10-14)
+
+The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or widens what it accepts. Such a fix is drafted and probed against every shape the review has confirmed so far and, where a shape names a field or key, against its renamed variant too. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
+
+### Changed — review probe catalogue: ruff on a read-only pin runs `--no-cache`; an equivalent mutant is discarded (2026-10-14)
+
+The catalogue's seat-isolation line now gives ruff on a copy as `--no-cache --config <repo>/pyproject.toml`. Ruff writes `.ruff_cache` in its working directory and fails inside a read-only pin, which was executed: the plain form failed and `--no-cache` passed. Both homes of the mutant rule (`term-coverage.md` rule 4 and the catalogue's Mutants line) now report a surviving mutant only once it is shown to change observable behaviour (an output, return value, exit code, raised exception or written state), so an equivalent mutant such as a no-op f-string is struck with its diff quoted, never reported as a test gap. The /fabrik-task lane test is also re-pointed at `<run-scratch>`, which f97ecaf5e had left red. Answers /fabrik-review-scoped rows 1791943423 and 1791937766. Graders: `tests/test_review_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-plan-after-chat: `check_plan_tickets` is named for plan sets only (2026-10-14)
+
+The Appetite rule named `check_plan_tickets.py` beside `check_plan_quality.py` for every plan, so a monolith author ran it and got a usage refusal. It now says `check_plan_tickets.py --plan-dir <dir>` takes a plan set only and refuses a monolith file, and that `check_plan_quality.py` grades every plan only under `final_gate.py --systemic`, as a WARN while the plan is DRAFT/PLANNED, so a monolith's Appetite lines are self-checked. Answers /fabrik-plan-after-chat row 1791966909. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-spec: key material in a local claim's cited output is described, never pasted (2026-10-14)
+
+/fabrik-spec cites each executed local claim's command and output in the spec, and nothing said to redact what that output may hold. A probe that printed a PEM header was quoted, and the `detect-private-key` commit hook refused the spec. The rule now says a key, token or credential in that output is described by its kind, length and a non-secret prefix and never pasted, its BEGIN line included, since the hook refuses a private-key PEM header. Answers /fabrik-spec row 1791966633. Graders: `tests/test_spec_queue_pass.py` (new) and the re-pinned `tests/test_spec_plan_lane_text.py`, red on the previous text.
+
+### Changed — kaizen charter: the held-subject search reads `--reasons`, as /fabrik-command-improve does (2026-10-14)
+
+`docs/reference/agents/kaizen.md` now finds an already-held subject in the reason column of `command_feedback_report.py --reasons <cmd>` run without `--held`, not in the `--queue` header's tag line. That matches the D-711 clause /fabrik-command-improve gained at 5966b4176 (D-837). Grader: `tests/test_command_improve_drive.py`, red on the previous text.
+
+### Changed — /fabrik-task: a run's files live in the SCRATCH path `start` prints (2026-10-14)
+
+The phase-1, phase-2 and phase-5 files (`measure.md`, `design.md`, `commit.sha`) and the `--design`/`--resume` paths now name `<run-scratch>`, which is the `SCRATCH:` path `command_run.py start` prints under `<main checkout>/.tmp/runs/` (D-836). It replaces the session scratchpad under `/tmp`, which a WSL shutdown wiped. The scratchpad remains only as the fallback when `start` prints no `SCRATCH:` line. Answers infra's mail 01M4VV3BD3 and /fabrik-task rows 1791906916, 1791907380 and 1791907099. Grader: `tests/test_fabrik_task_source.py`, red on the previous text.
+
+### Changed — /fabrik-command-improve: the held-subject search reads `--reasons` by reason text (2026-10-14)
+
+Before a reject, D-711's search for an already-held subject now runs `/opt/fabrik/scripts/command_feedback_report.py --reasons <command>` without `--held` and greps the reason column. Tags rarely match a near-synonym: fabrik-review's 236 tagged rejects carry 235 distinct tags. The orchestrator runs it and pins the output into an audit seat's scratch. Answers infra's mail 01M4VX84J0 (D-837). Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-review: an Agent-tool seat that imports the pin is told where on sys.path the extract goes (2026-10-14)
+
+The seat-brief rule in /fabrik-review now gives the pin import's placement and its condition: the directory that holds the top-level import name goes at the index of the first entry ending in `site-packages` or `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, and every probe runs as `python -P -B` with PYTHONPATH entries dropped, since without `-P` the live repo sits ahead of the extract. It points at `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js` for the recipe. Workflow seats already got this rule; Agent-tool seats did not. Answers intel's mail 01M4W155SB. Grader: `tests/test_review_queue_pass.py`, which also checks that the recipe still says the same and is red on the previous text.
+
+### Changed — /fabrik-spec-review and /fabrik-plan-review name their receipt and its `**Command:**` line (2026-10-14)
+
+Each command now says that its Pass Ledger lives in `docs/development/reviews/<YYYY-MM-DD>-<slug>-{spec,plan}-review.md`, and that the receipt's first 10 lines carry `**Command:** /fabrik-{spec,plan}-review`. Once a receipt claims a finished review, `check_convergence.py` grades it by its ledger only under that label (W-39d8d1fd), and without the label it demands a code review's gate embed. Before this, no producer emitted the label the gate keys on. Answers infra's mail 01M4W4ZWTZ. Grader: `tests/test_spec_review_queue_pass.py`, which drives the router on the line as written and is red on the previous text.
+
+### Fixed — a file reviewed only by NESTED reviews no longer stays "unreviewed spontaneous work" forever (W-bdcff87a) (2026-10-14)
+
+- `scripts/command_run.py`: every review-family `done`, nested included, records what it NAMED — `{surface, adds, closed}` — in a session-durable `reviewed_surfaces` list. `start` carries it like `covered` (a nested child starts empty, its entries join the caller at the pop), and a late `done --surface` is the one recorded; `blocked`/`handoff` record nothing.
+- `.claude/hooks/final_gate_stop.py`: the sixth cause clears an edited path a closed entry names when the entry closed at or after the edit (a commit-only path within the existing commit grace of the close), reading the record and its parked frames. A nested review stamps no reach and its window starts after an earlier edit, so before this an edit made before a session's first run and reviewed only inside `/fabrik-execute-plan` blocked 3/3 every time (site-provisioner 01M49X4BZT, 01M4AH24H7). The running-surface parse is now one helper, `_surface_tokens`, shared by both readers.
+- Graded by 10 new tests, each seen red, and 13 mutants each killed; the record-shape pin gains `reviewed_surfaces`. The review closed three more holes: an unreadable edit time of 0, an edit older than the floor shielding a fresh commit, and a non-list `reviewed_surfaces` wedging `done`. The pre-existing loss of a reaped nested child's parked lists is W-a2361e7b.
+
+### Fixed — the quota checkpoint makes sure a pausing window's self-watch is armed, so the relief wake can reach it (W-117b1916) (2026-10-14)
+
+- `.claude/hooks/final_gate_stop.py`: the rotation tick's relief wake (`.holdlifted`) reaches only a session whose `selfwatch.lock` is held, and one arm is one wake, so a window that paused at urgent-90 or at the wall after its watch had woken once slept through the reset (five mails, operator-reported). At urgent-90 the checkpoint block now carries an ARM item (the background `selfwatch_arm.sh <sid>` order), and a watch consumed later in the episode earns one arm-only block; at the wall the same arm-only block fires once per consumption before the yield. Fail-open on any load or probe error (D-844, superseding D-718 at the Stop site).
+- `scripts/sysadmin/selfwatch_check.py`: the notice's gates moved into `arm_state(sid, cwd)`, which the prompt notice and the Stop checkpoint now share; the notice text is byte-identical (pinned by a golden test). `SELFWATCH_OPT_ROOT` is a test seam for the `/opt` gate.
+- Graded by 15 new tests in `tests/test_stop_hook_quota_hold_exemption.py` and `tests/test_selfwatch_check.py`, each seen red. The review also closed a hang: a FIFO at the lock path blocked the decider's read forever. `_armed` now decides with ONE non-blocking, non-following open and `fstat`, so a non-regular lock reads as not armed and is never armed onto, and a held lock the reader may not open still reads armed through `/proc/locks`. The rotation tick's vendored copy of the decider gets the same refusal in W-14c96fdc. Windows paused with no stamp (AMBER, RED with a successor) are a separate item, W-a6f51c0b.
+
+### Fixed — `check_convergence.py` grades a spec-review or plan-review receipt by its own Pass Ledger, not a final_gate embed (W-39d8d1fd, mail 01M493W8G3) (2026-10-14)
+
+- `scripts/enforcement/check_convergence.py`: a finished receipt under `docs/development/reviews/` had to embed a `final_gate` success block, the proof a CODE review owes. A `/fabrik-spec-review` or `/fabrik-plan-review` receipt reviews a design document, so its honest close was refused, and authors bolted on a gate run that proved nothing (web-ecommerce-factory). `check_review_coverage.py` never grades such a receipt, so that embed was the only rule on it.
+- Such a receipt is now recognised by the FIRST `Command:` label in its header (its first token, in any case, with list, quote or bold markup), and never when it carries a Coverage Checklist heading. It is graded by the same closing-row law a plan's Pass Ledger answers to: its `| Pass N |` rows carry `confirmed:` counters, read past fences, code spans and HTML comments, and the last one reads 0. Other spellings keep the embed demand.
+- Graded by 17 new tests (34 cases) in `tests/test_check_convergence.py`; every guard was killed by a mutant. Across 1679 receipts on the box, 3 fleet receipts route: two web-ecommerce-factory receipts pass, and trade-intelligence's plan review (closed on the retired scope-growth stop) fails the next time it changes.
+
+### Fixed — per-account flip lines: no early fleet wall, cap-governed weekly wall, crash-proof loaders (2026-10-14)
+
+- The `/fabrik-review` of the D-855 change found these defects; each fix ships with a test proven red on the old code.
+  - An account's own line no longer walls it below the urgent tier. A board value of 85 used to write the fleet's hard hold at 87. A line under 90 now still flips the account at that line, but walls it at the fleet line, so the urgent warning keeps its runway (`_wall_line`).
+  - A capped active account is walled on its cap, not its line, matching the flip leg.
+  - The walled notice is judged on the same line as the hold: it names the 5-hour window when that window tripped, and says PARKED for a parked account.
+  - The flip leg judges siblings on the fleet line.
+  - Each `--status` picture row carries its own `trip` line.
+- `caps.json` and `thresholds.json` now survive a giant integer or a non-UTF-8 byte. Both loaders route values through `_usable_ts`, and the bad file is treated as unreadable instead of killing every tick.
+- The board's caps and thresholds writer drops every case-variant of an account key. Two new tests cover it: one proves the file lock serialises writers, and the session-crossing test now isolates the flip tier.
+- The legacy-tick line in `docs/workstation/claude-account-rotation.md` says 99.
+
+### Changed — rotation flips at 99% by default, per-account flip lines and weekly caps editable from the quota board (2026-10-14)
+
+- `scripts/sysadmin/claude_rotate.py` (operator: "98% hook is to restrictive, can we make it 99% except ob@ocoron.com";
+  "give me an option to be able to set thresholds manually in the gui"): `ROTATE_THRESHOLD` default 98 → **99**
+  (superseding D-201); a new `<fleet root>/thresholds.json` (`{"email": pct}`, `_thresholds_file()`, same never-halt
+  loader contract as `caps.json`) carries an account's own flip line, resolved by `_row_threshold()` in the candidate
+  verdict, the flip-away leg, the walled-active predicate, the picture and the relief bar; status rows carry it as
+  `session_threshold`. ob@ keeps 98 there. The aro-wake twin stays byte-identical.
+- `scripts/sysadmin/quota_dashboard.py`: every account row gains a `cap` input (`POST /cap` → caps.json, 0–100, empty
+  clears, 0 parks) and a `rotate at` input (`POST /threshold` → thresholds.json, 50–100, empty = default), both behind
+  the custom-header CSRF guard, board-known accounts only, locked atomic read-modify-write, refusing to rewrite an
+  unparseable file; the trigger reads each account's own line (`_trip_line`); `TRIGGER_THRESHOLD` default 99.
+- Graders: the default pinned at 99, a thresholds.json loader test, an override tripping the flip leg and excluding a
+  target at its own line, eight `/cap` and `/threshold` route + render tests; fixtures built on the old 98 line pin it.
+
+### Changed — `fabrik apply` loses `--legacy`/`--use-orchestrator`/`--skip-dns`/`--skip-deploy`; `deploy.py` retired (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T05, spec D1): the orchestrator pipeline is now the ONLY path — `apply`'s legacy
+  fall-through (spec load, `/opt/<id>/.env` secret reads, the confirm prompt, render, DNS, `deploy_to_coolify`) and its
+  four gating options are removed; a stale flag now gets click's own `No such option` (exit 2) instead of a deprecated
+  no-op. `--yes` stays as a stated compatibility no-op ("accepted for compatibility; the orchestrator path never
+  prompts") because `scripts/proof_run.py` and older docs still pass it. `src/fabrik/deploy.py` (the disabled
+  `deploy_to_coolify` shim, its only importer the removed fall-through) is deleted. `destroy`'s preview and `--partial`
+  help and the `domain provision`/`domain ready` docstrings drop their remaining "Coolify" wording (spec D10); the one
+  `Coolify` left in `cli.py` is `export`'s docstring, T06's. Graders: `tests/test_cli_apply_flags.py` (NEW, 12 — the
+  four stale flags refused, `--yes --dry-run` reaching a faked orchestrator once, `deploy.py` gone with no importer,
+  the wording).
+
+### Changed — `fabrik projects --sync` runs the project scanner instead of the retired Coolify client (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T04, spec D4): `--sync` runs `scripts/sync_projects.py` as the same subprocess `fabrik scan`
+  runs (`python3 <script>`, cwd `FABRIK_ROOT`; a missing script exits 1, a non-zero scanner exit is re-raised and nothing
+  is listed) BEFORE the registry is read, so the listing shows what the scanner just wrote; the Coolify block
+  (`CoolifyClient.list_applications`, `registry.update(..., coolify_uuid=…)`) is gone; help texts: `--sync` "Re-scan /opt
+  and merge the deploy state before listing", `--status` "Filter by status (ready/development)" — `deployed` had the
+  Coolify sync as its only writer. `src/fabrik/registry.py`: `Project.coolify_uuid`/`coolify_name` and their
+  `to_dict`/`from_dict` lines are removed; a `data/projects.yaml` row still carrying the keys loads its other fields
+  unchanged. Graders: `tests/test_projects_sync.py` (NEW, 8 — the read-after-subprocess order proven by a fake scanner
+  that rewrites the registry file; a failing scanner's exit code propagates with no stale listing),
+  `tests/test_sync_has_user_guide.py` unchanged (5).
+
+### Changed — `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` on the spec's host (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T03, spec D3, invariant 2): `reconcile-all` no longer queries Coolify — it reads
+  `docker compose ls -a --format json` ONCE per distinct target host (`spec.target_vps`, default `vps1`) and reconciles a
+  spec whose project `Name` is `<n>`/`fabrik-<n>` or whose `ConfigFiles` entry lives in one of its `app_dir` candidates;
+  every failure is a row, never an abort (`skipped — no compose project (no containers) on <host>`,
+  `host-unreachable — <error>`, `error — <message>` for a spec defect or a refresh failure, cut at 80 characters); the
+  host is named and read BEFORE the per-spec checks, so exit 1 when no named host could be read, and under `--yes` on any
+  `host-unreachable`/`error`/`spec-error`/`lock-timeout` row, otherwise 0; `--filter` matches the file stem BEFORE the
+  spec loads. `src/fabrik/orchestrator/__init__.py`'s `refresh_infrastructure` takes `target_vps` (flag > spec > `vps1`),
+  probes each `app_dir` candidate with `probe_app` on that host — only the walk swaps hosts, hub-side registrars stay on
+  vps1 (the 2026-06-02 revert) — reports an unreachable host as `could not reach <host>`, names every probed directory
+  when none holds a `compose.yaml`, and records the matched directory's basename as the app name;
+  `redeploy --refresh-infra` passes its `--target-vps` through. Graders: `tests/test_reconcile_all_deployed_set.py`
+  (35 — 29 from the coder, 22 red first, the invariant-2 exit rule as a 17-case battery; 6 from the wave-3 review, each
+  killing a mutant the coder's suite let live), `tests/orchestrator/test_refresh_infrastructure.py` rewritten onto
+  `probe_app` stubs keyed by path (5), `tests/test_state.py` re-stubbed (32).
+
+### Changed — `fabrik status` drops the dead Coolify check, prints the last apply and the live containers (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T02, spec D2): after the `apps/<id>` block, a **Last apply** section from the state record
+  (`applied_at`, `git_sha[:12]`, `target_vps`, the `registrars_applied` types, every `registrar_failures` row — or
+  `no state record — never applied from this checkout`) and a **Live containers** section that walks `app_dir(spec)` with
+  `SSHDeployer.probe_app` under `_host_env(spec.target_vps)` and prints `Service · State · Health · ExitCode` rows (a
+  running row's empty Health reads `no healthcheck`, an exited row's `—`); `no <dir>/compose.yaml on <host>` per absent
+  candidate, `⚠️ could not reach <host>: <error>` / `⚠️ could not read containers on <host>: <error>` on a failure, exit 0 in
+  every probe outcome; an `app_dir` ProvisioningError (a local source outside `/opt`) prints `Error: <message>` and exits 1
+  before any ssh call. The lazy `CoolifyClient` import is gone; the local `app_dir` Path is renamed `scaffold_dir` so the
+  helper is never shadowed. Graders: `tests/test_cli_status_live.py` (9, red-on-revert against the pre-rebase function).
+
+### Added — deployer probe helpers for the Coolify-verb retirement: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` (2026-10-14)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` (plan T01, spec D2/D3, invariant 3): `app_dir(spec)` names the candidate
+  directories `/opt/<n>` then `/opt/fabrik-<n>` (the second only when `<n>` does not already start with `fabrik-`), or a
+  local `source.path` normalised, which must be a direct child of `/opt` (`ProvisioningError` otherwise; `path: None` →
+  `/opt/<n>`); `SSHDeployer.probe_app(path)` runs a read-only `sudo sh -c '[ -f … ] …'` file test then `docker compose ps -a
+  --format json`, `shlex.quote` once per shell layer, and returns `{exists, ps, error}` — every failure is an `error`, never an
+  exception; `SSHDeployer.list_compose_projects(host)` runs `sudo docker compose ls -a --format json` under the host swap and
+  raises `RuntimeError` naming the host on a non-array body; `_parse_compose_ps` reads JSON Lines or an array into
+  `Service`/`State`/`Health`/`ExitCode` rows; `_target_vps_env` now delegates to the module-level `_host_env` context manager
+  (`"vps1"`, `None` and `""` are no-ops because the ssh driver's default alias is `vps`). `find_existing` is byte-identical.
+  Graders: `tests/orchestrator/test_deployer_probe.py` (34, red first on the missing imports) beside the unchanged
+  `tests/orchestrator/test_deployer_ssh.py` (171).
+
+### Fixed — `RollbackManager` drops its Coolify branch (2026-10-14)
+
+- `src/fabrik/orchestrator/rollback.py` (plan T07a, spec D7): the `coolify_client` ctor argument, its lazy property and
+  `_rollback_coolify` are gone; a `coolify` resource falls to the existing `Unknown resource type` warning; the docstrings
+  name `dns` alone. `src/fabrik/drivers/postgres.py`'s alias-watcher docstring no longer names `coolify_alias`.
+  `tests/orchestrator/test_rollback.py` rewrites the LIFO and continue-on-error tests onto surviving types;
+  `test_e2e_rollback.py` and `test_infrastructure.py` lose every `CoolifyClient` patch (82 tests green across the three).
+
+### Fixed — hub `/health` drops the dead Coolify dependency check; the `coolify_uuid` docstrings and env placeholders say what the keys hold now (2026-10-14)
+
+- `src/fabrik/health_app.py` (plan T07b, spec D5): `/health` aggregates `{"dns": …}` alone with the 200/503 rule intact and
+  stays a shallow liveness endpoint; the `CoolifyClient` import and `_check_coolify_sync` are gone. `compose.yaml` loses the
+  four `COOLIFY_*` environment lines (two were `:?`-required, so the hub image could not start without a dead token).
+  `src/fabrik/state.py` and `src/fabrik/orchestrator/context.py` describe `coolify_uuid` as the compose app name kept under
+  its historical key and list `compose`/`dns`/`monitor` as the resource types (spec D9 — the KEYS are unchanged);
+  `src/fabrik/config.py` and `.env.example` lose their commented Coolify readers and placeholder blocks.
+  `tests/test_health_app.py` (2, red first against the unchanged endpoint) beside the unmodified `tests/test_state.py` (32)
+  and `tests/test_sync_projects_state.py` (13).
+
+### Fixed — `command_run.py step` finds a phase receipt a linked worktree holds (W-9fca9008, mail 01M48QZDFM) (2026-10-14)
+
+- `scripts/command_run.py`: the phase-review gate looked only under the record's repo_root, so a plan built in a worktree, with its receipts committed on the worktree branch, was refused at every phase boundary. The only way through was `--review-waived`, which records a skip that never happened.
+- The gate now also searches every registered worktree of the repo (`git worktree list --porcelain -z`, skipping bare and prunable entries; each git call has a 5 s timeout). A sibling tree offers only NEW evidence: a receipt whose content root's index already holds is skipped, and a sibling receipt is aged by the author time of the last commit that added or changed it, following exact renames only, not by its mtime, because `worktree add` re-stamps checked-out files and a rebase re-stamps committer times; a receipt untracked in its tree keeps its mtime. When the record names a dated plan, a sibling receipt must start with that plan's `<date>-plan-<n>` prefix (an undated stem binds nothing, a stated cost), since another worktree usually holds another session's plan, and the refusal names the prefix. Replication is checked by hashing the blob in-process, so a refused phase costs 0.7 to 1.0 s on a 25-tree hub.
+- An unreadable sibling is skipped, never fatal. A git failure keeps today's root-only search, and the refusal says which.
+- `step` computes the scan once, and only for phase-gated commands.
+- Graded by `tests/test_command_run_phase_worktree.py` (17 tests; each guard killed a mutant, the two literal-pathspec flags as a pair). Glob characters in a receipt name are literal, and a symlinked receipt hashes as git does. A run rooted inside a linked worktree still ages root's own receipts by mtime, which is unchanged from before this fix and filed as W-3c082de1.
+
+### Fixed — `scripts/proof_run.py` refuses to run its live proof without `--live` (2026-10-14)
+
+- The harness parsed no argv, so ANY invocation — `--help` included — ran step 1's `fabrik destroy --yes --drop-data`,
+  `rm -rf /opt/<fixture>` and `gh repo delete` against the fleet; four review seats ran it on 2026-10-14 and destroyed
+  and re-scaffolded the `fabrik-test-saas-skeleton` fixture (`proof-logs/saas-skeleton-20261014T00*.log`). `parse_args()`
+  now runs before `main()` with a REQUIRED `--live`: a bare run exits 2, `--help` exits 0, both before any side effect;
+  there is no dry run and the docstring carries the cobra check. Grader `tests/test_proof_run_guard.py`: a static read
+  refuses to execute an unguarded file (the RED, proved in a throwaway worktree with the proof-log count unchanged), then
+  the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes
+  recording zero calls; the review added `allow_abbrev=False` (a prefix such as `--li` is refused), an `if not
+  parse_args().live` check in the `__main__` block (a loosened parser cannot reach `main()`), a static WHITELIST of what the
+  module top level may contain (un-aliased imports, `Path`-only constants to plain names, undecorated defs, classes
+  on builtin or module-defined bases with no dunder assignment or hook def in the body, the `__main__` block without `else`) with the recording fakes installed before
+  every import as the second layer — defence in depth, neither a proof — the `__main__` block asserted by AST shape,
+  `load_env`'s `.env` read pinned to `Path.read_text`, a sentinel proving
+  `--live` reaches `main()` at its first `.env` read, and the escape variants as executable cases. Plan T08
+  (`docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/T08-script-rebases.md`) inherits the parser and
+  the grader; its spine's File Scope names the test and its never-execute rule now reads as a regression guard.
+
+### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
+  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
+  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
+  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
+  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
+  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
+  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
+  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
+  `requiressl`.
+
+### Fixed — the GATE row's final_gate.py line cites follow an 11-line move, and the grader now checks range ends (2026-10-14)
+
+- `CLAUDE.md`, `templates/governance/CLAUDE.md`: the setup-error and tier cites moved from `:3326-3343`/`:3345-3351` to `:3337-3354`/`:3356-3362`. infra's 7bef5f4cd (D-827) shifted final_gate.py by 11 lines and left `tests/test_governance_template_split.py` red. The grader checked only each range's START line, so it gains `_GATE_CITE_ENDS`, which asserts every range's last line too (shown red on a wrong end).
+
+### Added — `command_feedback_report.py --reasons <command> [--held]`: a read-only view of rejected feedback rows and their reasons (kaizen 01M4V1BCW7) (2026-10-14)
+
+- `scripts/command_feedback_report.py`: `--queue` printed only held tag names, but fabrik-review's 236 tagged rejects carry 235 distinct tags, so a D-711 audit cannot find a subject held under a near-synonym by tag. `--reasons` prints each rejected row's ts handle, tags and reason text, newest reject first (by `at`, since every index `ts` is a string). `--held` narrows to tagged rows. It is read-only and runs alone. It exits rc 1 with a stderr line on an unreadable index, never a silent "nothing held". It survives a non-UTF-8 stdout. A stray `--reason` without `--reject`, the one-letter near-miss that used to run the full report silently, and `--held` without `--reasons` are both refused rc 2. Graded by seven red-first tests in `tests/test_command_feedback_report.py`; `docs/reference/command-run-protocol.md` names the view.
+
+### Changed — /fabrik-command-improve: a row that prescribes how a command works goes to the panel first (2026-10-14)
+
+PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-execute-plan: a small sync-path plan runs in its own worktree (2026-10-14)
+
+In the main checkout, a `Profile: small` plan whose owned paths include a governance-sync trigger path now runs in its own isolation worktree (step 8's `EnterWorktree` path), because every main-checkout commit on such a path distributes fleet-wide: its phases still commit one by one, and the plan reaches the fleet once, when Finish position (b) merges the branch and the merge's own hook syncs it. Decided by an Opus + Fable panel over committing once at Finish, which broke the resume rule, the per-phase commit and the Finish review range. Answers /fabrik-execute-plan row 1791912630. Grader: `tests/test_execute_plan_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-data-contract: a checkable validation cell is a probed regex (2026-10-14)
+
+Phase 2's per-entity table rules now write a validation cell whose rule is a format the project defines itself (a URL shape, a key or code format) as the regex itself, probed in the same edit against each guard that consumes it with one value it must accept and one it must refuse; a cited standard or a bound stays as written, and a field no guard enforces yet gets a reconciliation note. Answers /fabrik-data-contract row 1791957889 (a recurrence of probe-from-table-cells). Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
+
+### Changed — Review commands flip CONVERGED after the design panel, not before (2026-10-14)
+
+`commands/_fragments/design-critique.md` and `design-gate-panel.md` now hold the `Status: CONVERGED` flip until the panel's ACCEPTED-concern delta round confirms 0, and write it in the approval commit; the flip-then-revert path survives only for an artifact already CONVERGED when it is re-reviewed. /fabrik-spec-review, /fabrik-plan-review (its `Size: small` joint loop) and /fabrik-spec say the same; /fabrik-plan-review also re-runs `check_plan_tickets` after every edit to a ticket's Behavior Contract. Decided by an Opus + Fable panel (both flip-after-panel). Answers /fabrik-plan-review row 1791954506. Graders: `tests/test_design_critique_fragment.py::test_the_converged_flip_waits_for_the_panels_delta_round` and `tests/test_plan_review_recurring_rules.py::test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel`, red on the previous text.
+
+### Changed — /fabrik-plan-after-chat: measure a ticket's READ set before writing it (2026-10-14)
+
+Size-as-you-draft now measures each ticket's Touches plus Context Files (minus what the gate exempts) against `READ_BUDGET_BYTES` before the ticket is written; a read-only file that would put it over is cited inline (`path:line` and the quoted lines) only when those lines are all the coder needs, and an edited file that alone exceeds the budget goes to the Integration ticket. Answers /fabrik-plan-after-chat row 1791954526 (a recurrence of 1791939165). Grader: the Size-as-you-draft pin in `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
+### Changed — Research chains run the two-tier ladder: exa only on a tier-1 miss (2026-10-14)
+
+Nine command sources (spec, spec-review, data-contract, plan-after-chat, ui-design, vision, docs-review, execute-plan, plan-review) and the fabrik-researcher seat now name `WebSearch` / `WebFetch` / brave first and the metered exa search only on a miss, as the operator ruled in D-337; `docs/workstation/mcp-roster.md` no longer calls exa "grounding order #1". Decided by an Opus + Fable panel (both `align`) on a transcript measurement: 1,028 tier-1 calls against 77 exa calls, 61 of them with no tier-1 call before them. Grader: `tests/test_research_tier_order.py`, a corpus-wide property, red on the previous text. W-911cab3b.
+
+### Changed — /fabrik-task: MIRROR finds exact-set asserts; a copied mechanism keeps its settled failures (2026-10-14)
+
+MIRROR's readers of a changed record shape now include its stdout, found by grepping the tests for `== {` and `len(`; a mechanism copied from another script carries, as Behaviours tested here, the failure directions its tests and D-rows settled, and Phase 1 greps that script's docstrings too. The source's byte cap rises by the added bytes (D-row in this change). Answers /fabrik-task rows 1791935733 and 1791933860 (W-b4e1dfb2). Grader: `tests/test_fabrik_task_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-plan-after-chat: the store census reads shape, nested members and operator refs before drafting (2026-10-14)
+
+A data-derived rule's grounding now runs, before the plan's first phase or ticket is written, an executed census of each store it reads, cited in the plan's Evidence: its shape, nested items and required fields included, and its values (for a large store, distinct values with counts); a value an operator enters counts as a store too. Answers /fabrik-plan-after-chat row 1791950385. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-data-contract: a re-freeze whose spec deltas touch no tabled item closes without a bump (2026-10-14)
+
+Phase 0 now names the zero-delta outcome: when no delta of an approved spec changes anything the contract records, Phases 1–3 still run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, the D-row cites the approval row and the spec, and the re-freeze close-out does not run. Answers /fabrik-data-contract row 1791945393. Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
+
+### Changed — /fabrik-spec-review: code-flow fixes are invariants from the first edit; seat briefs use absolute paths (2026-10-14)
+
+A fix inside a spec section describing a code FLOW is written as invariants + touchpoints from its first edit, not only once the residue-pass rule forces a rewrite. `commands/_fragments/design-critique.md` now says that panel-delta residue raised after the scope-growth stop fired is `RECORDED — measured` on the backlog row, not confirmed, so it does not set the flip back; the round that fires the stop still does. `commands/_fragments/subagents-core.md` has the dispatcher write every pin, copy, fix and scratch path a brief names as a literal absolute path. Answers /fabrik-spec-review rows 1791937893 and 1791945243. Grader: `tests/test_spec_review_queue_pass.py`, red on the previous text; the pins in `tests/test_spec_plan_lane_text.py` and `tests/test_plan_review_recurring_rules.py` follow the new wording.
+
+### Changed — /fabrik-spec and delegated-reads: a store-naming rule rests on a census; a capped seat read answers in order (2026-10-14)
+
+The local-claims bullet now requires an executed census of each store's current members before a design rule that names stores (a matrix, an allowlist, an entity schema's fields) is written, with its invariants written against that census. `commands/_fragments/delegated-reads.md` (rendered into every command that includes it) now numbers a multi-part question in the brief, which tells the seat to answer the parts in order, each within its named share of the ~2 k, so a truncated return loses the tail, and an unreached part is asked again. Answers /fabrik-spec rows 1791945254 and 1791936747. Grader: the recurring-rules pin in `tests/test_spec_plan_lane_text.py`, extended and red on the previous text.
+
+### Changed — /fabrik-data-contract: an unbuilt file is cited on its own line with the doc-links marker (2026-10-14)
+
+Phase 3 gains item 6: in any mode, the contract cites a file its spec has not built yet on a physical line of its own carrying the exact lowercase phrase the doc-links gate skips (`does not exist`, read by `_iter_refs` in `check_doc_links.py`); the gate skips the whole line, so no built file may share it. Answers row 1791942388 (web-ecommerce-factory: two pushes went red on Doc Link Integrity for a re-frozen contract's unbuilt files). A per-reference marker in the checker was mailed to infra. Grader: `tests/test_data_contract_recurring_rules.py::test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker`, which also drives the checker on a marked, an unmarked and a capitalised line.
+
+### Changed — /fabrik-command-improve: a reject search reads the rendered command; a seat rule lands in every home (2026-10-14)
+
+PHASE 2's D-711 paragraph now finds a reject's checked line by grepping the rendered command (every fragment, the appended close and every parameter), the files it points at and the loaded `CLAUDE.md`, then cites the line in its source file, and PHASE 2's targets and lock check admit a seat file under `commands/_agents/`. PHASE 3 says an edit to what a seat may do lands in every home a grep names (today subagents-core, the seat files under `commands/_agents/`, the seat-brief lists in fabrik-review and design-critique, convergence-prompts, and intel's `SEAT_ISOLATION` and `seat_guard.py`, mailed). Answers rows 1791941814 (a planned HELD reject missed a capped seat brief in `delegated-reads.md`) and 1791944106 (a never-execute seat rule first landed in one home). Grader: `tests/test_command_improve_queue_pass.py::test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home`.
+
+### Changed — review seats never execute an unread or world-changing script (2026-10-14)
+
+`commands/_fragments/subagents-core.md` (the seat-isolation paragraph, in 21 commands) and the native reviewer's house rules in `commands/_agents/fabrik-reviewer.md` now make a seat read a script before it executes it (`--help` included) and forbid executing one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, even when a check asks it to; the seat cites the lines and returns the claim `unverified`. Answers /fabrik-plan-review row 1791938982: four seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture. The Workflow seats' `SEAT_ISOLATION` mirror was mailed to intel. Grader: `tests/test_plan_review_queue_pass.py::test_a_seat_never_executes_a_script_that_acts_outside_its_scratch`.
+
+### Changed — /fabrik-plan-after-chat: a derived rule is grounded on its stores; the emit gate runs per ticket (2026-10-14)
+
+Phase 1 now says a rule the plan derives from data (a mapping, a ref rule, a classifier) names, for every value it reads, the store that fills it in the case the plan builds, and is grounded against those stores rather than one existing instance. Phase 2 gains a Size-as-you-draft paragraph: write the spine first, run `check_plan_tickets` after each ticket reading only its `READ budget` lines mid-draft, and build the spine's Behavior Contract roll-up by copying the tickets' bulleted `Given` rows with a script. Answers rows 1791941193 (a ref rule grounded on one site's refs) and 1791939165 (three tickets over the READ budget found only at the end, and a hand-typed roll-up that drifted). Grader: `tests/test_plan_after_chat_queue_pass.py::test_a_derived_rule_is_grounded_on_its_stores_and_the_emit_gate_runs_per_ticket`.
+
+### Changed — judge panel: every local claim in the brief carries its executed probe (2026-10-14)
+
+`commands/_fragments/judge-panel.md` (rendered into /fabrik-spec Phase 3) now requires the panel brief to carry every count and every local claim a ranking rests on, each from an executed probe with its command and output beside it, while an external fact carries its cited URL; before, only counts were bound, and without their command and output. Answers /fabrik-spec row 1791937897. Grader: the existing pin in `tests/test_spec_plan_lane_text.py`, updated and red on the previous text.
+
+### Changed — /fabrik-command-improve: a shared rule lives where its writers load it; a mechanism meets its consumer (2026-10-14)
+
+§ Drive's consistency rule now puts a rule that binds more than one command where every loop that writes the text it governs loads it (a fragment those commands include, else the `CLAUDE.md` or pack they all load), and PHASE 2's targets and lock check admit each of those homes. PHASE 3 now checks a mechanism the edit adds against the step or code that must consume it, and writes it in only when that consumer reads it or the edit wires it in. Answers rows 1791937927 and 1791940094: the count rule was first written per command, where the review-fix loops never read it, and a panel's coder time box was written in before anyone checked that D6 never reads its `TIMEOUT:` token. Grader: `tests/test_command_improve_queue_pass.py::test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consumer`; the adjacent origin-case pin moved to the new joint.
+
+### Changed — /fabrik-execute-plan: every coder dispatch runs in the foreground (2026-10-14)
+
+The board loop, D2 and § Dispatch pattern now dispatch coders as FOREGROUND Agent calls (`run_in_background=False`, added with `model=` to the three example calls), so the orchestrator's turn holds until the wave returns. A web-ecommerce-factory run used the default instead, ended its turn while two coders ran, and took 132 run-record Stop blocks, because the hook's stand-down covers stamped review seats only (infra mail 01M4VXJ4TQ). D2's dispatch timeout is now checked when each call returns; a coder that never returns is bounded only by the explicit command timeouts its brief demands. Grader: `tests/test_execute_plan_queue_pass.py::test_the_orchestrator_waits_for_its_coders_in_turn`.
+
+### Fixed — 58-resilience: two counts no longer sit away from their lists (2026-10-14)
+
+The latch paragraph said "the bullet below enumerates — the four numbered" for points numbered above it; it now says "every way this item names above — each numbered point, the per-process dict, and a key that is not stable across the fleet". The Workers checklist said "All five queue-bloat-prevention mechanisms" far from the table it counted; it now says "Every mechanism in § Queue Bloat Prevention is wired" (W-f8d45bea, under CLAUDE.md § Behavior's "A count lives at its list"). Grader: `tests/test_rule_pack_scaffold_coverage.py::test_resilience_counts_live_at_their_lists`, which also checks the heading's "Five" against its table.
+
+### Changed — CLAUDE.md: a count lives at its list (2026-10-14)
+
+A new § Behavior bullet beside READ BEFORE YOU EDIT says an enumeration states how many in the clause that opens the list, or not at all; that an edit adding or removing a list item re-counts every place the count is stated; and that a worked example is re-read against every caveat in its own paragraph before it is pinned or committed. A count stated away from its list ("wrong in FIVE ways" beside a list that had grown to six) kept resurfacing as own-fix residue in Phase D's scoped review-fix rounds (W-66f398a3). The rule sits in the hub contract because every hub session loads it, the review-fix loops included. No check reads counts against lists; this is a prose obligation. Grader: `tests/test_command_improve_queue_pass.py::test_a_count_lives_at_its_list`.
+
+### Added — every run gets a persistent scratch dir that survives a WSL /tmp wipe; `--restamp` no longer silently ignores `--range` (kaizen 01M4V0B03B) (2026-10-14)
+
+- `scripts/command_run.py`: `start` creates `<main checkout>/.tmp/runs/<session>/<command>-<record key>/` for every run, prints `SCRATCH: <path>` and records it as `scratch`. The session scratchpad under /tmp, where phase-2 measure.md, critique briefs and review pins lived, died with the WSL shutdown on 2026-10-13. A linked worktree's run writes to the main checkout, so `git worktree remove` at merge keeps it. A resumed run in a new session keeps its seed's dir when it lies under the run's root, even if the repo has since stopped ignoring it. A repo that does not ignore `.tmp` gets one untracked `.git/info/exclude` line, and if git still does not ignore the dir, no dir is made (the run starts anyway). `start` prunes dirs whose newest file is over 14 days old, never one a record or resume seed names, nor one holding a git worktree. Under a test (`COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST`) the scratch goes in the state dir, never a live checkout.
+- `scripts/review_receipt.py`: `--restamp` with `--range` is refused (rc 2) instead of silently ignored. Both refusals now name the real remedies: a committed working-tree receipt already passes task_lane's check (d) when the commit holds the reviewed bytes; otherwise re-make it with `--init --range`.
+- Graded by `tests/test_command_run_scratch.py` (8 tests) and `test_restamp_refuses_range_and_names_the_real_remedy`, each red first or under a mutant; seven mutants were killed.
+
+### Changed — term-coverage rule (3): a deletion's pointer is opened and its fact seen before the pin (2026-10-14)
+
+A restating sentence rule (3) deletes may be replaced by at most a pointer; the rule now requires each pointer be OPENED before the pin and the fact seen at it, recorded as one `· pointer: <path:line> read` per pointer in the Pass Ledger row's `method:` cell, the way rule (2) records the mirrors it read (W-c9b727ab). Like rule (2)'s `mirrors:` token it is a prose obligation: no gate parses it yet. Grader: `tests/test_review_queue_pass.py::test_rule_three_pointer_is_opened_before_the_pin`.
+
+### Fixed — check_plan_tickets collapses a doubled slash, so `scripts//final_gate.py` no longer slips past Never-Route (fleet 01M4TQPCXT) (2026-10-14)
+
+- `scripts/enforcement/check_plan_tickets.py`: `_norm_path` collapsed `/./` and a `./` prefix but not `//`, so a Touches entry spelled `scripts//final_gate.py` was never-route under neither rule and a `Complexity: simple` ticket carrying it drew no error. The fixpoint loop now collapses doubled slashes too; the same normaliser feeds File Scope, and a fleet count found no plan-set path that the collapse re-keys. The review found that collapsing `//` turned `.//.` into an empty token, which `_list_paths` drops silently. The cause is older: the `./` prefix strip already did that to `./` and `./.`. Every repo-root spelling now normalises to `.` and reaches the repo-root ERROR. Graded by `test_a_doubled_slash_collapses_before_never_route` and `test_a_repo_root_spelling_never_normalises_to_empty`, each red before its fix.
+
 ### Changed — review-loop Workflow seats never execute an unread or destructive script (2026-10-14)
 
 - `.claude/workflows/fabrik-review-loop.js`: SEAT_ISOLATION carries kaizen's rule from subagents-core.md and the fabrik-reviewer agent. A seat reads a script before executing it, `--help` included. It never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, by any route: an import that calls a function, `runpy`, a test, or a node or shell wrapper. It cites the lines and returns the claim unverified. On 2026-10-14 four plan-review seats ran scripts/proof_run.py, which has no argument parsing, and destroyed a live fixture.
@@ -111,6 +696,20 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
 - `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
+### Fixed — term-coverage says which consumers round zero and rule (5) bind (2026-10-14)
+- `commands/_fragments/term-coverage.md` scope paragraph said every obligation binds all five consumers alike, while round zero runs only for a consumer that runs delta rounds (before its round one and every re-dispatch) and rule (5) governs only a fix to a checker or a gate; the two certification gauntlets and the conformance review run neither. It now says so. W-eaa66f83.
+
+### Fixed — term-edit's pin clause no longer reads as licensing an edit while seats run (2026-10-14)
+- `commands/_fragments/term-edit.md` pin obligation (2): "(the seats read the pin; you edit the working tree)" read as allowing edits during the seat window, against `subagents-core.md`'s "While seats are out you do not edit the pinned files" in 14 of its 17 includers. It now says you edit the working tree once every seat has returned and you have read the pass. W-975b3652; an Opus + Fable panel split (parity vs reword), settled by the rule against copying a fragment's rule into another.
+
+### Fixed — the run-record section yields to a step a command names before it (2026-10-14)
+- `commands/_fragments/run-record.md` (35 includers): its heading says the record is the command's FIRST act, which overrode `/fabrik-review-scoped`'s "classify the surface FIRST" two lines above it. Its first line now says a step the command names as running before the record runs first, and when that step routes to another command, that command's record replaces this one. Work item W-ae8fd45b; grader `tests/test_review_scoped_queue_pass.py::test_the_run_record_section_yields_to_a_step_named_before_it`.
+
+### Changed — a review brief states what to report, never the value the lead expects (2026-10-14)
+- `commands/_fragments/review-probe-catalogue.md` § Loop bookkeeping: each brief states what the seat must report (a count, a verdict, an output), never the value the lead expects. /fabrik-review reached no line saying so; only /fabrik-review-scoped carried it. Answers /fabrik-review row 1791931043; grader `tests/test_review_scoped_queue_pass.py::test_a_brief_states_the_count_to_report_never_the_expected_one`.
+
+### Fixed — a design-gate delta round that confirms a defect takes CONVERGED back (2026-10-14)
+- `commands/_fragments/design-critique.md` ACCEPTED bullet: spec-review and plan-review flip `CONVERGED` with its D-row before the panel's ACCEPTED fold, and the text only said CONVERGED "stands" if the fold's delta round confirms 0. Now, when it does not, the next commit sets each document the flip touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row. Found by an Opus audit while answering /fabrik-spec row 1791930659; graders in `tests/test_design_critique_fragment.py` and `tests/test_plan_review_recurring_rules.py`.
 
 ### Fixed — the review checklist's shared-clone recipe matches what a clone does (2026-10-14)
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation, on intel's executed evidence (mail 01M4VMNGGM, re-run here): the seat checks the clone out at the pass's base SHA (until then its status reads every file deleted), disables its push to `origin` at once (`origin` is the live repo, so a push writes its `.git`), commits the pins in the clone when the test reads HEAD, a diff or the status; branch, worktree and stash state a test creates lands in the clone's own `.git`, so only a test that reads the live checkout's own state runs in the lead's throwaway worktree; the worktree ban now reads "on the live repo". Graders: the two queue-pass tests that pin these sentences.

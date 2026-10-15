@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:09.293613Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-27ec55b1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TPA4R8FZRY2V30PTX87CX2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: test_golden_parity red in the main checkout — the cause is an upstream collapse, now a registered known collapse (7747f98e3 on worktree-intel, pushed)"
+}

@@ -5,6 +5,7 @@ Unified controller for end-to-end deployments.
 
 import logging
 import os
+import posixpath
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.deployer_ssh import SSHDeployer
+from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
 from fabrik.orchestrator.exceptions import (
     DeployError,
     DeploymentError,
@@ -436,6 +437,7 @@ class DeploymentOrchestrator:
         self,
         spec_path: Path,
         dry_run: bool = False,
+        target_vps: str | None = None,
     ) -> DeploymentContext:
         """Re-run only the InfrastructureProvisioner against an existing app.
 
@@ -447,9 +449,11 @@ class DeploymentOrchestrator:
         Pipeline:
           1. Validate spec.
           2. Load secrets (same path as :meth:`deploy`).
-          3. Resolve ``ctx.app_name`` from the live VPS state
-             matched on spec name (with the conventional ``fabrik-`` prefix
-             tried as a fallback).
+          3. Resolve ``ctx.target_vps`` (``target_vps`` > the spec's > ``vps1``) and
+             ``ctx.app_name``: walk the ``app_dir(spec)`` candidates with
+             ``SSHDeployer.probe_app`` on that host (only the walk runs inside the host
+             swap — hub-side registrars stay on vps1); the first candidate holding a
+             ``compose.yaml`` matches and its basename is the app name.
           4. Call ``InfrastructureProvisioner.provision(ctx)``.
 
         Skipped vs :meth:`deploy`: DNS provisioning, ``SSHDeployer.deploy``,
@@ -460,6 +464,7 @@ class DeploymentOrchestrator:
             spec_path: Path to the spec YAML.
             dry_run: If True, the provisioner runs in dry-run mode
                 (each registrar checks ``ctx.dry_run``).
+            target_vps: The host the app lives on; overrides the spec's ``target_vps``.
 
         Returns:
             DeploymentContext with ``coolify_uuid`` and any
@@ -467,8 +472,9 @@ class DeploymentOrchestrator:
 
         Raises:
             ValidationError: Spec validation fails.
-            ProvisioningError: App not found on VPS, or any registrar
-                raises (notably the GlitchTip DSN-injection verifier).
+            ProvisioningError: The host cannot be reached, no candidate directory
+                holds a ``compose.yaml``, or any registrar raises (notably the
+                GlitchTip DSN-injection verifier).
         """
         ctx = DeploymentContext(spec_path=spec_path, dry_run=dry_run)
 
@@ -487,16 +493,30 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             )
 
-        # Try exact name first, then fabrik- prefix fallback
-        existing = self.deployer.find_existing(spec_name)
-        if not existing:
-            existing = self.deployer.find_existing(f"fabrik-{spec_name}")
-        if not existing:
+        # Same precedence as deploy(): flag > spec > vps1. Persisted by _persist_state.
+        ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
+        candidates = app_dir(spec)
+        matched: str | None = None
+        # ONLY the probe walk swaps hosts — never the whole call (the 2026-06-02 revert:
+        # hub-side registrars would otherwise ssh to the spoke).
+        with _host_env(ctx.target_vps):
+            for path in candidates:
+                probe = self.deployer.probe_app(path)
+                if probe.get("exists"):
+                    matched = path  # a ps failure does not unmatch an existing directory
+                    break
+                if probe.get("error"):
+                    raise ProvisioningError(
+                        f"could not reach {ctx.target_vps}: {probe['error']}",
+                        resource_type="infrastructure",
+                    )
+        if matched is None:
             raise ProvisioningError(
-                f"No compose app found at /opt/{spec_name}/ or /opt/fabrik-{spec_name}/",
+                f"No compose app found on {ctx.target_vps}: no compose.yaml in "
+                + " or ".join(f"{p}/" for p in candidates),
                 resource_type="infrastructure",
             )
-        ctx.app_name = existing["name"]  # stores app name, not UUID
+        ctx.app_name = posixpath.basename(matched)  # the injection path reads /opt/<app_name>
         ctx.deployed_url = f"https://{spec['domain']}" if spec.get("domain") else None
         logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.app_name)
 

@@ -136,8 +136,9 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
         in text
     )
     assert (
-        "A sentence naming what a gate or script reads is checked against every branch of that function, for "
-        "every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment is pointed at, or quoted in "
+        "A sentence naming what a gate or script reads or refuses is checked against every branch of that function "
+        "and every other path that filters or grades the same input, traced from the entry point that receives it, "
+        "for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment is pointed at, or quoted in "
         "its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}` "
         "consumer with its bound placeholders, and each source or fragment that names it (`command grep -rlw "
         "<its file name without .md> commands/_sources commands/_fragments`, which lists the includers too; "
@@ -148,8 +149,12 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
         (REPO / "docs" / "reference" / "agents" / "kaizen.md").read_text(encoding="utf-8").split()
     )
     assert (
-        "Valid one-off advice is rejected with `HELD:<subject>` first (D-711); a subject the `--queue` header's "
-        "`held (all time):` line already names is a recurrence, and is edited instead."
+        "Valid one-off advice is rejected with `HELD:<subject>` first (D-711); a subject an earlier reject already "
+        "holds is a recurrence, and is edited instead. Find it in the reason column of `python3 "
+        "scripts/command_feedback_report.py --reasons <cmd>`, run without `--held` (an untagged reject is "
+        "still a final hold), because the `--queue` header's `held (all time):` line lists tags only and a "
+        "near-synonym matches no tag; an audit seat gets that output pinned in its scratch and never runs it "
+        "(D-837)."
     ) in kz
     # the behaviour the wording now relies on: inside a hub worktree --repo resolves to that worktree
     spec = importlib.util.spec_from_file_location(

@@ -9,11 +9,13 @@ other's answer. The brief holds:
 - the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the
   commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a
   project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that
-  path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
+  absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
   numbers are cited;
 - the operator's ask in their own words;
-- the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under the
-  absolute scratchpad, `timeout 120 /usr/bin/grep`.
+- the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under
+  `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space;
+  `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the
+  absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`.
 
 The brief never carries the author's review history or recommendation. Ask each seat to read the design
 COLD and return:
@@ -28,9 +30,13 @@ Opus seat in its place, and say so in the presentation with the reason. Never pr
 **Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when
 one came back empty), you adjudicate every concern by executing its claim**, then give it one disposition:
 - `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
-  it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and `Status: CONVERGED` stands only
-  if that round confirms 0 (else the loop continues — that round is a delta round of the same loop, so its
-  own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` you edit `design.md` before `step
+  it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED`
+  flip waits for that round: it is written only on its `confirmed 0`, in the commit that mints the approval row (a
+  round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round of the same loop, so its
+  own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — residue a delta round raises AFTER the stop fired is `RECORDED — measured`
+  there (term-edit's scope-growth stop), not confirmed, so it does not hold the flip, while the round that
+  fires the stop confirms and fixes its defects and does; an artifact already CONVERGED at HEAD, re-reviewed, goes
+  back to `DRAFT` with a row superseding its flip row until such a round confirms 0); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` you edit `design.md` before `step
   --design` records it, which works on both lane versions;
 - `REJECTED` — with the counter-evidence;
 - `OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split).

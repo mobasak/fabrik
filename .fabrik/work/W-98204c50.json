@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T21:25:18.215495Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-98204c50",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "reproduce with a worktree requester whose item is in the main checkout's store; release via work.py --repo <main>",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "infra"

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:08.154094Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1d05da0a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VZ7A2M3G73XDDP1PDRFEPZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M4VXJ4TQ — /fabrik-execute-plan now dispatches every coder in the foreground (D-839, branch worktree-kaizen, merge request follows)"
+}

@@ -108,11 +108,11 @@ verbs:
 |---|---|---|
 | `init [--distributor <agent>]` | once per repo | create `.fabrik/work/` and `config.json`; nothing else writes an item into a repo without it |
 | `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3] [--tag <t>]…` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
-| `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]…` | distributor | set owner, priority and/or tags |
+| `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]… [--impact high\|low] [--effort high\|low] [--why <t>] [--blocked-by <id>]… [--unblock <id>]…` | distributor | set owner, priority and/or tags; SCORE an item (§ Scores and holds) or hold it behind another id |
 | `queue [--json] [--stop --session <id> --cwd <path>]` | anyone, read-only | each window's queued work against the floor, routable and waiting-backlog counts, plans not executed; `--stop` prints the Stop hook's one action (§ Ownership and the distributor) |
-| `triage [--apply]` | distributor (`--apply`) | plan the top-up of every present worker below the floor; `--apply` assigns it and prints the SendMessage lines |
-| `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age |
-| `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above |
+| `triage [--apply]` | distributor (`--apply`) | plan the top-up of every present worker below the floor; `--apply` assigns it and prints the SendMessage lines; also prints `unscored <n>: <ids>` and any `major in flight:` line, and plans at most one major project per run (§ Scores and holds) |
+| `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age. In a coordinator-mode repo a BUILDER's default `ready` lists only its own items among the remaining ones; `--all` (and `--all --mine`) is unfiltered |
+| `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above. In a coordinator-mode repo a BUILDER's `next` offers only its own items |
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
 | `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`) |
 | `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id; refused BY HAND on a `mail`/`feedback` item — those close only through `mail.py ack`/`close_linked` |
@@ -176,7 +176,45 @@ queued work, the coordinator rungs above, the agent's other owned ready items, a
 distributor the command-feedback queues (for a `feedback_owner` that is not the distributor, its
 queues come right after its mail instead — § above) — and the Stop hook blocks on each subject in turn, three
 times at most, so holding a claim no longer silences it. Self-service claiming from
-`ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
+`ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign —
+except for a BUILDER in a coordinator-mode repo (below), who claims what the coordinator queued it
+and serves itself only while the coordinator has no live window.
+
+### Scores and holds (the coordinator role, D-871)
+
+The coordinator scores every item on two fields, set with `assign` and always with `--why` (the
+one-line reason is stored as `score_reason`): `impact` (`high`/`low`) and `effort` (`high`/`low`, the
+quota it will spend). Once an item carries both, its `priority` is DERIVED — high/low → 1 (quick
+win), high/high → 2 (major project), low/low → 3 (fill-in) — and every check runs on the item as it
+will be written, so a score split across two calls is judged as one. Low impact with high effort is
+a time sink: `assign` refuses it and names `work.py drop --why`. On a scored item `--priority 0`
+sets the incident override; any other `--priority` is refused (the priority is derived), and a
+re-score without `--priority 0` ends the override and says so (`P0 override cleared`). A P0 set
+before an item's FIRST full score survives that score (`P0 kept`). An item that is not fully scored
+— never scored, or half-scored — keeps today's `priority` (default 2) and today's `--priority`;
+`--why` without a score is refused.
+
+`assign --blocked-by <id>` holds an item behind another (`ready` and `claim` already skip an item
+with an open blocker); `--unblock <id>` releases it. Refused: an unknown id, the item itself, a hold
+that would close a cycle, `--unblock` of an id the item is not blocked by, and the same id in both
+flags. `triage` lists every open item that lacks a score (`unscored <n>: …`, `kind: next` and items
+closed elsewhere excluded), never plans a second high/high item while one is in flight (owned or
+claimed, `open` or `blocked` — it prints the slot holder), and plans at most one high/high item per
+run. A high/high item held behind another in-flight one with `assign --blocked-by` waits rather
+than flies: triage prints it as `major held: <id> behind <id>`; one waiting on anything else (a
+prerequisite task, an unknown id) still holds the slot.
+
+**Coordinator mode** is opt-in per repo: `"coordinator_mode": true` in the main checkout's
+`config.json`. `work.py` is fleet-synced, so the behaviours that change what a builder sees act only
+there — and, for a builder, only once its own branch carries the key too (until it merges the flip
+it keeps today's view, and its Stop doorbell says so: one predicate decides both). A BUILDER is a pool worker (`_workers`; the feedback owner's tree is not one) that is not the
+distributor, named by its worker tree — the tree test the Stop hook's worker check makes — else the way the Stop hook names it. A builder's `next`, default `ready` and prompt
+`ready` count show only its own items;
+`triage` plans scored items before unscored ones; and when the coordinator has no live window, the
+Stop doorbell points a builder with an empty queue at `work.py ready --all --mine` (its own items,
+then unassigned ones) instead of `next`. Scoring, holds and the unscored listing work in every repo.
+COBRA (D-253): the cheapest way to look prioritised is to score everything a quick win — every
+score carries its reason, and `triage` keeps the unscored count in view.
 
 ## NEXT, DECISION blocks and the register
 

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T20:31:25.183708Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-9ead34bd",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure which deployed projects use the canonical compose unedited; then emit env_file: .env (environment: literals still win) with a test, checking the BuildKit :- history in the env-default note",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
+  "score_reason": "impact HIGH: names 'never reaches'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

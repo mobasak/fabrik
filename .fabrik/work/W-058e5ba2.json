@@ -13,11 +13,13 @@
   },
   "next": "inventory scripts/sysadmin + scripts/kaizen probes that validate a token/usage reading but never exercise the call they guard; one row per probe with its real-capability check",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Other box health probes may check credentials rather than the capability actually used — the blind spot the rotation capability probe closed for claude_rotate (spec U3, mail 01M3QG6G SYSTEMIC)"
 }

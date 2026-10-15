@@ -132,6 +132,15 @@ _WT_SURFACE = re.compile(
 _SURFACE_LINE = re.compile(r"^\*\*Surface:\*\* ([^\r\n]*)", re.M)
 
 
+# What a receipt whose surface is already COMMITTED needs (kaizen 01M4V0B03B row 1791907300): nothing,
+# when the commit holds the reviewed bytes — task_lane's check (d) rebuilds them from base..last — or a
+# new receipt. A `--restamp --range` would downgrade a byte-checked receipt to a tip-only one.
+_COMMITTED_REMEDY = (
+    "Already committed? A working-tree receipt already passes task_lane's check (d) when the commit "
+    "holds the reviewed bytes; if it does not, re-make the receipt with `--init --range <base>..<last>`"
+)
+
+
 def restamp(root: Path, receipt: Path) -> int:
     """Re-anchor an existing receipt's working-tree **Surface:** line to the tree as it is NOW.
 
@@ -174,7 +183,7 @@ def restamp(root: Path, receipt: Path) -> int:
     if nbytes == 0:
         sys.stderr.write(
             f"review_receipt: --restamp {receipt}: the surface is EMPTY — nothing differs from "
-            "HEAD on its paths and none is untracked (already committed? pass --range instead)\n"
+            f"HEAD on its paths and none is untracked. {_COMMITTED_REMEDY}\n"
         )
         return 1
     new = _SURFACE_LINE.sub(lambda _m: f"**Surface:** {surface}", text, count=1)
@@ -251,11 +260,13 @@ Rubric invocation (verbatim output — the gate reads the generated header, neve
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
-disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
-owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
-(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
-`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
-colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` · `RECORDED — by design`, whose parentheses hold owner ids
+only — each the owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn`
+row of this checkout's ledger with no round, `;`-joined — with its reason AFTER the closing
+parenthesis and an em dash (the § Residual block below shows the shape). Every OTHER RECORDED reason
+is PARENTHESISED, never colon-delimited (a colon would spell the `unexecuted: N` counter the ledger
+refuses). `UNCHECKED`
 may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
@@ -290,13 +301,14 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 
 ```text
 | F12 | RECORDED — unexecuted (3 probe attempts timed out) |
-| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F19 | RECORDED — by design (F4, round 3; D-203) — <why> |
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
-it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
-closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
+it (or a `D-nnn` with no round); each `;`-part of a by-design parenthetical is an owner, never a
+reason — the reason follows the closing parenthesis. The gate refuses an absent owner, a `D-nnn` this
+checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
 ## Per-phase verdicts
@@ -357,6 +369,12 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     root = a.project_root.resolve()
     if a.restamp is not None:
+        if a.rng is not None:
+            sys.stderr.write(
+                "review_receipt: --restamp does not take --range — a restamp re-anchors the "
+                f"working-tree form only. {_COMMITTED_REMEDY}\n"
+            )
+            return 2
         target = a.restamp if a.restamp.is_absolute() else root / a.restamp
         return restamp(root, target)
     if not a.changed:

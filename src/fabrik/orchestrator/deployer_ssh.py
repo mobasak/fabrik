@@ -10,6 +10,7 @@ Design doc: ``docs/development/plans/archived/2026-05-28-ssh-deployer.md``
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import posixpath
@@ -22,8 +23,8 @@ from collections.abc import Callable
 from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.exceptions import DeployError
-from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType
+from fabrik.orchestrator.exceptions import DeployError, ProvisioningError
+from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType, Spec
 
 logger = logging.getLogger(__name__)
 
@@ -120,19 +121,15 @@ def _validate_name(name: str) -> None:
 
 
 @contextlib.contextmanager
-def _target_vps_env(ctx: DeploymentContext):
-    """Swap ``FABRIK_VPS_SSH_HOST`` to ``ctx.target_vps`` for the block.
+def _host_env(host: str | None):
+    """Swap ``FABRIK_VPS_SSH_HOST`` to *host* for the block, restoring it after.
 
-    The SSH driver reads ``FABRIK_VPS_SSH_HOST`` per call, so wrapping just
-    the calls that target the app's location (``SSHDeployer.deploy`` and
-    ``inject_env``) is enough to route them to the spoke. Hub-side
-    registrars (gatus on vps1, postgres-main on vps1, authelia on vps1)
-    outside this scope continue to talk to vps1 as intended.
-
-    ``vps1`` is treated as a no-op so the env stays unchanged for
-    hub-targeted deploys.
+    The SSH driver reads ``FABRIK_VPS_SSH_HOST`` per call, so wrapping just the calls that
+    target an app's location routes them to that host. ``"vps1"``, ``None`` and ``""`` are a
+    NO-OP: the driver's default host is the hub's ssh alias (``DEFAULT_SSH_HOST`` in
+    ``drivers/ssh.py``), which the name ``vps1`` does not resolve to.
     """
-    target = getattr(ctx, "target_vps", None) or "vps1"
+    target = host or "vps1"
     if target == "vps1":
         yield
         return
@@ -146,6 +143,92 @@ def _target_vps_env(ctx: DeploymentContext):
             os.environ.pop("FABRIK_VPS_SSH_HOST", None)
         else:
             os.environ["FABRIK_VPS_SSH_HOST"] = prev
+
+
+@contextlib.contextmanager
+def _target_vps_env(ctx: DeploymentContext):
+    """Swap ``FABRIK_VPS_SSH_HOST`` to ``ctx.target_vps`` for the block (see :func:`_host_env`).
+
+    Wraps only the calls that target the app's location (``SSHDeployer.deploy`` and
+    ``inject_env``); hub-side registrars (gatus, postgres-main, authelia on vps1) outside
+    this scope keep talking to vps1. ``vps1`` is a no-op.
+    """
+    with _host_env(getattr(ctx, "target_vps", None)):
+        yield
+
+
+def app_dir(spec: dict[str, Any] | Spec) -> list[str]:
+    """Return the CANDIDATE app directories for *spec*, in probe order (RAW, unquoted).
+
+    A local source yields its single ``source.path`` normalised (no trailing slash), or
+    ``/opt/<name>`` when the path is unset (as ``_deploy_local`` resolves it); a local path
+    whose parent is not ``/opt`` raises :class:`ProvisioningError` before any probe. Any
+    other source yields ``/opt/<n>`` then ``/opt/fabrik-<n>`` -- the second only when ``<n>``
+    does not already start with ``fabrik-``. ``<n>`` is ``name or id``, and it must match the
+    app-name pattern :func:`_validate_name` enforces on deploy (so ``../etc`` can never become
+    ``/opt/../etc``; ``Spec.id`` is pattern-validated, ``Spec.name`` is not -- 0 of 69 specs
+    set one today). Accepts the validator's dict (``source`` may be absent) and the ``Spec``
+    model alike.
+    """
+    if isinstance(spec, dict):
+        name = spec.get("name") or spec.get("id")
+        source = spec.get("source") or {}
+        if isinstance(source, dict):
+            stype, path = source.get("type"), source.get("path")
+        else:
+            stype, path = source.type, source.path
+    else:
+        name = spec.name or spec.id
+        stype, path = spec.source.type, spec.source.path
+    if not name:
+        raise ProvisioningError("spec has neither name nor id", resource_type="app_dir")
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name):
+        raise ProvisioningError(f"invalid app name: {name!r}", resource_type="app_dir")
+    if getattr(stype, "value", stype) == SourceType.LOCAL.value:
+        resolved = posixpath.normpath(path) if path else f"/opt/{name}"
+        if not resolved.startswith("/") or posixpath.dirname(resolved) != "/opt":
+            raise ProvisioningError(
+                f"local source path {path!r} is not a direct child of /opt",
+                resource_type="app_dir",
+            )
+        return [resolved]
+    candidates = [f"/opt/{name}"]
+    if not name.startswith("fabrik-"):
+        candidates.append(f"/opt/fabrik-{name}")
+    return candidates
+
+
+_PS_KEYS = ("Service", "State", "Health", "ExitCode")
+# Everything the ssh driver's subprocess.run can raise (drivers/ssh.py:99): a failed command
+# (RuntimeError), a missing ssh binary or fork failure (OSError), undecodable stdout
+# (UnicodeDecodeError is a ValueError) and the timeout. probe_app RETURNS these, never raises.
+_SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
+
+
+def _parse_compose_ps(text: str) -> list[dict[str, str]]:
+    """Parse ``docker compose ps --format json`` into rows of Service/State/Health/ExitCode.
+
+    Reads JSON Lines (one object per line, Compose >= 2.21) or a leading-``[`` array (older
+    Compose); every other key is ignored and every value is a string (missing -> ``""``). An
+    empty body is zero rows; a body that is not JSON, or an object without a non-empty
+    ``Service`` (``{}`` and ``{"Service": null}`` are not rows), raises :class:`ValueError` --
+    the same rule :meth:`SSHDeployer.list_compose_projects` applies to a non-array body.
+    """
+    body = text.strip()
+    if not body:
+        return []
+    if body.startswith("["):
+        items = json.loads(body)
+    else:
+        items = [json.loads(line) for line in body.splitlines() if line.strip()]
+    rows: list[dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError(f"compose ps row is not an object: {item!r}")
+        if not item.get("Service"):
+            raise ValueError(f"compose ps row lacks a Service: {item!r}")
+        rows.append({k: "" if item.get(k) is None else str(item.get(k)) for k in _PS_KEYS})
+    return rows
 
 
 class SSHDeployer:
@@ -289,6 +372,66 @@ class SSHDeployer:
                 status = ""
             return {"name": name, "status": status, "path": f"/opt/{name}"}
         return None
+
+    def probe_app(self, path: str) -> dict[str, Any]:
+        """Probe the app directory *path* read-only: ``{"exists", "ps", "error"}``.
+
+        First the whole file test inside one ``sudo sh -c`` (rc 0 either way; a refused sudo
+        prints nothing), then -- on ``exists`` -- ``docker compose ps -a`` in that directory.
+        ``shlex.quote`` is applied once per shell layer. Every failure is RETURNED in
+        ``error``, never raised (:data:`_SSH_FAILURES` -- a transport ``RuntimeError``, an
+        ``OSError`` such as a missing ssh binary, undecodable output, the timeout): an
+        exception from the first call or a stdout that is neither
+        ``exists`` nor ``absent`` is a HOST failure (``exists`` False, the ``ps`` call never
+        sent); an exception or a non-JSON body from the second keeps ``exists`` True.
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        test = "[ -f " + shlex.quote(path + "/compose.yaml") + " ] && echo exists || echo absent"
+        try:
+            out = _ssh("sudo sh -c " + shlex.quote(test), timeout=10)
+        except _SSH_FAILURES as exc:
+            return {"exists": False, "ps": "", "error": f"{type(exc).__name__}: {exc}"}
+        verdict = out.strip()
+        if verdict == "absent":
+            return {"exists": False, "ps": "", "error": None}
+        if verdict != "exists":
+            return {"exists": False, "ps": "", "error": f"unexpected probe output: {out!r}"}
+        try:
+            ps = _ssh(
+                f"cd {shlex.quote(path)} && sudo docker compose ps -a --format json", timeout=15
+            )
+        except _SSH_FAILURES as exc:
+            return {"exists": True, "ps": "", "error": f"{type(exc).__name__}: {exc}"}
+        try:
+            _parse_compose_ps(ps)
+        except (ValueError, RecursionError) as exc:  # a pathologically nested body is an error too
+            return {"exists": True, "ps": ps, "error": f"compose ps output is not JSON: {exc}"}
+        return {"exists": True, "ps": ps, "error": None}
+
+    def list_compose_projects(self, host: str) -> list[dict[str, Any]]:
+        """Return ``docker compose ls -a`` on *host* as the parsed array of projects.
+
+        Runs under :func:`_host_env` so a spoke is reached and the env restored after. A
+        transport failure propagates (``RuntimeError`` / ``TimeoutExpired``); a body that is
+        not a JSON array of objects raises ``RuntimeError`` naming *host* (D3 reads ``Name``
+        and ``ConfigFiles`` from every entry, so a non-object entry is a host failure, not a
+        project).
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        with _host_env(host):
+            out = _ssh("sudo docker compose ls -a --format json", timeout=60)
+        try:
+            projects = json.loads(out)
+        except ValueError as exc:
+            raise RuntimeError(f"compose ls on {host} returned non-JSON: {out[:200]!r}") from exc
+        if not isinstance(projects, list):
+            kind = type(projects).__name__
+            raise RuntimeError(f"compose ls on {host} returned {kind}, not a JSON array")
+        if not all(isinstance(p, dict) for p in projects):
+            raise RuntimeError(f"compose ls on {host} returned an array with a non-object entry")
+        return projects
 
     def delete(self, name: str, dry_run: bool = False) -> bool:
         """Stop containers, remove volumes, and delete the app directory."""

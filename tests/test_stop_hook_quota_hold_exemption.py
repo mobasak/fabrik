@@ -512,3 +512,181 @@ def test_urgent_checkpoint_never_blocks_an_id_less_session(checkpoint) -> None:
     assert run("nosession") is None
     assert not side.exists()
     assert run("s-real"), "control: a real session id blocks"
+
+
+# --- W-117b1916: the checkpoint verifies the relief wake's precondition — an ARMED self-watch -----
+#
+# The tick's relief wake (`.holdlifted`) reaches only a session whose selfwatch.lock is held, and one
+# arm is one wake (D-356). So at urgent-90 and at the wall the Stop orders the background arm,
+# once per consumption, while the lock is free.
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+class _Armable(_Urgent):
+    def __init__(self, tmp_path: Path, sid: str) -> None:
+        super().__init__(tmp_path, sid)
+        self.home = tmp_path / "home"
+        (self.home / ".claude" / "bin").mkdir(parents=True)
+        (self.home / ".claude" / "bin" / "claude-selfwatch.sh").write_text("#!/bin/sh\n")
+        self.locks = tmp_path / "locks"
+        self.locks.mkdir()
+        self.hub = str(_REPO)
+        self.fd: int | None = None
+        import tempfile
+
+        self.arm_side = Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.urgent-arm"
+        self.arm_side.unlink(missing_ok=True)
+
+    def hold(self) -> None:
+        import fcntl
+
+        self.fd = os.open(str(self.locks / f"{self.sid}.selfwatch.lock"), os.O_WRONLY | os.O_CREAT)
+        fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def release(self) -> None:
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def stop(self, *, fails: str = "", transcript: Path | None = None) -> tuple[str, str]:
+        extra = {
+            "HOME": str(self.home),
+            "CLAUDE_SOUND_LOCKDIR": str(self.locks),
+            "FABRIK_HUB_ROOT": self.hub,
+            "SELFWATCH_OPT_ROOT": str(self.tmp),
+        }
+        saved = {k: os.environ.get(k) for k in extra}
+        for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_MESH_AUTONOMOUS"):
+            saved.setdefault(k, os.environ.get(k))
+            os.environ.pop(k, None)
+        os.environ.update(extra)
+        try:
+            return super().stop(fails=fails, transcript=transcript)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def close(self) -> None:
+        self.release()
+        self.arm_side.unlink(missing_ok=True)
+        super().close()
+
+
+@pytest.fixture
+def armable(tmp_path: Path, request):
+    a = _Armable(tmp_path, f"arm-{request.node.name[-40:]}")
+    a.baseline([])
+    yield a
+    a.close()
+
+
+def test_urgent_tier_orders_the_self_watch_arm_when_unarmed(armable) -> None:
+    out, _ = armable.stop()
+    assert out, "an unarmed session at urgent-90 must be told to arm before it pauses"
+    assert "selfwatch_arm.sh" in out and armable.sid in out and "run_in_background" in out, out
+    assert armable.stop()[0] == "", "once per consumption — the next stop ends the turn"
+
+
+def test_urgent_tier_is_silent_about_the_arm_when_armed(armable) -> None:
+    armable.hold()
+    assert armable.stop()[0] == "", "an armed clean session ends its turn"
+    armable.release()
+    assert "selfwatch_arm.sh" in armable.stop()[0], "the arm was consumed: one more block"
+    armable.hold()
+    assert armable.stop()[0] == "" and not armable.arm_side.exists(), "armed clears the arm sidecar"
+
+
+def test_a_consumed_arm_blocks_once_more_in_the_same_episode(armable) -> None:
+    armable.hold()
+    (armable.p / "mine.py").write_text("session work")
+    tr = _transcript(armable.p, "mine.py")
+    first, _ = armable.stop(transcript=tr)
+    assert "COMMIT" in first and "selfwatch_arm.sh" not in first, first
+    armable.release()  # the watch woke on something else and died — one wake per arm
+    second, _ = armable.stop(transcript=tr)
+    assert "selfwatch_arm.sh" in second and "COMMIT" not in second, second
+    assert armable.stop(transcript=tr)[0] == ""
+
+
+def test_the_wall_orders_the_arm_once_then_yields(armable) -> None:
+    armable.tier("0\nwalled\n")
+    out, _ = armable.stop()
+    assert "selfwatch_arm.sh" in out and armable.sid in out, out
+    assert armable.stop()[0] == "", "then the D-158 yield"
+
+
+def test_the_arm_check_fails_open(armable) -> None:
+    armable.hub = str(armable.tmp / "no-hub")
+    assert armable.stop()[0] == "", "an unloadable hub module adds nothing"
+
+
+def test_an_unarmed_session_with_work_owed_gets_one_block_naming_both(armable) -> None:
+    """The arm rides the episode's one checkpoint block — commit AND arm in a single block, then
+    silence; never a second block for the arm alone."""
+    (armable.p / "mine.py").write_text("session work")
+    tr = _transcript(armable.p, "mine.py")
+    first, _ = armable.stop(transcript=tr)
+    assert "COMMIT" in first and "selfwatch_arm.sh" in first, first
+    assert armable.stop(transcript=tr)[0] == "", "both items were in the one block"
+
+
+def test_a_hub_module_that_exits_at_import_never_costs_the_checkpoint(armable) -> None:
+    hub = armable.tmp / "bad-hub"
+    (hub / "scripts" / "sysadmin").mkdir(parents=True)
+    (hub / "scripts" / "sysadmin" / "selfwatch_check.py").write_text("raise SystemExit(3)\n")
+    armable.hub = str(hub)
+    (armable.p / "mine.py").write_text("session work")
+    out, _ = armable.stop(transcript=_transcript(armable.p, "mine.py"))
+    assert "COMMIT" in out, out
+
+
+def test_the_arm_debt_is_always_in_the_kaizen_stream(armable) -> None:
+    """The arm rides the block's `items`; an arm-only block still records the other debts as stood
+    down; a spent arm at the wall records `stood_down cause=unarmed`."""
+    (armable.p / "mine.py").write_text("session work")
+    tr = _transcript(armable.p, "mine.py")
+    armable.stop(transcript=tr)
+    first = [e for e in armable.events_of() if e.get("cause") == "urgent-checkpoint"]
+    assert first and "unarmed" in first[-1].get("items", []), first
+    armable.side.unlink()  # a later episode-block spent, the arm still owed: arm-only
+    armable.arm_side.unlink()
+    armable.side.write_text("x")
+    armable.stop(transcript=tr)
+    ev = armable.events_of()
+    assert any(e.get("cause") == "uncommitted" and e.get("outcome") == "stood_down" for e in ev), ev
+    armable.tier("0\nwalled\n")
+    armable.stop(transcript=tr)
+    assert any(
+        e.get("cause") == "unarmed"
+        and e.get("outcome") == "stood_down"
+        and e.get("tier") == "walled"
+        for e in armable.events_of()
+    ), armable.events_of()
+
+
+def test_a_session_that_never_arms_keeps_the_episode_text_unchanged(urgent) -> None:
+    """Round-2 review N1: the arm-only clause describes a block only an armable session can earn; a
+    skipped session (real HOME, cwd outside /opt) keeps HEAD's episode sentence byte for byte."""
+    (urgent.p / "mine.py").write_text("session work")
+    out, _ = urgent.stop(transcript=_transcript(urgent.p, "mine.py"))
+    reason = json.loads(out)["reason"]
+    assert "This block fires ONCE per episode — after the checkpoint" in reason, reason
+
+
+def test_an_arm_only_block_after_a_failed_sidecar_records_the_arm_once(armable) -> None:
+    """Round-2 review N2: when the episode sidecar cannot be written the arm falls to the arm-only
+    block — `unarmed` is recorded once, as blocked, never also as stood down."""
+    armable.side.unlink(missing_ok=True)
+    armable.side.symlink_to(armable.tmp / "no-such-dir" / "side")
+    try:
+        (armable.p / "mine.py").write_text("session work")
+        out, _ = armable.stop(transcript=_transcript(armable.p, "mine.py"))
+        assert "selfwatch_arm.sh" in out, out
+        unarmed = [e for e in armable.events_of() if e.get("cause") == "unarmed"]
+        assert [e.get("outcome") for e in unarmed] == ["blocked"], unarmed
+    finally:
+        armable.side.unlink(missing_ok=True)

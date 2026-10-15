@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "UNBLOCKED 2026-10-02: fabrik-lib legal-content is on main (ab59359b; interface per mail 01M3SYT0N3, D-343). Re-cut docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md to the wiring only via /fabrik-spec (vendor lib/legal-content from src/*.ts minus tests, four force-dynamic routes at /terms /privacy /refund /cookies, server-only LEGAL_* config, marketing-page links, docs-site pointers, scaffold tests), then /fabrik-spec-review and the design gate.",
-  "note": "",
+  "note": "its mail 01M39AJE8MAJJKX0N1YYD0J56D is already in the fabrik archive (acked/handled before or without this item being closed); nothing left for fleet to do — bulk pass 2026-10-14 during the operator pause",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "saas-skeleton emits placeholder /terms and /privacy pages that fail Paddle onboarding and grant 'personal, non-commercial' use"
 }

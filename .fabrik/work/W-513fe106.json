@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "file-worker scaffold emits a worker its own pack bans: templates/file-worker/worker/main.py is a Supabase-RPC, sleep-polling, fixed-concurrency worker (0 SKIP LOCKED, 0 LISTEN, 0 max_retries), and its compose (canonical + compose.yaml.j2) has no init: true and no stop_grace_period (mails 01M342MM/01M343KN, 2026-09-22)"
 }

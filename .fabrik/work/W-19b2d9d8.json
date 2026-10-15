@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate of W-9220f869 (check_plan_quality.py has no CLI entry point)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "WHAT: scripts/enforcement/check_plan_quality.py has no CLI entry point (no main / __main__): 'python3 scripts/enforcement/check_plan_quality.py <plan>' and '--help' print nothing and exit 0 — indistinguishable from a clean pass. Its check_file() also silently returns [] for any path outside the abso"
 }

@@ -23,10 +23,10 @@ are never older than one cycle). The on-view floor (`QUOTA_DASH_MAX_AGE_S`, now 
 remains only as the fallback for a view that lands before the first loop iteration: the operator wants the board — and the rotation decision it feeds — current at 20s granularity, and a few usage probes every 20s is the price.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
-at/over `ROTATE_THRESHOLD` (default **98**, D-201 — the tick's own default, pinned equal by a grader) or the account is cap-walled — or, on the
+at/over its flip line — `thresholds.json`'s entry for that account (`_trip_line`, the mirror of `claude_rotate._row_threshold`), else `ROTATE_THRESHOLD` (default **99** since 2026-10-14 — the tick's own default, pinned equal by a grader) or the account is cap-walled — or, on the
 URGENT-DRAIN tier, at/over `ROTATE_URGENT_DRAIN_PCT` (default **90**: the tick then sends the operator's
 "stop gracefully, hook to the next reset" mail if NO successor exists; this tier has its OWN cooldown so a drain
-tick at 90 can never delay the flip tick at 98) — or, while
+tick at 90 can never delay the flip tick at the flip line) — or, while
 the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`_drain_band()` — `ROTATE_DRAIN_THRESHOLD`, read lazily and guarded like the session bar; the import-time `BLIND_TRIGGER_THRESHOLD` constant is gone,
 `ROTATE_DRAIN_THRESHOLD` = 85 — a run of blind probes must not hide a wall approach behind the last good reading) — the
 server invokes `claude_rotate.py --tick` at once (`_maybe_trigger_rotation`; once per
@@ -163,7 +163,7 @@ Three properties worth knowing:
 the selector — `fabrik` first, then repos by how much remains, then by name; the choice is kept in the
 browser's `localStorage` (`repo-pick`). For the chosen repo it prints a summary (remaining · awaiting
 the operator · blocked · claimed now · owners with items) and a row of owner chips, each with its count
-of remaining items: **All**, then `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
+of remaining items: **All**, then `coordinator`, `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
 repo), `operator` and other owners by name, and **(unassigned)** last (always shown; an owner literally
 named `unassigned` keeps its own chip). Each owner's items sit in a collapsible section whose heading
 carries the owner's awaiting · blocked · claimed counts; an owner with nothing open says "No open
@@ -364,7 +364,8 @@ files and exit — useful for a scripted refresh without a browser).
   the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
   `caps.json`, never reads or writes a credential file; the CLI owns every one of those
   contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
-  unchanged: it still flips at the line / the cap (98, D-201) — and the board itself invokes the tick within ~20s of the crossing, which is why the button exists: a fast burn can reach the wall before the cron tick does, and the operator can see it coming on this board.
+  unchanged: it still flips at the line / the cap (99 by default, an account's `thresholds.json` entry when set) — and the board itself invokes the tick within ~20s of the crossing, which is why the button exists: a fast burn can reach the wall before the cron tick does, and the operator can see it coming on this board.
+- **Per-account caps and flip lines from the board (operator 2026-10-14):** every account row carries two inputs. `cap` writes that account's WEEKLY cap into `~/.claude-fleet/caps.json` (0–100, empty clears, 0 parks — `claude_rotate._caps_file`'s contract) through `POST /cap`; `rotate at` writes its flip line into `~/.claude-fleet/thresholds.json` (50–100, empty = the fleet default) through `POST /threshold`. Both POSTs carry the same custom-header CSRF guard as `/switch` and `/park`, accept only an account the board itself rendered, read-modify-write the file under a `<file>.lock` flock with an atomic replace, refuse (502) to rewrite a file that does not parse, and re-render the board. The rotation tick reads both files on its next run — no restart.
 - **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to
   `0.0.0.0` without putting auth in front.
 - **Stdlib only.** No dependencies to keep current.

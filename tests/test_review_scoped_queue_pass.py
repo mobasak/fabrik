@@ -30,6 +30,60 @@ def test_the_command_points_at_the_catalogue_before_the_first_pin() -> None:
     assert CAT.exists()
 
 
+def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> None:
+    """Row 1792005608 and six earlier verdicts asked for archive roots derived from the test imports; the
+    catalogue's § Seat isolation already says so, but the command sent the lead there only for lines that
+    'match the change's SHAPE', so a hand-written brief kept listing paths by hand. The command now names
+    § Seat isolation as shape-independent and the derived-roots rule in one sentence, pointing at the
+    catalogue for the recipe. Mutants: drop 'whatever the shape' (the shape-keyed pointer returns), drop
+    'never a hand-listed path set' (the rule the rows asked for is gone), or restate the recipe's commands
+    here (two sources of truth) — each fails one assertion below."""
+    src = _norm(SRC)
+    # its own sentence, after the SHAPE-keyed list ends — spliced into that list, the SHAPE filter reads as
+    # governing it (round-1 Sonnet finding)
+    assert "runs found missing. Its § Seat isolation applies whole, whatever the shape" in src
+    sentence = _section(
+        src,
+        "Its § Seat isolation applies whole, whatever the shape",
+        "⚠️ **A brief states the QUESTION",
+    )
+    assert "in every brief that runs tests" in sentence
+    # "an archive" alone let a brief archive HEAD, which moves under concurrent sessions (round-3 Opus finding)
+    assert "run from an archive of the pin's base SHA, never the live tree or HEAD" in sentence
+    assert "tests run against an archive of the pinned SHA" not in sentence, (
+        "that is the catalogue's own wording (§ Seat isolation) — a verbatim copy is a second source"
+    )
+    assert "derived from what the tests import, read or run" in sentence
+    assert "never a hand-listed path set" in sentence
+    assert "live in this repo's `.claude/workflows/fabrik-review-loop.js`" in sentence, (
+        "the pointer must LOCATE the recipe — the catalogue names the constants but not their file; the path "
+        "is the REPO's own copy, which the sync manifest ships to every repo as an agent hook file "
+        "(test_review_loop_workflow forbids a source launching the hub copy)"
+    )
+    assert "/opt/fabrik/.claude/workflows/" not in sentence, (
+        "a source must never point seats at the hub copy"
+    )
+    assert "not restated here" in sentence
+    for restatement in ("git archive", "ls-tree", "overlay", "chdir", "unless"):
+        assert restatement not in sentence, (
+            f"{restatement!r}: the recipe belongs to the workflow, not here"
+        )
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
+    assert "const PIN_IMPORT" in js and "const PYTEST_PINS" in js, "the pointer's target moved"
+    assert "the root conftest.py, the pytest config" in js, (
+        "the recipe no longer takes the conftest"
+    )
+    cat = _norm(CAT)
+    assert (
+        "never all of them, § Seat isolation excepted: it applies whole in every brief that runs tests"
+        in cat
+    ), "the catalogue's own header still says 'never all of them' without the exception"
+    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
+    assert "The recipe names its roots by what the tests import" in iso, (
+        "the pointer's target moved"
+    )
+
+
 def test_the_catalogue_sections_hold_their_probes() -> None:
     """One anchor line per section, so a section moved or dropped fails here."""
     cat = _norm(CAT)
@@ -83,7 +137,9 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
         " <source> show <sha>:<source path>`) against the copy minus that"
         " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
         " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
-        " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"
+        " copy (or says the source has none) and whether that test assumes a co-located hub tree, so a standalone"
+        " run of it is a known false red; they re-run that command and that test first, then spend on what byte"
+        " identity cannot show: the"
         " vendored copy's own header, every importer of it, and every name it reads from each module vendored"
         " beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy."
         in premise
@@ -359,3 +415,135 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
         " md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`"
         in _section(review, "- **The seats (native", "- **Every finder brief carries")
     )
+
+
+def test_a_brief_states_the_count_to_report_never_the_expected_one() -> None:
+    """/fabrik-review row 1791931043: a closing-pass brief that names the count, verdict or output the lead expects is a leading question;
+    no reached line said a brief must not carry it (Opus audit 2026-10-14: no governing line)."""
+    loop = _section(_norm(CAT), "## Loop bookkeeping", None)
+    assert (
+        "each brief embeds its ledger text and states what the seat must report (a count, a verdict, an output),"
+        " never the value the lead expects; the closing-pass brief"
+    ) in loop
+
+
+def test_the_run_record_section_yields_to_a_step_named_before_it() -> None:
+    """W-ae8fd45b: this command's 'classify the surface FIRST' sat two lines above the run-record include, whose
+    heading says the record is the FIRST act, and a heading beats the paragraph above it. The fragment's first line
+    now yields to a step the command names as running before the record; the command still names that step there."""
+    frag = _norm(ROOT / "commands" / "_fragments" / "run-record.md")
+    assert frag.startswith(
+        "## Run record — open it as this command's FIRST act A step this command's text names as running BEFORE the"
+        " record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step"
+        " routed to another command, whose record replaces this one."
+    )
+    src = _norm(SRC)
+    assert src.index("**Before the record — classify the surface FIRST") < src.index(
+        "{{include:run-record}}"
+    )
+
+
+def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
+    """W-975b3652: term-edit's '(the seats read the pin; you edit the working tree)' read as
+    licensing an edit while seats run, against subagents-core's 'While seats are out you do not edit the pinned
+    files' in 14 of its 17 includers. Panel split (Opus parity, Fable reword); the repo's own rule against copying
+    a fragment's rule into another settles it as a reword that states WHEN."""
+    te = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
+    assert (
+        "never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat"
+        " has returned and you have read the pass)" in te
+    )
+    assert "(the seats read the pin; you edit the working tree)" not in te
+
+
+def test_a_database_test_runs_with_the_connection_the_lead_proved() -> None:
+    """/fabrik-review-scoped rows 1791980872, 1790801583 and 1791515801: three projects' seats skipped,
+    re-implemented or failed a database test because no `.env` reaches a seat. The brief names the variable
+    and the connection form the lead proved by one connect, and a seat's own database probe is covered too."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "a test that needs a database (the suite skips or fails it without a database variable: no `.env` is"
+        " copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads"
+        " (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect"
+        " uses the same variable; both connect over the form the lead proved by one connect before the pin (a"
+        " unix-socket DSN where TCP `localhost` fails password auth), the variable and the form named in the brief, and"
+        " where only a password form connects the lead runs that test or probe itself and quotes its result, never"
+        " writing the password into a brief"
+    ) in iso
+
+
+def test_step_five_keeps_ruff_findings_off_seats_and_names_the_hub_ledger() -> None:
+    """Rows 1791982905 (a seat reported pre-existing HEAD formatting as a finding) and 1791982896 + 1791981699
+    (a sync-excluded repo's vendored review_loop_ledger.py has no `pin` verb; hand-made pins twice)."""
+    text = _norm(SRC)
+    assert (
+        "the brief says ruff's output is the lead's, so a seat reports no lint or format finding, pre-existing or not"
+        in text
+    )
+    assert (
+        "(every `review_loop_ledger.py` call in this step runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a"
+        " sync-excluded repo, since a vendored copy there may lack `pin` or `read --pins`)"
+    ) in text
+
+
+def test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases() -> None:
+    """Row 1792025649 (kaizen, 2026-10-15): every own-fix of a run was a paraphrase drift of a spec clause the doc
+    fix restated. Step 3 said "is pointed at, never paraphrased" (04cebdac3), a rule a fix that must CARRY the
+    clause's content could not obey — a pointer cannot stand in its place — so the lead paraphrased; row 1791446864
+    had been rejected as landed on the same sentence, which made this row the recurrence D-711 edits. The sentence
+    now offers the quote branch, bounded: only where the fix must carry its words, quoted whole (a quote cut
+    mid-clause drops a qualifier while staying verbatim), verbatim (round 1: "in its own words" read as the fixer's
+    words), with no gloss (a gloss is a new wording that drifts) and naming its source (a quote of a restatement, or
+    one gone stale, is traceable). Mutants, each a failing assertion: drop the quote branch (the old sentence
+    returns), drop 'whole', drop 'verbatim', drop 'with no gloss', drop 'naming its source', drop 'where the fix
+    must carry its words' (an unbounded quote brings back the drift a pointer avoids), 'never paraphrased' →
+    'rarely paraphrased', move the sentence out of step 3, or plant a licence that says gloss, paraphrase or verbatim
+    anywhere in step 3 (round 1: a sentence-initial 'A short gloss is fine.' survived a case-sensitive scan; round 2:
+    'A brief gloss beside a quote is fine.' survived the word-list, so the pin counts the words instead). A licence
+    worded around those three words ('a summary may stand beside the quote') passes — the limit of a text pin; the
+    review's seats catch that one, not this test."""
+    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
+    sentence = (
+        "Something already stated, in the code, the doc that owns the subject or elsewhere in the file being fixed, is"
+        " pointed at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its"
+        " source, never paraphrased."
+    )
+    assert step3.count(sentence) == 1, "the pointer-or-whole-quote sentence is stated once, in step 3"
+    # a weakener word-list is never complete (round 2: "A brief gloss beside a quote is fine." survived one), so the
+    # pin is a COUNT — step 3 says "gloss" and "paraphras" exactly once each, both inside the sentence above; any
+    # second mention, whatever its wording, is a licence or a restatement and fails here
+    lowered = step3.lower()
+    assert lowered.count("gloss") == 1, lowered.count("gloss")
+    assert lowered.count("paraphras") == 1, lowered.count("paraphras")
+    assert lowered.count("verbatim") == 1, lowered.count("verbatim")
+    # it keeps its place between the execute-or-delete rule and the LOCAL/ARCHITECTURAL fix rule
+    before = step3[: step3.index(sentence)]
+    assert before.rstrip().endswith("a re-read is not execution."), before[-60:]
+    after = step3[step3.index(sentence) + len(sentence) :]
+    assert after.lstrip().startswith("**LOCAL findings (unambiguous, contained) you just fix"), after[:60]
+
+
+def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> None:
+    """Rows 1792052465 and 1792052358: Opus seats lost passes because a refused Read left them with no input; in a
+    brief the lead writes, pinned files totalling under 8 KB now ride in the brief too, the copy staying the
+    authority and a paste reader judged on line counts. Row 1792059931, the second sighting of HELD
+    guard-false-positives-negatives-against: the ESCAPE ask hunted only false greens; it now carries the
+    catalogue's both-directions rule verbatim. Mutants: drop either clause; per-file bound; drop the catalogue rule."""
+    src = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "Seats read the copies, never the live tree; in a brief you write yourself (the workflow writes its own),"
+        " pinned files totalling under 8 KB are also pasted whole beside their line counts, so a seat whose Read or"
+        " `cat` of a copy is refused still has the bytes — the copy stays the authority, and a seat that read the"
+        " paste says so, states whether each line count matches and is judged on that count, not re-dispatched for lacking a"
+        " hash;"
+        in src
+    )
+    assert (
+        "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
+        " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
+        " committing the positive/negative probe list beside it\". The ASK is the" in src
+    )
+    cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
+    quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"
+    assert quote + " positive/negative probe list beside it" in cat, "the quoted source still says it"
+    assert src.count("totalling under 8 KB") == 1 and src.count("false green and false red") == 1

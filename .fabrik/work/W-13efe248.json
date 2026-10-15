@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:30:08.520063Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-13efe248",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VMFKQ5ZSV4052QJMB0RTDF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: check_schema_sync passes a schema.sql-only model change where alembic applies the schema — shipped as 1ab403cdb (D-831)"
+}

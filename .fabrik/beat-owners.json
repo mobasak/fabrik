@@ -1,10 +1,10 @@
 {
   "_doc": "The hub's mail ownership map (spec docs/superpowers/specs/2026-10-13-mail-routing-design.md § D2; seams D-815; approach D-818, D-820). Rules run general to specific and the LAST matching rule wins for a path. Patterns: `*` stays within a path segment, `**` crosses segments, a pattern with no `/` matches a file name anywhere, a trailing `/` is a directory prefix. Topics match the message's Subject line only, case-insensitively, and only ever ADVISE. Validated by scripts/enforcement/check_beat_owners.py.",
   "version": 1,
-  "switches": {"auto_address": false, "fabrik_lib_address": false},
+  "switches": {"auto_address": true, "fabrik_lib_address": true},
   "rules": [
     {"paths": ["scripts/**", ".claude/hooks/**", "commands/assemble_commands.py", "CLAUDE.md", "docs/workstation/**", "libs/alerting/**"],
-     "topics": ["stop hook", "worktree guard", "completion gate", "governance sync", "merge request", "fabrik-mail", "account rotation", "work item", "session-recall", "~/.claude/bin"],
+     "topics": ["stop hook", "worktree guard", "completion gate", "governance sync", "fabrik-mail", "account rotation", "session-recall", "~/.claude/bin"],
      "owner": "infra", "source": "D-815; infra.md Beat; kaizen 01M4TCHD5Y § A (libs/alerting: D-109/D-112)"},
     {"paths": ["specs/services/**", "templates/**", "docs/PROJECT_CATALOG.md", "libs/health_probe/**"],
      "topics": ["fabrik apply", "redeploy", "vps1", "vps2", "vps3", "traefik", "authelia", "gatus", "live site"],
@@ -16,6 +16,8 @@
      "owner": "intel", "source": "D-815 (3), (5); D-135; intel.md:84-86 (unconsumed libs, floater)"},
     {"paths": ["commands/_sources/**", "commands/_fragments/**", ".windsurf/rules/**"],
      "topics": ["feedback verdict", "command-feedback"],
-     "owner": "kaizen", "source": "D-815 (1); D-627 (wording; rendering and checks stay infra)"}
+     "owner": "kaizen", "source": "D-815 (1); D-627 (wording; rendering and checks stay infra)"},
+    {"topics": ["merge request", "work item"],
+     "owner": "coordinator", "source": "D-874; spec 2026-10-14-coordinator-role-design.md D3 jobs 3-4"}
   ]
 }

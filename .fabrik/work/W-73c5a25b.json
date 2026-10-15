@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "saas-skeleton tenant schema: one current_tenant_id() (vendored IdP rls/native.sql), RLS on tenants, cascade-delete blast radius, tenants.deleted_at, jobs exception"
 }

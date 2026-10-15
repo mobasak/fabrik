@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T07:31:42.040336Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-1647fc55",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VX84J0PN4WCYHGFNB5S4DZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: no read-only view of past reject reasons — shipped as 5a2ac79e6 (D-837): `--reasons <command> [--held]`"
+}

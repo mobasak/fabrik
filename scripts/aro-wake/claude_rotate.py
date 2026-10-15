@@ -2905,8 +2905,65 @@ def _rotate_threshold() -> float:
     NEXT move of this line can be measured instead of argued.
 
     The weekly leg is governed by the account's ``caps.json`` cap when one exists (the cap IS the
-    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``."""
-    return _env_float("ROTATE_THRESHOLD", 98.0)
+    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``.
+
+    2026-10-14: default **99** (operator: "98% hook is to restrictive, can we make it 99% except
+    ob@ocoron.com" — supersedes D-201's 98). The exception is a ROW, not a branch: an account may carry
+    its own line in ``<fleet_root>/thresholds.json`` (:func:`_thresholds_file`, editable from the quota
+    board), and every per-account decision reads it through :func:`_row_threshold`. The cost of the extra
+    point is the one this docstring measures: an account read AT the line walls before the next look a
+    little more often; the relief wake still holds a walled session instead of letting it die."""
+    return _env_float("ROTATE_THRESHOLD", 99.0)
+
+
+def _thresholds_file() -> dict[str, float]:
+    """Per-account flip lines: ``<fleet_root>/thresholds.json`` = {"email": pct} (operator 2026-10-14).
+
+    Overrides :func:`_rotate_threshold` for ONE account on the session leg (and on the weekly leg when
+    the account has no ``caps.json`` cap — the cap stays the weekly rule). Same fail direction as
+    :func:`_caps_file`: missing → none; unreadable or the wrong shape → loud stderr + none (a broken
+    file must never halt rotation); a non-number entry (a bool is a typo) is skipped with a warning;
+    values clamp to 0..100; keys lowercase. ⚠️ COBRA: the cheapest way to look "tuned" is to raise
+    every account's line to 100 — that is a wall, not a threshold; the board refuses values over 100
+    and under 50, this loader only clamps."""
+    path = _fleet_root() / "thresholds.json"
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    except (
+        OSError,
+        UnicodeDecodeError,
+    ) as e:  # a non-UTF-8 byte is an unreadable file, not a crash
+        sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — default thresholds\n")
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        sys.stderr.write(f"claude_rotate: {path} is not valid JSON ({e}) — default thresholds\n")
+        return {}
+    if not isinstance(data, dict):
+        sys.stderr.write(f"claude_rotate: {path} is not a JSON object — default thresholds\n")
+        return {}
+    out: dict[str, float] = {}
+    for email, thr in data.items():
+        v = _usable_ts(thr)  # the ONE number validator: bool, non-finite AND a giant int read None
+        if v is None:
+            sys.stderr.write(
+                f"claude_rotate: {path}: threshold for {email!r} is not a number ({thr!r}) — skipped\n"
+            )
+            continue
+        out[str(email).lower()] = float(min(100.0, max(0.0, v)))
+    return out
+
+
+def _row_threshold(row: dict | None, default: float) -> float:
+    """The flip line for ONE account row: its ``session_threshold`` (from thresholds.json) when set,
+    else *default* (the fleet line). The one place the per-account exception is resolved."""
+    v = (row or {}).get("session_threshold")
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return default
+    return float(v)
 
 
 def _tick_inner() -> int:
@@ -3439,14 +3496,19 @@ def _account_flip_dir(slugs: list[str]) -> str | None:
 
 
 def _flip_churn_excluded(
-    utils: dict[str, float | None], cap: float | None, threshold: float
+    utils: dict[str, float | None], cap: float | None, threshold: float, *, active: bool = False
 ) -> bool:
     """The ONE candidate-exclusion predicate, shared by :func:`_pick_flip_target` (cached
     readings) and :func:`_validated_pick` (live re-verify) — F-C1: the two sites drifting
     apart IS the churn bug, so they cannot each carry their own copy. Excluded when: either
     window ≥100 (walled — revives on reset, never by a flip), weekly ≥ its ``caps.json`` cap
-    (cap-walled — the operator's reserve), or either window ≥ ``ROTATE_THRESHOLD`` (flipping
-    there just trips the flip-away next tick — pointless churn)."""
+    (cap-walled — the operator's reserve), or a window at the flip line *threshold* (flipping
+    there just trips the flip-away next tick — pointless churn): the session window always, the
+    weekly window too for a flip TARGET (refused until that window resets — the picture's
+    `over-threshold`), but for the ACTIVE account (*active*, :func:`_active_account_walled`) only
+    when it has NO cap — a cap IS its weekly rule, exactly the flip leg's ``weekly_thr`` (D-855
+    review: the line on a capped weekly window walled an account the flip leg kept, up to fifty
+    points early once per-account lines existed)."""
     if _is_parked(cap):
         return True  # parked is unconditional — it never waited on a reading being present
     if any(u is not None and u >= 100.0 for u in utils.values()):
@@ -3454,7 +3516,10 @@ def _flip_churn_excluded(
     wu = utils.get("seven_day")
     if cap is not None and wu is not None and wu >= cap:
         return True
-    return any(u is not None and u >= threshold for u in utils.values())
+    fu = utils.get("five_hour")
+    if fu is not None and fu >= threshold:
+        return True
+    return (cap is None or not active) and wu is not None and wu >= threshold
 
 
 def _pick_flip_target(
@@ -3575,6 +3640,7 @@ def _flip_candidate_verdict(
     an exclusion predicate drifting apart IS the churn bug). The cached-unverifiable outcome is
     not a predicate here — it is :func:`_validated_pick`'s live verdict — so the diagnostic
     names it from the row's ``source``/``age_s`` instead."""
+    threshold = _row_threshold(row, threshold)  # the account's own line (thresholds.json) wins
     slug = _account_flip_dir(row.get("slugs") or [])
     utils: dict[str, float | None] = {}
     for key in ("five_hour", "seven_day"):
@@ -3949,7 +4015,10 @@ def _caps_file() -> dict[str, int]:
         raw = path.read_text()
     except FileNotFoundError:
         return {}
-    except OSError as e:
+    except (
+        OSError,
+        UnicodeDecodeError,
+    ) as e:  # a non-UTF-8 byte is an unreadable file, not a crash
         sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — rotating UNCAPPED\n")
         return {}
     try:
@@ -3962,14 +4031,16 @@ def _caps_file() -> dict[str, int]:
         return {}
     caps: dict[str, int] = {}
     for email, cap in data.items():
-        # bool is an int subclass — `true` as a cap is a typo, never "cap at 1%"
-        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or not math.isfinite(cap):
+        # bool is an int subclass — `true` as a cap is a typo, never "cap at 1%"; the ONE number
+        # validator also reads a giant JSON int as None (math.isfinite raised OverflowError on it)
+        v = _usable_ts(cap)
+        if v is None:
             sys.stderr.write(
                 f"claude_rotate: {path}: cap for {email!r} is not a number ({cap!r}) — "
                 "entry skipped\n"
             )
             continue
-        caps[str(email).lower()] = int(min(100, max(0, cap)))
+        caps[str(email).lower()] = int(min(100.0, max(0.0, v)))
     return caps
 
 
@@ -4341,6 +4412,7 @@ def _fleet_account_rows(
             pending.append(entry)
     cache = _load_usage_cache()
     caps = _account_caps()
+    thresholds = _thresholds_file()
     accounts: list[dict] = []
     cache_dirty = False
     # The stale-reading refresh pings are allocated BEFORE the pass below, oldest reading
@@ -4376,6 +4448,8 @@ def _fleet_account_rows(
             "refresh_expires_slug": soonest[1] if soonest else None,
             "identity_mismatches": [],
             "weekly_cap": caps.get(email.lower()),
+            # the account's own flip line (thresholds.json) — None = the fleet default
+            "session_threshold": thresholds.get(email.lower()),
             "cap_walled": False,
             # the operator's out-of-service mark (`--park`), so a reader need not re-derive it
             "parked": _is_parked(caps.get(email.lower())),
@@ -4784,13 +4858,13 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     # default the session trip line since 2026-10-06) — the first cut compared the SESSION window against the trip
     # threshold, so a row spent past the bar but under the trip read `unavailable` (non-author
     # pass over 58041dbd + the strict-bar grader, 2026-09-07)
-    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", thr)
     active_email = next(
         (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
     )
     rows: list[dict] = []
     for row in accounts:
         _slug, utils, reason = _flip_candidate_verdict(row, thr)
+        row_thr = _row_threshold(row, thr)
         fv, wv = utils.get("five_hour"), utils.get("seven_day")
         cap = row.get("weekly_cap")
         fh, wk = row.get("five_hour"), row.get("seven_day")
@@ -4801,7 +4875,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # strict at the picker's bar (`> session_max`, R5) OR at the trip threshold on the
         # session window (the picker refuses `a window >= thr` too) — replacing one with the
         # other left a row between a raised bar and the trip reading `unavailable` (native N7)
-        session_spent = fv is not None and (fv > session_bar or fv >= thr)
+        session_spent = fv is not None and (
+            fv > _env_float("ROTATE_TARGET_SESSION_MAX_PCT", row_thr) or fv >= row_thr
+        )
         weekly_walled = _weekly_blocked(row.get("seven_day"), cap)  # the relief writer's reading
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"
@@ -4818,7 +4894,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "weekly-exhausted"
         elif session_spent:
             state = "session-exhausted"
-        elif wv is not None and wv >= thr:
+        elif wv is not None and wv >= row_thr:
             # under its cap but over the picker's target line on the WEEKLY window: not a wall
             # (the tick keeps it active) and not a target either until that window resets —
             # mob@ at 0/97 under cap 99 read as "unavailable" on the first cut (scoped review)
@@ -4865,6 +4941,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "session_resets_at": fr,  # already a float or None (the validator above)
                 "weekly_resets_at": wr,
                 "weekly_cap": cap,
+                "trip": row_thr,  # this account's flip line (thresholds.json, else the fleet's)
                 "returns_at": returns_at,
                 "in_drain_band": hot is not None and hot >= band,
                 "source": row.get("source"),
@@ -6247,13 +6324,16 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap IS the operator's weekly rule; read the LIVE values from caps.json, never from here — an
     # earlier cut of this comment quoted four of them and two had gone stale) and at the threshold
     # otherwise.
+    # the active account's own line, when it has one — a SEPARATE name: `threshold` stays the fleet
+    # line handed to `_flip_exclusion_reasons`, which judges each sibling on its own line (D-855 review)
+    act_thr = _row_threshold(row, threshold)
     cap = row.get("weekly_cap")
-    weekly_thr = float(cap) if cap is not None else threshold
+    weekly_thr = float(cap) if cap is not None else act_thr
     # PROJECTED trip: reading + the burn since the previous tick (see _tick_burn) — a line that
     # is only checked every 5 minutes must be crossed BEFORE the wall, not observed after it.
     burn = _tick_burn(str(row.get("email")), row, _now())
     session_trip = (
-        utils["five_hour"] is not None and utils["five_hour"] + burn["five_hour"] >= threshold
+        utils["five_hour"] is not None and utils["five_hour"] + burn["five_hour"] >= act_thr
     )
     weekly_trip = (
         utils["seven_day"] is not None and utils["seven_day"] + burn["seven_day"] >= weekly_thr
@@ -6330,7 +6410,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(
             f"tick: active {row['email']} at {hot:.0f}%"
             + (f" (+{proj:.0f} since last tick)" if proj > 0 else "")
-            + f" — session below {threshold:.0f}%"
+            + f" — session below {act_thr:.0f}%"
             + (f", weekly below cap {cap}" if cap is not None else "")
             + ", no flip"
         )
@@ -6383,6 +6463,17 @@ def _row_has_reading(row: dict | None) -> bool:
     return row is not None and not all(v is None for v in _row_utils(row).values())
 
 
+def _wall_line(row: dict | None, threshold: float) -> float:
+    """The line that WALLS one active account: its own ``thresholds.json`` line when that sits at or
+    above the urgent tier, else the fleet line. D-201 orders urgent-90 BEFORE the wall; an own line
+    below it (the board accepts 50) is a rotation preference the flip leg honours at the line itself,
+    never a hard hold with points left. Flooring it AT the urgent tier instead made urgent and walled
+    fire on the same tick (D-855 review, closing round N1). Shared by :func:`_active_account_walled`
+    and :func:`_drain_trigger_reason` so the hold and its notice judge the same line."""
+    line = _row_threshold(row, threshold)
+    return line if line >= _urgent_drain_pct() else threshold
+
+
 def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool, dict | None]:
     """Is the account the fleet's ``active`` pointer resolves to (AFTER this tick's flip leg)
     walled? Uses the ONE shared exclusion predicate (:func:`_flip_churn_excluded`) — a pointer
@@ -6400,7 +6491,10 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     utils = _row_utils(row)
     if not _row_has_reading(row):
         return False, row  # no reading → no claim
-    return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
+    # the account's own line walls it only at/above the urgent tier (`_wall_line`, D-855 review)
+    return _flip_churn_excluded(
+        utils, row.get("weekly_cap"), _wall_line(row, threshold), active=True
+    ), row
 
 
 def _clear_stamp(stamp: Path) -> bool:
@@ -6645,7 +6739,9 @@ def _next_session_relief(
         # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
         # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (default the trip line), so relief
         # promised past that bar named an instant at which nothing was pickable (closing review P3-2).
-        session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", _rotate_threshold())
+        session_bar = _env_float(
+            "ROTATE_TARGET_SESSION_MAX_PCT", _row_threshold(row, _rotate_threshold())
+        )
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar
@@ -6683,7 +6779,9 @@ def _next_session_relief(
     return best
 
 
-def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) -> str:
+def _drain_trigger_reason(
+    row: dict, session_pct: float | None, walled: bool, threshold: float | None = None
+) -> str:
     """WHICH window actually triggered this notice, with its number and its UNIT.
 
     The notice used to hardcode "its 5-hour session window" and print whatever `session_pct` held,
@@ -6697,12 +6795,22 @@ def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) ->
     wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
     cap = row.get("weekly_cap")
     if walled:
+        if _is_parked(cap):
+            return "it is PARKED (out of service — `--unpark` restores it)"
+        if wu is not None and wu >= 100.0:
+            # a real weekly wall outranks a session reading at the line (closing round R3-1)
+            return f"its weekly window is {wu:.0f}% CONSUMED (walled)"
+        if wu is not None and cap is not None and float(cap) <= wu < 100.0:
+            return (
+                f"its weekly window is {wu:.0f}% CONSUMED, at or over the "
+                f"{float(cap):.0f}% reserve we set for it in caps.json"
+            )
+        # the line is the wall (D-201), so a SESSION reading at the wall line walls too — judged on
+        # the SAME line the hold used (`_wall_line`), never by which window reads higher (D-855 review)
+        line = _wall_line(row, _rotate_threshold() if threshold is None else threshold)
+        if session_pct is not None and float(session_pct) >= line:
+            return f"its 5-hour session window is {float(session_pct):.0f}% CONSUMED (walled)"
         if wu is not None:
-            if cap is not None and wu < 100.0:
-                return (
-                    f"its weekly window is {wu:.0f}% CONSUMED, at or over the "
-                    f"{float(cap):.0f}% reserve we set for it in caps.json"
-                )
             return f"its weekly window is {wu:.0f}% CONSUMED (walled)"
         return "it is walled with no readable weekly figure"
     if session_pct is not None:
@@ -7263,7 +7371,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     )
     relief = _next_session_relief(accounts, str(row["email"]), now)
     msg = _urgent_drain_message(
-        str(row["email"]), _drain_trigger_reason(row, session_pct, walled), relief
+        str(row["email"]), _drain_trigger_reason(row, session_pct, walled, threshold), relief
     )
     _tick_telegram(msg)
     repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast

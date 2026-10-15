@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T11:23:15.227329Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-852faec2",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide the lineage: re-vendor fabrik-lib i18n (D-413/D-419: response_format json_schema, exit codes, translate_i18n.py) into templates/i18n-kit, or keep the Kilo copy; also: Level 2 prints a BACK_TRANSLATE_ERROR under the 'semantic drift(s)' heading (wording, still exits 1) — recorded by the 01M478ZH scoped review",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "i18n-kit"

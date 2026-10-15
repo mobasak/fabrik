@@ -31,6 +31,7 @@
 | **tests/test_research_ledger.py** | Graders for the research-ledger checker (each guard proven red on a copy). | The checker changes | pytest |
 | **docs/reference/research/2026-10-12-owner-dsn-split-ledger.md** | Every fact the three research seats of the owner-DSN split `/fabrik-spec` returned (Compose `env_file` list precedence and `required: false`, file-based secrets' ignored `mode`/`uid` without Swarm, libpq password files, the 12-factor/OWASP positions on env vars and the docker-group residual), one dispositioned row each (W-4e74ea9d). |
 | **docs/reference/research/2026-10-13-mail-routing-ledger.md** | Every fact the three research seats of the mail-routing `/fabrik-spec` (W-931b6837) returned (systemd path units, CODEOWNERS ownership files, ticket-routing practice), each dispositioned |
+| **docs/reference/research/2026-10-14-coolify-verb-retirement-ledger.md** | Every fact the four research seats of the Coolify-verb-retirement `/fabrik-spec` (W-36571dff) returned (click `deprecated=` semantics, the Compose `ps`/`ls` JSON contracts, PEP 387 and the SWE-book deprecation chapter, health-endpoint liveness practice), each dispositioned |
 | **.fabrik/beat-owners.json** | The hub's mail ownership map (D-815 seams, D-818/D-820): rules owner + paths + topics + source, last match wins; switches `auto_address` and `fabrik_lib_address` ship false; validated by `check_beat_owners.py`, read by every sender's `mail.py` |
 | **docs/reference/research/2026-10-08-review-coverage-commit-scope-ledger.md** | Every fact the three research seats of the review-coverage commit-scope `/fabrik-spec` returned (range and path-quoting semantics, changed-files gating practice in pre-commit, lint-staged and diff-cover, commit attribution by trailers), one dispositioned row each (W-f847a317). |
 | **docs/reference/research/2026-10-02-coordinator-assignment-ledger.md** | Every fact the two research seats of the coordinator-assignment `/fabrik-spec` returned (Claude Code cross-session messaging: no idle field in ListAgents, `notify_when_idle` one-shot same-machine; push vs pull work distribution, the orchestrator-workers pattern, lease liveness), one dispositioned row each (D-512) |
@@ -48,6 +49,10 @@
 | **docs/reference/research/2026-09-23-ai-model-selection-currency-ledger.md** | Every fact the Claude Code docs seat of the `ai/00-ai-model-selection.md` currency turn returned, plus the second-engine check (31 rows), each dispositioned; the grounding behind D-364 |
 | **docs/reference/research/2026-09-23-saas-ui-currency-ledger.md** | Every fact the research and second-opinion seats of the `saas/60-saas-ui.md` currency turn returned (Core Web Vitals, WCAG 2.2, Lighthouse INP, `next/font`, Tailwind v4, ARIA APG, Paddle portal, Next.js proxy), each dispositioned (D-366) |
 | **docs/reference/research/2026-09-23-app-audit-log-currency-ledger.md** | Every fact the research and second-opinion seats of the `core/app-audit-log.md` currency turn returned (GDPR Art. 5/7, TTK Art. 82, VUK Art. 253, KVKK Art. 7, Paddle `transaction.completed` and retries, PostgreSQL advisory locks and ownership, pgcrypto), each dispositioned (D-368) |
+| **docs/reference/research/2026-10-14-one-door-lane-ledger.md** | Every fact the three research seats and the lead's own reads returned for the one-door lane spec (Bezos 2015/2016 letters, Google design docs, ADR significance criteria, Uber/Rust/Squarespace RFC tiers, Shape Up appetite, Netflix/Spotify paved roads, GitHub required checks, OPA Gatekeeper enforcement modes), 42 rows, each dispositioned — backs `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` |
+| **docs/reference/research/2026-10-14-coordinator-role-ledger.md** | Every fact the research seat returned for the coordinator role (triage and interrupt roles, router/planner model tiers, WSJF and impact/effort, WIP limits, merge stewards), one row each with its disposition |
+| [2026-10-14-coordinator-role-design.md](docs/superpowers/specs/2026-10-14-coordinator-role-design.md) | CONVERGED spec (approved D-868): the coordinator role — one agent per multi-window repo that sorts mail, derives priority from impact x effort under the quota budget, assigns, merges and keeps the records' status correct, and never builds |
+| [2026-10-14-coordinator-role-spec-review.md](docs/development/reviews/2026-10-14-coordinator-role-spec-review.md) | /fabrik-spec-review receipt for the coordinator role spec: 6-pass Pass Ledger, the Opus + Fable panel's accepted changes, the plan-time inputs the planner must settle |
 | **docs/reference/research/2026-09-24-audit-log-everywhere-ledger.md** | Every fact the three research seats of the audit-log-everywhere spec returned (PostgreSQL ownership and default privileges, append-only field practice, live DSN role migration), one row each with its disposition — backs `docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` and D-385 |
 | **docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md** | Every fact the five research seats of the `saas/88-saas-launch-checklist.md` currency turn returned (Paddle seller and refund policy, CCPA thresholds and opt-out link, Planet49 and EDPB fingerprinting, FingerprintJS licence, KVKK VERBIS exemption, KVKK Art. 11 vs GDPR, KDV Geçici 20 and export, hreflang and sitemaps, PgBouncer, Cloudflare caching, dispute thresholds, SOC 2), each dispositioned |
 | **docs/reference/research/2026-09-24-cost-budget-currency-ledger.md** | Every fact the two research seats of the `core/cost-budget.md` currency turn returned (Claude Code `total_cost_usd` semantics, `--max-budget-usd` / `--max-turns`, model aliases and API prices, OpenRouter usage accounting and per-key limits, verbalized-confidence calibration), each dispositioned |
@@ -92,6 +97,10 @@
 | **tests/test_payments_ingest_real_pg.py** | Real PostgreSQL 16 tests of the payments-ingest grants over fabrik-lib's payments schema: `payments_grant_ingest` extends the policies and grants columns only; a missing `jobs` fails the step, a missing schema defers, a refusal from the function fails the step; the legacy block runs only without the function, and an upgrade narrows a legacy grant. | The payments-ingest driver block | pytest (docker + /opt/fabrik-lib) |
 | **tests/test_scaffold_glitchtip_release.py** | The re-vendored GlitchTip module's release/environment read rules through `init_glitchtip()`, and the scaffolded python-api and node-api composes resolved with real `docker compose config` against a deployer-shaped `.env` hand the container the DSN, `APP_GIT_SHA` and `ENVIRONMENT` (docker/node legs skip when absent; mail 01M491AE33, D-626). | The scaffold compose template, the node GlitchTip module or the vendored `glitchtip_init.py` changes | pytest |
 | **tests/orchestrator/test_deployer_git_sha.py** | The deployer persists the deployed commit as `GIT_SHA` in the app's `.env` over a blank spec value, keeps it through `inject_env`, writes the new SHA on redeploy and `old_sha` on rollback, and leaves `.env` alone on a failed or non-hex `rev-parse` (fake ssh; D-626). | `deployer_ssh.py`'s git deploy, redeploy or `.env` building changes | pytest |
+| **tests/test_reconcile_all_deployed_set.py** | T03 graders: `reconcile-all`'s Compose-backed deployed set (one `ls` per host, `Name`/`ConfigFiles` match), the invariant-2 exit rule as a parametrized battery, the stem filter before the load, the 80-character cut on both `error` rows, and `refresh_infrastructure`'s host-scoped `app_dir` walk with the real `_host_env` swap. | `reconcile-all`, `refresh_infrastructure` or spec D3 / invariant 2 change | pytest |
+| **tests/test_projects_sync.py** | T04 graders: `fabrik projects --sync` runs the scanner subprocess with `scan`'s argv BEFORE the registry is read (a fake scanner rewrites the file and the new row is listed), the missing-script guard, a failing scanner's exit code with no stale listing, the two help texts, a legacy registry row with Coolify keys loading its other fields unchanged, and no `coolify`/`registry.update` left in `projects`. | `projects --sync`, `registry.py`'s `Project` or spec D4 change | pytest |
+| **tests/test_cli_apply_flags.py** | T05 graders: `fabrik apply`'s four retired legacy flags each exit 2 with click's `No such option`; `--yes --dry-run` reaches the (faked) orchestrator exactly once and `--yes`'s help carries the compatibility sentence; `deploy.py` is gone with no importer left in `src/`; `apply`'s source names neither `legacy` nor `use_orchestrator`; `destroy`'s preview/`--partial` help and every remaining `coolify` hit in `cli.py` sit only inside `export()`'s docstring. | `apply`/`destroy`'s legacy wording or spec D1/D10 change | pytest |
+| **tests/orchestrator/test_deployer_probe.py** | The deployer's read-only probe helpers for the Coolify-verb retirement: `app_dir` candidate order and the `/opt` parent rule, `_host_env` restore-or-pop, `probe_app`'s two quoted commands and its `error`-never-raise contract, `list_compose_projects`, `_parse_compose_ps` on JSON Lines and arrays. | `deployer_ssh.py`'s probe helpers or the spec's D2/D3 commands change | pytest |
 | **tests/test_pg18_runbook.py** | Grades the PG major-upgrade runbook: every D1/WSL/release step has a command, verify and rollback; destructive lines gated on the operator's word; behavioural checks of the WSL-step-2 guard, step-5 port, GO block and drill leftovers; T02/T03 seam tests (PG18 plan T05). | The runbook, the hub compose or the DR restore list changes | pytest |
 | **tests/test_large_docs_pg18.py** | Guards the PG18 sweep of vps-complete-inventory.md and fabrik-workflow.md: no current-major statement of PostgreSQL 16 in any spelling (separators, ver/version, v prefix) and the pgvector tag pinned to 0.8.6-pg18 (PG18 plan T04b). | Either doc changes | pytest |
 | **tests/test_live_docs_pg18.py** | Guards the PG18 doc sweep of T04a: none of README.md, docs/workstation/session-recall.md, scripts/container_images.py, scripts/generate_vps_inventory.py or tests/test_app_role_real_pg.py states PostgreSQL 16 as current. | Any of those files changes | pytest |
@@ -105,6 +114,7 @@
 | **tests/test_merge_sync.py** | Real-merge tests: ff and `--no-ff` merges distribute a non-tip governance-sync path through the post-merge hook, a rename out of a trigger path syncs, a linked-worktree commit distributes nothing. | The merge sync or its installer changes | pytest |
 | **tests/test_assemble_worktree_guard.py** | The corpus render and `--extract` are refused from a linked worktree (a submodule checkout renders; a non-git copy fails closed), while `--check`, a `--dest` preview and a main-checkout render still run. | The render guard changes | pytest |
 | **tests/test_hub_write_root.py** | The hub write-root rule (env, else the linked worktree's toplevel, else `/opt/fabrik`) per script, and the repo-wide search + allowlist for hard-coded hub-root write sites. | A script gains a tracked-file write or the root rule changes | pytest |
+| **tests/test_proof_run_guard.py** | The `--live` guard on `scripts/proof_run.py`: a static read refuses to execute an unguarded file or one whose module top level leaves the import-time whitelist (the RED), then the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes recording zero calls for `--help` (exit 0) and a bare run (exit 2, with and without `PROOF_ONLY`), a sentinel proves `--live` reaches `main()` at its first `.env` read, and every other spelling (`--li`, `--live=1`, `--no-live`, …) is refused by import. | `proof_run.py`'s parser or `__main__` block changes | pytest |
 
 ---
 
@@ -333,7 +343,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-07T22:42 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-15T09:46 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -382,7 +392,42 @@ docs/
 │   │   │   ├── T05-upgrade-runbook.md
 │   │   │   └── T06-integration.md
 │   │   ├── 2026-10-06-plan-1-worktree-venv-isolation.md
+│   │   ├── 2026-10-08-plan-1-promtail-to-alloy
+│   │   │   ├── 2026-10-08-plan-1-promtail-to-alloy.md
+│   │   │   ├── T01-alloy-configs.md
+│   │   │   ├── T02-hub-compose-and-ceilings.md
+│   │   │   ├── T03-spoke-stack-and-bootstrap.md
+│   │   │   ├── T04a-watchers.md
+│   │   │   ├── T04b-repo-consumers.md
+│   │   │   ├── T05a-audit-prompts-and-setup-docs.md
+│   │   │   ├── T05b-inventory-and-sysadmin-docs.md
+│   │   │   ├── T05c-status-and-architecture-docs.md
+│   │   │   ├── T05d-operations-docs-and-scaffold-template.md
+│   │   │   ├── T05e-rebuild-and-reference-docs.md
+│   │   │   ├── T06-window-runbook.md
+│   │   │   └── T07-integration.md
+│   │   ├── 2026-10-08-plan-2-payments-fulfilment-role.md
+│   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
+│   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
+│   │   ├── 2026-10-14-plan-1-coolify-verb-retirement
+│   │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement.md
+│   │   │   ├── T01-deployer-helpers.md
+│   │   │   ├── T02-status-rebase.md
+│   │   │   ├── T03-reconcile-all-rebase.md
+│   │   │   ├── T04-projects-sync-rebase.md
+│   │   │   ├── T05-apply-legacy-retired.md
+│   │   │   ├── T06-portability-coolify-section.md
+│   │   │   ├── T07a-rollback-branch-retired.md
+│   │   │   ├── T07b-health-app-and-state-words.md
+│   │   │   ├── T08-script-rebases.md
+│   │   │   ├── T09-module-deletions.md
+│   │   │   ├── T10a-reference-docs.md
+│   │   │   ├── T10b-root-docs.md
+│   │   │   └── T11-integration.md
+│   │   ├── 2026-10-14-plan-2-one-door-lane.md
+│   │   ├── 2026-10-15-plan-1-coordinator-role.md
+│   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -633,6 +678,9 @@ docs/
 │       ├── 2026-09-05-windowed-cost-sidecar-phase-C-review.md
 │       ├── 2026-09-06-d159-routing-allowlist-review.md
 │       ├── 2026-09-06-daily-chain-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-2-c1-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-3-c2-c3-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-5-c4-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T01-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T02a-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T02b-review.md
@@ -945,8 +993,10 @@ docs/
 │       ├── 2026-10-06-mint-once-secrets-review.md
 │       ├── 2026-10-06-observability-matrix-node-drain-review.md
 │       ├── 2026-10-06-pgvector-version-key-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T01a-review.md
 │       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T02-review.md
 │       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-review.md
 │       ├── 2026-10-06-plan-2-rotation-capability-probe-review.md
 │       ├── 2026-10-06-plan-tickets-gate-cd-review.md
 │       ├── 2026-10-06-python-pack-mypy-target-review.md
@@ -970,16 +1020,146 @@ docs/
 │       ├── 2026-10-07-doc-links-worktree-lock-review.md
 │       ├── 2026-10-07-glitchtip-env-rows-review.md
 │       ├── 2026-10-07-heredoc-guard-docs-review.md
+│       ├── 2026-10-07-kaizen-stood-down-exclusion-review.md
 │       ├── 2026-10-07-kilo-model-sync-archive-review.md
 │       ├── 2026-10-07-mcp-resume-report-and-credential-chain-review.md
 │       ├── 2026-10-07-mcp-scope-and-orphan-reaper-review.md
 │       ├── 2026-10-07-mcp-scope-fabrik-lib-correction-review.md
 │       ├── 2026-10-07-phantom-relief-wakes-pytest-guard-review.md
+│       ├── 2026-10-07-plan-archive-hygiene-review.md
 │       ├── 2026-10-07-review-loop-worktree-seat-recipe-review.md
+│       ├── 2026-10-07-seat-isolation-review.md
 │       ├── 2026-10-07-stale-pack-sentences-grace-and-pollpath-review.md
 │       ├── 2026-10-07-state-registrar-failures-review.md
 │       ├── 2026-10-07-urgent-relief-promise-review.md
 │       ├── 2026-10-07-watchdog-llm-actions-packs-review.md
+│       ├── 2026-10-08-charter-hook-whoami-fallback-review.md
+│       ├── 2026-10-08-check-plan-tickets-ancestor-gate-review.md
+│       ├── 2026-10-08-citations-bare-basenames-review.md
+│       ├── 2026-10-08-command-run-handoff-seed-review.md
+│       ├── 2026-10-08-command-run-zero-slice-review.md
+│       ├── 2026-10-08-contract-cite-drift-review.md
+│       ├── 2026-10-08-convergence-in-progress-citation-review.md
+│       ├── 2026-10-08-d355-scope-growth-close-review.md
+│       ├── 2026-10-08-doc-index-shared-basename-review.md
+│       ├── 2026-10-08-docs-updater-plan-status-review.md
+│       ├── 2026-10-08-docusaurus-nginx-404-review.md
+│       ├── 2026-10-08-docusaurus-pack-serve-stage-review.md
+│       ├── 2026-10-08-final-gate-missing-checker-skip-review.md
+│       ├── 2026-10-08-frozen-chain-split-header-review.md
+│       ├── 2026-10-08-llms-txt-hub-wording-review.md
+│       ├── 2026-10-08-local-source-env-merge-review.md
+│       ├── 2026-10-08-merge-request-fabrik-lib-blocker-review.md
+│       ├── 2026-10-08-model-tok-cobra-note-review.md
+│       ├── 2026-10-08-pass-row-shape-agreement-review.md
+│       ├── 2026-10-08-pin-refusal-wording-review.md
+│       ├── 2026-10-08-pin-verb-launchers-review.md
+│       ├── 2026-10-08-plan-3-review-coverage-commit-scope-review.md
+│       ├── 2026-10-08-print-ban-call-boundary-review.md
+│       ├── 2026-10-08-probe-worktree-copy-in-review.md
+│       ├── 2026-10-08-rearm-sweep-wall-time-review.md
+│       ├── 2026-10-08-refusal-rule-writable-copy-review.md
+│       ├── 2026-10-08-review-coverage-loop-owner-ids-review.md
+│       ├── 2026-10-08-review-hygiene-strict-review.md
+│       ├── 2026-10-08-review-loop-empty-slices-review.md
+│       ├── 2026-10-08-review-loop-mandatory-pin-manifest-review.md
+│       ├── 2026-10-08-review-loop-pin-enforcement-review.md
+│       ├── 2026-10-08-review-loop-pin-recipe-review.md
+│       ├── 2026-10-08-review-loop-refuter-retry-review.md
+│       ├── 2026-10-08-review-loop-stray-writes-review.md
+│       ├── 2026-10-08-review-receipt-header-status-claim-review.md
+│       ├── 2026-10-08-rotation-stamp-tier-hygiene-review.md
+│       ├── 2026-10-08-rule-grounding-table-reading-review.md
+│       ├── 2026-10-08-seat-guard-review.md
+│       ├── 2026-10-08-seat-refusal-rule-review.md
+│       ├── 2026-10-08-seat-write-scope-review.md
+│       ├── 2026-10-08-seats-seen-rglob-review.md
+│       ├── 2026-10-08-slice-restatement-and-filed-template-review.md
+│       ├── 2026-10-08-spec-closing-row-grader-review.md
+│       ├── 2026-10-08-spec-convergence-all-and-scoped-review.md
+│       ├── 2026-10-08-subagents-pack-hold-tier-review.md
+│       ├── 2026-10-08-terminal-amend-review.md
+│       ├── 2026-10-08-trend-series-corrupt-slot-review.md
+│       ├── 2026-10-08-urgent-tier-checkpoint-review.md
+│       ├── 2026-10-08-w-3860ebf6-base-image-codename-review.md
+│       ├── 2026-10-08-work-blocked-plan-drift-review.md
+│       ├── 2026-10-08-worker-queue-from-main-review.md
+│       ├── 2026-10-08-zero-read-seat-and-large-output-redirect-review.md
+│       ├── 2026-10-09-command-run-no-closing-pass-review.md
+│       ├── 2026-10-09-review-receipt-gate-close-order-review.md
+│       ├── 2026-10-09-stop-hook-gate-before-push-review.md
+│       ├── 2026-10-09-stop-hook-mismatched-upstream-review.md
+│       ├── 2026-10-09-w-24ae7ecf-surface-add-review.md
+│       ├── 2026-10-09-w-b63ffe1a-gate-scope-wording-review.md
+│       ├── 2026-10-09-w-fe6e0ed3-phase-e-rereview-review.md
+│       ├── 2026-10-11-adopt-id-reservation-review.md
+│       ├── 2026-10-11-coordinator-amber-standdown-review.md
+│       ├── 2026-10-11-pre-push-install-race-review.md
+│       ├── 2026-10-11-repos-owner-filter-review.md
+│       ├── 2026-10-12-adopt-refuses-linked-worktree-review.md
+│       ├── 2026-10-12-close-friction-working-tree-receipt-review.md
+│       ├── 2026-10-12-corpus-weight-surfaces-wording-review.md
+│       ├── 2026-10-12-merge-request-unreachable-defers-review.md
+│       ├── 2026-10-12-owner-dsn-pack-sentences-review.md
+│       ├── 2026-10-12-pins-manifest-any-cwd-review.md
+│       ├── 2026-10-12-plan-1-owner-dsn-split-review.md
+│       ├── 2026-10-12-whoami-clear-predecessor-review.md
+│       ├── 2026-10-13-added-file-ruff-scope-review.md
+│       ├── 2026-10-13-data-contract-backing-legend-review.md
+│       ├── 2026-10-13-design-time-naming-check-review.md
+│       ├── 2026-10-13-final-gate-git-names-review.md
+│       ├── 2026-10-13-floor-execute-plan-opus-review.md
+│       ├── 2026-10-13-gate-fixer-scope-unicode-review.md
+│       ├── 2026-10-13-plan-1-mail-routing-review.md
+│       ├── 2026-10-13-print-mode-no-work-review.md
+│       ├── 2026-10-13-red-clause-template-mirror-review.md
+│       ├── 2026-10-13-review-loop-ledger-run-state-review.md
+│       ├── 2026-10-13-review-loop-next-args-review.md
+│       ├── 2026-10-13-review-loop-seat-prompt-scoring-review.md
+│       ├── 2026-10-13-rule-grounding-numbered-digest-review.md
+│       ├── 2026-10-13-schema-sync-content-trigger-review.md
+│       ├── 2026-10-13-seat-dotenv-off-review.md
+│       ├── 2026-10-13-spec-db-contradiction-warn-review.md
+│       ├── 2026-10-13-spec-db-whole-name-review.md
+│       ├── 2026-10-13-synced-wording-fixes-review.md
+│       ├── 2026-10-13-task-close-receipt-exempt-review.md
+│       ├── 2026-10-13-throwaway-scope-and-routing-seams-review.md
+│       ├── 2026-10-13-w-28f260c3-wall-resume-review.md
+│       ├── 2026-10-13-w-2e6c1b0b-never-route-family-review.md
+│       ├── 2026-10-13-w800579be-published-refresh-review.md
+│       ├── 2026-10-13-wip-backup-no-verify-review.md
+│       ├── 2026-10-14-checkpoint-arm-review.md
+│       ├── 2026-10-14-coordinator-role-spec-review.md
+│       ├── 2026-10-14-design-receipt-route-review.md
+│       ├── 2026-10-14-flip-after-panel-review.md
+│       ├── 2026-10-14-gate-row-cites-review.md
+│       ├── 2026-10-14-harness-janitor-review.md
+│       ├── 2026-10-14-lane-default-sentence-review.md
+│       ├── 2026-10-14-one-door-lane-plan-review.md
+│       ├── 2026-10-14-phase-receipt-worktrees-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T01-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T02-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T03-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T04-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T05-review.md
+│       ├── 2026-10-14-plan-tickets-doubled-slash-review.md
+│       ├── 2026-10-14-research-tier-order-review.md
+│       ├── 2026-10-14-resilience-counts-at-lists-review.md
+│       ├── 2026-10-14-review-loop-later-pass-reads-clone-push-review.md
+│       ├── 2026-10-14-review-loop-ledger-labels-name-the-defect-review.md
+│       ├── 2026-10-14-review-loop-pin-stdout-git-history-review.md
+│       ├── 2026-10-14-review-loop-seats-never-execute-destructive-scripts-review.md
+│       ├── 2026-10-14-reviewed-surfaces-review.md
+│       ├── 2026-10-14-rotation-threshold-99-review.md
+│       ├── 2026-10-14-run-scratch-root-review.md
+│       ├── 2026-10-14-schema-sync-migration-governance-review.md
+│       ├── 2026-10-14-two-sided-lane-gate-review.md
+│       ├── 2026-10-14-w-c687ce60-lib-routing-review.md
+│       ├── 2026-10-15-by-design-ledger-owner-review.md
+│       ├── 2026-10-15-plan-1-coordinator-role-review.md
+│       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
+│       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
+│       ├── 2026-10-15-scratch-lifecycle-spec-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1013,6 +1193,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-23.md
 │   │   ├── fleet-doc-audit-2026-09-30.md
 │   │   ├── fleet-doc-audit-2026-10-07.md
+│   │   ├── fleet-doc-audit-2026-10-14.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -1091,6 +1272,7 @@ docs/
 │   │   └── markdown-cheatsheet.md
 │   ├── agent-machinery-map.md
 │   ├── agents
+│   │   ├── coordinator.md
 │   │   ├── fleet.md
 │   │   ├── infra.md
 │   │   ├── intel.md
@@ -1215,6 +1397,12 @@ docs/
 │   │   ├── 2026-10-04-bootstrap-scripts-currency-ledger.md
 │   │   ├── 2026-10-05-promtail-to-alloy-ledger.md
 │   │   ├── 2026-10-06-postgresql-18-upgrade-ledger.md
+│   │   ├── 2026-10-08-review-coverage-commit-scope-ledger.md
+│   │   ├── 2026-10-12-owner-dsn-split-ledger.md
+│   │   ├── 2026-10-13-mail-routing-ledger.md
+│   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
+│   │   ├── 2026-10-14-coordinator-role-ledger.md
+│   │   ├── 2026-10-14-one-door-lane-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1317,7 +1505,13 @@ docs/
 │       ├── 2026-10-06-postgresql-18-fleet-upgrade-design.md
 │       ├── 2026-10-06-rotation-capability-probe-design.md
 │       ├── 2026-10-06-worktree-venv-isolation-design.md
+│       ├── 2026-10-08-review-coverage-commit-scope-design.md
+│       ├── 2026-10-12-owner-dsn-split-design.md
 │       ├── 2026-10-13-mail-routing-design.md
+│       ├── 2026-10-14-coolify-verb-retirement-design.md
+│       ├── 2026-10-14-coordinator-role-design.md
+│       ├── 2026-10-14-one-door-lane-design.md
+│       ├── 2026-10-15-scratch-lifecycle-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1348,6 +1542,7 @@ docs/
 │   ├── claude-configuration-inventory.md
 │   ├── cleanup-automation.md
 │   ├── cleanup-maintenance-backlog.md
+│   ├── cloud-dispatch.md
 │   ├── fabrik-mail.md
 │   ├── hooks-index.md
 │   ├── kaizen-event-stream.md
@@ -1383,6 +1578,7 @@ docs/
 | [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
 | [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
 | [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
+| [workstation/cloud-dispatch.md](docs/workstation/cloud-dispatch.md) | Cloud subagents that spend the per-account cloud-session credit: `scripts/cloud_dispatch.py` fires a fleet account's claude.ai routine (`.fabrik/cloud-routines.json`), waits for its `claude/<slug>` branch, reads its log (D-857) |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
@@ -1398,6 +1594,7 @@ docs/
 | [umbrella-sso-integration.md](docs/reference/umbrella-sso-integration.md) | Per-RP recipe to federate to the umbrella Zitadel IdP + enforce cross-product entitlements (vendor the bridge, `needs_cache`, LocalAuthBridge, reconciler enqueue seam, AuditSink offload, revocation→session teardown) |
 | [rule-pack-reachability.md](docs/reference/rule-pack-reachability.md) | Why a rule pack can be silently INERT — `globs:` written for a directory-per-concern layout vs scaffolds that emit file-per-concern — why the obvious ACTIVE-set check is CIRCULAR and can never fire, what the `applies_to:` frontmatter declares, how to add it to a pack, and the cross-ticket seam proof. Promotion of the advisory check to blocking is a deliberate operator decision once the corpus is clean. |
 | [agents/infra.md](docs/reference/agents/infra.md) | infra agent charter (dev infrastructure + workstation + agent comms) — SessionStart overlay via `agent_role.py` |
+| [agents/coordinator.md](docs/reference/agents/coordinator.md) | coordinator agent charter (sorts mail, scores and assigns work, owns merges and keeps the records; never builds — D-868, D-871; 2026-10-15) — SessionStart overlay via `agent_role.py` |
 | [agents/fleet.md](docs/reference/agents/fleet.md) | fleet agent charter (VPS + deployment + new-project provisioning) — SessionStart overlay via `agent_role.py` |
 | [agents/kaizen.md](docs/reference/agents/kaizen.md) | kaizen agent charter (the feedback loop's owner — every command-feedback queue, command/rule wording, ways-of-working mail; 2026-10-06) — SessionStart overlay via `agent_role.py` |
 | [agents/intel.md](docs/reference/agents/intel.md) | intel agent charter (model intelligence until extraction + standing reviewer + floater) — SessionStart overlay via `agent_role.py` |
@@ -1693,7 +1890,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_mail_notify.py](tests/test_mail_notify.py) | 12 tests for the surfacing hook — watched-fail-first (red-on-revert) on the exit-0 fleet guard + repo resolution (/opt-only), injection sanitization (control-char strip, subject cap, forged from/kind neutralized, malformed skipped), flood cap. |
 | [generate_capability_index.py](scripts/generate_capability_index.py) | GENERATES the capability catalog — introspects the 9 tool surfaces (cli/driver/registrar/script/lib-module/scaffold/rules-pack/hook/command; org-retirement markers beat mechanical probes), liveness-probes each (fail-soft: a probe error → `status:broken`, whole-surface-broken → raises), emits `capabilities.json` + `docs/CAPABILITIES.md` (llms.txt-style) + root `llms.txt`. So a cold AI agent discovers + invokes every tool with zero onboarding. Wired into `daily_refresh.sh`. Tests: `tests/test_generate_capability_index.py`. |
 | [audit_capability_docs.py](scripts/audit_capability_docs.py) | Doc-AUDIT — consumes `capabilities.json` `defects[]`, resolves the mechanical set (`dead_doc` → unlink orphan .md; `undocumented` → write stub; `doc_drift` → flag) **dry-run by default** (`--apply` to execute), and rolls `broken`/`retired`/`incomplete` into the operator ledger `docs/development/capability-defects.md`. NEVER unlinks a tool file. Tests: `tests/test_audit_capability_docs.py`. |
-| [proof_run.py](scripts/proof_run.py) | Live-deploy proof harness — scaffolds → pushes → `fabrik apply` → curl-verifies every type in `SCAFFOLD_TYPES` against the production VPS. Pulls Coolify build logs into `proof-logs/<type>-<ts>-build.log`. Supports `--keep-on-failure` and direct-Cloudflare DNS-cleanup fallback. Run quarterly + after any change to verifier/validator/spec_generator/scaffolder. See `PROOF.md` for the latest run output and `CHANGELOG.md [Unreleased]` B23–B46 for the 22 defects it surfaced on first execution. |
+| [proof_run.py](scripts/proof_run.py) | Live-deploy proof harness — DESTRUCTIVE, refuses to start without `--live` (`--help` and a bare run exit before any side effect; 2026-10-14 incident) — scaffolds → pushes → `fabrik apply` → curl-verifies every type in `SCAFFOLD_TYPES` against the production VPS. Pulls Coolify build logs into `proof-logs/<type>-<ts>-build.log`. Passes `--keep-on-failure` to `fabrik apply` (not a flag of its own) and falls back to direct-Cloudflare DNS cleanup. Run quarterly + after any change to verifier/validator/spec_generator/scaffolder. See `PROOF.md` for the latest run output and `CHANGELOG.md [Unreleased]` B23–B46 for the 22 defects it surfaced on first execution. |
 | [inject_deploy_resources.py](scripts/inject_deploy_resources.py) | F5 helper — idempotent string-precise injection of `deploy.resources.limits` into a single-service `compose.yaml`. Used to backfill the 7 Coolify Applications (git-sourced Fabrik microservices). No-op if the deploy block is already present. Usage: `python3 scripts/inject_deploy_resources.py <compose.yaml> <memory> <cpus>`. |
 | [backfill_ci.py](scripts/backfill_ci.py) | Backfills the fabrik-managed CI (`.github/workflows/ci.yml` + `scripts/ci_local.sh`) onto an existing project that predates it, **safely** — the generated CI is a lint ratchet (`src/fabrik/ci_scaffold.py`), so this also seeds `.fabrik/lint-baseline.json` at the project's CURRENT ruff count, landing CI GREEN (debt tolerated, growth blocked) instead of flooding red. Grounds `needs_database` from the hub spec `shape` / `.env.example`. **Dry-run by default**; `--apply` writes the files (working tree only, NEVER commits/pushes across repos). Usage: `python scripts/backfill_ci.py <project> [--apply]`. |
 | coolify_services_f5.py (archived with the Coolify decommission) | F5 helper — injects `deploy.resources.limits` into the 12 Coolify Services (one-click stacks). GETs each service via `/api/v1/services/<uuid>`, edits `docker_compose_raw` with string-precise injection (no YAML round-trip), PATCHes back **base64-encoded** (API requirement). Memory values mirror `vps_apply_limits.sh`. Supports `--dry-run`, `--apply`, `--only <name>`. Idempotent. See Lesson 62. |
@@ -1790,10 +1987,14 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [2026-10-13-seat-dotenv-off-review.md](docs/development/reviews/2026-10-13-seat-dotenv-off-review.md) | /fabrik-review of D-801: the seat guard rewrites review-seat Bash calls to run with python-dotenv disabled; confirmed 2 → 0 |
 | [2026-10-13-gate-fixer-scope-unicode-review.md](docs/development/reviews/2026-10-13-gate-fixer-scope-unicode-review.md) | /fabrik-review of fleet 01M4EPDF7F: the gate's fixers touch only this session's net change and keep U+2028, CRLF and bare CR; confirmed 4 → 0 |
 | [2026-10-13-added-file-ruff-scope-review.md](docs/development/reviews/2026-10-13-added-file-ruff-scope-review.md) | /fabrik-review of D-802: the gate formats and lints Python added outside scripts/ and src/, honouring each repo's ruff exclude; confirmed 3 → 1 → 0 |
+| [2026-10-15-plan-1-scratch-lifecycle-review.md](docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-review.md) | Scratch lifecycle plan: the Finish /fabrik-review receipt (Phases A-C, three passes, 5 → 2 → 0) |
+| [2026-10-15-plan-1-scratch-lifecycle-legacy-list.md](docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md) | Scratch lifecycle plan P17: the read-only census of every session's untagged top-level scratchpad entries (sizes, holders, live status) — the operator-signed list; nothing is removed without the signature |
+| [2026-10-14-two-sided-lane-gate-review.md](docs/development/reviews/2026-10-14-two-sided-lane-gate-review.md) | /fabrik-review of the two-sided lane gate (D-862): `/fabrik-spec start` through `task_lane.admit`, spec-start override rows, no-refusal downgrades counted — 14 confirmed in round 1, closing pass 0 |
 | [test_plan_lock_release.py](tests/enforcement/test_plan_lock_release.py) | 34 behavior tests for that gate, all under `tmp_path` — incl. six NEGATIVE fixtures (the substring false positive, the paused/blocked carve-out, `started_at` alone, a terminal lock's stale plan field, a foreign repo-lock, a fenced `Status:` line) proven by a ten-mutant red-on-revert matrix. |
 | [agents-fabrik-core.md](agents-fabrik-core.md) | High-frequency platform core, `@import`-ed into `CLAUDE.md` (fleet-synced); the full map stays `agents-fabrik.md`; `AGENTS.md` = stub (spec 2026-07-18 option b) |
 | [test_review_rubric.py](tests/test_review_rubric.py) | 3 hermetic Behavior-Contract tests for the rubric extractor (glob-matched mandates · mandatory-core floor always · `--workflow`-gated checklists) |
 | [test_review_receipt.py](tests/test_review_receipt.py) | 6 tests for the receipt skeleton in a throwaway git repo — only the Status line exempts the skeleton (the bare flip fails naming UNCHECKED), a mechanically completed one passes with zero findings, the anchor covers untracked files, an empty surface is refused, no overwrite, a dated scope is not double-dated |
+| [test_run_scratch_brief_wording.py](tests/test_run_scratch_brief_wording.py) | 5 pins for D7 of the scratch-lifecycle spec — the seat-folder rule (`<run scratch>/seat-<n>/` under `RUN-SCRATCH:`) stated once in `subagents-core.md`, the pins dir under the same root, the catalogue's copy rule as the only staging, `<run scratch>` in fabrik-execute-plan, and a D8 pointer that resolves where it is read |
 | [test_review_loop_ledger.py](tests/test_review_loop_ledger.py) | Graders for `review_loop_ledger.py` over fabricated run dirs: seats timed and flagged, orphan/unreadable/duplicate rows kept, `next` refusing an unraised, ambiguous or prefix-less id |
 | [test_feedback_stages.py](tests/test_feedback_stages.py) | Graders for `command_feedback_report.py --stages`: review runs grouped per change in the ledger's real shape (per-round `confirmed` lists), receipts keyed to their plan, negative figures ignored, the repo printed, the coverage line |
 | [test_dispatch_headroom_force.py](tests/test_dispatch_headroom_force.py) | Graders for `dispatch_headroom.py`'s refusal while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set (a whitespace value included; empty is unset) |
@@ -1894,6 +2095,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [fleet-doc-audit-2026-09-23.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-23.md) | Dated fleet doc-freshness report (2026-09-23 cron run) |
 | [fleet-doc-audit-2026-09-30.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-30.md) | Dated fleet doc-freshness report (2026-09-30 cron run) |
 | [fleet-doc-audit-2026-10-07.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-10-07.md) | Dated fleet doc-freshness report (2026-10-07 cron run) |
+| [fleet-doc-audit-2026-10-14.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-10-14.md) | Dated fleet doc-freshness report (2026-10-14 cron run) |
 | [fleet-doc-audit-latest.md](docs/infrastructure/probe-reports/fleet-doc-audit-latest.md) | Newest fleet doc-freshness report (cron-regenerated weekly; dated copies alongside, e.g. fleet-doc-audit-2026-08-07.md) |
 | [fleet_doc_audit.py](scripts/fleet_doc_audit.py) | Weekly fleet-wide doc-freshness audit (wake-proof via weekly_catchup.sh hourly stamp check) — mechanical rot probes over every /opt project (code-vs-docs lag, per-doc staleness ≥14d, untracked key docs, template stub sentinels, registry-obligated missing docs) → dated report in docs/infrastructure/probe-reports/. Truth-level fixes route to /fabrik-doc-converge or /fabrik-docs-review in the flagged project. Since 2026-09-02 it also INDEXES its dated report (INDEX.md row before the -latest anchor) and self-commits INDEX.md only when INDEX.md was clean before the run — never sweeping a sibling's WIP. |
 | [test_fleet_doc_audit.py](tests/test_fleet_doc_audit.py) | 12 tests — the audit's pure probes (lag arithmetic incl. no-code/docs-newer cases, stub-sentinel counting, registry basename compare, never-committed labelling) + the INDEX self-indexing helper (inserts one row before the -latest anchor, matched by link TARGET; idempotent; no anchor → no write) + `index_is_clean()` (HEAD-based, so a staged sibling edit is dirty). |
@@ -1951,6 +2153,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_stop_hook_push_attribution.py](tests/test_stop_hook_push_attribution.py) | 12 tests: the UNPUSHED cause counts only commits THIS SESSION authored — a sibling's unpushed commit must not be ordered published, a docs-only own task end must still be caught, and the edit set is FLOORED so a resumed transcript cannot trap the session behind someone else's work. T13.4, 01M20E1QN. |
 | [test_stop_hook_sixth_cause_floor.py](tests/test_stop_hook_sixth_cause_floor.py) | 14 tests on the sixth cause's floor — the LATEST of the SessionStart baseline, the edit-age window and the ledger epoch — so a months-long transcript's ancient edits are not counted as this session's unreviewed work, and the block names the window because the floor slides. |
 | [test_sync_head_source.py](tests/test_sync_head_source.py) | 18 tests on a throwaway hub — the fleet sync must ship COMMITTED bytes, never the hub's working tree (an uncommitted edit reached 48 project copies on 2026-09-07); an untracked source still ships the tree, the executable bit survives the HEAD read, drift is recorded for the report and a clean file records none. T12.17, 01M1Y86PQ. |
+| [test_scratch_sweep_run_folders.py](tests/test_scratch_sweep_run_folders.py) | Run-bound scratch (scratch lifecycle plan, D-870): `classify_run_folder` — the ONE function that answers ACTIVE or CONSUMED for a `run-*` folder — read against every INV-1 condition alone and an exhaustive enumeration of the marker state space (an independent restatement of INV-1 as the oracle); `read_owner` on missing and corrupt markers. |
 | [test_scratch_sweep_sync_materialised.py](tests/test_scratch_sweep_sync_materialised.py) | 5 tests — a worktree the governance sync wrote into is not dirty: a manifest-owned path counts as the sync's own output ONLY when byte-identical to the hub's copy, a hand edit keeps the worktree, an unowned path is never exempt, and every unanswerable case fails toward keeping the work. T12.23, 01M23JK2R. |
 | [test_synced_manifest.py](tests/test_synced_manifest.py) | Tests for `fabrik_synced_manifest` — category coverage, compiled-bytecode exclusion, source mapping, PORTS.md seed-exemption, gitignore grouping, and the D-198/D-199 retired-vendored-dir contract (ignored, never synced, never worktree-copied). Count deliberately not stated: it read "5" while the file held 23 (D-199). |
 | [test_exec_bits.py](tests/test_exec_bits.py) | The exec bit IN HEAD for hook-invoked scripts — a lost one is a silent no-op on any fresh clone, and `git diff --numstat` cannot see it (D-199). |
