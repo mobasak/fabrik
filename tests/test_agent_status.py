@@ -1,0 +1,201 @@
+"""scripts/agent_status.py — the coordinator's NOW / DONE / NEXT view of every hub worker (W-cfff98dd e, D-880).
+
+Every test builds a throwaway git repo with a work store whose distributor is `coordinator`, worker
+worktrees, a tmp run-record store (COMMAND_RUN_DIR) and a fake /proc (FABRIK_WORK_PROC), then runs the
+real script — the readers it loads (work.py, command_run.py, mail.py) are the hub's real modules, so a
+helper whose signature drifts shows up as wrong rows here, not only as an exception.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+STATUS = REPO / "scripts" / "agent_status.py"
+WORK = REPO / "scripts" / "work.py"
+SETTINGS = REPO / ".claude" / "settings.json"
+
+
+def _env(tmp: Path, agent: str | None = "coordinator") -> dict[str, str]:
+    for sub in ("home", "tmp"):
+        (tmp / sub).mkdir(exist_ok=True)
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": str(tmp / "home"),
+        "TMPDIR": str(tmp / "tmp"),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        "FABRIK_MAIL_ROOT": str(tmp / "tmp" / "mail"),
+        "COMMAND_RUN_DIR": str(tmp / "tmp" / "state" / "command-runs"),
+        "AGENT_IDENTITY_FILE": str(tmp / "tmp" / "identity.jsonl"),
+        "FABRIK_WORK_PROC": str(tmp / "proc"),
+    }
+    if agent is not None:
+        env["CLAUDE_AGENT"] = agent
+    return env
+
+
+def _git(cwd: Path, env: dict, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=True).stdout
+
+
+def _work(repo: Path, env: dict, *args: str) -> str:
+    r = subprocess.run([sys.executable, str(WORK), *args], cwd=repo, env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return r.stdout
+
+
+def _status(repo: Path, env: dict, *args: str, stdin: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(STATUS), "--repo", str(repo), *args],
+        cwd=repo, env=env, input=stdin, capture_output=True, text=True, timeout=60,
+    )
+
+
+def _setup(tmp: Path, *, present: tuple[str, ...] = ()) -> tuple[dict, Path, dict[str, Path]]:
+    env = _env(tmp)
+    repo = tmp / "repo"
+    _git(tmp, env, "init", "-q", "-b", "master", str(repo))
+    (repo / "README").write_text("seed\n", encoding="utf-8")
+    _git(repo, env, "add", "README")
+    _git(repo, env, "commit", "-q", "-m", "seed")
+    repo = repo.resolve()
+    _work(repo, env, "init", "--distributor", "coordinator")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "store")
+    trees = {}
+    for name in ("infra", "fleet"):
+        wt = repo / ".claude" / "worktrees" / name
+        _git(repo, env, "worktree", "add", "-q", "-b", f"worktree-{name}", str(wt))
+        trees[name] = wt
+    proc = tmp / "proc"
+    proc.mkdir()
+    for n, name in enumerate(present, start=100):
+        d = proc / str(n)
+        d.mkdir()
+        (d / "comm").write_text("claude\n", encoding="utf-8")
+        os.symlink(trees[name], d / "cwd")
+    return env, repo, trees
+
+
+def _add(repo: Path, env: dict, title: str, owner: str = "", *extra: str) -> str:
+    item = Path(_work(repo, env, "add", "--kind", "task", "--title", title).strip().splitlines()[-1]).stem
+    if owner:
+        _work(repo, env, "assign", item, "--owner", owner, *extra)
+    return item
+
+
+def _record(env: dict, sid: str, **fields) -> None:
+    d = Path(env["COMMAND_RUN_DIR"])
+    d.mkdir(parents=True, exist_ok=True)
+    rec = {"session_id": sid, "updated_ts": time.time(), "phase": 2, "phases": 5, "phase_title": "t", **fields}
+    (d / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+
+def _rows(repo: Path, env: dict) -> dict[str, dict]:
+    r = _status(repo, env, "--json")
+    assert r.returncode == 0, r.stderr
+    return {row["role"]: row for row in json.loads(r.stdout)["agents"]}
+
+
+def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
+    """NOW is the role's newest RUNNING record from any repo (another repo is named), its claim and
+    whether a window is up; a done record, another agent's record and the distributor are not rows."""
+    env, repo, trees = _setup(tmp_path, present=("infra",))
+    _record(env, "s1", agent="infra", state="running", command="fabrik-task", surface="the reader",
+            repo_root=str(trees["infra"]))
+    _record(env, "s2", agent="infra", state="done", command="fabrik-review", surface="old", repo_root=str(trees["infra"]))
+    _record(env, "s3", agent="fleet", state="running", command="fabrik-deploy", surface="vps1",
+            repo_root="/opt/some-project")
+    _record(env, "s4", agent="sp1", state="running", command="fabrik-spec", surface="x", repo_root="/opt/other")
+    item = _add(repo, env, "build the reader", "infra")
+    claim_env = {**env, "CLAUDE_AGENT": "infra", "CLAUDE_CODE_SESSION_ID": "s1"}
+    _work(repo, claim_env, "claim", item)  # claims sit in the shared folder every tree reads
+    rows = _rows(repo, env)
+    assert "coordinator" not in rows, sorted(rows)
+    infra, fleet = rows["infra"], rows["fleet"]
+    assert infra["live"] is True and fleet["live"] is False
+    assert infra["now"]["command"] == "fabrik-task" and infra["now"]["surface"] == "the reader"
+    assert infra["claim"]["id"] == item and infra["claim"]["title"] == "build the reader"
+    assert fleet["now"]["command"] == "fabrik-deploy" and fleet["now"]["repo"] == "/opt/some-project"
+    assert rows["intel"]["now"] is None
+
+
+def test_done_lists_the_roles_merges_of_both_eras(tmp_path: Path) -> None:
+    """DONE reads the base branch's merge subjects of BOTH merge-owner eras and skips a builder's
+    back-merge of master; the 24 h count is the distinct items those subjects name."""
+    env, repo, _ = _setup(tmp_path)
+    for subject in (
+        "merge(infra): worktree-infra — request 01AAA, item W-11111111",
+        "merge(infra): origin/master into worktree-infra before the request",
+        "merge(coordinator): worktree-infra — request 01BBB, item W-22222222",
+        "merge(coordinator): worktree-fleet — request 01CCC, item none",
+    ):
+        _git(repo, env, "commit", "-q", "--allow-empty", "-m", subject)
+    rows = _rows(repo, env)
+    infra = rows["infra"]["done"]
+    assert [m["item"] for m in infra["merges"]] == ["W-22222222", "W-11111111"], infra
+    assert infra["items_24h"] == 2
+    assert [m["item"] for m in rows["fleet"]["done"]["merges"]] == [""]
+    assert rows["intel"]["done"]["merges"] == []
+
+
+def test_next_is_the_roles_queue(tmp_path: Path) -> None:
+    """NEXT is the set `work.py queue` counts: owned, not parked, not claimed — never another
+    owner's or an unowned item — top 3 by priority, with the queue's size and the parked count."""
+    env, repo, _ = _setup(tmp_path)
+    low = _add(repo, env, "low", "infra", "--priority", "3")
+    high = _add(repo, env, "high", "infra", "--priority", "1")
+    mid = _add(repo, env, "mid", "infra", "--priority", "2")
+    extra = _add(repo, env, "extra", "infra", "--priority", "3")
+    parked = _add(repo, env, "parked", "infra", "--tag", "waits-2099-01-01")
+    _add(repo, env, "fleet's", "fleet")
+    _add(repo, env, "nobody's")
+    nxt = _rows(repo, env)["infra"]["next"]
+    assert [i["id"] for i in nxt["top"]] == [high, mid, low] or [i["id"] for i in nxt["top"]] == [high, mid, extra]
+    assert nxt["queued"] == 4 and nxt["parked"] == 1
+    assert parked not in [i["id"] for i in nxt["top"]]
+
+
+def test_session_start_prints_for_the_distributor_only(tmp_path: Path) -> None:
+    """--session-start prints the table for the distributor (session id from the hook's stdin), stays
+    quiet for a builder, says so when identity is unknown, and stays under the hook cap."""
+    env, repo, trees = _setup(tmp_path)
+    for n in range(40):
+        _add(repo, env, "a long title " * 12 + str(n), "infra")
+    payload = json.dumps({"session_id": "sid-coord", "source": "compact"})
+    r = _status(repo, env, "--session-start", stdin=payload)
+    assert r.returncode == 0, r.stderr
+    assert "D-880" in r.stdout and "infra" in r.stdout and "fleet" in r.stdout
+    assert len(r.stdout) < 9000, len(r.stdout)
+    builder = _status(repo, {**env, "CLAUDE_AGENT": "infra"}, "--session-start", stdin=payload)
+    assert builder.returncode == 0 and builder.stdout.strip() == ""
+    unknown = _status(repo, _env(tmp_path, agent=None), "--session-start", stdin=payload)
+    assert unknown.returncode == 0 and "whoami_agent.py --as" in unknown.stdout
+    elsewhere = tmp_path / "plain"
+    elsewhere.mkdir()
+    quiet = _status(elsewhere, env, "--session-start", stdin=payload)
+    assert quiet.returncode == 0 and quiet.stdout.strip() == ""
+
+
+def test_the_session_start_entry_is_guarded(tmp_path: Path) -> None:
+    """The SessionStart entry is its own hook (its own 10,000-character budget), guarded by `test -f`,
+    so a repo the governance sync reaches without the script runs nothing and exits 0."""
+    hooks = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["SessionStart"]
+    cmds = [h["command"] for e in hooks for h in e.get("hooks", []) if "agent_status.py" in h["command"]]
+    assert len(cmds) == 1, cmds
+    cmd = cmds[0]
+    assert cmd.startswith('test -f "${CLAUDE_PROJECT_DIR}/scripts/agent_status.py" &&') and cmd.endswith("|| true")
+    absent = tmp_path / "project"
+    absent.mkdir()
+    r = subprocess.run(["sh", "-c", cmd], env={"PATH": os.environ["PATH"], "CLAUDE_PROJECT_DIR": str(absent)},
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
