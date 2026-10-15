@@ -63,7 +63,13 @@ the shape does not have it.
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
   interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's format, and a
-  skip check reuses the consumer's own parser.
+  skip check reuses the consumer's own parser; a hand-written reader whose input is source in a language other than
+  its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand, starts from a
+  strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal executed before
+  every pin on a line of that language's own syntax that no named form admits, and run by the lead over the live
+  files the reader will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats
+  attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line
+  form can hold.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every
