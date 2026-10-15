@@ -312,10 +312,11 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    The plan's declared doc steps are checked artifacts of their phase gate. As the **final phase of any run
    that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to
    converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness —
-   over the plan's changed docs MINUS the docs the whole-plan `/fabrik-review`'s receipt Coverage Checklist
-   carries a row for (its changed hunks graded — the Finish brief lists the excluded docs with the receipt row that graded each); when
-   that set is empty the step records `SKIPPED — every changed doc was review surface` in the plan's
-   § Execution notes (spec D9 — no second docs loop over docs the heavy review graded).
+   over the plan's changed docs MINUS the docs the whole-plan `/fabrik-review`'s `--init --changed` list will
+   name (that review grades their hunks — the Finish brief lists each excluded doc), and BEFORE that review, so a
+   code defect a doc claim exposes lands inside it; when that set is empty the step records
+   `SKIPPED — every changed doc was review surface` in the plan's § Execution notes (spec D9 — no second docs
+   loop over docs the heavy review grades).
 6. **LESSONS_LEARNT** — at the end, either add an entry to `docs/LESSONS_LEARNT.md` or confirm `none` in the completion block. This is a Completion Contract requirement.
 
 ## Commit Provenance Trailers
@@ -458,7 +459,7 @@ whole-plan doc-coverage RECEIPT (the free "definitely-done" check): run
     → asserts EVERY fired-trigger doc was touched across the WHOLE plan (not just the last commit); an ERROR-tier miss (CHANGELOG/CONFIGURATION/schema) is BLOCKING — reconcile it (doc_reconcile.py or by hand) before Finish.
 
 if this run shipped a feature/route/service/schema/config change:
-    run /fabrik-docs-review over the changed docs MINUS the docs the whole-plan /fabrik-review receipt graded → converge to a truthful fixed point
+    run /fabrik-docs-review over the changed docs MINUS the docs §Finish's /fabrik-review --init --changed list will name, BEFORE that review → converge to a truthful fixed point
     (empty set → record `SKIPPED — every changed doc was review surface` in § Execution notes, D9)
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
@@ -1203,7 +1204,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
 
 "Finishing" is:
 
-1. **Final whole-plan review — the cross-phase net the per-phase reviews CAN'T see.** Run **`/fabrik-review`
+1. **Final whole-plan review — the cross-phase net the per-phase reviews CAN'T see.** After item 5's docs review, run **`/fabrik-review`
    over the CUMULATIVE diff across ALL phases** (`git diff <the step-8 baseline commit>..HEAD` — the whole
    plan's surface, NOT a single phase's slice), run to its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED, every
    finding FIXED/REFUTED). The per-phase boundary reviews caught phase-local defects; this catches what only
