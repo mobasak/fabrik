@@ -163,7 +163,7 @@ Appetite: 120
 | A6 | the emitted `INSTALL.md` | read | it names `chrome://extensions`, Load unpacked, keep Developer mode on, replace the folder's contents and Reload to update, and `ExtensionDeveloperModeSettings` |
 | A7 | the emitted `.gitignore` and Makefile; and a scaffold in a temp git repo with no committed `.pub` | read; the `release-ext` recipe extracted from its target line to the next target; `make release-ext` run in the temp repo | `.gitignore` names `extension/.keys/`; `.PHONY` lists `release-ext`; the recipe checks the tracked `.pub`, a clean tree and an https `VITE_PUBLIC_API_URL`, never runs keygen, zips, writes a `.sha256` with the bare name, copies `INSTALL.md`, prints the four values, and contains no upload, `scp`, `rsync` or `curl` (the existing `docker-smoke` target's `curl` is outside the extracted recipe); the run exits 1 before zipping and prints the next steps |
 
-## Phase B — the backend
+## Phase B — the backend — ✅ EXECUTED 2026-10-15 (4f29e9e6a)
 
 Appetite: 60
 
@@ -519,6 +519,7 @@ $ PYTHONPATH=<worktree>/src .venv/bin/python -m pytest tests/test_scaffold.py te
 
 Execution notes:
 
+- Appetite overrun: 178 of 60 minutes, almost all of it a ~2-hour box network outage (DNS `EAI_AGAIN`) that killed two of the three review seats mid-run and stalled the session; the work itself was the planned scope, so nothing was re-planned.
 - The scaffold's own spec generator copies the canonical compose `environment:` into the spec's `env:`, so the four
   `EXTENSION_*` values arrive in `env:` on the template path; `templates/chrome-extension/compose.yaml.j2`'s env loop
   skips those four names (review round 1), and B5b renders the template from the generated spec to prove each appears
