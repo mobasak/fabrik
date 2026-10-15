@@ -1088,11 +1088,25 @@ def test_gap_keeps_is_defeated_by_a_later_created_not_an_earlier_one() -> None:
     assert sw.gap_keeps([NOW - 3600], NOW, NOW) is False  # re-stamped to now: the residual
 
 
+def test_a_bool_created_keeps_even_against_an_old_start() -> None:
+    """Review of 46b409cc9 (haiku T3): `True` reads as 1, so against a recent start a missing bool
+    guard still kept by accident; against a start older than 1 the guard is the only thing keeping."""
+    assert sw.gap_keeps([-1000.0], True, NOW) is True
+
+
+def test_a_nan_start_is_an_unknown_start_that_keeps() -> None:
+    """Review of 46b409cc9 (haiku C1): a gap whose start is NaN (a NaN `SCRATCH_SWEEP_BTIME` makes
+    every start NaN) is an unknown start like `None` — INV-1 doubt keeps — never a dropped gap."""
+    assert sw.gap_keeps([float("nan")], NOW - 100_000, NOW) is True
+
+
 @pytest.mark.parametrize("created", [10**400, -(10**400)])
 def test_a_huge_integer_created_is_compared_never_a_crash(created: int) -> None:
     """Review of 46b409cc9: `math.isfinite` raises OverflowError on an int no float can hold; an int
-    always compares exactly, so it is usable — never a crash (both keep: one is future, one is old)."""
+    always compares exactly, so it is usable — never a crash (both keep: one is future, one is old).
+    The D-900 vouch reads the same `created` and compares it the same way."""
     assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+    assert sw._close_is_vouched(created, NOW - 100_000, NOW) is (created < 0)
 
 
 @pytest.mark.parametrize("created", [True, False, float("nan"), None, "x"])

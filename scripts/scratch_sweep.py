@@ -540,8 +540,10 @@ def _usable_time(value: object) -> TypeGuard[float]:
 
 def _created_for(folder: Path, owner: dict | None) -> object:
     """The `created` a gap is judged against. A `.trash-*` whose marker carries no usable one (an
-    interrupted rmtree may have taken it) falls back to the folder's ctime: the rename that made it
-    set it, the moment it was judged CONSUMED — a process older than that never owned it (INV-2)."""
+    interrupted rmtree may have taken it) falls back to the folder's ctime: its last entry change —
+    the rename that made it, or later if an interrupted rmtree unlinked entries since. Either way it
+    is at or after the moment the folder was judged CONSUMED, so a process that started before it
+    never owned the run (INV-2)."""
     created = (owner or {}).get("created")
     if folder.name.startswith(TRASH_PREFIX) and not _usable_time(created):
         with contextlib.suppress(OSError):
@@ -571,7 +573,8 @@ def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
         return True
     # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
     # (exact for any size), never converted to a float by arithmetic (OverflowError)
-    return any(s is None or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
+    # an unusable start (None, or NaN from a NaN boot time) is an UNKNOWN start: INV-1 doubt keeps
+    return any(not _usable_time(s) or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
@@ -767,13 +770,15 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
     (`command_run._mark_run_scratch`, `_retire`) stamp a missing `created`, so a legitimate run
     is never kept for ever by this rule.
     """
-    if not isinstance(created, int | float) or isinstance(created, bool):
+    if not _usable_time(created):  # missing, text, a bool, or NaN/±inf (W-a39d4c86's one guard)
         return False
     if created > now + GAP_CLOCK_MARGIN_S:
         return False
     if closed_at > now + GAP_CLOCK_MARGIN_S:
         return False  # a close in the future is no close; kept either way, but the report names it
-    return closed_at >= created - GAP_CLOCK_MARGIN_S
+    return (
+        closed_at + GAP_CLOCK_MARGIN_S >= created
+    )  # compared, never converted: a huge int is exact
 
 
 def _done_close_is_vouched(owner: dict, now: float) -> bool:
