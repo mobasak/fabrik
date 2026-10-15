@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "docs/infrastructure/vps-status.md, vps-urls.md and vps-complete-inventory.md still carry Coolify-era generated content (79 live 'coolify' lines, measured 2026-10-14 at the Coolify-verb-retirement plan): the rebased scripts/update_vps_docs.py and vps_sync.py (D11) only change what a FUTURE run writes — regenerate them with one read-only ssh to vps1 after the retirement plan executes"

@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "docs",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "scripts/aro-wake/main.py:762 cites bootstrap-vps.sh:1137 for the UFW mesh rule; that line moved (now step 15's scp)"

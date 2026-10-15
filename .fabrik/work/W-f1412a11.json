@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-08T11:20:40.468729Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-f1412a11",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +19,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'breaks'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "work.py _open_plans: the outer except Exception returns [] on any error, hiding every open plan when one file breaks parse_plan_status (review B-S1, receipt 2026-10-08-docs-updater-plan-status-review.md)"
 }

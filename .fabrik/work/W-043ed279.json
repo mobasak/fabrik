@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "session-recall's fabrik-mail inbox holds 116 unread (oldest 2026-08-17) and no session works /opt/session-recall"

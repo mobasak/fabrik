@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T10:32:54.484731Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-54b0e523",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "45-testing-strategy.md:48/:190/:228 and 10-python.md:27 mandate 'uv run pytest' with no seat exception; subagents-core D8 now overrides it for seats — mirror the exception from the pack side"
 }

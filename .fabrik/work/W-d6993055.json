@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T18:55:41.151880Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-d6993055",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "cite the symbol (run_static_checks' pytest arming block) or refresh the range in both copies + the pinned test, one sync-path commit with full /fabrik-review",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "infra",
-    "waits-operator-review"
+    "infra"
   ],
   "title": "CLAUDE.md + template cite final_gate.py:1281-1291 for the pytest arming condition; the code sits at :1482-1492 (stale since before W-e93160e3, pinned by tests/test_governance_template_split.py)"
 }

@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "review-loop",
     "waits-operator-review"
   ],

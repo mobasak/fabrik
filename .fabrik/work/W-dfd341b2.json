@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "needs-owner",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "fail2ban ignoreip jail for the bootstrap scripts (deferred from W-700b12c5 by two decision seats): needs an operator-IP source the repo lacks, a pack + test_bootstrap_pack.py change (the pack says no script writes a jail config), and /etc/fail2ban/jail.d in FABRIK_HOST_STATE_INCLUDES or a hub rebuild drops it"

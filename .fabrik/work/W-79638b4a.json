@@ -17,11 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4x6xqh0r2pmpaf1rtbfxh1w",
-    "waits-operator-review"
+    "mail-01m4x6xqh0r2pmpaf1rtbfxh1w"
   ],
   "title": "command_run.py: an operator-pause close, and --command on round (two feedback-verdict requests from kaizen) (mail 01M4X6XQH0R2PMPAF1RTBFXH1W)"
 }

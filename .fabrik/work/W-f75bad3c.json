@@ -17,6 +17,7 @@
   "priority": 3,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "command-name normaliser keeps a TRAILING slash: _norm_command('/fabrik-spec/') -> 'fabrik-spec/', so every set membership (REVIEW_FAMILY, NO_CLOSING_PASS, CONFIRMED_REQUIRED_COMMANDS) misses; four mirrors must move together (command_run._norm_command, quota_posture_hook :549, final_gate_stop :1422, command_feedback_report) — review W-29e3424f A-H1"

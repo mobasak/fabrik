@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "create_project copies templates/saas-skeleton/ and the retired Traycer templates/spec-pipeline/ into EVERY new project whatever its type — a mobile app ships a whole Next.js template tree (scaffold.py ~1438-1460) (2026-10-02, owner: fleet)"

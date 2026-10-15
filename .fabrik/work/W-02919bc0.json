@@ -21,6 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m4yw9nztj3b443zhaktevz07",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "check_convergence accepts a prose 're-derivation' line and a plan with no counter row, so a CONVERGED plan can pass unproven (mail 01M4YW9NZTJ3B443ZHAKTEVZ07)"

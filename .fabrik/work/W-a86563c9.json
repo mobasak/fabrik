@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-14T02:12:24.871630Z",
   "creator": "kaizen",
+  "effort": "high",
   "evidence": "",
   "id": "W-a86563c9",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +19,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "Never-execute seat rule: carry it to the orchestrator's execute rules, the other Bash agents and the scratch-repo verb rule"
 }

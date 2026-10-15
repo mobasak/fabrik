@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "operator-window",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Remove the two paper Backrest plans zitadel-data and tryton-crm-data on vps1 (FabrikRegistrarDrift firing since 2026-10-02; named in the backrest paper-backups spec :46)"

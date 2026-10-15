@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T18:55:20.077364Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-cc9b0532",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "decide the contract: add a reloaded: bool to each result dict and make fabrik apply surface it, then grade it",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "drivers/prometheus add_scrape_target/remove_scrape_target/add_aro_wake_target/remove_aro_wake_target discard _reload_prometheus()'s bool (each calls it bare): a config written but never loaded (reload refused, restart skipped by the promtool gate, W-5aa5e3d8) still reports status=created to fabrik apply; only a WARNING log says otherwise (restart-S1, predates the gate)"
 }

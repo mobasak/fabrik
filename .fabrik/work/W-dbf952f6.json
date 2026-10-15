@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T17:19:55.651342Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-dbf952f6",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "merge-request",
-    "waits-operator-review"
+    "merge-request"
   ],
   "title": "merge_request.py: a refusal reason (rec.reason → the reply and mail.py ack --reason) is unbounded — the owner-tests tail carries 3 raw output lines of any length (5,241 chars measured)"
 }

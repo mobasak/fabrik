@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T17:46:31.535151Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-90e96526",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "",
   "note": "",
   "owner": "intel",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "review_loop_ledger.py pin: refuse when a path named as changed equals HEAD's blob (a sibling's pre-commit stash window pinned HEAD bytes, 2026-10-08)"
 }

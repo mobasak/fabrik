@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T09:49:25.911134Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-67fc4aad",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "infra checked 2026-10-15: not fixed — CODE_EXTENSIONS (check_doc_sync.py:67) still omits .xml/tryton.cfg; a missing-CHANGELOG nag for one module type, one-file change",
   "status": "open",
   "tags": [
-    "waits-operator-review"
+    "queued"
   ],
   "title": "check_doc_sync: Tryton module data (.xml views/menus/access, tryton.cfg) owes no CHANGELOG entry — CODE_EXTENSIONS is still an allowlist"
 }

@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "mobile-app scaffold theme and components drift from the packs: Ocoron is the default @theme (D-051 says declared-only), its values are stale vs core/ocoron-design-system.md (#7676FF/#2980B9/#999999), Space Grotesk is declared but never embedded, EmptyList spins (LI5 wants skeleton rows), the modal snaps at 60% (pack: 50%/90%) (2026-10-02, owner: fleet)"

@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-54ffdbaf",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,12 +16,11 @@
   "next": "infra: read mail 01M4YNHVH2GAJBZ3W7XBCBJM9A, claim it, act on it",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4ynhvh2gajbz3w7xbcbjm9a",
-    "waits-operator-review"
+    "mail-01m4ynhvh2gajbz3w7xbcbjm9a"
   ],
   "title": "Two windows on one session id fuse the transcript and the run record — the Stop hook blames the idle window for a sibling's work (with addendum 01M4YNTHKK1J) (mail 01M4YNHVH2GAJBZ3W7XBCBJM9A)"
 }

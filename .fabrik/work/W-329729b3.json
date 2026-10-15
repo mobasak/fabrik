@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T21:03:36.922599Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-329729b3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "add APP_ENV and APP_GIT_SHA to the known-names allowlists in scripts/audit_envs.py and scripts/gather_envs.py",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "audit_envs/gather_envs: allowlist APP_ENV and APP_GIT_SHA (the scaffold now emits them)"
 }

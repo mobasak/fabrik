@@ -19,6 +19,7 @@
   "tags": [
     "kaizen",
     "needs-owner",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "fabrik-task phase 2: 'a line opening with a field word' is literal about a bullet or bold label ('- DECISION', '**DECISION**'), which _DESIGN_LABEL also treats as a field boundary; a clearer form is 'a line whose first word, after any -, * or ** prefix, is a field word' (scope-growth stop of the D-657 review, 2026-10-08)"

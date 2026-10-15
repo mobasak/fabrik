@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T22:29:44.414455Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-79342704",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "templates/governance/CLAUDE.md:433 says threaded --re replies are exempt from --to-agent; mail.py:1042 exempts only --kind reply with --re — reword to match (tryton-crm 01M3PJXN)"
 }

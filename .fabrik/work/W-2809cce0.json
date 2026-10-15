@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "spec source.path is an unvalidated str yet deployer_ssh interpolates it unquoted into sudo commands (test -f, cat, cd && docker compose up, mkdir/mv/chown) — a metacharacter in a spec's source.path runs as root on the VPS (2026-10-01, owner: fleet)"

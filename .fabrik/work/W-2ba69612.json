@@ -19,6 +19,7 @@
   "tags": [
     "infra",
     "kaizen",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "kaizen premature_stop_rate double-counts a warned_through stop in its denominator: the Stop hook emits stop_block outcome=warned_through AND the turn's stop_pass (docs/workstation/kaizen-event-stream.md: 'A warned-through turn emits stop_block … and carries the cause in its stop_pass.warned'), so one stop is two verdicts; the numerator correctly keeps it (an agent that outlasted CAP refusals stopped prematurely)"

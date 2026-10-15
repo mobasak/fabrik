@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T06:52:38.724089Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-477e37cd",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "docs",
-    "waits-operator-review"
+    "docs"
   ],
   "title": "check_retired_terms.py covers docs/ + README.md only; root INDEX.md (8 WARNs incl. :29-30 'Kilo CLI bootstrap config', :168) and AGENTS-compact.md (2) still frame Kilo as live"
 }

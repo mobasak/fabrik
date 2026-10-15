@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-915ca751",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,12 +16,11 @@
   "next": "infra: read mail 01M4Y3N9GW8N6HZ5D1QTFZPHWF, claim it, act on it",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4y3n9gw8n6hz5d1qtfzphwf",
-    "waits-operator-review"
+    "mail-01m4y3n9gw8n6hz5d1qtfzphwf"
   ],
   "title": "Scratch gap: run scratch is unwritable from a worktree session (Write tool refused), so seats fall back to the shared scratchpad (mail 01M4Y3N9GW8N6HZ5D1QTFZPHWF)"
 }

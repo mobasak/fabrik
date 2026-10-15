@@ -17,11 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4ythz83gtwe7w46801hps0h",
-    "waits-operator-review"
+    "mail-01m4ythz83gtwe7w46801hps0h"
   ],
   "title": "mt-router: fabrik-lib's .env autoload now loads the MT_CLAUDE_* tier switches (SB-129) — check the hub's vendored copy (mail 01M4YTHZ83GTWE7W46801HPS0H)"
 }

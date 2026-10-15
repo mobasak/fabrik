@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T20:04:32.241964Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-1a3b3e85",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "reuse check_review_coverage's selection (import by path like the twin pattern) or re-implement -z + unintegrated; sibling of W-699a271a",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "check_review_hygiene._changed_receipts mirrors check_review_coverage's selection by hand (scripts/enforcement/check_review_hygiene.py:947-976): plain porcelain + strip('\"'), working tree only — after W-f847a317 its docstring's parity claim is false and it keeps the commit-then-gate hole and the non-ASCII skip"
 }

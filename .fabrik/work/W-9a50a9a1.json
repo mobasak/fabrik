@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "infra",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Same-ruling Kilo residue outside the scaffold: final_gate Kilo CLI Health row (:2393-2400), --post-kilo gate_issues.jsonl (:2573), cli.py review-pack help naming Kilo (:2759-2795)"

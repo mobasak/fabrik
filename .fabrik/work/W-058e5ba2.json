@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "intel",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Other box health probes may check credentials rather than the capability actually used — the blind spot the rotation capability probe closed for claude_rotate (spec U3, mail 01M3QG6G SYSTEMIC)"

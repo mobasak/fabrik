@@ -17,6 +17,7 @@
   "priority": 3,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "work.py has no path claim for an ad-hoc (non-plan) whole-file rewrite: two agents rewrote docs/QUICKSTART.md in one window (tryton-crm 01M3QJCV item 9); plan-locks cover plans only. Measure recurrence before adding a verb"

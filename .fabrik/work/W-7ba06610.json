@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T11:38:32.286337Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-7ba06610",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,13 +15,12 @@
   },
   "next": "in src/fabrik/orchestrator/infrastructure.py payments-ingest-role block record status=pending when pi['grants'] is pending/unknown; extend tests/test_payments_ingest_role.py _prov_with with a grants key; /fabrik-review-scoped",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "needs-owner",
-    "security",
-    "waits-operator-review"
+    "security"
   ],
   "title": "payments-ingest-role resource reads provisioned while create_payments_ingest_role reports grants=pending or unknown (review 2026-09-30 driver-NEW1, one hop out of W-90784c3b)"
 }

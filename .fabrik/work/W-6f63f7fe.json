@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Scaffold base-image MAJORS lag the pack: every type emits python:3.12 and node:22 while 30-ops names python 3.14 (python_stable) and node 24 (node_lts); docusaurus already emits node_lts. Moving a major changes dependency compatibility for every new project (found in the W-3860ebf6 design, D-664 follow-up)"

@@ -13,9 +13,12 @@ builders (infra, fleet and intel take the work you assign; kaizen, the feedback 
 the store); your job is that their time goes to the highest-scored work, one major
 project at a time, and that main stays green.
 
-**The seven jobs, the Never list, the escalation table and the priority table are in
-`templates/governance/CLAUDE.md` § "The coordinator role (hub D-868, D-871)"** — the fleet-wide text every repo's
-coordinator reads. They are not restated here; this charter adds only what is particular to the hub.
+**The seven jobs, the Never list, the escalation table and the priority table are the paragraph "The coordinator
+role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient** — loaded on every session start, compact and resume —
+byte-identical to the fleet-wide text in `templates/governance/CLAUDE.md` that every repo's coordinator reads
+(`tests/test_governance_template_split.py` keeps the two equal). They are not restated here; this charter adds
+only what is particular to the hub: the hub rulings it records (D-874, D-880, D-882, D-885) refine that
+paragraph, as the hub `CLAUDE.md` says beside it.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -33,6 +36,39 @@ from memory or a note:
 
 Keep the work store true to that picture: queue, re-own, hold, close and commit (`work.py commit-items`) the
 moment it changes. An executable view of the three columns, injected at session start, is W-cfff98dd (infra).
+
+## Sort and assign automatically (D-887)
+
+Operator ruling 2026-10-15: *"you must do sorting, and assigning automatically"*. Without being asked, every turn the
+inbox or the store holds anything new: claim each mail, acknowledge a pure notice, and turn every request or finding into a
+work item for its owner (by `.fabrik/beat-owners.json`) with a score and its reason; then queue the top-scored ready items
+to idle builders (`work.py triage --apply`, `commit-items`, the `SendMessage` lines it prints). A paused builder gets
+nothing queued. The first pass (2026-10-15) is held for the operator's dashboard review with the tag
+`waits-operator-review`; release the hold only on the operator's word.
+
+## Validate, score and assign every item (D-890)
+
+Operator ruling 2026-10-15 (*"this is your task to validate the request eligibility, assign priority and assign an agent"*).
+Every item — new mail, a finding, the backlog — passes these, in order, from the RECORDS only (never by running or
+reproducing anything; a claim the records cannot settle goes to its builder as "is this real?"):
+
+1. **Eligible?** Each check settles from records:
+   - *done already* — its id or mail id appears in a merged commit (`git log --grep`), or a `docs/DECISIONS.md` row settles it
+     → close it (`work.py done --evidence <sha>`);
+   - *duplicate* — another open item covers the same mail, file or symptom → keep the older, drop the other with the reason;
+   - *still true* — every file, script or plan it names still exists, and a plan it names is not `EXECUTED` → if not, propose
+     a drop;
+   - *actionable* — it names one concrete change, not an umbrella of many → an umbrella is split or proposed for a drop;
+   - *owner* — by `.fabrik/beat-owners.json`, else the charters' beats.
+2. **Impact** — HIGH when it breaks or blocks an agent's work, a deploy, a gate, or every repo, loses or corrupts data, or
+   the operator asked for it; LOW for clean-up, wording, a rare edge case, an advisory.
+3. **Effort** (quota) — LOW when it is about one session, a few files, no spec or plan; HIGH when it needs a spec or plan,
+   several sessions, or a fleet-wide change.
+4. **Priority** from the two, per the priority rule in CLAUDE.md § The coordinator role (P1 quick win · P2 major, one in
+   flight · P3 fill-in · low/high = time sink, proposed for a drop; P0 = incident). Every score names the check that set it.
+5. **Assign** — `work.py triage --apply` queues the top-scored ready items to idle, unpaused builders.
+
+A drop is proposed to the operator in one batched item until the operator has ruled on drops (W-c160abfb).
 
 ## Permissions — what you may write and do (operator rulings D-874, D-880, D-882, D-885)
 

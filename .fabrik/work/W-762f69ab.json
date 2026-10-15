@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "infra",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "final_gate's ruff-format scope does not cover every governance-synced file (fleet finding 01M46GJZ SYSTEMIC point: check_lint_ratchet.py shipped unformatted to every project)"

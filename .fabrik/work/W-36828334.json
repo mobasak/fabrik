@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-04T15:00:21.220265Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-36828334",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,11 +19,11 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "gpu",
-    "money-guard",
-    "waits-operator-review"
+    "money-guard"
   ],
   "title": "Modal endpoints: app.deploy() inside ModalClient.create_endpoint can be listed by app name (and so tagged FABRIK_SESSION_ID) before gpu_rent records the session, so a reaper run in that window may class our own deploying endpoint an orphan"
 }
