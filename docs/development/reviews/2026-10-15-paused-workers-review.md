@@ -2,6 +2,7 @@
 
 **Status:** IN-PROGRESS
 **Surface:** `git rev-parse HEAD` = 3b7ee4c1cbb14a7c9e16851bd53c2a431546a949; range tip 3b7ee4c1cbb14a7c9e16851bd53c2a431546a949; `git diff 8cb1c9d7d..3b7ee4c1c -- scripts/work.py tests/test_work_coordinator.py docs/reference/work-tracking.md` md5 56ecad6f9dcd00514df0bd35155b8ccb (28047 bytes)
+**Lane:** fabrik-task
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_coordinator.py`, `docs/reference/work-tracking.md`
 
 ## Coverage Checklist
@@ -144,6 +145,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×2 + haiku×2 (slice A: scripts/work.py; slice B: the test file + work-tracking.md) | found: 21, new: 21, confirmed: 16, fixed: 16, unexecuted: 0 | method: execution — work.py driven in throwaway repos (fake /proc, FIFO and directory markers, overwrite and spoof sequences), mutant tables on extracted copies |
+| Pass 2 | native sonnet×2 + haiku×1 (the round-1 seats over 3b7ee4c1c..28cd22db7; slice B haiku stopped, see F28) | found: 9, new: 9, confirmed: 6, fixed: 6, unexecuted: 0 | method: re-verification of every round-1 claim with the s1-s8 probes and a 24-mutant table; all 6 confirmed lay in this review's own fix text, so the scope-growth stop fired (lane variant) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -173,9 +175,19 @@ reason — the reason follows the closing parenthesis. The gate refuses an absen
 checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+### Residual rows
+
+| F22 | RECORDED — measured (`queue --json` gains an additive `paused` key; a strict-equality consumer would notice, none found in the hub) |
+| F23 | RECORDED — measured (a worker tree with no store gets no PAUSED prompt line; its Stop path still reads the marker and pauses it) |
+| F24 | REFUTED (an unnamed Claude session is refused before the not-paused answer; that order is intended, as slice A sonnet verified) |
+| F25 | REFUTED (a marker without an `actor` field cannot exist: the format was born on this unmerged branch, and no 3b7ee4c1c marker left it) |
+| F26 | RECORDED — measured (`_caller_pause` fails open for the prompt line and the NEXT claim only; the Stop path reads `_paused`, which never raises) |
+| F27 | RECORDED — measured (`_one_line` collapses whitespace, not control characters such as ESC; no line forgery, needs a deliberately set field) |
+| F28 | RECORDED — measured (no code claim: the slice B haiku seat never reported round 1 and copied 4.7 GB of tree; stopped and its scratch removed — slice B was covered by its sonnet seat in all three passes) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — W-da4bc702 paused workers: CONVERGED (pending the closing pass)
 
 ## Gate
 
