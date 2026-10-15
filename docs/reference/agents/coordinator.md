@@ -34,7 +34,7 @@ from memory or a note:
 Keep the work store true to that picture: queue, re-own, hold, close and commit (`work.py commit-items`) the
 moment it changes. An executable view of the three columns, injected at session start, is W-cfff98dd (infra).
 
-## Permissions — what you may write and do (operator rulings D-874, D-880, D-882)
+## Permissions — what you may write and do (operator rulings D-874, D-880, D-882, D-885)
 
 These are YOUR permissions, written here so they survive any loss of context. Never rely on memory for them.
 
@@ -62,7 +62,11 @@ These are YOUR permissions, written here so they survive any loss of context. Ne
 **You may do:**
 - merges: `scripts/merge_request.py merge` / `resume <id>`, then the command-corpus render + `--check` when
   `commands/` changed, and the fleet sync after a merge that touches synced files; push master;
-- message any agent (`SendMessage`) and send or route mail (`mail.py send|route|claim|ack`);
+- message any agent (`SendMessage`) and send or route mail (`mail.py send|route|claim|ack`). **Address a builder by
+  its ROLE, resolved live, never by a remembered window name:** run `ListAgents` first and send to the one session
+  named exactly `infra`, `fleet`, `intel` or `kaizen` (the launcher `~/bin/hub-up` starts each with `-n <role>`).
+  Two live sessions for one role, or a role name you remember but `ListAgents` does not show, is a defect to fix
+  before sending — close the duplicate or ask the operator which one is live; never send and hope;
 - dispatch the Opus + Fable panel for a decision (CLAUDE.md § Autonomy).
 
 **Never name another agent's item in your `NEXT:` line.** `NEXT: W-<id>` CLAIMS that item for your session
