@@ -535,3 +535,39 @@ def test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses(
     phase2 = _section(text, "## Phase 2 — EXECUTE", "## Phase 3")
     assert "The parentheses hold the owner and nothing else" in phase2
     assert "a reason inside them, `(D-432: <why>)`, is refused as an absent owner" in phase2
+
+
+def test_the_catalogue_probes_a_deletion_surface() -> None:
+    """Rows 1792031092 and 1792030357 (kaizen, 2026-10-15), the third and fourth sightings of the held deletion-probe
+    subject 1790199460 (a whole-tree grep for deletions, HELD 2026-10-08; the review-scoped queue held the
+    removal-vs-classification half the same day): a deleting probe left an emptied directory behind and a `readdirSync`
+    on it stayed hidden; a test seed restored inputs the code under test read by name. The catalogue's hunt lines had
+    no deletion shape (0 probe rows matched 'delet' among the 7 bullets). One row now names the shape and its four
+    probes, each a command a seat can run: a `.git`-pruned `find -type d -empty` run before and after the deletion
+    (an unpruned one prints `.git/` and pre-existing empty directories, a false red; `-name .git` prunes whatever
+    way `<root>` is spelled), a grep of the code under test for each input read by name or by listing a directory,
+    the Callers grep above run from the hub and the fleet
+    repos for each deleted path, basename and directory (pointed at, not restated narrower), and, per guard on a
+    deleted input, whether it re-runs at removal or only at classification. Mutants, each a failing assertion: drop
+    the row; drop 'up to the root'; drop 'by grepping the code under test'; 'never the package' → 'the package';
+    drop the removal-vs-classification clause; drop the head's bound; a second deletion row under any head."""
+    cat = _norm(CAT)
+    hunt = _section(cat, "## The brief's hunt lines", "## Graders")
+    row = (
+        "- Deletions (a change that deletes a file, directory or input): a deleting probe also removes every directory it"
+        " empties, up to the root, as `git rm` does (`find <root> -name .git -prune -o -type d -empty -print`, run before"
+        " and after the deletion, prints no new line; a leftover hides a `readdirSync`); a seed restoring deleted inputs"
+        " first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores"
+        " no other; the Callers grep above runs for each deleted path, basename and directory from the hub and the fleet"
+        " repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at"
+        " classification."
+    )
+    assert hunt.count(row) == 1, "the Deletions hunt row is stated once, in § The brief's hunt lines"
+    # it sits between the Surfaces row and The premise row, the shape order the lead reads top to bottom
+    assert hunt.index("- Surfaces:") < hunt.index("- Deletions (") < hunt.index("- The premise:")
+    # one deletion row, however a second one is headed: the probe's own phrase appears once in the whole catalogue
+    assert cat.count("- Deletions (") == 1
+    assert cat.count("deleting probe") == 1
+    # the grep clause points at the Callers row above it instead of restating it narrower
+    callers = hunt[hunt.index("- Callers and consumers:") : hunt.index("- Deletions (")]
+    assert "the hub and the fleet repos for the file's path, basename and directory" in callers
