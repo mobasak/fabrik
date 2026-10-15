@@ -1919,3 +1919,36 @@ def test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_chec
         "treat the condition as TRUE by default",
     ):
         assert hub.count(phrase) == 1 and template.count(phrase) == 1, phrase
+
+
+# ── The coordinator's duties reach the hub agents too (W-cfff98dd a) ──────────────────────────────
+
+COORDINATOR_LEAD = "**The coordinator role (hub D-868, D-871).**"
+
+
+def _paragraph_led_by(text: str, lead: str) -> list[str]:
+    """Every paragraph (maximal run of non-blank lines) whose first line starts with `lead`."""
+    out, cur = [], []
+    for line in text.splitlines() + [""]:
+        if line.strip():
+            cur.append(line)
+            continue
+        if cur and cur[0].startswith(lead):
+            out.append("\n".join(cur))
+        cur = []
+    return out
+
+
+def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None:
+    """Operator 2026-10-15: "you and all these agents will know their duties by heart even though they
+    lose context? if not you must". A project loads the template as its CLAUDE.md on every session start,
+    compact and resume; the hub loads only its own CLAUDE.md, so the hub coordinator held a pointer to its
+    duties, not the duties. The hub carries the paragraph too, byte-identical, once each. (A hook include
+    was rejected: the hook output would pass the 10,000-character hook cap - D-row.)"""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    template = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    in_hub = _paragraph_led_by(hub, COORDINATOR_LEAD)
+    in_template = _paragraph_led_by(template, COORDINATOR_LEAD)
+    assert len(in_template) == 1, len(in_template)
+    assert len(in_hub) == 1, f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
+    assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
