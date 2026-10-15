@@ -58,7 +58,7 @@ W-478049bc (closed with no recorded cause); diagnosed 2026-10-15 for W-f0fd555a.
 2. **Outbound TCP port 53 is blocked on this box's network path** — to WSL's proxy AND the public resolvers:
    `dig +tcp @10.255.255.254`, `@1.1.1.1` and `@8.8.8.8` all time out, while the same queries over UDP answer at once.
 
-**Fix:** let glibc ask for a big UDP answer, so it never needs TCP — add `edns0` to the `options` line of
+**Fix** (the file's history and lock: `docs/workstation/WSL2-DNS-FIX.md`): let glibc ask for a big UDP answer, so it never needs TCP — add `edns0` to the `options` line of
 `/etc/resolv.conf` (static on this box: `/etc/wsl.conf` sets `generateResolvConf = false`, and the file carries
 the immutable bit — `lsattr` shows `i` — so the edit must lift it and set it back, or `sed` fails with
 `Operation not permitted`):
