@@ -15,7 +15,7 @@
   },
   "next": "one-sentence edit in both contracts via /fabrik-task (governance-sync path → full /fabrik-review), keep the anchor phrase verbatim, then mail fabrik-lib",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "score_reason": "One clause in two CLAUDE.md files",
   "status": "open",
