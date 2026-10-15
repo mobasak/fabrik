@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-13T03:12:27.416151Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "92e01c6d76a094dc30557359844f20a84acfbe8c",
   "id": "W-b9c91cc5",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: Two gaps in the spec-review machinery, both hit on 2026-10-02 in iterative_image_editor (iie2) while converging docs/superpowers/specs/2026-10-02-animate-fal-transport-design.md."
 }
