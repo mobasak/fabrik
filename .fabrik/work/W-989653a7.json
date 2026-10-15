@@ -17,11 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "fabrik apply skips provisioning for specs without shape:; four live specs affected, validator one-site fix",
+  "score_reason": "fleet checked 2026-10-15: not fixed — validator.load_spec merges no shape defaults, so fabrik apply skips gatus/prometheus for four shape-less specs; one-site fix",
   "status": "open",
   "tags": [
-    "maybe-done",
-    "waits-operator-review"
+    "queued"
   ],
   "title": "fabrik apply never got G-B1a: SpecValidator.load_spec (orchestrator/validator.py:183) reads raw YAML, so a spec with no shape: block provisions with every flag false while fabrik plan (merged) reports the template defaults — job-agent, proposal-creator, trading-core, triggered-content-orchestration: plan says gatus+prometheus RUN, apply skips both"
 }
