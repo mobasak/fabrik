@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the deployer stages remote files through `mktemp`, not a predictable /tmp name (2026-10-15)
+
+- **What:** `deployer_ssh._write_file_to_vps_path` creates its remote temp file with `mktemp /tmp/fabrik-XXXXXXXXXX` (random name, created exclusively, mode 0600) and scp's into it, instead of scp'ing to `/tmp/fabrik-<pid>-<name>`; an unexpected `mktemp` answer (its last line is the path; a login shell may print first) is refused before anything is copied, the local temp file is written before the remote one exists, and any failed or interrupted scp removes the remote temp file. One extra ssh per written file.
+- **Why:** W-8dd25072 (security): a local VPS user could pre-create the pid-derived path world-readable and read the .env / .env.owner DSN through the open file in the window before the chmod.
+
 ### Fixed — spoke apps: the watchdog provisions on the spoke, and a failed GlitchTip verify never deletes an existing project (2026-10-15)
 
 - **What:** `_provision_watchdog` runs `WatchdogDriver.provision` inside `_target_vps_env(ctx)` and the sidecar's postgres/redis URLs use the hub mesh IP on a spoke; `_provision_glitchtip` deletes the project on a failed DSN verify only when this run created it, `RollbackManager._rollback_glitchtip` likewise keeps any project it did not create; `verify_dsn_injection`'s fallback lookup stays unguarded on purpose (its pipeline exits 0, so an ssh error there is unknown, not absent, and must not trigger the delete), now said in a comment and pinned by a test. (D-904)

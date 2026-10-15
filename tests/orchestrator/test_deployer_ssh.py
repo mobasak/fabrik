@@ -26,6 +26,21 @@ from fabrik.orchestrator.deployer_ssh import (
 )
 from fabrik.orchestrator.exceptions import DeployError
 
+_MKTEMP_PATH = "/tmp/fabrik-Ab3dE5gH9k"
+
+
+def _fake_remote(cmds: list[str]):
+    """An ssh stand-in: `mktemp` answers with a fixed path; every other command is recorded."""
+
+    def run(cmd, timeout=10):
+        if cmd.startswith("mktemp "):
+            return _MKTEMP_PATH + "\n"
+        cmds.append(cmd)
+        return ""
+
+    return run
+
+
 # ======================================================================
 # _parse_env / _format_env
 # ======================================================================
@@ -1586,9 +1601,7 @@ class TestWriteFileToVpsPathNested:
         cmds: list[str] = []
         with (
             patch("fabrik.drivers.ssh.scp_to_vps"),
-            patch(
-                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
-            ),
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
         ):
             _write_file_to_vps_path("/opt/docs", filename, "content")
         return cmds
@@ -1597,9 +1610,7 @@ class TestWriteFileToVpsPathNested:
     # all still contain the expected fragments (the scoped review's escape variants S5-S7).
     @staticmethod
     def _tmp(filename: str) -> str:
-        import os
-
-        return f"/tmp/fabrik-{os.getpid()}-{filename.replace('/', '-')}"
+        return _MKTEMP_PATH  # the remote mktemp's answer, whatever the filename
 
     def test_nested_key_creates_the_remote_parent_before_the_move(self) -> None:
         key = "src/theme/SearchBar/index.js"
@@ -1623,7 +1634,7 @@ class TestWriteFileToVpsPathNested:
         (cmd,) = self._run("a b/c.js")
         assert cmd == (
             "sudo mkdir -p /opt/docs/'a b' && "
-            f"sudo mv '{self._tmp('a b/c.js')}' /opt/docs/'a b/c.js' && "
+            f"sudo mv {self._tmp('a b/c.js')} /opt/docs/'a b/c.js' && "
             "sudo chown root:root /opt/docs/'a b/c.js'"
         ), cmd
 
@@ -1633,9 +1644,7 @@ class TestWriteFileToVpsPathNested:
         cmds: list[str] = []
         with (
             patch("fabrik.drivers.ssh.scp_to_vps"),
-            patch(
-                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
-            ),
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
         ):
             _write_file_to_vps_path("~/apps/foo", ".env", "content")
         assert cmds == [
@@ -1655,6 +1664,115 @@ class TestWriteFileToVpsPathNested:
             _write_file_to_vps_path("/opt/docs", bad, "content")
         scp.assert_not_called()
         ssh.assert_not_called()
+
+    def test_the_remote_temp_file_comes_from_mktemp_never_a_pid_name(self) -> None:
+        """W-8dd25072: a pid-derived /tmp name is predictable — a local VPS user could pre-create it
+        0666 and read a DSN through the open fd. The temp file is made remotely by `mktemp` (O_EXCL,
+        0600) BEFORE scp writes into it."""
+
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        order: list[str] = []
+
+        def ssh(cmd, timeout=10):
+            order.append(f"ssh:{cmd}")
+            return _MKTEMP_PATH + "\n" if cmd.startswith("mktemp ") else ""
+
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=ssh),
+            patch(
+                "fabrik.drivers.ssh.scp_to_vps",
+                side_effect=lambda local, remote, timeout=30: order.append(f"scp:{remote}"),
+            ),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        assert order[0] == "ssh:mktemp /tmp/fabrik-XXXXXXXXXX"
+        assert order[1] == f"scp:{_MKTEMP_PATH}"
+        assert len(order) == 3  # mktemp, scp, then the one chmod+mv+chown command
+
+    @pytest.mark.parametrize(
+        "answer", ["", "/tmp/fabrik-a b", "/etc/passwd", "/tmp/fabrik-x;rm -rf /", "/tmp/fabrik-"]
+    )
+    def test_an_unexpected_mktemp_answer_is_refused_before_scp(self, answer) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value=answer + "\n"),
+            patch("fabrik.drivers.ssh.scp_to_vps") as scp,
+            pytest.raises(RuntimeError, match="mktemp"),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        scp.assert_not_called()
+
+    def test_login_shell_noise_before_the_path_is_ignored(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value="Welcome to vps1\n" + _MKTEMP_PATH + "\n"),
+            patch("fabrik.drivers.ssh.scp_to_vps") as scp,
+        ):
+            _write_file_to_vps_path("/opt/x", "compose.yaml", "services: {}\n")
+        assert scp.call_args.args[1] == _MKTEMP_PATH
+
+    def test_noise_after_the_path_is_refused_and_the_created_file_removed(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+
+        def ssh(cmd, timeout=10):
+            if cmd.startswith("mktemp "):
+                return _MKTEMP_PATH + "\nlogout\n"
+            cmds.append(cmd)
+            return ""
+
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=ssh),
+            patch("fabrik.drivers.ssh.scp_to_vps") as scp,
+            pytest.raises(RuntimeError, match="unexpected path"),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        scp.assert_not_called()
+        assert cmds == [f"rm -f {_MKTEMP_PATH}"]
+
+    def test_a_local_temp_failure_never_creates_a_remote_file(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        with (
+            patch(
+                "fabrik.orchestrator.deployer_ssh.tempfile.mkstemp",
+                side_effect=OSError("disk full"),
+            ),
+            patch("fabrik.drivers.ssh.ssh") as ssh,
+            pytest.raises(OSError, match="disk full"),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        ssh.assert_not_called()
+
+    def test_an_interrupt_during_scp_still_removes_the_remote_temp_file(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
+            patch("fabrik.drivers.ssh.scp_to_vps", side_effect=KeyboardInterrupt),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        assert cmds == [f"rm -f {_MKTEMP_PATH}"]
+
+    def test_a_failed_scp_removes_the_remote_temp_file(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
+            patch(
+                "fabrik.drivers.ssh.scp_to_vps", side_effect=RuntimeError("scp: lost connection")
+            ),
+            pytest.raises(RuntimeError, match="lost connection"),
+        ):
+            _write_file_to_vps_path("/opt/x", ".env", "K=v\n")
+        assert cmds == [f"rm -f {_MKTEMP_PATH}"]
 
 
 # ======================================================================
@@ -1798,38 +1916,30 @@ class TestOwnerEnvSplit:
     # G5 — the chmod by name, BEFORE the mv
     @pytest.mark.parametrize("filename", [".env", ".env.owner"])
     def test_g5_env_files_are_chmod_0600_on_the_temp_file_before_the_mv(self, filename):
-        import os
-
         from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
 
         cmds: list[str] = []
         with (
             patch("fabrik.drivers.ssh.scp_to_vps"),
-            patch(
-                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
-            ),
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
         ):
             _write_file_to_vps_path("/opt/x", filename, "K=v\n")
-        tmp = f"/tmp/fabrik-{os.getpid()}-{filename}"
+        tmp = _MKTEMP_PATH
         assert cmds == [
             f"sudo chmod 0600 {tmp} && sudo mv {tmp} /opt/x/{filename} "
             f"&& sudo chown root:root /opt/x/{filename}"
         ], cmds
 
     def test_g5_other_files_keep_todays_command(self):
-        import os
-
         from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
 
         cmds: list[str] = []
         with (
             patch("fabrik.drivers.ssh.scp_to_vps"),
-            patch(
-                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
-            ),
+            patch("fabrik.drivers.ssh.ssh", side_effect=_fake_remote(cmds)),
         ):
             _write_file_to_vps_path("/opt/x", "compose.yaml", "services: {}\n")
-        tmp = f"/tmp/fabrik-{os.getpid()}-compose.yaml"
+        tmp = _MKTEMP_PATH
         assert cmds == [
             f"sudo mv {tmp} /opt/x/compose.yaml && sudo chown root:root /opt/x/compose.yaml"
         ]
