@@ -466,6 +466,9 @@ def test_mint_names_an_older_hub_module(tmp_path: Path) -> None:
     assert not list((sess / "scratchpad").iterdir())
 
 
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="root ignores chmod(0) — nothing would be unenterable"
+)
 def test_a_mark_never_raises(tmp_path: Path) -> None:
     """A4: a folder whose parent cannot be entered makes the mark a silent no-op — a close (and
     a start's P11 mark) never fails on scratch, whatever the filesystem raises."""
@@ -478,6 +481,9 @@ def test_a_mark_never_raises(tmp_path: Path) -> None:
         locked.chmod(0o755)
 
 
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="root ignores chmod(0) — nothing would be unenterable"
+)
 def test_close_with_an_unenterable_folder_still_closes(tmp_path: Path) -> None:
     """A4: the full close path — record closed, ledger line printed — even when the marker is
     unreachable."""
@@ -889,7 +895,7 @@ def test_resume_adopts_the_resumable_folder(tmp_path: Path) -> None:
     assert new.parent == harness / _slug(repo) / "s2" / "scratchpad"
     owner = _owner(new)
     assert owner["sid"] == "s2" and owner["key"] == new.name.removeprefix("run-")
-    assert owner["state"] == "resumable"
+    assert owner["state"] == "running"  # the recorded resume makes it the live run's folder (F-A1)
     assert json.loads((run_dir / "s2.json").read_text(encoding="utf-8"))["run_scratch"] == str(new)
     _done(run_dir, harness, repo, sid="s2")
     closed = _owner(new)
@@ -1111,3 +1117,71 @@ def test_round_reports_large_seat_folders(tmp_path: Path, case: str) -> None:
         assert lines == [], out.stdout
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert len(rec["rounds"]) == 1, rec["rounds"]
+
+
+# ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────
+def test_an_adopted_folder_reads_running_and_is_never_retired(tmp_path: Path, monkeypatch) -> None:
+    """F-A1: once the resumed record persists, the adopted folder's marker reads `running` with an
+    `adopted` time — never `resumable` with the wall run's old `created`, which made the nightly
+    report flag a LIVE run and offer `--retire`, and `--retire` mark it done."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    owner = _owner(old)
+    owner["created"] = time.time() - 5 * 86400  # the wall run was minted five days ago
+    (old / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    seed = _wall(run_dir, harness, repo)
+    _session_dir(harness, repo, sid="s2")
+    out = _resume(run_dir, harness, repo, seed, "s2")
+    assert out.returncode == 0, out.stdout + out.stderr
+    new = Path(_run_scratch_line(out.stdout).split(" (adopted")[0])
+    adopted = _owner(new)
+    assert adopted["state"] == "running" and adopted["adopted"] > time.time() - 60, adopted
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"),
+        "SCRATCH_SWEEP_ROOT": str(harness),
+    }
+    retire = subprocess.run(
+        [sys.executable, str(SWEEP), "--run-folders", "--session", "s2", "--retire", new.name],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert retire.returncode != 0 and _owner(new)["state"] == "running", retire.stdout
+    spec = importlib.util.spec_from_file_location("sw_f1", SWEEP)
+    sw = importlib.util.module_from_spec(spec)
+    sys.modules["sw_f1"] = sw
+    spec.loader.exec_module(sw)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # restored after the test — never popped
+    sw.write_size_report([new.parent.parent], [], time.time())
+    report = json.loads(
+        (tmp_path / "home" / ".claude" / "state" / "scratch-size-report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert all(Path(r["path"]) != new for r in report["run_folders"]), report
+
+
+def test_any_adoption_failure_marks_the_old_folder_done(tmp_path: Path, monkeypatch) -> None:
+    """F-A2: an adoption that fails with ANY exception — not only an OSError — ends the old
+    folder's resume (`done`), so no folder is left resumable with nobody to adopt it (P12)."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    _wall(run_dir, harness, repo)
+    cr = _load()
+
+    def _boom(*_a, **_k):
+        raise ValueError("a hub module surprise")
+
+    monkeypatch.setattr(cr, "_session_pad", _boom)
+    rs, why = cr._adopt_run_scratch(
+        {"run_scratch": str(old)}, "s2", str(repo), "k-2026-10-15T00-00-00-0300-aaaaaa"
+    )
+    assert rs is None and why, why
+    assert _owner(old)["state"] == "done"
+
+
+def test_a_heartbeat_never_raises(tmp_path: Path) -> None:
+    """F-A3: a corrupted `run_scratch` (a NUL byte) never costs the verb its save."""
+    cr = _load()
+    cr._heartbeat({"run_scratch": "/tmp/has\x00null"})

@@ -1405,3 +1405,46 @@ def test_no_report_shape_costs_the_disk_reason(
     out = _hook(capsys, monkeypatch)
     alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
     assert len(alarm) == 1 and "disk 90% used" in alarm[0], out
+
+
+def test_holders_are_re_probed_after_a_worktree_is_removed(
+    harness: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F-B1: `git worktree remove` can take seconds — a holder that appears inside the folder in
+    that window keeps it (the folder is re-probed after the removal, before the rename)."""
+    main = _repo(tmp_path)
+    folder = _run_folder(_session(harness), "wtheld", repo=str(main / ".git"))
+    _git(main, "worktree", "add", "-q", str(folder / "seat-1" / "tree"), "-b", "feat-merged")
+    _age(folder / ".owner", 40 * HOUR)
+    rows = sw.plan_run_folders([folder.parent.parent], NOW)
+    assert [r.cls for r in rows] == ["consumed"], rows
+    real = sw.probe_holders
+    calls: list[int] = []
+
+    def _probe(targets, proc_root=None):
+        calls.append(1)
+        held, gaps, ok = real(targets, proc_root)
+        if len(calls) > 1:  # after the worktree removal: a process opened a file inside
+            held = {**held, str(folder): "pid 1 appeared"}
+        return held, gaps, ok
+
+    monkeypatch.setattr(sw, "probe_holders", _probe)
+    out = io.StringIO()
+    sw.apply_run_rows(rows, out=out)
+    assert folder.exists(), out.getvalue()
+    assert "KEPT" in out.getvalue(), out.getvalue()
+
+
+def test_a_boolean_created_stays_an_unknown_age_beside_an_adopted_time(harness: Path) -> None:
+    """F-B2: a corrupted `created: true` never becomes a "known" age just because an `adopted`
+    time sits beside it — the same bool guard the age test itself applies."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "boolc", "running", closed_ago=None, heartbeat_ago=HOUR)
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner["created"] = True
+    owner["adopted"] = NOW - HOUR
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    sw.write_size_report([sdir], [], NOW)
+    report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert folder.name in flagged and "unknown" in flagged[folder.name]["why"], report

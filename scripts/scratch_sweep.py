@@ -885,6 +885,14 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
             if blocked:
                 print(f"KEPT {r.path} — holds a registered worktree {blocked}", file=out)
                 continue
+            if inside:
+                # `git worktree remove` can take seconds: re-probe this folder before the rename
+                held_again, _g, ok_again = probe_holders([path], proc_root)
+                if not ok_again or r.path in held_again or os.path.realpath(r.path) in held_again:
+                    print(
+                        f"KEPT {r.path} — a holder appeared during the worktree removal", file=out
+                    )
+                    continue
             trash = path.with_name(TRASH_PREFIX + path.name[len(RUN_PREFIX) :])
             try:
                 os.rename(path, trash)
@@ -1163,6 +1171,10 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
             if state == "running":
                 running.append(folder.name)
             created = owner.get("created")
+            adopted = owner.get("adopted")
+            known_created = isinstance(created, int | float) and not isinstance(created, bool)
+            if isinstance(adopted, int | float) and not isinstance(adopted, bool) and known_created:
+                created = max(created, adopted)  # an unknown `created` stays unknown (F-B2)
             known = isinstance(created, int | float) and not isinstance(created, bool)
             if state != "done" and (not known or now - created > REPORT_STALE_S):
                 action = (

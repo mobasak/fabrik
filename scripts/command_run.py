@@ -1730,7 +1730,7 @@ def _heartbeat(rec: dict[str, Any]) -> None:
     A missing folder or marker is skipped silently."""
     folder_s = str(rec.get("run_scratch") or "")
     if folder_s:
-        with contextlib.suppress(OSError):
+        with contextlib.suppress(OSError, ValueError):  # ValueError: a NUL in a corrupted record
             os.utime(Path(folder_s) / ".owner")
 
 
@@ -1765,7 +1765,7 @@ def _adopt_run_scratch(
             )
         dest = pad / f"{mod.RUN_PREFIX}{key}"
         os.rename(old, dest)
-    except OSError as exc:
+    except Exception as exc:  # noqa: BLE001 — ANY failure ends the resume (P12), never a stranded folder
         _mark_run_scratch({"run_scratch": old_s}, "done", str((owner or {}).get("sid") or sid))
         return None, f"cannot move the seed's run folder {old} ({exc}) — marked done"
     owner.update({"sid": sid, "key": key})
@@ -5976,6 +5976,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 shutil.rmtree(_rs, ignore_errors=True)
                 _run_scratch_line = "RUN-SCRATCH: none — the run record could not be written"
         elif fields["persisted"]:
+            if _adopted and _rs is not None:
+                # the resume is taken and recorded: the folder is this run's live folder now —
+                # `running` with its adoption time, never `resumable` with the wall run's age, which
+                # the nightly report would flag and `--retire` would end under a live run (F-A1)
+                with contextlib.suppress(Exception):
+                    _owner = _read_owner(_rs) or {}
+                    _owner.update({"state": "running", "adopted": time.time()})
+                    _write_owner(_rs, _owner)
             outbox["run_sweep"] = (sid, str(new.get("repo_root") or ""))
         print(pinned_line(new))
         if _seed is not None:

@@ -629,7 +629,8 @@ run is consumed. The removal rules live in `docs/workstation/cleanup-automation.
 - **Handoff refusal:** a `handoff` whose `--resume` text names this run's own folder (its basename as a
   whole token) is refused — the successor is a new run and this folder goes after the grace.
 - **Adoption:** `start --resume-from` moves the seed's `resumable` folder into the new session as
-  `run-<new key>` and rewrites its marker's `sid`/`key`.
+  `run-<new key>` and rewrites its marker's `sid`/`key`; once the resumed record is saved the marker
+  reads `running` with an `adopted` time (until then a crash leaves it `resumable`, still adoptable).
 - **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
   <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
   `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.

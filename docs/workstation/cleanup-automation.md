@@ -218,7 +218,8 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   leaves them out. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
   ordinary entry.
 - **Adoption:** `start --resume-from` moves the wall run's `resumable` folder into the new session (one
-  rename; `sid`/`key` rewritten). A folder holding a worktree pointer, or no longer `resumable`, is not
+  rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
+  resumed record is saved). A folder holding a worktree pointer, or no longer `resumable`, is not
   moved and is marked `done`; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
 - **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
   archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`); `--dead --apply` writes
