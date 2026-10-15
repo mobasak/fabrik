@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T19:13:53.436509Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9c6d20e3",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "run check_review_hygiene split-table on both files, remove the interior line, re-run the check",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "doc rendering defect, no behaviour change; two lines; INDEX tooling and quota-dashboard doc = infra",
+  "status": "open",
+  "title": "Two markdown tables split by an interior line, found by intel's new split-table check (D-909): INDEX.md ~1653 (a one-line HTML comment inside the index table, so the rows after it render as paragraphs) and docs/workstation/quota-dashboard.md ~99"
+}
