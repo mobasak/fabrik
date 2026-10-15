@@ -1945,9 +1945,11 @@ def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None
     compact and resume; the hub loads only its own CLAUDE.md, so the hub coordinator held a pointer to its
     duties, not the duties. The hub carries the paragraph too, byte-identical, once each. (A hook include
     was rejected: the hook output would pass the 10,000-character hook cap - D-888.)"""
-    # bytes, not read_text: universal newlines would hide a CRLF drift (review O-6)
+    # bytes, not read_text, and no CR at all: universal newlines and splitlines() would both hide a CRLF
+    # drift (review O-6, N-2)
     hub = (FABRIK / "CLAUDE.md").read_bytes().decode("utf-8")
     template = (FABRIK / TEMPLATE_REL).read_bytes().decode("utf-8")
+    assert "\r" not in hub and "\r" not in template, "a contract picked up CRLF line endings"
     # a raw count too: an indented or glued-on second copy is no paragraph lead, yet still a copy (review S-3)
     assert hub.count(COORDINATOR_LEAD) == 1 and template.count(COORDINATOR_LEAD) == 1, (
         hub.count(COORDINATOR_LEAD), template.count(COORDINATOR_LEAD))
