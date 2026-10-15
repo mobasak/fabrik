@@ -551,8 +551,11 @@ the command?", that moment is the Stop hook.
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
 | `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
-| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints |
-| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints — and the run-folder sweep `start` launches, so consumed run folders then wait for the nightly run |
+| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to, and the run-folder sweep `start` launches; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP_LIB` | `/opt/fabrik/scripts` | the directory whose `scratch_sweep.py` the run-folder mint loads by file location (never a `sys.path` insert) |
+| `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a seat folder over this many apparent bytes prints the advisory line at `round` |
+| `COMMAND_RUN_SEAT_DU_DEADLINE_S` | `10` | the shared deadline for those `du` calls; past it a seat reads `size unmeasured` |
 
 ## The scratch advisory on a top-level close
 
@@ -605,6 +608,41 @@ critique briefs and review pins with it; the record survived, because it lives u
 
 COBRA (D-253): the cheapest way to "have scratch" without the outcome is to keep writing resume
 artifacts to the `/tmp` scratchpad. The counter is the command text naming the printed `SCRATCH:` path.
+
+## A run's disposable folder (run-bound scratch)
+
+Since 2026-10-15 (plan `2026-10-15-plan-1-scratch-lifecycle`, D-867/D-870/D-877) `start` also mints the
+run's DISPOSABLE folder — the bulky seat copies, pins and probes — and prints `RUN-SCRATCH: <path>`
+after `SCRATCH:` (or `RUN-SCRATCH: none — <why>`; a start is never refused). The two differ in kind:
+`SCRATCH` is durable (resume artifacts, the design, the commit window); `RUN-SCRATCH` is removed once the
+run is consumed. The removal rules live in `docs/workstation/cleanup-automation.md` § F.
+
+- **Where:** `<harness session dir>/scratchpad/run-<command>-<started_at>-<6 hex>/`, the session dir
+  FOUND by the hub's `scratch_sweep.find_session_dirs` (two candidates and no cwd match → none, never a
+  guess). The record keeps it as `run_scratch`; a `.owner` marker beside the work carries `sid`, `key`,
+  `command`, `repo` (the common git dir), `created`, `state` and `closed_at`.
+- **Marked at every close:** `done`, `handoff` and a plain `blocked` write `done`; a quota wall writes
+  `resumable` (or `done` when its seed could not be kept). A `died` coroner close, and the next `start`
+  over a closed non-wall record, mark a still-`running` folder `done`. A run started over a forgotten
+  wall resume records the wall folder as `superseded_run_scratch` and marks it `done` at its own `done`.
+- **Heartbeat:** `step`, `round` and `dispatch` refresh the marker's mtime.
+- **Handoff refusal:** a `handoff` whose `--resume` text names this run's own folder (its basename as a
+  whole token) is refused — the successor is a new run and this folder goes after the grace.
+- **Adoption:** `start --resume-from` moves the seed's `resumable` folder into the new session as
+  `run-<new key>` and rewrites its marker's `sid`/`key`; once the resumed record is saved the marker
+  reads `running` with an `adopted` time (until then a crash leaves it `resumable` at its new path,
+  which the seed no longer names: the 72 h alarm names it and `--run-folders --retire` ends it — unless
+  the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
+  session, `--retire` refuses it and only a hand edit of `.owner` ends it).
+- **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
+  <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
+  `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.
+- **Tests:** a test seam (`COMMAND_RUN_DIR`/`PYTEST_CURRENT_TEST`) without `SCRATCH_SWEEP_ROOT` mints
+  nothing, and launches the sweep only for an explicit `FABRIK_SCRATCH_SWEEP_SCRIPT`.
+
+COBRA (D-253): the cheapest way to dodge the removal is to write bulky work outside `RUN-SCRATCH` or to
+keep a run open; the nightly size report counts the session's bytes outside running folders and names a
+run folder still open after 72 h.
 
 ## Tests
 
