@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: (a) coordinator duties loaded at every session start/compact/resume; (b) ADD the D-880 duty to the coordinator charter: always know each hub agent's now/done/next and recover it after context loss, keep the work ledgers current; (c) fix the four stale charter lines; (d) grader: every charter names the current merge owner; (e) D-880 made EXECUTABLE, not a memory note (operator: 'memory note is not enough'; all five hub agents share ~/.claude/projects/-opt-fabrik/memory, so a coordinator note loads into every agent): one command that prints every hub agent's NOW (live run record: command, phase, surface), DONE (merges + closed items since last check) and NEXT (queued/claimed items), read from command-runs/*.json + the work store + git log, and injected at the coordinator's SessionStart so it survives compaction",
+  "next": "infra: (a) load the coordinator's seven jobs (templates/governance/CLAUDE.md \u00a7 The coordinator role) at every session start/compact/resume \u2014 agent_role.py include; (d) grader: every charter names the current merge owner; (e) one command printing each hub agent's NOW/DONE/NEXT from command-runs/*.json + the work store + git log, injected at the coordinator's SessionStart. (b) and (c) DONE by the coordinator at 3e021264e (D-880, D-882)",
   "note": "",
   "owner": "infra",
   "priority": 1,
