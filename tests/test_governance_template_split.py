@@ -1944,11 +1944,17 @@ def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None
     lose context? if not you must". A project loads the template as its CLAUDE.md on every session start,
     compact and resume; the hub loads only its own CLAUDE.md, so the hub coordinator held a pointer to its
     duties, not the duties. The hub carries the paragraph too, byte-identical, once each. (A hook include
-    was rejected: the hook output would pass the 10,000-character hook cap - D-row.)"""
-    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    template = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    was rejected: the hook output would pass the 10,000-character hook cap - D-888.)"""
+    # bytes, not read_text: universal newlines would hide a CRLF drift (review O-6)
+    hub = (FABRIK / "CLAUDE.md").read_bytes().decode("utf-8")
+    template = (FABRIK / TEMPLATE_REL).read_bytes().decode("utf-8")
+    # a raw count too: an indented or glued-on second copy is no paragraph lead, yet still a copy (review S-3)
+    assert hub.count(COORDINATOR_LEAD) == 1 and template.count(COORDINATOR_LEAD) == 1, (
+        hub.count(COORDINATOR_LEAD), template.count(COORDINATOR_LEAD))
     in_hub = _paragraph_led_by(hub, COORDINATOR_LEAD)
     in_template = _paragraph_led_by(template, COORDINATOR_LEAD)
     assert len(in_template) == 1, len(in_template)
     assert len(in_hub) == 1, f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
     assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
+    # the hub-only sentence that settles where the hub rulings outrank the paragraph (review O-6)
+    assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1
