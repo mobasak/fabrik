@@ -159,6 +159,9 @@ python3 /opt/fabrik/scripts/scratch_sweep.py --apply         # remove what it li
 python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees     # this repo's agent worktrees
 python3 /opt/fabrik/scripts/scratch_sweep.py --dead          # the janitor, DRY RUN
 python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply  # what the cron line runs
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid>          # this session's run folders
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid> --apply  # what `command_run.py start` launches
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid> --retire run-<key>  # end one resume
 ```
 
 Every row carries a class, a reason and its evidence; `--apply` is opt-in and prints the refusal set
@@ -178,12 +181,55 @@ ignored files even without `--force`, a worktree holding ignored DATA outside th
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
 a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it
-creates · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
+creates and the size report beside it (`scratch-size-report.json`, written only by `--dead --apply`) · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
 session's own `tasks/` dir · a symlink's target · a worktree another session registered (unless
 `--foreign-older-than`, below), one holding ignored data, or one git does not register · anything
 holding a backup shape (`*.bak`, `*.original`,
 `*pristine*`, `before.txt`/`after.txt`, `.keep`) — the entry's own NAME included, which is what keeps
 the operator's `pristine/` and `fe-pristine/` baselines.
+
+**Run-bound scratch — a run's folder is removed by its marker, never by its age** (2026-10-15, plan
+`2026-10-15-plan-1-scratch-lifecycle`, D-867/D-870/D-877). Every `command_run.py start` mints
+`<session dir>/scratchpad/run-<command>-<started_at>-<6 hex>/` with a `.owner` marker (`sid`, `key`,
+`command`, `repo`, `created`, `state`, `closed_at`); every close rewrites its `state` (`done`, or
+`resumable` at a quota wall), and `step`/`round`/`dispatch` refresh its mtime (the heartbeat). The
+operator's bar is the design: *"do not cause active scrathcpads to be removed but be sure the ones
+consumed will be done so"*. `classify_run_folder` is the ONE function that answers:
+
+- **ACTIVE, never removed** (spec INV-1): `running` in a session with a live signal or no death signal,
+  or with a heartbeat 7 days old or newer; `resumable`; `done` less than its grace ago — 30 minutes,
+  or 36 h when a seat of the session wrote after the close or that cannot be read; a holder (fd or cwd)
+  inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
+  unknown (D-877 — this box always carries three such daemons that started at boot, so "any gap keeps"
+  would keep everything; a zombie is no gap; that ruling is the operator's, interim until they rule);
+  a holder probe that did not complete; a `.keep`; a registered worktree it cannot remove; no
+  readable marker; a marker naming another session (D3 only).
+- **CONSUMED, removed walk-free** (INV-2): `done` past its grace, or `running` in a dead session with
+  a 7-day-stale heartbeat. Removal is a rename to `.trash-<key>`, then `rmtree`; the marker's
+  fingerprint, a `.keep`, holders and gaps are re-checked at removal time. A worktree pointer inside
+  (a `.git` FILE whose gitdir lies outside the folder, depths 0-3) keeps the folder unless the worktree
+  is merged and clean, or detached, clean and contained in a ref — then `git worktree remove` first. A
+  plain clone (a `.git` directory) is scratch.
+- **Who removes:** `start` launches `--run-folders --session <sid> --apply` detached after its record
+  lock drops (D3; a per-session `flock` at `<session dir>/.run-folders.lock`, never the global lock, so
+  the nightly run is never skipped). `--dead --apply` consumes every session's run folders first (D4)
+  and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
+  it — judged again after the run pass, so a folder the removal-time re-check kept keeps its directory
+  too. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
+  leaves them out. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
+  ordinary entry.
+- **Adoption:** `start --resume-from` moves the wall run's `resumable` folder into the new session (one
+  rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
+  resumed record is saved). A folder holding a worktree pointer is not moved and is marked
+  `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
+- **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
+  archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`); `--dead --apply` writes
+  `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
+  folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook
+  prints one `SCRATCH ALARM` line from it (or names it stale past 48 h, or a session too big to
+  measure in time), or when disk use passes 85 % (df's Use%). Neither removes anything.
+- **The legacy residue** (the untagged entries before this shipped — 1428 entries, 32.84 GB
+  apparent, measured 2026-10-15) is never automated: an operator-signed list (`docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md`).
 
 **Why the janitor needs three signals.** A sid is `dead` only when it has no live signal, AND a death
 signal, AND its own directory is idle past 7 days. A gone pid is NOT a finished session: `--resume`
@@ -242,7 +288,10 @@ SQLite WALs, `data/`, `.env` that differs from the main checkout, any authored f
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·
-`SCRATCH_SWEEP_HOOK_BUDGET` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR`, plus
+`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_WALK_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
+`SCRATCH_RUN_GRACE_S`
+(36 h) · `SCRATCH_RUN_HEARTBEAT_S` (7 d) · `SCRATCH_SWEEP_DISK_USED_PCT` · `SCRATCH_SWEEP_REPORT_BUDGET_S`
+(600 s), plus
 `SCRATCH_SWEEP_FORCE_START`, which is gated behind `SCRATCH_SWEEP_TEST=1` because unlike the others
 it can authorize removing another session's worktree. A stray value in an operator's environment
 degrades the tool silently, so set none of them outside a test.

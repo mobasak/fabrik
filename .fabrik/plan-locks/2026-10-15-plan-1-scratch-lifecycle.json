@@ -1,0 +1,30 @@
+{
+  "plan": "docs/development/plans/2026-10-15-plan-1-scratch-lifecycle.md",
+  "owned_paths": [
+    "scripts/command_run.py",
+    "scripts/scratch_sweep.py",
+    "tests/conftest.py",
+    "tests/test_command_run_scratch.py",
+    "tests/test_scratch_sweep.py",
+    "tests/test_scratch_sweep_run_folders.py",
+    "docs/workstation/cleanup-automation.md",
+    "docs/workstation/hooks-index.md",
+    "docs/reference/command-run-protocol.md",
+    "docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-review.md",
+    "docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md",
+    "scripts/sysadmin/kaizen_coroner.py",
+    "tests/test_kaizen_coroner.py",
+    "tests/test_command_run_fabrik_task.py"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-15T01:08:58.372057+00:00",
+  "status": "released",
+  "baseline_commit": "e7092f37ba20b0686809a5dbeb94053ca3120231",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": [],
+    "command": ".venv/bin/python scripts/final_gate.py --lean --check --json"
+  },
+  "completed_at": "2026-10-15T05:26:24.234338+00:00",
+  "final_commit": "2e9e63e99"
+}

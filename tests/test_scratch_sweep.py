@@ -2386,3 +2386,87 @@ def test_an_unrelated_backup_with_the_same_bytes_never_matches(tmp_path: Path) -
     (main / "backups" / "settings.json.backup").write_text("DEBUG=1\n", encoding="utf-8")
     assert not sweep._preserved_in_backups(main, b"DEBUG=1\n", ".env")
     assert sweep._preserved_in_backups(main, b"RETIRED=1\n", ".env")
+
+
+# ── V6: untagged entries classify exactly as before run-bound scratch (scratch lifecycle plan B6) ──
+def _golden_rows(stdout: str, root: Path) -> list[tuple[str, str, str]]:
+    """`(path relative to the root, class, reason)` per table row — the summary line excluded."""
+    rows: list[tuple[str, str, str]] = []
+    for line in stdout.splitlines():
+        cells = [c.strip() for c in line.split(" · ")]
+        if len(cells) < 4 or not cells[0].startswith(str(root)):
+            continue
+        rows.append((str(Path(cells[0]).relative_to(root)), cells[2], cells[3]))
+    return sorted(rows)
+
+
+# Captured from the PRE-change code (Phase A commit 5bed978ff, before any Phase B edit).
+_S = "-opt-fixture/11111111-2222-3333-4444-555555555555/scratchpad/"
+GOLDEN_SESSION: list[tuple[str, str, str]] = [
+    (_S + ".keep", "kept", "the keep list itself — kept at any age"),
+    (_S + "a-link", "unclassified", "a symlink — never followed, never removed"),
+    (_S + "fresh-dir", "fresh", "newest file 60m old"),
+    (_S + "held-dir", "stale", "newest file 7.0h old"),
+    (_S + "kept-dir", "kept", "named in .keep"),
+    (
+        _S + "old.bak",
+        "holds-backups",
+        "stale, but holds a backup shape (--include-backups to remove)",
+    ),
+    (_S + "stale-dir", "stale", "newest file 7.0h old"),
+]
+GOLDEN_DEAD: list[tuple[str, str, str]] = [
+    (
+        "-opt-fixture/11111111-2222-3333-4444-555555555555",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/aaaaaaaa-1111-1111-1111-111111111111",
+        "live",
+        "a sessions file matches a running pid + procStart",
+    ),
+    (
+        "-opt-fixture/bbbbbbbb-2222-2222-2222-222222222222",
+        "dead",
+        "its sessions file names a pid that is gone; dir idle 30.0d",
+    ),
+    (
+        "-opt-fixture/cccccccc-3333-3333-3333-333333333333",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/dddddddd-4444-4444-4444-444444444444",
+        "unclassified",
+        "its sessions file names a pid that is gone, but its dir was touched 8m ago — a gone pid is not a finished session",
+    ),
+    (
+        "-opt-fixture/eeeeeeee-5555-5555-5555-555555555555",
+        "dead-holds-backups",
+        "its sessions file names a pid that is gone; holds a backup shape (--include-backups)",
+    ),
+    (
+        "-opt-old-project/ffffffff-6666-6666-6666-666666666666",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    ("fe-pristine", "protected", "holds a backup shape — the root level is where baselines sit"),
+    ("mcp-health-cache", "protected", "live system state, by name"),
+    ("payments-c4", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+    ("recent-thing", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+]
+
+
+def test_untagged_classification_golden(scratch: Path, graveyard: tuple[Path, Path, Path]) -> None:
+    """Spec V6: a scratchpad with no `run-*` folder classifies row for row as it did before the
+    marker existed, in session mode and in `--dead` (plan B6)."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    (pad / "old.bak").write_text("the only copy", encoding="utf-8")
+    _age(pad / "old.bak", 9 * HOUR)
+    (pad / "a-link").symlink_to(pad / "stale-dir")
+    session = _run("--session", SID, env=_env(scratch))
+    dead = _run("--dead", env=_dead_env(graveyard))
+    assert session.returncode == 0 and dead.returncode == 0, session.stderr + dead.stderr
+    assert _golden_rows(session.stdout, scratch) == GOLDEN_SESSION, session.stdout
+    assert _golden_rows(dead.stdout, graveyard[0]) == GOLDEN_DEAD, dead.stdout
