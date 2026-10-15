@@ -18,11 +18,13 @@
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-15T01:08:58.372057+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "e7092f37ba20b0686809a5dbeb94053ca3120231",
   "baseline_gate": {
     "status": "success",
     "red_checks": [],
     "command": ".venv/bin/python scripts/final_gate.py --lean --check --json"
-  }
+  },
+  "completed_at": "2026-10-15T05:26:24.234338+00:00",
+  "final_commit": "2e9e63e99"
 }
