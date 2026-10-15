@@ -1185,8 +1185,12 @@ def _write_file_to_vps(name: str, filename: str, content: str) -> None:
     _write_file_to_vps_path(f"/opt/{name}", filename, content)
 
 
+# A validation pattern for the remote mktemp answer — no file is created from it.
+_MKTEMP_PATH_RE = re.compile(r"/tmp/fabrik-[A-Za-z0-9]{10}")  # nosec B108
+
+
 def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
-    """Write a file to ``{path}/{filename}`` via scp-to-tmp-then-sudo-mv."""
+    """Write a file to ``{path}/{filename}`` via a remote ``mktemp`` file, scp into it, then ``sudo mv``."""
     from fabrik.drivers.ssh import scp_to_vps
     from fabrik.drivers.ssh import ssh as _ssh
 
@@ -1198,13 +1202,36 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
         raise ValueError(f"refusing to write a filename outside {path}: {filename!r}")
 
     safe_name = filename.replace("/", "-")
-    tmp_remote = f"/tmp/fabrik-{os.getpid()}-{safe_name}"  # nosec B108
-
     fd, tmp_local = tempfile.mkstemp(prefix=f"fabrik-{safe_name}-")
     try:
         with os.fdopen(fd, "w") as f:
             f.write(content)
-        scp_to_vps(tmp_local, tmp_remote, timeout=30)
+        # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
+        # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it
+        # 0666 and read a DSN through the open fd in the window before the chmod (W-8dd25072). scp
+        # into the existing file keeps its owner and 0600 mode. Only the LAST line of the answer is
+        # the path — a login shell may print before it — and anything else fails closed.
+        answer = _ssh("mktemp /tmp/fabrik-XXXXXXXXXX", timeout=10).strip()
+        tmp_remote = answer.splitlines()[-1].strip() if answer else ""
+        if not _MKTEMP_PATH_RE.fullmatch(tmp_remote):
+            # A shell that printed AFTER the path still created the file: remove what looks like it.
+            for line in answer.splitlines():
+                if _MKTEMP_PATH_RE.fullmatch(line.strip()):
+                    try:
+                        _ssh(f"rm -f {shlex.quote(line.strip())}", timeout=5)
+                    except Exception:  # noqa: BLE001, S110
+                        pass
+            raise RuntimeError(f"remote mktemp returned an unexpected path: {tmp_remote!r}")
+        try:
+            scp_to_vps(tmp_local, tmp_remote, timeout=30)
+        except BaseException:
+            # The remote temp file exists from the mktemp on: never leave it behind, not even on
+            # an interrupt.
+            try:
+                _ssh(f"rm -f {shlex.quote(tmp_remote)}", timeout=5)
+            except Exception:  # noqa: BLE001, S110
+                pass
+            raise
     finally:
         try:
             os.unlink(tmp_local)
@@ -1220,8 +1247,8 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     mkdir = f"sudo mkdir -p {path}/{shlex.quote(parent)} && " if parent else ""
     # `.env` and `.env.owner` are root:root 0600 BY NAME, the mode set on the remote temp file
     # BEFORE the `mv` (which keeps it; `chown` does not touch it) so the file never sits at its
-    # final path wider than 0600. Before the owner split the mode rested on the local temp file's
-    # 0600 carried by scp — which a stale remote tmp file under a recycled pid would override.
+    # final path wider than 0600. The remote mktemp file is already 0600, so the chmod by name is a
+    # second guard for the two secret files.
     chmod = (
         f"sudo chmod 0600 {shlex.quote(tmp_remote)} && "
         if filename in (".env", OWNER_ENV_FILE)

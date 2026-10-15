@@ -131,8 +131,8 @@ def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
 
 def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> None:
     """A running record older than the Stop hook's 12 h bound is flagged stale (its session is
-    likely gone), and a record whose updated_ts is not a finite number ("abc", "inf", NaN) is
-    skipped, never a crash."""
+    likely gone), and a record whose updated_ts is not a finite number ("abc", "inf", NaN, an int too
+    large for a float) is skipped, never a crash."""
     env, repo, trees = _setup(tmp_path)
     _record(env, "old", agent="infra", state="running", command="fabrik-deploy", surface="x",
             repo_root=str(trees["infra"]), updated_ts=time.time() - 13 * 3600)
@@ -142,6 +142,8 @@ def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> Non
             repo_root=str(trees["fleet"]), updated_ts="inf")
     _record(env, "nan", agent="fleet", state="running", command="fabrik-spec", surface="n",
             repo_root=str(trees["fleet"]), updated_ts=float("nan"))
+    _record(env, "big", agent="fleet", state="running", command="fabrik-spec", surface="b",
+            repo_root=str(trees["fleet"]), updated_ts=10**400)  # float() of it raises OverflowError
     rows = _rows(repo, env)
     assert rows["infra"]["now"]["stale"] is True
     assert rows["fleet"]["now"] is None
@@ -237,3 +239,162 @@ def test_the_session_start_entry_is_guarded(tmp_path: Path) -> None:
     r = subprocess.run(["sh", "-c", cmd], env={"PATH": os.environ["PATH"], "CLAUDE_PROJECT_DIR": str(absent)},
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
+
+
+# ── the box view: every repo under the /opt seam (W-7159f8e2) ─────────────────────────────────────
+
+
+def _box_repo(opt: Path, env: dict, name: str, *, store: bool = True, worktrees: tuple[str, ...] = ()) -> Path:
+    repo = opt / name
+    _git(opt, env, "init", "-q", "-b", "master", str(repo))
+    (repo / "README").write_text("seed\n", encoding="utf-8")
+    _git(repo, env, "add", "README")
+    _git(repo, env, "commit", "-q", "-m", "seed")
+    repo = repo.resolve()
+    if store:
+        _work(repo, env, "init", "--distributor", "coordinator")
+        _git(repo, env, "add", ".fabrik")
+        _git(repo, env, "commit", "-q", "-m", "store")
+    for wt in worktrees:
+        _git(repo, env, "worktree", "add", "-q", "-b", f"worktree-{wt}", str(repo / ".claude" / "worktrees" / wt))
+    return repo
+
+
+def _window(proc: Path, n: int, cwd: Path, agent: str = "", argv: str = "claude") -> None:
+    d = proc / str(n)
+    d.mkdir(parents=True)
+    (d / "comm").write_text("claude\n", encoding="utf-8")
+    (d / "cmdline").write_bytes(argv.replace(" ", "\0").encode() + b"\0")
+    (d / "environ").write_bytes((f"CLAUDE_AGENT={agent}\0" if agent else "").encode() + b"PATH=/bin\0")
+    os.symlink(cwd, d / "cwd")
+
+
+def _box(opt: Path, env: dict) -> dict[str, dict]:
+    r = subprocess.run([sys.executable, str(STATUS), "--json", "--all", "--opt", str(opt)],
+                       cwd=opt, env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return {repo["name"]: repo for repo in json.loads(r.stdout)["repos"]}
+
+
+def _agents(repo: dict) -> dict[str, dict]:
+    return {a["name"]: a for a in repo["agents"]}
+
+
+def test_box_roster_from_windows_records_and_claims(tmp_path: Path) -> None:
+    """Agents per repo: the live windows (named by CLAUDE_AGENT, else the worktree, else the main
+    checkout's newest run record), the agents with a run record of THAT repo in the last 7 days, and
+    claim holders; older ones are only counted dormant; a repo with no store but an agent is listed."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef3"))
+    lib = _box_repo(opt, env, "lib", store=False)
+    _box_repo(opt, env, "quiet")
+    proc = tmp_path / "proc"
+    _window(proc, 101, shop / ".claude" / "worktrees" / "wef1")
+    _window(proc, 102, shop)
+    _window(proc, 103, shop / ".claude" / "worktrees" / "wef3", agent="wef3")
+    _window(proc, 104, shop, argv="claude -p hello")  # a headless child is no window
+    week = time.time() - 8 * 86400
+    _record(env, "m1", agent="wef2", state="done", command="fabrik-review", repo_root=str(shop))
+    _record(env, "o1", agent="wef9", state="done", command="fabrik-task", repo_root=str(shop), updated_ts=week)
+    _record(env, "l1", agent="lib-dev1", state="done", command="fabrik-task", repo_root=str(lib))
+    item = _add(shop, env, "fix the cart", "wef4")
+    _work(shop, {**env, "CLAUDE_AGENT": "wef4", "CLAUDE_CODE_SESSION_ID": "c1"}, "claim", item)
+    repos = _box(opt, env)
+    assert "quiet" in repos and repos["quiet"]["agents"] == []
+    shop_agents = _agents(repos["shop"])
+    assert sorted(shop_agents) == ["wef1", "wef2", "wef3", "wef4"], sorted(shop_agents)
+    assert shop_agents["wef1"]["window"] and shop_agents["wef3"]["window"] and shop_agents["wef2"]["window"]
+    assert shop_agents["wef2"]["named_from"] == "record"
+    assert shop_agents["wef4"]["window"] is False and shop_agents["wef4"]["claim"]["title"] == "fix the cart"
+    assert repos["shop"]["dormant"] == 1  # wef9: last seen 8 days ago
+    assert list(_agents(repos["lib"])) == ["lib-dev1"] and repos["lib"]["store"] is False
+
+
+def test_box_state_comes_from_windows_and_records_not_bindings(tmp_path: Path) -> None:
+    """working = a fresh running record of this repo; idle = a window with none; away = neither. An
+    identity binding whose pid is ALIVE (this test's own) still makes nobody live — bindings outlive
+    windows (measured: 0 of 29 newest bindings live while 8 windows were up)."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef3"))
+    proc = tmp_path / "proc"
+    _window(proc, 101, shop / ".claude" / "worktrees" / "wef1")
+    _record(env, "r3", agent="wef3", state="running", command="fabrik-task", surface="the cart",
+            repo_root=str(shop / ".claude" / "worktrees" / "wef3"))
+    _record(env, "r5", agent="wef5", state="done", command="fabrik-task", repo_root=str(shop))
+    start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(")", 1)[1].split()[19]
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(json.dumps({
+        "session_id": "b5", "name": "wef5", "pid": os.getpid(), "pid_start": int(start),
+        "toplevel": str(shop / ".git"), "at": int(time.time())}) + "\n", encoding="utf-8")
+    agents = _agents(_box(opt, env)["shop"])
+    assert agents["wef3"]["state"] == "working" and agents["wef3"]["now"]["surface"] == "the cart"
+    assert agents["wef1"]["state"] == "idle"
+    assert agents["wef5"]["state"] == "away" and agents["wef5"]["window"] is False
+
+
+def test_box_edges_are_named_honestly(tmp_path: Path) -> None:
+    """The review's surviving mutants, each pinned: a headless `-p` child is no window; CLAUDE_AGENT
+    beats the worktree name; an unreadable environ loses only the name; a harness tree is no agent; a
+    stale running record reads stale; a future or non-finite stamp is no record; a main window with only
+    an old record stays unnamed; only the main checkout's current agent is its merge owner; a binding-only
+    name counts dormant; a symlinked alias is not a second repo."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef6", "wef7", "agent-0123456789abcdef"))
+    old = _box_repo(opt, env, "old")
+    os.symlink(shop, opt / "shop-alias")
+    proc = tmp_path / "proc"
+    wt = shop / ".claude" / "worktrees"
+    _window(proc, 101, wt / "wef7", argv="claude -p hello")  # headless: wef7 has no window
+    _window(proc, 102, wt / "wef1", agent="lead")  # named by its env, not its tree
+    _window(proc, 103, wt / "wef6")
+    (proc / "103" / "environ").chmod(0)  # unreadable: the window stays, named by its tree
+    _window(proc, 104, wt / "agent-0123456789abcdef")  # a harness tree: nobody's window
+    _window(proc, 105, old)  # a main window whose only record is 9 days old
+    _record(env, "st", agent="wef8", state="running", command="fabrik-task", repo_root=str(shop),
+            updated_ts=time.time() - 13 * 3600)
+    _record(env, "fu", agent="wef9", state="running", command="fabrik-task", repo_root=str(shop),
+            updated_ts=time.time() + 10 * 86400)
+    _record(env, "nf", agent="wef5", state="running", command="fabrik-task", repo_root=str(shop))
+    nf = Path(env["COMMAND_RUN_DIR"]) / "nf.json"
+    nf.write_text(nf.read_text(encoding="utf-8").replace(str(json.loads(nf.read_text())["updated_ts"]), "NaN"),
+                  encoding="utf-8")
+    _record(env, "o9", agent="ancient", state="done", command="fabrik-task", repo_root=str(old),
+            updated_ts=time.time() - 9 * 86400)
+    _record(env, "mo", agent="boss", state="done", command="fabrik-review", repo_root=str(shop))
+    _record(env, "mx", agent="former", state="done", command="fabrik-review", repo_root=str(shop),
+            updated_ts=time.time() - 3600)
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(json.dumps({
+        "session_id": "b1", "name": "ghost", "pid": 1, "pid_start": 1, "toplevel": str(shop / ".git"),
+        "at": int(time.time())}) + "\n", encoding="utf-8")
+    repos = _box(opt, env)
+    assert "shop-alias" not in repos
+    shop_agents = _agents(repos["shop"])
+    assert "wef7" not in shop_agents and "agent-0123456789abcdef" not in shop_agents
+    assert shop_agents["lead"]["named_from"] == "env" and "wef1" not in shop_agents
+    assert shop_agents["wef6"]["window"] and shop_agents["wef6"]["named_from"] == "worktree"
+    assert shop_agents["wef8"]["state"] == "stale"
+    assert "wef9" not in shop_agents and "wef5" not in shop_agents
+    assert shop_agents["boss"]["merge_owner"] and not shop_agents["former"]["merge_owner"]
+    assert repos["shop"]["dormant"] == 1  # ghost: a binding with no record in reach
+    old_agents = _agents(repos["old"])
+    assert list(old_agents) == ["(unnamed)"] and repos["old"]["dormant"] == 1
+
+
+def test_box_now_is_keyed_by_repo(tmp_path: Path) -> None:
+    """The same agent name in two repos never crosses: each repo's NOW is its own running record."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    crm = _box_repo(opt, env, "crm")
+    trade = _box_repo(opt, env, "trade")
+    _record(env, "a", agent="agent-1", state="running", command="fabrik-spec", surface="crm side", repo_root=str(crm))
+    _record(env, "b", agent="agent-1", state="running", command="fabrik-task", surface="trade side",
+            repo_root=str(trade), updated_ts=time.time() - 60)
+    repos = _box(opt, env)
+    assert _agents(repos["crm"])["agent-1"]["now"]["surface"] == "crm side"
+    assert _agents(repos["trade"])["agent-1"]["now"]["surface"] == "trade side"

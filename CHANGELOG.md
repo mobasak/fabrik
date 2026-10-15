@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
+
+`commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its
+fractional part (the tool matches exact strings); § Drive grounding reads the decisions or binding-constraints
+section of each spec the command cites, beside `docs/DECISIONS.md`; PHASE 3 says a recipe held in a template literal
+or an escaped string is pointed at by name, never handed over to be pasted. Answers rows 1792084693, 1792070803 and
+1792087460, each a recurrence of a held subject; pinned by `tests/test_command_improve_queue_pass.py`.
+
+### Changed — chrome-ext pack: § Distribution Model names the release kit the scaffold ships (2026-10-15)
+
+`.windsurf/rules/chrome-ext/70-chrome-ext.md` now says that for the developer-mode channel a chrome-extension
+scaffold ships the release kit (D-893) — `pnpm keygen`, `make release-ext` with its refusal gate, `GET
+/extension/latest` and exact-ID CORS — so an agent no longer hand-builds what the scaffold wrote; a developer-mode
+repo scaffolded before the kit still builds them by hand. Intel's mail
+01M506XR5W (W-4a4a8792); pinned against a fresh scaffold by
+`tests/test_chrome_ext_pack.py::test_the_pack_names_the_release_kit_the_scaffold_ships`.
+
 ### Added — check_review_hygiene reports a split pipe table (2026-10-15)
 
 - `scripts/enforcement/check_review_hygiene.py` gains the advisory `split-table` class: a table row after the blank
@@ -20,6 +37,40 @@ All notable changes to this project will be documented in this file.
   the catalog's one DashScope route is still turbo. `tests/test_language_pack.py` grades every rendered category
   (W-7450f4b6). The pack blocks change on the next render, which D-430 keeps paused.
 
+### Added — work.py: pause and resume an agent; the queue floor, triage and every Stop rung honour it (2026-10-15)
+
+- `work.py pause <name> [--why] [--by]` / `resume <name>` (W-da4bc702). The pause is a marker in the repo's shared `fabrik-work/paused/`, so every tree sees it at once with no commit; `pause` alone lists the pauses.
+- A paused agent:
+  - gets a null Stop action (only the main checkout's `commit-items` survives), so a held claim is kept and nothing is lost;
+  - is skipped by the coordinator's floor rung and by `triage`;
+  - sees "PAUSED by …" in its prompt block, with no ready line;
+  - auto-claims nothing from its `NEXT:` line.
+- A worker's doorbell skips a paused coordinator and says so.
+- Who may act:
+  - Pause: the distributor, the agent itself, or the operator (a shell or the dashboard, with no agent name and no Claude session id).
+  - Resume: whoever set the pause (checked by the agent name recorded in the marker, never the `--by` label), the distributor, or the operator.
+  - An unnamed Claude session is refused, and a paused agent cannot re-pause or lift another's pause.
+- Markers are read only when they are regular files of at most 4 KiB. Any other entry pauses by presence and is removed by hand.
+- This is the half of the dashboard's Pause/Resume buttons that lives in `work.py`. The hook's merge-owner cause does not read a pause.
+
+### Added — dashboard: an Agents table for every repo, and a Repos page that keeps itself up to date (2026-10-15)
+
+- `/repos.html` opens with "Agents — every repo" (W-7159f8e2, operator 2026-10-15). It shows one row per agent, with:
+  - a coloured state: working · idle · stale · no window;
+  - NOW: the command, phase and surface;
+  - the item the agent holds and its next three items, each id with its plain-language title beside it;
+  - its last merge, or "merge owner".
+- The table is read by the new `scripts/agent_status.py --json --all` (`collect_box`) from records that already exist:
+  - the live process table — each window named by `CLAUDE_AGENT`, else its worktree, else the main checkout's recent run record;
+  - run records of that repo from the last 7 days;
+  - claim holders.
+
+  Identity bindings never vouch for a live window: 0 of 29 had a live pid while 8 windows were up. Older agents are counted as dormant.
+- The page swaps its `#live` part in place every 20 s, keeping the scroll position, the picked repo, the owner chip and opened sections.
+  - It pauses while the browser tab is hidden, while another dashboard tab is shown, while the picker is focused, and while text is selected.
+  - The stamp says how old the figures can be.
+- An unowned awaiting-operator item is now grouped under `operator`, no longer under "(unassigned)".
+
 ### Fixed — docs: why WSL cannot resolve registry.npmjs.org, and the one-line resolver fix (2026-10-15)
 
 - New `docs/TROUBLESHOOTING.md` § DNS Issues entry (W-f0fd555a, recurrence of W-478049bc). Measured cause: the npm registry's 12 A + 12 AAAA answer exceeds 512 bytes, glibc queries without EDNS so the reply is truncated and retried over TCP, and outbound TCP/53 is blocked to every resolver. The fix is `edns0` on `/etc/resolv.conf`'s options line (the file is immutable, so `chattr -i`/`+i` around the `sed`), proven first with `RES_OPTIONS=edns0`. Applying it is an operator gate.
@@ -27,6 +78,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed — scratch_sweep: a NaN or bool `created` no longer slips past the gap and trash-time checks (2026-10-15)
 
 - `gap_keeps` kept on a missing or non-numeric `created` (D-878's keep-on-doubt) but not on NaN: it passed the type guard and every comparison with it read False, so a gap was dropped (W-a39d4c86, fleet 01M505J6KG). A `.trash-*` marker with a bool `created` passed `isinstance(int | float)` and skipped the folder-ctime fallback, so every permanent same-uid daemon's gap kept it (fleet 01M505VVEJ). One `_usable_time` guard (a number, not a bool, finite) now backs both, and the two duplicated trash fallbacks are one `_created_for`. The `gap_keeps` Cobra note now names the real attack — forward-dating `created` inside the clock margin, not backdating it (backdating keeps more). Tests: three new, red first (NaN through a gap; the trash fallback for bool, NaN, missing and text; the Cobra direction pinned).
+
+### Fixed — the deployer stages remote files through `mktemp`, not a predictable /tmp name (2026-10-15)
+
+- **What:** `deployer_ssh._write_file_to_vps_path` creates its remote temp file with `mktemp /tmp/fabrik-XXXXXXXXXX` (random name, created exclusively, mode 0600) and scp's into it, instead of scp'ing to `/tmp/fabrik-<pid>-<name>`; an unexpected `mktemp` answer (its last line is the path; a login shell may print first) is refused before anything is copied, the local temp file is written before the remote one exists, and any failed or interrupted scp removes the remote temp file. One extra ssh per written file.
+- **Why:** W-8dd25072 (security): a local VPS user could pre-create the pid-derived path world-readable and read the .env / .env.owner DSN through the open file in the window before the chmod.
 
 ### Fixed — spoke apps: the watchdog provisions on the spoke, and a failed GlitchTip verify never deletes an existing project (2026-10-15)
 
@@ -36,6 +92,16 @@ All notable changes to this project will be documented in this file.
 ### Fixed — scratch_sweep: a close time the run marker cannot vouch for is doubt, never a past close (2026-10-15)
 
 - `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin, or when `closed_at` lies in the future; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: any `closed_at` between `created` minus the margin and now minus the grace is believed, so a co-clobber of both fields within the margin (`created` 0 and `closed_at` 0) still reads as a past close. So a legitimate run is not kept for ever, `command_run.py`'s close re-stamps a missing, non-finite or future `created` with the run's true start (`started_epoch`), never `now` (which would strip `gap_keeps`' protection from the run's writers), and leaves it unknown when no start is known; `--retire` invents no creation time and says when every sweep will keep the folder; the size report names a `done` folder whose close cannot be vouched for. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (7 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control and a vouched margin edge), the heal, retire, report and zero-close-reason tests.
+
+### Changed — review catalogue: a hand-written seat brief sends seats to the pin-import recipe (2026-10-15)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation: a brief the lead writes itself tells each seat to
+read and follow `PIN_IMPORT` (and `PYTEST_PINS` for pytest) in `.claude/workflows/fabrik-review-loop.js`, giving the
+values its placeholders stand for, and carries no import recipe of its own — a pins dir on `sys.path` alone, or
+pytest's `--rootdir` at a copy, imports the live checkout's installed package. § Seat isolation now binds every brief
+that runs tests or imports pinned code (the catalogue header and `/fabrik-review-scoped`). Answers /fabrik-review-scoped
+rows 1792082763 and 1792081436, the 15th and 16th on the subject; pinned by
+`tests/test_review_scoped_queue_pass.py::test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too`.
 
 ### Changed — plan execution: an operator-owned gate step ends behind a gate DECISION, closed handoff (2026-10-15)
 

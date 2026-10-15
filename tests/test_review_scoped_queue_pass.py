@@ -508,7 +508,9 @@ def test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases() 
         " pointed at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its"
         " source, never paraphrased."
     )
-    assert step3.count(sentence) == 1, "the pointer-or-whole-quote sentence is stated once, in step 3"
+    assert step3.count(sentence) == 1, (
+        "the pointer-or-whole-quote sentence is stated once, in step 3"
+    )
     # a weakener word-list is never complete (round 2: "A brief gloss beside a quote is fine." survived one), so the
     # pin is a COUNT — step 3 says "gloss" and "paraphras" exactly once each, both inside the sentence above; any
     # second mention, whatever its wording, is a licence or a restatement and fails here
@@ -520,7 +522,9 @@ def test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases() 
     before = step3[: step3.index(sentence)]
     assert before.rstrip().endswith("a re-read is not execution."), before[-60:]
     after = step3[step3.index(sentence) + len(sentence) :]
-    assert after.lstrip().startswith("**LOCAL findings (unambiguous, contained) you just fix"), after[:60]
+    assert after.lstrip().startswith("**LOCAL findings (unambiguous, contained) you just fix"), (
+        after[:60]
+    )
 
 
 def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> None:
@@ -535,15 +539,73 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
         " pinned files totalling under 8 KB are also pasted whole beside their line counts, so a seat whose Read or"
         " `cat` of a copy is refused still has the bytes — the copy stays the authority, and a seat that read the"
         " paste says so, states whether each line count matches and is judged on that count, not re-dispatched for lacking a"
-        " hash;"
-        in src
+        " hash;" in src
     )
     assert (
         "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
         " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
-        " committing the positive/negative probe list beside it\". The ASK is the" in src
+        ' committing the positive/negative probe list beside it". The ASK is the' in src
     )
     cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
     quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"
-    assert quote + " positive/negative probe list beside it" in cat, "the quoted source still says it"
+    assert quote + " positive/negative probe list beside it" in cat, (
+        "the quoted source still says it"
+    )
     assert src.count("totalling under 8 KB") == 1 and src.count("false green and false red") == 1
+
+
+def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too() -> (
+    None
+):
+    """Rows 1792082763 and 1792081436 (fleet), the 15th and 16th on this subject: the command pointed at the
+    workflow's PIN_IMPORT/PYTEST_PINS recipe but never told a lead writing a brief by hand to send seats to it,
+    so a fleet brief used `--rootdir=<copy>` and imported the live checkout's package, and seats retried
+    importing a pinned script. § Seat isolation also bound only briefs that RUN TESTS, not ones that import
+    pinned code. Mutants: drop the sentence; drop 'or imports pinned code' from the catalogue header or the
+    command; rename a placeholder inside PIN_IMPORT or PYTEST_PINS, or let PIN_IMPORT stop deriving ROOTS."""
+    cat = _norm(CAT)
+    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "A brief the lead writes itself tells each seat to read and follow `PIN_IMPORT` — and `PYTEST_PINS` when"
+        " it runs pytest — in `.claude/workflows/fabrik-review-loop.js`, and gives the values that recipe's"
+        " `${args.base_sha}` and `${args.pins_dir}` stand for (and `${args.base_pin_dir}` when the lead wrote a"
+        " base copy) and the seat's own folder as `SCRATCH`; the seat derives `ROOTS` as the recipe says, plus the roots this"
+        " section's next sentence has the brief add, and the brief carries no import or pytest recipe of the"
+        " lead's own" in iso
+    )
+    assert (
+        "§ Seat isolation excepted: it applies whole in every brief that runs tests or imports pinned code"
+        in cat
+    )
+    assert (
+        "Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or imports pinned"
+        " code:" in _norm(SRC)
+    )
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text().splitlines()
+    starts = {
+        name: next(n for n, line in enumerate(js) if line.startswith(f"const {name} = "))
+        for name in ("PIN_IMPORT", "PYTEST_PINS", "BASE_PIN")
+    }
+    # each recipe is one `const` line; BASE_PIN's ternary carries its text on the line after it
+    consts = {name: js[n] for name, n in starts.items()}
+    consts["BASE_PIN"] += js[starts["BASE_PIN"] + 1]
+    # each placeholder the sentence names, read inside the constant that carries it — the same tokens appear in
+    # other constants of the file, so a whole-file check stays green when the recipe drops one (round-1 finding);
+    # ROOTS is read where the archive step uses it, since its prose mention survives a dropped use (round 2)
+    for name, tokens in (
+        (
+            "PIN_IMPORT",
+            (
+                "${BASE_PIN}",
+                "${args.pins_dir}",
+                "SCRATCH/arch.tar ${args.base_sha} ROOTS",
+                "ROOTS every",
+            ),
+        ),
+        ("PYTEST_PINS", ("${args.base_sha}",)),
+        ("BASE_PIN", ("args.base_pin_dir", "cp -r ${args.base_pin_dir} SCRATCH/arch")),
+    ):
+        for token in tokens:
+            assert token in consts[name], (
+                f"{name} lost {token!r}, which the catalogue sentence names"
+            )

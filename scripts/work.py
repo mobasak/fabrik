@@ -58,6 +58,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -879,6 +880,118 @@ def _claims_dir(repo: Path) -> Path:
 
 def _closed_dir(repo: Path) -> Path:
     return _shared_dir(repo) / "closed"
+
+
+# ── paused workers (W-da4bc702) ─────────────────────────────────────────────────────────────────
+# "Pause = the agent stops starting new work at its next turn boundary and says so (no kill, nothing
+# lost)" (operator 2026-10-15). A pause is a marker `<shared>/paused/<name>.json` beside claims and
+# closed markers, so every tree of the repo sees it at once, with no commit. Its PRESENCE is the pause:
+# an unreadable marker still pauses (the safe side for "start nothing"), while an unreadable directory
+# reads as no pauses (today's behaviour) and `queue` warns. Only the `*.json` files whose stem is a
+# valid name count, so `_write_temp`'s `<name>.json.<x>.tmp` is never a pause. The caller's own rungs
+# (`_stop_action`, the prompt block, the NEXT auto-claim) read `_is_paused`, which matches the window's
+# resolved name OR its worker tree's name, so a window named unlike its tree is caught by either; the
+# floor rung, triage and `queue` count WORKER TREES, so they honour a pause by the tree's name — a
+# pause by a name no tree carries reaches only that window's own rungs. COBRA: the cheapest way past
+# "the coordinator keeps a worker at the floor" is to pause every idle worker, so `pause`, `queue`,
+# triage and the prompt block show every pause with who set it and when.
+def _paused_dir(repo: Path) -> Path:
+    return _shared_dir(repo) / "paused"
+
+
+PAUSE_MARKER_MAX = 4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+
+
+def _pause_record(raw: object) -> dict:
+    """A marker's fields, normalised for display and for the permission check: ``by`` (the label
+    shown), ``actor`` (the agent NAME that set it — "" for the operator, which only the distributor
+    or the operator can then lift), ``at`` (epoch seconds, 0 when unusable) and ``why``."""
+    rec = raw if isinstance(raw, dict) else {}
+    by = rec.get("by")
+    actor = rec.get("actor")
+    raw_at = rec.get("at")
+    try:  # a bool is no time (True would read as 1970-01-01)
+        at = 0.0 if isinstance(raw_at, bool) else float(raw_at or 0)
+    except (TypeError, ValueError, OverflowError):
+        at = 0.0
+    why = rec.get("why")
+    return {
+        "by": _one_line(by, 60) if isinstance(by, str) and by.strip() else "?",
+        "actor": actor if isinstance(actor, str) and _valid_name(actor) else "",
+        "at": at if at == at and 0 < at < 1e11 else 0.0,  # NaN and absurd stamps read as unknown
+        # one line: a newline here would print a forged `work:` line into the paused agent's prompt
+        "why": _one_line(why, 200) if isinstance(why, str) else "",
+    }
+
+
+def _one_line(text: str, cap: int) -> str:
+    return " ".join(text.split())[:cap]
+
+
+def _paused(repo: Path) -> dict[str, dict]:
+    """Every paused agent name → its normalised record (`_pause_record`); never raises. Only a
+    REGULAR file of at most PAUSE_MARKER_MAX bytes is read (a FIFO would block every Stop hook);
+    any other entry with a marker name still pauses — presence is the pause."""
+    out: dict[str, dict] = {}
+    try:
+        markers = sorted(_paused_dir(repo).glob("*.json"))
+    except Exception:  # no store, a git failure, an unreadable dir: no pauses (today's behaviour)
+        return out
+    unreadable = {"by": "?", "why": "unreadable pause marker — still a pause"}
+    for marker in markers:
+        name = marker.name[: -len(".json")]
+        if not _valid_name(name):
+            continue
+        raw: object = unreadable
+        try:
+            st = marker.lstat()
+            if stat.S_ISREG(st.st_mode) and st.st_size <= PAUSE_MARKER_MAX:
+                raw = json.loads(marker.read_text(encoding="utf-8"))
+                if not isinstance(raw, dict):
+                    raw = unreadable
+        except (OSError, ValueError):
+            raw = unreadable
+        out[name] = _pause_record(raw)
+    return out
+
+
+def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[str, Path]) -> str:
+    """The paused name that covers this caller — its resolved agent name, else its worker tree's
+    name — or "" when neither is paused."""
+    if agent and agent in paused:
+        return agent
+    by_tree = next((n for n, t in workers.items() if t == tree), "")
+    return by_tree if by_tree and by_tree in paused else ""
+
+
+def _caller_pause(tree: Path, session: str) -> dict | None:
+    """The pause record covering the session working in ``tree`` (named as the Stop hook names it),
+    or None; never raises."""
+    try:
+        main = _worktrees(tree)[0].resolve()
+        paused = _paused(main)
+        if not paused:
+            return None
+        tree = tree.resolve()
+        workers = _workers(main)
+        coordinator = (
+            str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+        )
+        name = _is_paused(paused, _caller_name(main, tree, workers, coordinator, session), tree, workers)
+        return {**paused[name], "name": name} if name else None
+    except Exception:
+        return None
+
+
+def _ago_text(at: object) -> str:
+    try:
+        stamp = float(at)  # type: ignore[arg-type]
+        if not stamp > 0:  # 0 is `_pause_record`'s "unknown"; NaN fails the comparison too
+            return "an unknown time"
+        s = max(0, int(time.time() - stamp))
+    except (TypeError, ValueError, OverflowError):
+        return "an unknown time"
+    return f"{s // 60} min" if s < 3600 else f"{s // 3600} h"
 
 
 def _iso(ts: float) -> str:
@@ -2970,6 +3083,8 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     if owner and not _valid_name(owner):
         raise WorkError(f"--owner {owner!r} is not an agent name ({NAME_RULE}); owners are agents")
     _read_item(repo, args.id)  # a missing id is named before any ownership check
+    if owner and owner in _paused(repo):
+        _warn(f"{owner} is PAUSED — the item waits in its queue until the pause is lifted")
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="assign"):
         distributor = str(_read_config(repo).get("distributor") or "").strip()
         if distributor and _agent_name() != distributor:
@@ -3893,6 +4008,103 @@ def cmd_commit_items(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def _pause_actor() -> tuple[str, str]:
+    """(name, label) of the caller of `pause`/`resume`. The OPERATOR is a caller with no agent name
+    AND no Claude session id — a real shell or the dashboard process; an unnamed Claude session is
+    refused. Audit, not a security boundary: anyone can delete the marker, the refusal stops agents."""
+    name = _agent_name()
+    if name:
+        return name, name
+    if (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip():
+        raise WorkError(
+            "an unnamed Claude session cannot pause or resume — bind a name first "
+            "(`python3 scripts/whoami_agent.py --as <name>`), or ask the operator"
+        )
+    return "", "operator"
+
+
+def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
+    """Mark an agent PAUSED in this repo (W-da4bc702), or list the pauses when no name is given."""
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    paused = _paused(main)
+    if not args.name:
+        if not paused:
+            print("paused: none")
+        for name in sorted(paused):
+            rec = paused[name]
+            why = f" — {rec['why']}" if rec.get("why") else ""
+            print(f"paused: {name} — by {rec.get('by', '?')} {_ago_text(rec.get('at'))} ago{why}")
+        return 0
+    name = args.name.strip()
+    if not _valid_name(name):
+        raise WorkError(f"{name!r} is not an agent name ({NAME_RULE})")
+    actor, label = _pause_actor()
+    distributor = str(_read_config(main).get("distributor") or "").strip()
+    if actor and actor not in (name, distributor):
+        raise WorkError(f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
+                        f"or the operator's; this caller is {actor}")
+    known = set(_workers(main)) | {distributor, _feedback_owner(main)}
+    if name not in known:
+        _warn(f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
+              "a window that resolves to that name; the floor and triage count worker trees")
+    by = _one_line(args.by, 60) if not actor and args.by and args.by.strip() else label
+    marker = _paused_dir(main) / f"{name}.json"
+    with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="pause"):
+        _refuse_odd_marker(marker)
+        held = _paused(main).get(name)  # re-read under the lock: a pause may have landed meanwhile
+        if held is not None and actor and actor != distributor and held["actor"] != actor:
+            # re-pausing over someone else's pause would make it this agent's own, and so liftable by it
+            raise WorkError(f"{name} is already paused by {held['by']}; only they, the distributor "
+                            f"({distributor or 'none'}) or the operator may change that pause")
+        _paused_dir(main).mkdir(parents=True, exist_ok=True)
+        rec = {"by": by, "actor": actor, "at": time.time(), "why": _one_line(args.why or "", 200)}
+        _write_json(marker, rec)
+    print(f"paused: {name} — by {by}; its Stop rungs, the floor and triage now skip it")
+    return 0
+
+
+def _refuse_odd_marker(marker: Path) -> None:
+    """A marker path that exists but is no regular file (a directory, a FIFO) pauses by presence and
+    is never written or removed by the verbs — the operator removes it by hand."""
+    try:
+        st = marker.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(st.st_mode):
+        raise WorkError(f"{marker} is not a regular file — it pauses by presence; remove it by hand")
+
+
+def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
+    """Lift a pause: whoever set it (by agent name), the distributor or the operator (W-da4bc702).
+    The check reads the marker's ``actor`` — the NAME that set it — never its display label, so a
+    pause the operator set (``actor`` "") is lifted only by the distributor or the operator."""
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    name = args.name.strip()
+    if not _valid_name(name):
+        raise WorkError(f"{name!r} is not an agent name ({NAME_RULE})")
+    actor, _label = _pause_actor()
+    distributor = str(_read_config(main).get("distributor") or "").strip()
+    marker = _paused_dir(main) / f"{name}.json"
+    with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="resume"):
+        rec = _paused(main).get(name)
+        if rec is None:
+            print(f"resume: {name} is not paused")
+            return 0
+        _refuse_odd_marker(marker)
+        if actor and actor != distributor and not (rec["actor"] and actor == rec["actor"]):
+            setter = f"{rec['actor']}'s, " if rec["actor"] else ""
+            raise WorkError(f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
+                            f"({distributor or 'none'}) or the operator's; this caller is {actor}")
+        try:
+            marker.unlink()
+        except FileNotFoundError:
+            pass
+    print(f"resumed: {name} — its queue and Stop rungs apply again")
+    return 0
+
+
 def cmd_status(repo: Path, args: argparse.Namespace) -> int:
     """The obligation lines and the distributor's lines (spec D1, D4), items by state,
     uncommitted item files (a listing, never a drift class), and the eight derived spec/plan
@@ -4217,7 +4429,10 @@ def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
     another session gets ``claim``'s own write (``_claim_record``, the agent resolved for
     ``session``) and nothing else: the item file is never written, because its ``next`` is the
     item's own authored next action (a migrated item's whole body lives there) and the session's
-    NEXT line is already kept by the thread-anchor register. When none qualifies nothing is."""
+    NEXT line is already kept by the thread-anchor register. When none qualifies nothing is. A
+    paused caller (W-da4bc702) claims nothing: its NEXT names what it will do once resumed."""
+    if _caller_pause(repo, session):
+        return
     by_id = {str(it["id"]): it for it in _iter_items(repo)}
     now = time.time()
     for ref in _next_refs(v):
@@ -4545,6 +4760,7 @@ _OWN_CLAIM_LINES = (
 
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    PAUSED line when the caller is paused (W-da4bc702; it then gets no ready count), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
     claims (the first ``PROMPT_CLAIM_LINES`` by priority, then a count line, then one line naming any
     claim on an item not in this tree), one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
@@ -4559,6 +4775,16 @@ def prompt_block(repo: Path | str, session: str) -> str:
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
             lines = [] if _agent_name(session=session) else [UNNAMED_WINDOW_LINE]
+            pause = _caller_pause(root, session)
+            if pause:
+                # no resume command here: a paused agent lifts only a pause it set itself
+                why = f" ({pause['why']})" if pause.get("why") else ""
+                who = f"{pause['actor']}'s, " if pause.get("actor") else ""
+                lines.append(
+                    f"work: PAUSED by {pause['by']} {_ago_text(pause['at'])} ago{why}: start nothing "
+                    "new — finish or checkpoint what you hold, then stop; lifting it is "
+                    f"{who}the distributor's or the operator's"
+                )
             lines.extend(f"work: {line}" for line in obligations(root))
             # ready's ``(yours)`` rule: a claim whose close failed to end it stays live, but its
             # item is closed or resolved and prints nowhere (the ready count keeps every claim)
@@ -4611,7 +4837,7 @@ def prompt_block(repo: Path | str, session: str) -> str:
                     if not builder or it.get("owner") == builder
                 ]
             )
-            if ready:
+            if ready and not pause:  # a paused caller is not invited to start the next one
                 lines.append(f"work: {ready} ready — `work.py next`")
             if _print_mode():
                 # a headless session sees only its OWN claims (01M4PAJWV1)
@@ -5068,6 +5294,16 @@ def _stop_action(tree: Path, session: str) -> dict:
     if not _has_store(main):
         return none
     commit = _commit_items_subject(tree, main)
+    if _is_paused(_paused(main), agent, tree, workers):
+        # paused (W-da4bc702): nothing that starts or continues work — not a held claim, mail, the
+        # queue or a coordinator rung; the claim stays held (nothing lost). Only the main checkout's
+        # commit-items, housekeeping that starts nothing, may still be named.
+        paused = {**none, "role": "paused"}
+        if not commit:
+            return paused
+        if _autonomy_on(main):
+            return {**paused, **commit, "candidates": [commit]}
+        return {**paused, **commit}
     if _autonomy_on(main):
         result = _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
         if commit:
@@ -5171,7 +5407,9 @@ def _classic_rungs(
     if is_worker:
         if not (routable or backlog):
             return {**none, "role": "worker"}
-        names = _sessions_of(coordinator, main) if coordinator else []
+        # a paused coordinator is not rung (W-da4bc702): the worker self-serves instead, and is told why
+        coord_paused = bool(coordinator) and coordinator in _paused(main)
+        names = _sessions_of(coordinator, main) if coordinator and not coord_paused else []
         ring = " · ".join(
             f"`SendMessage to={n}: queue empty — {routable} routable, {backlog} backlog`"
             for n in names
@@ -5186,6 +5424,9 @@ def _classic_rungs(
         how = (
             f"ring the coordinator ({coordinator}): {ring}"
             if ring
+            else f"the coordinator ({coordinator}) is PAUSED — take the next unowned item your own "
+            f"tree shows ({lister}) and claim it"
+            if coord_paused
             else "the coordinator has no live window — take the next unowned item your own tree "
             f"shows ({lister}) and claim it"
         )
@@ -5198,7 +5439,8 @@ def _classic_rungs(
             f"wait in the main checkout: {how}. Message delivery is best effort.",
         }
     if workers and coordinator and agent == coordinator:
-        present = _present(workers) or set()
+        # a paused worker is never "below the floor" (W-da4bc702)
+        present = (_present(workers) or set()) - set(_paused(main))
         floor = _floor(main)
         counts = _worker_queues(main, {w: workers[w] for w in present})
         below = sorted(w for w in present if len(counts[w]) < floor)
@@ -5560,11 +5802,21 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "tree": str(tree),
             }
         )
+    paused = _paused(main)
+    pdir = _paused_dir(main)
+    if pdir.exists() and not pdir.is_dir():
+        _warn(f"{pdir} is not a directory — no pause can be read, every agent reads as unpaused")
+    for a in agents:
+        rec = paused.get(str(a["agent"]))
+        if rec is not None:
+            a["paused_by"] = str(rec.get("by") or "?")
+            a["paused_at"] = rec.get("at")
     open_plans = _open_plans(main)  # typed here: the mixed-value report dict widens it to a union
     report = {
         "coordinator": coordinator or None,
         "floor": floor,
         "agents": agents,
+        "paused": sorted(paused),
         "routable": len(pool["routable"]),
         "backlog_waiting": len(pool["backlog"]),
         "held": len(pool["held"]),
@@ -5577,6 +5829,8 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         print("coordinator: none — set distributor in .fabrik/work/config.json")
     for a in agents:
         mark = "" if a["present"] else " (no live window)"
+        if a.get("paused_by"):
+            mark += f" · PAUSED by {a['paused_by']}"
         print(
             f"{a['agent']:<16} {a['role']:<11} queued {a['queued']}/{floor} · "
             f"parked {a['parked']}{mark}"
@@ -5599,7 +5853,8 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             f"triage --apply is the distributor's ({distributor}); this caller is {_actor_label()}"
         )
     workers = _workers(main)
-    present = _present(workers) or set()
+    paused = _paused(main)
+    present = (_present(workers) or set()) - set(paused)  # triage plans nothing for a paused worker
     floor = _floor(main)
     pool = _pool(main)
     free = list(pool["routable"])
@@ -5659,6 +5914,9 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             )
     if not plan:
         print("plan: nothing to assign (no present worker below the floor, or nothing routable)")
+    for name in sorted(paused):
+        rec = paused[name]
+        print(f"paused: {name} — by {rec.get('by', '?')} {_ago_text(rec.get('at'))} ago (skipped)")
     print(
         f"backlog waiting {len(pool['backlog'])} — promote with "
         "`assign <id> --owner <worker> --tag queued`"
@@ -5811,6 +6069,16 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="items, uncommitted item files, and spec/plan drift")
     s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("pause", help="mark an agent PAUSED in this repo (no name: list the pauses)")
+    s.add_argument("name", nargs="?", default="", help="the agent or worker-tree name")
+    s.add_argument("--why", default="", help="one line kept with the pause")
+    s.add_argument("--by", default="", help="the operator's label (an unnamed caller only)")
+    s.set_defaults(fn=cmd_pause)
+
+    s = sub.add_parser("resume", help="lift a pause (the pauser, the distributor or the operator)")
+    s.add_argument("name", help="the paused agent or worker-tree name")
+    s.set_defaults(fn=cmd_resume)
 
     s = sub.add_parser(
         "commit-items", help="commit the main store's uncommitted item files (main checkout only)"
