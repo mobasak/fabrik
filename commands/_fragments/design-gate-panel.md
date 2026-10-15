@@ -11,7 +11,8 @@ operator would — approve it, or name the changes it wants first — and opens 
    ACCEPTED. A concern you REJECT or leave OPEN, or an `unsound`, makes the panel SPLIT — the author never
    overrules the operator's stand-in. When Fable is unavailable, the second Opus seat stands in and the Panel
    line adds `fable unavailable: <reason>`.
-2. **Revise.** Apply every ACCEPTED change to the artifact and to any linked artifact it makes stale, then run
+2. **Revise.** Apply every ACCEPTED change to the artifact — written as this command's own fix-shape rule says,
+   where it states one — and to any linked artifact it makes stale, then run
    the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
    `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
    `Independently reviewed: v<N+1>`.
@@ -32,4 +33,5 @@ seat's position, then end the turn with the command's DECISION block, its Why li
 operator's.
 
 **Cobra (D-253):** the cheapest way through is a change ACCEPTED on paper and never made. The counter: the
-approval row lists each change, and the delta round's seats check each one in the revised artifact.
+approval row lists each change as written — a translated mechanism is listed as the behaviour it secures — and the
+delta round's seats check each one in the revised artifact.
