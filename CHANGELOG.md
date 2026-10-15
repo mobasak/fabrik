@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — seat briefs name RUN-SCRATCH as the root of every seat folder (2026-10-15)
+
+- D7 of the scratch-lifecycle spec (`docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md`, D-864/D-866;
+  W-8bbd9538, fleet mails 01M4Y6ZXRSFPPTJJMVF2WX0A1K and 01M4Y86A9RKAP0ASCAY85CSE2V):
+  `commands/_fragments/subagents-core.md` (included by 21 command sources) states the rule once — the scratch dir a
+  brief names is a seat folder
+  `<run scratch>/seat-<n>/` under the path `command_run.py start` printed as `RUN-SCRATCH:`, never the session
+  scratchpad root; nothing durable goes there; the pins dir sits under the same root; a tree is staged there only as
+  the probe catalogue's § Seat isolation says (an archive of the pinned SHA, or a `clone --shared --no-checkout`),
+  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation, `fabrik-review.md` (the
+  `git archive` pin block and the seat-dir sentence), `fabrik-review-scoped.md` (the workflow's `scratch_dir`) and
+  `fabrik-execute-plan.md` (the brief and report files) point at it and name `<run scratch>` in place of the bare
+  scratchpad; `fabrik-execute-plan.md`'s durable-salvage sentence stays as it was. Pinned by
+  `tests/test_run_scratch_brief_wording.py`; `tests/test_review_loop_workflow.py` re-pins the archive line.
+
 ### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
 
 - `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a

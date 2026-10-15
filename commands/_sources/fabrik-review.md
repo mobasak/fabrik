@@ -123,12 +123,13 @@ silently reviews THEIR half-finished code as if it were the surface under review
 against lines that are in no commit. **When you hand a finder a sha, materialise that sha:**
 
 ```
-$ git archive -o <scratchpad>/review-<sha>.tar <sha>
-$ mkdir -p <scratchpad>/review-<sha>
-$ tar -xf <scratchpad>/review-<sha>.tar -C <scratchpad>/review-<sha>
+$ git archive -o <run scratch>/review-<sha>.tar <sha>
+$ mkdir -p <run scratch>/review-<sha>
+$ tar -xf <run scratch>/review-<sha>.tar -C <run scratch>/review-<sha>
 ```
 
-and brief the finder against that path. If a finder must read the live tree instead (a working-tree
+and brief the finder against that path (`<run scratch>` is the path this run's `start` printed as
+`RUN-SCRATCH:`, never the session scratchpad root — § Subagents, the D8 paragraph). If a finder must read the live tree instead (a working-tree
 review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
 to EXCLUDE the tree's stale copies: `.claude/worktrees/**` holds whole duplicate `src/` + `tests/`
 trees at DIFFERENT line numbers (`.tmp/**` is subagent scratch — logs and job state, no code: cheap to skip, but not the duplicate-tree problem), so an unscoped repo-root grep returns
@@ -216,7 +217,8 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
   states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
   hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
-  (`<scratch>/<slice>-<model>/`), never the dispatcher's scratchpad root, and never under a name that
+  (`<run scratch>/seat-<slice>-<model>/` under the run's `RUN-SCRATCH:` path; under the workflow, `scratch_dir`
+  IS that path and the script names the folders), never the dispatcher's scratchpad root, and never under a name that
   collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every
   process run from that dir) · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the

@@ -176,7 +176,10 @@ the shape does not have it.
 ## Seat isolation
 - The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped
   diff, never a bare range on a branch others commit to (a range carries every sibling commit landed in it). Seats
-  copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
+  copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path (§ Subagents,
+  the D8 paragraph; `<scratch>` below is that folder) — and assert its md5s first; a tree is staged there only by
+  the archive or the clone this section gives, never by copying the live checkout; tests run against an archive
+  of the pinned SHA by the seat
   prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
   `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
   recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,

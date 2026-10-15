@@ -1692,7 +1692,7 @@ def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
     assert "command grep" not in review, (
         "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
     )
-    assert "$ git archive -o <scratchpad>/review-<sha>.tar <sha>" in review
+    assert "$ git archive -o <run scratch>/review-<sha>.tar <sha>" in review
 
 
 def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
