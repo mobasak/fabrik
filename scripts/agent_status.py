@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import re
 import subprocess
 import sys
@@ -48,7 +49,9 @@ ROLE_CUT = 1400  # characters of one role's block before "… N more"
 TOTAL_CUT = 7000  # whole text output — inside the 10,000-character hook cap with the header
 MERGES_SHOWN = 3
 NEXT_SHOWN = 3
-STALE_H = 12  # the Stop hook's bound (final_gate_stop.py COMMAND_RUN_STALE_H): older = likely a dead session
+# the Stop hook's DEFAULT stale bound (final_gate_stop.py _STALE_H_DEFAULT): older = likely a dead session.
+# Its COMMAND_RUN_STALE_H override is not read: 0 there means "never trap me", which here would mark all stale.
+STALE_H = 12
 _ITEM_RE = re.compile(r"\bitem (W-[0-9a-f]{8}|none)\b")
 
 
@@ -94,6 +97,8 @@ def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
             ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
         except (OSError, ValueError, TypeError):
             continue  # an unreadable or corrupt record is skipped, never a crash
+        if not math.isfinite(ts):
+            continue  # "inf"/"nan" parse as floats but are no time (int(now - inf) raises)
         if not isinstance(rec, dict) or rec.get("agent") != role or rec.get("state") != "running":
             continue
         if best is None or ts > best_ts:
