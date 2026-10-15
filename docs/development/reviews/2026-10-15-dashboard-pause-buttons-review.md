@@ -136,6 +136,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native sonnet×2 + haiku×2 | found: 18, new: 18, confirmed: 14, fixed: 14, unexecuted: 0 | method: partitioned round 1 — slice A quota_dashboard.py, slice B agent_status.py; every candidate executed by the orchestrator, fixes 8cf2991c5 and 027371fca, graders red on the pin in a throwaway worktree |
 | Pass 2 | native sonnet×2 + haiku×2 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: the same seats re-verified their slices over 589cbbe2f..027371fca; both defects in round 1's own per-window fix (two paused trees, a main-checkout window), fixed 24f09f3fc, graders red on 027371fca and on the old-guard mutant; lane scope-growth stop taken |
+| Pass 3 | native sonnet×2 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the slice owners re-verified the fixed set alone (027371fca..24f09f3fc) plus one hop, every scenario executed (both trees paused then one lifted, a main-checkout window, every exit of the resume loop with subprocess.run faked); A12 refuted |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -154,6 +155,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | A8 | REFUTED (scripts/agent_status.py `can_pause` needs a `_NAME_RE` name and the repo name is its directory name, so no row reaches `_publish_pause_targets` with a missing name) |
 | A9 | REFUTED (the live server runs from /opt/fabrik/scripts/sysadmin/quota_dashboard.py in the main checkout, so `_FABRIK_ROOT` is the hub's) |
 | A11 | REFUTED (the 30 s bound is the child's alone; the rebuild on a miss is the design's "rebuilt once on a miss", run under `_repos_lock` like every page build) |
+| A12 | REFUTED (the cache stays undropped only when an OSError or ValueError hits a later `resume` after an earlier one succeeded — reached solely by a faked subprocess.run: the same interpreter, cwd and env just spawned, and each name is a marker filename, which cannot hold a NUL) |
 | B5 | REFUTED (an unreadable config.json makes work.py exit 1 and pause_agent return its message as a 502, which the click handler shows as the button's title beside "failed — retry") |
 
 ### Verdict grammar — an EXAMPLE, never rows
@@ -174,7 +176,11 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — Pause/Resume buttons on the dashboard's Agents table: CONVERGED
+
+Range 4fcd37108..53995665d plus the fixes 8cf2991c5, 027371fca and 24f09f3fc: 16 defects confirmed and
+fixed over three passes, each pinned by a grader seen red; 5 candidates refuted (A8, A9, A11, A12, B5);
+the closing pass confirmed 0 in both slices.
 
 ## Gate
 
