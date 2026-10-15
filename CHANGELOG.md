@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the coordinator sees every hub agent's NOW / DONE / NEXT at session start (2026-10-15)
+
+- `scripts/agent_status.py` derives, per hub worker, the live window, the newest running run record (stale past 12 h), the held claim, its last merges and 24 h item count, and its queue's top 3; `--json` for the dashboard. A guarded SessionStart entry in `.claude/settings.json` prints it for the store's distributor only (silent elsewhere, rc 0 always, 20 s timeout). Tests: `tests/test_agent_status.py` (7). W-cfff98dd (e), D-880, D-894.
+
 ### Fixed — every hub charter names the ledger's merge owner, and a test keeps them current (2026-10-15)
 
 - The five charters in `docs/reference/agents/` carry one canonical merge-owner sentence; kaizen.md no longer routes merges to infra and coordinator.md states the handover done. `tests/test_agent_role_hook.py::test_every_charter_names_the_current_merge_owner` reads the owner from `scripts/decisions.py --merge-owner` and fails on a charter that lacks the sentence or names another agent as merger. W-cfff98dd, D-891.
