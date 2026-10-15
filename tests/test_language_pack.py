@@ -252,13 +252,20 @@ def test_globs_reach_summarization_paths() -> None:
         )
 
 
-@pytest.mark.parametrize("category", ["master", "language"])
+_GATEWAY_COUNTS = ROOT / "scripts" / "kilo-benchmarks" / "update_gateway_counts.py"
+# the turbo tier's id in any case, with any separator (hyphen, underscore, space, non-breaking hyphen)
+_TURBO_ID = re.compile(r"qwen[-_ ‑]?mt[-_ ‑]?turbo", re.I)
+
+
+@pytest.mark.parametrize(
+    "category",
+    sorted(set(_load("update_gateway_counts", _GATEWAY_COUNTS).PACK_TO_CATEGORY.values())),
+)
 def test_gateway_counts_generator_names_the_maintained_mt_tier(category: str) -> None:
-    """W-7450f4b6: the GATEWAY_COUNTS generator must not name Qwen-MT's frozen turbo tier (Alibaba no longer
-    updates it and points to flash, research ledger tr-06), so the next render cannot reintroduce it."""
-    gen = _load(
-        "update_gateway_counts", ROOT / "scripts" / "kilo-benchmarks" / "update_gateway_counts.py"
-    )
+    """W-7450f4b6: no GATEWAY_COUNTS block the generator renders names Qwen-MT's frozen turbo tier as a model id
+    (Alibaba no longer updates it and points to flash, research ledger tr-06), and the language block's
+    dedicated-MT line names the flash id, so the next render cannot reintroduce turbo."""
+    gen = _load("update_gateway_counts", _GATEWAY_COUNTS)
     keys = (
         "or_total",
         "kilo_total",
@@ -277,5 +284,7 @@ def test_gateway_counts_generator_names_the_maintained_mt_tier(category: str) ->
     counts: dict = dict.fromkeys(keys, 1)
     counts["categories"] = {"language": 1}
     block = gen.render_block(category, counts, "2026-10-15")
-    assert "qwen-mt-turbo" not in block
-    assert "qwen-mt-flash" in block
+    assert not _TURBO_ID.search(block), block
+    if category == "language":
+        mt_line = next(line for line in block.splitlines() if line.startswith("Dedicated MT:"))
+        assert "`qwen-mt-flash`" in mt_line

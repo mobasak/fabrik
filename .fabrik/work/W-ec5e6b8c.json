@@ -14,7 +14,7 @@
     "spec": ""
   },
   "next": "check /opt/ai-model-catalog/engine/out/blocks/*.OPENROUTER_ROUTES.txt for eligible models and whether mail 01M3FEC47Q2KPTQZVDZVA2PHZZ was answered; then ask ai-model-catalog for a routing-doc exclude in deliver_to_fabrik.py",
-  "note": "",
+  "note": "W-7450f4b6 (2026-10-15): the generator no longer names qwen-mt-turbo; when delivery resumes and the GATEWAY_COUNTS blocks re-render, drop the parenthetical in .windsurf/rules/ai/30-language.md § Gateway coverage (\"their sweet-spot line still names Qwen-MT's frozen turbo tier — the generator's text, not this pack's\"), which the new render makes untrue.",
   "owner": "intel",
   "priority": 1,
   "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
