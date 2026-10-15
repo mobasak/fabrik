@@ -75,8 +75,9 @@ code-changing chunk of work gets one:
 - **`/fabrik-review-scoped`** — diff-scoped, minutes. The default for spontaneous / plain-chat
   changes. (The Stop hook BLOCKS an editing session that never opened a review record — docs and config included, the shared ledgers excepted.)
 - **`/fabrik-review`** — the full command. Escalate to it for: a new mechanism outside the `/fabrik-task` lane (one that is reversible, trips none of the lane table's row-5 module tests (CLAUDE.md § Orient step 0) and settles no trade-off stays there — D-315; one on a governance-sync path or any heavy surface escalates HERE whatever its size), a governance-sync path, any
-  gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, anything the owner
-  asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects
+  gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, operator-named
+  work (CLAUDE.md lane row 1b — never a no-code-surface diff on naming alone), or a scoped review whose SECOND
+  consecutive round CONFIRMS defects
   **and whose scope-growth verdict says the defects are the ARTIFACT'S** (it routes up by its own
   rule, in one shell line). ⚠️ When that verdict says the opposite — see the scope-growth stop
   below — escalating is the WRONG answer and the loop stops instead. ⚠️ **And when there is NO
