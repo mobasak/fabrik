@@ -133,7 +133,7 @@ The operator starts the window from the main checkout, `/opt/fabrik`:
 CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet
 ```
 
-The handover is done: infra committed the `MERGE OWNER: coordinator` row and the config flip on 2026-10-15
+The handover is done: infra committed the D-874 merge-owner row naming you and the config flip on 2026-10-15
 (D-874, plan Phase C step 6), and you have taken merges since. Commits carry `Agent-Name: coordinator`.
 
 **Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the

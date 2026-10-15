@@ -504,7 +504,7 @@ def test_every_charter_beat_points_at_the_mail_routing_map() -> None:
         assert end in lines[last - 1], cite
 
 
-# ── Every charter names the current merge owner (W-cfff98dd d, D-889) ─────────────────────────────
+# ── Every charter names the current merge owner (W-cfff98dd d, D-891) ─────────────────────────────
 
 
 def _ledger_merge_owner() -> str:
@@ -521,11 +521,12 @@ def _ledger_merge_owner() -> str:
     return owner
 
 
-def _charter_units(text: str) -> list[str]:
-    """Blank-line paragraphs split again at bullet and numbered-item starts, HTML comments and
-    code fences stripped, whitespace collapsed — a stale phrase wrapped across lines stays whole."""
-    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
-    text = re.sub(r"^```.*?^```[^\n]*$", "", text, flags=re.S | re.M)
+def _charter_units(text: str, *, prose_only: bool = True) -> list[str]:
+    """Blank-line paragraphs split again at bullet and numbered-item starts, whitespace collapsed —
+    a phrase wrapped across lines stays whole. `prose_only` drops HTML comments and ``` / ~~~ fences."""
+    if prose_only:
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        text = re.sub(r"^(```|~~~).*?^\1[^\n]*$", "", text, flags=re.S | re.M)
     units = []
     for para in re.split(r"\n\s*\n", text):
         for part in re.split(r"\n(?=\s*(?:[-*]|\d+\.)\s)", para):
@@ -541,7 +542,9 @@ def test_every_charter_names_the_current_merge_owner() -> None:
     coordinator.md said "until it arrives infra is the merge owner" and fleet.md named no owner.
     Every charter (all of HUB_BEATS, the owner's own included) carries one canonical sentence for
     the ledger's owner, and no unit names another hub agent as merger — so when the MERGE OWNER
-    row moves, every charter fails until it is brought along (D-889)."""
+    row moves, every charter fails until it is brought along (D-891). The canonical sentence counts only in prose (a
+    fenced or commented copy is no instruction); the stale scan reads the raw text, comments and fences
+    included, because the hook injects the charter raw (review C1, C3)."""
     import importlib.util
 
     owner = _ledger_merge_owner()
@@ -565,26 +568,33 @@ def test_every_charter_names_the_current_merge_owner() -> None:
     def name(role: str) -> str:
         return rf"`?\b{re.escape(role)}\b`?"
 
+    mo = r"merge[-\s]owner"
     stale_shapes = (
         [
             re.compile(
-                rf"{name(o)}\s+(?:merges\b|for\s+merges|stays\s+(?:the\s+)?merge\s+owner|"
-                rf"is\s+(?:the\s+)?merge\s+owner|owns\s+(?:the\s+)?merges?|\(the\s+merge\s+owner\))",
+                rf"{name(o)}\s+(?:merges\b|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
+                rf"owns\s+(?:the\s+)?merges?|\(the\s+{mo}\)|"
+                rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges?\b)",
                 re.I,
             )
             for o in others
         ]
         + [re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
-        + [re.compile(rf"merge\s+owner(?:\s+is|,|:)\s+(?:the\s+)?{name(o)}", re.I) for o in others]
+        + [re.compile(rf"{name(o)},\s+the\s+{mo}", re.I) for o in others]
+        + [re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
+        + [
+            re.compile(rf"{mo}\s*(?:\(|=|:|,|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}", re.I)
+            for o in others
+        ]
     )
     # no "every unit saying merge owner must name the owner" rule: it fired on coordinator.md's
-    # legitimate "keep each charter true to ... the merge owner" (measured, D-889); the stale shapes
+    # legitimate "keep each charter true to ... the merge owner" (measured, D-891); the stale shapes
     # above catch the wrong forms it was meant for ("infra is the merge owner", "infra (the merge owner)").
     problems = []
     for role, text in sorted(charters.items()):
-        flat = " ".join(text.split())
-        if flat.count(canonical) != 1:
-            problems.append(f"{role}.md: the canonical merge-owner sentence appears {flat.count(canonical)} times, want 1")
-        for unit in _charter_units(text):
+        n = sum(unit.count(canonical) for unit in _charter_units(text))
+        if n != 1:
+            problems.append(f"{role}.md: the canonical merge-owner sentence appears {n} times in prose, want 1")
+        for unit in _charter_units(text, prose_only=False):
             problems += [f"{role}.md names another agent as merger: {unit[:120]}" for rx in stale_shapes if rx.search(unit)]
     assert not problems, "\n".join(problems)
