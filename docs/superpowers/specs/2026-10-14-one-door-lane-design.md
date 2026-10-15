@@ -35,7 +35,7 @@ Root cause: three doors, one gate. The agent reads a six-row table plus four par
 2. **The spec door** — `commands/_sources/fabrik-spec.md:23-58` Phase 0 DOWNGRADE check (D9 + D-858): applies the lane tests to the brief INSIDE the spec run, after `start`; the handoff join reads only an `LR-` id (`command_run.py:3985` `_DOWNGRADE_REASON`). No code refuses a FLAGLESS `/fabrik-spec start`; the flagged one (D-862) refuses a `lane` route without `--why` and ledgers the override as a `spec-start` row (`:4102-4107`, `:4122-4139`).
 3. **The now door** — `.claude/hooks/final_gate_stop.py:1395` (`unreviewed-spontaneous`, `_unreviewed_spontaneous` `:1745`) blocks a record-less editing turn after the fact; `/fabrik-review-scoped start` takes no declaration.
 4. **The router** — `.claude/hooks/skill_router.py:110` maps spec/design words to `/fabrik-spec`; `grep -c fabrik-task` = 0 (executed); `:25-32` records the rejection of a per-prompt model call for latency.
-5. **The contracts** — `CLAUDE.md:71-88` (table, precedence, D-859 default paragraph `:84`, no-code `:86`, tripwire `:88`); `templates/governance/CLAUDE.md:64-81` (mirror, D-859 `:77`); `/opt/fabrik-lib/CLAUDE.md` ~379-394 (hand-kept; D-859 requested by mail 01M4XTZ9PZRMTJV4HJ5D49M60G). Graders: `tests/test_governance_template_split.py` (row mirror, prose mirror), `tests/test_spec_plan_lane_text.py`, `tests/test_command_run_lane_v2.py`, `tests/test_fabrik_task_source.py`.
+5. **The contracts** — `CLAUDE.md:75-92` (table, precedence, D-859 default paragraph `:88`, no-code `:90`, tripwire `:92`); `templates/governance/CLAUDE.md:66-83` (mirror, D-859 `:79`); `/opt/fabrik-lib/CLAUDE.md` ~379-394 (hand-kept; D-859 requested by mail 01M4XTZ9PZRMTJV4HJ5D49M60G). Graders: `tests/test_governance_template_split.py` (row mirror, prose mirror), `tests/test_spec_plan_lane_text.py`, `tests/test_command_run_lane_v2.py`, `tests/test_fabrik_task_source.py`.
 6. **The report** — `scripts/command_feedback_report.py:1527` prints `adoption t/(t+standalone)` (task closes over task plus standalone scoped reviews), refusal and downgrade shares; it has no verdict-vs-outcome view.
 7. **Precedents** — D-315 (a mechanism is recorded, never a refusal), D-507 (lane v2 everywhere), D-532/D-533 (Volkan's port narrowed row 5 to a BREAKING contract change a shipped client reads), D-858 (spec Phase 0 lane check), D-859 (the default paragraph).
 
@@ -59,9 +59,10 @@ Root cause: three doors, one gate. The agent reads a six-row table plus four par
         review line still apply to it: a docs-only change on a contract path is Q1, on a synced
         path it owes the full review.
 
-    Review, every lane: a synced, hook, gate, auth, schema, migration, concurrency or
-    operator-named path, or more than 5 files, takes the full /fabrik-review; anything else the
-    scoped one.
+    Review, every lane: a synced, hook, gate, vendored, auth, schema, migration or concurrency
+    path, operator-named work (an explicit full-review ask or a named code or config change —
+    naming alone never routes up a docs- or ledger-only diff, D-892), or more than 5 files, takes
+    the full /fabrik-review; anything else the scoped one.
     Under doubt: task — a thing you can NAME that a revert would not undo is not doubt, it is Q1.
     A task that trips Q1 mid-build hands itself to /fabrik-spec.
     Your word wins: a request starting now: / task: / spec: is the verdict.

@@ -356,9 +356,22 @@ Appetite: 120
 
 **Interfaces — Produces:**
 - `CLAUDE.md` § Orient step 0 and `templates/governance/CLAUDE.md`: the six-row table, the precedence paragraph, the D-859 paragraph, the
-  no-code clause and the tripwire (`CLAUDE.md:71-88`, `templates/governance/CLAUDE.md:64-81`) replaced by the rule block of `spec § The
+  no-code clause and the tripwire (`CLAUDE.md:75-92`, `templates/governance/CLAUDE.md:66-83`) replaced by the rule block of `spec § The
   delta` R1, byte-identical in both, its Q1 list rendered from `LANE_TRIPS` (the test renders the constant and compares); the project
-  parentheticals rows 1/1b carried today move into the review line as one clause each.
+  parentheticals rows 1/1b carry today collapse into the review line's words — the template's vendored-`libs/` trigger
+  as "vendored"; the hub's D-137 note is no review trigger and stays in § Behavior — and row 1b's D-892 scope (an
+  explicit full-review ask or a named code or config change; naming alone never routes up a docs- or ledger-only diff)
+  is carried as the spec's review line words it. Every pointer at the retired text is retargeted in step 2:
+  "lane row 1b" (§ Completion Contract 1a in both contracts, `commands/_sources/fabrik-review-scoped.md:2` and `:15`,
+  `commands/_sources/fabrik-task.md:44`, `.windsurf/rules/core/50-code-review.md:79`) → "the lane rule's review
+  line"; "no-code-surface diff" in the same sites → "docs- or ledger-only diff"; "row 5 of § Orient step 0's lane
+  table" (§ 1a in both) and "the lane table" (`commands/_sources/fabrik-task.md:32`) → "§ Orient step 0's lane rule"
+  (Q1 where the pointer meant row 5); `commands/_sources/fabrik-spec.md:53-55`'s `decision=no` sentence ("row 4b", "the
+  lane table's precedence rule for 4b with 1 or 1b") → "a `now` verdict (Q3): right-now and the review the lane rule's
+  review line selects"; "row 5's module tests" (`commands/_sources/fabrik-review-scoped.md:15`) and "the lane table's row-5 module tests"
+  (`.windsurf/rules/core/50-code-review.md:77`) → "Q1 of the lane rule"; "a row-6 verdict" (`CLAUDE.md:227`,
+  `templates/governance/CLAUDE.md:423`) → "a `task` verdict"; `docs/reference/fabrik-task-lane.md:4`, `:18`, `:37`
+  ("the lane table", "lane rows") → "the lane rule", and `:55`'s "the old lane table" → "the old lane text".
 - `commands/_sources/fabrik-spec.md:23-55` Phase 0: the DOWNGRADE check becomes "this run's `spec` verdict (or `--lane-verdict`) is
   present — the start refused otherwise under `deny`, printed the verb under `warn`; its `--oneway`/`--tradeoff` reason is § Why's first
   line; pass `--file`/`--declare` at start (infra follow-up a); a `spec-start` row is read for its `verdict` and `restart`, never assumed
@@ -369,15 +382,24 @@ Appetite: 120
   `commands/_sources/fabrik-review-scoped.md:15-30`: the record opens from a `now` verdict; the classification step keeps its order.
 - `docs/reference/command-run-protocol.md:52-59`: the `lane` verb row, `--lane-verdict`, the ledger, `lane_verdict`/`lane_outcome`.
   `agents-fabrik-core.md:17` Front door: three tiers restated as the three questions, one line.
-- `tests/test_governance_template_split.py`: the nine table graders (`:456-837`, grounded by name in Evidence — eight hub/mirror
-  tests plus the template's own GFM render at `:824`) retired and replaced by: the rule block present and identical in both contracts;
+- `tests/test_governance_template_split.py`: the nine table graders (`:461-848`, grounded by name in Evidence — eight hub/mirror
+  tests plus the template's own GFM render at `:837`) retired and replaced by: the rule block present and identical in both contracts;
   its Q1 "That is:" sentence equals `render_q1()` of `scripts/task_lane.py::LANE_TRIPS` after whitespace normalisation (import by
   path) and `LANE_TRIPS`' keys equal the set of
   `chain:` suffixes `admit` can return (a trip added to one side reds the test); the review line names exactly `admit`'s `full`
-  reasons (`sync`, `heavy`, `migration`, `files > 5`) plus the contract's auth/schema/operator-named words; the tie-break sentence
-  present; the block renders as a fenced code block in GFM (markdown-it) in BOTH files (replacing `:725` and `:824`); the handle-now
-  pointer constant `_LANE_POINTER` (`:387`, read by `:497` for the hub and `:852` for the template — ONE edit retargets both) becomes
-  "§ Orient step 0's lane rule". `tests/test_spec_plan_lane_text.py`
+  reasons (`sync`, `heavy`, `migration`, `files > 5`) plus the contract's vendored/auth/schema/operator-named words; the tie-break sentence
+  present; the block renders as a fenced code block in GFM (markdown-it) in BOTH files (replacing `:730` and `:837`); the handle-now
+  pointer constant `_LANE_POINTER` (`:392`, read by `:502` for the hub and `:865` for the template — ONE edit retargets both) becomes
+  "§ Orient step 0's lane rule". D-892's grader (`test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere`,
+  outside `:461-848`) is retargeted, not retired: its clause assert reads the review line in both contracts and its
+  pointer asserts read "the lane rule's review line"; a sweep assert finds no match of `(?i)lane[ -]table|lane rows?|\brows? ?[0-9]|
+  \brow-[0-9]|no-code-surface` in the two contracts, the three command sources, `50-code-review.md` or
+  `docs/reference/fabrik-task-lane.md` (panel, both seats). It proves only the spellings it matches: the cheapest pass
+  without the outcome is a respelled pointer ("tier 1b", "the 1b test"), which the positive pointer asserts and the
+  review catch; a bare `1b`/`4b` token is not swept — measured, it fires on 7 legitimate "Phase 1b" lines in
+  `fabrik-spec.md`.
+  `tests/test_fabrik_task_queue_pass.py:124` (`heavy=yes` includes operator-named work) reads "(the lane rule's
+  review line)". `tests/test_spec_plan_lane_text.py`
   Phase 0 pins (`:87-125`, `:275-305`) rewritten to the verdict wording (the D9 `--from-downgrade` restart and `## RESUME` pins stay).
 - Mail to fabrik-lib: the rule block verbatim for its hand-kept CLAUDE.md (replacing its table at ~:379-394).
 
@@ -391,11 +413,13 @@ is within the cap or the row says so).
 
 1. **Failing graders first**: the new `test_governance_template_split.py` tests and the rewritten `test_spec_plan_lane_text.py` pins
    → red on the current text; paste.
-2. The two contracts (rule block; `python3 -c` renders `LANE_TRIPS` to compare); `agents-fabrik-core.md:17`. Gate: `.venv/bin/python
-   -m pytest -q tests/test_governance_template_split.py` → green; `python3 scripts/enforcement/check_governance_tables.py --strict` → OK.
+2. The two contracts (rule block; `python3 -c` renders `LANE_TRIPS` to compare); `agents-fabrik-core.md:17`; every retargeted
+   pointer (Produces, first bullet). Gate: `.venv/bin/python -m pytest -q tests/test_governance_template_split.py
+   tests/test_fabrik_task_queue_pass.py` → green; `python3 scripts/enforcement/check_governance_tables.py --strict` → OK.
 3. The three command sources and the protocol doc; `python3 commands/assemble_commands.py --check` (DIFFERS rows for this branch's own
    edits are expected in a worktree; in the main checkout render → `--check` → commit). Gate: `.venv/bin/python -m pytest -q
-   tests/test_spec_plan_lane_text.py tests/test_fabrik_task_source.py tests/test_review_scoped_queue_pass.py` → green.
+   tests/test_spec_plan_lane_text.py tests/test_fabrik_task_source.py tests/test_review_scoped_queue_pass.py
+   tests/test_governance_template_split.py tests/test_fabrik_task_queue_pass.py` → green (step 3 rewrites lines the pointer asserts read).
 4. Mail fabrik-lib (`python scripts/mail.py send --to fabrik-lib --kind request`) with the rule block; record the id in Evidence.
 5. Doc Sync: `CHANGELOG.md` entry (private index); `INDEX.md` — no new docs; `docs/DECISIONS.md` — the build row is D-861's; the
    `deny` flip is a later row. `python3 scripts/enforcement/check_doc_sync.py`.
@@ -413,7 +437,7 @@ is within the cap or the row says so).
 - **Given** both contracts, **When** the grader runs, **Then** the rule block is byte-identical in both and its Q1 "That is:" sentence
   equals `render_q1()` of `scripts/task_lane.py::LANE_TRIPS` after whitespace normalisation (`spec § The delta` R1).
 - **Given** the rule block, **When** rendered with markdown-it, **Then** it is a fenced code block inside item 0 and no lane table remains
-  (`tests/test_governance_template_split.py:725` precedent).
+  (`tests/test_governance_template_split.py:730` precedent).
 - **Given** `commands/_sources/fabrik-spec.md` Phase 0, **When** the pins run, **Then** it says the `spec` verdict is present or the start
   refused, names `--file`/`--declare` at start, reads a `spec-start` row's `verdict`/`restart`, skips a row whose spec closed `done`,
   and keeps the `--from-downgrade <refusal id>` restart; `commands/_sources/fabrik-task.md`'s UPGRADE block names the verb re-run
@@ -435,6 +459,8 @@ is within the cap or the row says so).
 - commands/_sources/fabrik-spec.md
 - commands/_sources/fabrik-task.md
 - commands/_sources/fabrik-review-scoped.md
+- .windsurf/rules/core/50-code-review.md
+- docs/reference/fabrik-task-lane.md
 - docs/reference/command-run-protocol.md
 - tests/test_task_lane_verdict.py
 - tests/test_command_run_lane_v2.py
@@ -443,6 +469,7 @@ is within the cap or the row says so).
 - tests/test_skill_router_hook.py
 - tests/test_governance_template_split.py
 - tests/test_spec_plan_lane_text.py
+- tests/test_fabrik_task_queue_pass.py
 - docs/development/reviews/2026-10-14-plan-2-one-door-lane-review.md
 
 ## Evidence
@@ -495,26 +522,27 @@ The report's lane helpers (`scripts/command_feedback_report.py`):
 
 **Phase C.** The table and paragraphs to replace, and the graders that pin them:
 ```text
-CLAUDE.md:71:   **The LANE table — apply it to the SMALLES
-CLAUDE.md:84:   **Under doubt the lane is `/fabrik-task`.** 
-CLAUDE.md:86:   **No code surface at all** (docs, ledgers or
-CLAUDE.md:88:   **Tripwire:** if the first draft cites a scr
-templates/governance/CLAUDE.md:64:   **The LANE table — ap
-templates/governance/CLAUDE.md:77:   **Under doubt the lane 
-templates/governance/CLAUDE.md:79:   **No code surface at al
-templates/governance/CLAUDE.md:81:   **Tripwire:** if the fi
+CLAUDE.md:75:   **The LANE table — apply it to the SMALLES
+CLAUDE.md:88:   **Under doubt the lane is `/fabrik-task`.** 
+CLAUDE.md:90:   **No code surface at all** (docs, ledgers or
+CLAUDE.md:92:   **Tripwire:** if the first draft cites a scr
+templates/governance/CLAUDE.md:66:   **The LANE table — ap
+templates/governance/CLAUDE.md:79:   **Under doubt the lane 
+templates/governance/CLAUDE.md:81:   **No code surface at al
+templates/governance/CLAUDE.md:83:   **Tripwire:** if the fi
 ```
-Graders keyed on the table's literal shape (grounder C, all in `tests/test_governance_template_split.py`): `_lane_table` :444-453;
-`test_the_lane_table_carries_the_six_tests_and_its_verdict_row` :456; `test_the_lane_tables_verdict_row_names_a_command_that_exists`
-:469; `test_the_heavy_surface_list_names_a_governance_sync_path` :482 (kept — § 1a, not the table);
-`test_the_handle_now_clause_points_at_the_lane_table_instead_of_restating_a_test` :497 (retargeted);
-`test_the_lane_tables_verdicts_match_the_size_gates_own_routing` :518; `test_the_lane_table_states_the_precedence_the_gate_actually_evaluates`
-:600; `test_the_hubs_lane_table_matches_lane_v2` :667; `test_the_lane_table_renders_as_a_table_for_every_gfm_reader` :725;
-`test_the_lane_table_is_mirrored_into_the_fleet_template_row_for_row` :766; `test_the_templates_mirrored_prose_matches_the_hubs` :785;
-`test_the_template_renders_its_lane_table_for_every_gfm_reader` :824 (the template's GFM render — found by this plan's review, outside
-the first grounding's range). Kept, like :482: `test_the_templates_heavy_surface_list_names_a_governance_sync_path` :838 (§ 1a);
-`test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three` :852 reads `_LANE_POINTER` (:387) with :497 — retargeted
-once. Nine retired, three touched.
+Graders keyed on the table's literal shape (grounder C, all in `tests/test_governance_template_split.py`): `_lane_table` :449-458;
+`test_the_lane_table_carries_the_six_tests_and_its_verdict_row` :461; `test_the_lane_tables_verdict_row_names_a_command_that_exists`
+:474; `test_the_heavy_surface_list_names_a_governance_sync_path` :487 (kept — § 1a, not the table);
+`test_the_handle_now_clause_points_at_the_lane_table_instead_of_restating_a_test` :502 (retargeted);
+`test_the_lane_tables_verdicts_match_the_size_gates_own_routing` :523; `test_the_lane_table_states_the_precedence_the_gate_actually_evaluates`
+:605; `test_the_hubs_lane_table_matches_lane_v2` :672; `test_the_lane_table_renders_as_a_table_for_every_gfm_reader` :730;
+`test_the_lane_table_is_mirrored_into_the_fleet_template_row_for_row` :771; `test_the_templates_mirrored_prose_matches_the_hubs` :790;
+`test_the_template_renders_its_lane_table_for_every_gfm_reader` :837 (the template's GFM render — found by this plan's review, outside
+the first grounding's range). Kept, like :487: `test_the_templates_heavy_surface_list_names_a_governance_sync_path` :851 (§ 1a);
+`test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three` :865 reads `_LANE_POINTER` (:392) with :502 — retargeted
+once. Nine retired, three touched. D-892's grader `test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere` :1965
+is retargeted, and `tests/test_fabrik_task_queue_pass.py:124` pins `fabrik-task.md:44`'s "(lane row 1b)" — both read the pointers.
 `scripts/enforcement/check_governance_tables.py`: grep `lane` → 0 (generic). The spec's own measurement that motivates all of it:
 315 task closes, 77 spec closes, 9 refusals, 0 downgrade seeds since 2026-10-02 (`spec § Why this exists`).
 
@@ -566,6 +594,12 @@ hashes here differ from the committed file's.
 | Pass 4 | opus×1 + sonnet×1 (round-1 slice owners) · remainder round — the round-3 fixed set only | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — A re-derived every anchor its slice cites (task_lane :5-8, :67, :72, :167, :299, :313, :356-362, :365-381, :389-394, :400-423; command_run :88-92, :2638, :3414-3420, :3582, :3618-3620, :3675-3678, :3693, :3988, :3998, :4065-4077, :4102-4107, :4122-4145, :4160-4313, :4596-4599, :4614-4642, :5161-5168, :5365-5419, :5506-5518, :6853-6880), B 3/3 (the Residual paragraph, A9/A10, the outcome names across Phases A and B) | plan 81f60c22 · spec e09d6cdd → plan 81f60c22 · spec e09d6cdd ✓ |
 | Pass 5 | opus×1 + sonnet×1 (round-1 slice owners) · delta re-opened by the design panel (Opus, Fable: both `sound-with-changes`; 16 concerns ACCEPTED, 0 rejected — `docs/development/reviews/2026-10-14-one-door-lane-plan-review.md` § Panel) | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation — A 11 changes CLOSED and 3 confirmed in the fold (any `running` record exempted a door, :5452 executed; the downgrade id accepted on shape alone, `_REFUSAL_ID` at :4023-4027; the renderer unnamed so "byte for byte" was unbuildable), B 6/6 (fabrik-task.md:224-233, D-861's where-cell, :4122-4139); the stop fired again | plan 1e36e1c2 · spec b47ee234 → plan 717f472c · spec d0e492f2 |
 | Pass 6 | opus×1 + sonnet×1 (round-1 slice owners) · remainder round — the round-5 fixed set only | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — A 3/3 (`_nested_under` against fabrik-task.md:165-166 and fabrik-execute-plan.md:59, the ledger lookup at :3998 with :4023-4027 named shape-only, `render_q1` token-for-token against R1's hard wrap), B 3/3 (Phase A/C/spec R1 agree on `render_q1`); the one candidate is RECORDED below, never edited in a closing round; standing clean since Pass 4: every class of the ledger | plan 717f472c · spec d0e492f2 → plan 717f472c · spec d0e492f2 ✓ |
+| Pass 7 | opus×1 (spec rule block, Row map, Phase C Produces + grader bullet) + sonnet×1 (every other section of both) · delta re-opened by D-892 (W-cc43f23e: operator-named work folded into R1's review line) | found: 8, new: 6, confirmed: 6, fixed: 6, unexecuted: 0 | method: citation — every candidate executed by the lead against the live tree: `tests/test_fabrik_task_queue_pass.py:124` pins `fabrik-task.md:44` (unlisted); the step-2 gate ran a grader whose sources step 3 edited; "row 5 of … lane table" / "the lane table" pointers unretargeted; the no-code set pointed at a paragraph R1 retires; anchors drifted +4/+5/+13 since Pass 6 (`grep -n` executed); the template's vendored-`libs/` trigger dropped by a byte-identical block | plan 28f0cdf4 · spec 408ec22f → plan c0da172c · spec ecdbdbc3 |
+| Pass 8 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-7 fix hunks | found: 4, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation — A 5/5 and B 3/3 CLOSED; 3 confirmed: File Scope listed `test_fabrik_task_queue_pass.py` three times (own fix), `fabrik-review-scoped.md:15` "row 5's" outside the sweep, the step-3 gate did not re-run the pointer graders (own fix); 1 PLAUSIBLE refuted (vendored cannot fire in the hub, D-137) | plan c0da172c · spec ecdbdbc3 → plan 8b745a2d · spec ecdbdbc3 |
+| Pass 9 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-8 fix hunks | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — 3/3 CLOSED; 2 confirmed outside the phrase sweep ("the lane table's row-5" at `50-code-review.md:77`, "a row-6 verdict" at `CLAUDE.md:227` / template `:423`); the sweep became a regex and the lead executed it over the 6 files: 24 hits, each named | plan 8b745a2d · spec ecdbdbc3 → plan 1e4b93b1 · spec ecdbdbc3 |
+| Pass 10 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-9 fix hunk | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — 2/2 CLOSED; 1 confirmed: `fabrik-spec.md:53-55`'s `decision=no` sentence ("row 4b") was covered only implicitly by the Phase 0 rewrite — named | plan 1e4b93b1 · spec ecdbdbc3 → plan 0b2a409e · spec ecdbdbc3 |
+| Pass 11 | opus×1 + sonnet×1 (round-1 slice owners) · remainder round — the round-10 fixed set only | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — A diffed od-pins4 → od-pins5 (only :368-371 changed, no retarget lost or doubled), B re-ran the regex: 17 hit lines outside the replaced block, 0 unmapped | plan 0b2a409e · spec ecdbdbc3 → plan 0b2a409e · spec ecdbdbc3 ✓ |
+| Pass 12 | opus×1 + sonnet×1 (round-1 slice owners) · delta re-opened by the design panel (Opus, Fable: both APPROVE with changes — `docs/development/reviews/2026-10-14-one-door-lane-plan-review.md` § Panel, D-892 fold) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — A re-ran the case-insensitive regex over the 7 files: 40 hits, 14 in the excluded ranges, 26 each named; `docs/reference/fabrik-task-lane.md:4/18/37/55` cited right; B: the doc once in File Scope, 0 tests read it before this plan; 1 PLAUSIBLE refuted ("the old lane text" at :55 stays true for a pre-sync window); standing clean: every class of the ledger | plan 14843280 · spec ecdbdbc3 → plan 14843280 · spec ecdbdbc3 ✓ |
 
 ## Residual
 
