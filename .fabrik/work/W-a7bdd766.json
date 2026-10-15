@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-a7bdd766",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "one-sentence edit in both contracts via /fabrik-task (governance-sync path → full /fabrik-review), keep the anchor phrase verbatim, then mail fabrik-lib",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "One clause in two CLAUDE.md files",
+  "priority": 1,
+  "score_reason": "Operator-flagged scratch-lifecycle gap (2026-10-15, 'asap'); lock released at 5ee0ea96f; fleet-3b's critiqued design ready",
   "status": "open",
   "tags": [
     "queued"
