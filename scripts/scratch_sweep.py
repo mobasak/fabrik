@@ -531,8 +531,11 @@ def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | N
 
 def _usable_time(value: object) -> TypeGuard[float]:
     """A marker time a comparison can use: a number, not a bool (`True` is an int), and finite (NaN
-    passes a type guard and every comparison with it reads False) — W-a39d4c86."""
-    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+    passes a type guard and every comparison with it reads False) — W-a39d4c86. An int always compares
+    exactly, so it is usable at any size (`math.isfinite` raises OverflowError on one no float holds)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return isinstance(value, int) or math.isfinite(value)
 
 
 def _created_for(folder: Path, owner: dict | None) -> object:
@@ -554,17 +557,21 @@ def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
     bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric, non-finite or
     future `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
 
-    Cobra (D-253): BACKDATING `created` makes every gap read newer and so keeps more; the cheap way
-    to make this keep nothing is to FORWARD-date `created` inside the clock margin (a value further
-    ahead is "future" and keeps) — a residual this rule cannot see, since a plausible near-future
-    `created` is indistinguishable from clock skew. Dropping `created`, or making it NaN, a bool or
-    text, KEEPS; a test pins each case (W-a39d4c86 corrected the direction this note first named).
+    Cobra (D-253): an EARLIER `created` makes every gap read newer and so keeps more; the cheap way
+    to make this keep nothing is to move `created` LATER than the run's true start — to the present,
+    or forward inside the clock margin (further ahead is "future" and keeps). Residual: any `created`
+    in (true start, now + margin] is indistinguishable from a younger run or clock skew, so this rule
+    cannot see it; the writers that heal a marker therefore stamp the run's true start (D-902).
+    Dropping `created`, or making it NaN, a bool or text, KEEPS; a test pins each case (W-a39d4c86
+    corrected the direction this note first named).
     """
     if not starts:
         return False
     if not _usable_time(created) or created > now + GAP_CLOCK_MARGIN_S:
         return True
-    return any(s is None or s >= created - GAP_CLOCK_MARGIN_S for s in starts)
+    # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
+    # (exact for any size), never converted to a float by arithmetic (OverflowError)
+    return any(s is None or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`

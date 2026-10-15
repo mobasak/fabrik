@@ -1079,11 +1079,20 @@ def test_an_unusable_created_always_keeps_through_a_gap(created: object) -> None
     assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
 
 
-def test_gap_keeps_is_defeated_by_forward_dating_not_backdating() -> None:
-    """The Cobra direction the docstring names (fleet 01M505J6KG): a backdated `created` makes every
-    gap read newer and KEEPS; forward-dating within the margin is what drops a real gap."""
+def test_gap_keeps_is_defeated_by_a_later_created_not_an_earlier_one() -> None:
+    """The Cobra direction the docstring names (fleet 01M505J6KG; review of 46b409cc9): an EARLIER
+    `created` makes every gap read newer and KEEPS; any `created` LATER than the run's true start —
+    the present, or forward inside the margin — drops a real gap. Pinned as the residual."""
     assert sw.gap_keeps([NOW - 100], 0, NOW) is True  # backdated: keeps
     assert sw.gap_keeps([NOW - 100_000], NOW + 200, NOW) is False  # forward-dated inside the margin
+    assert sw.gap_keeps([NOW - 3600], NOW, NOW) is False  # re-stamped to now: the residual
+
+
+@pytest.mark.parametrize("created", [10**400, -(10**400)])
+def test_a_huge_integer_created_is_compared_never_a_crash(created: int) -> None:
+    """Review of 46b409cc9: `math.isfinite` raises OverflowError on an int no float can hold; an int
+    always compares exactly, so it is usable — never a crash (both keep: one is future, one is old)."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
 
 
 @pytest.mark.parametrize("created", [True, False, float("nan"), None, "x"])
