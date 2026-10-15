@@ -5194,9 +5194,9 @@ const ENV_FILES = [
   '.env.production.chrome',
   '.env.production.chrome.local',
 ];
-// Chrome: 1-4 dot-separated integers, each 0-65535.
+// Chrome: 1-4 dot-separated integers, each 0-65535, no leading zero.
 function isChromeVersion(v) {
-  return /^\d{1,5}(?:\.\d{1,5}){0,3}$/.test(v) && v.split('.').every(n => Number(n) <= 65535);
+  return /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/.test(v) && v.split('.').every(n => Number(n) <= 65535);
 }
 
 function git(...args) {
@@ -5311,14 +5311,16 @@ export function assertPubKey(pub) {
   let ok = /^[A-Z0-9+/]+={0,2}$/i.test(pub);
   if (ok) {
     try {
-      createPublicKey({ key: Buffer.from(pub, 'base64'), format: 'der', type: 'spki' });
+      const der = Buffer.from(pub, 'base64');
+      // the export must equal the input: the DER parser ignores bytes after a valid key
+      ok = createPublicKey({ key: der, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'der' }).equals(der);
     }
     catch {
       ok = false;
     }
   }
   if (!ok)
-    throw new Error('extension-key.pub is not a public key — restore it from version control (pnpm keygen rebuilds it from .keys/extension-key.pem)');
+    throw new Error('extension-key.pub is not a public key — restore it from version control, or delete extension-key.pub and run pnpm keygen to rebuild it from .keys/extension-key.pem');
   return pub;
 }
 
@@ -5406,11 +5408,11 @@ export interface UpdateNotice {
   download_url: string;
 }
 
-const VERSION_RE = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
+const VERSION_RE = /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// Chrome's version rule: one to four dot-separated integers (each 0-65535), a missing integer
-// counting as 0.
+// Chrome's version rule: one to four dot-separated integers (each 0-65535, no leading zero), a
+// missing integer counting as 0.
 export function isNewer(candidate: string, current: string): boolean {
   const a = candidate.split('.').map(Number);
   const b = current.split('.').map(Number);

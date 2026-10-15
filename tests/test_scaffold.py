@@ -698,6 +698,7 @@ class TestChromeExtensionReleaseKit:
         assert r.returncode != 0
         assert "EXTENSION_ID=" not in r.stdout
         assert "not a public key" in r.stderr
+        assert "delete extension-key.pub" in r.stderr
 
     @needs_node
     def test_a2c_keygen_with_a_pem_but_no_pub_rederives_the_same_pub(self, tmp_path):
@@ -730,6 +731,8 @@ class TestChromeExtensionReleaseKit:
     def test_a3b_manifest_key_resolver(self, tmp_path):
         """A3 (behaviour): no .pub → none; a .pub → it, from any cwd; STORE_BUILD=1 → none; a
         malformed .pub → the build fails loudly."""
+        import base64
+
         ext = _chrome_ext_project(tmp_path) / "extension"
         mod = (ext / "scripts" / "manifest-key.mjs").as_uri()
         prog = f"import {{ pinnedKey }} from '{mod}'; console.log(JSON.stringify(pinnedKey() ?? null));"
@@ -742,7 +745,8 @@ class TestChromeExtensionReleaseKit:
         assert got.returncode == 0 and got.stdout.strip() == f'"{pub}"', got.stderr
         store = _node_json(tmp_path, prog, {**base_env, "STORE_BUILD": "1"})
         assert store.returncode == 0 and store.stdout.strip() == "null"
-        for garbage in ("not a key\n", "A" * 120 + "\n"):
+        junk = base64.b64encode(base64.b64decode(pub) + b"\0\0\0").decode()
+        for garbage in ("not a key\n", "A" * 120 + "\n", junk + "\n"):
             (ext / "extension-key.pub").write_text(garbage)
             bad = _node_json(tmp_path, prog, base_env)
             assert bad.returncode != 0 and "not a public key" in bad.stderr, garbage
@@ -769,7 +773,8 @@ class TestChromeExtensionReleaseKit:
             " secureBase(''), secureBase('not a url'), secureBase('https://api.invalid/v1/?x=1#h'),"
             " secureBase('https://u:p@api.invalid')],"
             "big: [parseLatest({version: '65535.1', download_url: 'https://x.invalid/a'}) !== null,"
-            " parseLatest({version: '65536', download_url: 'https://x.invalid/a'})]}));"
+            " parseLatest({version: '65536', download_url: 'https://x.invalid/a'}),"
+            " parseLatest({version: '1.02', download_url: 'https://x.invalid/a'})]}));"
         )
         r = _node_json(project, prog)
         assert r.returncode == 0, r.stderr
@@ -787,7 +792,7 @@ class TestChromeExtensionReleaseKit:
             "https://api.invalid/v1",
             "",
         ]
-        assert out["big"] == [True, None]
+        assert out["big"] == [True, None, None]
 
     def test_a4b_update_checker_wiring(self, project):
         """A4 (wiring): the checker uses those rules, skips store/policy installs, prefers the stored
@@ -965,8 +970,9 @@ class TestChromeExtensionReleaseKit:
         [
             ("store", "STORE_BUILD"),
             ("dirty", "not clean"),
-            ("prerelease", "version"),
-            ("toobig", "version"),
+            ("prerelease", "not a Chrome version"),
+            ("toobig", "not a Chrome version"),
+            ("leadingzero", "not a Chrome version"),
         ],
     )
     def test_a7c_release_refuses_a_store_build_a_dirty_tree_and_a_non_chrome_version(
@@ -987,7 +993,9 @@ class TestChromeExtensionReleaseKit:
         else:
             pkg = project / "extension" / "package.json"
             data = json.loads(pkg.read_text())
-            data["version"] = "1.2.0-beta.1" if change == "prerelease" else "70000.0"
+            data["version"] = {"prerelease": "1.2.0-beta.1", "toobig": "70000.0"}.get(
+                change, "1.02"
+            )
             pkg.write_text(json.dumps(data))
             _git(project, "commit", "-qam", "beta")
         r = _release_check(project, None, extra)
