@@ -1,6 +1,6 @@
 # Troubleshooting
 
-**Last Updated:** 2026-06-02 (Coolify-flavored historical symptoms preserved as past-tense; symptoms now surface in `docker compose ps` / `docker inspect` instead of the Coolify UI which was removed 2026-05-30). Added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; Backrest is the live backup tool since 2026-04-17.
+**Last Updated:** 2026-10-15 (added the WSL `registry.npmjs.org` resolver failure — truncated DNS answers plus blocked TCP/53 — under DNS Issues). Previously 2026-06-02 (Coolify-flavored historical symptoms preserved as past-tense; symptoms now surface in `docker compose ps` / `docker inspect` instead of the Coolify UI which was removed 2026-05-30). Added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; Backrest is the live backup tool since 2026-04-17.
 
 Common issues and solutions.
 
@@ -41,6 +41,45 @@ Common issues and solutions.
 2. Check Namecheap API IP whitelist includes your current IP
 3. Verify API credentials are correct
 4. Check DNS manually: `dig +short yourdomain.com`
+
+### WSL cannot resolve `registry.npmjs.org` (pnpm/npm installs hang) while GitHub and the Claude API work
+
+**Symptom:** `getent hosts registry.npmjs.org` times out (rc 124), `curl https://registry.npmjs.org` returns `000`,
+every `pnpm install` stalls — yet `getent hosts github.com` and the Claude API resolve instantly. Recurrence of
+W-478049bc (closed with no recorded cause); diagnosed 2026-10-15 for W-f0fd555a.
+
+**Cause (measured):** two conditions together.
+
+1. **The IPv6 answer is too big for plain DNS.** `registry.npmjs.org` returns 12 A and 12 AAAA records; the A
+   answer fits in 512 bytes (444, so `getent ahostsv4` works) but the AAAA answer does not. glibc sends queries
+   WITHOUT EDNS, so a reply over 512 bytes comes back truncated —
+   `dig +noedns +ignore @10.255.255.254 registry.npmjs.org AAAA` shows `flags: qr tc` with 0 answers — and glibc
+   must retry over TCP. A small answer (`github.com`) fits in 512 bytes and never needs TCP, which is why only some
+   hosts fail.
+2. **Outbound TCP port 53 is blocked on this box's network path** — to WSL's proxy AND the public resolvers:
+   `dig +tcp @10.255.255.254`, `@1.1.1.1` and `@8.8.8.8` all time out, while the same queries over UDP answer at once.
+
+**Fix** (the file's history and lock: `docs/workstation/WSL2-DNS-FIX.md`): let glibc ask for a big UDP answer, so it never needs TCP — add `edns0` to the `options` line of
+`/etc/resolv.conf` (static on this box: `/etc/wsl.conf` sets `generateResolvConf = false`, and the file carries
+the immutable bit — `lsattr` shows `i` — so the edit must lift it and set it back; `sed -i` renames a temporary
+file over the target, which an immutable file refuses with `Operation not permitted`):
+
+```bash
+sudo cp -p /etc/resolv.conf /etc/resolv.conf.backup.$(date +%Y%m%d-%H%M%S)
+sudo chattr -i /etc/resolv.conf
+sudo sed -i 's/^options timeout:2 attempts:1$/options timeout:2 attempts:1 edns0/' /etc/resolv.conf
+sudo chattr +i /etc/resolv.conf
+grep '^options' /etc/resolv.conf  # ends in edns0
+getent hosts registry.npmjs.org   # answers now
+```
+
+Proven before editing the file: `RES_OPTIONS=edns0 getent hosts registry.npmjs.org` answers (rc 0) where plain
+`getent hosts` times out (rc 124). glibc reads `RES_OPTIONS` from the environment, so that one-off test touches
+nothing.
+
+**Not fixed by this:** whatever blocks outbound TCP/53 (a Windows-side firewall or VPN filter is the likely
+holder — a leftover ExpressVPN WFP callout once broke browser-to-WSL localhost on this box). A resolver answer too
+large even for the EDNS UDP buffer would still need TCP and still fail.
 
 ### SSL Certificate Not Issued
 
