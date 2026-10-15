@@ -292,6 +292,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
     main_agent = str(at_main[-1]["agent"]) if at_main else ""
     windows: dict[str, str] = {}  # agent -> how the window was named
     counts: dict[str, int] = {}  # agent -> open windows (two windows in one main checkout read as 2)
+    win_trees: dict[str, set[str]] = {}  # agent -> the worktree names its windows sit in
     for w in wins:
         if w["agent"]:
             who, how = w["agent"], "env"
@@ -303,6 +304,8 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             who, how = "(unnamed)", "none"
         windows.setdefault(who, how)
         counts[who] = counts.get(who, 0) + 1
+        if w["tree"]:
+            win_trees.setdefault(who, set()).add(w["tree"])
     recent = {str(r["agent"]) for r in recent_recs}
     items: dict[str, dict] = {}
     claims: dict[str, dict] = {}
@@ -317,6 +320,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
     seen = {str(r["agent"]) for r in mine} | bound
     trees = {n: (main / ".claude" / "worktrees" / n) for n in names}
     trees = {n: (t.resolve() if t.is_dir() else main) for n, t in trees.items()}
+    paused, has_config, honoured = _pause_support(work, main)
     queues = work._worker_queues(main, trees) if store and names else {}
     done: dict[str, dict] = {}
     if names:
@@ -357,9 +361,43 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             # the last 7 days, in any state (the same agent a nameless main window is named after) —
             # never every agent that once ran a command there
             "merge_owner": bool(main_agent) and n == main_agent,
+            "paused": _pause_of(paused, n, win_trees.get(n, set()) | ({n} if trees[n] != main else set())),
+            "can_pause": has_config and bool(_NAME_RE.fullmatch(n)),
+            "pause_honoured": honoured,
         })
     return {"name": name, "main": str(main), "store": store, "agents": agents,
             "dormant": len(seen - set(names))}
+
+
+def _pause_of(paused: dict[str, dict], name: str, trees: set[str]) -> dict | None:
+    """The pause covering an agent — its own name first, else a tree its window sits in — with the
+    marker's NAME, the one a resume must lift (W-7159f8e2 part 3; the rule is work.py's `_is_paused`)."""
+    for key in [name, *sorted(trees)]:
+        if key in paused:
+            rec = paused[key]
+            return {"name": key, "by": str(rec.get("by") or "?"), "at": rec.get("at") or 0,
+                    "why": str(rec.get("why") or "")}
+    return None
+
+
+def _pause_support(work: ModuleType, main: Path) -> tuple[dict[str, dict], bool, bool]:
+    """(pauses, has_config, honoured) for one repo; never raises. ``has_config`` is work.py's own store
+    test (a config.json), which `pause` requires; ``honoured`` is whether the repo's OWN synced
+    work.py carries the verb — before its next governance sync a pause written there is ignored."""
+    reader = getattr(work, "_paused", None)
+    try:
+        pauses = reader(main) if reader else {}
+    except Exception:  # noqa: BLE001 — no pause information is today's behaviour, never a crash
+        pauses = {}
+    try:
+        has_config = bool(work._has_store(main))
+    except Exception:  # noqa: BLE001
+        has_config = False
+    try:
+        honoured = "def cmd_pause" in (main / "scripts" / "work.py").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        honoured = False
+    return pauses, has_config, honoured
 
 
 def collect_box(opt: Path) -> dict[str, Any]:

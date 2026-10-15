@@ -385,6 +385,40 @@ def test_box_edges_are_named_honestly(tmp_path: Path) -> None:
     assert list(old_agents) == ["(unnamed)"] and repos["old"]["dormant"] == 1
 
 
+def test_box_reports_each_agents_pause(tmp_path: Path) -> None:
+    """Each agent carries its pause — by its own name or the tree its window sits in, with the
+    marker's NAME (the one a resume must lift) — `can_pause` only for an agent name in a repo whose
+    store has config.json, and `pause_honoured` from that repo's own work.py (W-7159f8e2 part 3)."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef2"))
+    bare = opt / "bare"
+    (bare / ".fabrik" / "work").mkdir(parents=True)  # a work dir with no config.json
+    _git(bare, env, "init", "-q")
+    proc = tmp_path / "proc"
+    _window(proc, 101, shop / ".claude" / "worktrees" / "wef1", agent="lead")  # named unlike its tree
+    _window(proc, 102, shop / ".claude" / "worktrees" / "wef2")
+    _window(proc, 103, shop)  # a main window with no record: "(unnamed)"
+    _window(proc, 104, bare / ".fabrik")
+    _record(env, "b1", agent="bob", state="done", command="fabrik-task", repo_root=str(bare))
+    marker = shop / ".git" / "fabrik-work" / "paused"
+    marker.mkdir(parents=True)
+    (marker / "wef1.json").write_text(json.dumps({"by": "operator", "actor": "", "at": time.time()}))
+    (shop / "scripts").mkdir()
+    (shop / "scripts" / "work.py").write_text("def cmd_pause(repo, args):\n    pass\n", encoding="utf-8")
+    repos = _box(opt, env)
+    shop_agents = _agents(repos["shop"])
+    assert shop_agents["lead"]["paused"]["name"] == "wef1"  # caught by its window's tree
+    assert shop_agents["lead"]["paused"]["by"] == "operator"
+    assert shop_agents["wef2"]["paused"] is None
+    assert shop_agents["lead"]["can_pause"] and shop_agents["wef2"]["can_pause"]
+    assert shop_agents["(unnamed)"]["can_pause"] is False
+    assert shop_agents["lead"]["pause_honoured"] is True
+    bob = _agents(repos["bare"])["bob"]
+    assert bob["can_pause"] is False and bob["pause_honoured"] is False  # no config.json, no verb
+
+
 def test_box_now_is_keyed_by_repo(tmp_path: Path) -> None:
     """The same agent name in two repos never crosses: each repo's NOW is its own running record."""
     env = _env(tmp_path)
