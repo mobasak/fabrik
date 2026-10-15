@@ -501,6 +501,34 @@ Execution notes (what the build settled, against the Interfaces text above):
   `registry.npmjs.org` (`curl: (28) Resolving timed out after 15000 milliseconds`). Phase C re-runs all three before
   the Finish review.
 
+### Phase B — executed 2026-10-15
+
+Step 1's census, re-run at execution (`command grep -rn CORS_ORIGINS src/ templates/ tests/ scripts/`): the same 7 source
+hits as at authoring (`src/fabrik/scaffold.py:2554`, `:2705`, `:2709`, `templates/saas-skeleton/.env.example:19`,
+`scripts/gather_envs.py:141`, and the two chrome lines this phase removed), none in the emitted chrome-extension server.
+
+Commits: `4c2b1ce2a` (the backend), `9eb64fb75` and `21eb04b4f` (the phase's `/fabrik-review-scoped`, three independent
+seats: confirmed 12 → 0). Graders seen red first: 12 failed before the emitter change; round 1's strengthened graders
+proven by red-on-revert in a throwaway worktree (8 mutants — template filter, no-store, URL check, URL strip, error
+level, credentials, log-at-import, read-at-import — each turned its grader red; baseline 18 passed before and after).
+
+```text
+$ PYTHONPATH=<worktree>/src .venv/bin/python -m pytest tests/test_scaffold.py tests/test_scaffold_chrome_ext_wxt.py tests/orchestrator/test_template_defaults.py tests/test_scaffold_spec_generation.py tests/test_spec_generator.py -q
+264 passed, 1 skipped, 1 deselected in 54.13s
+```
+
+Execution notes:
+
+- The scaffold's own spec generator copies the canonical compose `environment:` into the spec's `env:`, so the four
+  `EXTENSION_*` values arrive in `env:` on the template path; `templates/chrome-extension/compose.yaml.j2`'s env loop
+  skips those four names (review round 1), and B5b renders the template from the generated spec to prove each appears
+  once. The plan's "a project's service spec must not repeat these names" (Phase B Interfaces) is therefore enforced by
+  the template, not left to the spec author.
+- `GET /extension/latest` also sends `Cache-Control: no-store` (review round 1).
+- Recorded, not changed: `access-control-allow-credentials: true` on responses with no allow-origin (FastAPI's
+  behaviour); server-side validation of the release values (the extension's checker validates, A4); the opt-in reachable
+  through a spec's `env:` on the template path (the operator's own spec).
+
 ## Self-audit
 
 - Every behaviour in `spec § Validation` maps to a row: spec 1 → A0/A1, 2-3 → A1/A2, 4-5 → A3, 6 → B1/B2, 7 → B3/B4/B4b, 8 → A7,
