@@ -69,6 +69,31 @@ Pinned by `tests/test_producing_command_fragments.py::test_a_figure_in_a_close_i
 
 - The five charters in `docs/reference/agents/` carry one canonical merge-owner sentence; kaizen.md no longer routes merges to infra and coordinator.md states the handover done. `tests/test_agent_role_hook.py::test_every_charter_names_the_current_merge_owner` reads the owner from `scripts/decisions.py --merge-owner` and fails on a charter that lacks the sentence or names another agent as merger. W-cfff98dd, D-891.
 
+### Changed — the Coolify-verb retirement plan is EXECUTED: every verb runs over SSH + Compose and the Coolify code is gone (2026-10-15)
+
+- **What:** plan 2026-10-14-plan-1-coolify-verb-retirement (W-36571dff) closed with ticket T11: the capability index re-ran clean (neither deleted script is listed), `docs/development/capability-defects.md` was regenerated, the V8 census reads 0 of 1373 tracked files and `vulture` 0 items, and the whole-plan Finish review (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-review.md`) converged 11 → 3 → 0. Its fixes: `fabrik.state.load` returns `None` for a record that is not a JSON object or not UTF-8 (status, audit-registrars and destroy --use-state no longer crash on one); `fabrik import` reads the manifest and secret list of a `./`-prefixed bundle; `fabrik projects --status` help names both registry vocabularies; the rollback and state docstrings and five docs match the code.
+- **Why:** spec docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md § Validation V8-V10; the deletion commit is 9c02e8c86 (D-901).
+
+### Changed — fourteen docs say what `apply`, `status`, `logs` and `reconcile-all` do now (2026-10-15)
+
+- **What:** the reference, module, operations and root docs (`docs/reference/fabrik-cli-reference.md`, `architecture.md`, `modules/drivers.md`, `modules/deployment-orchestrator.md`, `health-monitoring.md`, `docs/SERVICES.md`, `TROUBLESHOOTING.md`, `operations/deployment.md`, `workflows/FABRIK_SCAFFOLD_WORKFLOW.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CONFIGURATION.md`, `agents-fabrik.md`, `README.md` and the `EXTERNAL_SYSTEMS.md` DNS row) drop the removed `apply` flags, describe `status`'s Last-apply and Live-containers sections, name `reconcile-all` as a live SSH verb, and name the Coolify modules as removed at 9c02e8c86. Driver and test counts, CLI line anchors and the `destroy` flags were re-derived from the code.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement tickets T10a and T10b (spec D10); the wave's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T10-review.md`) confirmed and fixed 19 doc defects.
+
+### Removed — the Coolify modules, their tests and two dead scripts (2026-10-15)
+
+- **What:** `src/fabrik/drivers/coolify.py`, `src/fabrik/orchestrator/deployer_coolify.py`, `src/fabrik/drivers/compose_updater.py`, `src/fabrik/orchestrator/coolify_alias.py`, their four test files, `scripts/health_check_autonomous.py` and `scripts/migrate_db_rename.py` are deleted; `src/fabrik/drivers/__init__.py` no longer imports or exports `CoolifyClient` (one commit, so no import is ever left unresolved), and `scripts/enforcement/check_health.py`'s pattern list drops `check_coolify`. The plan's import census (`drivers.coolify`, `CoolifyClient`, `deployer_coolify`, `compose_updater`, `coolify_alias`, `deploy_to_coolify` over src, scripts, tests and templates outside the archives) reads 0 of the 1373 tracked files under src, scripts, tests and templates outside the archives (908 of them .py).
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T09 (spec D8, D11); every importer was edited by T02–T08 first.
+
+### Changed — `fabrik export`/`import` drop the Coolify section (2026-10-15)
+
+- **What:** `src/fabrik/portability.py` writes no `coolify/` tree and no `coolify` manifest count, and `export_bundle`/`import_bundle` lose their `coolify_client` parameter. `fabrik import` counts a legacy bundle's `coolify/*` non-directory members as `ignored legacy members (coolify/*): <n>` and restores none of them; member names are `./`-normalised once for the section counts and the legacy count. `_collect_authelia` reads the live bind mount `/opt/authelia/config/configuration.yml` first (the old named-volume paths stay as fallbacks), and the bundle README says the import plans and reports and applies nothing.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T06 (spec D6); the Authelia path and the README were confirmed defects in the ticket's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T06-review.md`).
+
+### Changed — four hub VPS scripts leave Coolify (2026-10-15)
+
+- **What:** `scripts/snapshot_vps_state.py`, `update_vps_docs.py`, `vps_sync.py` and `proof_run.py` drop every Coolify call, key and column. `proof_run`'s worker proof reads every Compose container's `State` through `probe_app` and passes only when every row is `running` (a replica pair with one exited container fails); `vps_sync`'s residue audit is 10 points (the Coolify-app and Authelia-orphan checks left), its Meilisearch lookup matches the container named exactly `meilisearch`, and a `coolify-proxy` traefik container now lands under infrastructure.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T08 (spec D11); reviewed in the same wave receipt, which kept the T05 grader and the vps-status pin current.
+
 ### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
 
 - `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.

@@ -143,12 +143,11 @@ def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMoc
     The real :class:`RollbackManager` lazy-loads CloudflareClient from
     its driver module on first use; in an E2E test against a synthetic
     "example.com" domain that real client would make live HTTP calls
-    (Cloudflare specifically returns 'Could not route to
-    /client/v4/zones/example.com/...' which then counts as a rollback
-    error and flips the final state from ROLLED_BACK to FAILED).
+    (Cloudflare returns 'Could not route to /client/v4/zones/example.com/...';
+    the handler logs it and moves on, but a unit test must not reach the network).
 
     Pre-injecting a MagicMock for the client avoids that — the legacy
-    hard-stop handler ``_rollback_dns`` then exercises the real code
+    ``_rollback_dns`` handler then exercises the real code
     path against a fake endpoint, and the final state matches the
     success contract. The deployer mock avoids SSH calls during
     ``_rollback_compose``.

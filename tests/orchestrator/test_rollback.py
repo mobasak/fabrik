@@ -409,7 +409,7 @@ class TestPhase4iReverseOrderWalk:
             # postgres is destructive-no-op (no driver call)
             # meilisearch is destructive-no-op (no driver call)
         ]
-        # DNS cleanup happened (legacy hard-stop, after soft registrars)
+        # DNS cleanup happened (legacy dns handler, after the registrars)
         manager._dns_client.delete_record_by_name.assert_called_once_with(
             "vps1.ocoron.com", "A", "rec-1"
         )

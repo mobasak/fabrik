@@ -1,6 +1,7 @@
 # Plan — the Coolify-bound verbs move to SSH + Compose and the Coolify code leaves the tree (W-36571dff)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-15
+Whole-plan review: docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-review.md
 Profile: delta
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md (CONVERGED, panel-approved D-828; md5 35e84255394b562cfa1097570fd05f1d, 454 lines)
@@ -79,14 +80,14 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 | T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ✅ | `68eeb35f6` |
 | T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ✅ | `686b6e871` |
 | T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ✅ | `2a7f0fb38` |
-| T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ⬜ | |
+| T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ✅ | `91f8bb357` |
 | T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ✅ | `665b04272` |
 | T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ✅ | `e8367785b` |
-| T08 | the four hub scripts bound to the driver are rebased | T01, T05 | ⚡ | ⬜ | |
-| T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ⬜ | |
-| T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ⬜ | |
-| T10b | the root docs, the configuration doc and the infra map say what the hub does now | T09 | ⚡ | ⬜ | |
-| T11 | Integration: the capability index, the two over-budget docs, the whole-plan gate and the receipt | T10a, T10b | ⛓️ | ⬜ | |
+| T08 | the four hub scripts bound to the driver are rebased | T01, T05 | ⚡ | ✅ | `91f8bb357` |
+| T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ✅ | `9c02e8c86` |
+| T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ✅ | this commit (`git log --grep 'T10a + T10b —'`) |
+| T10b | the root docs, the configuration doc and the infra map say what the hub does now | T09 | ⚡ | ✅ | this commit (`git log --grep 'T10a + T10b —'`) |
+| T11 | Integration: the capability index, the two over-budget docs, the whole-plan gate and the receipt | T10a, T10b | ⛓️ | ✅ | this commit (`git log --grep 'T11 —'`) |
 
 ## Merge Order
 
@@ -745,6 +746,14 @@ Still open, each with its resolution step:
 - R-open-1 — R1's reading (the downed-but-present stacks `reconcile-all` would now skip; whether a container still carries `label=coolify.serviceName=meilisearch`; the Authelia configuration volume path). Resolution: the orchestrator runs R1 before T03's dispatch and pastes the output into § Evidence; T03, T06 and T08 receive it as a file.
 - R-open-2 — the appetite: 780 minutes across the set; A + B + C (T01–T09, T08 included) = 615 against the spec's 600 (inside the panel's 450–650); T10a/T10b/T11 (165) are the named spill. Resolution: `/fabrik-execute-plan` passes each ticket's `Appetite:` at `step`; past 2× on any ticket, re-plan the remainder with `/fabrik-plan-after-chat`.
 - R-open-4 — `docs/infrastructure/`'s 79 live generated lines stay stale until W-53f8a3f3 runs the rebased scripts against vps1 (read-only). Resolution: that item, after this plan is EXECUTED.
+
+## Execution notes (resumed run, 2026-10-15)
+
+- **Wave T06 + T08** merged at 91f8bb357 after one `/fabrik-review` over the wave (receipt `docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T06-review.md`, confirmed 13 → 5 → 1 → 0, scope-growth stop then a remainder round). Orchestrator deltas outside the two tickets' Touches: the T05 grader in `tests/test_cli_apply_flags.py` widened to accept `import_()`'s required printer line, and the `tests/test_hub_write_root.py` vps-status pin moved to the new label.
+- **T09 deviation — the doc-link gate.** Deleting the modules left six live-tree doc links dead (`final_gate`'s Doc Link Integrity check), in files owned by T10a, T10b and T11. Because every stop point must be green on its own, the T09 commit also (a) regenerates `docs/CAPABILITIES.md` and `capabilities.json` through `scripts/generate_capability_index.py` (the only sanctioned path; it drops the two deleted scripts and four catalog entries, the rest is `verified_at` churn) and (b) un-links the four other references to bare file names marked "removed in the Coolify retirement, T09" (`docs/CONFIGURATION.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/TROUBLESHOOTING.md`, `docs/reference/health-monitoring.md`). T10a, T10b and T11 still rewrite those paragraphs; T11 re-runs the generator. The two absence graders (`tests/test_cli_apply_flags.py`, `tests/test_projects_sync.py`) were reworded so the V8 census reads 0 of 1373 files.
+- **Wave T10a + T10b** merged at 074617a86 after one `/fabrik-review` (receipt `docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T10-review.md`, confirmed 19 → 0). T11's one-line `docs/reference/apis/EXTERNAL_SYSTEMS.md:284` edit rode in that commit so the wave review covered it. T10b's Behavior row "retired-terms WARN count lower" did not move over its four files (4 → 4): the survivors are true host facts (the iptables 6001/6002 leftovers, the Supabase exception path); over T10a's nine files it went 3 → 0 and repo-wide 43 → 40.
+- **Archive owed to the merge owner.** `docs/DECISIONS.md` rows D-834 and D-838 cite this plan at its current path, so the plan stays here with `Status: EXECUTED` and the coordinator archives it with every referrer in one commit (§ Finish step 6, D-484).
+- **T11.** The capability generator re-ran with no content change (only `generated_at`/`verified_at`; neither deleted script is in `docs/CAPABILITIES.md`, `llms.txt` or `capabilities.json`), so nothing was committed from it; `scripts/audit_capability_docs.py` refreshed `docs/development/capability-defects.md`, dropping the `coolify`/`compose_updater` retire rows and three rows the catalog had already cleared. The ticket's `/fabrik-docs-review` over the touched docs is carried by the Finish `/fabrik-review`'s docs slice (S4), which checks every touched doc against the final code; the docs wave had its own converged review the same day.
 
 ## RESUME
 

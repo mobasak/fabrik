@@ -4,7 +4,7 @@
 (`cli.py` — the `["python3", str(sync_script)]` argv, `cwd=FABRIK_ROOT`) BEFORE
 `ProjectRegistry()` is constructed, because the scanner rewrites `data/projects.yaml`,
 the file the registry's `__init__` loads. `subprocess.run` is faked here — never the
-real scanner. The Coolify sync block is gone: no `CoolifyClient`, no
+real scanner. The Coolify sync block is gone: no Coolify API client, no
 `registry.update(..., coolify_uuid=..., coolify_name=...)`, no `coolify_uuid`/
 `coolify_name` fields on `Project`.
 """
@@ -144,10 +144,13 @@ class TestHelpText:
         assert result.exit_code == 0
         assert "Re-scan /opt and merge the deploy state before listing" in result.output
 
-    def test_status_help_names_ready_development_never_deployed(self):
+    def test_status_help_names_both_registry_vocabularies_never_deployed(self):
+        """scan writes ready/development; --sync (scripts/sync_projects.py) writes the other four."""
         result = CliRunner().invoke(cli, ["projects", "--help"])
         assert result.exit_code == 0
-        assert "Filter by status (ready/development)" in result.output
+        flat = " ".join(result.output.split())
+        assert "ready/development after `fabrik scan`" in flat
+        assert "production/development/archived/paused after --sync" in flat
         assert "deployed" not in result.output
 
 

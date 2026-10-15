@@ -341,6 +341,19 @@ def test_load_returns_none_if_missing():
     assert state.load("nonexistent-spec") is None
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [b'["oops"]', b'"a string"', b"42", b"null", b"\xff\xfe\x00bad"],
+    ids=["array", "string", "number", "null", "not-utf8"],
+)
+def test_load_returns_none_for_a_record_that_is_not_a_json_object(raw):
+    """Every reader (status, audit-registrars, destroy --use-state) calls .get on the record."""
+    state = _import()
+    state.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (state.STATE_DIR / "corrupt.json").write_bytes(raw)
+    assert state.load("corrupt") is None
+
+
 def test_load_round_trips():
     state = _import()
     state.save(

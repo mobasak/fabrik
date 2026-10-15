@@ -24,7 +24,7 @@ keys-sorted alphabetically for stable diffs::
     {
       "applied_at":          "<ISO 8601 UTC>",
       "coolify_app_name":    "<id or fabrik-<id>>",
-      "coolify_uuid":        "<compose app name — the app directory under /opt — kept under its historical key>",
+      "coolify_uuid":        "<compose app name — the spec name on apply, the matched /opt directory on refresh — historical key>",
       "domain":              "<FQDN or empty>",
       "git_sha":             "<40-char or empty if not in git>",
       "registrar_failures":  [
@@ -162,8 +162,11 @@ def save(
         spec_id: The spec's ``id`` field (e.g. ``"translator"``).
         spec_path: Absolute path to the source spec YAML.
         spec_hash: SHA256 of the canonical spec content.
-        coolify_uuid: The compose app name — the app directory under
-            ``/opt`` — kept under this historical key; ``None`` for
+        coolify_uuid: The compose app name, kept under this historical
+            key — the spec ``name`` on apply, the basename of the matched
+            ``/opt`` app directory on refresh (the two differ whenever that
+            directory is not ``/opt/<name>`` — an ``/opt/fabrik-<name>`` app,
+            or a local source at another ``/opt`` child); ``None`` for
             registrars-only flows where there is no compose app.
         coolify_app_name: ``<id>`` or ``fabrik-<id>`` — whichever name
             the deploy exposes the app under (per T1 G-G1 logic).
@@ -228,15 +231,19 @@ def save(
 
 
 def load(spec_id: str) -> dict[str, Any] | None:
-    """Return the parsed state JSON or ``None`` if missing/unreadable."""
+    """Return the parsed state record, or ``None`` if missing, unreadable or not a JSON object."""
     target = STATE_DIR / f"{spec_id}.json"
     if not target.exists():
         return None
     try:
-        return json.loads(target.read_text())
-    except (json.JSONDecodeError, OSError) as e:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as e:  # ValueError covers JSONDecodeError and UnicodeDecodeError
         logger.warning("state.load(%s): unreadable — %s", spec_id, e)
         return None
+    if not isinstance(payload, dict):
+        logger.warning("state.load(%s): not a JSON object (%s)", spec_id, type(payload).__name__)
+        return None
+    return payload
 
 
 def archive_destroyed(spec_id: str) -> Path | None:

@@ -98,7 +98,7 @@ Provide a dependency-aware health check surface that:
 - exposes which dependency failed in a stable JSON shape
 - supports command-line probing for automation (CI, cron, or ad-hoc debugging)
 
-> **Legacy `coolify` check (decommissioned 2026-05-30).** `health_app.py` still has a `_check_coolify_sync()` branch and emits a `checks.coolify` key, but Coolify is decommissioned — this is a dead dependency that always reports unhealthy/unreachable and should be removed. The descriptions below document the code as it currently stands.
+> **Coolify check removed.** `health_app.py` used to carry a `_check_coolify_sync()` branch and a `checks.coolify` key against the Coolify API (decommissioned 2026-05-30); that dependency check was removed in the Coolify retirement, so `/health` now reports the DNS manager alone.
 
 ---
 
@@ -127,11 +127,6 @@ curl -fsS http://localhost:8000/health | python -m json.tool
   "service": "fabrik",
   "status": "ok" | "degraded",
   "checks": {
-    "coolify": {
-      "status": "healthy" | "unhealthy",
-      "details": { "status": "...", "...": "..." },
-      "error": "..."
-    },
     "dns": {
       "status": "healthy" | "unhealthy",
       "details": { "status": "...", "...": "..." },
@@ -143,7 +138,7 @@ curl -fsS http://localhost:8000/health | python -m json.tool
 
 Notes:
 
-- `checks.coolify` and `checks.dns` always include a top-level `status`.
+- `checks.dns` always includes a top-level `status`.
 - `details` is present when the underlying dependency returns a structured payload.
 - `error` is present when the dependency check raises an exception.
 
@@ -154,7 +149,6 @@ Notes:
 
 **Dependency checks**:
 
-- Coolify (legacy/dead — decommissioned 2026-05-30): `CoolifyClient.health()` via `_check_coolify_sync()`
 - DNS manager: `DNSClient.health()`
 
 Each dependency payload is normalized by `_normalize_status()` to map common upstream statuses
@@ -197,7 +191,7 @@ python scripts/health_checker.py --health-url http://localhost:8000/health --che
 
 ## Configuration
 
-`src/fabrik/health_app.py` depends on the Coolify and DNS client configuration (see their driver docs).
+`src/fabrik/health_app.py` depends on the DNS client configuration (see the driver docs).
 
 `scripts/health_checker.py` uses the following environment variables for database targeting:
 
@@ -279,13 +273,13 @@ Two alerts in the same rule file and route: **`FabrikRegistryHealFailed`** (`max
 
 ## Stable Docker DNS Aliases (T2-04 G-J3, 2026-05-15) — LEGACY / not deployed
 
-> **Decommissioned (2026-06):** This mechanism existed to work around Coolify renaming Application containers on every redeploy. Coolify has since been decommissioned (`coolify` is now only a legacy Docker-network name), so the per-redeploy rename problem no longer exists and the alias-watcher is **not running** — `/opt/coolify-alias-watcher/` is absent on the VPS. The repo files (`src/fabrik/orchestrator/coolify_alias.py` live; the former `ops/coolify-alias-watcher/` WSL mirror was archived to `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/`) remain as a historical mirror. The description below documents the original design.
+> **Decommissioned (2026-06):** This mechanism existed to work around Coolify renaming Application containers on every redeploy. Coolify has since been decommissioned (`coolify` is now only a legacy Docker-network name), so the per-redeploy rename problem no longer exists and the alias-watcher is **not running** — `/opt/coolify-alias-watcher/` is absent on the VPS. No live part of it remains in the repo: `coolify_alias.py` was removed at 9c02e8c86 (the Coolify retirement), and the former `ops/coolify-alias-watcher/` WSL mirror lives only in the archive at `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/`. The description below documents the original design.
 
 Adjacent to the audit/verify primitives above — the alias-watcher keeps friendly Docker DNS names alive for Gatus monitors and inter-service URLs that target Coolify Application containers. Coolify renames Application containers on every redeploy (`<24-char-uuid>-<10-digit-timestamp>`); without the watcher, `gatus:8080 → meilisearch:7700` resolution would break after each redeploy of the meilisearch container.
 
 The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to `docker events --filter event=start`), reads the prefix→alias map from `/opt/coolify-alias-watcher/aliases.json`, and re-applies aliases within ~1s. WSL mirror in repo archived at `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/`.
 
-**Orchestrator integration:** new services that need stable DNS opt in by setting `coolify.alias: <name>` in their spec's `CoolifyConfig` block. `fabrik apply` calls `src/fabrik/orchestrator/coolify_alias.py::add_alias(ctx.coolify_uuid, alias)` after the Coolify create-app step, which writes atomically to aliases.json and restarts the watcher. Non-fatal: alias-watcher failure logs a warning but never aborts deploy.
+**Orchestrator integration (historical):** services that needed stable DNS opted in with `coolify.alias: <name>` in their spec's `CoolifyConfig` block (since removed). `fabrik apply` called `coolify_alias.py::add_alias(ctx.coolify_uuid, alias)` after the Coolify create-app step, which wrote atomically to aliases.json and restarted the watcher; an alias-watcher failure logged a warning and never aborted the deploy. `coolify_alias.py` was removed at 9c02e8c86.
 
 **Why this matters for monitoring:** Gatus endpoint configs at `/opt/monitoring/configs/gatus/apps/<svc>.yaml` reference services by friendly name (`http://meilisearch:7700/health`). If a Coolify redeploy renames the underlying container and the watcher hasn't re-attached the alias yet, that Gatus check would 503 until the next watcher cycle (sub-second window). Across all 4 baseline aliases (meilisearch, gotenberg, browserless, glitchtip-web) this has been silent-correct since 2026-04-16.
 
@@ -296,7 +290,7 @@ The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to 
 - `src/fabrik/health_app.py` - FastAPI health endpoint implementation
 - `src/fabrik/audit.py` - per-registrar audit module (T2-02)
 - `scripts/audit_authelia_gates.py` - weekly Authelia-Traefik drift audit (T2-03 G-G4)
-- `src/fabrik/orchestrator/coolify_alias.py` - Coolify alias-watcher write side (T2-04 G-J3)
+- `coolify_alias.py` - Coolify alias-watcher write side (T2-04 G-J3; removed at 9c02e8c86)
 - `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/` - archived WSL mirror of the VPS-side `/opt/coolify-alias-watcher/`
 - `docs/reference/modules/drivers.md` - driver API reference (registrar drivers + DNS/GPU providers)
 - `.env.example` - authoritative environment variable reference

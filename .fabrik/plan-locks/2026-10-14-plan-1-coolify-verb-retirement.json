@@ -63,7 +63,7 @@
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-14T02:28:33.380258+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "8bd934f3df0c951afd0781b6b5025e6332467186",
   "baseline_gate": {
     "status": "success",
@@ -133,6 +133,59 @@
       "started_at": "2026-10-14T08:48:39.493544+00:00",
       "updated_at": "2026-10-14T10:46:22.589996+00:00",
       "coder_commit": "2a7f0fb38"
+    },
+    "T06": {
+      "state": "merged",
+      "base_commit": "a1dd151d8",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T10:58:10.128555+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a9aa8dec3b8623fd3",
+      "branch": "worktree-agent-a9aa8dec3b8623fd3",
+      "coder_commit": "3694bc6aa"
+    },
+    "T08": {
+      "state": "merged",
+      "base_commit": "a1dd151d8",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T10:58:10.128555+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a6b864ddae60be827",
+      "branch": "worktree-agent-a6b864ddae60be827",
+      "coder_commit": "9d0d9e4c8"
+    },
+    "T09": {
+      "state": "merged",
+      "base_commit": "91f8bb357",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T12:21:54.533083+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a2061015f53e9ca57",
+      "branch": "worktree-agent-a2061015f53e9ca57",
+      "coder_commit": "f842a594e"
+    },
+    "T10a": {
+      "state": "merged",
+      "base_commit": "9c02e8c86",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T12:21:54.224210+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a2542fb9f4d563e9c",
+      "branch": "worktree-agent-a2542fb9f4d563e9c",
+      "coder_commit": "4cfea4d1f"
+    },
+    "T10b": {
+      "state": "merged",
+      "base_commit": "9c02e8c86",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T12:21:54.224210+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a6b7f427ca1fc02fd",
+      "branch": "worktree-agent-a6b7f427ca1fc02fd",
+      "coder_commit": "af245f66c"
+    },
+    "T11": {
+      "state": "merged",
+      "base_commit": "074617a86",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T13:38:07.975273+00:00"
     }
-  }
+  },
+  "completed_at": "2026-10-15T13:38:21.949821+00:00",
+  "final_commit": "the T11 commit on worktree-fleet (log grep 'T11 \u2014')"
 }

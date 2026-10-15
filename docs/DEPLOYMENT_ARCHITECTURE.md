@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-29 (verified end-to-end against source; 2026-05-28 was the full rewrite: Coolify API → SSH + Docker Compose deployer)
+**Last Updated:** 2026-10-15 (Coolify retirement: the removed flags, modules and the dead `deploy.py` row dropped; CLI line anchors refreshed. 2026-05-29 verified end-to-end against source; 2026-05-28 was the full rewrite: Coolify API → SSH + Docker Compose deployer)
 **Previous version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040`
 
 ## Table of Contents
@@ -71,15 +71,15 @@ Click-based CLI. The commands below are the only public entry points for deploym
 
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
-| `fabrik scaffold <name> --type <t>` | 1779 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
-| `fabrik apply <spec.yaml>` | 415 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep) — the only path.** Flags: `--dry-run`, `-s KEY=VALUE`, `--yes` (accepted for compatibility; the orchestrator path never prompts), `--skip-health-check`, `--keep-on-failure` (proof-run only), `--target-vps`. The legacy flags (`--legacy`, `--use-orchestrator`, `--skip-dns`, `--skip-deploy`) were retired 2026-10-14 (plan T05, spec D1) — a stale flag gets click's `No such option`. | `orchestrator/DeploymentOrchestrator.deploy()` |
-| `fabrik redeploy <app>` | 1279 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
-| `fabrik destroy <spec>` | 950 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
-| `fabrik vps-sync [--dry-run]` | 1224 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
-| `fabrik validate-deploy <project>` | 1920 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
-| `fabrik domain provision <domain>` | 2153 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
-| `fabrik domain ready <domain>` | 2240 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
-| `fabrik domain buy <domain>` | 2366 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
+| `fabrik scaffold <name> --type <t>` | 1734 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
+| `fabrik apply <spec.yaml>` | 428 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep) — the only path.** Flags: `--dry-run`, `-s KEY=VALUE`, `--yes` (accepted for compatibility; the orchestrator path never prompts), `--skip-health-check`, `--keep-on-failure` (proof-run only), `--target-vps`. The legacy flags (`--legacy`, `--use-orchestrator`, `--skip-dns`, `--skip-deploy`) were retired 2026-10-14 (plan T05, spec D1) — a stale flag gets click's `No such option`. | `orchestrator/DeploymentOrchestrator.deploy()` |
+| `fabrik redeploy <app>` | 1115 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
+| `fabrik destroy <spec>` | 781 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
+| `fabrik vps-sync [--dry-run]` | 1059 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
+| `fabrik validate-deploy <project>` | 1863 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
+| `fabrik domain provision <domain>` | 2281 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
+| `fabrik domain ready <domain>` | 2368 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
+| `fabrik domain buy <domain>` | 2494 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
 | `fabrik wp plan/apply/verify/flush` | — | WordPress sub-pipeline. **Moved to `/opt/wpf/`** standalone project (no longer in fabrik CLI). | `wpf/` (separate repo) |
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
@@ -100,13 +100,12 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `orchestrator/destroyer.py` | `destroy_deployment()`, `destroy_from_state()` | Symmetric inverse of provisioner. Walks registrars in reverse order, calls each driver's remove/delete. Data-bearing registrars (postgres, redis, meilisearch) skipped unless `--drop-data`. |
 | `orchestrator/exceptions.py` | Typed exceptions | `DeploymentError`, `ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`. Orchestrator catches these and routes to rollback. |
 
-**Legacy file:** `orchestrator/deployer_coolify.py` — archived `git mv` of the old Coolify deployer. Available for reference only; not imported by any active code path.
 
 ### 2.3 Spec & template layer
 
 | File | Role |
 |---|---|
-| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNSConfig` (+ `DNSRecord`), `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
+| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNSConfig` (+ `DNSRecord`), `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
 | `src/fabrik/template_renderer.py` | `TemplateRenderer(spec).render(output_dir)` → writes `compose.yaml` + `Dockerfile` + auxiliary files from `templates/<type>/*.j2`. `list_templates()` enumerates available templates. |
 | `src/fabrik/scaffold.py` | The entire `fabrik scaffold` command. Generates `/opt/<name>/` tree; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, `README.md`, tests, CI workflow. Reads `templates/<type>/defaults.yaml` for shape flags. |
 | `src/fabrik/compose_linter.py` | `ComposeLinter.lint(compose_yaml)` — validates Fabrik deployment constraints: `container_name` **required** (warning), `restart` policy required, healthcheck recommended for databases, no unresolved `${VAR}` without defaults. |
@@ -129,12 +128,6 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `drivers/tco.py` | `TCOClient` | TCO AI service | Content generation (content pipeline, **not deploy**). |
 | `drivers/wordpress.py` | `WordPressClient`, `WPSite`, `ContainerResolver` | WP-CLI via `docker exec` | WordPress-specific deploys (plugins, themes, settings). |
 | `drivers/wordpress_api.py` | `WordPressAPIClient`, `WPCredentials`, `WPPost` | WordPress REST API | Content CRUD for WordPress sites. |
-
-**Legacy driver (not on active deploy path):**
-
-| File | Status | Notes |
-|---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
 
 **Shape-driven registrar drivers (all implemented):**
 
@@ -162,8 +155,8 @@ Site provisioning (domain → DNS → initial deploy) is not implemented inside 
 | `src/fabrik/deploy_validator.py` | `validate(project_dir)` — scaffold-level readiness (Dockerfile exists, `.env` populated, healthcheck declared, platform directive). Returns `ValidationResult` list; CLI prints them as warnings. |
 | `src/fabrik/verify.py` | `PostconditionChecker`, `verify_postconditions` decorator — general postcondition framework (HTTP 200, file-exists, env-var-set, etc.). Used by both legacy pipeline and orchestrator/verifier. |
 | `src/fabrik/notifications.py` | Thin wrapper over Apprise for in-Fabrik notifications (not infrastructure alerts). |
-| `src/fabrik/monitor.py` | Deployment monitor helpers used by `fabrik status/logs`. |
-| `src/fabrik/health_app.py` | Tiny FastAPI app exposing `/health` for Fabrik's own service health (scraped by Gatus). Note: still references `CoolifyClient` for legacy health checks — monitoring only, not on deploy path. |
+| `src/fabrik/monitor.py` | Deployment monitor helpers. Not imported by `cli.py` (`fabrik status` probes the VPS through `deployer_ssh.probe_app`; `fabrik logs` queries Loki). |
+| `src/fabrik/health_app.py` | Tiny FastAPI app exposing `/health` for Fabrik's own service health (scraped by Gatus). The health endpoint checks the DNS manager alone. |
 
 ---
 
@@ -340,7 +333,7 @@ Single entry point for all tier-based quality checks:
 | `scripts/audit_envs.py` | Audit all `/opt/*/.env` files. |
 | `scripts/audit_all_projects.py` | Full-fleet compliance report (every project vs. every enforcement check). |
 | `scripts/container_images.py` | Inventory of every Docker image in use on the VPS; detects outdated `:latest` tags. |
-| `scripts/health_summary.py`, `scripts/health_checker.py`, `scripts/health_check_autonomous.py` | Rollup health probes across all deployed services. |
+| `scripts/health_summary.py`, `scripts/health_checker.py` | Rollup health probes across all deployed services. |
 | `scripts/generate_vps_inventory.py` | Generates VPS container/service inventory. Called by `_post_deploy_sync()`. |
 | `scripts/update_vps_docs.py` | Refreshes VPS status documentation. Called by `_post_deploy_sync()`. |
 | `scripts/provision_grafana.sh` | One-shot Grafana setup (dashboards, datasources). |
@@ -523,7 +516,7 @@ fabrik validate-deploy /opt/my-api
 
 1. `SpecValidator.validate()` — required-field + type checks + SSRF + `compute_spec_hash()` for idempotency.
 2. `SecretsManager.load()` — precedence: `os.environ` (includes `-s` flags) → `.env` → auto-generate.
-3. `DNSClient.add_subdomain(base_domain, subdomain, vps_ip)` — skipped if `--skip-dns`. Falls back to `CloudflareClient.add_subdomain()` if site-provisioner is unavailable.
+3. `DNSClient.add_subdomain(base_domain, subdomain, vps_ip)` — falls back to `CloudflareClient.add_subdomain()` when that call raises; a `success: false` reply raises `ProvisioningError` with no fallback (`DeploymentOrchestrator._provision_dns`).
 4. `SSHDeployer.deploy(ctx)` — dispatches by source type:
    - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d --wait`
    - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d --wait`
@@ -543,8 +536,6 @@ fabrik apply /opt/fabrik/specs/services/my-api.yaml
 fabrik apply /opt/fabrik/specs/services/my-api.yaml --dry-run
 
 # Flags
-fabrik apply specs/services/my-api.yaml --skip-dns           # skip DNS record
-fabrik apply specs/services/my-api.yaml --skip-deploy        # render files only
 fabrik apply specs/services/my-api.yaml -s API_KEY=override  # override a secret
 fabrik apply specs/services/my-api.yaml --keep-on-failure    # suppress rollback (debugging)
 ```
@@ -701,7 +692,6 @@ python scripts/sync_projects.py
 Orchestrator catches any exception during deploy, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.created_resources[*]`:
 
 - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
-- `coolify` → legacy Coolify app removal (pre-migration deployments only)
 - `dns` → `CloudflareClient.delete_record_by_name()`
 - `monitor` → legacy monitor resource cleanup
 - `glitchtip` → `delete_project()`

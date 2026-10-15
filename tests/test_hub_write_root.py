@@ -237,7 +237,10 @@ def test_vps_sync_writes_land_in_the_worktree_not_the_main_checkout(tmp_path, mo
     assert module.update_inventory_count(len(stub_containers)) is True
 
     # Tracked outputs changed in the WORKTREE...
-    assert "1 (Coolify stack" in (wt / "docs" / "infrastructure" / "vps-status.md").read_text()
+    assert (
+        "1 (infra + microservices)"
+        in (wt / "docs" / "infrastructure" / "vps-status.md").read_text()
+    )
     assert (
         "**Total Containers:** 1"
         in (wt / "docs" / "infrastructure" / "vps-complete-inventory.md").read_text()

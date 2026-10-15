@@ -11,12 +11,8 @@ Bundle layout (per pack §28 lines 47–69):
     ├── manifest.json                   # version, source vps, timestamp, contents
     ├── README.md                       # restore instructions + prerequisites
     ├── specs/services/*.yaml           # all service specs (verbatim)
-    ├── state/*.json                    # .fabrik/state/<id>.json (coolify_uuid stripped)
+    ├── state/*.json                    # .fabrik/state/<id>.json (legacy coolify_uuid stripped)
     ├── secrets-redacted.json           # .env key NAMES only (never values)
-    ├── coolify/
-    │   ├── applications.json           # list_applications() with UUIDs recursively stripped
-    │   ├── services.json               # list_services() with UUIDs stripped
-    │   └── projects.json               # list_projects() with UUIDs stripped
     ├── monitoring/
     │   ├── gatus/                      # SSH-pulled /opt/monitoring/configs/gatus/
     │   ├── prometheus.yml              # /opt/monitoring/configs/prometheus/prometheus.yml
@@ -25,14 +21,17 @@ Bundle layout (per pack §28 lines 47–69):
     │   ├── redis-assignments.json      # /opt/monitoring/configs/redis/assignments.json
     │   └── postgres-allocations.json   # /opt/monitoring/configs/postgres/allocations.json (T4-01)
     ├── authelia/
-    │   └── configuration.yml           # SSH pull from authelia container
+    │   └── configuration.yml           # SSH pull of the host-mounted Authelia config
     └── backrest/
         └── config.json                 # SSH pull from backrest config
 
 Security invariants enforced by tests:
     1. Bundle contains NO plaintext secret values (only key names).
-    2. Bundle contains NO Coolify UUIDs (recursively stripped from API exports).
-    3. Bundle contains NO Coolify private keys.
+    2. Bundle contains NO legacy ``coolify_uuid`` values (stripped from state files).
+    3. Bundle contains NO private keys.
+
+A legacy bundle's ``coolify/*`` members are never restored; ``import_bundle``
+counts them under ``plan["ignored_legacy"]``.
 
 Out of scope (per ticket):
     - Age / sops / 1Password secrets-manager integration.
@@ -62,9 +61,10 @@ logger = logging.getLogger(__name__)
 
 BUNDLE_VERSION = 1
 
-# Pattern of a Coolify UUID — 24 alphanumeric chars. Used by the recursive
-# UUID-stripper. Matches more permissively than strictly necessary to catch
-# Coolify's mix of timestamp-suffixed names too.
+# Pattern of a legacy platform UUID — 24 alphanumeric chars. Used by the
+# recursive UUID-stripper over ``.fabrik/state/*.json`` (its only consumer,
+# ``_collect_state``). Matches more permissively than strictly necessary to
+# catch timestamp-suffixed names too.
 _COOLIFY_UUID_RE = re.compile(r"^[a-z0-9]{24}$")
 
 # Sensitive-key patterns for the generic config redactor. Any field whose
@@ -117,7 +117,7 @@ def _redact_sensitive_fields(obj: Any) -> Any:
     return obj
 
 
-# Keys we always strip from Coolify-API payloads (UUIDs + sensitive refs).
+# Keys ``_strip_uuids`` always strips from state-file payloads (legacy UUIDs + sensitive refs).
 _STRIP_KEYS = frozenset(
     {
         "uuid",
@@ -148,9 +148,9 @@ _STRIP_KEYS = frozenset(
 def _strip_uuids(obj: Any) -> Any:
     """Recursively walk a JSON-like structure removing UUID-shaped fields.
 
-    Coolify returns UUIDs in deeply-nested objects (deployments, env vars,
-    private-key refs); explicit recursion catches every variant without
-    relying on driver-side filtering.
+    Used by ``_collect_state`` over ``.fabrik/state/*.json``, where legacy
+    UUIDs can sit in nested objects; explicit recursion catches every
+    variant.
     """
     if isinstance(obj, dict):
         return {k: _strip_uuids(v) for k, v in obj.items() if k not in _STRIP_KEYS}
@@ -201,7 +201,7 @@ def _collect_specs(fabrik_root: Path) -> dict[str, str]:
 
 def _collect_state(fabrik_root: Path) -> dict[str, dict[str, Any]]:
     """Read every ``.fabrik/state/<id>.json`` and STRIP ``coolify_uuid``
-    (regenerated on import). Other fields kept verbatim.
+    (the compose app name, re-derived from the spec on import). Other fields kept verbatim.
 
     Archived ``_destroyed/`` entries are excluded — they describe past
     deploys, not current state.
@@ -220,38 +220,6 @@ def _collect_state(fabrik_root: Path) -> dict[str, dict[str, Any]]:
         # entries themselves shouldn't contain UUIDs but be safe).
         payload.pop("coolify_uuid", None)
         out[path.stem] = _strip_uuids(payload)
-    return out
-
-
-def _collect_coolify(coolify_client: Any | None = None) -> dict[str, list[Any]]:
-    """Pull Applications / Services / Projects from Coolify API and
-    recursively strip UUIDs.
-
-    Bound to the ``CoolifyClient`` via dependency injection so tests can
-    swap in a mock. The default client is constructed from the
-    ``COOLIFY_API_TOKEN`` env var (already validated by other drivers).
-    """
-    if coolify_client is None:
-        try:
-            from fabrik.drivers.coolify import CoolifyClient
-
-            coolify_client = CoolifyClient()
-        except Exception as exc:  # noqa: BLE001 — defer to export-time logging
-            logger.warning("portability: CoolifyClient init failed (%s); empty export", exc)
-            return {"applications": [], "services": [], "projects": []}
-
-    out: dict[str, list[Any]] = {"applications": [], "services": [], "projects": []}
-    for kind, fn in (
-        ("applications", coolify_client.list_applications),
-        ("services", coolify_client.list_services),
-        ("projects", coolify_client.list_projects),
-    ):
-        try:
-            data = fn()
-            out[kind] = _strip_uuids(data) or []
-        except Exception as exc:  # noqa: BLE001 — best-effort per pack §28
-            logger.warning("portability: coolify.%s failed (%s)", kind, exc)
-            out[kind] = []
     return out
 
 
@@ -304,12 +272,13 @@ def _collect_monitoring_remote() -> dict[str, str]:
 
 
 def _collect_authelia() -> dict[str, str]:
-    """Authelia configuration.yml lives in the Coolify-Service named volume:
-    ``/var/lib/docker/volumes/<service-uuid>_authelia-config/_data/configuration.yml``
+    """Authelia configuration.yml.
 
-    Verified live 2026-05-16 — Authelia is a Coolify Service (uuid
-    ``hks48k8sg8o4co4co08co00o``) and its config is mounted as a named
-    Docker volume, NOT a bind mount under ``/data/coolify/services/``.
+    Authelia's configuration is bind-mounted from the host path
+    ``/opt/authelia/config`` (read-only vps1 reading R1, 2026-10-14), not a
+    named Docker volume, so that path is probed first. The two legacy
+    named-volume/service-directory paths and the volume-find discovery stay
+    after it as legacy fallbacks.
 
     **Plaintext-secret redaction (T4-03 convergence pass).** The on-disk
     configuration.yml carries inline ``jwt_secret``, ``session.secret``,
@@ -319,9 +288,11 @@ def _collect_authelia() -> dict[str, str]:
     preserved so the bundle stays restore-useful.
     """
     candidates = [
-        # Current live path (T4-03 verification 2026-05-16):
+        # Live path: host bind mount (R1).
+        "/opt/authelia/config/configuration.yml",
+        # Legacy fallbacks follow. Named-volume path:
         "/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml",
-        # Pack §28 original guess kept as last-ditch fallback:
+        # Legacy service-directory path, last-ditch fallback:
         "/data/coolify/services/hks48k8sg8o4co4co08co00o/authelia/configuration.yml",
     ]
     raw: str | None = None
@@ -330,7 +301,7 @@ def _collect_authelia() -> dict[str, str]:
         if raw:
             break
     if not raw:
-        # UUID-agnostic discovery (post-redeploy fallback).
+        # Volume-name discovery fallback.
         raw = _ssh_cat(
             "$(sudo find /var/lib/docker/volumes/ -maxdepth 1 -name '*_authelia-config' "
             "-printf '%p/_data/configuration.yml\\n' 2>/dev/null | head -1)"
@@ -357,8 +328,8 @@ def _collect_authelia() -> dict[str, str]:
 def _collect_backrest() -> dict[str, str]:
     """Backrest config.json lives at ``/opt/backrest/config/config.json``
     (verified live 2026-05-16 via docker inspect of the backrest container's
-    ``/config`` mount). The mount is a host bind, NOT a Coolify Service
-    volume — so this path is stable across Coolify redeploys.
+    ``/config`` mount). The mount is a host bind, so this path is stable
+    across redeploys.
 
     **Plaintext-secret redaction (T4-03 convergence pass).** The on-disk
     config.json carries ``repos[].password`` (restic encryption password),
@@ -387,8 +358,8 @@ def _collect_backrest() -> dict[str, str]:
 def _build_readme(source_vps: str, timestamp: str, sections: Iterable[str]) -> str:
     """Restore-instructions README for the bundle root.
 
-    Documents the prerequisites the target VPS must satisfy (Coolify
-    installed, postgres-main + redis-main bootstrapped, the Fabrik
+    Documents the prerequisites the target VPS must satisfy (SSH access,
+    Docker Compose, postgres-main + redis-main bootstrapped, the Fabrik
     governance files synced) and the manual steps that fall outside
     ``fabrik import``'s automation (DNS, LetsEncrypt, secrets).
     """
@@ -409,16 +380,18 @@ services can be rebuilt on a fresh target.
 
 ## Target VPS prerequisites (before `fabrik import`)
 
-1. **Coolify** installed and running. Verify: `curl -fsS localhost:8000/api/v1/health` → 200.
-2. **`postgres-main`** Coolify Service deployed and reachable as `postgres-main:5432`
-   from the `coolify` Docker network.
-3. **`redis-main`** Coolify Service deployed and reachable as `redis-main:6379`.
+1. **SSH access** to the target VPS and **Docker Compose** installed. Verify:
+   `ssh <vps> docker compose version`.
+2. **`postgres-main`** Compose project deployed and reachable as `postgres-main:5432`
+   from the `fabrik` Docker network.
+3. **`redis-main`** Compose project deployed and reachable as `redis-main:6379`.
 4. **Fabrik governance files** synced (`AGENTS.md`, `CLAUDE.md`) — typically via
    `python3 scripts/sync_enforcement_to_projects.py --force` from a fabrik
    checkout on the target.
 5. **DNS provider** access (Cloudflare token) — not in this bundle; operator
    provides per environment.
-6. **Coolify API token** for the target installation — generate via Coolify UI.
+6. **Compose files** for the services under `/opt/<id>/compose.yaml` — restored by
+   `fabrik apply specs/services/<id>.yaml` from the bundle's `specs/`.
 
 ## Restore steps
 
@@ -431,9 +404,10 @@ tar -xzf fabrik-export-<vps>-<date>.tar.gz -C /tmp/fabrik-restore
 #    provide. Pack §28 § Secrets ergonomics: this is the ~0.5 day manual cost.
 cat /tmp/fabrik-restore/secrets-redacted.json | jq -r 'keys[]'
 
-# 3. Run fabrik import — best-effort: rebuilds Coolify Projects → Services →
-#    Applications via API, re-creates Authelia/Backrest/monitoring configs,
-#    then runs `fabrik audit-registrars` to verify the rebuild.
+# 3. Run fabrik import — best-effort: plans the Authelia/Backrest/monitoring
+#    config restore and reports it; it does not apply anything. Then, by hand,
+#    run `fabrik apply specs/services/<id>.yaml` for each spec (SSH + Compose)
+#    and `fabrik audit-registrars` to verify the rebuild.
 fabrik import /tmp/fabrik-restore
 
 # 4. Manual follow-ups NOT automated by import (see ticket Out of Scope):
@@ -450,7 +424,8 @@ fabrik import /tmp/fabrik-restore
   deferred to the vps2 stand-up. Treat the import path as a checklist
   generator more than an executor for now.
 - **No plaintext secrets** are inside this tarball. By design.
-- **Coolify UUIDs** are stripped — the target generates fresh UUIDs.
+- **Legacy platform UUIDs** are stripped from state files; the target
+  starts from fresh state.
 """
 
 
@@ -490,7 +465,6 @@ def export_bundle(
     include_data: bool = False,
     fabrik_root: Path = FABRIK_ROOT,
     source_vps: str = "vps1.ocoron.com",
-    coolify_client: Any | None = None,
     skip_remote: bool = False,
 ) -> Path:
     """Build the portability tarball and return its path.
@@ -503,7 +477,6 @@ def export_bundle(
         fabrik_root: Repo root for local file collection (specs, state,
             local monitoring mirrors). Override in tests.
         source_vps: Stamped into manifest + README header.
-        coolify_client: Injectable CoolifyClient (tests pass a mock).
         skip_remote: When True, skip SSH-based pulls (monitoring/authelia/
             backrest). Used by tests; production exports leave it False.
 
@@ -520,10 +493,7 @@ def export_bundle(
     secrets = _redact_env_keys(fabrik_root / ".env")
     local_monitoring = _collect_monitoring_local(fabrik_root)
 
-    # 2. Coolify API exports (UUIDs stripped).
-    coolify = _collect_coolify(coolify_client)
-
-    # 3. VPS-side configs (skippable for tests).
+    # 2. VPS-side configs (skippable for tests).
     remote_monitoring: dict[str, str] = {}
     authelia: dict[str, str] = {}
     backrest: dict[str, str] = {}
@@ -532,11 +502,10 @@ def export_bundle(
         authelia = _collect_authelia()
         backrest = _collect_backrest()
 
-    # 4. Manifest + README.
+    # 3. Manifest + README.
     sections = {
         "specs": len(specs),
         "state": len(state),
-        "coolify": sum(len(v) for v in coolify.values()),
         "monitoring": len(local_monitoring) + len(remote_monitoring),
         "authelia": len(authelia),
         "backrest": len(backrest),
@@ -546,7 +515,7 @@ def export_bundle(
     manifest = _build_manifest(source_vps, timestamp, sections, include_data)
     readme = _build_readme(source_vps, timestamp, section_names)
 
-    # 5. Write the tarball.
+    # 4. Write the tarball.
     with tarfile.open(output, "w:gz") as tar:
         _add_text(tar, "manifest.json", json.dumps(manifest, indent=2, sort_keys=True))
         _add_text(tar, "README.md", readme)
@@ -555,8 +524,6 @@ def export_bundle(
             _add_text(tar, rel, text)
         for spec_id, payload in state.items():
             _add_text(tar, f"state/{spec_id}.json", json.dumps(payload, indent=2, sort_keys=True))
-        for kind, data in coolify.items():
-            _add_text(tar, f"coolify/{kind}.json", json.dumps(data, indent=2, sort_keys=True))
         for rel, text in local_monitoring.items():
             _add_text(tar, rel, text)
         for rel, text in remote_monitoring.items():
@@ -585,7 +552,6 @@ def import_bundle(
     tarball: Path,
     *,
     dry_run: bool = True,
-    coolify_client: Any | None = None,
 ) -> dict[str, Any]:
     """Best-effort restore of a portability bundle on the target VPS.
 
@@ -597,12 +563,12 @@ def import_bundle(
     Args:
         tarball: Path to the ``.tar.gz`` produced by :func:`export_bundle`.
         dry_run: When True (default), parse the bundle, build a restore
-            plan, and emit it as the return value without calling any
-            Coolify API write methods.
-        coolify_client: Injectable CoolifyClient for tests.
+            plan, and emit it as the return value without mutating anything.
 
     Returns:
-        A plan dict: ``{"sections": {...}, "actions": [...], "secrets_to_repopulate": [...]}``.
+        A plan dict: ``{"sections": {...}, "actions": [...], "secrets_to_repopulate": [...]}``,
+        plus ``"ignored_legacy": <n>`` when a legacy bundle carries ``coolify/*`` members
+        (counted, never restored).
         In a non-dry-run, the same dict is returned but ``actions`` reflect
         what was actually applied.
     """
@@ -619,34 +585,41 @@ def import_bundle(
     }
 
     with tarfile.open(tarball, "r:gz") as tar:
-        names = tar.getnames()
+        members = tar.getmembers()
+        # One normalised name per member, so a `tar -C dir .` bundle (./-prefixed) reads the same.
+        by_name = {m.name.removeprefix("./"): m for m in members}
+        names = [m.name.removeprefix("./") for m in members]
         plan["sections"]["total_entries"] = len(names)
 
         # Read manifest if present
-        try:
-            manifest_member = tar.getmember("manifest.json")
+        plan["manifest"] = None
+        manifest_member = by_name.get("manifest.json")
+        if manifest_member is not None:
             f = tar.extractfile(manifest_member)
             if f:
                 plan["manifest"] = json.loads(f.read().decode("utf-8"))
-        except KeyError:
-            plan["manifest"] = None
 
         # Read secrets-redacted.json — populate the to-repopulate list
-        try:
-            secrets_member = tar.getmember("secrets-redacted.json")
+        secrets_member = by_name.get("secrets-redacted.json")
+        if secrets_member is not None:
             f = tar.extractfile(secrets_member)
             if f:
                 redacted = json.loads(f.read().decode("utf-8"))
                 plan["secrets_to_repopulate"] = sorted(redacted.keys())
-        except KeyError:
-            pass
 
         # Index sections by prefix
-        prefixes = ("specs/", "state/", "coolify/", "monitoring/", "authelia/", "backrest/")
+        prefixes = ("specs/", "state/", "monitoring/", "authelia/", "backrest/")
         for prefix in prefixes:
             count = sum(1 for n in names if n.startswith(prefix))
             if count:
                 plan["sections"][prefix.rstrip("/")] = count
+        legacy = sum(
+            1
+            for m, n in zip(members, names, strict=True)
+            if not m.isdir() and n.startswith("coolify/")
+        )
+        if legacy:
+            plan["ignored_legacy"] = legacy
 
     if dry_run:
         plan["actions"].append({"phase": "noop", "reason": "dry_run=True (default)"})
@@ -654,13 +627,12 @@ def import_bundle(
 
     # ── Real-run path: not exercised in this epic (see CHANGELOG note). ──
     # Order mirrors pack §28 lines 102–112:
-    #   1. Recreate Coolify Projects → Services → Applications via API.
-    #   2. Re-inject env vars (operator must re-populate secrets).
-    #   3. Re-create Authelia rules.
-    #   4. Re-create Backrest plans (repo definitions need re-auth).
-    #   5. Re-create Prometheus / Gatus / Grafana configs.
-    #   6. Restore postgres dumps if --include-data was used at export.
-    #   7. Run `fabrik audit-registrars` to verify post-import state.
+    #   1. Re-inject env vars (operator must re-populate secrets).
+    #   2. Re-create Authelia rules.
+    #   3. Re-create Backrest plans (repo definitions need re-auth).
+    #   4. Re-create Prometheus / Gatus / Grafana configs.
+    #   5. Restore postgres dumps if --include-data was used at export.
+    #   6. Run `fabrik audit-registrars` to verify post-import state.
     plan["actions"].append(
         {
             "phase": "real_run",

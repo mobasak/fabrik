@@ -62,9 +62,9 @@ The OpenRouter subagent pool is OFF by ruling (D-181/D-182); nothing calls it.
 ### Service Status Summary (2026-10-07)
 
 Not wired: `r2.py`, `tco.py`, `supabase.py` and `image_broker.py` are imported only by `src/fabrik/drivers/__init__.py`,
-and `compose_updater.py`, `preflight.py` and `uptime_kuma.py` by nothing at all; no command calls any of the seven.
-The Coolify driver and deployer are still imported (`coolify.py`, `orchestrator/deployer_coolify.py`) although Coolify
-was decommissioned on 2026-05-30 (`coolify.py:4`); their retirement is backlog item W-00485146.
+and `preflight.py` and `uptime_kuma.py` by nothing at all; no command calls any of the six.
+The Coolify driver and deployer (`coolify.py`, `orchestrator/deployer_coolify.py`) and `compose_updater.py` were
+removed at 9c02e8c86 (the Coolify retirement, backlog item W-00485146); Coolify itself was decommissioned on 2026-05-30.
 
 ## VPS services (managed by `fabrik apply`, SSH + Docker Compose)
 
