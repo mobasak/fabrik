@@ -165,7 +165,8 @@ browser's `localStorage` (`repo-pick`). For the chosen repo it prints a summary 
 the operator · blocked · claimed now · owners with items) and a row of owner chips, each with its count
 of remaining items: **All**, then `coordinator`, `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
 repo), `operator` and other owners by name, and **(unassigned)** last (always shown; an owner literally
-named `unassigned` keeps its own chip). Each owner's items sit in a collapsible section whose heading
+named `unassigned` keeps its own chip). An item awaiting the operator with no owner (a boarded
+decision) counts under `operator`; an owned awaiting item stays with its owner (W-7159f8e2). Each owner's items sit in a collapsible section whose heading
 carries the owner's awaiting · blocked · claimed counts; an owner with nothing open says "No open
 items". **All** (the default) shows every section, closed except the ones you opened before, so the
 owners read as one list; a chip shows only that owner's section, opened. The chip is kept per repo in
@@ -183,9 +184,29 @@ re-imported when `work.py` changes). The tab is its own page, `/repos.html`, bui
 cached `QUOTA_DASH_REPOS_TTL_S` (20 s) under its own lock — never inside the probe loop, so a slow or
 broken store can neither stall the 20-second regeneration nor delay the rotation trigger. Every git
 call it makes is capped at 1 s; a repo that still fails to read shows its own red banner and the
-others list. The frame loads when the tab is shown. While Repos is open the page keeps its 20-second
-health check but defers the reload (it would reset the list's scroll) until you open another tab; the
-page's own **refresh** link (`/repos.html?fresh=1`) re-reads the stores at once, bypassing the cache.
+others list. The frame loads when the tab is shown. While Repos is open the parent page keeps its 20-second
+health check but defers its own reload (it would reset the list's scroll) until you open another tab.
+The Repos page keeps itself current instead (operator 2026-10-15: "it must be uptodate all the time"):
+every `QUOTA_DASH_REPOS_REFRESH_S` (20 s) it fetches the cached page and swaps only its `#live` part,
+keeping the scroll position, the picked repo, the owner chip and the opened sections; it skips a hidden
+browser tab, a frame the parent has hidden (another dashboard tab shown), a focused picker, a text
+selection and an unchanged stamp, and a failed fetch keeps what is shown. Figures are therefore up to
+about 40 s old (poll plus cache), as the stamp says; one viewer rebuilds the page about once per poll
+(~5 s measured live). The **refresh** link (`/repos.html?fresh=1`) re-reads the stores at once.
+
+**Agents — every repo** sits above the picker (operator 2026-10-15: "which agents is active and working
+on what … for all repos"). It is `scripts/agent_status.py --json --all` (`collect_box`), loaded by path
+and re-imported when it changes. A repo's agents are its open windows — interactive `claude` processes
+from `/proc`, named by `CLAUDE_AGENT`, else their worktree, else (in the main checkout) the agent of the
+newest run record there from the last 7 days ("named from its last run"), harness worktrees excluded —
+plus the agents with a run record of that repo in the last 7 days and the agents holding a claim. Older
+agents and identity-binding-only names are counted as "dormant", not listed: bindings are written at
+bind time and outlive their windows, so they never vouch for one. Each row: a state chip (**working** —
+a running record under 12 h old · **idle** — a window, no running command · **stale** — a running record
+over 12 h old · **no window**), NOW (command, phase, surface, age), HOLDS (the claimed item), NEXT (the
+next three queued items and "+N more") and LAST MERGE (or "merge owner" for the main checkout's current
+agent). Every item id is shown with its title. A failure reading the agents, or one malformed row, is a
+red banner in that block or that repo, never the page's.
 Tab hash:
 none (the bare URL); every other tab has its own (`#quota`, `#usage`, `#commands`, `#external`).
 
@@ -338,6 +359,7 @@ files and exit — useful for a scripted refresh without a browser).
 |---|---|---|
 | `QUOTA_DASH_BUDGET` | `1` | `0` disables the box-budget banner above the commands table (it shells out to `dispatch_headroom.py`, which probes the fleet) — set in the test suite, never on the served board |
 | `QUOTA_DASH_REPOS_TTL_S` | `20` | how long `/repos.html` is served from cache before the work stores are read again |
+| `QUOTA_DASH_REPOS_REFRESH_S` | `20` | how often the open Repos page fetches itself and swaps its `#live` part in place |
 | `QUOTA_DASH_PORT` | `5051` | listen port (PORTS.md: WSL Python range) |
 | `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design |
 | `QUOTA_DASH_MAX_AGE_S` | `20` | regeneration floor (probe-volume bound) |
