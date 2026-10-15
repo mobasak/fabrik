@@ -45,7 +45,7 @@ step 4 is not, and that is the real cost this design asks of the primary persona
 
 Give `/fabrik-review-scoped` a correct exit for the case where a review's remaining findings are its
 own fixes — **without** multiplying divergent restatements of an exit rule across a command and its pack, which
-already carry nine sites touching, and without making the light pass heavy.
+already carry nine sites touching the exit rule, and without making the light pass heavy.
 
 ## Why this exists
 
@@ -201,9 +201,10 @@ arm that was written during authoring, refuted four ways in review, and delibera
 row was minted with that text and rows are immutable.
 
 **RULING 1 — the fragment's reading is canonical.** An omitted round occupies its window slot and can
-never qualify. Three reasons stand, in order — a fourth was withdrawn below once the review found it
-attributed a consequence to the wrong provision — and the last is external, unavailable to the attempt: it is what actually ships to agents in 22 rendered commands;
-it is the only reading that never invents a number the agent did not state (the row's "read as
+never qualify. Three reasons stand, (i), (ii) and (iv) — the deadlock reason listed between (ii) and (iv) was
+withdrawn in the ⚠️ note below once the review found it attributed a consequence to the wrong provision — and
+(i) is external, unavailable to the attempt: (i) it is what actually ships to agents in 22 rendered commands;
+(ii) it is the only reading that never invents a number the agent did not state (the row's "read as
 own-fix == confirmed" fabricates the worst case, and fabricating data to trip a stop is the
 over-classification mirror the fragment's own COBRA note forbids); and the row's arm was refuted on
 the merits before shipping — deadlocking every review whose round 1 legitimately omits the counter. ⚠️ **Precisely: the deadlock is
@@ -734,8 +735,7 @@ governance-sync trigger; `.windsurf/rules/` IS, so D4 distributes fleet-wide on 
   100% own-fix, D-278's own bar firing on the review. Each restatement was a fresh contradiction
   surface.
 - **Render `term-coverage.md` into the command** — rejected on the measured size above (including it grows a
-  16,559 B source by 155%, to 42,256 B — a
-  16,559 B source whose identity is lightness).
+  16,559 B source by 155%, to 42,256 B — and that source's identity is lightness).
 - **A CWD-relative pointer to the fragment** — rejected: dead in 44 of 45 repos.
 - **Bare pointers at the five non-canonical sites** (this spec's own first design) — rejected by G8
   on evidence: ACUS 2011-5 measures the access cost a pointer imposes and the compounding cost of
