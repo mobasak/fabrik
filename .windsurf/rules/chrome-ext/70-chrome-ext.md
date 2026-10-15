@@ -62,7 +62,7 @@ The user turns on **Developer mode** at `chrome://extensions` and clicks **Load 
 - **A stable ID needs a manifest `key`.** Without it every install gets a different ID and the backend's `chrome-extension://<id>` CORS allow-list breaks (§ Versioning & Updates).
 - **One-time manual setup.** Ship an install guide (enable Developer mode → unzip → Load unpacked → pick the folder), with a short GIF.
 
-**Distribution:** `wxt zip` builds the release zip (`.output/<name>-<version>-chrome.zip`); host it on your VPS (static site or B2) beside the install guide and a version manifest the update checker reads.
+**Distribution:** `wxt zip` builds the release zip (`.output/<name>-<version>-chrome.zip`); host it on your VPS (static site or B2) beside the install guide and a version manifest the update checker reads. For this channel a chrome-extension scaffold ships the release kit (D-893): `pnpm keygen` pins the manifest `key` (the private key stays in the gitignored `extension/.keys/`), `make release-ext` runs its release check first (a committed key, a clean tree and an https production API URL among its conditions), then builds the zip with its SHA-256 and `INSTALL.md` and publishes nothing, and the backend serves `GET /extension/latest` to the update checker and, once `EXTENSION_ID` holds the ID `pnpm keygen` prints, admits CORS from exactly `chrome-extension://<EXTENSION_ID>`; a developer-mode repo scaffolded before the kit builds these by hand.
 
 ### Enterprise force-install — managed fleets
 
