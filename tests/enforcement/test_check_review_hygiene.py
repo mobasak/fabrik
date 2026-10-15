@@ -215,7 +215,9 @@ def test_split_table_reports_the_orphan_run_once(tmp_path):
 
 def test_split_table_ignores_a_new_table_after_a_blank(tmp_path):
     doc = tmp_path / "two-tables.md"
-    doc.write_text("| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d |\n|---|---|\n| 3 | 4 |\n", encoding="utf-8")
+    doc.write_text(
+        "| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d |\n|---|---|\n| 3 | 4 |\n", encoding="utf-8"
+    )
     assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
 
 
@@ -223,6 +225,36 @@ def test_split_table_ignores_fenced_rows(tmp_path):
     doc = tmp_path / "fenced.md"
     doc.write_text("```text\n" + _SPLIT + "```\n", encoding="utf-8")
     assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # two blanks still end the table
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n\n| 3 | 4 |\n", [6]),
+        # a multi-line HTML comment ends it too (the blanked copy reads it blank); a ONE-line
+        # comment is kept by `_blank_quoted` and is a stated blind spot
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!--\nnote\n-->\n| 3 | 4 |\n", [7]),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!-- note -->\n| 3 | 4 |\n", []),
+        # a fenced block between rows ends it
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\n| 3 | 4 |\n", [7]),
+        # a double-spaced table is ONE split region, reported once
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n| 3 | 4 |\n\n| 5 | 6 |\n", [5]),
+        # a 4-space-indented example is an indented code block, never a table
+        ("    | a | b |\n    |---|---|\n    | 1 | 2 |\n\n    | 3 | 4 |\n", []),
+        # a mismatched header after a blank forms no table: its rows are orphans
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d | e |\n|---|---|\n", [5]),
+        # ONE malformed table (header and delimiter disagree) is table-shape noise, not a split:
+        # its body row sits right under the delimiter, with no blank line between
+        ("| a | b |\n|---|---|---|\n| 1 | 2 |\n", []),
+    ],
+)
+def test_split_table_widened_shapes(tmp_path, body, expected):
+    """Design critique (Opus + Fable): the split is any end of the table followed by more pipe rows
+    with no header, not only one literal blank line."""
+    doc = tmp_path / "shape.md"
+    doc.write_text(body, encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == expected
 
 
 def test_split_table_is_advisory_under_strict(tmp_path):
@@ -578,6 +610,7 @@ CORPUS_DISPOSITION_ROWS = 1663
 CORPUS_UNGRADED = 4296
 CORPUS_RAW_PIPE = (35, 21)  # (hits, receipts)
 CORPUS_DUAL_VERDICT = (27, 5)  # round 2: the four leading-count tally cells fire again
+CORPUS_SPLIT_TABLE = (5, 5)  # W-b9c91cc5: one hit per split region (19 rows before the collapse)
 
 
 def test_the_fire_rate_over_the_committed_receipt_corpus():
@@ -603,8 +636,8 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
         n for n in names.stdout.split() if n.endswith(".md") and not n.endswith("-archive.md")
     ]
     rows = disposition = ungraded = 0
-    hits: dict[str, int] = {"raw-pipe": 0, "dual-verdict": 0}
-    files: dict[str, set[str]] = {"raw-pipe": set(), "dual-verdict": set()}
+    hits: dict[str, int] = {"raw-pipe": 0, "dual-verdict": 0, "split-table": 0}
+    files: dict[str, set[str]] = {"raw-pipe": set(), "dual-verdict": set(), "split-table": set()}
     for rel in receipts:
         text = _show(CORPUS_SHA, rel)
         assert text is not None, rel
@@ -631,7 +664,8 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
         f"  raw-pipe     {hits['raw-pipe']} hits in {len(files['raw-pipe'])} receipts "
         f"({hits['raw-pipe'] / rows:.3%} of rows)\n"
         f"  dual-verdict {hits['dual-verdict']} hits in {len(files['dual-verdict'])} receipts "
-        f"({hits['dual-verdict'] / disposition:.3%} of disposition-bearing rows)"
+        f"({hits['dual-verdict'] / disposition:.3%} of disposition-bearing rows)\n"
+        f"  split-table  {hits['split-table']} hits in {len(files['split-table'])} receipts"
     )
     assert (len(receipts), rows, disposition, ungraded) == (
         CORPUS_RECEIPTS,
@@ -641,6 +675,7 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
     )
     assert (hits["raw-pipe"], len(files["raw-pipe"])) == CORPUS_RAW_PIPE
     assert (hits["dual-verdict"], len(files["dual-verdict"])) == CORPUS_DUAL_VERDICT
+    assert (hits["split-table"], len(files["split-table"])) == CORPUS_SPLIT_TABLE
 
 
 def test_every_repeatable_flag_says_so_in_its_help() -> None:
