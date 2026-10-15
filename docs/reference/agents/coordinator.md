@@ -46,6 +46,30 @@ to idle builders (`work.py triage --apply`, `commit-items`, the `SendMessage` li
 nothing queued. The first pass (2026-10-15) is held for the operator's dashboard review with the tag
 `waits-operator-review`; release the hold only on the operator's word.
 
+## Validate, score and assign every item (D-890)
+
+Operator ruling 2026-10-15 (*"this is your task to validate the request eligibility, assign priority and assign an agent"*).
+Every item — new mail, a finding, the backlog — passes these, in order, from the RECORDS only (never by running or
+reproducing anything; a claim the records cannot settle goes to its builder as "is this real?"):
+
+1. **Eligible?** Each check settles from records:
+   - *done already* — its id or mail id appears in a merged commit (`git log --grep`), or a `docs/DECISIONS.md` row settles it
+     → close it (`work.py done --evidence <sha>`);
+   - *duplicate* — another open item covers the same mail, file or symptom → keep the older, drop the other with the reason;
+   - *still true* — every file, script or plan it names still exists, and a plan it names is not `EXECUTED` → if not, propose
+     a drop;
+   - *actionable* — it names one concrete change, not an umbrella of many → an umbrella is split or proposed for a drop;
+   - *owner* — by `.fabrik/beat-owners.json`, else the charters' beats.
+2. **Impact** — HIGH when it breaks or blocks an agent's work, a deploy, a gate, or every repo, loses or corrupts data, or
+   the operator asked for it; LOW for clean-up, wording, a rare edge case, an advisory.
+3. **Effort** (quota) — LOW when it is about one session, a few files, no spec or plan; HIGH when it needs a spec or plan,
+   several sessions, or a fleet-wide change.
+4. **Priority** from the two, per the priority rule in CLAUDE.md § The coordinator role (P1 quick win · P2 major, one in
+   flight · P3 fill-in · low/high = time sink, proposed for a drop; P0 = incident). Every score names the check that set it.
+5. **Assign** — `work.py triage --apply` queues the top-scored ready items to idle, unpaused builders.
+
+A drop is proposed to the operator in one batched item until the operator has ruled on drops (W-c160abfb).
+
 ## Permissions — what you may write and do (operator rulings D-874, D-880, D-882, D-885)
 
 These are YOUR permissions, written here so they survive any loss of context. Never rely on memory for them.
