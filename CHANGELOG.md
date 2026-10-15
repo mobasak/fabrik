@@ -8,6 +8,22 @@ All notable changes to this project will be documented in this file.
 
 - `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
 
+### Changed — seat briefs name RUN-SCRATCH as the root of every seat folder (2026-10-15)
+
+- D7 of the scratch-lifecycle spec (`docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md`, D-864/D-866;
+  W-8bbd9538, fleet mails 01M4Y6ZXRSFPPTJJMVF2WX0A1K and 01M4Y86A9RKAP0ASCAY85CSE2V):
+  `commands/_fragments/subagents-core.md` (included by 21 command sources) states the rule once — the scratch dir a
+  brief names is a seat folder
+  `<run scratch>/seat-<n>/` under the path `command_run.py start` printed as `RUN-SCRATCH:`, never the session
+  scratchpad root; nothing durable goes there; the pins dir sits under the same root; a tree is staged there only as
+  the probe catalogue's § Seat isolation says (an archive of the pinned SHA, or a `clone --shared --no-checkout`),
+  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation and `fabrik-execute-plan.md`
+  (the brief and report files) point at it by its hub path and name `<run scratch>` in place of the bare
+  scratchpad; `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
+  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was.
+  `fabrik-review.md` and `fabrik-review-scoped.md` keep infra's `scratch_dir` wording (D-886). Pinned by
+  `tests/test_run_scratch_brief_wording.py` (5 tests).
+
 ### Fixed — review and critique seats write under the run's RUN-SCRATCH folder (2026-10-15)
 
 - `.claude/workflows/fabrik-review-loop.js` names every seat folder `<scratch_dir>/seat-p<pass>-<digest8>-…/`, so `round`'s size line sees it and no pass reuses another's; the four partitioned review commands say `scratch_dir` is the run's `RUN-SCRATCH:` folder; design-critique seats use `<RUN-SCRATCH>/seat-critique-<model>-<k>/`; the clean-own-scratch gloss matches cleanup-automation.md § F. Mail 01M4Z8X09Y, D-886.
