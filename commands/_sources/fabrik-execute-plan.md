@@ -40,7 +40,9 @@ nested review can never end the plan by accident (it is refused). Close this run
 LAST phase is EXECUTED; a real halt is
 `blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the
 three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec/scope
-contradiction). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
+contradiction); a step the plan assigns to the operator under a § FINAL OUTPUT gate token closes `handoff --command
+fabrik-execute-plan --resume <a file with a ## RESUME block> --reason "…" --feedback "…"` instead (the halt rule
+below). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
 TASK terminator, and the record is what proves the task is actually over.
 
 ## Before You Start
@@ -235,7 +237,9 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    "leave for later" any step, task, or phase in the plan. There is **no** *optional / nice-to-have /
 >    out-of-scope-for-now / TODO-revisit / follow-up-PR / good-enough* bucket for plan work — **every step
 >    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
->    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
+>    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction) — a step the plan
+>    assigns to the operator under a § FINAL OUTPUT gate token excepted, which ends behind its gate DECISION (the
+>    halt rule below). *"I judged X
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
 >    wait"*, *"I'd rather do this carefully than fast"*, *"substantial enough to deserve a fresh context"*, *"I won't open work I can't
 >    finish — stopping at a clean state preserves the value"* (deferral dressed as judgment/prudence — the pattern live-observed repeatedly, incl. the quoted context and clean-state forms; a clean
@@ -259,9 +263,13 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    confirmation and **without stopping mid-run to ask or to narrate progress.** Never end a turn with
    "shall I continue / proceeding now unless you redirect" — keep going until the plan is `EXECUTED`,
    `BLOCKED`, or a HARD STOP fires. The only permitted mid-run halts are a real `BLOCKED` (3 consecutive
-   same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP. Permitted
-   output between start and finish is **exactly**: a one-line phase-boundary marker per phase, and the
-   final completion block. Commit per phase as specified.
+   same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP; a step the plan assigns
+   to the operator under a § FINAL OUTPUT gate token ends the run behind `DECISION NEEDED (ground: gate)`, closed
+   `handoff` with its `## RESUME` naming the next phase (`CLAUDE.md` § Behavior, plan-execution override), the lock
+   and `Status: IN-PROGRESS` kept for the resume — a phase step, never Finish step 7's deploy, which the EXECUTED
+   plan closes `done`. Permitted output between start and finish is **exactly**: a one-line phase-boundary marker
+   per phase, and the final completion block (at such a gate step, its DECISION block). Commit per phase as
+   specified.
 2. **Fix, don't ask.** Test failures mean your code is wrong. Read the error, fix, re-run. After 3 consecutive failures on the same test with different fix approaches → STOP and report.
 3. **Phase reviews run as parallel subagents.** **Under `Profile: small` the per-phase pass is
    `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — plan execution: an operator-owned gate step ends behind a gate DECISION, closed handoff (2026-10-15)
+
+Both contracts' plan-execution override and `/fabrik-execute-plan`'s halt rule, close list and first non-negotiable: a step the plan assigns to the
+operator under a § FINAL OUTPUT gate token (a deploy or production-data window) is no halt and no deferral — the
+run ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase.
+D-903 (Opus + Fable panel). Pinned by `tests/test_governance_template_split.py::test_a_plan_step_the_operator_owns_ends_behind_a_gate_block_in_both_contracts_and_the_command`.
+
 ### Changed — /fabrik-review: the test-quality checklist names a fixture that IS the code's own constant (2026-10-15)
 
 A test whose expected value is read from the very constant whose value is the behaviour under test stays green
