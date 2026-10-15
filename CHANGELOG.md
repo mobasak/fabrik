@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review and critique seats write under the run's RUN-SCRATCH folder (2026-10-15)
+
+- `.claude/workflows/fabrik-review-loop.js` names every seat folder `<scratch_dir>/seat-p<pass>-<digest8>-…/`, so `round`'s size line sees it and no pass reuses another's; the four partitioned review commands say `scratch_dir` is the run's `RUN-SCRATCH:` folder; design-critique seats use `<RUN-SCRATCH>/seat-critique-<model>-<k>/`; the clean-own-scratch gloss matches cleanup-automation.md § F. Mail 01M4Z8X09Y, D-886.
+
 ### Changed — both CLAUDE.md contracts: a run's disposable bulk goes in its RUN-SCRATCH folder (2026-10-15)
 
 - `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT gain one identical sentence group beside "CLEAN your own scratch": seat copies, pins and probes go in the run's `RUN-SCRATCH:` folder (seats under `seat-<n>/`), every seat brief names that folder, durable artifacts stay under `SCRATCH:`, and a missing or `none` line falls back to the scratchpad. Pinned by three T6 spans in `tests/test_governance_template_split.py`. D-883.
