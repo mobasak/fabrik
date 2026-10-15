@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:45.863882Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-53dff640",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YQBQ42BV5NJS5FXS175N77",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: web-ecommerce-factory took the coordinator role, step 1 of 2."
+}
