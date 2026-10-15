@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 5's PIN rule: in a brief the lead writes, pinned files totalling
+  under 8 KB are also pasted whole beside their line counts, so a seat whose Read or `cat` of a copy is refused still
+  has the bytes (the copy stays the authority; a paste reader is judged on line counts, not re-dispatched for
+  lacking a hash). The ESCAPE-VARIANTS ask now carries the probe catalogue's "both directions — false green and
+  false red" rule verbatim. Rows 1792052465, 1792052358 and 1792059931 (the second sighting of HELD
+  guard-false-positives-negatives-against); 1792037763 and 1792057870 rejected as already stated; 1792048250 routed
+  to infra. Pinned by `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — "operator-named work" routes up only for code, config or an explicit full-review ask (2026-10-15)
 
 - Lane row 1b in `CLAUDE.md` and `templates/governance/CLAUDE.md` scopes the trigger: an explicit ask for the full
