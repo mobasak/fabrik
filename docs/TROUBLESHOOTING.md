@@ -50,8 +50,9 @@ W-478049bc (closed with no recorded cause); diagnosed 2026-10-15 for W-f0fd555a.
 
 **Cause (measured):** two conditions together.
 
-1. **The answer is too big for plain DNS.** `registry.npmjs.org` returns 12 A and 12 AAAA records. glibc sends
-   queries WITHOUT EDNS, so a reply over 512 bytes comes back truncated —
+1. **The IPv6 answer is too big for plain DNS.** `registry.npmjs.org` returns 12 A and 12 AAAA records; the A
+   answer fits in 512 bytes (444, so `getent ahostsv4` works) but the AAAA answer does not. glibc sends queries
+   WITHOUT EDNS, so a reply over 512 bytes comes back truncated —
    `dig +noedns +ignore @10.255.255.254 registry.npmjs.org AAAA` shows `flags: qr tc` with 0 answers — and glibc
    must retry over TCP. A small answer (`github.com`) fits in 512 bytes and never needs TCP, which is why only some
    hosts fail.
@@ -60,8 +61,8 @@ W-478049bc (closed with no recorded cause); diagnosed 2026-10-15 for W-f0fd555a.
 
 **Fix** (the file's history and lock: `docs/workstation/WSL2-DNS-FIX.md`): let glibc ask for a big UDP answer, so it never needs TCP — add `edns0` to the `options` line of
 `/etc/resolv.conf` (static on this box: `/etc/wsl.conf` sets `generateResolvConf = false`, and the file carries
-the immutable bit — `lsattr` shows `i` — so the edit must lift it and set it back, or `sed` fails with
-`Operation not permitted`):
+the immutable bit — `lsattr` shows `i` — so the edit must lift it and set it back; `sed -i` renames a temporary
+file over the target, which an immutable file refuses with `Operation not permitted`):
 
 ```bash
 sudo cp -p /etc/resolv.conf /etc/resolv.conf.backup.$(date +%Y%m%d-%H%M%S)
