@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — dashboard: an Agents table for every repo, and a Repos page that keeps itself up to date (2026-10-15)
+
+- `/repos.html` opens with "Agents — every repo" (W-7159f8e2, operator 2026-10-15). It shows one row per agent, with:
+  - a coloured state: working · idle · stale · no window;
+  - NOW: the command, phase and surface;
+  - the item the agent holds and its next three items, each id with its plain-language title beside it;
+  - its last merge, or "merge owner".
+- The table is read by the new `scripts/agent_status.py --json --all` (`collect_box`) from records that already exist:
+  - the live process table — each window named by `CLAUDE_AGENT`, else its worktree, else the main checkout's recent run record;
+  - run records of that repo from the last 7 days;
+  - claim holders.
+
+  Identity bindings never vouch for a live window: 0 of 29 had a live pid while 8 windows were up. Older agents are counted as dormant.
+- The page swaps its `#live` part in place every 20 s, keeping the scroll position, the picked repo, the owner chip and opened sections.
+  - It pauses while the browser tab is hidden, while another dashboard tab is shown, while the picker is focused, and while text is selected.
+  - The stamp says how old the figures can be.
+- An unowned awaiting-operator item is now grouped under `operator`, no longer under "(unassigned)".
+
 ### Fixed — docs: why WSL cannot resolve registry.npmjs.org, and the one-line resolver fix (2026-10-15)
 
 - New `docs/TROUBLESHOOTING.md` § DNS Issues entry (W-f0fd555a, recurrence of W-478049bc). Measured cause: the npm registry's 12 A + 12 AAAA answer exceeds 512 bytes, glibc queries without EDNS so the reply is truncated and retried over TCP, and outbound TCP/53 is blocked to every resolver. The fix is `edns0` on `/etc/resolv.conf`'s options line (the file is immutable, so `chattr -i`/`+i` around the `sed`), proven first with `RES_OPTIONS=edns0`. Applying it is an operator gate.
