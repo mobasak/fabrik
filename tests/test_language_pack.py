@@ -253,8 +253,9 @@ def test_globs_reach_summarization_paths() -> None:
 
 
 _GATEWAY_COUNTS = ROOT / "scripts" / "kilo-benchmarks" / "update_gateway_counts.py"
-# the turbo tier's id in any case, with any separator (hyphen, underscore, space, non-breaking hyphen)
-_TURBO_ID = re.compile(r"qwen[-_ ‑]?mt[-_ ‑]?turbo", re.I)
+# the turbo tier's id in any case, its parts joined by one non-word character or underscore (any dash, a space,
+# a dot) or by nothing
+_TURBO_ID = re.compile(r"qwen[\W_]?mt[\W_]?turbo", re.I)
 
 
 @pytest.mark.parametrize(
