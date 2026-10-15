@@ -1246,6 +1246,8 @@ class TestChromeExtensionBackendRelease:
 
         templates = Path(__file__).resolve().parents[1] / "templates"
         spec = load_spec(project.parent / "specs" / "services" / "test-ext.yaml")
+        # the precondition that makes this a test of the template filter, not of the generator
+        assert set(_SERVER_ENV_KEYS[:4]) <= set(spec.env)
         rendered = TemplateRenderer(templates_dir=templates, output_dir=tmp_path).render(
             spec, dry_run=True
         )
