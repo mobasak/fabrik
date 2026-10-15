@@ -1187,7 +1187,16 @@ def test_a_heartbeat_never_raises(tmp_path: Path) -> None:
     cr._heartbeat({"run_scratch": "/tmp/has\x00null"})
 
 
-@pytest.mark.parametrize("before", ["garbage{", None, '{"state": "running", "created": "x"}'])
+@pytest.mark.parametrize(
+    "before",
+    [
+        "garbage{",
+        None,
+        '{"state": "running", "created": "x"}',
+        '{"state": "running", "created": NaN}',  # json accepts it; the sweep refuses the marker
+        '{"state": "running", "created": 9999999999999}',  # a creation in the far future
+    ],
+)
 def test_a_close_that_heals_a_marker_stamps_its_created(tmp_path: Path, before: str | None) -> None:
     """D-900 review (W-de2c34c1): the close rewrites an unreadable, missing or `created`-less marker;
     without a `created` the sweep reads the close as unvouched and keeps the folder for ever. The

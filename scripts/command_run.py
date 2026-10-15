@@ -1702,10 +1702,16 @@ def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
         owner = _read_owner(folder) or {}
         now = time.time()
         created = owner.get("created")
-        if not isinstance(created, int | float) or isinstance(created, bool):
+        if (
+            not isinstance(created, int | float)
+            or isinstance(created, bool)
+            or not math.isfinite(created)
+            or created > now + 300  # scratch_sweep.GAP_CLOCK_MARGIN_S: a creation in the future
+        ):
             # a heal from an unreadable or `created`-less marker: the sweep believes a close only
-            # against a creation time (D-900), so without one this folder would be kept for ever.
-            # The runner's own close is the trustworthy clock; a real `created` is never replaced.
+            # against a sane creation time (D-900), so without one this folder would be kept for
+            # ever. The runner's own close is the trustworthy clock; a real `created` (finite, not
+            # in the future) is never replaced.
             owner["created"] = now
         owner.update(
             {
