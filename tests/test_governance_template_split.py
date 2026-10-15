@@ -1952,12 +1952,18 @@ def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None
     assert "\r" not in hub and "\r" not in template, "a contract picked up CRLF line endings"
     # a raw count too: an indented or glued-on second copy is no paragraph lead, yet still a copy (review S-3)
     assert hub.count(COORDINATOR_LEAD) == 1 and template.count(COORDINATOR_LEAD) == 1, (
-        hub.count(COORDINATOR_LEAD), template.count(COORDINATOR_LEAD))
+        hub.count(COORDINATOR_LEAD),
+        template.count(COORDINATOR_LEAD),
+    )
     in_hub = _paragraph_led_by(hub, COORDINATOR_LEAD)
     in_template = _paragraph_led_by(template, COORDINATOR_LEAD)
     assert len(in_template) == 1, len(in_template)
-    assert len(in_hub) == 1, f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
-    assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
+    assert len(in_hub) == 1, (
+        f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
+    )
+    assert in_hub[0] == in_template[0], (
+        "the hub copy drifted from the template's coordinator paragraph"
+    )
     # the hub-only sentence that settles where the hub rulings outrank the paragraph (review O-6)
     assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1
 
@@ -1970,7 +1976,7 @@ def test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere() -> N
     clause = (
         "operator-named work (the operator explicitly asked for the full `/fabrik-review`, or asked by name for a "
         "code or config change — naming alone never routes up a diff with no code surface, the "
-        "\"No code surface at all\" paragraph's set)"
+        '"No code surface at all" paragraph\'s set)'
     )
     for rel, end in (("CLAUDE.md", _STEP0_END), (TEMPLATE_REL, _STEP0_END_TPL)):
         path = FABRIK / rel
@@ -1978,14 +1984,60 @@ def test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere() -> N
         rows = {r[0]: r for r in _lane_table(text, end)[1:]}
         assert clause in rows["1b"][1], path.name
         assert "anything an operator asked for by name" not in text, path.name
-        assert ">5 files, or operator-named work, lane row 1b — never a no-code-surface diff on naming alone)" in text
+        assert (
+            ">5 files, or operator-named work, lane row 1b — never a no-code-surface diff on naming alone)"
+            in text
+        )
     scoped = (FABRIK / "commands/_sources/fabrik-review-scoped.md").read_text(encoding="utf-8")
     assert (
         "or operator-named work (`CLAUDE.md` lane row 1b — never a no-code-surface diff on naming alone)"
-        " → open NO record"
-        in scoped
+        " → open NO record" in scoped
     )
     assert ">5 files, operator-named work (lane row 1b), or" in scoped
-    pack = " ".join((FABRIK / ".windsurf/rules/core/50-code-review.md").read_text(encoding="utf-8").split())
-    assert "operator-named work (CLAUDE.md lane row 1b — never a no-code-surface diff on naming alone)" in pack
+    pack = " ".join(
+        (FABRIK / ".windsurf/rules/core/50-code-review.md").read_text(encoding="utf-8").split()
+    )
+    assert (
+        "operator-named work (CLAUDE.md lane row 1b — never a no-code-surface diff on naming alone)"
+        in pack
+    )
     assert "anything the owner asked for by name" not in pack
+
+
+def test_a_plan_step_the_operator_owns_ends_behind_a_gate_block_in_both_contracts_and_the_command() -> (
+    None
+):
+    """Row 1792030670 (Opus + Fable panel, 2026-10-15): "the ONLY legitimate halts are the three BLOCKED cases" left
+    a plan step the operator owns (a deploy or production-data window) with two wrong exits — a BLOCKED "missing
+    infra" or a deferral the same paragraph bans. A gate-token step now ends behind a gate DECISION, closed handoff.
+    Mutants: drop the clause from either contract; drop it from the command's halt rule, its close list
+    or its first non-negotiable."""
+    clause = (
+        "A step the plan assigns to the operator under a § FINAL OUTPUT gate token is no halt and no deferral: the run"
+        " ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase"
+        ' (the bar on deferring a step to "the operator" covers the steps an agent can do).'
+    )
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        text = _normalised(FABRIK / rel)
+        assert clause in text, rel
+        anchor = text.index("The ONLY legitimate halts are the three BLOCKED cases")
+        # inside the SAME override bullet: after the halt sentence, before the next bullet opens
+        between = text[anchor : text.index(clause)]
+        assert text.index(clause) > anchor and " - **" not in between, rel
+    command = _normalised(FABRIK / "commands" / "_sources" / "fabrik-execute-plan.md")
+    rule = command[command.index("The only permitted mid-run halts") :]
+    assert rule.index(
+        "a step the plan assigns to the operator under a § FINAL OUTPUT gate token ends the run behind"
+        " `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase"
+    ) < rule.index("2. **Fix, don't ask.**")
+    for needle in (
+        "the lock and `Status: IN-PROGRESS` kept for the resume",
+        "never Finish step 7's deploy, which the EXECUTED plan closes `done`",
+        "and the final completion block (at such a gate step, its DECISION block)",
+        "a step the plan assigns to the operator under a § FINAL OUTPUT gate token closes `handoff --command"
+        " fabrik-execute-plan --resume <a file with a ## RESUME block>",
+        # the TWO NON-NEGOTIABLES' "every step ships in THIS run, or you halt with BLOCKED" names the same exception
+        "unresolvable spec/scope contradiction) — a step the plan > assigns to the operator under a § FINAL OUTPUT"
+        " gate token excepted, which ends behind its gate DECISION",
+    ):
+        assert needle in command, needle

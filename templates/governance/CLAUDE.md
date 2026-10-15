@@ -112,7 +112,10 @@ window — say so.
   COMPLETION:** finish every phase FULLY before the next; never leave a phase half-done, never defer a step to
   "later"/"a follow-up"/"the operator", never pause to ask when a self-service source can settle it. The ONLY
   legitimate halts are the three BLOCKED cases: 3 consecutive same-test failures, missing infra, or an
-  unresolvable spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`.
+  unresolvable spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`. A step the plan
+  assigns to the operator under a § FINAL OUTPUT gate token is no halt and no deferral: the run ends behind
+  `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase (the bar on deferring
+  a step to "the operator" covers the steps an agent can do).
 - **Invoked command = loaded command:** when the operator invokes `/command`, INVOKE the skill — never execute
   from memory of what it involves. The invoked command is the deliverable: a prerequisite discovered mid-run is
   fixed minimally (or BLOCKED as a pre-start finding) and you RETURN to the invoked command in the same run.
