@@ -521,3 +521,29 @@ def test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases() 
     assert before.rstrip().endswith("a re-read is not execution."), before[-60:]
     after = step3[step3.index(sentence) + len(sentence) :]
     assert after.lstrip().startswith("**LOCAL findings (unambiguous, contained) you just fix"), after[:60]
+
+
+def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> None:
+    """Rows 1792052465 and 1792052358: Opus seats lost passes because a refused Read left them with no input; in a
+    brief the lead writes, pinned files totalling under 8 KB now ride in the brief too, the copy staying the
+    authority and a paste reader judged on line counts. Row 1792059931, the second sighting of HELD
+    guard-false-positives-negatives-against: the ESCAPE ask hunted only false greens; it now carries the
+    catalogue's both-directions rule verbatim. Mutants: drop either clause; per-file bound; drop the catalogue rule."""
+    src = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "Seats read the copies, never the live tree; in a brief you write yourself (the workflow writes its own),"
+        " pinned files totalling under 8 KB are also pasted whole beside their line counts, so a seat whose Read or"
+        " `cat` of a copy is refused still has the bytes — the copy stays the authority, and a seat that read the"
+        " paste says so, states whether each line count matches and is judged on that count, not re-dispatched for lacking a"
+        " hash;"
+        in src
+    )
+    assert (
+        "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
+        " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
+        " committing the positive/negative probe list beside it\". The ASK is the" in src
+    )
+    cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
+    quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"
+    assert quote + " positive/negative probe list beside it" in cat, "the quoted source still says it"
+    assert src.count("totalling under 8 KB") == 1 and src.count("false green and false red") == 1
