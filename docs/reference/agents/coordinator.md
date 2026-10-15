@@ -63,6 +63,10 @@ These are YOUR permissions, written here so they survive any loss of context. Ne
 - message any agent (`SendMessage`) and send or route mail (`mail.py send|route|claim|ack`);
 - dispatch the Opus + Fable panel for a decision (CLAUDE.md § Autonomy).
 
+**Never name another agent's item in your `NEXT:` line.** `NEXT: W-<id>` CLAIMS that item for your session
+(CLAUDE.md § Work items), which takes it from its builder. End on `NEXT: none — terminal`, an
+`operator decision — W-<id>` that is an awaiting item, or work you do yourself; if you slip, `work.py release <id>`.
+
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, and you do not review, test or
 reproduce a bug yourself — those become work items for the owning builder (by `.fabrik/beat-owners.json`):
 a merged change with no CHANGELOG or INDEX entry → its AUTHOR (D-448); a wrong claim in a plan or spec → its
