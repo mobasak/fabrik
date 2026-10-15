@@ -46,7 +46,8 @@ five runs, each of which a reader can judge on its own.
   text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool, and its
   code, read live, when the edit restates the gate's conditions — every condition and value copied, never
   the prose describing them;
-  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling already made is
+  `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md` and the decisions or binding-constraints section of each
+  spec the command cites, for the subject (a ruling already made is
   POINTED at, never restated here; a row already sized as spec work sends this run to PHASE 2's
   spec-chain shape with no edit); `/opt/fabrik-lib/README.md`'s module table and the
   project's own `scripts/` when the edit names a capability, so the text points at what exists;
@@ -264,9 +265,10 @@ do not fit the new subject, keeps the words that do fit, and names its source. A
 script, tool or another step DOES — its output or
 advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — or
 tells the agent to run one of its verbs is executed on the scenario the sentence states before PHASE 4's review and
-quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites,
-and is run on a real artifact the command produces and on two fleet ones as well as a synthetic file; a verb is run
-end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
+quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites
+— a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
+handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
+synthetic file; a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
 script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
 
@@ -327,7 +329,8 @@ collision between two repos was brute-forced in review and silenced a verdict on
 unrelated commit, so pass the full sha of the edit and the checkout it was committed in.
 
 Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue —
-copy them from `--queue` exactly, since a typo used to be accepted as answered work. It REFUSES a
+copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of
+`1792030670.5328414`), since a typo used to be accepted as answered work. It REFUSES a
 commit that touches no corpus path (`commands/_sources/`, `commands/_fragments/`,
 `commands/_agents/`, `.windsurf/rules/`, either `CLAUDE.md`) — a verdict is answered by an EDIT,
 and marking is the one act in this loop that removes a row from view. Re-running it on

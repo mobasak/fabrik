@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "commands" / "_sources" / "fabrik-command-improve.md"
 # the three sentences rows 1792038532 / 1792033691 / 1792000873 amended (one subject), pinned whole
-B_CLAIM_CHECK = 'A sentence naming what a gate or script reads or refuses is checked against every branch of that function and every other path that filters or grades the same input, traced from the entry point that receives it, for every shape the sentence covers;'
+B_CLAIM_CHECK = "A sentence naming what a gate or script reads or refuses is checked against every branch of that function and every other path that filters or grades the same input, traced from the entry point that receives it, for every shape the sentence covers;"
 C_RUN_RULE = "A rule the edit adds is RUN before PHASE 4's first pin — applied to the edit's own grader and sentence, which obey it, and to the row's case quoted as the row gives it (or, when the row only describes it, the artifact it names, fetched and quoted), which it must flag, each verdict written beside its quote."
 A_GROUNDING = "the tool's own runtime output when a verdict is about a gate, a check or a tool, and its code, read live, when the edit restates the gate's conditions — every condition and value copied, never the prose describing them;"
 
@@ -147,10 +147,7 @@ def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> N
     qualified inside the span reds. Not seen: a qualifier or contradicting line elsewhere in PHASE 3 or in another
     section, and an edit that cites the sentence without running the check — the review seats own that."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
-    assert (
-        "and must be obeyable in each. " + C_RUN_RULE + " A mechanism the edit adds"
-        in p3
-    )
+    assert "and must be obeyable in each. " + C_RUN_RULE + " A mechanism the edit adds" in p3
 
 
 def test_a_reject_reason_cites_a_line_the_command_reaches() -> None:
@@ -310,7 +307,9 @@ def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None
         "holds for a rule stated in another command or another section of the target too, and neither the pointer nor"
         " the quote carries a gloss: a gloss is a new wording that drifts, and a fresh wording is written only where the"
         " rule's words do not fit the new subject, keeps the words that do fit, and names its source."
-    ) in sentence, "the extension, its gloss ban and its bounded allowance are one contiguous sentence"
+    ) in sentence, (
+        "the extension, its gloss ban and its bounded allowance are one contiguous sentence"
+    )
     for weakener in ("where practical", "where possible", "optionally"):
         assert weakener not in sentence, weakener
     # it sits between the two pinned spans — directly after the mechanism sentence and directly before the
@@ -318,7 +317,9 @@ def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None
     before = p3[: p3.index(head)]
     assert before.rstrip().endswith("this edit wires it in."), before[-80:]
     after = p3[p3.index(head) + len(sentence) :]
-    assert after.lstrip().startswith("A sentence that describes what a script, tool or another step DOES"), after[:80]
+    assert after.lstrip().startswith(
+        "A sentence that describes what a script, tool or another step DOES"
+    ), after[:80]
 
 
 def test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case() -> None:
@@ -340,9 +341,54 @@ def test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case()
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert B_CLAIM_CHECK in p3
     assert C_RUN_RULE in p3
-    drive = text[text.index("- **Grounding — before drafting, not after review.**") : text.index("- **Time.**")]
+    drive = text[
+        text.index("- **Grounding — before drafting, not after review.**") : text.index(
+            "- **Time.**"
+        )
+    ]
     assert A_GROUNDING in drive
     # each rule is stated once — a restatement elsewhere in the file would drift
     assert text.count("filters or grades the same input") == 1
     assert text.count("quoted as the row gives it") == 1
     assert text.count("every condition and value copied") == 1
+
+
+def test_the_mark_step_says_a_handle_is_the_whole_ts_with_its_fraction() -> None:
+    """Row 1792084693, a second verdict on the mark-handle subject (held as mark-handles-from-take-output): a
+    handle typed without its fractional part was refused as matching no row. The tool compares handles as exact
+    strings, so the sentence names the whole `ts`. Mutants: drop the clause, or let the tool match by prefix."""
+    p5 = _phase("## PHASE 5", "Doc Sync:")
+    assert (
+        "copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of"
+        " `1792030670.5328414`)" in p5
+    )
+    # the sentence's example, executed: the row's key is its full ts, and mark_answered matches keys exactly —
+    # read inside mark_answered, since --reject carries the same matching line (round-1 finding)
+    import inspect
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_feedback_report as cfr
+
+    assert cfr._ts_key(1792030670.5328414) == "1792030670.5328414"
+    assert cfr._ts_key(1792030670.5328414) != "1792030670"
+    assert "unknown = [t for t in wanted if t not in known]" in inspect.getsource(
+        cfr.mark_answered
+    ), "--mark-answered no longer matches handles exactly: the sentence's example is no longer true"
+
+
+def test_grounding_reads_the_governing_spec_and_a_copied_recipe_names_its_form() -> None:
+    """Rows 1792070803 and 1792087460, each a recurrence (held as reread-d-row-before-folding-review and as
+    grounding-reads-the-cell-contract / copy-recipe-on-each-mechanism): grounding named only the hub ledger and
+    backlog, never the spec whose decisions a row can reverse; and a recipe sentence never said what form the
+    copied text is in, so a draft told a lead to paste a JS template literal. Mutants: drop either clause."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "`docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md` and the decisions or binding-constraints section of each"
+        " spec the command cites, for the subject (a ruling already made is" in text
+    )
+    assert (
+        "which the sentence cites — a recipe held in a template literal or an escaped string is pointed at by name"
+        " for its reader to"
+        " follow, never handed over to be pasted —" in _phase("## PHASE 3", "## PHASE 4")
+    )
