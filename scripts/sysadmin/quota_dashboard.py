@@ -2253,6 +2253,7 @@ NEXT_TIP_CAP = (
 )
 _repos_lock = threading.Lock()
 _repos_cache: tuple[float, str] | None = None
+_repos_gen = 0  # bumped by every board write; a build that saw it move is not cached
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
 
 
@@ -2616,7 +2617,6 @@ def _publish_pause_targets(repos: list[dict]) -> None:
 def pause_agent(repo: object, agent: object, action: object, why: object = "") -> tuple[int, dict]:
     """Pause or resume one agent the board shows. (http_status, json_body): 400 for an unknown pair
     or action (nothing runs), 502 when work.py refuses or times out (its message), 200 on success."""
-    global _repos_cache
     if action not in ("pause", "resume") or not isinstance(repo, str) or not isinstance(agent, str):
         return 400, {"ok": False, "error": "body needs repo, agent and action pause|resume"}
     target = _PAUSE_TARGETS.get((repo, agent))
@@ -2642,7 +2642,7 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
                                            "is authoritative"}
     except (OSError, ValueError) as exc:
         return 502, {"ok": False, "error": f"work.py could not run: {exc}"[:400]}
-    _repos_cache = None  # the next page build shows the change
+    _drop_repos_cache()  # the next page build shows the change
     if r.returncode:
         return 502, {"ok": False, "error": (r.stderr or r.stdout or "work.py failed").strip()[:400]}
     return 200, {"ok": True, "output": r.stdout.strip()[:400]}
@@ -2864,6 +2864,7 @@ def _repos_page(fresh: bool = False) -> str:
         now = time.time()
         if not fresh and _repos_cache and now - _repos_cache[0] < REPOS_TTL_S:
             return _repos_cache[1]
+        gen = _repos_gen
         stamp = datetime.fromtimestamp(now).astimezone().strftime("%H:%M:%S")
         page = (
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -2878,8 +2879,17 @@ def _repos_page(fresh: bool = False) -> str:
             f"<script>{_REPOS_PICK_JS}</script>"
             f"<script>{_OWNER_FILTER_JS}</script></body></html>"
         )
-        _repos_cache = (now, page)
+        # a write that landed while this page was being built made it stale: serve it once, never cache it
+        _repos_cache = (now, page) if _repos_gen == gen else None
         return page
+
+
+def _drop_repos_cache() -> None:
+    """After a board write: the next page is rebuilt, and a build already running is not cached.
+    Lock-free on purpose — taking `_repos_lock` would wait out a 5 s build inside the POST."""
+    global _repos_cache, _repos_gen
+    _repos_gen += 1
+    _repos_cache = None
 
 
 def render(

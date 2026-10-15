@@ -4423,6 +4423,10 @@ def test_agent_pause_refuses_buttonless_rows_and_odd_input(tmp_path, monkeypatch
     monkeypatch.setattr(qd, "_status_module", broken)
     assert "Agents unreadable" in qd._agents_block()
     assert qd._PAUSE_TARGETS == {}
+    # a write that lands while a page is being built: that page is served once, never cached
+    monkeypatch.setattr(qd, "_agents_block", lambda: (qd._drop_repos_cache(), "")[1])
+    qd._repos_page(fresh=True)
+    assert qd._repos_cache is None
 
 
 def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):
