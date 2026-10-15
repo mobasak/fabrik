@@ -909,17 +909,23 @@ def _pause_record(raw: object) -> dict:
     rec = raw if isinstance(raw, dict) else {}
     by = rec.get("by")
     actor = rec.get("actor")
-    try:
-        at = float(rec.get("at") or 0)
+    raw_at = rec.get("at")
+    try:  # a bool is no time (True would read as 1970-01-01)
+        at = 0.0 if isinstance(raw_at, bool) else float(raw_at or 0)
     except (TypeError, ValueError, OverflowError):
         at = 0.0
     why = rec.get("why")
     return {
-        "by": by[:60] if isinstance(by, str) and by else "?",
+        "by": _one_line(by, 60) if isinstance(by, str) and by.strip() else "?",
         "actor": actor if isinstance(actor, str) and _valid_name(actor) else "",
         "at": at if at == at and 0 < at < 1e11 else 0.0,  # NaN and absurd stamps read as unknown
-        "why": why[:200] if isinstance(why, str) else "",
+        # one line: a newline here would print a forged `work:` line into the paused agent's prompt
+        "why": _one_line(why, 200) if isinstance(why, str) else "",
     }
+
+
+def _one_line(text: str, cap: int) -> str:
+    return " ".join(text.split())[:cap]
 
 
 def _paused(repo: Path) -> dict[str, dict]:
@@ -4042,7 +4048,7 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
     if name not in known:
         _warn(f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
               "a window that resolves to that name; the floor and triage count worker trees")
-    by = (args.by or "").strip()[:60] if not actor and args.by else label
+    by = _one_line(args.by, 60) if not actor and args.by and args.by.strip() else label
     marker = _paused_dir(main) / f"{name}.json"
     with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="pause"):
         _refuse_odd_marker(marker)
@@ -4052,7 +4058,7 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
             raise WorkError(f"{name} is already paused by {held['by']}; only they, the distributor "
                             f"({distributor or 'none'}) or the operator may change that pause")
         _paused_dir(main).mkdir(parents=True, exist_ok=True)
-        rec = {"by": by, "actor": actor, "at": time.time(), "why": (args.why or "").strip()[:200]}
+        rec = {"by": by, "actor": actor, "at": time.time(), "why": _one_line(args.why or "", 200)}
         _write_json(marker, rec)
     print(f"paused: {name} — by {by}; its Stop rungs, the floor and triage now skip it")
     return 0
