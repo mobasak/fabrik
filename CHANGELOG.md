@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec: a build-tool setting is settled by a build or the tool's source (2026-10-17)
+
+`commands/_sources/fabrik-spec.md` § 1a: a build-tool setting the design relies on (any bundler, compiler,
+test-runner, package-manager or CI option, a config file's default included) is settled by a build the author runs
+or by the tool's own source read through `gh`; its docs page only locates the setting; else it is a named BLOCKING
+unknown. Answers row 1792191153, a recurrence of held execute-pack-config-before-relying; the queue's other 2 rows
+were rejected with reasons. Pinned by `tests/test_spec_queue_pass.py`.
+
 ### Changed — /fabrik-review-scoped: a guard's accepts-or-covers sentence is written from its executed inputs (2026-10-17)
 
 `commands/_fragments/review-probe-catalogue.md`'s Claims row extends its matcher clause to a guard. A sentence (a
