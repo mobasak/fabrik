@@ -98,13 +98,24 @@ def test_low_battery_arms_the_hold(box):
     )
     cr._battery_arm(NOW)
     assert box.stamp.read_text() == "0\nbattery\n", "the battery raises an urgent-90 stamp"
+    box.stamp.unlink()
+    box.set_power("Unknown", 5, online="0")  # a driver that says Unknown on battery
+    cr._battery_arm(NOW)
+    assert box.stamp.read_text() == "0\nbattery\n", "Unknown with AC offline is battery power"
 
 
 def test_no_hold_unless_discharging_at_the_line(box):
     """Charging at 5%, Discharging at 8%, an unreadable battery: no stamp. A standing `walled`
     quota stamp is left exactly as it is — it already holds."""
-    for status, pct in (("Charging", 5), ("Discharging", 8), (None, None), ("Discharging", None)):
-        box.set_power(status, pct)
+    for status, pct, online in (
+        ("Charging", 5, "0"),
+        ("Discharging", 8, "0"),
+        (None, None, "0"),
+        ("Discharging", None, "0"),
+        ("Unknown", 5, None),  # Unknown with no AC reading: no evidence of battery power
+        ("Unknown", 5, "1"),
+    ):
+        box.set_power(status, pct, online=online)
         cr._battery_arm(NOW)
         assert not box.stamp.exists(), (status, pct)
     box.set_power("Discharging", 3)
@@ -173,7 +184,15 @@ def test_battery_leg_survives_a_broken_tick(box, monkeypatch):
     assert box.stamp.read_text() == "0\nbattery\n"
     box.set_power("Charging", 5, online="1")
     assert cr._cmd_tick() == 0
-    assert not box.stamp.exists()
+    assert box.stamp.exists(), "a broken quota tick read nothing — the lift must not wake into it"
+
+    def cool(_dirs):
+        cr._QUOTA_HOT_THIS_TICK = None  # the advisory found the active account cool
+        return 0
+
+    monkeypatch.setattr(cr, "_fleet_tick_inner", cool)
+    assert cr._cmd_tick() == 0
+    assert not box.stamp.exists(), "a healthy tick on mains lifts it"
 
 
 def test_lift_into_a_quota_wall_wakes_nobody(box, monkeypatch):
@@ -184,6 +203,11 @@ def test_lift_into_a_quota_wall_wakes_nobody(box, monkeypatch):
     try:
         box.stamp.write_text("0\nbattery\n")
         box.set_power("Charging", 30, online="1")
+        # the quota leg never read the account this tick (a blackout, a raise): the hold KEEPS
+        monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", cr._QUOTA_UNKNOWN)
+        cr._battery_lift(NOW)
+        assert box.stamp.read_text() == "0\nbattery\n"
+        assert not (box.locks / "s1.holdlifted").exists()
         monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", cr._STAMP_TIER_WALLED)
         cr._battery_lift(NOW)
         assert cr._stamp_tier(box.stamp) == cr._STAMP_TIER_WALLED
@@ -200,3 +224,45 @@ def test_lift_into_a_quota_wall_wakes_nobody(box, monkeypatch):
     )
     rows, ok = cr._open_wall_rows(NOW)
     assert ok and "a@x" in rows, "a battery lift is not the quota episode's end"
+
+
+def _fleet_row(email: str, session: float | None, weekly: float | None) -> dict:
+    return {
+        "email": email,
+        "slugs": [email.split("@")[0]],
+        "source": "live",
+        "weekly_cap": None,
+        "five_hour": {"utilization": session, "resets_at_epoch": NOW + 3600},
+        "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 86400},
+    }
+
+
+def test_a_wall_under_a_battery_hold_mails_once_and_sets_the_quota_flag(box, monkeypatch):
+    """The real advisory, end to end: under a battery stamp a wall still mails ONCE (the episode's
+    ledger row latches it, not the battery stamp's presence), the stamp stays the battery's while
+    the battery is low, and the advisory tells the lift the quota's state — walled, cool on a real
+    reading, or (a blackout) left unknown."""
+    tg: list[str] = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: tg.append(m))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    box.set_power("Discharging", 5)
+    box.stamp.write_text("0\nbattery\n")
+    os.utime(box.stamp, (NOW, NOW))  # a FRESH stamp: a presence latch would read it as latched
+    walled = [_fleet_row("act@x", 100.0, 40.0)]
+    monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", cr._QUOTA_UNKNOWN)
+    cr._fleet_active_wall_advisory(walled, NOW, threshold=95.0)
+    assert len(tg) == 1, "the wall mails during a battery hold"
+    assert cr._QUOTA_HOT_THIS_TICK == cr._STAMP_TIER_WALLED
+    assert cr._stamp_is_battery(box.stamp), "on a low battery the stamp stays the battery's"
+    cr._fleet_active_wall_advisory(walled, NOW + 60, threshold=95.0)
+    assert len(tg) == 1, "the episode's ledger row latches it — one mail per wall"
+    monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", cr._QUOTA_UNKNOWN)
+    cr._fleet_active_wall_advisory([_fleet_row("act@x", None, None)], NOW + 120, threshold=95.0)
+    assert cr._QUOTA_HOT_THIS_TICK == cr._QUOTA_UNKNOWN, "a blackout is not a cool reading"
+    cr._fleet_active_wall_advisory([_fleet_row("act@x", 20.0, 40.0)], NOW + 180, threshold=95.0)
+    assert cr._QUOTA_HOT_THIS_TICK is None
+    assert cr._stamp_is_battery(box.stamp), "quota relief keeps the battery hold"

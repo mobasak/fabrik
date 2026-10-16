@@ -2845,11 +2845,16 @@ def _cmd_tick() -> int:
     raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
     is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall."""
     global _QUOTA_HOT_THIS_TICK
-    _QUOTA_HOT_THIS_TICK = None
+    # UNKNOWN until the quota leg positively finds the active account cool on a real reading —
+    # a blackout, a raise before the advisory, or a skipped advisory keeps the battery hold
+    _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
     try:
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
             return _fleet_tick_inner(fleet_dirs)
+        _QUOTA_HOT_THIS_TICK = (
+            None  # the legacy tick writes no fleet-exhausted stamp: no quota hold
+        )
         return _tick_inner()
     except Exception as e:  # noqa: BLE001 — cron-hosted: a broken tick must never look
         #                     like a broken cron; the class+message is the diagnostic
@@ -6552,7 +6557,10 @@ def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
 # charging laptop at 5% holds nothing and a flickering 7→8% never releases it.
 _STAMP_TIER_BATTERY: Final = "battery"
 _BATTERY_MAINS_STATUS: Final = frozenset({"Charging", "Full", "Not charging"})
-_QUOTA_HOT_THIS_TICK: str | None = None  # set by `_fleet_active_wall_advisory`, reset per tick
+_QUOTA_UNKNOWN: Final = "unknown"
+# None = cool on a real reading; `walled`/`urgent-90` = hot; `_QUOTA_UNKNOWN` = not read this tick.
+# `_cmd_tick` resets it to UNKNOWN; `_fleet_active_wall_advisory` sets it.
+_QUOTA_HOT_THIS_TICK: str | None = None
 
 
 def _battery_hold_pct() -> float:
@@ -6567,13 +6575,18 @@ def _read_power_word(path: Path) -> str | None:
         return None
 
 
+def _ac_online() -> str | None:
+    """AC1's `online` word — `1` mains, `0` explicitly offline, None unreadable."""
+    ac = Path(os.environ.get("CLAUDE_AC_DIR") or "/sys/class/power_supply/AC1")
+    return _read_power_word(ac / "online")
+
+
 def _battery_reading() -> tuple[str, float | None, bool] | None:
     """``(status, pct, mains)`` from BAT1/AC1, or None when BAT1 has no readable status (no
     battery → no hold, fail open by design). ``mains`` is AC1 online == 1 OR a mains-only status
     (Charging, Full, Not charging); `Unknown` or an unreadable AC1 is NOT mains, so a lift fails
     closed."""
     bat = Path(os.environ.get("CLAUDE_BATTERY_DIR") or "/sys/class/power_supply/BAT1")
-    ac = Path(os.environ.get("CLAUDE_AC_DIR") or "/sys/class/power_supply/AC1")
     status = _read_power_word(bat / "status")
     if status is None:
         return None
@@ -6584,16 +6597,21 @@ def _battery_reading() -> tuple[str, float | None, bool] | None:
         pct = None
     if pct is not None and not math.isfinite(pct):
         pct = None
-    mains = _read_power_word(ac / "online") == "1" or status in _BATTERY_MAINS_STATUS
+    mains = _ac_online() == "1" or status in _BATTERY_MAINS_STATUS
     return status, pct, mains
 
 
 def _battery_low() -> bool:
-    """On battery (`Discharging`) at or below the hold line. An unreadable reading is not low."""
+    """On battery at or below the hold line: `Discharging`, or any non-mains status (`Unknown`)
+    while AC1 explicitly reads offline (`0`) — a driver that reports `Unknown` on battery must
+    not leave the hold silently absent. An unreadable capacity, or an unreadable AC1 beside an
+    `Unknown` status, is not low (no evidence of battery power)."""
     r = _battery_reading()
-    return (
-        r is not None and r[0] == "Discharging" and r[1] is not None and r[1] <= _battery_hold_pct()
-    )
+    if r is None or r[1] is None or r[1] > _battery_hold_pct() or r[2]:
+        return False
+    if r[0] == "Discharging":
+        return True
+    return _ac_online() == "0"
 
 
 def _stamp_is_battery(stamp: Path) -> bool:
@@ -6648,6 +6666,13 @@ def _battery_lift(now: float) -> None:
     r = _battery_reading()
     if r is None or not r[2]:
         return  # not on mains, or no reading: a blackout is not relief
+    if _QUOTA_HOT_THIS_TICK == _QUOTA_UNKNOWN:
+        # the quota leg never reached a real reading this tick (a blackout, a raise, a skipped
+        # advisory): waking now could wake the fleet into a wall — keep the hold, retry next tick
+        print(
+            "tick: mains power is back but the quota is unread this tick — the battery hold stays"
+        )
+        return
     if _QUOTA_HOT_THIS_TICK is not None:
         _touch_stamp(stamp, now, _stamp_body("0", _QUOTA_HOT_THIS_TICK))
         print(
@@ -7422,13 +7447,17 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     if row is not None and isinstance(row.get("five_hour"), dict):
         session_pct = _usable_ts(row["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
-    # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall
-    global _QUOTA_HOT_THIS_TICK
-    _QUOTA_HOT_THIS_TICK = _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT if urgent else None
     stamp = _fleet_exhaustion_stamp()
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
     reading_ok = _row_has_reading(row)
+    # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall;
+    # COOL (None) only on a real reading — a blackout leaves it `_QUOTA_UNKNOWN` (D-180's rule)
+    global _QUOTA_HOT_THIS_TICK
+    if walled or urgent:
+        _QUOTA_HOT_THIS_TICK = _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT
+    elif row is not None and reading_ok:
+        _QUOTA_HOT_THIS_TICK = None
     if row is None or not (walled or urgent):
         if stamp.exists() and not reading_ok:
             # D-180: a probe blackout is NOT relief — unlinking here consumed the one transition
@@ -7502,17 +7531,27 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # release is evaluated only on a tick, so a tick landing a hair early waits one more (the
     # strict `<` is what lets an exactly-aligned tick release — Delta 14 seat A, F4).
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
-    latched = stamp.exists() and (
-        inside_floor
-        or not (
-            (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
-            or (promised is not None and now >= promised)
+    # A BATTERY stamp (W-83a8ee68) says nothing about this wall: its presence is not the wall's
+    # latch, so the episode's own ledger row decides — the wall mails once during a battery hold,
+    # and the dwell branch's walled→battery hand-back never re-fires it (no storm).
+    battery_held = _stamp_is_battery(stamp)
+    latched = (
+        stamp.exists()
+        and not battery_held
+        and (
+            inside_floor
+            or not (
+                (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
+                or (promised is not None and now >= promised)
+            )
         )
     )
     # ⚠️ The stamp is a PRESENCE latch and presence can be lost — a failed write, a tempdir
     # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
     # very function writes is the recomputable copy of the same fact (01M2P19KP9GE9S).
-    if latched or (not stamp.exists() and _advisory_ledger_latch(str(row["email"]), now)):
+    if latched or (
+        (not stamp.exists() or battery_held) and _advisory_ledger_latch(str(row["email"]), now)
+    ):
         # ⚠️ The MESSAGE is latched; the HOLD is not. The dwell branch clears the stamp on the
         # EXPECTATION of a flip, and since the dwell-site wake row ends no episode (Delta 9),
         # the ledger latch holds through that clear — so when the successor drained before the
@@ -7557,7 +7596,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             now,
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
-                _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
+                # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
+                # `urgent-90` (which holds nothing), and only mains power may lift it (W-83a8ee68)
+                _STAMP_TIER_BATTERY
+                if _battery_low()
+                else _STAMP_TIER_WALLED
+                if walled
+                else _STAMP_TIER_URGENT,
             ),
         )
     except OSError as exc:

@@ -421,7 +421,7 @@ Every sysadmin script (VPS-side) invokes Claude through `scripts/sysadmin/claude
 
 ### Battery hold — `CLAUDE_BATTERY_HOLD_PCT` / `CLAUDE_BATTERY_DIR` / `CLAUDE_AC_DIR` (WSL box, D-898)
 
-Read by `scripts/sysadmin/claude_rotate.py` (`--tick` and the `*/1` `--battery-tick` cron) from the process environment; none of them goes in a project `.env`. How the hold works: `docs/workstation/claude-account-rotation.md` § Battery hold.
+Read by `scripts/sysadmin/claude_rotate.py` (`--tick`, and the `*/1` `--battery-tick` cron once the operator installs it) from the process environment; none of them goes in a project `.env`. How the hold works: `docs/workstation/claude-account-rotation.md` § Battery hold.
 
 - `CLAUDE_BATTERY_HOLD_PCT` — the hold line in percent (default `7`, the top of the operator's "6-7%"); a non-finite value falls back to the default.
 - `CLAUDE_BATTERY_DIR` — the battery's sysfs dir (default `/sys/class/power_supply/BAT1`: `status`, `capacity`). No readable `status` means no battery and no hold.
