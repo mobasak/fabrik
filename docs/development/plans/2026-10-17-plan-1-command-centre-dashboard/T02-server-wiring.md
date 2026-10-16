@@ -129,8 +129,10 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
    - Targets: the Work view's targets survive an Overview render, and a following verdict POST for a Work-only item is
      found without a rebuild; a view that raises empties only its own slice, and a POST for a target only it held is
      refused "not on the board"; a `/repos.html` build does not evict a view's slice; after a simulated restart
-     (`_ITEM_TARGETS` and `_PAUSE_TARGETS` emptied, no view rendered yet) a verdict POST and a pause POST for a target a
-     fake Overview view would show are found through the rebuild-on-miss.
+     (`_ITEM_TARGETS` and `_PAUSE_TARGETS` emptied, no view rendered yet) a verdict POST and a pause POST for a target the
+     fixture stores hold are found through the rebuild-on-miss as it stands in this ticket, `_repos_page(fresh=True)`
+     (`scripts/sysadmin/quota_dashboard.py:2664`, :2735) — re-pointing it at the view dispatcher, and its restart test,
+     are T07 step 3's.
    - Status: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it, and the
      payload's time stays the last good probe's across three failing passes, including when the process started with a
      good `quota.json` and its very first probe failed, and when it started with a `probe_failed` one (stale at once); a payload
