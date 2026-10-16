@@ -1,6 +1,6 @@
 # Review — battery hold
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = f4fda6f5f83387e3ec991d8103b3e7237ca55012; range tip f4fda6f5f83387e3ec991d8103b3e7237ca55012; `git diff f4fda6f5f~1..f4fda6f5f -- .claude/hooks/quota_stop.py scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_battery_hold.py tests/test_quota_stop_hook.py tests/conftest.py docs/CONFIGURATION.md docs/workstation/claude-account-rotation.md docs/workstation/hooks-index.md` md5 847219fdcaaa9bb3825226fb65f32380 (66793 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/quota_stop.py`, `scripts/sysadmin/claude_rotate.py`, `scripts/aro-wake/claude_rotate.py`, `tests/test_battery_hold.py`, `tests/test_quota_stop_hook.py`, `tests/conftest.py`, `docs/CONFIGURATION.md`, `docs/workstation/claude-account-rotation.md`, `docs/workstation/hooks-index.md`
 **Lane:** fabrik-task
@@ -110,21 +110,21 @@ $ python scripts/review_rubric.py --changed .claude/hooks/quota_stop.py scripts/
 
 | Class | Status |
 |---|---|
-| Hunt: `.claude/hooks/quota_stop.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/claude_rotate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/aro-wake/claude_rotate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_battery_hold.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_stop_hook.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/conftest.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/CONFIGURATION.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/claude-account-rotation.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/hooks-index.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `.claude/hooks/quota_stop.py` — every changed hunk, its enclosing function, its callers | CLEAN (quota_stop.py `_stamp_is_battery`, `_reason` battery head, `decide` battery flag and `main` — the deny decision is unchanged, only the message head; test_battery_stamp_message red first) |
+| Hunt: `scripts/sysadmin/claude_rotate.py` — every changed hunk, its enclosing function, its callers | FIXED r3 (claude_rotate.py: the wall now mails once under a battery stamp, a blackout keeps the hold, and one `_power_state` classifier replaced two disagreeing arm and lift rules) |
+| Hunt: `scripts/aro-wake/claude_rotate.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/aro-wake/claude_rotate.py is re-copied byte-identical in every fix commit; tests/test_claude_fleet.py::test_twin_copies_are_byte_identical green) |
+| Hunt: `tests/test_battery_hold.py` — every changed hunk, its enclosing function, its callers | FIXED r4 (tests/test_battery_hold.py agreement test read its expected power from the classifier itself; now a written truth table, red on the Discharging+AC1 mutant) |
+| Hunt: `tests/test_quota_stop_hook.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_quota_stop_hook.py::test_battery_stamp_message runs the real hook by subprocess on a battery and a walled stamp; red before the message change) |
+| Hunt: `tests/conftest.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/conftest.py pins CLAUDE_BATTERY_DIR and CLAUDE_AC_DIR to empty dirs beside the rotate state; the 760-test slice reads no real battery) |
+| Hunt: `docs/CONFIGURATION.md` — every changed hunk, its enclosing function, its callers | FIXED r3 (docs/CONFIGURATION.md `CLAUDE_AC_DIR` line said AC1 online always lifts; now read only when the battery status is not definite) |
+| Hunt: `docs/workstation/claude-account-rotation.md` — every changed hunk, its enclosing function, its callers | FIXED r3 (claude-account-rotation.md states the one classifier, the wall-mails-once rule, the blackout limit and the `*/1` cron line as PENDING the operator's crontab edit) |
+| Hunt: `docs/workstation/hooks-index.md` — every changed hunk, its enclosing function, its callers | FIXED r3 (hooks-index.md quota_stop row: the classifier, the pending cron, and a pointer to the rotation doc's Battery hold entry instead of a heading that did not exist) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r2 (claude_rotate.py: a blackout or a raising quota tick read as cool and lifted; a stuck AC1=1 vetoed a Discharging battery — both now fail closed) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED r1 (claude_rotate.py: the quota wall's advisory was silenced for good by a battery stamp; the episode ledger row now latches it, one mail per wall; seats stamped 2 each round) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (claude_rotate.py `_QUOTA_HOT_THIS_TICK` used None for both cool and unread; a `_QUOTA_UNKNOWN` sentinel now separates them) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r4 (tests/test_battery_hold.py: the advisory flag, the AC veto and the agreement oracle were unpinned; each now has a row red on its mutant — 20 mutants run, none survive) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (the reader census in measure.md lists every file naming fleet-exhausted or holdlifted; the classifier sweep covers all 18 status × AC1 pairs) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every confirmed candidate reproduced by running tests/test_battery_hold.py or a probe on copies; every mutant run in a throwaway worktree, never the live tree) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -150,6 +150,11 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 9, new: 9, confirmed: 5, fixed: 5, unexecuted: 0 | method: one slice over f4fda6f5f + the box-local self-watch on pinned copies; F1 the wall mail lost under a battery stamp, F2 a blackout lifts, F3 the advisory flag unpinned, F4 Unknown on battery never arms, F7 the `*/1` cron claimed but not installed |
+| Pass 2 | native sonnet×1 + haiku×1 | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0 | method: the same seats over fix-r1 plus one hop; F11 the round-1 Unknown widening let AC1=1 veto a Discharging battery, F13 CHANGELOG and hooks-index still stated Discharging only |
+| Pass 3 | native sonnet×1 + haiku×1 | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: the same seats over fix-r2; F15 Discharging beside AC1=1 armed and lifted in one tick — second round at the power rule, so REWRITTEN as one `_power_state` classifier; F16 a pointer to a heading that does not exist; F17 "Unknown keeps the hold" untrue with AC1=1 |
+| Pass 4 | native sonnet×1 + haiku×1 | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: the same seats over fix-r3; F18 the agreement test used the classifier as its own oracle; scope-growth stop (in-lane own-fix) — re-verify the fixed set alone |
+| Pass 5 | native sonnet×1 + haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the same seats re-verified the fixed test alone: 8 passed, the written table equals the 18-row truth table, two classifier mutants fail it |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -179,9 +184,21 @@ reason — the reason follows the closing parenthesis. The gate refuses an absen
 checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+| F-id | Verdict |
+|---|---|
+| F5 | REFUTED (a Charging or Full status IS mains power, so lifting on it is the design; the 1-minute arm re-holds within a minute if the battery is draining again) |
+| F6 | REFUTED (the arm-versus-quota-write race can only lose the quota stamp's resume promise — both writers leave a stamp that holds, walled or battery) |
+| F8 | REFUTED (the same defect as F7: the `battery.lock` belongs to the cron line, which is now documented as pending the operator's crontab edit) |
+| F9 | REFUTED (the same defect as F2, fixed in round 1 by the `_QUOTA_UNKNOWN` sentinel) |
+| F14 | REFUTED (claude-account-rotation.md:426 is the heading `## Cron — the installed lines`, so the `§ Cron` pointer resolves) |
+| F12 | REFUTED (the fix commits re-copy scripts/aro-wake/claude_rotate.py byte-identical; tests/test_claude_fleet.py::test_twin_copies_are_byte_identical passes) |
+| F19 | RECORDED — measured (a single failure in one 659-test slice run, absent from two reruns; no claim about this change) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — the battery hold (W-83a8ee68): CONVERGED
+
+Commits f4fda6f5f (build), 9fe2827e7, 533f1b92f, bdff2fe82, d086658e3 (review fixes). Box-local: `~/.claude/bin/claude-selfwatch.sh` names the battery hold in its lift RESUME line (mesh fixture W10e; suite 187 ok, 1 fail = A0a baseline), DR-pushed dr-claude 20261016T020344Z. Five passes, 11 confirmed and fixed; 20 mutants run across the passes, none survive.
 
 ## Gate
 
@@ -190,7 +207,242 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "skipped_checks": [
+    "static tier"
+  ],
+  "checks": [
+    {
+      "name": "static tier (diff-sensed skip)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
