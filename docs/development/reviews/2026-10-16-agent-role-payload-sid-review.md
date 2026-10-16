@@ -1,6 +1,6 @@
 # Review — agent_role payload session id
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = deec0dd57fcdd80431c99ac04d36157470058551; range tip deec0dd57fcdd80431c99ac04d36157470058551; `git diff deec0dd57~1..deec0dd57 -- .claude/hooks/agent_role.py tests/test_agent_role_hook.py docs/workstation/hooks-index.md` md5 65cbe4817551eef5139c1de003bd4525 (13253 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/agent_role.py`, `tests/test_agent_role_hook.py`, `docs/workstation/hooks-index.md`
 
@@ -109,15 +109,15 @@ $ python scripts/review_rubric.py --changed .claude/hooks/agent_role.py tests/te
 
 | Class | Status |
 |---|---|
-| Hunt: `.claude/hooks/agent_role.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_agent_role_hook.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/hooks-index.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `.claude/hooks/agent_role.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (agent_role.py: an unbounded stdin read blocked to the hook timeout on a held-open pipe and ran even without a resolver; now select-bounded at 2 s and 1 MB, lazy; the env id is the fallback when the payload id binds nothing) |
+| Hunt: `tests/test_agent_role_hook.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_agent_role_hook.py: the payload test and the held-open test, each red on its revert or mutant — payload id dropped, env assignment dropped, env-wins order, env fallback dropped, deadline removed) |
+| Hunt: `docs/workstation/hooks-index.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (hooks-index.md agent_role row now names the D-654 fallback, the payload key, the bounded lazy read and the env-id fallback) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | CLEAN (agent_role.py: every payload failure — tty, empty, malformed, non-dict, oversized id, a slow writer past the deadline — reads as no binding, a silent no-op; nothing blocks a session) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (agent_role.py stdin read stops at its 2 s deadline and 1 MB cap; seats stamped 2 each round) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN (agent_role.py `_payload_session_id` accepts a stripped string of 1-128 characters only; a non-string or empty id is no id) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_agent_role_hook.py: 5 mutants across both passes, none survive) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (agent_role.py is registered on one event only, SessionStart in .claude/settings.json; the seats read every registration) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every claim run against the hook as a subprocess with a real held-open pipe, never read alone; the binding store under each seat) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -143,6 +143,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0 | method: one slice over deec0dd57, the hook driven as a subprocess; F1 an unbounded stdin read hung the hook on a held-open pipe, F2 a payload id that binds nothing lost the env id's binding |
+| Pass 2 | native sonnet×1 + haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the same seats re-ran the held-open, slow-writer, EOF and /dev/null probes and two mutants on 97e06d4d8 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -172,9 +174,17 @@ reason — the reason follows the closing parenthesis. The gate refuses an absen
 checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+| F-id | Verdict |
+|---|---|
+| F3 | RECORDED — measured (a payload over 1 MB is cut and read as no id; SessionStart payloads are a few hundred bytes) |
+| F4 | REFUTED (the reflowed test lines are the formatter's line-length output; no assertion changed) |
+| F5 | RECORDED — measured (a held-open stdin with a complete payload still waits the full 2 s deadline, well inside the 10 s hook timeout) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — agent_role payload session id (W-629fe67a): CONVERGED
+
+Commits deec0dd57 (the payload id) and 97e06d4d8 (review round 1: bounded lazy read, env-id fallback).
 
 ## Gate
 
@@ -183,7 +193,242 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "skipped_checks": [
+    "static tier"
+  ],
+  "checks": [
+    {
+      "name": "static tier (diff-sensed skip)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
