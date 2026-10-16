@@ -3,7 +3,7 @@
   "created": "2026-10-15T13:27:43.255450Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "14487a4a6922daeb9ecbf9100e95cbda8bfe582e",
   "id": "W-9f3f097c",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "loses a live run's data on every nested review (command-improve→review-scoped, execute-plan→review), measured by kaizen 2026-10-15; one sweep condition; owner: command_run.py/scratch sweep = infra",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4zvbx96hk7gt8d8wkm9jzg2",
     "scratch-gap"
