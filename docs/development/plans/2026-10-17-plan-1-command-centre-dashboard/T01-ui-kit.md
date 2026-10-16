@@ -21,7 +21,7 @@ part of the package and is not committed); add a dependency (stdlib only, no CDN
 Depends: —
 Parallel: ⚡
 Complexity: native
-Gate: .venv/bin/python -m pytest tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py -q
+Gate: .venv/bin/python -m pytest tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py -q -rs
 Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten once, in T07)
 
 ## Touches
@@ -59,7 +59,10 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
   spec § Validation). `strings.CATALOGUE` is the English catalogue.
 - The attributes `app.js` handles (step 5) — the views' only way to behave:
   - `data-post="<path>"` + `data-body="<JSON>"`: posts that body with the `X-Quota-Dash: 1` header;
-  - `data-confirm="<dialog id>"`: opens that dialog first, posts only on its confirm button;
+  - `data-confirm="<dialog id>"`: opens that dialog first, posts only on its confirm button; an element
+    `<span data-value-of="<input id>">` inside the dialog is filled with that field's current value when it opens (or
+    the catalogue's "clear" word when empty), so "Set the weekly cap on X to 80%?" states the typed value
+    (`scripts/sysadmin/quota_dashboard.py:3344`, :3366);
   - `data-note="optional|required"`: the dialog's textarea value is sent as `text` (and as `why` for
     `/agent-pause`); an empty required note is refused in words, nothing posts;
   - `data-text-from="<input id>"`: the value of that inline field is sent as `text` (Comment — no dialog, spec
@@ -67,15 +70,20 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
   - `data-input="<key>:<int|float>:<min>:<max>:<nullable|required>:<input id>"`: reads that number field into
     body key `<key>`, an empty nullable field becoming `null` (today's `/cap` and `/threshold` inputs,
     `scripts/sysadmin/quota_dashboard.py:3337-3370`); a value outside the range is refused in words;
-  - `data-filter-group="<name>"` on a container + `data-filter-key="<name>"` on its rows + a `field(kind="search")`
-    or chip buttons carrying `data-filter="<name>:<value>"`: shows only rows whose key contains the value
-    (owner chips, tag filter, command search); the choice persists per group in `localStorage`;
+  - `data-filter-group="<group>"` on a container; inside it every filterable element — a row or a whole section —
+    carries one attribute per filter, `data-f-<filter>="<space-separated tokens>"` (e.g. `data-f-tag="api ops"` and
+    `data-f-owner="infra"` on the same row, or on the owner's section); chip buttons carry `data-filter="<filter>:<token>"`
+    and match TOKEN-EQUAL, as today's tag filter does (`(" " + tags + " ").indexOf(" " + t + " ")`,
+    `scripts/sysadmin/quota_dashboard.py:2917`), so `api` never shows `api-v2`; a `field(kind="search")` carrying
+    `data-filter="<filter>"` matches by case-insensitive SUBSTRING over that filter's attribute; an element is shown
+    when it passes every active filter of its group; each group's choices persist in `localStorage`;
   - `data-pick-group="<name>"` + panes carrying `data-pick="<value>"`: shows the one pane named by the hash's
     second segment (`/#work/<repo>`), the picker's buttons rewrite that segment; `/v/<view>` is fetched for the
     FIRST segment only, so `/v/work/<repo>` is never requested;
   - the `tabs` markup: arrow keys, Home and End move between tabs, `aria-selected` and `tabindex` follow;
-  - the `clamp` toggle, the shell's menu button, and the loading timers of `region_state("loading")` — "still
-    loading" at 3 s, Retry at 10 s, the error state at 30 s (`.windsurf/rules/core/design-system-template.md:840`).
+  - the `clamp` toggle, the shell's menu button (`aria-expanded`, Escape closes), and the loading timers of a view
+    fetch — nothing for the first 300 ms, then `region_state("loading")`, "still loading" at 3 s, Retry at 10 s, the
+    error state at 30 s (`.windsurf/rules/core/design-system-template.md:840`).
   - After any `data-post`: `2xx` forces the refresh past every skip and announces success in the live region; `409`
     re-fetches the view and announces the catalogue's changed-item line; any other failure shows its error inline
     and leaves the card in place (spec § Lifecycle, Degradation).
@@ -125,11 +133,15 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
    pytest-playwright is not installed) over a fixture page that a stdlib `http.server` on port 0 serves from the
    package's `static/` plus fixture fragments, and watch each case fail before step 5's code exists: a confirm
    dialog posts only on confirm and returns focus; a required note refuses empty; an inline comment posts its field
-   on Enter; a number input posts `null` when empty and refuses an out-of-range value; a 409 re-fetches and
-   announces; a filter hides non-matching rows and survives a refresh; `/#work/b` shows pane `b` and requests
+   on Enter; a number input posts `null` when empty, posts `87.5` for a `float` field, and refuses an out-of-range
+   value; a confirm dialog shows the typed value through `data-value-of`; a 409 re-fetches and announces; a chip filter
+   matches token-equal (`api` hides an `api-v2` row) and a search filter by substring, both survive a refresh; the clamp
+   toggle shows the whole question; the menu button opens and Escape closes it; with a faked clock a slow fetch shows
+   nothing before 300 ms, the loading state, "still loading" at 3 s, Retry at 10 s and the error at 30 s; `/#work/b` shows pane `b` and requests
    `/v/work`; the tabs move with the arrow keys; a refresh tick is skipped while a field has focus, a dialog is open,
    text is selected or the tab is hidden, and is forced after a successful post; a half-typed field survives a swap.
-7. Run the Gate to green, then `.venv/bin/ruff check scripts/sysadmin/dashboard_ui tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py`.
+7. Run the Gate to green — and read its `-rs` skip lines: a skipped `test_quota_dashboard_app_js.py` (playwright not
+   importable) is UNVERIFIED, never green; the ticket does not merge on it. Then `.venv/bin/ruff check scripts/sysadmin/dashboard_ui tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py`.
 8. `python scripts/enforcement/check_doc_sync.py` (no doc owed by this ticket — the doc lands in T07).
 9. `/fabrik-review` on the ticket's changed surface to its coverage-adjudicated exit (§ Execution Discipline).
 10. Commit the Touches (explicit paths, provenance trailers, the baseline numbers in the body).

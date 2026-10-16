@@ -49,15 +49,19 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
     `{"error": …}`), `"status"` (`_LAST_STATUS` below), `"budget"` (`_budget_data()`), `"health"` (`{"stale": […],
     "failed": […]}` — a view whose data is older than twice its cadence, and every collector key holding `error`
     plus a probe failure newer than the payload), `"ag_states"` (_AG_STATES), `"hub_agents"` (_HUB_AGENTS);
-  - work → `"work"`, `"hub_agents"`, `"owner_order"` (the order `_owner_order` gives, per repo), `"repos_ttl_s"`;
+  - work → `"work"`, `"hub_agents"`, `"owner_order"` (the order `_owner_order` gives, per repo), `"repos_ttl_s"`,
+    `"next_cap"` (NEXT_CAP) and `"next_tip_cap"` (NEXT_TIP_CAP) — the Next cell's text and tooltip caps (:2250-2251, read
+    at :2445);
   - accounts → `"status"`, `"queue"` (the rotation order `_display_order`/`_queue_for_render` give today,
     `scripts/sysadmin/quota_dashboard.py:1262`, :879), `"trigger_threshold"` (TRIGGER_THRESHOLD), `"reserve_pct"`
-    (_RESERVE_PCT), `"drain_band"` (`_drain_band()`, :3548), `"five_hour_s"`, `"seven_day_s"`, `"switch_header"`;
-  - usage → `"spend"` (`_spend_data()`, the whole sidecar dict `_spend_panel` reads: `built_at`, `monthly_spend`,
-    `window_start`, `window_end`, `unweighted`, `per_model_spend.{tiers, daily, spend_usd, base_rate_per_mtok}`);
+    (_RESERVE_PCT), `"drain_band"` (`_drain_band()`, :3548), `"five_hour_s"`, `"seven_day_s"`, `"switch_header"`,
+    `"pool_policy_on"` (`_pool_policy_on()`, read by `_governor_panel` at :1246), `"slug_re"` and `"email_re"` (the
+    `_SLUG_RE` / `_EMAIL_RE` patterns as strings, :96-97, which decide which rows get controls);
+  - usage → `"spend"` (`_spend_data()`, the whole sidecar dict `_spend_panel` reads: top-level `built_at` (:1137) and
+    `per_model_spend.{tiers, daily, spend_usd, base_rate_per_mtok, monthly_spend, window_start, window_end,
+    unweighted}` (:1006, :1115, :1136, :1147-1149));
   - commands → `"commands"` (`_load_commands()`, :1574, or `{"error": …}`), `"ext_services"` (_EXT_SERVICES — the
-    matrix's column keys, labels and titles, :2205-2229), `"next_cap"`, `"next_tip_cap"`, `"pool_policy_on"`
-    (`_pool_policy_on()`), `"budget_caveats"`;
+    matrix's column keys, labels and titles, :2205-2229);
   - services → `"pool"` (`_pool_credits(fetch=False)` — `None` when unconfigured or uncached), `"apis"`
     (`_api_quotas(fetch=False)`), `"ext_page"` (`{"path": "/external-services.html", "mtime": <EXT_SERVICES_HTML's
     mtime or None>}`).
@@ -68,9 +72,12 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - `quota_dashboard._LAST_STATUS: list[tuple[float, dict] | None]` — the payload `_generate_locked` actually used on
   its last pass, INCLUDING the fallback it builds when the probe fails (the last good reading plus `probe_failed`
   and the live `active` pointer, :3478-3500), swapped in whole; and `_LAST_PROBE_FAILURE: list[tuple[float, str] |
-  None]` — when the probe last failed and its error class, cleared by a successful probe. When `_LAST_STATUS` is
+  None]` — when the probe last failed and its error class, cleared by a successful probe. The time stamped on
+  `_LAST_STATUS` is ALWAYS the time of the last SUCCESSFUL probe, carried unchanged through every fallback pass, so a
+  continuing outage ages the payload and trips the bound below. When `_LAST_STATUS` is
   still `None` (a fresh process), `_view_data` seeds it from `quota.json` on disk (`_JSON`, :106) with the file's
-  mtime as its time; with neither, `"status"` is `{"error": "no reading yet"}`. A request NEVER runs `_probe()`
+  mtime as its time — unless the file holds `probe_failed` (the fallback rewrites it, :3497), when its time is
+  unknown and the payload is treated as stale at once; with neither, `"status"` is `{"error": "no reading yet"}`. A request NEVER runs `_probe()`
   itself except through the one bounded path today's `_fresh_html` already has (:3674-3700): when `_pointer_moved()`
   and `_LAST_SYNC_REGEN` is older than PROBE_TIMEOUT_S, one synchronous `generate()`; and when the payload is older
   than MAX_AGE_S, `_regen_async()` — the same two triggers, now on `/v/overview` and `/v/accounts`.
@@ -80,11 +87,15 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
   `PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60` (today's bound and its reasoning, :3440-3450).
 - `quota_dashboard._budget_data()` — served from `_budget_cache`, which now holds the parsed data dict beside the HTML
   (`_budget_cache["data"]`), refreshed only by the background thread `_budget_banner` already starts (:2116-2137);
-  `QUOTA_DASH_BUDGET=0` returns `{"disabled": True}` as `_budget_banner` returns "" today (:2122). `_spend_data()` —
+  `QUOTA_DASH_BUDGET=0` returns `{"disabled": True}` as `_budget_banner` returns "" today (:2122). The data carries
+  `"caveats"` as a list of PLAIN strings — the text `_budget_caveats` (:2078) builds today, unescaped, so the Overview's
+  components escape it once. `_spend_data()` —
   the data half of `_spend_panel` (:1021). The HTML halves keep their names and output and call the data halves.
-- Targets: the dispatcher keeps the last `pause_targets` and `item_targets` of EACH view and publishes the UNION
-  through `_publish_pause_targets` (:2647) / `_publish_item_targets` (:2714), so one view's refresh never evicts
-  another view's targets. `_ITEM_TARGETS` maps `(repo, id)` to `(main, root)`.
+- Targets: the dispatcher keeps the last `pause_targets` and `item_targets` of EACH view as a named slice and publishes
+  the UNION through `_publish_pause_targets` (:2647) / `_publish_item_targets` (:2714), so one view's refresh never
+  evicts another view's targets. Fail-closed as today (:2750, :2810 — "no board, no buttons"): a view whose `collect` or
+  `render` raised, or that returned no targets, replaces its own slice with `[]`. Until T07 removes it, `/repos.html`'s
+  build publishes as its own slice, `repos`, through the same union. `_ITEM_TARGETS` maps `(repo, id)` to `(main, root)`.
 - `snapshot.token(item: dict) -> str` — the first 16 hex characters of sha256 over the JSON of `[question, status,
   ground, len(comments), sorted(alt_ids)]` (missing fields as `None`, `0`, `[]`).
 - `item_verdict(repo, item, action, text="", token=None)` — after the target lookup (:2733-2738) reads
@@ -113,8 +124,10 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
      added an `alt_ids` entry — and the 200 case with the current token; an absent token accepted with
      `_LEGACY_TOKEN_UNTIL = None` and refused (409) with a date in the past.
    - Targets: the Work view's targets survive an Overview render, and a following verdict POST for a Work-only item is
-     found without a rebuild.
-   - Status: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it; a payload
+     found without a rebuild; a view that raises empties only its own slice, and a POST for a target only it held is
+     refused "not on the board"; a `/repos.html` build does not evict a view's slice.
+   - Status: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it, and the
+     payload's time stays the last good probe's across three failing passes; a payload
      older than the bound carries the banner; a fresh one none; a fresh process with `quota.json` on disk serves it
      without probing (assert `_probe` was not called); `_pointer_moved()` true triggers exactly one bounded
      `generate()`.

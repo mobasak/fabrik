@@ -28,7 +28,8 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
   attributes; T02 `ViewContext`, `ViewResult`, `snapshot.token`, `dashboard_ui.fmt` (`repo_order` — fabrik first, then
   by remaining count, then name, :2330), and `_view_data("work")` → `{"now", "refresh_s", "work": [{name, items[],
   error, skipped[], main, root}], "hub_agents", "owner_order", "repos_ttl_s"}` (`_collect_work`,
-  `scripts/sysadmin/quota_dashboard.py:2285`).
+  `scripts/sysadmin/quota_dashboard.py:2285`), plus `"next_cap"` / `"next_tip_cap"` for the item rows' Next cell (its
+  text capped with `fmt.cap(next, next_cap)`, the whole of it to `next_tip_cap` in the title, as :2445 does today).
 - Today's page as the inventory of what must survive: `_repos_page` (`scripts/sysadmin/quota_dashboard.py:3014`) and the
   per-repo pane `_repo_pane` (`scripts/sysadmin/quota_dashboard.py:2369`) — the owner chips with every hub agent and the
   empty owner shown even at 0 (:2246, :2404-2414), the item rows with their `data-tags` (:2439) that the tag filter
@@ -44,11 +45,11 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 ## Steps
 1. Write `tests/test_quota_dashboard_work.py` FIRST and watch it fail: fabrik is first in the picker and every pane
    carries its `data-pick`; each owner gets a chip with its count (`data-filter="owner:<name>"`), every hub agent and the
-   empty owner included at 0; an open non-awaiting item has Accept, Reject and Comment, an awaiting decision the same,
+   empty owner included at 0, each owner's section carrying `data-f-owner`; every item row carries `data-f-tag` with its
+   tags and its Next cell capped at `next_cap` with the longer text in its title; an open non-awaiting item has Accept, Reject and Comment, an awaiting decision the same,
    an awaiting non-decision Comment only (D-917); every verdict body carries the item's `snapshot.token`; Accept's
    dialog takes an optional note, Reject's requires one, Comment is an inline field with `data-text-from`; a repo whose
-   collector returned `error` shows the error in words and the other repos render; skipped stores are listed; the tag
-   filter's rows carry `data-filter-key` with their tags; the view carries a freshness stamp at 20 s; the returned
+   collector returned `error` shows the error in words and the other repos render; skipped stores are listed; the view carries a freshness stamp at 20 s; the returned
    `item_targets` contain every item shown.
 2. Write `work.py` to green.
 3. Run the Gate to green, then `.venv/bin/ruff check` on the Touches.
@@ -60,7 +61,7 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - **Given** several repos, **When** the Work view renders, **Then** fabrik is first in the picker and each repo's pane is addressable as /#work/<repo> so a reload keeps it (spec § Information architecture; D-738)
 - **Given** an open item, an awaiting decision and an awaiting non-decision, **When** their rows render, **Then** the first two offer Accept, Reject and Comment and the third Comment only (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2361)
 - **Given** a verdict button in the Work view, **When** it renders, **Then** its body carries the item's snapshot token, Accept's dialog takes an optional note and Reject's requires a reason (spec § Which actions confirm)
-- **Given** owners, tags and skipped stores, **When** the Work view renders, **Then** every hub agent and the empty owner have a chip with a count, rows carry their tags for the filter, and the skipped stores are listed (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2404)
+- **Given** owners, tags and skipped stores, **When** the Work view renders, **Then** every hub agent and the empty owner have a chip with a count, rows carry their tags for the filter and their capped Next text, and the skipped stores are listed (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2404)
 - **Given** a repo whose collector failed, **When** the Work view renders, **Then** that repo shows its error in words, the other repos render, and the view shows its read time (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:2285)
 - **Given** the rendered Work view, **When** a verdict POST arrives for any item it shows, **Then** the item is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2714)
 

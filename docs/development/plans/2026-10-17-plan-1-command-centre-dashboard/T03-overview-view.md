@@ -51,7 +51,7 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
     (:5649-5660); each window's reset time from the active account's row in `accounts` (`five_hour.resets_at_epoch`,
     `seven_day.resets_at_epoch`, `model_windows.Fable.resets_at_epoch`, as `_row` reads them,
     `scripts/sysadmin/quota_dashboard.py:774-861`), formatted with `fmt.fmt_reset`; `probe_failed` when T02's fallback set it.
-  - `budget`: the box-budget data (`{"disabled": True}` renders nothing); `health`: `{stale: [...], failed: [...]}`.
+  - `budget`: the box-budget data with its `caveats` as plain strings (`{"disabled": True}` renders nothing); `health`: `{stale: [...], failed: [...]}`.
 
 ## Produces
 - `merges.blocked(opt_root: Path, fabrik_root: Path) -> list[dict]` — for every `<opt_root>/<repo>/.git/fabrik-merge/*.json`
@@ -110,7 +110,7 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - **Given** the stores and the status payload, **When** the summary strip renders, **Then** its counts match the stores and link to their sections, every section shows its read time, and with nothing waiting the nothing-waiting line shows instead of an empty area (spec § Overview item 0; .windsurf/rules/core/design-system-template.md:605)
 - **Given** the band is RED or WALL or a probe has failed, **When** the Overview renders, **Then** the Quota and Health strips appear above the decisions, and otherwise below the agents (spec § Overview item 0; receipt row P5-r1)
 - **Given** agents in every state, a paused agent and the status payload, **When** the Agents, Quota and Health sections render, **Then** every agent the collector lists has its row and fields, Resume names every marker it lifts, and the quota strip shows the band, account, successor, windows with resets and the hold (spec § Overview items 3-5; scripts/agent_status.py:385)
-- **Given** a restarted server and the Overview rendered once, **When** the operator Accepts a decision or pauses an agent from it, **Then** the target is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
+- **Given** awaiting items and pausable agents, **When** the Overview renders, **Then** it returns item targets for every awaiting item and pause targets for every agent repo it shows, the inputs T02's restart test proves a POST finds (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
 
 ## Context Files
 - .windsurf/rules/saas/60-saas-ui.md

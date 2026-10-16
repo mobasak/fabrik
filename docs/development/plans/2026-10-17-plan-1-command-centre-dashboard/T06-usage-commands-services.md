@@ -34,11 +34,11 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 ## Consumes
 - T01 `components.*` (`table`, `tabs`, `disclosure`, `field`, `freshness`, `fragment`, `region_state`), `strings.t`, the
   filter attributes; T02 `ViewContext`, `ViewResult`, `dashboard_ui.fmt` (`stage_tone`, `fmt_age`, `ago`) and `_view_data`:
-  - usage → `{"spend": <the sidecar dict: built_at, monthly_spend, window_start, window_end, unweighted,
-    per_model_spend.{tiers, daily, spend_usd, base_rate_per_mtok}> or {"error": …}}`;
+  - usage → `{"spend": <the sidecar dict: top-level built_at, and per_model_spend.{tiers, daily, spend_usd,
+    base_rate_per_mtok, monthly_spend, window_start, window_end, unweighted}> or {"error": …}}`;
   - commands → `{"commands": <_load_commands() rows: name, next, services, natives, rule, tiers, rendered, purpose,
-    when, skip, stage> or {"error": …}, "ext_services": <_EXT_SERVICES: the matrix's column keys, labels and titles>,
-    "next_cap", "next_tip_cap", "pool_policy_on", "budget_caveats"}` (`_load_commands` :1574);
+    when, skip, stage> or {"error": …}, "ext_services": <_EXT_SERVICES: the matrix's column keys, labels and titles>}`
+    (`_load_commands` :1574);
   - services → `{"pool": <_pool_credits(fetch=False): a dict, or None when unconfigured or uncached>, "apis":
     <_api_quotas(fetch=False)>, "ext_page": {"path", "mtime"}}` (:176 TTL 300 s, :414 TTL 1,800 s).
 - Today's builders as the inventory of what must survive: the coder reads `_spend_panel`, `_commands_table`,

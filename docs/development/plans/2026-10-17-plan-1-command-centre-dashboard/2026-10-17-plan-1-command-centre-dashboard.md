@@ -34,7 +34,7 @@ recorded wording in the spec and change no build step.
 | 8 | Accounts view with Edit disclosure | T05 |
 | 9 | Usage, Commands, Services views | T06 |
 | 10 | One component set, escaped | T01 |
-| 11 | Themes, motion, keyboard, responsive | T01, T07 (browser tests) |
+| 11 | Themes, motion, keyboard, responsive | T01 (incl. its playwright script tests), T07 (browser tests) |
 | 12 | Refresh that never clobbers the operator | T01, T07 |
 | 13 | Snapshot token and its 409 | T02 |
 | 14 | Host allowlist and cross-site POST refusal | T02 |
@@ -110,11 +110,11 @@ The screen flagged 7 of 7 tickets (scores 6–9, each one area plus its test fil
 Behavior-Contract row count). Every ticket is KEPT, for one reason each: its rows are one invariant seen from
 several inputs, and a split would spread that invariant across tickets that must merge together anyway.
 
-- T01 kept — six rows, one invariant: every byte of markup goes through one escaped, token-styled, catalogued kit.
+- T01 kept — eight rows, one invariant: every byte of markup goes through one escaped, token-styled, catalogued kit.
 - T02 kept — eight rows, one surface: the request path of one `_Handler` (guard, routes, token, targets); split, the
   guard and the routes it guards would be reviewed apart.
 - T03 kept — eight rows, one view whose sections share one ordering rule and one data dict.
-- T04 kept — five rows, one view.
+- T04 kept — six rows, one view.
 - T05 kept — five rows, one view.
 - T06 kept — seven rows over three small views that share one pattern (render a collector's data, freshness at its
   cadence); split three ways each ticket would carry the same pattern and the same test file shape.
@@ -154,14 +154,14 @@ several inputs, and a split would spread that invariant across tickets that must
 - **Given** the stores and the status payload, **When** the summary strip renders, **Then** its counts match the stores and link to their sections, every section shows its read time, and with nothing waiting the nothing-waiting line shows instead of an empty area (spec § Overview item 0; .windsurf/rules/core/design-system-template.md:605)
 - **Given** the band is RED or WALL or a probe has failed, **When** the Overview renders, **Then** the Quota and Health strips appear above the decisions, and otherwise below the agents (spec § Overview item 0; receipt row P5-r1)
 - **Given** agents in every state, a paused agent and the status payload, **When** the Agents, Quota and Health sections render, **Then** every agent the collector lists has its row and fields, Resume names every marker it lifts, and the quota strip shows the band, account, successor, windows with resets and the hold (spec § Overview items 3-5; scripts/agent_status.py:385)
-- **Given** a restarted server and the Overview rendered once, **When** the operator Accepts a decision or pauses an agent from it, **Then** the target is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
+- **Given** awaiting items and pausable agents, **When** the Overview renders, **Then** it returns item targets for every awaiting item and pause targets for every agent repo it shows, the inputs T02's restart test proves a POST finds (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
 
 ### T04 — from `T04-work-view.md`
 
 - **Given** several repos, **When** the Work view renders, **Then** fabrik is first in the picker and each repo's pane is addressable as /#work/<repo> so a reload keeps it (spec § Information architecture; D-738)
 - **Given** an open item, an awaiting decision and an awaiting non-decision, **When** their rows render, **Then** the first two offer Accept, Reject and Comment and the third Comment only (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2361)
 - **Given** a verdict button in the Work view, **When** it renders, **Then** its body carries the item's snapshot token, Accept's dialog takes an optional note and Reject's requires a reason (spec § Which actions confirm)
-- **Given** owners, tags and skipped stores, **When** the Work view renders, **Then** every hub agent and the empty owner have a chip with a count, rows carry their tags for the filter, and the skipped stores are listed (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2404)
+- **Given** owners, tags and skipped stores, **When** the Work view renders, **Then** every hub agent and the empty owner have a chip with a count, rows carry their tags for the filter and their capped Next text, and the skipped stores are listed (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2404)
 - **Given** a repo whose collector failed, **When** the Work view renders, **Then** that repo shows its error in words, the other repos render, and the view shows its read time (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:2285)
 - **Given** the rendered Work view, **When** a verdict POST arrives for any item it shows, **Then** the item is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2714)
 
@@ -170,7 +170,7 @@ several inputs, and a split would spread that invariant across tickets that must
 - **Given** a status payload that failed its probe, has rotation paused, has the pause file unreadable, or has no accounts, **When** the Accounts view renders, **Then** the matching banner shows as today's page shows it, and a failed probe keeps the last good reading with its controls (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3052)
 - **Given** accounts in rotation order with a returning and a pending account, **When** the view renders, **Then** every account, the returning row and the pending row appear in that order with their session, weekly and Fable meters (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3096)
 - **Given** a governor verdict, fleet warnings and the rotation rule, **When** the view renders, **Then** each shows, the rule with its threshold and probe interval (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1215)
-- **Given** any account, **When** the operator opens its Edit disclosure and picks switch, disable, cap or rotate-at, **Then** a dialog states the consequence and only its confirm posts today's body to today's endpoint (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3873)
+- **Given** any account, **When** the operator opens its Edit disclosure and picks switch, disable, cap or rotate-at, **Then** a dialog states the consequence with the typed value, only its confirm posts today's body to today's endpoint, and each control appears only on the rows today's board shows it on (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3873)
 - **Given** no reading at all, **When** the view renders, **Then** it shows the error in words and no controls, and the view shows its read time otherwise (spec § Lifecycle)
 
 ### T06 — from `T06-usage-commands-services.md`
@@ -409,14 +409,14 @@ merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_ed
 
 | Class | Source | State |
 |---|---|---|
-| Python patterns: stdlib only, typing, no bare tasks, no logfile | FLOOR core/10-python.md | UNCHECKED |
-| 12-Factor axes as they apply to a box-local tool | FLOOR 12-FACTOR | UNCHECKED |
-| Documentation: the subsystem doc rewritten, fenced, headings sequential | MATCHED core/40-documentation.md | UNCHECKED |
-| Testing: one test per behaviour, watched red first, no cosmetic assertions | MATCHED core/45-testing-strategy.md | UNCHECKED |
-| Fail-open vs fail-closed on every gate or guard (Host check, Sec-Fetch-Site, token, rebuild-on-miss) | standing | UNCHECKED |
-| Cost / quota / limit accounting edges (unknown is not zero; collector TTLs; the 500 ms trigger) | standing | UNCHECKED |
-| Boundary / sentinel / prefix collisions (static path traversal, ULID order, view names, the legacy date) | standing | UNCHECKED |
-| Behaviour without a test | standing | UNCHECKED |
+| Python patterns: stdlib only, typing, no bare tasks, no logfile | FLOOR core/10-python.md | CLEAN — pass 2 (T02 `sys.path` mandated, the nine `fmt` helpers scanned free of module names; no logfile, stderr kept) |
+| 12-Factor axes as they apply to a box-local tool | FLOOR 12-FACTOR | CLEAN — pass 2 (Global Constraints vs `quota_dashboard.py:3880`, :4077; the retired `QUOTA_DASH_REPOS_REFRESH_S` leaves the doc in T07 step 7) |
+| Documentation: the subsystem doc rewritten, fenced, headings sequential | MATCHED core/40-documentation.md | CLEAN — pass 2 (T07 steps 7 and 9; `--once` documented by its rewrite) |
+| Testing: one test per behaviour, watched red first, no cosmetic assertions | MATCHED core/45-testing-strategy.md | FIXED — passes 1-2 (INV-4 scan widened, INV-2 list completed, stale-banner test satisfiable, clamp/menu/timer tests, `-rs` with a skipped browser file UNVERIFIED) |
+| Fail-open vs fail-closed on every gate or guard (Host check, Sec-Fetch-Site, token, rebuild-on-miss) | standing | FIXED — passes 1-2 (probe failure reaches the views; a failed view empties its own target slice as :2750/:2810 do; token read from the card's own tree) |
+| Cost / quota / limit accounting edges (unknown is not zero; collector TTLs; the 500 ms trigger) | standing | FIXED — pass 1 (budget served from its cache, never a request-thread subprocess; no request-thread probe beyond today's bounded one; work data cached as `_repos_page` caches it) |
+| Boundary / sentinel / prefix collisions (static path traversal, ULID order, view names, the legacy date) | standing | FIXED — pass 2 (`/static/%2e%2e/x` and `/v/work/fabrik` 404; token-equal tags so `api` never matches `api-v2`; local-date window) |
+| Behaviour without a test | standing | FIXED — pass 2 (every Behavior row has its step-1 test; the restart row cites T02's restart test) |
 
 ```text
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -521,6 +521,7 @@ merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_ed
 | Pass | Seats | Counters | Method | Hash |
 |---|---|---|---|---|
 | Pass 1 | opus×1 (spine Interfaces, Execution Discipline, Global Constraints, roll-up, File Scope, Checklist; T02; T07) + sonnet×1 (T01, T03–T06; the other spine sections) · shape: agent-tool | found: 37, new: 37, confirmed: 36, fixed: 36, unexecuted: 0, edits: 7 | method: partitioned full pass; every confirmed candidate re-run by the orchestrator (probe fallback, budget subprocess, sync probe, target eviction, uncached collector, item root, cap/threshold bodies, posture.fleet keys, cites); refuted 1 (sonnet C17 — rule packs are budget-exempt by `check_plan_tickets.py` design) | bf031c20… → 76eb6539… |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 owners, own slices over the fix diff 92d945c27 plus one hop) · shape: agent-tool | found: 13, new: 13, confirmed: 13, fixed: 13, unexecuted: 0, edits: 7 | method: re-derivation — 35 of 37 round-1 rows re-executed FIXED, 2 partly fixed and closed by the new rows; new rows re-run by the orchestrator (keys routed to the wrong view, spend key paths, threshold decimals, token-equal tag filter, fail-closed target slices, last-good timestamp, control visibility); 9 of 13 seeded by the round-1 fixes | 27abe834… → cc34cd38… |
 
 ## Residual unknowns
 
@@ -532,6 +533,10 @@ Still open, each with its resolution step:
 - The exact date of `_LEGACY_TOKEN_UNTIL` — T07 sets it from its coding date plus 14 days; the coordinator's merge may land
   later, so the window can be a day or two short. Resolution: T07's commit body states the date and the orchestrator's
   removal work item carries the same date.
-- Whether chromium launches headless on the box during T07 — measured at 0.8 s on 2026-10-17; T07 step 6 marks the module
-  `needs_browser` only if a launch fails then.
+- Whether chromium launches headless on the box during T01 and T07 — measured at 0.8 s on 2026-10-17. T01's Gate
+  runs with `-rs`, and a skipped `tests/test_quota_dashboard_app_js.py` is UNVERIFIED, never green (T01 step 7); T07
+  step 6 marks its module `needs_browser` only if a launch fails then.
+- How the read budget is counted, for the record: `check_plan_tickets.py` drops `.windsurf/rules/` packs from a ticket's
+  READ total (its budget loop skips them, `scripts/enforcement/check_plan_tickets.py:2408`) and counts the spec, so the
+  spec is what T02, T04, T05 and T06 cannot hold beside the 215,566 B module.
 - Each new view's render time against the 500 ms trigger — T01 records today's baseline, T07's doc records the new views'.

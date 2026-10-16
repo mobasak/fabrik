@@ -34,10 +34,16 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
   attributes (`data-post`, `data-body`, `data-confirm`, `data-input`); T02 `ViewContext`, `ViewResult`, `dashboard_ui.fmt`
   (`fmt_reset`, `fmt_age`, `tone`, `posture_sub`, `cap`), and `_view_data("accounts")` → `{"now", "refresh_s",
   "probe_interval_s", "status": <the payload or {"error": …}>, "queue", "trigger_threshold", "reserve_pct", "drain_band",
-  "five_hour_s", "seven_day_s", "switch_header"}` (T02 § Produces).
+  "five_hour_s", "seven_day_s", "switch_header", "pool_policy_on", "slug_re", "email_re"}` (T02 § Produces).
+- Which rows get which controls and badges, as today (`_switch_cell` :936-990, `_row` badges :790-800): no Switch on
+  the active row or on a PARKED row; a PARKED row offers Enable where others offer Disable and its cap field is blank;
+  the badges PARKED, RESERVED, WALLED, the cap and the cached-reading age show as `_row` shows them; a row whose slug
+  or email fails `slug_re` / `email_re` gets no controls; the governor verdict says the pool is off when
+  `pool_policy_on` is false (:1246).
 - The bodies today's controls post, read from `render`'s script in `scripts/sysadmin/quota_dashboard.py` (:3300-3370):
   `/switch` `{account}`; `/park` `{account, park: true|false}` (:3327); `/cap` `{account, cap: null | an integer 0–100}`
-  with empty meaning null (:3337-3349); `/threshold` `{account, threshold: null | 50–100}` (:3365-3369); the slug key is
+  with empty meaning null (:3337-3349); `/threshold` `{account, threshold: null | a number 50–100}`, decimals allowed (`step="0.5"`, :974; no integer check,
+  :3365-3369); the slug key is
   `account` (:3895). The cap and rotate-at fields become `field(kind="number")` inputs read by `data-input`.
 
 ## Produces
@@ -51,8 +57,10 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
    governor verdict, every fleet warning and the rotation note (with the threshold and probe interval) show; each
    account's four controls sit inside a closed `<details>` and each opens a confirm dialog whose body states its
    consequence; the four bodies declared on the controls equal today's (switch and park as `data-body`, cap and
-   threshold as `data-input="cap:int:0:100:nullable:<id>"` and `data-input="threshold:int:50:100:nullable:<id>"`); the
-   view carries a freshness stamp at 20 s.
+   threshold as `data-input="cap:int:0:100:nullable:<id>"` and `data-input="threshold:float:50:100:nullable:<id>"`, and
+   87.5 posts as 87.5); the cap and rotate-at dialogs state the typed value through `data-value-of`; the control and
+   badge rules above hold for an active, a parked, a capped, a walled and a pending account; the governor says the pool
+   is off when `pool_policy_on` is false; the view carries a freshness stamp at 20 s.
 2. Write `accounts.py` to green.
 3. Run the Gate to green, then `.venv/bin/ruff check` on the Touches.
 4. `python scripts/enforcement/check_doc_sync.py`.
@@ -63,7 +71,7 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - **Given** a status payload that failed its probe, has rotation paused, has the pause file unreadable, or has no accounts, **When** the Accounts view renders, **Then** the matching banner shows as today's page shows it, and a failed probe keeps the last good reading with its controls (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3052)
 - **Given** accounts in rotation order with a returning and a pending account, **When** the view renders, **Then** every account, the returning row and the pending row appear in that order with their session, weekly and Fable meters (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3096)
 - **Given** a governor verdict, fleet warnings and the rotation rule, **When** the view renders, **Then** each shows, the rule with its threshold and probe interval (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1215)
-- **Given** any account, **When** the operator opens its Edit disclosure and picks switch, disable, cap or rotate-at, **Then** a dialog states the consequence and only its confirm posts today's body to today's endpoint (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3873)
+- **Given** any account, **When** the operator opens its Edit disclosure and picks switch, disable, cap or rotate-at, **Then** a dialog states the consequence with the typed value, only its confirm posts today's body to today's endpoint, and each control appears only on the rows today's board shows it on (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3873)
 - **Given** no reading at all, **When** the view renders, **Then** it shows the error in words and no controls, and the view shows its read time otherwise (spec § Lifecycle)
 
 ## Context Files
