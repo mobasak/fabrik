@@ -252,12 +252,15 @@ def test_a_reimplemented_tool_is_checked_against_its_own_output() -> None:
 
 
 def test_a_matcher_sentence_is_executed_over_its_input_space() -> None:
-    """Row 1791851271: two own-fix rounds came from a sentence about a regex nobody ran."""
+    """Row 1791851271: two own-fix rounds came from a sentence about a regex nobody ran. Rows 1792088209 (a
+    recurrence of held guard-false-positives-negatives-against) and 1792086831 extend it to a guard's accepts-or-covers
+    sentence, written from both sides of its executed inputs, the seats' returned variants included."""
     text = _norm(CAT)
     claims = text[text.index("- Claims:") : text.index("- A site a round re-opened")]
     assert (
-        "a sentence describing a matcher or regex executed over its input space (punctuation, underscore, empty) before the pin"
-        in claims
+        "a sentence (a comment, a docstring, a doc line) describing a matcher, regex or guard written from its input"
+        " space executed on both sides (punctuation, underscore, empty, the lead's escape variants and every one the"
+        " seats returned) before the pin, never from its subject's own docstring;" in claims
     )
 
 
@@ -609,3 +612,4 @@ def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_impor
             assert token in consts[name], (
                 f"{name} lost {token!r}, which the catalogue sentence names"
             )
+
