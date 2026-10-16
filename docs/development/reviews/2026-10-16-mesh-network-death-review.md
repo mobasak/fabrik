@@ -1,8 +1,9 @@
 # Review — mesh-network-death
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 2fe69f7a9abe9f744c95e76639dcf8708524c52a; range tip 2fe69f7a9abe9f744c95e76639dcf8708524c52a; `git diff 2fe69f7a9~1..2fe69f7a9 -- docs/workstation/hooks-index.md` md5 bc4a1944126c73f53b9a34919bfb3046 (24828 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/workstation/hooks-index.md`
+**Lane:** fabrik-task
 
 ## Coverage Checklist
 
@@ -89,6 +90,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass 1 | native sonnet×1 + haiku×1 | found: 12, new: 12, confirmed: 7, fixed: 7, unexecuted: 0 | method: one slice (the whole mesh diff + 2fe69f7a9 doc) on pinned copies; every candidate executed by the orchestrator — F1 doc wording, F2 non-UTF-8 prior crash, F4 W-streak cannot tell consecutive, F5 `touch -c` untested, F6 denylist not the designed allowlist, F8 garbage streak runs no probe, F9 quota wait unprotected from the 2-h prune |
 | Pass 2 | native sonnet×1 + haiku×1 | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: the same seats re-verified their round-1 claims over fix-r1 plus one hop — F13 `00` streak, F14 non-UTF-8 `.rungsize`; F15 the pid-lock read found by the orchestrator's sweep of the same class and fixed with its own row |
 | Pass 3 | native sonnet×1 + haiku×1 | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: the same seats over fix-r2 plus one hop; the Haiku seat swept all 18 read sites; F16 a huge all-digit streak errors `[ -lt ]` and runs no probe — second round at the site, so REWRITTEN as a 1..99 allowlist, not patched |
+| Pass 4 | native sonnet×1 + haiku×1 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: the same seats over fix-r3; F17 under the box locale en_US.utf8 the glob range `[1-9]` admits the Arabic-Indic digit ٣ (reproduced; C.utf8 does not), so the allowlist is spelled out as digit sets; F18 the orchestrator's sweep of the same class rewrote all 7 `[!0-9]` in claude-selfwatch.sh; scope-growth stop (in-lane own-fix) — the sibling scripts are routed, not hunted |
+| Pass 5 | native sonnet×1 + haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the same seats re-verified the fixed set alone on pinned copies (selfwatch 3e74afc2, mesh-test 37473b15): the case table incl. ٣, ٣٣ and 1٣ under en_US.utf8, all 7 rewritten digit-set sites, the full mesh suite (128 ok, 1 fail = A0a baseline), and a range-form mutant that W-badstreak kills |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -125,10 +128,13 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 | F10 | REFUTED (the decider clears `.errparked` on every normal Stop, so a surviving server_error prior is the same death chain, not a stale one) |
 | F11 | RECORDED — measured (a wake-delay figure, (MESH_UP_STREAK − 1) × MESH_POLL ≈ 20 s; documented in hooks-index.md) |
 | F12 | REFUTED (selfwatch_arm.sh ends on the wake, D-356, so a persistent 5xx is one wake per arm, and the StopFailure path already had it) |
+| F19 | RECORDED — measured (a prevalence count by grep of the same locale-collated `[!0-9]` glob outside this lane's files, 3 sites in claude-sound.sh and 7 in claude-autoresume.sh, pre-existing; routed to the coordinator as its own work item, no claim about this change) |
 
 ## Per-phase verdicts
 
 ### Phase 1 — network-death auto-resume (W-5279e834): CONVERGED
+
+The code surface is box-local (`~/.claude/bin`, tracked by no repo). Final live md5s: `claude-stop-decider.py` 8b994a6b1e070c9aac19a345ff36ccd3 · `claude-selfwatch.sh` 3e74afc2b7a0675118047de0d31c6ebb · `claude-mesh-test.sh` 37473b15ee560990cca9bf55db07b188. The decider `--self-test` reads `SELF-TEST: all green`; `claude-mesh-test.sh` reads 184 ok, 1 fail (A0a, the recorded baseline red). Five passes, 13 confirmed and fixed, each new test row seen red on its mutant or revert first.
 
 ## Gate
 
@@ -137,7 +143,242 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "skipped_checks": [
+    "static tier"
+  ],
+  "checks": [
+    {
+      "name": "static tier (diff-sensed skip)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
