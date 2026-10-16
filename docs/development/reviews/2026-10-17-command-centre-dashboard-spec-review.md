@@ -4,7 +4,7 @@
 **Spec:** `docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` (DRAFT at bc1793413)
 **Research ledger:** `docs/reference/research/2026-10-16-command-centre-dashboard-ledger.md`
 **Shape:** agent-tool (the Workflow tool runs only on the operator's explicit opt-in)
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 ## Pass Ledger
 
@@ -13,6 +13,9 @@
 | Pass 1 | opus×1 (slice R: design, contract, digest, decisions) + sonnet×1 (slice S: personas → intake, ledger) + sonnet×1 fabrik-researcher (slice F: cited facts, U2) · all axes | found: 26, new: 26, confirmed: 21, fixed: 21, unexecuted: 0, edits: 27 | method: citation — full pass over the pin; every candidate executed by the orchestrator (`adjudicate573.py`, `probes.py`); 5 found by the orchestrator's own pre-pin probes | 7f82be30… → 630a62c2… |
 | Pass 2 | opus×1 + sonnet×1 + sonnet×1 fabrik-researcher (round-1 owners) · delta over every round-1 hunk + one hop | found: 9, new: 9, confirmed: 7, fixed: 7, unexecuted: 0, edits: 10 | method: re-derivation — R1–R11, S1–S9 and the F facts re-executed DEFECT_ABSENT (merge rule over 761 records and 4 fixture cases, ordering over 43 items, TTLs, anchors); 7 own-fix defects inside round-1 hunks (own-fix: round 1) | 630a62c2… → 570c7670… |
 | Pass 3 | opus×1 + sonnet×1 + sonnet×1 fabrik-researcher (round-1 owners) · delta over the round-2 hunks + one hop | found: 4, new: 4, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — P2-1…P2-7 re-executed DEFECT_ABSENT (agent states agent_status.py:340-347/:373, HOST/PORT :50-51, the health probe's Host, _merge_owner :297/:1927 over 9 repos, the 100 basis); standing clean since pass 2: every other class | 570c7670… → 570c7670… ✓ |
+| Pass 4 | opus×1 + sonnet×1 (round-1 owners) · delta over the approval panel's ACCEPTED changes (fix-panel.diff, 106 lines) + one hop | found: 10, new: 10, confirmed: 7, fixed: 7, unexecuted: 0, edits: 9 | method: re-derivation — every panel change re-executed (work.py:3813/:3830-3838, quota_dashboard.py:2740/:2983/:2361, agent_status.py:385-387, an AST scan of HTML-emitting functions, a key census of the 43 awaiting items); 7 own-fix defects inside the panel hunks; SCOPE GROWTH stop fired (7/7 → 0/0 → 7/7), remaining own-fix routed to the backlog row | 570c7670… → b5375c43… |
+| Pass 5 | opus×1 + sonnet×1 (round-1 owners) · the pass-4 fixed set only (scope-growth remainder round) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — N2–N5 and P1–P3 re-executed DEFECT_ABSENT (AST scan re-run: 31 HTML-emitting functions; intake rows re-counted 18 = 17 IN + 1 OUT); N1 still present in one Validation line (own-fix: round 4) | b5375c43… → 841588be… |
+| Pass 6 | opus×1 (round-1 owner of the fixed set) · N1 only (scope-growth remainder round) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — N1 re-executed DEFECT_ABSENT (grep -c options → 0; the token's fields agree across § Which actions confirm, Contract deltas and Validation); standing clean since pass 5: every other class; one gap RECORDED to W-f4063aa8 | 841588be… → 841588be… ✓ → **CONVERGED** |
 
 ## Findings
 
@@ -57,6 +60,29 @@
 | P3-2 | 3 | Freshness cell lists "commands on a source-file change" beside "never goes stale" | RECORDED — measured (wording; changes no behaviour) |
 | P3-3 | 3 | Blocked-merge card when `_merge_owner` refuses (no declared owner) | RECORDED — measured (one hop out; destination: the plan's blocked-merge reader shows "owner unresolved" with the resolver's message, and its Validation case) |
 | P3-4 | 3 | `[::1]` allowlisted while the server binds IPv4 only (:3987) | RECORDED — measured (harmless and unreachable; changes no behaviour) |
+| PN-1 | panel | Opus — Overview fills with 43 full-question cards; quota band buried | FIXED (summary strip, item 0; RED/WALL raises Quota and Health; groups collapsed but the first; 3-line clamp) — ACCEPTED |
+| PN-2 | panel | Opus — Accept with a note disappears | FIXED (the Accept dialog takes an optional note, :2740, :2983) — ACCEPTED |
+| PN-3 | panel | Opus — INV-2 tests controls only | FIXED (data fields in the inventory test) — ACCEPTED |
+| PN-4 | panel | Opus + Fable — no test for the string catalogue | FIXED (catalogue test in Validation; INV-4 catalogue sentence) — ACCEPTED |
+| PN-5 | panel | Opus — absent token passes; token omits ground | FIXED (ground in the token; token required after the 14-day window) — ACCEPTED |
+| PN-6 | panel | Opus — keyboard focus claim fragile | FIXED (focus order pinned in the smoke test) — ACCEPTED |
+| PN-7 | panel | Opus — Accounts "history if present" hedge | FIXED (dropped; only Commands has sub-views) — ACCEPTED |
+| PN-8 | panel | Fable — Work view would lose Accept/Reject on open items | FIXED (today's rule cited, :2361, work.py:3813, :3830-3838) — ACCEPTED |
+| PN-9 | panel | Fable — Resume without a dialog contradicts D-916 | FIXED (Resume keeps a dialog, DT8) — ACCEPTED |
+| PN-10 | panel | Fable — escape scan vs kept builders; plan undersized | FIXED (INV-4: every HTML-emitting function moves onto the components; sized on the scan) — ACCEPTED |
+| PN-11 | panel | Fable — external-services page untouched | FIXED (§ Why says it is another generator's page; follow-up W-3e9e2f4c) — ACCEPTED |
+| PN-12 | panel | Opus + Fable — U3 ruling: catalogue enough, tr later, D-row | FIXED (U3 resolved, DT6, I16; exemption row minted at the flip) — ACCEPTED |
+| P4-1 | 4 | Snapshot token and dialog cite "options", a field items do not carry (own-fix: panel) | FIXED r4 (dropped; key census of 43 items) |
+| P4-2 | 4 | Resume dialog "who set each" needs collector output (own-fix: panel) | FIXED r4 (names the markers and the first's actor, agent_status.py:385-387) |
+| P4-3 | 4 | INV-4 builder list short by 17 (own-fix: panel) | FIXED r4 (every HTML-emitting function, 31 by AST scan) |
+| P4-4 | 4 | Required token contradicts INV-1 "additive", DT5, Validation (own-fix: panel) | FIXED r4 (all three say additive then required; existing tests gain a token) |
+| P4-5 | 4 | Collapsed groups vs the 4-step budget; empty hub group (own-fix: panel) | FIXED r4 (4 steps expanded, 5 collapsed; first non-empty group expanded) |
+| P4-6 | 4 | Step 1, Goal and I7 stale against the summary strip (own-fix: panel) | FIXED r4 |
+| P4-7 | 4 | I16 still ASK; exemption claimed in the past tense; no intake row for the strip (own-fix: panel) | FIXED r4 (I16 IN; tense; I18 added; 18 items) |
+| P4-r1 | 4 | `_with_stale_banner` hard-codes a colour (:3459) | RECORDED — measured (one hop out; destination: the plan — INV-3 already bans colour literals, the banner moves onto tokens with every other builder) |
+| P4-r2 | 4 | Overview item 3 says Pause / Resume "as today" while both now use dialogs | RECORDED — measured (wording; DT8 governs; destination: backlog W-f4063aa8) |
+| P5-1 | 5 | Validation still tests "the snapshot token covering ground and options" (own-fix: round 4, N1's fix incomplete) | FIXED r5 ("options" removed; 0 hits in the spec) |
+| P5-r1 | 5 | Traceability names no intake row for the summary strip; Health-alone reorder unstated | RECORDED — measured (wording, one hop out; destination: backlog W-f4063aa8) |
 
 ## Ask ↔ spec comparison
 
@@ -83,3 +109,9 @@ coordinator's brief (relayed), then every spec section nobody asked for.
 | 16 | — | Snapshot check (409) on verdicts | DT5 | ADDED — an approval holds only for what the operator saw |
 | 17 | — | English with a string catalogue, `tr` for the panel | U3, DT6 | ADDED — the i18n mandate, ruled here |
 | 18 | — | Rejected alternatives, Lifecycle, Documentation landing sites, Personas | those sections | ADDED — this command mandates them |
+
+## Approval
+
+The design-approval gate was answered by the Opus + Fable panel in the operator's place (D-613). Both seats returned sound-with-changes; every concern was ACCEPTED (rows PN-1 … PN-12) and re-verified in passes 4-6. Approval row D-925; i18n exemption row D-926. Final spec md5 c03e56d4b54952427b19b30c28a377d2.
+
+Panel: opus="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md" fable="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md" → both-approve

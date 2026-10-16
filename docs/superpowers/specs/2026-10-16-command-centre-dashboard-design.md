@@ -1,6 +1,6 @@
 # The operator's command-and-control centre — quota dashboard redesign (W-573fae88)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: full (the Overview, the blocked-merges reader and the shell have no code behind them today)
 
 Owner: infra · Work item: W-573fae88 (P2, high impact / high effort — the one major project in flight) ·
@@ -24,15 +24,18 @@ Every role that sees, feeds or acts through the board. A duty this spec creates 
 **The primary loop, counted (the STEP BUDGET — downstream contracts meet it or bump it):** the operator wants to
 clear what is waiting on them. A step is one decision-bearing action — opening, reading, choosing, confirming —
 never a scroll, a tab change or a focus move; typing a Reject reason belongs to its confirm step.
-1. Open `http://localhost:5051/` — the Overview is the default view and its first section is *Needs you*.
+1. Open `http://localhost:5051/` — the Overview is the default view: the summary strip, then *Needs you* (only
+   the Quota and Health strips come between them, and only while the band is RED or WALL or a probe has failed).
 2. Read the top decision card: its question, its ground, how long it has waited, the agent and repo that asked.
 3. Choose **Accept** (or **Reject**) on that card — a dialog opens restating the question and what accepting does.
 4. Confirm with the verb-labelled button (`Accept W-…` / `Reject W-…`, Reject needing a reason typed in the
    dialog) — the card leaves the list and a status message announces the result.
 
-**Budget: 4 steps per decision.** A blocked merge and an agent's NOW / NEXT are read in step 1 with no click. For
-keyboard use, the *Needs you* heading is the target of the skip link, so the first card's Accept is the first
-control after it.
+**Budget: 4 steps per decision in an expanded group; 5 in a collapsed group, whose opening is the extra step.**
+The summary strip at the top of the Overview gives the counts of waiting
+decisions, blocked merges, agents not working and the quota band in step 1 with no click. For keyboard use, the
+*Needs you* heading is the target of the skip link, and the first control after it is the first action of the first
+card in the first expanded group — the smoke test pins that focus order.
 
 **Traceability:** every view and component below names the persona and the intake row it serves (§ Intake
 Inventory). The Commands catalogue and the Usage view serve the operator's existing reading habits (D-172,
@@ -41,8 +44,8 @@ D-138/D-139) and are re-laid-out, not re-scoped.
 ## Goal
 
 Turn the existing quota board at `:5051` into one coherent operator console whose first screen answers
-**"what needs me now"** — awaiting decisions with inline Accept / Reject, blocked merges, every agent's NOW and
-NEXT, and the quota band — with one design system, keyboard and screen-reader support, light and dark themes,
+**"what needs me now"** — a summary of waiting decisions, blocked merges, agents not working and the quota band,
+the decisions themselves with inline Accept / Reject, and every agent's NOW and NEXT one section down — with one design system, keyboard and screen-reader support, light and dark themes,
 and layouts that work from 375 px to 2560 px. Every piece of information and every action the board offers today
 survives; nothing it shows is dropped.
 
@@ -57,7 +60,8 @@ Measured on the live board 2026-10-16 (playwright, headless chromium, GET and ta
   `.git/fabrik-merge/` — 761 readable records across 9 repos, 1 branch blocked now); the quota band lives on
   another tab.
 - **Pages too long to scan.** Commands is 13,737 px tall (a nine-column prose table, then a service matrix, then
-  the search-API quotas, which are not about commands); the External-services frame is 28,719 px.
+  the search-API quotas, which are not about commands); the External-services frame is 28,719 px — another
+  generator's page (`scripts/gen_dashboard.py`), which this spec links rather than rebuilds (follow-up W-3e9e2f4c).
 - **Risky controls inline in a glanceable view.** Every account row carries switch / disable / cap input / cap /
   rotate-at input / rotate-at, guarded by `window.confirm()`.
 - **Not usable on a narrow screen.** At 390 px the tab bar clips "External services", tables overflow and the
@@ -143,17 +147,22 @@ duplicate product; Grafana considered and rejected below).
 ### Invariants
 
 - **INV-1 — data and actions unchanged.** Every collector keeps its cadence and output; every POST endpoint keeps
-  its path, header guard, body cap, identity rules and responses, except the additive 409 on `/item-verdict`
-  (DT5) and INV-6's 421 and 403 (DT7). The board stays a reader of the stores; the only writes stay `work.py pause|resume`, `work.py verdict`
+  its path, header guard, body cap, identity rules and responses, except the 409 on `/item-verdict` (DT5:
+  additive, then required after the 14-day redirect window) and INV-6's 421 and 403 (DT7). The board stays a reader of the stores; the only writes stay `work.py pause|resume`, `work.py verdict`
   and the four account controls. The guarded actions' target registries and their rebuild-on-miss move with the
   page layer: the Overview and Work builders publish them, so a restart or a miss never answers "not on the
   board" for a target the operator can see.
 - **INV-2 — nothing dropped.** Every datum and control on today's five tabs has a home in the new views
-  (§ Information architecture). A test enumerates today's controls and asserts each one renders.
+  (§ Information architecture). A test enumerates today's controls and data fields — the Commands columns, the agent-row, account-row and
+  item-row fields, the banners — and asserts each one renders in some view.
 - **INV-3 — one page layer.** One shell, one stylesheet (`app.css`), one script (`app.js`), served from the
   module's own directory; no iframe; no inline style or colour literal outside the token block.
 - **INV-4 — every value escaped.** HTML is built only through component functions that pass every interpolated
-  value through `html.escape`; a test scans the module for f-string interpolation outside those functions.
+  value through `html.escape`; the page layer is every function in the module that emits HTML — 31 at bc1793413 by an AST
+  scan, the panel, row and cell builders included (`_switch_cell`, `_verdict_cell`, `_agent_row`, `_pause_cell`,
+  `_item_line`, `_with_stale_banner` among them) — all of which move onto the components, and the plan is sized on
+  that scan; a test scans the module for f-string interpolation outside the components. Every
+  user-visible string the page layer writes comes from one catalogue, so adding a language is a file (DT6).
 - **INV-5 — refresh never clobbers the operator.** A view refresh is skipped while a field has focus, a dialog
   is open or text is selected, and resumes on the next tick; typed but unsent text is carried across a swap
   (as `:2943` does today); the refresh that follows the operator's own successful write is forced past these
@@ -172,7 +181,7 @@ Six views, one level each, behind a persistent navigation. The default is Overvi
 | View | Answers | Contents (from today's tab, `path:line` of the builder kept or re-laid-out) |
 |---|---|---|
 | **Overview** (default) | What needs me now? | *Needs you* (decision cards) · *Blocked merges* · *Agents* (today's `_agents_block` `:2745`: state, NOW, Holds, NEXT, paused, last merge, and the dormant / no-window counts) · *Quota* strip (band, active account, 5 h / weekly / Fable with resets, hold state) · *Health* strip (stale views, failed probes, box budget) |
-| **Work** | What is queued, per repo? | Today's Repos tab: repo picker (fabrik first, D-738), owner chips (D-745), per-owner item tables with the verdict controls (D-917), the tag filter; agents table moves to Overview |
+| **Work** | What is queued, per repo? | Today's Repos tab: repo picker (fabrik first, D-738), owner chips (D-745), per-owner item tables with the verdict controls (D-917) under today's rule — Accept and Reject on every open item except an awaiting non-decision (`_verdict_cell` `:2361`, `scripts/work.py:3813`): on an open item Accept lifts the review hold and Reject drops it (`scripts/work.py:3830-3838`) — the tag filter; agents table moves to Overview |
 | **Accounts** | Which account serves, which comes next? | Today's Quota tab: the auto-rotation-paused, pause-unreadable and no-accounts banners (`render` `:3064-3071`), accounts in rotation order (D-162) including the returning and the scaffolded-but-unlogged rows (`_return_row`, `_pending_row`, `:3096`, `:3101`), session / weekly / Fable meters, governor verdict (`_governor_panel` `:1215`), the fleet Warnings list (`:3073-3076`) and the rotation-rule note (`:3267`); each account's switch / disable / cap / rotate-at controls behind its **Edit** disclosure |
 | **Usage** | What did we spend? | Today's Usage tab unchanged in content (`_spend_panel` `:1021`) |
 | **Commands** | What does each `/fabrik-*` command do? | Today's command catalogue (`_commands_table` `:2140`) as a searchable list with per-command detail; the service matrix (`_ext_matrix_table` `:2205`, D-172) as its own sub-view; the box-budget banner (`_budget_banner` `:2116`) moves to Overview's Health strip |
@@ -181,18 +190,25 @@ Six views, one level each, behind a persistent navigation. The default is Overvi
 **Navigation:** a left sidebar at ≥1024 px (NN/g: vertical navigation *"is a good fit for broad or growing IAs"*,
 ia-14); below 1024 px a top bar with the view name and a menu button opening the same list. Views are URLs
 (`/#overview`, `/#work`, …) so a link or reload lands where it was. In-view sub-views (Commands: catalogue /
-matrix; Accounts: rotation / history if present) use the APG Tabs pattern (apg-1); views themselves are not tabs
+matrix) use the APG Tabs pattern (apg-1); views themselves are not tabs
 (NN/g: in-page tabs *"are not for navigation"*, ia-15).
 
 ### Overview — the "Needs you" section first
 
 Ordered by urgency, never alphabetically (ia-8, ia-18):
 
+0. **Summary strip** — one line above everything: waiting decisions per repo with the oldest age, blocked
+   merges, agents not working, the quota band and active account, and any health fault, each a link to its
+   section. When the band is RED or WALL or a probe has failed, the Quota and Health strips move above the
+   decisions.
 1. **Decisions waiting** — every `awaiting-operator` item across `/opt/*/.fabrik/work` (the collector already
    reads them, `:2285`; 43 across 8 repos on 2026-10-17), grouped by repo with a count per group, the hub's group
-   first and then repos by their oldest item. One card each: ground (gate · owned · underivable · none), the
-   question in full, the asking agent, how long it has waited (ia-10). **Accept** / **Reject** appear only when
-   the item's `kind` is `decision` (work.py's own rule, `scripts/work.py:3813`); every card has **Comment**.
+   first; the first non-empty group (the hub's when it has any) is expanded and every other group is collapsed to its
+   count until opened, and repos ordered by their oldest
+   item. One card each: ground (gate · owned · underivable · none), the question clamped to three lines with a
+   "show all", the asking agent, how long it has waited (ia-10). **Accept** / **Reject** appear only when the
+   item's `kind` is `decision` (work.py refuses them on an awaiting non-decision, `scripts/work.py:3813`); every
+   card has **Comment**.
    Within a group: ground `gate` first, then oldest `created` first; an item with no ground sorts after the
    grounded ones. An empty list shows "Nothing waiting on you" with the time of the last read, never a blank area
    (`.windsurf/rules/core/design-system-template.md:605`).
@@ -231,18 +247,20 @@ actions"* (act-1).
 
 | Action | Confirm? | Why |
 |---|---|---|
-| Accept a decision | Yes — the dialog shows the full question and options | It authorises another agent's act (deploy, delete, spend); a verdict is not undoable |
+| Accept a decision | Yes — the dialog shows the full question and takes an optional note, sent as the verdict's text as today (`:2740`, `:2983`) | It authorises another agent's act (deploy, delete, spend); a verdict is not undoable |
 | Reject a decision | Yes — the dialog requires a reason | The reason is part of the verdict (D-917) |
 | Comment | No | Appends a note to the item; no status change |
-| Pause an agent | Yes — the dialog states that the agent stops starting new work at its next turn boundary (today's `confirm()` text, `:2958`) | It changes what a live agent does next |
-| Resume an agent | No dialog; the button flips back and the live region announces it | Resume undoes a pause (act-4) |
+| Pause an agent | Yes — the dialog states that the agent stops starting new work at its next turn boundary (today's `confirm()` text, `:2958`) | It changes what a live agent does next; Resume undoes it (act-4), so the dialog guards a reversible act |
+| Resume an agent | Yes — the dialog names every pause marker it lifts and who set the first (the collector reports one actor, `scripts/agent_status.py:385-387`) | Resume lifts every listed marker, including one another agent set for cause; D-916 confirms each click |
 | Switch account · disable account · set cap · set rotate-at | Yes, inside the account's Edit disclosure | Moves every live session's cached prefix or the fleet's rotation |
 
 A decision card carries a snapshot token derived at render time from what the card shows — the item's question,
-status, comment count and merged duplicate ids; the verdict POST sends it, the server re-derives it from the
+status, ground, comment count and merged duplicate ids; the verdict POST sends it, the server re-derives it from the
 item as it stands, and refuses with HTTP 409 when they differ (ia-9 — an approval holds only for the snapshot the
 operator saw). The item's `block_digest` cannot serve: it is written once, when the item is created
-(`scripts/work.py:4347`). The refusal reloads the card and says why.
+(`scripts/work.py:4347`). The refusal reloads the card and says why. An absent token is accepted only during the
+14-day `/repos.html` redirect window, for pages loaded before the redesign; after it, an absent token is refused
+with the same 409.
 
 ### Theme, motion, keyboard
 
@@ -278,7 +296,7 @@ typed text across the swap (`:2943`) and forces the refresh that follows a write
 | `GET /repos.html` | The Repos iframe page | Redirects to `/#work` for 14 days after the redesign merges, then removed (§ Lifecycle) |
 | `GET /external-services.html` | Iframe source | Kept; opened in its own tab from Services |
 | `GET /quota.json`, `/health` | as today | unchanged |
-| POST `/item-verdict` | `{repo, item, action, text}` | adds an optional snapshot token; a mismatch returns 409 `{"error": "changed"}`; an absent token keeps today's behaviour |
+| POST `/item-verdict` | `{repo, item, action, text}` | adds a snapshot token; a mismatch returns 409 `{"error": "changed"}`; an absent token keeps today's behaviour for the 14-day redirect window, then returns 409 |
 | Other POST endpoints | as today | unchanged |
 | Every request | no `Host` check | refused with 421 unless `Host` is `127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`; a POST with `Sec-Fetch-Site: cross-site` refused with 403 (INV-6) |
 
@@ -292,15 +310,18 @@ None. Box-local tool; no `specs/services/` entry; port 5051 already allocated (`
 ## Validation
 
 - **Behaviour tests (pytest, stdlib server in-process):** every POST endpoint's existing tests stay green
-  unchanged (INV-1); the 409 snapshot path, including a comment added after render; the guarded actions after a
+  (INV-1), the `/item-verdict` ones sending a snapshot token once the token is required; the 409 snapshot path, including a comment added after render; the guarded actions after a
   server restart (their target registries rebuilt by the new builders); `/v/<view>` for each view and the 404;
   the escape scan (INV-4); the INV-2 inventory of today's controls; the blocked-merge reader over fixture records
   in two repos (merged-after-refused is not blocked; newest refused is; newest `catchup-refused` is; in-flight is
   not); the decision ordering and grouping, including an item with no ground and a non-decision item showing
-  Comment only; the `Host` allowlist (`localhost:5051` and `127.0.0.1:5051` served, any other name refused) and the
+  Comment only; a non-awaiting open item in Work keeping Accept and Reject; the snapshot token covering ground;
+  the string catalogue — every view rendered with a stand-in locale shows no catalogue-owned string in
+  English, and a scan finds no user-visible literal outside the catalogue; the `Host` allowlist (`localhost:5051` and `127.0.0.1:5051` served, any other name refused) and the
   `Sec-Fetch-Site` refusal.
 - **Browser smoke tests (playwright, already installed in the hub `.venv`):** at 1440 and 390 px — the Overview
-  renders *Needs you* first; keyboard-only completion of the primary loop in four steps; the dialog traps focus
+  renders the summary strip and then *Needs you* within the first screen; the strip's counts match the stores;
+  the focus order from the skip link reaches the first action of the first card in the first expanded group; keyboard-only completion of the primary loop in four steps; the dialog traps focus
   and returns it; no horizontal page scroll at 390 px and at 200 % zoom; theme toggle persists across reload with
   no flash; refresh does not clear a half-typed comment.
 - **Contrast:** computed for every token pair in both themes by a test, not eyeballed.
@@ -437,9 +458,12 @@ dependency; every existing endpoint and collector contract preserved (INV-1); WC
   preflight permissively, so that holds. DNS rebinding is a different attack the header cannot stop — after a
   rebind the attacker's page is same-origin and sets the header itself (this review's reasoning) — so INV-6 adds
   the `Host` allowlist the NCC Group guidance prescribes (csrf-4) and a refusal of cross-site `Sec-Fetch-Site` on POST (csrf-3).
-- **U3 (open, for the approval panel):** the i18n mandate (`/fabrik-spec` § 1b-bis: en + tr on any user/admin GUI
-  surface) vs a single-operator English console. This spec puts every user-visible string in one catalogue (so a
-  language is a file) but ships English only. The approval panel rules whether `tr` ships now.
+- **U3 (resolved by the approval panel, both seats):** the i18n mandate (`/fabrik-spec` § 1b-bis: en + tr on any
+  user/admin GUI surface) is met by its stated purpose — adding a language is a locale file — through the
+  catalogue (INV-4) and its test; `tr` does not ship now, because the board has one operator who writes in English
+  and most of what it shows is English free text the stores hold, so a Turkish frame around English content
+  would be half a language. `tr` ships when a second human user or remote access (W-7def1b78) arrives. It is
+  recorded as a scoped exemption in `docs/DECISIONS.md` in the commit that flips this spec.
 
 ## Decisions taken
 
@@ -447,11 +471,14 @@ dependency; every existing endpoint and collector contract preserved (INV-1); WC
 - **DT2** — the spec's § The design is the board's UI contract; no `docs/ui-design.md` in the hub; reversible.
 - **DT3** — remote access stays out (INV-6), filed as W-7def1b78; reversible.
 - **DT4** — `/repos.html` redirects for 14 days after the merge, then goes; reversible.
-- **DT5** — the verdict snapshot check (409 when what the card showed has changed); additive, reversible.
+- **DT5** — the verdict snapshot check (409 when what the card showed has changed); additive for the 14-day
+  redirect window, then required; reversible.
+- **DT6** — English only with a tested string catalogue; `tr` ships with a second human user or remote access
+  (U3, ruled by the panel); reversible.
 - **DT7** — the `Host` allowlist and cross-site POST refusal (INV-6, U2); a request from any other host name is
   refused; reversible.
-- **DT8** — Pause keeps its confirmation, now a dialog stating the consequence; reversible.
-- **DT6** — English only with a string catalogue, pending the panel (U3); reversible.
+- **DT8** — Pause and Resume keep their confirmations, now dialogs stating the consequence and, for Resume, the
+  markers lifted; reversible.
 
 ## Intake Inventory
 
@@ -463,7 +490,7 @@ dependency; every existing endpoint and collector contract preserved (INV-1); WC
 | I4 | coordinator brief: the overview answers "what needs the operator now" before anything else | IN | § Overview — "Needs you" first |
 | I5 | coordinator brief: awaiting-operator gates with inline Accept/Reject | IN | § Overview item 1, § Which actions confirm |
 | I6 | coordinator brief: blocked merges | IN | § Overview item 2, § What exists today (records) |
-| I7 | coordinator brief: each agent's NOW/NEXT | IN | § Overview item 3 |
+| I7 | coordinator brief: each agent's NOW/NEXT | IN | § Overview item 0 (agents not working, at a glance) and item 3 (NOW / NEXT, one section down) |
 | I8 | coordinator brief: the quota band | IN | § Overview item 4 |
 | I9 | coordinator brief: "IA, screens, states, components" | IN | § Information architecture, § Components |
 | I10 | coordinator brief: clear hierarchy, consistent components, readable at a glance | IN | § Components, INV-3 |
@@ -472,10 +499,11 @@ dependency; every existing endpoint and collector contract preserved (INV-1); WC
 | I13 | coordinator brief: light/dark | IN | § Theme |
 | I14 | coordinator brief: "the Opus + Fable panel approves the design, then build" | IN | § Open / blocking unknowns (U3 goes to the panel) and the review receipt's approval row |
 | I15 | remote / phone access to :5051 (implied by mobile-friendly) | OUT-OF-SCOPE | needs its own access and auth design — work item W-7def1b78 |
-| I16 | i18n en + tr mandate | ASK | U3 — recommended: English with a string catalogue now, tr on the panel's word |
+| I16 | i18n en + tr mandate | IN | U3, resolved by the approval panel: a tested string catalogue now (INV-4, DT6); `tr` ships with a second human user or remote access (W-7def1b78) |
 | I17 | existing rulings to keep (D-162, D-172, D-176, D-557, D-738, D-745, D-910, D-916, D-917) | IN | § Information architecture (each cited at its view) |
+| I18 | the approval panel: a glanceable summary of everything waiting, above the decisions | IN | § Overview item 0 |
 
-Intake: 17 items — 15 IN, 1 OUT-OF-SCOPE (W-7def1b78), 1 ASK (U3, recommended disposition stated).
+Intake: 18 items — 17 IN, 1 OUT-OF-SCOPE (W-7def1b78), 0 ASK.
 
 ## Grounding
 
