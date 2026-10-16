@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: recurring brief and fix lessons land in their homes (2026-10-17)
+
+The fourth pass over `/fabrik-review`'s feedback queue (21 rows: 13 edited, 7 already stated or held, 1 refused as
+weakening). `commands/_sources/fabrik-review.md`:
+- a receipt over committed work is re-made at the close after the last fix commit (a new `--scope`, or `--out` for a
+  plan), with its rows carried over and the superseded receipt deleted;
+- the verbatim finder-brief lessons name the commit beside every count, and say a probe reads the port a served build
+  really bound, or serves it with no port;
+- a seat's scratch dir is made with `mkdir -p` before its first write;
+- Phase 3 names two recurring fix forms (one classifier for paired predicates; an allowlist, never a bracket range);
+- the test-quality checklist adds a self-comparison and a softened matcher.
+
+`commands/_fragments/review-probe-catalogue.md` traces a doc sentence through every branch it summarises, names the
+readers of each field a fix writes, and sweeps outcome lines by verb and removed name across the whole file, in the
+round the fix lands. Pinned by `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-task: input tables, hook-output cap, exact-subject commit capture (2026-10-17)
 
 `commands/_sources/fabrik-task.md`, from the fourth pass over its feedback queue (24 rows: 9 edited, 3 routed to
