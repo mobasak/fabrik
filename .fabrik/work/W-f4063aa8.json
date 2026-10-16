@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T21:40:55.342172Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f4063aa8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-read docs/development/reviews/2026-10-17-command-centre-dashboard-spec-review.md § Findings RECORDED rows at plan time",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "dashboard"
+  ],
+  "title": "Command-centre spec (W-573fae88) — residue the spec review's scope-growth stop routed: any wording defect a later round finds inside the review's own fix prose (D-355); settle it at /fabrik-plan-after-chat"
+}
