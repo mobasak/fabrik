@@ -1,6 +1,6 @@
 # Plan — the operator's command-and-control centre: the quota board rebuilt on one page layer (W-573fae88)
 
-Status: DRAFT
+Status: CONVERGED
 **Owner:** infra
 
 Spec: `docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` — CONVERGED, approved by the Opus + Fable
@@ -524,6 +524,7 @@ merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_ed
 | Pass 2 | opus×1 + sonnet×1 (the round-1 owners, own slices over the fix diff 92d945c27 plus one hop) · shape: agent-tool | found: 13, new: 13, confirmed: 13, fixed: 13, unexecuted: 0, edits: 7 | method: re-derivation — 35 of 37 round-1 rows re-executed FIXED, 2 partly fixed and closed by the new rows; new rows re-run by the orchestrator (keys routed to the wrong view, spend key paths, threshold decimals, token-equal tag filter, fail-closed target slices, last-good timestamp, control visibility); 9 of 13 seeded by the round-1 fixes | 27abe834… → cc34cd38… |
 | Pass 3 | opus×1 + sonnet×1 (the round-1 owners, own slices over the fix diff e82242c1a plus one hop) · shape: agent-tool | found: 6, new: 6, confirmed: 6, fixed: 6, unexecuted: 0, edits: 5 | method: re-derivation — 13 of 13 pass-2 rows re-executed FIXED; 6 new rows, all seeded by the pass-2 fixes (component attribute reach, typed token filter, T06 filter names, slug/email control rule, last-good time at restart, the restart test the checklist cited); the scope-growth stop fired | 4ad01058… → 83b6e450… |
 | Pass 4 | opus×1 + sonnet×1 (the round-1 owners, the six pass-3 rows only — scope-growth remainder round) · shape: agent-tool | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — 6 of 6 pass-3 rows re-executed DEFECT_ABSENT (sonnet 4/4, opus 2/2); 1 new row in the same T02 paragraph (the restart test named a rebuild path T07 adds; reworded to today's `_repos_page(fresh=True)`, :2664/:2735) | 95d4e2b5… → 7d458162… |
+| Pass 5 | opus×1 (round-1 owner of the only edited paragraph) · sonnet slice re-stated at 4/4, no edit in it since pass 4 · shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — P4-1 re-executed DEFECT_ABSENT (`_repos_page(fresh=True)` at :2664/:2735 rebuilds both registries; T07 step 3 owns the re-pointed restart test); standing clean since pass 4: every other class | 8d54b4df… → 8d54b4df… ✓ → **CONVERGED** |
 
 ## Residual unknowns
 

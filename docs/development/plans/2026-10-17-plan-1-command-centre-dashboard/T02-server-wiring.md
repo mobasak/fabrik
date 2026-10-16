@@ -133,7 +133,7 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
      fixture stores hold are found through the rebuild-on-miss as it stands in this ticket, `_repos_page(fresh=True)`
      (`scripts/sysadmin/quota_dashboard.py:2664`, :2735) — re-pointing it at the view dispatcher, and its restart test,
      are T07 step 3's.
-   - Status: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it, and the
+   - Probe state: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it, and the
      payload's time stays the last good probe's across three failing passes, including when the process started with a
      good `quota.json` and its very first probe failed, and when it started with a `probe_failed` one (stale at once); a payload
      older than the bound carries the banner; a fresh one none; a fresh process with `quota.json` on disk serves it
