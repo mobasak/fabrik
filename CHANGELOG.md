@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a certification board's mandated runtime.md is no longer a BAD TICKET or doc sprawl (2026-10-16)
+
+`/fabrik-user-test` and `/fabrik-service-test` order the agent to write `<board>/runtime.md` before any round, but `scripts/enforcement/check_certification_coverage.py` exempted only the spine and `ledger.md`, and `scripts/enforcement/check_doc_sprawl.py`'s `CERT_BOARD_RE` did not admit it either, so every compliant board printed `BAD TICKET: runtime.md …` and a new board's recipe counted as sprawl (web-ecommerce-factory 01M513RJ; W-d7847226, also W-cf48c3e6). Both graders now admit the exact name `runtime.md` and still refuse look-alikes; the board contract fragment, `docs/reference/certification-denominator.md` and the CLAUDE.md allowlist row (hub and template) name it.
+
 ### Fixed — a whoami-bound window gets its role charter from the hook payload's session id (2026-10-16)
 
 `.claude/hooks/agent_role.py` fell back to the session's `whoami_agent.py --as` binding (D-654) only through `CLAUDE_CODE_SESSION_ID`, which a hook's environment need not carry — the hook never read its stdin payload, where Claude Code names the session. A VS Code tab (browser tunnel or desktop) bound as `coordinator` with no `CLAUDE_AGENT` therefore got no charter, and the only workaround, a machine-wide `claudeCode.environmentVariables` entry, would mislabel every Claude tab on the box. The hook now reads the payload's `session_id` and resolves the binding with it, the payload winning over an inherited env id as in `session_orient.py` (W-629fe67a).
