@@ -52,12 +52,12 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
 Operator: *"before you convey it to the agents, you must analyze what we have, what rules, infra we have and then
 enhance my request so that it will be fully compliant our rules, infra, and best practises"*. For a task (not a
 question) the operator asks in chat — mail follows § Sort — build a BRIEF from records, never memory, before a builder
-hears of it; a P0 is dispatched first, its brief in a second message the same turn. Each point cites what it checked (a path, a
-command and its output, a D- or W-id); "none" names what was searched:
+hears of it; a P0 is dispatched at once, briefed after. Each point cites what it checked (path,
+command output, D-/W-id); "none" names what was searched:
 1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges; a duplicate keeps the older item (§ Sort).
 2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
 3. **Proposed lane** (the builder's `start` decides) — per the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`
-   or `/fabrik-review`, `/fabrik-task`, or the spec chain (GUI: `/fabrik-ui-design` + review, `/fabrik-user-test`).
+   or `/fabrik-review`, `/fabrik-task`, or the spec chain (GUI: `/fabrik-ui-design` + `-review`, `/fabrik-user-test`).
 4. **Rules** — `scripts/select_rules.py --changed <point 2's paths>`, a governance-sync path, the § HARD STOPS it nears.
 5. **Order** — beat owner, dependencies, the one-major limit, the band `scripts/sysadmin/claude_rotate.py --status` prints.
 6. **Gates** — any token of CLAUDE.md § FINAL OUTPUT's closed list; the builder stops at each and boards it through you
@@ -65,10 +65,10 @@ command and its output, a D- or W-id); "none" names what was searched:
 7. **Done** — the acceptance the operator stated, and the proof type (test, certification, live probe).
 8. **Best practice** — an external fact is owed to the builder's research gate, never invented here.
 The item: `work.py add --kind task`, title in the operator's words, `--next`, `--link`. The same brief goes whole in the
-dispatch message, beside the operator's words, and in the reply that dispatches it, so a correction re-briefs; never
+dispatch message, beside the operator's words, and in the reply that dispatches it (a P0's: in the follow-up), so a correction re-briefs; never
 change the intent or drop anything asked. Only when the operator's words this session ask to see this brief first (P0
-excepted) is it held: add the item `--tag waits-operator-brief`, close any live run record (`command_run.py handoff`;
-a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
+excepted) is it held: add the item `--tag waits-operator-brief`, close any live run record first
+(a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
 characters of that ask verbatim. On their answer, `work.py assign <id> --untag waits-operator-brief`, then dispatch.
 
 ## Permissions (D-874, D-880, D-882, D-885) — written here so they never depend on memory
