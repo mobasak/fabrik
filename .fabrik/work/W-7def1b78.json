@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-573fae88"
+  ],
   "created": "2026-10-16T08:13:27.248354Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-7def1b78",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "spec the access route and its auth before exposing :5051 beyond loopback",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
+  "score_reason": "operator reaches the board from browser VS Code/other devices (2026-10-16 port-forward trouble); needs its own auth design = major; held behind the one major in flight",
   "status": "open",
   "tags": [
     "dashboard"
