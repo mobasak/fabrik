@@ -156,6 +156,27 @@ def test_mains_power_lifts_and_wakes(box):
         os.close(fd)
 
 
+def test_arm_and_lift_never_disagree(box, monkeypatch):
+    """The class behind two review rounds: the arm and the lift each kept their own power rule and
+    disagreed, so a reading could arm the hold and lift it in the same tick. Over every status ×
+    AC1 combination at 4%, one battery leg either holds or not — never both, and a lift only on
+    mains."""
+    monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", None)
+    for status in ("Discharging", "Charging", "Full", "Not charging", "Unknown", "Odd"):
+        for online in ("0", "1", None):
+            box.stamp.unlink(missing_ok=True)
+            box.set_power(status, 4, online=online)
+            cr._battery_leg(NOW, lift=True)
+            power = cr._power_state(status)
+            if power == "battery":
+                assert box.stamp.read_text() == "0\nbattery\n", (status, online, "must hold")
+            else:
+                assert not box.stamp.exists(), (status, online, power, "must not hold")
+            box.stamp.write_text("0\nbattery\n")
+            cr._battery_lift(NOW)
+            assert box.stamp.exists() == (power != "mains"), (status, online, power)
+
+
 def test_quota_relief_keeps_a_battery_hold(box):
     """The quota leg's clears (relief and dwell both go through `_clear_stamp`) keep a battery
     stamp, and while the battery is low they turn a quota stamp into a battery stamp — neither

@@ -6581,11 +6581,24 @@ def _ac_online() -> str | None:
     return _read_power_word(ac / "online")
 
 
-def _battery_reading() -> tuple[str, float | None, bool] | None:
-    """``(status, pct, mains)`` from BAT1/AC1, or None when BAT1 has no readable status (no
-    battery → no hold, fail open by design). ``mains`` is AC1 online == 1 OR a mains-only status
-    (Charging, Full, Not charging); `Unknown` or an unreadable AC1 is NOT mains, so a lift fails
-    closed."""
+def _power_state(status: str) -> str:
+    """The ONE power classifier — the arm and the lift both read it, so they can never disagree
+    (two review rounds found them disagreeing when each kept its own rule). The battery's own
+    status wins when it is definite: `Discharging` is battery, `Charging`/`Full`/`Not charging`
+    is mains, whatever AC1 says (a stuck AC flag can neither veto a draining battery nor fake one).
+    Any other status (`Unknown`, a driver's own word) defers to AC1: `1` mains, `0` battery,
+    unreadable `unknown` — which neither arms nor lifts, so a standing hold keeps (fail closed)."""
+    if status == "Discharging":
+        return "battery"
+    if status in _BATTERY_MAINS_STATUS:
+        return "mains"
+    ac = _ac_online()
+    return "mains" if ac == "1" else "battery" if ac == "0" else "unknown"
+
+
+def _battery_reading() -> tuple[str, float | None, str] | None:
+    """``(status, pct, power)`` from BAT1/AC1 — ``power`` is :func:`_power_state` — or None when
+    BAT1 has no readable status (no battery → no hold, fail open by design)."""
     bat = Path(os.environ.get("CLAUDE_BATTERY_DIR") or "/sys/class/power_supply/BAT1")
     status = _read_power_word(bat / "status")
     if status is None:
@@ -6597,21 +6610,14 @@ def _battery_reading() -> tuple[str, float | None, bool] | None:
         pct = None
     if pct is not None and not math.isfinite(pct):
         pct = None
-    mains = _ac_online() == "1" or status in _BATTERY_MAINS_STATUS
-    return status, pct, mains
+    return status, pct, _power_state(status)
 
 
 def _battery_low() -> bool:
-    """On battery at or below the hold line: `Discharging`, or any non-mains status (`Unknown`)
-    while AC1 explicitly reads offline (`0`) — a driver that reports `Unknown` on battery must
-    not leave the hold silently absent. An unreadable capacity, or an unreadable AC1 beside an
-    `Unknown` status, is not low (no evidence of battery power)."""
+    """On battery power (per :func:`_power_state`) at or below the hold line. An unreadable
+    capacity is not low (no evidence of how much is left)."""
     r = _battery_reading()
-    if r is None or r[1] is None or r[1] > _battery_hold_pct():
-        return False
-    if r[0] == "Discharging":
-        return True  # the battery says it is draining: an AC1 that reads `1` never vetoes it
-    return not r[2] and _ac_online() == "0"
+    return r is not None and r[2] == "battery" and r[1] is not None and r[1] <= _battery_hold_pct()
 
 
 def _stamp_is_battery(stamp: Path) -> bool:
@@ -6664,8 +6670,8 @@ def _battery_lift(now: float) -> None:
     if not _stamp_is_battery(stamp):
         return
     r = _battery_reading()
-    if r is None or not r[2]:
-        return  # not on mains, or no reading: a blackout is not relief
+    if r is None or r[2] != "mains":
+        return  # battery, unknown, or no reading: only mains power lifts it
     if _QUOTA_HOT_THIS_TICK == _QUOTA_UNKNOWN:
         # the quota leg never reached a real reading this tick (a blackout, a raise, a skipped
         # advisory): waking now could wake the fleet into a wall — keep the hold, retry next tick
