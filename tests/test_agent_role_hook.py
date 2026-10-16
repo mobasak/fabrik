@@ -448,6 +448,51 @@ def test_the_binding_resolves_from_the_hook_payload_session_id(tmp_path: Path) -
     assert run("not json") == "" and run("") == "", "a bad or empty payload is a silent no-op"
 
 
+def test_a_held_open_stdin_never_hangs_the_hook_and_the_env_id_is_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Review of W-629fe67a: a plain `read()` waits for EOF, so a stdin held open hung the hook to
+    its timeout — it now reads against a 2 s deadline and judges what arrived. And when the
+    payload's id binds nothing, the inherited env id (the one the binding's writer keys on) is
+    tried, so a disagreement between the two never loses a real binding."""
+    import time
+
+    store = tmp_path / "agent-identity.jsonl"
+    store.write_text('{"session_id": "sid-env", "name": "infra", "at": 1}\n', encoding="utf-8")
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
+    }
+    env.update(
+        CLAUDE_PROJECT_DIR=str(REPO),
+        AGENT_IDENTITY_FILE=str(store),
+        CLAUDE_CODE_SESSION_ID="sid-env",
+    )
+    proc = subprocess.Popen(
+        [sys.executable, str(HOOK)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    proc.stdin.write('{"session_id": "sid-payload-unbound"}')
+    proc.stdin.flush()  # written, never closed: no EOF ever arrives
+    t0 = time.monotonic()
+    try:
+        proc.wait(timeout=6)  # its output is far below a pipe buffer: waiting first cannot deadlock
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise AssertionError("the hook waited for an EOF that never came") from None
+    finally:
+        proc.stdin.close()
+    assert time.monotonic() - t0 < 6
+    assert proc.stdout is not None
+    assert "## AGENT ROLE: infra" in proc.stdout.read(), "the env id's binding was not the fallback"
+
+
 def _hook_in(repo: Path, env_extra: dict) -> str:
     env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID")}
     env.update(CLAUDE_PROJECT_DIR=str(repo), **env_extra)
