@@ -17,7 +17,7 @@ against 271 menus / 316 window actions / 80 wizards / 19 reports / 142 model but
 `/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what
 the product SHIPS.
 
-**Two generated artifacts, both inside the run's own board directory so they archive as a unit:**
+**Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:**
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/

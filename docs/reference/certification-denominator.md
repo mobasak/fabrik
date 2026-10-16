@@ -48,7 +48,7 @@ anything wrapping a vendored platform, **that platform's own registry**.
 in `RETIRED_TYPES` as a **crash guard** — a sibling check that iterated the frozenset and let that
 exception escape turned a `warn_only` row into a blocking red across ~46 repos.
 
-## Two artifacts, one directory
+## Two artifacts and a recipe, one directory
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/
