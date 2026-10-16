@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T21:51:16.368704Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-93a54533",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "key the check on the seats whose text carries a VERDICT line naming the artifact, not on the most recent seat of each model",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "hooks"
+  ],
+  "title": "Stop hook panel-brief check matches the Panel: line against the LATEST opus seat's text — a review seat resumed after the panel (spec-review delta rounds) makes a true approval read as a deferral three times (W-573fae88, 2026-10-17)"
+}
