@@ -97,6 +97,22 @@ recorded wording in the spec and change no build step.
   branch, each after its own review; the orchestrator dedupes their review findings by file and line before fixing. T07 starts
   only when all four are ✅, because it removes the markup their views replace.
 
+## Ticket breadth (check_ticket_breadth.py verdicts)
+
+The screen flagged 7 of 7 tickets (scores 6–9, each one area plus its test file; the score tracks the
+Behavior-Contract row count). Every ticket is KEPT, for one reason each: its rows are one invariant seen from
+several inputs, and a split would spread that invariant across tickets that must merge together anyway.
+
+- T01 kept — six rows, one invariant: every byte of markup goes through one escaped, token-styled, catalogued kit.
+- T02 kept — eight rows, one surface: the request path of one `_Handler` (guard, routes, token, targets); split, the
+  guard and the routes it guards would be reviewed apart.
+- T03 kept — eight rows, one view whose sections share one ordering rule and one data dict.
+- T04 kept — five rows, one view.
+- T05 kept — five rows, one view.
+- T06 kept — seven rows over three small views that share one pattern (render a collector's data, freshness at its
+  cadence); split three ways each ticket would carry the same pattern and the same test file shape.
+- T07 kept — the Integration ticket: it owns the two indivisible files, so it cannot split by construction.
+
 ## Behavior Contract
 
 ### T01 — from `T01-ui-kit.md`
@@ -224,6 +240,10 @@ three lines of each cite on 2026-10-16).
 | an explicit CSRF defense is separately required on top | `.windsurf/rules/core/35-security-auth.md:177` | Kept: the custom-header guard on POST, which OWASP accepts as a defence (csrf-1); plus INV-6's `Host` allowlist and `Sec-Fetch-Site` check (U2, resolved) |
 | Applies ONLY to a project whose docs/design-system.md declares "House identity: ocoron — chosen, not defaulted" | `.windsurf/rules/core/ocoron-design-system.md:2` | No house identity: neutral tokens |
 | Apply when working on frontend/UI code (Next.js, React, Tailwind). | `.windsurf/rules/saas/60-saas-ui.md:14` | Scope note: the pack's structural rules are applied by analogy |
+| BANNED: logging.FileHandler, logging.handlers.RotatingFileHandler, TimedRotatingFileHandler, loguru file sinks, any *.log file write, any in-app log rotation/retention/cleanup. | `.windsurf/rules/core/10-python.md:294` | Global Constraints XI — the board keeps its stderr lines, no logfile |
+| Fenced code blocks only — never indented code (AI treats it inconsistently) | `.windsurf/rules/core/40-documentation.md:244` | T07's rewrite of `docs/workstation/quota-dashboard.md` |
+| No skipped heading levels — ## to ###, never ## to #### | `.windsurf/rules/core/40-documentation.md:242` | T07's doc rewrite |
+| No cosmetic assertions: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. | `.windsurf/rules/core/45-testing-strategy.md:21` | Every ticket's tests assert landmarks, roles, text and state; T01's token and contrast tests read `app.css` as data, not the rendered page |
 
 ## Context Ledger
 
@@ -335,6 +355,21 @@ chromium_headless_shell-1223
 chromium_headless_shell-1228
 ```
 
+The plan's two new algorithms run on live data before any seat (`algos573.py` in the session scratchpad: T03's
+blocked-merge rule over every `/opt/*/.git/fabrik-merge/*.json`, T02's snapshot token over every awaiting item). The one
+blocked branch is this worktree's own, parked behind W-5a1b8961 — the reader agrees with the board's known state:
+
+```text
+records 763 branches 30 unreadable 0
+outcomes {'merged': 664, 'refused': 99}
+phases {'replied': 763}
+blocked 1
+   ('fabrik', 'worktree-infra', '01M51V9CNSHRTX1Q7YXRMN4YJM', '(a)-(d) build, preflight, tests, CAS: scripts/aro-wake/claude_rotate.p')
+ulid ms range 1790828164895 1792188016628
+awaiting tokens 43 distinct 43
+merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_editor', 'site-provisioner', 'trade-intelligence', 'tryton-crm', 'web-ecommerce-factory', 'whatsapp-agent']
+```
+
 ## Self-audit
 
 - Grounding passes: three Phase-1 seats (server seams, tests and toolchain, Overview data shapes), all at 18d619f1e, then
@@ -358,15 +393,14 @@ chromium_headless_shell-1228
 
 | Class | Source | State |
 |---|---|---|
-| Security: request guard, escaping, CSRF | core/35-security-auth.md, spec INV-4/INV-6 | OPEN — /fabrik-plan-review grades it |
-| Python patterns and typing | core/10-python.md | OPEN |
-| Testing strategy: one test per behaviour, red first | core/45-testing-strategy.md | OPEN |
-| Documentation sync | core/40-documentation.md | OPEN |
-| UI structure, states, a11y, responsive | saas/60-saas-ui.md, core/design-system-template.md | OPEN |
-| Recurrence: a count without its list | standing | OPEN |
-| Recurrence: a cite that drifted | standing | OPEN |
-| Recurrence: a claim not executed | standing | OPEN |
-| Recurrence: a mirror not named | standing | OPEN |
+| Python patterns: stdlib only, typing, no bare tasks, no logfile | FLOOR core/10-python.md | UNCHECKED |
+| 12-Factor axes as they apply to a box-local tool | FLOOR 12-FACTOR | UNCHECKED |
+| Documentation: the subsystem doc rewritten, fenced, headings sequential | MATCHED core/40-documentation.md | UNCHECKED |
+| Testing: one test per behaviour, watched red first, no cosmetic assertions | MATCHED core/45-testing-strategy.md | UNCHECKED |
+| Fail-open vs fail-closed on every gate or guard (Host check, Sec-Fetch-Site, token, rebuild-on-miss) | standing | UNCHECKED |
+| Cost / quota / limit accounting edges (unknown is not zero; collector TTLs; the 500 ms trigger) | standing | UNCHECKED |
+| Boundary / sentinel / prefix collisions (static path traversal, ULID order, view names, the legacy date) | standing | UNCHECKED |
+| Behaviour without a test | standing | UNCHECKED |
 
 ```text
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -413,7 +447,7 @@ chromium_headless_shell-1228
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### core/40-documentation.md  (hit: docs/workstation/quota-dashboard.md)
+### core/40-documentation.md  (hit: docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-review.md, docs/workstation/quota-dashboard.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
@@ -424,7 +458,7 @@ chromium_headless_shell-1228
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 
-### core/45-testing-strategy.md  (hit: tests/test_quota_dashboard.py)
+### core/45-testing-strategy.md  (hit: tests/test_quota_dashboard.py, tests/test_quota_dashboard_accounts.py, tests/test_quota_dashboard_banner.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -465,6 +499,11 @@ chromium_headless_shell-1228
 - `docs/OPERATIONS.md` `docs/DEPLOYMENT.md`
 - `scripts/doc_reconcile.py` `docs/QUICKSTART.md` `docs/CONFIGURATION.md` `docs/data-contract.md` `docs/SERVICES.md` `docs/OPERATIONS.md`
 ```
+
+## Pass Ledger
+
+| Pass | Seats | Counters | Method | Hash |
+|---|---|---|---|---|
 
 ## Residual unknowns
 
