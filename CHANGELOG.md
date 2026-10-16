@@ -36,6 +36,18 @@ drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `P
 Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
 refresh waits while a comment is being typed. W-e1f1a1bd.
 
+### Changed — /fabrik-task: input tables, hook-output cap, exact-subject commit capture (2026-10-17)
+
+`commands/_sources/fabrik-task.md`, from the fourth pass over its feedback queue (24 rows: 9 edited, 3 routed to
+infra, 5 held, 6 already stated, 1 refused as weakening the review). Phase 2 tabulates every input the design branches on in a `design.md` table
+outside the Behaviours list (each value a state can hold, the unit another tool's rule is evaluated per, every path
+through a guard), and a parser it adds fails closed on input outside its grammar, which the critique brief now
+probes. MEASURE sizes each hook output the change grows against Claude Code's 10,000-character cap.
+`--terminal-amend` is stated to ride on the `--design` call or before it. Phase 3 rewrites a test drafted before
+the critiques folded. Phase 5 captures the commit by its exact subject and fails closed, where a `HEAD` read could
+capture a sibling's commit landing during the post-commit hook. Pinned by
+`tests/test_fabrik_task_queue_pass.py` and `tests/test_command_run_lane_v2.py`; the size cap moves 20904 → 21739.
+
 ### Changed — /fabrik-plan-after-chat: Phase 4 names what /fabrik-plan-review grades in the rubric paste and the digest (2026-10-17)
 
 `commands/_sources/fabrik-plan-after-chat.md` Phase 4 now says what `/fabrik-plan-review` Phase 1 grades in the
