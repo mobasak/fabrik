@@ -36,6 +36,14 @@ drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `P
 Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
 refresh waits while a comment is being typed. W-e1f1a1bd.
 
+### Changed — /fabrik-plan-after-chat: Phase 4 names what /fabrik-plan-review grades in the rubric paste and the digest (2026-10-17)
+
+`commands/_sources/fabrik-plan-after-chat.md` Phase 4 now says what `/fabrik-plan-review` Phase 1 grades in the
+plan this command writes: the rubric output pasted verbatim, with only the `# promote-to-check_*` tail elided and
+the elision declared (its step 1), and the plan's `## Constraints Digest` naming every MATCHED pack that output
+lists (its step 3). Answers row 1792092835 (a plan written to this text failed that review);
+`tests/test_plan_after_chat_queue_pass.py` pins the sentence and the reviewer's step numbering.
+
 ### Changed — /fabrik-plan-after-chat: a spec-fed plan executes the spec's claims about its own repo (2026-10-15)
 
 `commands/_sources/fabrik-plan-after-chat.md` Phase 0.5 adds (c) to a spec-fed plan's verification: each claim

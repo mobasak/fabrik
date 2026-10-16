@@ -155,3 +155,40 @@ def test_a_spec_fed_plan_executes_the_specs_claims_about_this_repo() -> None:
         " worktree (`CLAUDE.md` § Shared repo, its mutate-restore rule); a claim not executed is prose, never"
         " carried as fact" in phase
     )
+
+
+def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> None:
+    """Row 1792092835: the author command said "the pasted OUTPUT of review_rubric.py" and its digest rule asks for
+    rows "relevant to this scope", while /fabrik-plan-review's Phase 1 grades a VERBATIM paste (only the promote tail
+    elided) and a digest naming EVERY matched pack — a plan written to this text failed that review. Phase 4 now
+    names both, pointing at the reviewer's own steps. Mutants: drop either clause; the reviewer's text moves."""
+    flat = _flat()
+    assert (
+        "the rubric output is pasted verbatim, where only the `# promote-to-check_*` tail may be elided"
+        " (declared where it would sit — its step 1)" in flat
+    )
+    assert (
+        "the plan's `## Constraints Digest` names every MATCHED pack that output lists (its step 3)"
+        in flat
+    )
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in review, (
+        "plan-review's step 1 moved"
+    )
+    assert "every MATCHED pack must be named in the digest" in review, "plan-review's step 3 moved"
+    # the pointer names "its Phase 1 … step 1 … step 3": each rule sits in the step of that number
+    raw = (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    phase1 = raw[raw.index("## Phase 1 — Grounding passes") : raw.index("\n## Phase 2")]
+    starts = {m.group(1): m.start() for m in re.finditer(r"(?m)^(\d+)\. \*\*", phase1)}
+    bounds = sorted(starts.values()) + [len(phase1)]
+
+    def step(n: str) -> str:
+        begin = starts[n]
+        return re.sub(r"\s+", " ", phase1[begin : bounds[bounds.index(begin) + 1]])
+
+    assert step("1").startswith("1. **Rubric.**")
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in step("1")
+    assert step("3").startswith("3. **Constraints-Digest audit")
+    assert "every MATCHED pack must be named in the digest" in step("3")

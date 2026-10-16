@@ -683,7 +683,10 @@ which the flip gate cannot tell from a real rubric — re-run it, never paste th
 `RUBRIC_RUN` enforce the section and the pasted header (not the packs) mechanically (both live in
 `check_review_coverage.py` and are imported by `check_convergence.py`'s flip gate — grep the
 symbols, never a line anchor).
-`/fabrik-plan-review` asserts the same two before its flip.
+`/fabrik-plan-review` asserts the same two before its flip, and its Phase 1 grades two more things the plan
+carries: the rubric output is pasted verbatim, where only the `# promote-to-check_*` tail may be elided
+(declared where it would sit — its step 1), and the plan's `## Constraints Digest` names every MATCHED pack that
+output lists (its step 3).
 
 Append, so the downstream converge/execute commands have what they need:
 
