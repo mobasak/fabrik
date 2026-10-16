@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "operator 2026-10-16: bhdtrade urgent (D-921); deploy-blocking, the site is certified and parity-frozen",
   "status": "open",
+  "tags": [
+    "waits-wef-migration"
+  ],
   "title": "bhdtrade.com go-live, hub side (D-921, D-106): register the deploy — the static Astro site on Cloudflare Pages and only services/quote-forms (SMTP relay) on vps1 via a hub copy of web-ecommerce-factory/specs/services/bhdtrade.yaml + fabrik apply; check W-bce494ec (SSH identity in the vps1 docker group, alias vps vs vps1) with the operator; deploy only after Gate 2"
 }
