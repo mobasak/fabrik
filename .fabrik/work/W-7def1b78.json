@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T08:13:27.248354Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7def1b78",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec the access route and its auth before exposing :5051 beyond loopback",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "dashboard"
+  ],
+  "title": "Reach the operator's dashboard (:5051) safely from a phone or second device — today it binds 127.0.0.1 with header-guarded POST actions and no auth; a remote route (VS Code tunnel port-forward, or an authenticated proxy) needs its own design (out of scope of W-573fae88's redesign)"
+}
