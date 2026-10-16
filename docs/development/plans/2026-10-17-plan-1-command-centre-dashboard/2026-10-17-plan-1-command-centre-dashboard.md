@@ -1,6 +1,6 @@
 # Plan — the operator's command-and-control centre: the quota board rebuilt on one page layer (W-573fae88)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** infra
 
 Spec: `docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` — CONVERGED, approved by the Opus + Fable
@@ -47,7 +47,7 @@ recorded wording in the spec and change no build step.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | UI kit | — | ⚡ | ⬜ | |
+| T01 | UI kit | — | ⚡ | 🔵 | |
 | T02 | Server wiring | T01 | ⛓️ | ⬜ | |
 | T03 | Overview view | T02 | ⚡ | ⬜ | |
 | T04 | Work view | T02 | ⚡ | ⬜ | |
