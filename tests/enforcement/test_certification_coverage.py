@@ -233,6 +233,18 @@ def test_cert_ticket_names_are_accepted(tmp_path):
     assert "BAD TICKET" not in _labels(_run(tmp_path)[0])
 
 
+def test_the_runtime_recipe_is_not_a_bad_ticket(tmp_path):
+    """/fabrik-user-test and /fabrik-service-test MANDATE `<board>/runtime.md`; the grader flagged
+    every board that obeyed (web-ecommerce-factory 01M513RJ, W-d7847226). The exemption is the exact
+    name only: a look-alike is still a misnamed ticket."""
+    d = _board(tmp_path, ["| MENU-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    (d / "runtime.md").write_text("# how it was started\n", encoding="utf-8")
+    assert "BAD TICKET" not in _labels(_run(tmp_path)[0])
+    (d / "runtime-notes.md").write_text("#", encoding="utf-8")
+    bad = [f for f in _run(tmp_path)[0] if f.label == "BAD TICKET"]
+    assert [f.detail.split()[0] for f in bad] == ["runtime-notes.md"], bad
+
+
 @pytest.mark.parametrize("runner", ["gui", "service", "generated-smoke", "fix"])
 def test_the_four_runners_are_accepted(tmp_path, runner):
     _board(tmp_path, [f"| MENU-1 | T3 | {runner} | OUT-OF-SCOPE(vendor.example.com) | - |"])
