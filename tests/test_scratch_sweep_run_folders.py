@@ -311,6 +311,16 @@ def _dead_record(tmp_path: Path, sid: str) -> None:
     )
 
 
+def _live_record(tmp_path: Path, sid: str) -> None:
+    """A sessions record the sweep reads as LIVE: this test process's own pid and its real start."""
+    start = sw._proc_start_ticks(Path("/proc"), os.getpid())
+    assert start is not None, "this box exposes no /proc start for the test process"
+    (tmp_path / "sessions" / f"{sid[:4]}.json").write_text(
+        json.dumps({"pid": os.getpid(), "sessionId": sid, "procStart": str(start)}),
+        encoding="utf-8",
+    )
+
+
 def _age_tree(path: Path, seconds: float) -> None:
     for p in sorted(path.rglob("*"), reverse=True):
         if p.name != ".owner":
@@ -319,15 +329,25 @@ def _age_tree(path: Path, seconds: float) -> None:
 
 
 def _guard_run_walks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`newest_mtime` raises on any path inside a run folder — "removed with no walk"."""
+    """`newest_mtime` raises on any path inside a run folder — "removed with no walk" — and so does
+    any walk that DESCENDS into one from above: the dead-session idleness walk is handed the
+    session directory, so a guard on the path it is handed alone could never see it (W-c0a1d324 F9)."""
     real = sw.newest_mtime
+    real_walk = sw.os.walk
 
-    def _no_walk(entry: Path, budget: object) -> tuple[float, bool]:
+    def _no_walk(entry: Path, budget: object, **kw: object) -> tuple[float, bool]:
         if "/run-" in str(entry):
             raise AssertionError(f"a run folder was walked: {entry}")
-        return real(entry, budget)
+        return real(entry, budget, **kw)
+
+    def _no_descent(top, *a, **kw):
+        for dirpath, dirnames, filenames in real_walk(top, *a, **kw):
+            if "/run-" in str(dirpath) and "/run-" not in str(top):
+                raise AssertionError(f"a walk descended into a run folder: {dirpath}")
+            yield dirpath, dirnames, filenames
 
     monkeypatch.setattr(sw, "newest_mtime", _no_walk)
+    monkeypatch.setattr(sw.os, "walk", _no_descent)
 
 
 def test_consumed_folder_removed_without_a_walk(
@@ -345,7 +365,9 @@ def test_consumed_folder_removed_without_a_walk(
     rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
     assert rc == 0, out
     assert not folder.exists(), out
-    assert not (folder.parent / ".trash-big").exists(), out
+    # the rename target is `.trash-<key>` — the full key, never `.trash-big` — so the check is every
+    # `.trash-*` entry: the old literal held whether or not the removal ran (W-c0a1d324 F1)
+    assert not list(folder.parent.glob(".trash-*")), out
     assert "REMOVED" in out, out
 
 
@@ -385,10 +407,14 @@ def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.Mon
     """`(folder, children to kill, also try --dead)` for one B2 case."""
     children: list[subprocess.Popen[bytes]] = []
     if case == "running-live":
+        # the session must be PROVABLY live, and `--dead` is the mode whose dead rule reads it:
+        # `--run-folders` passes no liveness test, so this row once passed on another condition
+        # without the session's liveness ever being consulted (W-c0a1d324 F3)
+        _live_record(tmp_path, SID_A)
         return (
             _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=30 * DAY),
             [],
-            False,
+            True,
         )
     if case == "running-fresh-heartbeat":
         _dead_record(tmp_path, SID_A)
@@ -575,7 +601,9 @@ def test_the_write_after_close_signal_stays_bounded(
     assert rc == 0 and not future.exists(), out  # 40 h past its close: the bounded doubt has ended
     trash = sdir / "scratchpad" / ".trash-run-gone-2026-10-15T05-40-42-0300-0a1b2c"
     trash.mkdir()
-    (trash / ".owner").write_text(json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8")
+    (trash / ".owner").write_text(
+        json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8"
+    )
     _age(trash, 10)  # an interrupted removal just unlinked entries
     rows = sw.plan_run_folders([sdir], NOW)
     assert [r.cls for r in rows if r.path == str(trash)] == ["consumed"]
@@ -703,6 +731,48 @@ def test_the_run_pass_waits_for_the_unreadable_root_refusal(
     assert consumed.exists(), out
 
 
+def test_strict_proc_holds_a_consumed_run_folder_in_every_mode(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """F5 (W-c0a1d324): `--strict-proc` turns every removable row into `probe-error` when a
+    same-uid `/proc` gap exists — a consumed run folder included. It never reached them: session
+    mode's downgrade skipped the `consumed` class, and `--dead` downgraded before the run rows were
+    planned. The same folders without the flag are removed (the control)."""
+    sdir = _session(harness)
+    past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
+    _age_tree(past, 7 * HOUR)
+    _age(past, 40 * HOUR)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
+    # a gap process that started LONG before every marker: the run-folder rule does not keep for
+    # it (it cannot own the folder), so only `--strict-proc` can hold the folder back
+    monkeypatch.setenv(
+        "FABRIK_PROC_ROOT", str(_gap_proc(tmp_path, started_ago=60 * DAY, zombie=False))
+    )
+    monkeypatch.setenv("SCRATCH_SWEEP_BTIME", str(NOW - 100 * DAY))
+    try:
+        rc, out = _main(capsys, "--session", SID_A, "--strict-proc", "--apply")
+        assert rc == 0, out
+        assert past.exists(), "--strict-proc removed a consumed run folder in session mode: " + out
+        dead = _session(harness, SID_B)
+        stuck = _run_folder(dead, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+        _dead_record(tmp_path, SID_B)
+        _age_tree(dead, 30 * DAY)
+        rc, out = _main(capsys, "--dead", "--strict-proc", "--apply")
+        assert rc == 0, out
+        assert stuck.exists(), "--strict-proc removed a consumed run folder in --dead: " + out
+        rc, out = _main(capsys, "--dead", "--apply")  # the control: without the flag it goes
+        assert rc == 0, out
+        assert not stuck.exists(), out
+        rc, out = _main(capsys, "--session", SID_A, "--apply")  # the session-mode control
+        assert rc == 0, out
+        assert not past.exists(), out
+    finally:
+        os.chmod(tmp_path / "gproc" / "4242" / "fd", 0o700)
+
+
 def test_session_mode_governs_run_folders_by_marker(
     harness: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -715,7 +785,9 @@ def test_session_mode_governs_run_folders_by_marker(
     past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
     for f in (graced, resumable, past):
         _age_tree(f, 7 * HOUR)
-    _age(past, 40 * HOUR)  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
+    _age(
+        past, 40 * HOUR
+    )  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
     monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
     rc, out = _main(capsys, "--session", SID_A, "--apply")
     assert rc == 0, out
@@ -1276,6 +1348,29 @@ def test_a_worktree_pointer_anywhere_in_reach_keeps_the_folder(where: str, tmp_p
     pointer_dir.mkdir(parents=True)
     (pointer_dir / ".git").write_text("gitdir: /elsewhere/.git/worktrees/x\n", encoding="utf-8")
     assert sw.git_pointer_files(folder) == [pointer_dir / ".git"]
+
+
+def test_the_git_pointer_scan_is_bounded_and_keeps_past_its_budget(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F2 (W-c0a1d324): the `.git` pointer scan read every entry at depths 0-3 with no breadth
+    bound. It now stops at `SCRATCH_SWEEP_GIT_SCAN_BUDGET` and, incomplete, KEEPS the folder (an
+    unseen worktree pointer may exist) with that reason; the list form `command_run.py` reads
+    answers non-empty, so a resume never moves it. Under the default budget the same folder goes."""
+    folder = _run_folder(_session(harness), "wide", files=50)
+    _age(folder / ".owner", 40 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET", "10")
+    found, complete = sw.git_pointer_scan(folder)
+    assert found == [] and complete is False
+    assert sw.git_pointer_files(folder) == [folder / ".git-scan-incomplete"]
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() and "stopped at its budget" in out, out
+    monkeypatch.delenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET")
+    assert sw.git_pointer_scan(folder) == ([], True)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
 
 
 def test_a_self_contained_clone_is_scratch(

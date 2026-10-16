@@ -214,21 +214,26 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   fingerprint, a `.keep`, holders and gaps are re-checked at removal time. A worktree pointer inside
   (a `.git` FILE whose gitdir lies outside the folder, depths 0-3) keeps the folder unless the worktree
   is merged and clean, or detached, clean and contained in a ref — then `git worktree remove` first. A
-  plain clone (a `.git` directory) is scratch.
+  plain clone (a `.git` directory) is scratch. The pointer scan reads at most
+  `SCRATCH_SWEEP_GIT_SCAN_BUDGET` (200 000) entries; a folder wider than that is KEPT ("the .git pointer
+  scan stopped at its budget") and a resume never moves it (W-c0a1d324).
 - **Who removes:** `start` launches `--run-folders --session <sid> --apply` detached after its record
   lock drops (D3; a per-session `flock` at `<session dir>/.run-folders.lock`, never the global lock, so
   the nightly run is never skipped). `--dead --apply` consumes every session's run folders first (D4)
-  and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
+  — the dead-session idleness walk never enters a run folder, it reads only each one's own mtime and
+  `.owner` heartbeat, so a live run still marks its session alive — and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
   it — judged again after the run pass, so a folder the removal-time re-check kept keeps its directory
   too. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
-  leaves them out. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
+  leaves them out. `--strict-proc` holds a `consumed` run folder back (`probe-error`) in session mode
+  and in `--dead`, like every other removable row. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
   ordinary entry.
 - **Adoption:** `start --resume-from` moves the wall run's `resumable` folder into the new session (one
   rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
   resumed record is saved). A folder holding a worktree pointer is not moved and is marked
   `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
 - **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
-  archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`); `--dead --apply` writes
+  archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`), each seat measured under its own `du`
+  deadline; `--dead --apply` writes
   `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
   folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook
   prints one `SCRATCH ALARM` line from it (or names it stale past 48 h, or a session too big to
@@ -293,7 +298,7 @@ SQLite WALs, `data/`, `.env` that differs from the main checkout, any authored f
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·
-`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_WALK_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
+`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_WALK_BUDGET` · `SCRATCH_SWEEP_GIT_SCAN_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
 `SCRATCH_RUN_GRACE_S`
 (36 h) · `SCRATCH_RUN_HEARTBEAT_S` (7 d) · `SCRATCH_SWEEP_DISK_USED_PCT` · `SCRATCH_SWEEP_REPORT_BUDGET_S`
 (600 s), plus

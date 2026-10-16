@@ -1561,10 +1561,15 @@ _SWEEP_MODULES: dict[str, Any] = {}
 
 def _run_scratch_key(command: str, started_at: str) -> str:
     """`<command>-<started_at>-<6 hex>` — the record key has one-second resolution and a resumed run
-    reuses its origin key, so the folder key carries its own suffix (plan P4)."""
+    reuses its origin key, so the folder key carries its own suffix (plan P4).
+
+    A command that sanitises to nothing (``""``, ``"/"``, ``"日本"``) would leave the key with no
+    command segment, and `scratch_sweep.RUN_KEY_RE` needs one — the live run's folder would read as
+    an ordinary entry and could be removed by age (W-c0a1d324 F12). It falls back to ``run``."""
     import secrets  # noqa: PLC0415 — only a start mints
 
-    return f"{_scratch_name(command, started_at)}-{secrets.token_hex(3)}"
+    segment = re.sub(r"[^0-9A-Za-z_-]+", "-", command).strip("-") or "run"
+    return f"{_scratch_name(segment, started_at)}-{secrets.token_hex(3)}"
 
 
 def _sweep_module() -> Any:
@@ -1807,18 +1812,20 @@ def _adopt_run_scratch(
 def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> list[str]:
     """D5: one advisory line per `seat-*` folder of the run larger than `threshold` apparent bytes
     — a seat that copied a whole tree instead of an archive or a clone. Runs AFTER the record lock
-    drops; a `du` past the shared deadline says so. Never changes the exit code or the record."""
+    drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
+    a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
+    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the seat count
+    times `deadline_s`. Never changes the exit code or the record."""
     lines: list[str] = []
-    end = time.monotonic() + deadline_s
     for seat in sorted(Path(run_scratch).glob("seat-*")):
         if seat.is_symlink() or not seat.is_dir():
             continue
-        try:  # a spent deadline (timeout <= 0) raises TimeoutExpired at once — the same line
+        try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
             out = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
                 capture_output=True,
                 text=True,
-                timeout=end - time.monotonic(),
+                timeout=deadline_s,
             ).stdout
             size = int(out.split()[0])
         except subprocess.TimeoutExpired:
