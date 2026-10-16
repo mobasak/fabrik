@@ -1,6 +1,6 @@
 # Review — scratch-lifecycle partials
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 53496f1f47355682503ae40fce03e71af25a690e; range tip 53496f1f47355682503ae40fce03e71af25a690e; `git diff 53496f1f4~1..53496f1f4 -- scripts/scratch_sweep.py scripts/command_run.py tests/test_scratch_sweep_run_folders.py tests/test_command_run_scratch.py docs/workstation/cleanup-automation.md` md5 72abfe57e918b10d82a6dc40c57fe6b8 (31025 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/scratch_sweep.py`, `scripts/command_run.py`, `tests/test_scratch_sweep_run_folders.py`, `tests/test_command_run_scratch.py`, `docs/workstation/cleanup-automation.md`
 
@@ -109,17 +109,17 @@ $ python scripts/review_rubric.py --changed scripts/scratch_sweep.py scripts/com
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/scratch_sweep.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/command_run.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_scratch_sweep_run_folders.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_command_run_scratch.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/cleanup-automation.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/scratch_sweep.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (scratch_sweep.py: the F9 prune matched a run-key name at any depth, so a nested run-named dir hid a live session's activity — now only `scratchpad/` children passing is_run_entry; a scan-budget keep had a worktree reason and was misreported — now SCAN_BUDGET_KEPT with its own report entry) |
+| Hunt: `scripts/command_run.py` — every changed hunk, its enclosing function, its callers | CLEAN (command_run.py `_run_scratch_key` empty-segment fallback and `_seat_size_lines` per-seat deadline; the resume adoption at :1795 reads git_pointer_files' list form, whose incomplete-scan sentinel refuses the move) |
+| Hunt: `tests/test_scratch_sweep_run_folders.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_scratch_sweep_run_folders.py: every new or strengthened grader red on its revert or mutant — the descent guard, the .trash-* glob, the live record, strict-proc in both modes, the scan budget, the prune scope, the report entry) |
+| Hunt: `tests/test_command_run_scratch.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_command_run_scratch.py: the sanitise-to-nothing key test and the per-seat deadline test, both red before the fix) |
+| Hunt: `docs/workstation/cleanup-automation.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (cleanup-automation.md now scopes the walk skip to marker-governed folders, names the scan-budget report entry and COMMAND_RUN_SEAT_DU_DEADLINE_S) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (scratch_sweep.py newest_mtime: an unconditional run-name prune read a live session idle — the data-loss direction; scoped to marker-governed folders, which still give their mtime and heartbeat) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scratch_sweep.py git_pointer_scan counts entries before reading them past the budget; seats stamped 2 and counted 2 each round) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (scratch_sweep.py: the size report's `startswith("holds a registered worktree")` caught the scan-budget keep; it now has an exact reason constant) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_scratch_sweep_run_folders.py and tests/test_command_run_scratch.py: 7 mutants run by the seats across both passes, none survive) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (the seats ran the whole three-file scratch slice, 320 tests, not a sample) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every confirmed candidate reproduced by a probe or a test on pinned copies; no run against a real scratch root) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -145,6 +145,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 6, new: 6, confirmed: 3, fixed: 3, unexecuted: 0 | method: one slice over 53496f1f4 on a pinned tree; F1 the run-name prune at any depth hid a live session's activity, F2 a scan-budget keep wore a worktree reason and was misreported, F5 COMMAND_RUN_SEAT_DU_DEADLINE_S undocumented |
+| Pass 2 | native sonnet×1 + haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the same seats re-verified the fix diff 53496f1f4..cded300a6: 320 passed, the prune-scope and report-entry mutants fail their tests, the doc sentences match the code |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -174,9 +176,17 @@ reason — the reason follows the closing parenthesis. The gate refuses an absen
 checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+| F-id | Verdict |
+|---|---|
+| F3 | REFUTED (the apply-time ordering of an unjudgeable entry after removable worktrees already existed for unjudgeable 1; the folder itself is still kept) |
+| F4 | REFUTED (a probe-error run row in the size report's input has no removal consequence; the report reads only kept rows' reasons) |
+| F6 | REFUTED (COMMAND_RUN_SEAT_DU_DEADLINE_S=0 is the documented way to make every seat read unmeasured; the check is advisory) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — scratch-lifecycle partials (W-c0a1d324): CONVERGED
+
+Commits 53496f1f4 (the seven ledger rows) and cded300a6 (review round 1). Ledger rows F1, F2, F3, F5, F8, F9 and F12 of `docs/development/reviews/2026-10-15-scratch-lifecycle-conformance-review.md` are closed by these commits; that receipt's status lines are its owner's to flip.
 
 ## Gate
 
@@ -185,7 +195,242 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "skipped_checks": [
+    "static tier"
+  ],
+  "checks": [
+    {
+      "name": "static tier (diff-sensed skip)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
