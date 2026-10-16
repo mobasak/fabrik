@@ -367,9 +367,11 @@ def _account_env(cfg: Path) -> dict:
         "CLAUDE_QUOTA_HOME": str(cfg),
         "CLAUDE_MESH_HEADLESS": "1",
         "CLAUDE_SOUND_NO_REVIVE": "1",
-        # the hooks' own headless flag (mail_notify, session_orient, mcp_watch, work.py): a dispatch
-        # child is a machine run, never an operator window — no mail banner, orient block or arm
-        # nag (tests/test_hooks_headless_guard.py, W-a4272e57)
+        # the hooks' own headless flag, declared so tests/test_hooks_headless_guard.py can hold
+        # every `claude -p` spawner to it (W-a4272e57). Its effect here is near nil and that is
+        # fine: the child runs from `scratch_dir()`, where no project hook loads, and
+        # CLAUDE_MESH_HEADLESS above already stands down the orient wake and the arm nag; it
+        # covers any FABRIK_HEADLESS reader (mail_notify, mcp_watch) that ever does load
         "FABRIK_HEADLESS": "1",
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     }

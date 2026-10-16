@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — cloud-dispatch children run as headless, and the headless-guard test is green again (2026-10-16)
 
-`scripts/cloud_dispatch.py` (D-857) starts `claude -p` for its routine fires, refresh probes and log reads without `FABRIK_HEADLESS`, so `tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears` was red on master and those children could get the operator-window hooks (the mail banner, the orient block, the arm nag). `_account_env` now sets `FABRIK_HEADLESS=1` beside its mesh flags, and the file is a declared spawner, so the env-dict grader keeps it honest (W-a4272e57).
+`scripts/cloud_dispatch.py` (D-857) starts `claude -p` for its routine fires, refresh probes and log reads without `FABRIK_HEADLESS`, so `tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears` was red on master. `_account_env` now sets `FABRIK_HEADLESS=1` beside its mesh flags, and the file is a declared spawner, so the env-dict grader keeps it honest (W-a4272e57). The behaviour change is near nil: the children run from a scratch dir outside every repo, where no project hook loads, and `CLAUDE_MESH_HEADLESS` already stood down the orient wake and the arm nag.
 
 ### Fixed — seven scratch-lifecycle partials: walks, deadlines, `--strict-proc`, a degenerate key and two graders (2026-10-16)
 
