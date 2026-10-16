@@ -3,7 +3,7 @@
   "created": "2026-10-02T15:45:23.408720Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "69b3619940ec9870bed9145a02658285f767b48b",
   "id": "W-7450f4b6",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "rules"
   ],

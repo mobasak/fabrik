@@ -241,3 +241,70 @@ def test_auth_route_exists() -> None:
 )
 def test_cite_parser_reads_every_spelling(text: str, expected: list[tuple[str, str]]) -> None:
     assert _cites(text) == expected
+
+
+@requires_fabrik_env
+def test_the_pack_names_the_release_kit_the_scaffold_ships(project: Path) -> None:
+    """Intel's mail 01M506XR5W (W-e2af3303, D-893): the scaffold now emits the developer-mode release kit, so
+    § Distribution Model says so — without it the pack sends an agent to hand-build a key, an update checker,
+    an install guide and exact CORS the scaffold already wrote. Each named piece is checked against a fresh
+    scaffold, so the sentence goes red the day the kit renames or drops one."""
+    model = _section(_pack(), "Distribution Model")
+    for fact in (
+        "For this channel a chrome-extension scaffold ships the release kit (D-893)",
+        "`pnpm keygen` pins the manifest `key`",
+        "the gitignored `extension/.keys/`",
+        "`make release-ext` runs its release check first (a committed key, a clean tree and an https production"
+        " API URL among its conditions), then builds the zip with its SHA-256 and `INSTALL.md` and publishes nothing",
+        "`GET /extension/latest`",
+        "once `EXTENSION_ID` holds the ID `pnpm keygen` prints, admits CORS from exactly"
+        " `chrome-extension://<EXTENSION_ID>`",
+        "a developer-mode repo scaffolded before the kit builds these by hand",
+    ):
+        assert fact in " ".join(model.split()), f"§ Distribution Model no longer says {fact!r}"
+    ext = project / "extension"
+    assert '"keygen": "node scripts/keygen.mjs"' in (ext / "package.json").read_text(
+        encoding="utf-8"
+    )
+    for script in ("keygen.mjs", "release-check.mjs"):
+        assert (ext / "scripts" / script).is_file(), (
+            f"the scaffold no longer writes scripts/{script}"
+        )
+    gitignore = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "extension/.keys/" in gitignore, "extension/.keys/ is no longer gitignored"
+    make = (project / "Makefile").read_text(encoding="utf-8")
+    release = make[make.index("\nrelease-ext:") :].split("\n\n", 1)[0]
+    assert "node scripts/release-check.mjs" in release, (
+        "make release-ext no longer runs its refusal gate"
+    )
+    assert "sha256sum" in release and "INSTALL.md" in release, (
+        "make release-ext lost the SHA-256 or the guide"
+    )
+    # "publishes nothing" is read from the recipe itself: no command in it uploads anywhere
+    for uploader in (
+        "curl",
+        "wget",
+        "scp",
+        "sftp",
+        "ssh ",
+        "rsync",
+        "rclone",
+        "b2 ",
+        "aws ",
+        "gh release",
+        "publish",
+        "docker push",
+        "wrangler",
+    ):
+        assert uploader not in release, (
+            f"make release-ext now runs {uploader!r}: the pack says it publishes nothing"
+        )
+    server = "\n".join(
+        p.read_text(encoding="utf-8") for p in (project / "server" / "src").rglob("*.py")
+    )
+    assert '@app.get("/extension/latest")' in server, (
+        "the backend no longer serves GET /extension/latest"
+    )
+    assert '    _allow_origins = [f"chrome-extension://{EXTENSION_ID}"]' in server.splitlines(), (
+        "CORS no longer admits exactly the pinned ID"
+    )

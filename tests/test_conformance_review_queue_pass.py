@@ -21,20 +21,29 @@ def _phase(start: str, end: str) -> str:
 def test_spot_runs_print_their_target_and_read_fixtures_for_writes() -> None:
     """Rows 1790887637, 1790886150."""
     p1 = _phase("## PHASE 1", "## PHASE 2")
-    assert "print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one" in p1
+    assert (
+        "print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one"
+        in p1
+    )
     assert "call a run read-only only after reading its shared fixtures for writes" in p1
 
 
 def test_a_class_re_sweep_stays_inside_the_inventory() -> None:
     """Row 1788875405."""
     p4 = _phase("## PHASE 4", "## OUTPUT")
-    assert "routed by PHASE 3's table to its owning command (a work item or a mail), never counted" in p4
+    assert (
+        "routed by PHASE 3's table to its owning command (a work item or a mail), never counted"
+        in p4
+    )
 
 
 def test_routed_n_says_what_it_counts() -> None:
     """Row 1790889401: the count is the author's; the gate parses the token."""
     p4 = _phase("## PHASE 4", "## OUTPUT")
-    assert "`n` counts the work items and mails the row's findings were routed to, pre-existing ones included" in p4
+    assert (
+        "`n` counts the work items and mails the row's findings were routed to, pre-existing ones included"
+        in p4
+    )
     token = re.search(r"`(RECORDED — measured \(operator gate: [^`]+\))`", p4).group(1)
     sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
     import check_review_coverage
@@ -46,7 +55,10 @@ def test_routed_n_says_what_it_counts() -> None:
 def test_the_rubric_needs_both_the_line_and_the_pasted_output() -> None:
     """Row 1791838418 (D-786): the gate reads the pasted output's header, fenced or not."""
     p0 = _phase("## PHASE 0", "## PHASE 1")
-    assert "record BOTH: the invocation on a prose `Rubric:` line in INLINE backticks, and the OUTPUT pasted verbatim in a fence" in p0
+    assert (
+        "record BOTH: the invocation on a prose `Rubric:` line in INLINE backticks, and the OUTPUT pasted verbatim in a fence"
+        in p0
+    )
     sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
     import check_review_coverage
 
@@ -57,7 +69,10 @@ def test_the_rubric_needs_both_the_line_and_the_pasted_output() -> None:
 def test_seat_brief_paths_are_literal_absolute_paths() -> None:
     """Row 1791828726 (D-786)."""
     p1 = _phase("## PHASE 1", "## PHASE 2")
-    assert "a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:" in p1
+    assert (
+        "a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:"
+        in p1
+    )
 
 
 def test_the_source_never_satisfies_the_rubric_gate_itself() -> None:
@@ -66,3 +81,38 @@ def test_the_source_never_satisfies_the_rubric_gate_itself() -> None:
     import check_review_coverage
 
     assert not check_review_coverage.RUBRIC_RUN.search(SRC.read_text())
+
+
+def test_the_ledger_lists_a_per_phase_verdict_heading_the_convergence_gate_reads() -> None:
+    """Row 1792066693: the command listed the ledger as Surface, Inventory, Checklist (and OUTPUT added the Pass
+    Ledger), so a ledger written to that list had no Phase/Step heading and check_convergence red it with "no
+    per-phase verdict". The list now names the section, and the heading form it prescribes is run through the
+    gate's own PHASE pattern. Mutants: drop the bullet, drop it from OUTPUT, or give it a form PHASE rejects."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "It carries FOUR things from the start (the Pass Ledger joins them with the first pass)"
+        in text
+    )
+    bullet = re.search(
+        r"a \*\*`(## Per-phase verdicts)` section\*\* — one `(### Phase <n> — <title>)` heading",
+        text,
+    )
+    assert bullet, (
+        "the ledger list no longer names the Per-phase verdicts section and its heading form"
+    )
+    assert "fails a ledger whose Status or text claims a finished review" in text
+    assert (
+        "(Surface hash · Inventory table · Per-phase verdicts · Coverage Checklist · Pass Ledger)"
+        in text
+    )
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    import check_convergence
+
+    # the heading form the source prescribes, read from the source and filled in, meets the gate's own pattern;
+    # the section heading alone does not
+    section, heading = (
+        bullet.group(1),
+        bullet.group(2).replace("<n>", "1").replace("<title>", "inventory sweep"),
+    )
+    assert check_convergence.PHASE.search(f"{section}\n\n{heading}\n")
+    assert not check_convergence.PHASE.search(f"{section}\n")

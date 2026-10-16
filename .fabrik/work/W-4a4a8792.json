@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T17:20:01.046148Z",
+  "creator": "kaizen",
+  "evidence": "f3430f19630f38b2b0c17af0884fb36399eab848",
+  "id": "W-4a4a8792",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md",
+    "spec": ""
+  },
+  "next": "after worktree-intel merges W-e2af3303's kit to master, add the sentence at the end of the Developer-mode install Distribution paragraph; verify against tests/test_scaffold.py::TestChromeExtensionReleaseKit",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "70-chrome-ext.md § Distribution: one sentence that a chrome-extension scaffold ships the dev-mode release kit (pnpm keygen, make release-ext, GET /extension/latest, exact-ID CORS) — intel mail 01M506XR5W"
+}

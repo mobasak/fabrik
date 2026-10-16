@@ -99,19 +99,25 @@ def test_i18n_owned_by_wxt_dev_i18n() -> None:
     assert "chrome-extension" not in I18N_ENABLED_TYPES
 
 
-def test_compose_traefik_cors_uses_regex_not_glob(tmp_path: Path) -> None:
-    """Traefik's accessControlAllowOriginList is EXACT-match (not glob) and Traefik
-    synthesizes the preflight itself (never reaching FastAPI). So `chrome-extension://*`
-    never matches a real ID → a deployed extension can't reach its backend. Must use the
-    *Regex variant + credentials."""
+def test_compose_has_no_traefik_cors_and_passes_the_extension_env(tmp_path: Path) -> None:
+    """W-e2af3303 B5: FastAPI's CORSMiddleware is the single CORS authority (exact
+    EXTENSION_ID origin). A Traefik CORS middleware would answer the preflight itself and
+    never let it reach the app, so the emitted compose carries none, and passes the four
+    EXTENSION_* values through from the deploy's .env."""
     create_project(
         "cxcompose", "x", base=tmp_path, project_type="chrome-extension", generate_spec=False
     )
     compose = (tmp_path / "cxcompose" / "compose.yaml").read_text()
-    assert "accesscontrolalloworiginlistregex=^chrome-extension://.*$" in compose
-    assert "accesscontrolallowcredentials=true" in compose
-    # the broken exact-match glob must be gone
-    assert "accesscontrolalloworiginlist=chrome-extension://*" not in compose
+    assert "-cors" not in compose
+    assert "accesscontrolalloworigin" not in compose
+    for var in (
+        "EXTENSION_ID",
+        "EXTENSION_LATEST_VERSION",
+        "EXTENSION_LATEST_URL",
+        "EXTENSION_LATEST_SHA256",
+    ):
+        assert f"- {var}=${{{var}:-}}" in compose, var
+    assert "CORS_ORIGINS" not in compose  # the chrome server reads EXTENSION_ID, never CORS_ORIGINS
 
 
 def test_tailwind_v4_wired(ext: Path) -> None:
@@ -135,7 +141,8 @@ def test_wxt_config_declares_mv3_permissions_and_icons(ext: Path) -> None:
     won't match our icon16.png names, so they must be wired or Chrome shows no icon)."""
     cfg = (ext / "wxt.config.ts").read_text()
     # contextMenus is required or the background SW throws in onInstalled (GUI-loop finding).
-    assert "permissions: ['storage', 'activeTab', 'contextMenus']" in cfg
+    # alarms drives the developer-mode update check (W-e2af3303).
+    assert "permissions: ['storage', 'activeTab', 'contextMenus', 'alarms']" in cfg
     assert "icons: {" in cfg
     assert "/icon16.png" in cfg
 
@@ -340,14 +347,38 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
         generate_spec=False,
     )
     ext = tmp_path / "cxbuildtest" / "extension"
+    # a STORE_BUILD left in the caller's environment would drop the key from the dev builds
+    dev_env = {k: v for k, v in os.environ.items() if k != "STORE_BUILD"}
     inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
+    # A3 (W-e2af3303): the pinned key reaches the built manifest; a store build leaves it out.
+    keygen = subprocess.run(["pnpm", "keygen"], cwd=ext, capture_output=True, text=True, timeout=60)
+    assert keygen.returncode == 0, keygen.stderr
     build = subprocess.run(
-        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400, env=dev_env
     )
     assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
-    assert manifest["permissions"] == ["storage", "activeTab", "contextMenus"]
+    assert manifest["key"] == (ext / "extension-key.pub").read_text().strip()
+    assert manifest["permissions"] == ["storage", "activeTab", "contextMenus", "alarms"]
+    assert "host_permissions" not in manifest
+    store = subprocess.run(
+        ["npx", "wxt", "build"],
+        cwd=ext,
+        capture_output=True,
+        text=True,
+        timeout=400,
+        env={**os.environ, "STORE_BUILD": "1"},
+    )
+    assert store.returncode == 0, f"store build failed:\n{store.stderr[-2000:]}"
+    store_manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
+    assert "key" not in store_manifest
+    # restore the dev build the assertions below read
+    build = subprocess.run(
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400, env=dev_env
+    )
+    assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
+    manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
     # The custom command seam is registered (not the reserved _execute_action).
     assert "open-settings" in manifest.get("commands", {})
     assert manifest["default_locale"] == "en"

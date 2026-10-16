@@ -158,9 +158,7 @@ def render_block(category: str, counts: dict, today: str) -> str:
         lines.append(
             f"| **Kilo CLI** | {kilo_total:,} | of which **{both:,}** dual-routed with OR, **{kilo_only:,}** Kilo-only |"
         )
-        lines.append(
-            f"| **DashScope** (direct) | {ds:,} | specialist routes (e.g. `qwen-mt-turbo`) |"
-        )
+        lines.append(f"| **DashScope** (direct) | {ds:,} | specialist routes (e.g. Qwen-MT) |")
         lines.append(f"| **SiliconFlow** (direct) | {sf:,} | specialist routes (e.g. Hunyuan) |")
         lines.append(
             f"| **ModelScope** (direct) | {ms:,} | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |"
@@ -198,7 +196,10 @@ def render_block(category: str, counts: dict, today: str) -> str:
         lines.append(_kv("translation-scored (any gateway)", counts["with_translation"]))
         lines.append("")
         lines.append(
-            "Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser)."
+            "Dedicated MT: Qwen-MT on DashScope, its flash tier `qwen-mt-flash` (Alibaba no longer updates the turbo "
+            "tier the catalog still routes). The bake-off's ranking (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO) "
+            "was measured on turbo and flash has no score yet: score it in the hub's bake-off before relying on it "
+            "for a pair."
         )
         return "\n".join(lines)
 

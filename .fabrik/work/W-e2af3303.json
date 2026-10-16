@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-02T16:59:46.525563Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "f4f83e0b9ff08efc9b3933760290d923aef7ac1c",
   "id": "W-e2af3303",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

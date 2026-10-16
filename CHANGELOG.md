@@ -14,6 +14,136 @@ template's `shape:` block (D-908), because the deployer writes `spec["env"]` int
 same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
 fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
 next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+### Fixed — a hub builder whose turn died on a network error resumes on its own once the API answers (2026-10-16)
+
+On 2026-10-15 infra, fleet and kaizen sat dead ~40 min after `EAI_AGAIN` until the operator poked them
+(D-897). StopFailure had fired, but the stop decider recognised only five mid-stream death texts; "Can't
+reach the API server" was not one of them, so a pending background task or subagent ruled each death
+"busy" and its death record was cleared. The box-local decider (`~/.claude/bin/claude-stop-decider.py`)
+now treats an `isApiErrorMessage` tail whose `error` is `server_error` as a death — the CLI's class for
+every transient server/network failure, 11 of whose 13 texts the list missed — while quota, auth and
+invalid-request errors and two configuration walls stay as they were; the record keeps its `server_error`
+class. The self-watch wakes only after three consecutive API answers and keeps the record fresh during a
+long outage. Graders: the decider's `--self-test` and `claude-mesh-test.sh`, red first. W-5279e834.
+
+### Fixed — a closed run folder still being written into is no longer swept after 30 minutes (2026-10-16)
+
+Kaizen lost an audit brief and a pin folder mid-run (mail 01M4ZVBX96). Its transcript shows the
+folder belonged to a run it had closed 41 minutes earlier and kept writing into: a `start | head -1`
+hid the new run's RUN-SCRATCH line. The sweep gave the closed folder the 30-minute fast grace, because
+only a seat transcript written after a close counted as use. Now `scratch_sweep.py` also reads the
+folder's own mtime: an entry created or removed in it more than 5 s after the close keeps it for the
+36 h grace, counted from that change, and the removal step re-checks it. A stacked parent's folder was
+never at risk (its marker stays `running`); a grader now pins that too. W-9f3f097c.
+
+### Added — Accept / Reject / comment per work item and a tag filter on the dashboard's Repos tab (2026-10-15)
+
+Operator 2026-10-15: "i want a way to accept or reject them manually also add a comment next to them".
+`work.py verdict [--text] [--by] -- <id> accept|reject|comment` is the operator's verb (no agent name and
+no Claude session id): every call lands in the item's new `comments` list; accept answers a waiting
+decision or lifts the `waits-operator-review` hold (tag `operator-accepted`), reject answers a decision or
+drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `POST /item-verdict` (the
+Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
+refresh waits while a comment is being typed. W-e1f1a1bd.
+
+### Changed — /fabrik-plan-after-chat: a spec-fed plan executes the spec's claims about its own repo (2026-10-15)
+
+`commands/_sources/fabrik-plan-after-chat.md` Phase 0.5 adds (c) to a spec-fed plan's verification: each claim
+the spec makes about the repo the plan builds in — a derivation, count or population, a claimed pin — is run
+before the plan or a grounder brief relies on it, and a pin counts only as a test named by `path:line` that goes
+red when the rule is neutered in a throwaway worktree. Answers row 1792013569, the third verdict on the subject
+(three grounder briefs relied on a pin that did not exist); pinned by `tests/test_plan_after_chat_queue_pass.py`.
+
+### Changed — /fabrik-conformance-review: the ledger lists its Per-phase verdicts section (2026-10-15)
+
+`commands/_sources/fabrik-conformance-review.md`: the ledger's contents list (now FOUR things from the start) and
+OUTPUT's ledger line name a `## Per-phase verdicts` section with one `### Phase <n> — <title>` heading per phase —
+a ledger written to the old list had no Phase/Step heading, and `check_convergence.py` fails a finished-claiming
+review without one ("no per-phase verdict"). Answers row 1792066693; pinned by
+`tests/test_conformance_review_queue_pass.py`, which runs the gate's own `PHASE` pattern on the heading the source
+prescribes.
+
+### Added — dashboard: Pause and Resume buttons per agent (2026-10-15)
+
+- Every agent row the board can act on (an agent name, in a repo with a work store) has **Pause**, or **Resume** with "paused by X, N ago" (W-7159f8e2 part 3, operator 2026-10-15).
+- The button confirms first, then calls `POST /agent-pause`. That runs the hub's `work.py pause/resume` against the row's repo as the operator: the child gets an allowlisted environment, because the live server was measured carrying an agent identity, and `GIT_DIR` would redirect `--repo`.
+- The endpoint takes only pairs the board rendered, behind the same custom-header guard as `/switch`.
+- A repo whose own `work.py` has not synced the verb yet is marked "not honoured here".
+
+### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
+
+`commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its
+fractional part (the tool matches exact strings); § Drive grounding reads the decisions or binding-constraints
+section of each spec the command cites, beside `docs/DECISIONS.md`; PHASE 3 says a recipe held in a template literal
+or an escaped string is pointed at by name, never handed over to be pasted. Answers rows 1792084693, 1792070803 and
+1792087460, each a recurrence of a held subject; pinned by `tests/test_command_improve_queue_pass.py`.
+
+### Changed — chrome-ext pack: § Distribution Model names the release kit the scaffold ships (2026-10-15)
+
+`.windsurf/rules/chrome-ext/70-chrome-ext.md` now says that for the developer-mode channel a chrome-extension
+scaffold ships the release kit (D-893) — `pnpm keygen`, `make release-ext` with its refusal gate, `GET
+/extension/latest` and exact-ID CORS — so an agent no longer hand-builds what the scaffold wrote; a developer-mode
+repo scaffolded before the kit still builds them by hand. Intel's mail
+01M506XR5W (W-4a4a8792); pinned against a fresh scaffold by
+`tests/test_chrome_ext_pack.py::test_the_pack_names_the_release_kit_the_scaffold_ships`.
+
+### Added — check_review_hygiene reports a split pipe table (2026-10-15)
+
+- `scripts/enforcement/check_review_hygiene.py` gains the advisory `split-table` class: a table row after the blank
+  line, HTML comment or fence that ended its table by accident, which GFM renders as a headerless paragraph
+  (iterative_image_editor, mail 01M3WZKG2S; W-b9c91cc5). One hit per split region, never blocking. It fires 9 times
+  in 9 of the hub's 2,109 tracked `.md` files, every one a real split, and 5 times in 5 of the 275-receipt corpus.
+  The review also fixed the line cursor, which bound a row repeating its header's text to the header.
+
+### Fixed — gateway counts name Qwen-MT's flash tier, not the frozen turbo (2026-10-15)
+
+- `scripts/kilo-benchmarks/update_gateway_counts.py` no longer writes `qwen-mt-turbo` into the ai/00 and ai/30
+  GATEWAY_COUNTS blocks: Alibaba no longer updates the turbo tier (research ledger row tr-06). The language block names
+  `qwen-mt-flash` and says the bake-off ranking was measured on turbo; the master row's example is generic, because
+  the catalog's one DashScope route is still turbo. `tests/test_language_pack.py` grades every rendered category
+  (W-7450f4b6). The pack blocks change on the next render, which D-430 keeps paused.
+
+### Added — work.py: pause and resume an agent; the queue floor, triage and every Stop rung honour it (2026-10-15)
+
+- `work.py pause <name> [--why] [--by]` / `resume <name>` (W-da4bc702). The pause is a marker in the repo's shared `fabrik-work/paused/`, so every tree sees it at once with no commit; `pause` alone lists the pauses.
+- A paused agent:
+  - gets a null Stop action (only the main checkout's `commit-items` survives), so a held claim is kept and nothing is lost;
+  - is skipped by the coordinator's floor rung and by `triage`;
+  - sees "PAUSED by …" in its prompt block, with no ready line;
+  - auto-claims nothing from its `NEXT:` line.
+- A worker's doorbell skips a paused coordinator and says so.
+- Who may act:
+  - Pause: the distributor, the agent itself, or the operator (a shell or the dashboard, with no agent name and no Claude session id).
+  - Resume: whoever set the pause (checked by the agent name recorded in the marker, never the `--by` label), the distributor, or the operator.
+  - An unnamed Claude session is refused, and a paused agent cannot re-pause or lift another's pause.
+- Markers are read only when they are regular files of at most 4 KiB. Any other entry pauses by presence and is removed by hand.
+- This is the half of the dashboard's Pause/Resume buttons that lives in `work.py`. The hook's merge-owner cause does not read a pause.
+
+### Added — dashboard: an Agents table for every repo, and a Repos page that keeps itself up to date (2026-10-15)
+
+- `/repos.html` opens with "Agents — every repo" (W-7159f8e2, operator 2026-10-15). It shows one row per agent, with:
+  - a coloured state: working · idle · stale · no window;
+  - NOW: the command, phase and surface;
+  - the item the agent holds and its next three items, each id with its plain-language title beside it;
+  - its last merge, or "merge owner".
+- The table is read by the new `scripts/agent_status.py --json --all` (`collect_box`) from records that already exist:
+  - the live process table — each window named by `CLAUDE_AGENT`, else its worktree, else the main checkout's recent run record;
+  - run records of that repo from the last 7 days;
+  - claim holders.
+
+  Identity bindings never vouch for a live window: 0 of 29 had a live pid while 8 windows were up. Older agents are counted as dormant.
+- The page swaps its `#live` part in place every 20 s, keeping the scroll position, the picked repo, the owner chip and opened sections.
+  - It pauses while the browser tab is hidden, while another dashboard tab is shown, while the picker is focused, and while text is selected.
+  - The stamp says how old the figures can be.
+- An unowned awaiting-operator item is now grouped under `operator`, no longer under "(unassigned)".
+
+### Fixed — docs: why WSL cannot resolve registry.npmjs.org, and the one-line resolver fix (2026-10-15)
+
+- New `docs/TROUBLESHOOTING.md` § DNS Issues entry (W-f0fd555a, recurrence of W-478049bc). Measured cause: the npm registry's 12 A + 12 AAAA answer exceeds 512 bytes, glibc queries without EDNS so the reply is truncated and retried over TCP, and outbound TCP/53 is blocked to every resolver. The fix is `edns0` on `/etc/resolv.conf`'s options line (the file is immutable, so `chattr -i`/`+i` around the `sed`), proven first with `RES_OPTIONS=edns0`. Applying it is an operator gate.
+
+### Fixed — scratch_sweep: a NaN or bool `created` no longer slips past the gap and trash-time checks (2026-10-15)
+
+- `gap_keeps` kept on a missing or non-numeric `created` (D-878's keep-on-doubt) but not on NaN: it passed the type guard and every comparison with it read False, so a gap was dropped (W-a39d4c86, fleet 01M505J6KG). A `.trash-*` marker with a bool `created` passed `isinstance(int | float)` and skipped the folder-ctime fallback, so every permanent same-uid daemon's gap kept it (fleet 01M505VVEJ). One `_usable_time` guard (a number, not a bool, finite) now backs both, and the two duplicated trash fallbacks are one `_created_for`. The `gap_keeps` Cobra note now names the real attack — forward-dating `created` inside the clock margin, not backdating it (backdating keeps more). Tests: three new, red first (NaN through a gap; the trash fallback for bool, NaN, missing and text; the Cobra direction pinned).
 
 ### Fixed — the deployer stages remote files through `mktemp`, not a predictable /tmp name (2026-10-15)
 
@@ -28,6 +158,23 @@ next apply provisions nothing new. A template name that resolves outside `templa
 ### Fixed — scratch_sweep: a close time the run marker cannot vouch for is doubt, never a past close (2026-10-15)
 
 - `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin, or when `closed_at` lies in the future; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: any `closed_at` between `created` minus the margin and now minus the grace is believed, so a co-clobber of both fields within the margin (`created` 0 and `closed_at` 0) still reads as a past close. So a legitimate run is not kept for ever, `command_run.py`'s close re-stamps a missing, non-finite or future `created` with the run's true start (`started_epoch`), never `now` (which would strip `gap_keeps`' protection from the run's writers), and leaves it unknown when no start is known; `--retire` invents no creation time and says when every sweep will keep the folder; the size report names a `done` folder whose close cannot be vouched for. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (7 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control and a vouched margin edge), the heal, retire, report and zero-close-reason tests.
+
+### Changed — review catalogue: a hand-written seat brief sends seats to the pin-import recipe (2026-10-15)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation: a brief the lead writes itself tells each seat to
+read and follow `PIN_IMPORT` (and `PYTEST_PINS` for pytest) in `.claude/workflows/fabrik-review-loop.js`, giving the
+values its placeholders stand for, and carries no import recipe of its own — a pins dir on `sys.path` alone, or
+pytest's `--rootdir` at a copy, imports the live checkout's installed package. § Seat isolation now binds every brief
+that runs tests or imports pinned code (the catalogue header and `/fabrik-review-scoped`). Answers /fabrik-review-scoped
+rows 1792082763 and 1792081436, the 15th and 16th on the subject; pinned by
+`tests/test_review_scoped_queue_pass.py::test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too`.
+
+### Changed — plan execution: an operator-owned gate step ends behind a gate DECISION, closed handoff (2026-10-15)
+
+Both contracts' plan-execution override and `/fabrik-execute-plan`'s halt rule, close list and first non-negotiable: a step the plan assigns to the
+operator under a § FINAL OUTPUT gate token (a deploy or production-data window) is no halt and no deferral — the
+run ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase.
+D-903 (Opus + Fable panel). Pinned by `tests/test_governance_template_split.py::test_a_plan_step_the_operator_owns_ends_behind_a_gate_block_in_both_contracts_and_the_command`.
 
 ### Changed — /fabrik-review: the test-quality checklist names a fixture that IS the code's own constant (2026-10-15)
 
@@ -73,6 +220,30 @@ STOPS' "prefer the PRODUCING tool's own total"); a red call's fix that moves a f
 input first, a committed message corrected in the fix commit's own message, never by an amend. Answers
 /fabrik-review row 1792054246 ("I wrote 13 for a 37-entry tuple") and the five held near-synonyms before it.
 Pinned by `tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled`.
+
+### Added — chrome-extension scaffold ships a developer-mode release kit (2026-10-15)
+
+- Every new chrome-extension project gets the kit of `docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md`
+  (W-e2af3303, plan `docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md`, approval D-893):
+  - `pnpm keygen` (`extension/scripts/keygen.mjs`, `node:crypto` only) mints the signing key once. The private key
+    goes to `.keys/` (0600, gitignored) and the `.pub` is committed. The pinned `manifest.key` gives a stable ID;
+    `STORE_BUILD=1` omits it. It never mints over a committed `.pub` and refuses a `.pub` that does not match the
+    `.pem`.
+  - `make release-ext` refuses unless:
+    - the `.pub` is committed and is a real public key;
+    - the tree is clean;
+    - the version is one Chrome accepts;
+    - the `VITE_PUBLIC_API_URL` the build will use is `https://`, resolved exactly as WXT's `loadEnv` resolves it.
+
+    It then zips, writes the SHA-256 beside the zip, copies `extension/INSTALL.md`, and prints the four backend
+    values. It publishes nothing.
+  - The extension asks `GET /extension/latest` at start, on install and update, and every 6 hours. It badges the action and
+    shows a banner when a newer version is published, clears it when the release is withdrawn (404), and validates
+    the response as untrusted input.
+  - The backend serves `/extension/latest` from `EXTENSION_LATEST_*` (404 until all three are set, `no-store`).
+  - The backend admits CORS from exactly `chrome-extension://<EXTENSION_ID>`, closed by default.
+    `CORS_ALLOW_ANY_EXTENSION=1` is a local-only opt-in. The Traefik CORS middleware is removed from both compose
+    paths, and the four values reach the container as `${VAR:-}` env lines.
 
 ### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
 

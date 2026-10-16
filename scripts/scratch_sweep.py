@@ -54,6 +54,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeGuard
 
 # ── the refusal set — printed verbatim by --help and by every apply run (constraint 2) ──────────
 REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and by every --apply run):
@@ -500,6 +501,11 @@ def classify_run_folder(f: RunFacts, now: float) -> tuple[str, str]:
 # ── run-bound scratch: gathering the facts and consuming (plan Phase B, D3 and D4) ─────────────
 RUN_LOCK_NAME = ".run-folders.lock"  # beside scratchpad/, never inside it (P3)
 GAP_CLOCK_MARGIN_S = 300.0  # WSL's clock can jump after a suspend — a margin on the safe side
+# A run folder's own mtime later than its close by more than this: an entry was created or removed in
+# it after the close — still in use (W-9f3f097c). The close's own marker write (tmp + os.replace)
+# lands about 0.1 ms after `closed_at` (measured over 200 closes: median 0.1 ms, tail ~10 ms); never
+# GAP_CLOCK_MARGIN_S, which would hide a write made minutes after a close.
+WRITE_AFTER_CLOSE_MARGIN_S = 5.0
 
 
 def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | None]:
@@ -528,26 +534,52 @@ def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | N
     return out
 
 
+def _usable_time(value: object) -> TypeGuard[float]:
+    """A marker time a comparison can use: a number, not a bool (`True` is an int), and finite (NaN
+    passes a type guard and every comparison with it reads False) — W-a39d4c86. An int always compares
+    exactly, so it is usable at any size (`math.isfinite` raises OverflowError on one no float holds)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return isinstance(value, int) or math.isfinite(value)
+
+
+def _created_for(folder: Path, owner: dict | None) -> object:
+    """The `created` a gap is judged against. A `.trash-*` whose marker carries no usable one (an
+    interrupted rmtree may have taken it) falls back to the folder's ctime: its last entry change —
+    the rename that made it, or later if an interrupted rmtree unlinked entries since. Either way it
+    is at or after the moment the folder was judged CONSUMED, so a process that started before it
+    never owned the run (INV-2)."""
+    created = (owner or {}).get("created")
+    if folder.name.startswith(TRASH_PREFIX) and not _usable_time(created):
+        with contextlib.suppress(OSError):
+            created = folder.lstat().st_ctime
+    return created
+
+
 def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
     """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED at or after
     the folder's marker was written (less the clock margin): a process already running before the
     run began cannot be one of its writers, and this box carries three such daemons permanently
     (sd-pam, gpg-agent, a setuid fusermount3), which kept every folder for ever under the spec's
-    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric or future
-    `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
+    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric, non-finite or
+    future `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
 
-    Cobra (D-253): the cheap way to make this keep nothing is to backdate or drop `created`; a
-    missing or non-numeric `created` therefore KEEPS, and a test pins each case.
+    Cobra (D-253): an EARLIER `created` makes every gap read newer and so keeps more; the cheap way
+    to make this keep nothing is to move `created` LATER than the run's true start — to the present,
+    or forward inside the clock margin (further ahead is "future" and keeps). Residual: any `created`
+    in (true start, now + margin] is indistinguishable from a younger run or clock skew, so this rule
+    cannot see it; the writers that heal a marker therefore stamp the run's true start (D-902).
+    Dropping `created`, or making it NaN, a bool or text, KEEPS; a test pins each case (W-a39d4c86
+    corrected the direction this note first named).
     """
     if not starts:
         return False
-    if (
-        not isinstance(created, int | float)
-        or isinstance(created, bool)
-        or created > now + GAP_CLOCK_MARGIN_S
-    ):
+    if not _usable_time(created) or created > now + GAP_CLOCK_MARGIN_S:
         return True
-    return any(s is None or s >= created - GAP_CLOCK_MARGIN_S for s in starts)
+    # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
+    # (exact for any size), never converted to a float by arithmetic (OverflowError)
+    # an unusable start (None, or NaN from a NaN boot time) is an UNKNOWN start: INV-1 doubt keeps
+    return any(not _usable_time(s) or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
@@ -743,13 +775,15 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
     (`command_run._mark_run_scratch`, `_retire`) stamp a missing `created`, so a legitimate run
     is never kept for ever by this rule.
     """
-    if not isinstance(created, int | float) or isinstance(created, bool):
+    if not _usable_time(created):  # missing, text, a bool, or NaN/±inf (W-a39d4c86's one guard)
         return False
     if created > now + GAP_CLOCK_MARGIN_S:
         return False
     if closed_at > now + GAP_CLOCK_MARGIN_S:
         return False  # a close in the future is no close; kept either way, but the report names it
-    return closed_at >= created - GAP_CLOCK_MARGIN_S
+    return (
+        closed_at + GAP_CLOCK_MARGIN_S >= created
+    )  # compared, never converted: a huge int is exact
 
 
 def _done_close_is_vouched(owner: dict, now: float) -> bool:
@@ -758,6 +792,37 @@ def _done_close_is_vouched(owner: dict, now: float) -> bool:
     if not isinstance(closed, int | float) or isinstance(closed, bool):
         return False
     return _close_is_vouched(owner.get("created"), float(closed), now)
+
+
+def _written_after_close(folder: Path, closed_at: float, now: float) -> float | None:
+    """When an entry was created or removed in ``folder`` after its close: the folder's own mtime
+    (its last top-level change), else None. Doubt answers ``closed_at`` — the long grace from the
+    close, bounded: an unreadable stat, and an mtime further ahead of ``now`` than the clock margin
+    (a `touch -d` or a clock jump would otherwise keep the folder until that future date). One stat,
+    never a walk — so a write that only modifies an existing file, or lands inside an existing
+    subfolder, is not seen (W-9f3f097c, stated in docs/workstation/cleanup-automation.md)."""
+    try:
+        mtime = folder.stat().st_mtime
+    except OSError:
+        return closed_at
+    if not math.isfinite(mtime) or mtime > now + GAP_CLOCK_MARGIN_S:
+        return closed_at
+    return mtime if mtime > closed_at + WRITE_AFTER_CLOSE_MARGIN_S else None
+
+
+def _in_use_since_close(folder: Path, owner: dict | None, now: float) -> bool:
+    """The removal-time re-check of the write-after-close rule: a `done` folder whose last top-level
+    change is still inside the long grace. Re-applies the rule, never compares two mtimes — a folder
+    consumed because its last write is itself past the grace still goes."""
+    if folder.name.startswith(TRASH_PREFIX):
+        return False  # the judge consumed it by name alone ("left by an interrupted removal")
+    raw = (owner or {}).get("closed_at")
+    if (owner or {}).get("state") != "done" or not isinstance(raw, int | float) or isinstance(raw, bool):
+        return False
+    if not math.isfinite(raw):
+        return False
+    written = _written_after_close(folder, float(raw), now)
+    return written is not None and now - max(float(raw), written) < _grace_ceiling_s()
 
 
 def judge_run_folder(
@@ -780,12 +845,7 @@ def judge_run_folder(
     p = str(folder)
     is_held = p in held or os.path.realpath(p) in held
     owner = read_owner(folder)
-    created = (owner or {}).get("created")
-    if folder.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
-        # a `.trash-*` whose marker an interrupted rmtree already took: the rename that made it set
-        # its ctime, the moment it was judged CONSUMED — a process older than that never owned it
-        with contextlib.suppress(OSError):
-            created = folder.lstat().st_ctime
+    created = _created_for(folder, owner)
     gap = gap_keeps(gaps, created, now)
     if folder.name.startswith(TRASH_PREFIX):
         # already judged CONSUMED before the crash that left it — only a holder can keep it now
@@ -817,9 +877,20 @@ def judge_run_folder(
         if state == "done" and closed_at is not None
         else None
     )
+    # W-9f3f097c: an entry made in the folder after its close is a folder still in use — the long
+    # grace, counted from that last top-level change rather than from the close
+    grace_from = closed_at
+    written = (
+        _written_after_close(folder, closed_at, now)
+        if state == "done" and closed_at is not None
+        else None
+    )
+    if written is not None and closed_at is not None:
+        seat = True
+        grace_from = max(closed_at, written)
     facts = RunFacts(
         state=state if isinstance(state, str) else None,
-        closed_at=closed_at,
+        closed_at=grace_from,
         heartbeat_age_s=heartbeat_age,
         session_dead=session_dead,
         held=is_held,
@@ -831,6 +902,11 @@ def judge_run_folder(
         seat_write_after_close=seat,
     )
     verdict, reason = classify_run_folder(facts, now)
+    if written is not None and closed_at is not None and reason.startswith(("done, closed", "closed")):
+        if written != closed_at:  # the grace ran from the last write: say so, never "closed"
+            reason = reason.replace("closed", "last written", 1) + " (written into after its close)"
+        else:
+            reason += " (its folder's time could not be trusted — the long grace)"
     evidence = _marker_fingerprint(folder)
     if verdict == "consumed":
         inside, regs, ok = _worktrees_under(folder, str((owner or {}).get("repo") or ""))
@@ -930,10 +1006,10 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
         if (path / KEEP_FILE).exists():
             print(f"KEPT {r.path} — a {KEEP_FILE} appeared since classification", file=out)
             continue
-        created = (owner or {}).get("created")
-        if path.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
-            with contextlib.suppress(OSError):
-                created = path.lstat().st_ctime
+        if _in_use_since_close(path, owner, _now()):
+            print(f"KEPT {r.path} — written into since its close (W-9f3f097c)", file=out)
+            continue
+        created = _created_for(path, owner)
         if gap_keeps(starts_now, created, _now()):
             print(f"KEPT {r.path} — an unreadable process appeared since classification", file=out)
             continue

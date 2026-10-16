@@ -276,6 +276,9 @@ def _run_folder(
         }
         (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
         _age(folder / ".owner", heartbeat_ago)
+    # the folder's own mtime is a write-after-close signal (W-9f3f097c): a fixture leaves it at its
+    # close, or the real clock passing the seam's NOW would read every fixture as written into since
+    _age(folder, max(closed_ago or 0.0, heartbeat_ago))
     return folder
 
 
@@ -501,6 +504,92 @@ def test_the_dead_rule_consumes_a_stale_running_folder_the_own_session_keeps(
     assert sdir.exists(), out  # the run pass alone removed it
 
 
+def test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W-9f3f097c (kaizen 01M4ZVBX96, measured): an agent kept writing into the folder of a run it
+    had CLOSED (a `start | head -1` hid the new run's RUN-SCRATCH line); 41 min after the close, with
+    no seat transcript written since, the fast 30-min grace consumed it with the files just made. An
+    entry created after the close (the folder's own mtime past it) is a folder still in use: the
+    long grace. The control — the same close with nothing made since — still goes."""
+    sdir = _session(harness)
+    used = _run_folder(sdir, "used", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    (used / "ep-audit.md").write_text("brief", encoding="utf-8")
+    _age(used / "ep-audit.md", 60)
+    _age(used, 60)  # the new entry moved the folder's mtime to a minute ago
+    idle = _run_folder(sdir, "idle", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(idle / "f0", 41 * 60 + 5)
+    _age(idle, 41 * 60)  # nothing made since the close
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert used.exists() and (used / "ep-audit.md").exists(), out
+    assert not idle.exists(), out
+
+
+def test_the_write_after_close_margin_and_the_removal_recheck(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The signal's edges: an entry just past the margin keeps and the close's own marker write alone
+    does not; the long grace runs from the LAST top-level change, not the close; an entry made between
+    classification and removal keeps the folder."""
+    margin = sw.WRITE_AFTER_CLOSE_MARGIN_S
+    assert 0 < margin <= 5  # never the 300-s clock margin: a write 2 min after a close must count
+    sdir = _session(harness)
+    past = _run_folder(sdir, "past", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(past, 41 * 60 - margin - 1)  # one second past the margin
+    within = _run_folder(sdir, "within", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(within, 41 * 60 - margin + 1)  # the close's own write lands inside the margin
+    recent = _run_folder(sdir, "recent", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    _age(recent, 35 * HOUR)  # written 5 h after a close 40 h ago: 35 h < 36 h from that write
+    stale = _run_folder(sdir, "stale", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    _age(stale, 37 * HOUR)  # its last write is itself past the long grace
+    edge = _run_folder(sdir, "edge", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(edge, 41 * 60 - margin)  # exactly at the margin: not past it
+    later = _run_folder(sdir, "later", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(later, 39 * 60)  # an entry made two minutes after the close counts
+    planned = {Path(r.path).name.split("-2026")[0]: r.cls for r in sw.plan_run_folders([sdir], NOW)}
+    assert planned["run-recent"] == "kept"  # the judge itself counts the grace from the last write
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert past.exists() and recent.exists() and later.exists(), out
+    assert not within.exists() and not stale.exists() and not edge.exists(), out
+    late = _run_folder(sdir, "late", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert [r.cls for r in rows if r.path == str(late)] == ["consumed"]
+    _age(late, 30)  # an entry made after the sweep judged it, before the removal
+    sw.apply_run_rows(rows, out=io.StringIO())
+    assert late.exists()
+
+
+def test_the_write_after_close_signal_stays_bounded(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Review round 1: a folder mtime far in the future is doubt counted from the CLOSE (never a keep
+    until that date); a `.trash-*` leftover the judge consumed by name is never re-kept at removal; an
+    unreadable stat is doubt; only a `done` marker takes the re-check; the reason says "last written"
+    when the grace ran from a write."""
+    sdir = _session(harness)
+    future = _run_folder(sdir, "future", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    os.utime(future, (NOW + 10 * 365 * 86400, NOW + 10 * 365 * 86400))
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0 and not future.exists(), out  # 40 h past its close: the bounded doubt has ended
+    trash = sdir / "scratchpad" / ".trash-run-gone-2026-10-15T05-40-42-0300-0a1b2c"
+    trash.mkdir()
+    (trash / ".owner").write_text(json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8")
+    _age(trash, 10)  # an interrupted removal just unlinked entries
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert [r.cls for r in rows if r.path == str(trash)] == ["consumed"]
+    sw.apply_run_rows(rows, out=io.StringIO())
+    assert not trash.exists()
+    assert sw._written_after_close(sdir / "no-such-folder", NOW - 100, NOW) == NOW - 100
+    used = _run_folder(sdir, "used", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(used, 60)
+    assert not sw._in_use_since_close(used, {"state": "running", "closed_at": NOW - 41 * 60}, NOW)
+    assert sw._in_use_since_close(used, {"state": "done", "closed_at": NOW - 41 * 60}, NOW)
+    row = sw.judge_run_folder(used, SID_A, NOW, session_dead=False, held={}, gaps=[], probe_ok=True)
+    assert row.cls == "kept" and row.reason.startswith("last written 60s ago"), row.reason
+
+
 def test_only_own_session(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B3: `--run-folders --session A` touches A's directory and nothing under B's."""
     mine = _run_folder(_session(harness, SID_A), "mine")
@@ -626,6 +715,7 @@ def test_session_mode_governs_run_folders_by_marker(
     past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
     for f in (graced, resumable, past):
         _age_tree(f, 7 * HOUR)
+    _age(past, 40 * HOUR)  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
     monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
     rc, out = _main(capsys, "--session", SID_A, "--apply")
     assert rc == 0, out
@@ -1069,6 +1159,57 @@ def test_a_proc_gap_keeps_only_a_process_the_run_could_own(
         os.chmod(tmp_path / "gproc" / "4242" / "fd", 0o700)
     assert rc == 0, out
     assert folder.exists() is kept, out
+
+
+@pytest.mark.parametrize("created", [float("nan"), float("inf"), float("-inf"), True, None, "1000"])
+def test_an_unusable_created_always_keeps_through_a_gap(created: object) -> None:
+    """W-a39d4c86 (fleet 01M505J6KG): `gap_keeps` keeps on ANY unusable `created` (D-878's
+    keep-on-doubt). NaN passed the type guard and every `s >= NaN - margin` read False, so a NaN
+    kept nothing — the one unusable value that failed open."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+
+
+def test_gap_keeps_is_defeated_by_a_later_created_not_an_earlier_one() -> None:
+    """The Cobra direction the docstring names (fleet 01M505J6KG; review of 46b409cc9): an EARLIER
+    `created` makes every gap read newer and KEEPS; any `created` LATER than the run's true start —
+    the present, or forward inside the margin — drops a real gap. Pinned as the residual."""
+    assert sw.gap_keeps([NOW - 100], 0, NOW) is True  # backdated: keeps
+    assert sw.gap_keeps([NOW - 100_000], NOW + 200, NOW) is False  # forward-dated inside the margin
+    assert sw.gap_keeps([NOW - 3600], NOW, NOW) is False  # re-stamped to now: the residual
+
+
+def test_a_bool_created_keeps_even_against_an_old_start() -> None:
+    """Review of 46b409cc9 (haiku T3): `True` reads as 1, so against a recent start a missing bool
+    guard still kept by accident; against a start older than 1 the guard is the only thing keeping."""
+    assert sw.gap_keeps([-1000.0], True, NOW) is True
+
+
+def test_a_nan_start_is_an_unknown_start_that_keeps() -> None:
+    """Review of 46b409cc9 (haiku C1): a gap whose start is NaN (a NaN `SCRATCH_SWEEP_BTIME` makes
+    every start NaN) is an unknown start like `None` — INV-1 doubt keeps — never a dropped gap."""
+    assert sw.gap_keeps([float("nan")], NOW - 100_000, NOW) is True
+
+
+@pytest.mark.parametrize("created", [10**400, -(10**400)])
+def test_a_huge_integer_created_is_compared_never_a_crash(created: int) -> None:
+    """Review of 46b409cc9: `math.isfinite` raises OverflowError on an int no float can hold; an int
+    always compares exactly, so it is usable — never a crash (both keep: one is future, one is old).
+    The D-900 vouch reads the same `created` and compares it the same way."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+    assert sw._close_is_vouched(created, NOW - 100_000, NOW) is (created < 0)
+
+
+@pytest.mark.parametrize("created", [True, False, float("nan"), None, "x"])
+def test_a_trash_folder_with_an_unusable_created_falls_back_to_its_rename_time(
+    created: object, tmp_path: Path
+) -> None:
+    """W-a39d4c86 (fleet 01M505VVEJ): a `.trash-*` marker whose `created` is not a usable time falls
+    back to the folder's ctime (the rename that made it). A bool passed `isinstance(int | float)`
+    and skipped the fallback, so the folder was kept by every permanent same-uid daemon's gap."""
+    trash = tmp_path / f".trash-x{KEY}"
+    trash.mkdir()
+    got = sw._created_for(trash, {"created": created})
+    assert got == trash.lstat().st_ctime, got
 
 
 def _one_pid_proc(tmp_path: Path) -> Path:
