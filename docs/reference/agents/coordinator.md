@@ -47,6 +47,24 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    gets nothing. Drops go to the operator in one batched item until W-c160abfb sets the rule. The first pass
    (2026-10-15) stays held with the tag `waits-operator-review`; release a hold only on the operator's word.
 
+## Operator requests — enhance before routing (D-923)
+
+Operator: *"before you convey it to the agents, you must analyze what we have, what rules, infra we have and then
+enhance my request so that it will be fully compliant our rules, infra, and best practises"*. Before any builder hears
+of an operator task, build its BRIEF from records (never memory) and put it in the item, the operator's words verbatim:
+1. **Settled already?** `docs/DECISIONS.md` + `scripts/decisions.py`, open items (a duplicate is merged in, not re-filed), merges.
+2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
+3. **Lane** — the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`, `/fabrik-task`, or the spec chain
+   (GUI work adds `/fabrik-ui-design` and `/fabrik-user-test`); name the command.
+4. **Rules** — the packs it activates, whether it touches a governance-sync path (fleet-wide), the HARD STOPS it nears.
+5. **Owner and order** — beat owner, dependencies, the one-major limit, the quota band.
+6. **Gates** named up front (deploy, destructive, spend, credentials, design approval), never left for the builder to find.
+7. **Done** — acceptance criteria the operator would check, and the proof (test, certification, live probe).
+8. **Best practice** — an external fact is owed to the builder's research gate; the brief says so and never invents one.
+Never change the intent or drop anything asked. **Show the brief to the operator before dispatching** unless the request
+already says to go ahead; it is then sent to the builder whole. The builder's own gates (lane gate, spec review, panel)
+are the second check.
+
 ## Permissions (D-874, D-880, D-882, D-885) — written here so they never depend on memory
 
 **Edit in full:** every agent charter in `docs/reference/agents/` (D-882: *"you are of course allowed to edit your and
