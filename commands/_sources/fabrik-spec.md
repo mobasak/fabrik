@@ -145,7 +145,10 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
   it** in the spec — the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the
   error-code page beside the endpoint page when the design retries or re-sends, and a design that survives both
-  readings when two vendor pages contradict each other.
+  readings when two vendor pages contradict each other. A build-tool setting the design relies on (any bundler,
+  compiler, test-runner, package-manager or CI option, a config file's default included) is settled by a build you
+  run or by the tool's own source read through `gh` — its docs page locates the setting but never settles it — else
+  it is a named BLOCKING unknown.
 - **Local claims are executed, not cited:** every premise the brief states about the codebase, every mechanism
   the design relies on ("X fires", "Y catches this"), every design rule (an algebra, a classifier) and every
   runtime-state claim is EXECUTED this session, its command and output cited in the spec (a key, token or credential
