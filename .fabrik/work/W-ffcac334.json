@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 1,
   "score_reason": "operator 2026-10-16: bhdtrade urgent (D-921); the warning fires on every compliant certification run; one checker or command-text edit",
-  "status": "open",
+  "status": "done",
   "title": "WHAT: /fabrik-user-test tells the agent to write `<board>/runtime.md` (commands/_sources/fabrik-user-test.md, the \"RECORD how you started it\" bullet, rendered ~:254), and the same file says any other .md beside the spine \"flags BAD TICKET\" (~:359). scripts/enforcement/check_certification_coverage.py"
 }
