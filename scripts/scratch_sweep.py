@@ -638,6 +638,7 @@ def _seat_write_after_close(sid: str, closed_at: float, tx_dirs: list[Path] | No
 
 
 GIT_POINTER_SCAN_BUDGET = 200_000  # directory entries read at depths 0-3 before the scan stops
+SCAN_BUDGET_KEPT = "the .git pointer scan stopped at its budget — a worktree may be unseen"
 
 
 def git_pointer_files(folder: Path, max_depth: int = 3) -> list[Path]:
@@ -748,7 +749,7 @@ def _worktree_removable(entry: dict, regs: list[dict], repo: str) -> tuple[bool,
     if entry.get("unjudgeable") == "2":
         return False, "its marker's repository no longer resolves"
     if entry.get("unjudgeable") == "3":
-        return False, "the .git pointer scan stopped at its budget — a worktree may be unseen"
+        return False, SCAN_BUDGET_KEPT
     if entry.get("unjudgeable"):
         return False, "a worktree pointer the marker's repository does not list"
     if "locked" in entry:
@@ -953,6 +954,8 @@ def judge_run_folder(
         for wt in inside:
             removable, why = _worktree_removable(wt, regs, str((owner or {}).get("repo") or ""))
             if not removable:
+                if wt.get("unjudgeable") == "3":  # no worktree is known — the scan did not finish
+                    return Row(p, "run", "kept", SCAN_BUDGET_KEPT, why)
                 return Row(p, "run", "kept", f"holds a registered worktree {wt['worktree']}", why)
         if inside:
             reason += f"; its {len(inside)} worktree(s) are removable and go first"
@@ -1281,8 +1284,9 @@ def newest_mtime(
     removed or renamed — a file rewritten in place ten levels down never touches it, so an entry
     under active work read `stale` (measured; plan review pass 2).
 
-    ``skip_run_folders`` (the dead-session idleness walk, spec D4): a minted run folder (its name
-    matches `RUN_KEY_RE`) is never entered — it is classified from its marker alone, and walking a
+    ``skip_run_folders`` (the dead-session idleness walk, spec D4): a marker-governed run folder (a
+    direct child of `<entry>/scratchpad/` that passes `is_run_entry`) is never entered — only its
+    own mtime and `.owner` are read; it is classified from its marker, and walking a
     multi-GB seat copy spent the walk's budget, so a dead session read "cut short" and was never
     removed (W-c0a1d324 F9).
     """
@@ -1297,10 +1301,15 @@ def newest_mtime(
         def _boom(exc: OSError) -> None:
             raise exc
 
+        scratchpad = os.path.join(entry, "scratchpad")
         for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
-            if skip_run_folders:  # pruned in place, so `os.walk` never descends into them
-                runs = [d for d in dirnames if RUN_KEY_RE.match(d)]
-                dirnames[:] = [d for d in dirnames if not RUN_KEY_RE.match(d)]
+            if skip_run_folders and dirpath == scratchpad:
+                # ONLY the marker-governed run folders — a direct child of `<sid>/scratchpad/` the
+                # sweep judges by its `.owner` (`is_run_entry`). A run-named directory anywhere else
+                # (a copy, an agent's own) is ordinary content whose activity is the session's
+                # sign of life, so it is walked as before (W-c0a1d324 F9 review)
+                runs = [d for d in dirnames if is_run_entry(Path(dirpath) / d)]
+                dirnames[:] = [d for d in dirnames if d not in runs]
                 # ...but a live run's heartbeat is the session's sign of life: two stats per run
                 # folder (its own mtime and its `.owner`), never a walk — skipping them blind read a
                 # live session idle and removed its scratchpad entries
@@ -1398,6 +1407,9 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
         for r in run_rows
         if r.cls == "kept" and r.reason.startswith("holds a registered worktree")
     }
+    # a consumed folder too wide to scan is kept every night: the operator must SEE it, with the
+    # remedy it actually needs, or its bytes leak silently (W-c0a1d324 F2 review)
+    scan_kept = {r.path for r in run_rows if r.cls == "kept" and r.reason == SCAN_BUDGET_KEPT}
     for sdir in sid_dirs:
         if not sdir.is_dir():
             continue
@@ -1453,6 +1465,19 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
                         "state": state,
                         "why": f"done past its grace, kept: {worktree_kept[str(folder)]}",
                         "action": "remove or merge that worktree; the next sweep then removes the folder",
+                    }
+                )
+            elif str(folder) in scan_kept:
+                flagged.append(
+                    {
+                        "path": str(folder),
+                        "sid": sdir.name,
+                        "state": state,
+                        "why": f"done past its grace, kept: {SCAN_BUDGET_KEPT}",
+                        "action": (
+                            f"check it holds no worktree (git worktree list), then rm -rf {folder}; "
+                            "or raise SCRATCH_SWEEP_GIT_SCAN_BUDGET"
+                        ),
                     }
                 )
         left = min(60.0, budget_end - time.monotonic())

@@ -216,12 +216,14 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   is merged and clean, or detached, clean and contained in a ref — then `git worktree remove` first. A
   plain clone (a `.git` directory) is scratch. The pointer scan reads at most
   `SCRATCH_SWEEP_GIT_SCAN_BUDGET` (200 000) entries; a folder wider than that is KEPT ("the .git pointer
-  scan stopped at its budget") and a resume never moves it (W-c0a1d324).
+  scan stopped at its budget"), the size report lists it with that reason and a remedy, and a
+  resume never moves it (W-c0a1d324).
 - **Who removes:** `start` launches `--run-folders --session <sid> --apply` detached after its record
   lock drops (D3; a per-session `flock` at `<session dir>/.run-folders.lock`, never the global lock, so
   the nightly run is never skipped). `--dead --apply` consumes every session's run folders first (D4)
-  — the dead-session idleness walk never enters a run folder, it reads only each one's own mtime and
-  `.owner` heartbeat, so a live run still marks its session alive — and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
+  — the dead-session idleness walk never enters a marker-governed run folder (a direct child of
+  `scratchpad/`), it reads only each one's own mtime and `.owner` heartbeat, so a live run still marks
+  its session alive; a run-NAMED directory anywhere else is ordinary content and is walked — and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
   it — judged again after the run pass, so a folder the removal-time re-check kept keeps its directory
   too. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
   leaves them out. `--strict-proc` holds a `consumed` run folder back (`probe-error`) in session mode
@@ -233,7 +235,7 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
 - **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
   archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`), each seat measured under its own `du`
-  deadline; `--dead --apply` writes
+  deadline (`COMMAND_RUN_SEAT_DU_DEADLINE_S`, 10 s); `--dead --apply` writes
   `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
   folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook
   prints one `SCRATCH ALARM` line from it (or names it stale past 48 h, or a session too big to

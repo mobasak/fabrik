@@ -1350,6 +1350,54 @@ def test_a_worktree_pointer_anywhere_in_reach_keeps_the_folder(where: str, tmp_p
     assert sw.git_pointer_files(folder) == [pointer_dir / ".git"]
 
 
+def test_the_idleness_walk_skips_only_marker_governed_run_folders(tmp_path: Path) -> None:
+    """F9 review (W-c0a1d324): the walk skips a run folder that is a direct child of
+    `<sid>/scratchpad/` — never a run-NAMED directory elsewhere, whose deep activity is the
+    session's sign of life. Skipping that too read a live, pidless session dead."""
+    sdir = tmp_path / "sid"
+    nested = sdir / "scratchpad" / "work" / "run-x-2026-10-15T05-40-42-0300-0a1b2c" / "deep"
+    nested.mkdir(parents=True)
+    (nested / "f").write_text("fresh", encoding="utf-8")
+    governed = sdir / "scratchpad" / "run-y-2026-10-15T05-40-42-0300-0a1b2c" / "deep"
+    governed.mkdir(parents=True)
+    (governed / "g").write_text("fresh too, but marker-governed", encoding="utf-8")
+    for p in sorted(sdir.rglob("*"), reverse=True):
+        _age(p, 30 * DAY)
+    _age(sdir, 30 * DAY)
+    _age(nested / "f", HOUR)  # the one fresh write, an hour before the seam's NOW
+    budget = sw.WalkBudget(stats=10**6, deadline_s=30.0)
+    newest, complete = sw.newest_mtime(sdir, budget, skip_run_folders=True)
+    assert complete and newest > NOW - DAY, "the nested run-named dir's fresh file was skipped"
+    _age(nested / "f", 30 * DAY)
+    _age(governed / "g", HOUR)  # the governed folder's deep file is fresh: it is NOT read
+    newest, complete = sw.newest_mtime(
+        sdir, sw.WalkBudget(stats=10**6, deadline_s=30.0), skip_run_folders=True
+    )
+    assert complete and newest < NOW - 20 * DAY, "the walk entered a marker-governed run folder"
+
+
+def test_a_scan_budget_keep_is_reported_with_its_own_remedy(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """F2 review: a consumed folder too wide to scan is kept every night, so the size report names
+    it — with the scan's reason and a remedy, never as a folder "a worktree keeps"."""
+    sdir = _session(harness)
+    wide = _run_folder(sdir, "wide", files=50)
+    _age(wide / ".owner", 40 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET", "10")
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0 and wide.exists(), out
+    report = json.loads(_report_path(tmp_path).read_text(encoding="utf-8"))
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert wide.name in flagged, flagged
+    assert "scan stopped at its budget" in flagged[wide.name]["why"], flagged
+    assert "worktree" not in flagged[wide.name]["why"].split("kept:")[0], flagged
+    assert "SCRATCH_SWEEP_GIT_SCAN_BUDGET" in flagged[wide.name]["action"], flagged
+
+
 def test_the_git_pointer_scan_is_bounded_and_keeps_past_its_budget(
     harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
