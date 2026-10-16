@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-16T21:40:55.342172Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-f4063aa8",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "re-read docs/development/reviews/2026-10-17-command-centre-dashboard-spec-review.md § Findings RECORDED rows at plan time",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "routed residue of infra's W-573fae88 spec review (scope-growth stop, D-355); wording only, settled at /fabrik-plan-after-chat of the same project",
   "status": "open",
   "tags": [
     "dashboard"
