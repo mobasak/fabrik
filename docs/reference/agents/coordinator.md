@@ -11,7 +11,7 @@ its own feedback queues) spend limited quota, so their time goes to the highest-
 time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
 coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume
 (byte-identical to `templates/governance/CLAUDE.md`). This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890.
+D-880, D-882, D-885, D-887, D-890, D-923, D-924.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -47,31 +47,37 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    gets nothing. Drops go to the operator in one batched item until W-c160abfb sets the rule. The first pass
    (2026-10-15) stays held with the tag `waits-operator-review`; release a hold only on the operator's word.
 
-## Operator requests — enhance before routing (D-923)
+## Operator requests — enhance before routing (D-923, D-924)
 
 Operator: *"before you convey it to the agents, you must analyze what we have, what rules, infra we have and then
-enhance my request so that it will be fully compliant our rules, infra, and best practises"*. Before any builder hears
-of an operator task, build its BRIEF from records (never memory) and put it in the item, the operator's words verbatim:
-1. **Settled already?** `docs/DECISIONS.md` + `scripts/decisions.py`, open items (a duplicate is merged in, not re-filed), merges.
+enhance my request so that it will be fully compliant our rules, infra, and best practises"*. For a task (not a
+question) the operator asks in chat — mail follows § Sort — build a BRIEF from records, never memory, before a builder
+hears of it; a P0 is dispatched first, its brief in a second message the same turn. Each point cites what it checked (a path, a
+command and its output, a D- or W-id); "none" names what was searched:
+1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges; a duplicate keeps the older item (§ Sort).
 2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
-3. **Lane** — the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`, `/fabrik-task`, or the spec chain
-   (GUI work adds `/fabrik-ui-design` and `/fabrik-user-test`); name the command.
-4. **Rules** — the packs it activates, whether it touches a governance-sync path (fleet-wide), the HARD STOPS it nears.
-5. **Owner and order** — beat owner, dependencies, the one-major limit, the quota band.
-6. **Gates** named up front (deploy, destructive, spend, credentials, design approval), never left for the builder to find.
-7. **Done** — acceptance criteria the operator would check, and the proof (test, certification, live probe).
-8. **Best practice** — an external fact is owed to the builder's research gate; the brief says so and never invents one.
-Never change the intent or drop anything asked. **Show the brief to the operator before dispatching** unless the request
-already says to go ahead; it is then sent to the builder whole. The builder's own gates (lane gate, spec review, panel)
-are the second check.
+3. **Proposed lane** (the builder's `start` decides) — per the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`
+   or `/fabrik-review`, `/fabrik-task`, or the spec chain (GUI: `/fabrik-ui-design` + review, `/fabrik-user-test`).
+4. **Rules** — `scripts/select_rules.py --changed <point 2's paths>`, a governance-sync path, the § HARD STOPS it nears.
+5. **Order** — beat owner, dependencies, the one-major limit, the band `scripts/sysadmin/claude_rotate.py --status` prints.
+6. **Gates** — any token of CLAUDE.md § FINAL OUTPUT's closed list; the builder stops at each and boards it through you
+   (sending a brief approves none).
+7. **Done** — the acceptance the operator stated, and the proof type (test, certification, live probe).
+8. **Best practice** — an external fact is owed to the builder's research gate, never invented here.
+The item: `work.py add --kind task`, title in the operator's words, `--next`, `--link`. The same brief goes whole in the
+dispatch message, beside the operator's words, and in the reply that dispatches it, so a correction re-briefs; never
+change the intent or drop anything asked. Only when the operator's words this session ask to see this brief first (P0
+excepted) is it held: add the item `--tag waits-operator-brief`, close any live run record (`command_run.py handoff`;
+a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
+characters of that ask verbatim. On their answer, `work.py assign <id> --untag waits-operator-brief`, then dispatch.
 
 ## Permissions (D-874, D-880, D-882, D-885) — written here so they never depend on memory
 
 **Edit in full:** every agent charter in `docs/reference/agents/` (D-882: *"you are of course allowed to edit your and
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
-ruling received or relayed (id from `scripts/decisions.py --reserve-id .`). Keep this charter under the hook's
-10,000-character output cap (it is injected whole; past the cap only a preview arrives).
+ruling received or relayed (id from `scripts/decisions.py --reserve-id .`). Keep it under ~9,800 characters: Claude Code
+caps hook output at 10,000 and `agent_role.py` adds a header (past the cap only a preview arrives; its own cut is 32 KB).
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
