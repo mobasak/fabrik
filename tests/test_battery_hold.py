@@ -162,12 +162,20 @@ def test_arm_and_lift_never_disagree(box, monkeypatch):
     AC1 combination at 4%, one battery leg either holds or not — never both, and a lift only on
     mains."""
     monkeypatch.setattr(cr, "_QUOTA_HOT_THIS_TICK", None)
+    # the EXPECTED power, written out — never `_power_state` itself, which would grade a wrong rule
+    # against itself: a definite battery status wins, else AC1 decides (1 mains, 0 battery, else unknown)
+    by_ac = {"1": "mains", "0": "battery", None: "unknown"}
+    expected = {
+        **{("Discharging", ac): "battery" for ac in by_ac},
+        **{(s, ac): "mains" for s in ("Charging", "Full", "Not charging") for ac in by_ac},
+        **{(s, ac): want for s in ("Unknown", "Odd") for ac, want in by_ac.items()},
+    }
     for status in ("Discharging", "Charging", "Full", "Not charging", "Unknown", "Odd"):
         for online in ("0", "1", None):
             box.stamp.unlink(missing_ok=True)
             box.set_power(status, 4, online=online)
             cr._battery_leg(NOW, lift=True)
-            power = cr._power_state(status)
+            power = expected[(status, online)]
             if power == "battery":
                 assert box.stamp.read_text() == "0\nbattery\n", (status, online, "must hold")
             else:
