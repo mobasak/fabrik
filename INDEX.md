@@ -53,7 +53,8 @@
 | **docs/reference/research/2026-10-14-coordinator-role-ledger.md** | Every fact the research seat returned for the coordinator role (triage and interrupt roles, router/planner model tiers, WSJF and impact/effort, WIP limits, merge stewards), one row each with its disposition |
 | [2026-10-14-coordinator-role-design.md](docs/superpowers/specs/2026-10-14-coordinator-role-design.md) | CONVERGED spec (approved D-868): the coordinator role — one agent per multi-window repo that sorts mail, derives priority from impact x effort under the quota budget, assigns, merges and keeps the records' status correct, and never builds |
 | **docs/reference/research/2026-10-16-command-centre-dashboard-ledger.md** | Every fact the six research seats and the lead's own probes returned for the dashboard redesign (Baseline web features, WCAG 2.2 and APG, htmx and Jinja2, command-centre IA, confirm-vs-undo, responsive tables), one row each with its disposition |
-| [2026-10-16-command-centre-dashboard-design.md](docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md) | DRAFT spec (W-573fae88): the quota board at :5051 rebuilt as the operator's command-and-control centre — an Overview that answers what needs the operator now, six views, one stdlib page layer with vanilla JS |
+| [2026-10-16-command-centre-dashboard-design.md](docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md) | CONVERGED spec (W-573fae88, approved D-925): the quota board at :5051 rebuilt as the operator's command-and-control centre — an Overview that answers what needs the operator now, six views, one stdlib page layer with vanilla JS |
+| [2026-10-17-plan-1-command-centre-dashboard.md](docs/development/plans/2026-10-17-plan-1-command-centre-dashboard/2026-10-17-plan-1-command-centre-dashboard.md) | DRAFT plan set (W-573fae88): the command-centre dashboard built in seven tickets — the UI kit, the server wiring, the Overview, Work, Accounts and other views, then the integration that retires the old page layer |
 | [2026-10-14-coordinator-role-spec-review.md](docs/development/reviews/2026-10-14-coordinator-role-spec-review.md) | /fabrik-spec-review receipt for the coordinator role spec: 6-pass Pass Ledger, the Opus + Fable panel's accepted changes, the plan-time inputs the planner must settle |
 | **docs/reference/research/2026-09-24-audit-log-everywhere-ledger.md** | Every fact the three research seats of the audit-log-everywhere spec returned (PostgreSQL ownership and default privileges, append-only field practice, live DSN role migration), one row each with its disposition — backs `docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` and D-385 |
 | **docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md** | Every fact the five research seats of the `saas/88-saas-launch-checklist.md` currency turn returned (Paddle seller and refund policy, CCPA thresholds and opt-out link, Planet49 and EDPB fingerprinting, FingerprintJS licence, KVKK VERBIS exemption, KVKK Art. 11 vs GDPR, KDV Geçici 20 and export, hreflang and sitemaps, PgBouncer, Cloudflare caching, dispute thresholds, SOC 2), each dispositioned |
@@ -429,6 +430,15 @@ docs/
 │   │   ├── 2026-10-14-plan-2-one-door-lane.md
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
+│   │   ├── 2026-10-17-plan-1-command-centre-dashboard
+│   │   │   ├── 2026-10-17-plan-1-command-centre-dashboard.md
+│   │   │   ├── T01-ui-kit.md
+│   │   │   ├── T02-server-wiring.md
+│   │   │   ├── T03-overview-view.md
+│   │   │   ├── T04-work-view.md
+│   │   │   ├── T05-accounts-view.md
+│   │   │   ├── T06-usage-commands-services.md
+│   │   │   └── T07-integration.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
