@@ -1008,3 +1008,39 @@ def test_every_arm_order_the_hold_prints_is_one_the_hold_allows():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0) == ("allow", ""), cmd
     too_long = "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh " + "a" * 81
     assert hook.decide("Bash", too_long, stamp_exists=True, tick_age_s=10.0)[0] == "deny"
+
+
+def test_battery_stamp_message(tmp_path):
+    """W-83a8ee68 (D-898): a `battery`-tier stamp holds exactly like the wall — the decision is
+    the same deny — but the held session is told it is the BATTERY, and that mains power lifts it;
+    a quota stamp keeps the quota wording."""
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "rotate-tick.log"
+    log.write_text("tick: ok\n")
+    env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    payload = json.dumps(
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "s1"}
+    )
+
+    def reason_for(body: str) -> str:
+        (state / "fleet-exhausted").write_text(body)
+        r = subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+        )
+        out = json.loads(r.stdout)["hookSpecificOutput"]
+        assert out["permissionDecision"] == "deny", out
+        return out["permissionDecisionReason"]
+
+    battery = reason_for("0\nbattery\n")
+    assert battery.startswith("BATTERY HOLD"), battery
+    assert "FLEET QUOTA EXHAUSTED" not in battery
+    assert "mains power" in battery and "blocked --wall" in battery
+    assert "selfwatch_arm.sh s1" in battery, "the arm order still names the literal sid"
+    quota = reason_for("0\nwalled\n")
+    assert quota.startswith("FLEET QUOTA EXHAUSTED"), quota

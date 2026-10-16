@@ -2839,7 +2839,13 @@ def _cmd_tick() -> int:
     Fleet mode dispatches to :func:`_fleet_tick_inner` BEFORE :func:`_tick_inner` ever runs:
     the legacy tick is single-live-account-shaped (``live_name`` from ``_active_account()``
     matches no fleet slug) and could reach ``_tick_switch`` — the fleet branch must be
-    structurally unable to install anything."""
+    structurally unable to install anything.
+
+    The battery hold (W-83a8ee68) runs in the ``finally``: a quota tick that returns early or
+    raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
+    is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall."""
+    global _QUOTA_HOT_THIS_TICK
+    _QUOTA_HOT_THIS_TICK = None
     try:
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
@@ -2849,6 +2855,8 @@ def _cmd_tick() -> int:
         #                     like a broken cron; the class+message is the diagnostic
         print(f"tick: INTERNAL ERROR {type(e).__name__}: {e}")
         return 0
+    finally:
+        _battery_leg(time.time(), lift=True)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -6497,11 +6505,28 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     ), row
 
 
-def _clear_stamp(stamp: Path) -> bool:
+def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
     """Unlink the fleet-exhausted stamp; True when it is gone. A stamp that cannot be removed
     (permissions, a directory in its place) is reported and left — the hold then STANDS, so no
     wake may follow: the tick must never tell the fleet the hold lifted while the hook still reads
-    the stamp (scoped review of Phase A, 2026-09-07)."""
+    the stamp (scoped review of Phase A, 2026-09-07).
+
+    The battery hold (W-83a8ee68) shares this stamp, so the QUOTA leg's clears (relief, dwell)
+    must not end it: unless ``battery_lift``, a battery-tier stamp is KEPT, and a quota stamp
+    while the battery is low is REWRITTEN as battery-tier — both answer False, so no wake follows.
+    Only :func:`_battery_lift` passes ``battery_lift=True``."""
+    if not battery_lift:
+        if _stamp_is_battery(stamp):
+            print("tick: fleet-exhausted stamp KEPT — it is the battery hold's, not the quota's")
+            return False
+        if _battery_low():
+            try:
+                _touch_stamp(stamp, time.time(), _stamp_body("0", _STAMP_TIER_BATTERY))
+            except OSError as exc:
+                print(f"tick: battery hold could not take over the stamp ({exc}) — it stands")
+                return False
+            print("tick: quota relief on a low battery — the stamp is now the battery hold's")
+            return False
     try:
         stamp.unlink(missing_ok=True)
         return True
@@ -6511,6 +6536,144 @@ def _clear_stamp(stamp: Path) -> bool:
         )
         _ledger_append({"event": "hold-stuck", "ts": time.time(), "error": str(exc)[:200]})
         return False
+
+
+# ── the battery hold (W-83a8ee68, D-898) ─────────────────────────────────────────────────────
+# Operator 2026-10-15: "as like quota hold, if the laptop battery goes under 6% percent all agents
+# inside repos should gracefully stop without losing where they left by knowing they might lose
+# their context". The hold IS the quota hold: the same `fleet-exhausted` stamp with a third tier
+# line, `battery`, which every tier reader (this file's `_stamp_tier`, quota_stop.py,
+# quota_posture_hook.py, final_gate_stop.py) reads as `walled` because it is not a tier they know
+# — they all fail closed on an unknown one — so the hook holds, the Stop hook yields and dispatch
+# stops with no reader change. Armed by `--battery-tick` every minute AND by every tick; lifted
+# only by the tick, the one place that knows whether the quota is hot right now.
+# ⚠️ COBRA (D-253): the cheapest way to look done is a hold that arms on a low reading alone; the
+# hold keys on `Discharging` AND the line, and lifts on MAINS, never on the percentage, so a
+# charging laptop at 5% holds nothing and a flickering 7→8% never releases it.
+_STAMP_TIER_BATTERY: Final = "battery"
+_BATTERY_MAINS_STATUS: Final = frozenset({"Charging", "Full", "Not charging"})
+_QUOTA_HOT_THIS_TICK: str | None = None  # set by `_fleet_active_wall_advisory`, reset per tick
+
+
+def _battery_hold_pct() -> float:
+    """The hold line, in percent — the operator's "6-7%" taken at its top (D-898)."""
+    return _env_float("CLAUDE_BATTERY_HOLD_PCT", 7.0)
+
+
+def _read_power_word(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip() or None
+    except OSError:
+        return None
+
+
+def _battery_reading() -> tuple[str, float | None, bool] | None:
+    """``(status, pct, mains)`` from BAT1/AC1, or None when BAT1 has no readable status (no
+    battery → no hold, fail open by design). ``mains`` is AC1 online == 1 OR a mains-only status
+    (Charging, Full, Not charging); `Unknown` or an unreadable AC1 is NOT mains, so a lift fails
+    closed."""
+    bat = Path(os.environ.get("CLAUDE_BATTERY_DIR") or "/sys/class/power_supply/BAT1")
+    ac = Path(os.environ.get("CLAUDE_AC_DIR") or "/sys/class/power_supply/AC1")
+    status = _read_power_word(bat / "status")
+    if status is None:
+        return None
+    raw = _read_power_word(bat / "capacity")
+    try:
+        pct = float(raw) if raw is not None else None
+    except ValueError:
+        pct = None
+    if pct is not None and not math.isfinite(pct):
+        pct = None
+    mains = _read_power_word(ac / "online") == "1" or status in _BATTERY_MAINS_STATUS
+    return status, pct, mains
+
+
+def _battery_low() -> bool:
+    """On battery (`Discharging`) at or below the hold line. An unreadable reading is not low."""
+    r = _battery_reading()
+    return (
+        r is not None and r[0] == "Discharging" and r[1] is not None and r[1] <= _battery_hold_pct()
+    )
+
+
+def _stamp_is_battery(stamp: Path) -> bool:
+    """Is the stamp the battery hold's? Line 2 read RAW, exactly the way `_stamp_tier` reads it
+    (`is_file()` first so a FIFO never blocks; `newline=""` and `split("\\n")` so a control byte
+    never shifts the line) — `_stamp_tier` itself folds `battery` into `walled`."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == _STAMP_TIER_BATTERY
+
+
+def _stamp_raw_tier(stamp: Path) -> str | None:
+    """Line 2 as written, or None — `_stamp_tier` answers `walled` for anything it does not know."""
+    try:
+        if not stamp.is_file():
+            return None
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return None
+    return lines[1].strip() if len(lines) > 1 else None
+
+
+def _battery_arm(now: float) -> None:
+    """Low battery and no hold (no stamp, or the quota's softer `urgent-90`, which holds nothing)
+    → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    if not _battery_low():
+        return
+    stamp = _fleet_exhaustion_stamp()
+    if stamp.exists() and _stamp_raw_tier(stamp) != _STAMP_TIER_URGENT:
+        return  # already holding: the battery's own, or the quota's wall
+    r = _battery_reading()
+    _touch_stamp(stamp, now, _stamp_body("0", _STAMP_TIER_BATTERY))
+    print(
+        f"tick: BATTERY HOLD armed — {r[1] if r else '?'}% on battery (line {_battery_hold_pct():g}%)"
+    )
+    _ledger_append({"event": "battery-hold", "ts": now, "pct": r[1] if r else None})
+
+
+def _battery_lift(now: float) -> None:
+    """Mains power and the battery's stamp → lift it and wake every armed self-watch, unless the
+    quota leg found the active account hot THIS tick: then the stamp becomes the quota's tier and
+    nobody is woken into the wall (its own relief wakes them)."""
+    stamp = _fleet_exhaustion_stamp()
+    if not _stamp_is_battery(stamp):
+        return
+    r = _battery_reading()
+    if r is None or not r[2]:
+        return  # not on mains, or no reading: a blackout is not relief
+    if _QUOTA_HOT_THIS_TICK is not None:
+        _touch_stamp(stamp, now, _stamp_body("0", _QUOTA_HOT_THIS_TICK))
+        print(
+            f"tick: mains power is back but the quota is {_QUOTA_HOT_THIS_TICK} — the hold stays the quota's, no wake"
+        )
+        return
+    if _clear_stamp(stamp, battery_lift=True):
+        print("tick: BATTERY HOLD lifted — mains power is back")
+        _wake_held_sessions(now, _STAMP_TIER_BATTERY, True)
+
+
+def _battery_leg(now: float, *, lift: bool) -> None:
+    """Arm, then (from the tick only) lift. Never raises: the battery must never kill a tick."""
+    try:
+        _battery_arm(now)
+        if lift:
+            _battery_lift(now)
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_cmd_tick`'s own guard
+        print(f"tick: battery hold leg ERROR {type(exc).__name__}: {exc}")
+
+
+def _cmd_battery_tick() -> int:
+    """`--battery-tick`, the 1-minute cron: ARM only, silent unless it acts, so the hold lands
+    within a minute of the crossing; the 5-minute tick owns the lift. Always exits 0."""
+    _battery_leg(time.time(), lift=False)
+    return 0
 
 
 def _selfwatch_lock_dir() -> Path:
@@ -6620,8 +6783,11 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
                 except OSError:
                     counts["errors"] += 1
                     continue
+                # the battery lift names itself so the self-watch's RESUME line can say which
+                # hold went; a quota lift keeps its byte-exact one-field shape (W-83a8ee68)
+                body = f"{int(now)} battery\n" if reason == _STAMP_TIER_BATTERY else f"{int(now)}\n"
                 try:
-                    os.write(fd, f"{int(now)}\n".encode())
+                    os.write(fd, body.encode())
                 finally:
                     os.close(fd)
                 counts["woken"] += 1
@@ -6999,8 +7165,10 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             if not expired:
                 open_rows[acct] = row
         elif ev in _EPISODE_END_EVENTS and open_rows:
-            if ev == _WAKE_EVENT and row.get("site") == "dwell":
-                continue  # a hold cleared on EXPECTATION — the account is still walled (F1)
+            if ev == _WAKE_EVENT and row.get("site") in ("dwell", _STAMP_TIER_BATTERY):
+                # dwell: a hold cleared on EXPECTATION — the account is still walled (F1);
+                # battery: mains power came back, which says nothing about the quota (W-83a8ee68)
+                continue
             open_rows.clear()
     return open_rows, True
 
@@ -7254,6 +7422,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     if row is not None and isinstance(row.get("five_hour"), dict):
         session_pct = _usable_ts(row["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
+    # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall
+    global _QUOTA_HOT_THIS_TICK
+    _QUOTA_HOT_THIS_TICK = _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT if urgent else None
     stamp = _fleet_exhaustion_stamp()
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
@@ -8160,7 +8331,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --park|--unpark <email> | --next | --capture-current"
-            " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
+            " | --drift-check | --status | --probe-current | --tick | --battery-tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
             " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
         )
@@ -8189,6 +8360,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_probe_current(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
+    if args[0] == "--battery-tick":
+        return _cmd_battery_tick()
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
     if args[0] == "--new-dir":
