@@ -20,6 +20,7 @@ still injects nothing. stdout only; never writes; never reads outside
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -48,7 +49,23 @@ def _has_charter_marker(first_line: bytes) -> bool:
     return rest == b"" or rest[:1].isspace()  # delimiter: end-of-line or whitespace only
 
 
-def _bound_name(root: str) -> str:
+def _payload_session_id() -> str:
+    """The hook payload's `session_id` (Claude Code hands every hook its JSON on STDIN), or "".
+    The hook's environment need not carry `CLAUDE_CODE_SESSION_ID` — `session_orient.py` and
+    `final_gate_stop.py` feed the payload's id to the same resolver for that reason; without it
+    a window bound by `whoami_agent.py --as` (a VS Code tab with no `CLAUDE_AGENT`) never got
+    its charter (W-629fe67a). A tty, an empty or a malformed payload is ""."""
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return ""
+        data = json.loads(sys.stdin.read(1_000_000) or "{}")
+    except (OSError, ValueError):
+        return ""
+    sid = data.get("session_id") if isinstance(data, dict) else None
+    return sid.strip() if isinstance(sid, str) and 0 < len(sid.strip()) <= 128 else ""
+
+
+def _bound_name(root: str, sid: str = "") -> str:
     """The session's whoami binding (``scripts/whoami_agent.py --as <name>``) when
     ``CLAUDE_AGENT`` is unset — the route the ORIENT block offers an unnamed window, which
     otherwise got its items and mail but never its charter (kaizen 01M4C0VN6A). Uses the one
@@ -71,6 +88,8 @@ def _bound_name(root: str) -> str:
             return ""
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
+        if sid:  # the payload's id wins over an inherited env id, as in session_orient.py
+            os.environ["CLAUDE_CODE_SESSION_ID"] = sid  # this short-lived hook process only
         resolve = getattr(mod, "resolve_agent_name", None)
         return str(resolve() or "") if callable(resolve) else ""
     except Exception:
@@ -79,7 +98,7 @@ def _bound_name(root: str) -> str:
 
 def main() -> int:
     root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    name = os.environ.get("CLAUDE_AGENT", "").strip() or _bound_name(root)
+    name = os.environ.get("CLAUDE_AGENT", "").strip() or _bound_name(root, _payload_session_id())
     if not _NAME_RE.fullmatch(name):
         return 0  # unset / malformed name → silent no-op (the fleet case)
     root_r = os.path.realpath(root)

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a whoami-bound window gets its role charter from the hook payload's session id (2026-10-16)
+
+`.claude/hooks/agent_role.py` fell back to the session's `whoami_agent.py --as` binding (D-654) only through `CLAUDE_CODE_SESSION_ID`, which a hook's environment need not carry — the hook never read its stdin payload, where Claude Code names the session. A VS Code tab (browser tunnel or desktop) bound as `coordinator` with no `CLAUDE_AGENT` therefore got no charter, and the only workaround, a machine-wide `claudeCode.environmentVariables` entry, would mislabel every Claude tab on the box. The hook now reads the payload's `session_id` and resolves the binding with it, the payload winning over an inherited env id as in `session_orient.py` (W-629fe67a).
+
 ### Fixed — cloud-dispatch children run as headless, and the headless-guard test is green again (2026-10-16)
 
 `scripts/cloud_dispatch.py` (D-857) starts `claude -p` for its routine fires, refresh probes and log reads without `FABRIK_HEADLESS`, so `tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears` was red on master. `_account_env` now sets `FABRIK_HEADLESS=1` beside its mesh flags, and the file is a declared spawner, so the env-dict grader keeps it honest (W-a4272e57). The behaviour change is near nil: the children run from a scratch dir outside every repo, where no project hook loads, and `CLAUDE_MESH_HEADLESS` already stood down the orient wake and the arm nag.
