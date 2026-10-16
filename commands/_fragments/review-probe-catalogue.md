@@ -167,13 +167,14 @@ it, or name in the brief why the shape does not have it.
   file (find the symbol the prose names, compare it with the target line), never renumbered by hand.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
-  claim, checked against the code lines it names, and a sentence describing a matcher or regex executed over its input
-  space (punctuation, underscore, empty) before the pin; a count cites the command (with its range — the brief hands
-  the seat that exact command) and the line that holds it, a measured count names its population, a closing brief
-  names each figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet
-  in prose is a checkable claim; an evidence block in a report or receipt pastes the artifact's section whole and
-  names the file it was copied from, by path and md5 (one that elides is a claim, not evidence); an unverified
-  hand-derived enumeration is deleted.
+  claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
+  matcher, regex or guard written from its input space executed on both sides (punctuation, underscore, empty, the
+  lead's escape variants and every one the seats returned) before the pin, never from its subject's own docstring; a
+  count cites the command (with its range — the brief hands the seat that exact command) and the line that holds it, a
+  measured count names its population, a closing brief names each figure's source and the record's own round trend, a
+  live value is a timestamped snapshot; a code snippet in prose is a checkable claim; an evidence block in a report or
+  receipt pastes the artifact's section whole and names the file it was copied from, by path and md5 (one that elides is
+  a claim, not evidence); an unverified hand-derived enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 

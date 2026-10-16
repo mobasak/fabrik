@@ -36,6 +36,14 @@ drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `P
 Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
 refresh waits while a comment is being typed. W-e1f1a1bd.
 
+### Changed — /fabrik-review-scoped: a guard's accepts-or-covers sentence is written from its executed inputs (2026-10-17)
+
+`commands/_fragments/review-probe-catalogue.md`'s Claims row extends its matcher clause to a guard. A sentence (a
+comment, a docstring, a doc line) describing a matcher, regex or guard is written from its input space executed on
+both sides, the lead's escape variants and every one the seats returned included, never from its subject's own
+docstring. Answers rows 1792088209 (a recurrence of held guard-false-positives-negatives-against) and 1792086831; the
+queue's other 4 rows were rejected with reasons. Pinned by `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — /fabrik-review: recurring brief and fix lessons land in their homes (2026-10-17)
 
 The fourth pass over `/fabrik-review`'s feedback queue (21 rows: 13 edited, 7 already stated or held, 1 refused as
