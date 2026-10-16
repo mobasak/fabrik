@@ -36,6 +36,15 @@ drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `P
 Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
 refresh waits while a comment is being typed. W-e1f1a1bd.
 
+### Changed — round zero scripts step references and mutant predictions, and re-runs a count when its subject moves (2026-10-17)
+
+Rule (1) of the round-zero probe, in both homes (`commands/_fragments/term-edit.md` for the text-review loops,
+`commands/_fragments/term-coverage.md` for the code-review loops), now names a step reference and a mutant prediction
+beside counts, enumerations, line anchors and negatives. Each is executed at round 1, or before the pin that first
+carries it, and re-run when the claim or what it measures changes (a fix that changes what a quoted advisory
+counts, such as a plan's Touches). Answers /fabrik-plan-review rows 1792092814 (the sixth verdict on the subject,
+earlier answered as already stated) and 1792194120. Pinned by `tests/test_plan_review_queue_pass.py`.
+
 ### Changed — /fabrik-spec: a build-tool setting is settled by a build or the tool's source (2026-10-17)
 
 `commands/_sources/fabrik-spec.md` § 1a: a build-tool setting the design relies on (any bundler, compiler,

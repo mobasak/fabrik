@@ -115,3 +115,22 @@ def test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt() -> Non
     ):
         assert restatement not in lowered, restatement
     assert phase1.count("`_is_design_receipt`") == 1
+
+
+def test_round_zero_scripts_step_references_and_mutant_predictions() -> None:
+    """Row 1792092814, the sixth verdict answered from rule (1) as already stated: three of six rounds found a step
+    reference, a count or a mutant prediction the lead's own fix added, unexecuted. Rule (1) now names the two kinds
+    it left out, in both homes of the round-zero rule (term-edit for text loops, term-coverage for code loops)."""
+    clause = (
+        "AND every count, enumeration, line anchor, step reference, mutant prediction (a mutant its grader is said to"
+        " kill) or negative, is executed at round 1, or before the pin that first carries it,"
+    )
+    # row 1792194120: an advisory count the plan quotes is re-run when a fix changes what it counts, not only its text
+    rerun = (
+        "re-run and re-cited when the claim or what it measures changes (a fix that changes what a quoted advisory"
+        " counts, such as a plan's Touches)"
+    )
+    for name in ("term-edit.md", "term-coverage.md"):
+        text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
+        assert clause in text, name
+        assert rerun in text, name
