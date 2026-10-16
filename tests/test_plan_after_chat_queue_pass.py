@@ -178,7 +178,17 @@ def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> 
         "plan-review's step 1 moved"
     )
     assert "every MATCHED pack must be named in the digest" in review, "plan-review's step 3 moved"
-    # the pointer names "its Phase 1 … step 1 … step 3": the reviewer's numbering is pinned too
-    phase1 = review[review.index("## Phase 1 — Grounding passes") : review.index("## Phase 2")]
-    assert "1. **Rubric.**" in phase1 and "ONLY the `# promote-to-check_*` tail" in phase1
-    assert "3. **Constraints-Digest audit" in phase1 and "every MATCHED pack must be named" in phase1
+    # the pointer names "its Phase 1 … step 1 … step 3": each rule sits in the step of that number
+    raw = (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    phase1 = raw[raw.index("## Phase 1 — Grounding passes") : raw.index("\n## Phase 2")]
+    starts = {m.group(1): m.start() for m in re.finditer(r"(?m)^(\d+)\. \*\*", phase1)}
+    bounds = sorted(starts.values()) + [len(phase1)]
+
+    def step(n: str) -> str:
+        begin = starts[n]
+        return re.sub(r"\s+", " ", phase1[begin : bounds[bounds.index(begin) + 1]])
+
+    assert step("1").startswith("1. **Rubric.**")
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in step("1")
+    assert step("3").startswith("3. **Constraints-Digest audit")
+    assert "every MATCHED pack must be named in the digest" in step("3")
