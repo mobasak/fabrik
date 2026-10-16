@@ -367,6 +367,10 @@ def _account_env(cfg: Path) -> dict:
         "CLAUDE_QUOTA_HOME": str(cfg),
         "CLAUDE_MESH_HEADLESS": "1",
         "CLAUDE_SOUND_NO_REVIVE": "1",
+        # the hooks' own headless flag (mail_notify, session_orient, mcp_watch, work.py): a dispatch
+        # child is a machine run, never an operator window — no mail banner, orient block or arm
+        # nag (tests/test_hooks_headless_guard.py, W-a4272e57)
+        "FABRIK_HEADLESS": "1",
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     }
     env.pop("CLAUDE_CODE_SESSION_ID", None)

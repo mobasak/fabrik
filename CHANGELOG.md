@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cloud-dispatch children run as headless, and the headless-guard test is green again (2026-10-16)
+
+`scripts/cloud_dispatch.py` (D-857) starts `claude -p` for its routine fires, refresh probes and log reads without `FABRIK_HEADLESS`, so `tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears` was red on master and those children could get the operator-window hooks (the mail banner, the orient block, the arm nag). `_account_env` now sets `FABRIK_HEADLESS=1` beside its mesh flags, and the file is a declared spawner, so the env-dict grader keeps it honest (W-a4272e57).
+
 ### Fixed — seven scratch-lifecycle partials: walks, deadlines, `--strict-proc`, a degenerate key and two graders (2026-10-16)
 
 The intel conformance ledger's open rows (W-c0a1d324). F9: the nightly dead-session idleness walk no longer descends into run folders (spec D4) — it reads each one's own mtime and `.owner` heartbeat, so a live run still marks its session alive. F8: `round`'s seat-size check gives each seat its own `du` deadline (spec D5). F5: `--strict-proc` now holds a `consumed` run folder back in session mode and in `--dead`. F12: a `--command` that sanitises to nothing mints a `run-…` key the sweep still classifies. F2: the `.git` pointer scan is bounded by `SCRATCH_SWEEP_GIT_SCAN_BUDGET` and keeps a folder it could not finish. F1 and F3: two graders that could never fail now fail on their mutants.
