@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T03:05:43.138344Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a4272e57",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "set FABRIK_HEADLESS on the spawn (or declare it with a reason), red-first on the guard test",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a red test on master hides regressions, and a headless claude without FABRIK_HEADLESS runs the interactive hooks; infra's own D-857 code; one line",
+  "status": "open",
+  "title": "tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears is red on master: scripts/cloud_dispatch.py (D-857, 2026-10-14) runs claude -p without FABRIK_HEADLESS and is not in _UNADOPTED_SPAWNERS"
+}
