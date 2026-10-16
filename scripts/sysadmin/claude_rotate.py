@@ -6607,11 +6607,11 @@ def _battery_low() -> bool:
     not leave the hold silently absent. An unreadable capacity, or an unreadable AC1 beside an
     `Unknown` status, is not low (no evidence of battery power)."""
     r = _battery_reading()
-    if r is None or r[1] is None or r[1] > _battery_hold_pct() or r[2]:
+    if r is None or r[1] is None or r[1] > _battery_hold_pct():
         return False
     if r[0] == "Discharging":
-        return True
-    return _ac_online() == "0"
+        return True  # the battery says it is draining: an AC1 that reads `1` never vetoes it
+    return not r[2] and _ac_online() == "0"
 
 
 def _stamp_is_battery(stamp: Path) -> bool:

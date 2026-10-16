@@ -102,6 +102,10 @@ def test_low_battery_arms_the_hold(box):
     box.set_power("Unknown", 5, online="0")  # a driver that says Unknown on battery
     cr._battery_arm(NOW)
     assert box.stamp.read_text() == "0\nbattery\n", "Unknown with AC offline is battery power"
+    box.stamp.unlink()
+    box.set_power("Discharging", 4, online="1")  # a stuck AC flag beside a draining battery
+    cr._battery_arm(NOW)
+    assert box.stamp.read_text() == "0\nbattery\n", "Discharging arms whatever AC1 says"
 
 
 def test_no_hold_unless_discharging_at_the_line(box):
