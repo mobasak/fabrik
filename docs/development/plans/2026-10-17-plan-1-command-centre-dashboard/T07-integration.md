@@ -60,7 +60,9 @@ Docs: docs/workstation/quota-dashboard.md (the subsystem doc, rewritten); CHANGE
    `_LEGACY_TOKEN_UNTIL` to this ticket's coding date plus 14 days — one date for the redirect and the token
    window, as spec § Lifecycle and § Which actions confirm tie them to the same merge.
 3. Re-point the rebuild-on-miss in `pause_agent` and `item_verdict` (:2662-2665, :2733-2736) from
-   `_repos_page(fresh=True)` to the view dispatcher (`overview` for pause targets, `work` for item targets).
+   `_repos_page(fresh=True)` to the view dispatcher (`overview` for pause targets, `work` for item targets), and add
+   the restart cases to `tests/test_quota_dashboard.py`: with both registries emptied and no view rendered, a verdict
+   POST and a pause POST for a target the real Overview and Work views show are found.
 4. Delete the old page layer — the 30 top-level HTML-emitting functions an all-literal AST scan lists at 18d619f1e
    (31 counting `_row`'s nested `cell`): `_agent_row`, `_agents_block`, `_api_quotas_panel`, `_bar`, `_budget_banner`,
    the HTML half of `_budget_probe`, `_commands_table`, `_ext_matrix_intro`, `_ext_matrix_table`, `_ext_services_intro`,

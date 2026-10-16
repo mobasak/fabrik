@@ -74,7 +74,10 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
   and the live `active` pointer, :3478-3500), swapped in whole; and `_LAST_PROBE_FAILURE: list[tuple[float, str] |
   None]` — when the probe last failed and its error class, cleared by a successful probe. The time stamped on
   `_LAST_STATUS` is ALWAYS the time of the last SUCCESSFUL probe, carried unchanged through every fallback pass, so a
-  continuing outage ages the payload and trips the bound below. When `_LAST_STATUS` is
+  continuing outage ages the payload and trips the bound below. That time is SEEDED once, before the first probe,
+  in `_start_probe_loop` (:3653, which `serve()` calls before it serves any request, :3991-3993): the mtime of
+  `quota.json` when the file lacks `probe_failed`, else `None` (unknown — stale at once). A first pass whose probe
+  fails then carries the seeded value, and the fallback's rewrite of `quota.json` (:3497) can no longer launder it. When `_LAST_STATUS` is
   still `None` (a fresh process), `_view_data` seeds it from `quota.json` on disk (`_JSON`, :106) with the file's
   mtime as its time — unless the file holds `probe_failed` (the fallback rewrites it, :3497), when its time is
   unknown and the payload is treated as stale at once; with neither, `"status"` is `{"error": "no reading yet"}`. A request NEVER runs `_probe()`
@@ -125,9 +128,12 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
      `_LEGACY_TOKEN_UNTIL = None` and refused (409) with a date in the past.
    - Targets: the Work view's targets survive an Overview render, and a following verdict POST for a Work-only item is
      found without a rebuild; a view that raises empties only its own slice, and a POST for a target only it held is
-     refused "not on the board"; a `/repos.html` build does not evict a view's slice.
+     refused "not on the board"; a `/repos.html` build does not evict a view's slice; after a simulated restart
+     (`_ITEM_TARGETS` and `_PAUSE_TARGETS` emptied, no view rendered yet) a verdict POST and a pause POST for a target a
+     fake Overview view would show are found through the rebuild-on-miss.
    - Status: a probe that raises makes `/v/accounts` carry the stale banner and `health.failed` name it, and the
-     payload's time stays the last good probe's across three failing passes; a payload
+     payload's time stays the last good probe's across three failing passes, including when the process started with a
+     good `quota.json` and its very first probe failed, and when it started with a `probe_failed` one (stale at once); a payload
      older than the bound carries the banner; a fresh one none; a fresh process with `quota.json` on disk serves it
      without probing (assert `_probe` was not called); `_pointer_moved()` true triggers exactly one bounded
      `generate()`.

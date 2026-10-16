@@ -46,7 +46,8 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 1. Write `tests/test_quota_dashboard_work.py` FIRST and watch it fail: fabrik is first in the picker and every pane
    carries its `data-pick`; each owner gets a chip with its count (`data-filter="owner:<name>"`), every hub agent and the
    empty owner included at 0, each owner's section carrying `data-f-owner`; every item row carries `data-f-tag` with its
-   tags and its Next cell capped at `next_cap` with the longer text in its title; an open non-awaiting item has Accept, Reject and Comment, an awaiting decision the same,
+   tags, and the tag box is a `field(kind="search", data={"filter": "tag", "filter-mode": "token"})` so a typed tag
+   matches whole tokens as today's does (:2917) and its Next cell capped at `next_cap` with the longer text in its title; an open non-awaiting item has Accept, Reject and Comment, an awaiting decision the same,
    an awaiting non-decision Comment only (D-917); every verdict body carries the item's `snapshot.token`; Accept's
    dialog takes an optional note, Reject's requires one, Comment is an inline field with `data-text-from`; a repo whose
    collector returned `error` shows the error in words and the other repos render; skipped stores are listed; the view carries a freshness stamp at 20 s; the returned

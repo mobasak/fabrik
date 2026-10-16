@@ -39,12 +39,14 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
   escaping each non-`Safe` one — the only sanctioned way to combine markup (a plain `"".join` or `+` returns a
   plain `str`, which the next component escapes again).
 - `components.badge(severity, text)` · `card(title, body, *, badge=None, age=None, actions=Safe(""), id=None)` ·
-  `table(label_id, label, headers, rows)` (a `<div role="region" aria-labelledby=… tabindex="0">` around a real
-  `<table>`, sticky header row and first column) · `button(label, *, kind="secondary", data=None)` (`kind` ∈
+  `table(label_id, label, headers, rows, *, row_data=None)` (a `<div role="region" aria-labelledby=… tabindex="0">`
+  around a real `<table>`, sticky header row and first column; `row_data[i]` is row i's attributes) · `button(label, *, kind="secondary", data=None)` (`kind` ∈
   primary, secondary, danger) · `field(label, *, name, kind="text", id, value="", min=None, max=None,
-  placeholder="")` (`kind` ∈ text, textarea, number, search — always a visible `<label for>`) ·
+  placeholder="", data=None)` (`kind` ∈ text, textarea, number, search — always a visible `<label for>`) ·
+  `group(body, *, tag="div", data=None, id=None)` (a container carrying attributes — a filter group, a pick group, a
+  pane, a filterable section) · `value_of(input_id)` (the `<span data-value-of>` a dialog body embeds) ·
   `dialog(id, title, body, confirm_label, cancel_label, *, note=None)` (native `<dialog>`; `note` ∈ None,
-  "optional", "required" adds its textarea) · `disclosure(summary, body, *, open=False)` ·
+  "optional", "required" adds its textarea) · `disclosure(summary, body, *, open=False, data=None)` ·
   `tabs(label, [(id, title, body)])` (the APG Tabs markup) · `clamp(text, lines=3)` (the question with a "show
   all" toggle) · `region_state(kind, message, *, retry=False)` (`kind` ∈ loading, empty, error) ·
   `freshness(read_ts, cadence_s)` (a `<time datetime=…>`; `cadence_s=None` = never stale) · `live_region()` ·
@@ -52,8 +54,8 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
   colour literal at `scripts/sysadmin/quota_dashboard.py:3459`, review row P4-r1) · `shell(views, active)` (skip
   link, sidebar at ≥ 1024 px and a top bar with a menu button below, the `<head>` theme script, one
   `<main id="view" data-view=…>` region, `<link>` to `/static/app.css`, `<script src="/static/app.js">`). Every
-  one returns `Safe`. A `data=` key must match `[a-z0-9-]+` or the component raises `ValueError` (an attribute
-  NAME cannot be escaped into safety).
+  one returns `Safe`. Every `data=` / `row_data` mapping becomes `data-<key>` attributes with escaped values; a key
+  must match `[a-z0-9-]+` or the component raises `ValueError` (an attribute NAME cannot be escaped into safety).
 - `strings.t(key, **fields) -> str` — looks `key` up in the active catalogue and formats it; an unknown key raises
   `KeyError`. `strings.use(mapping)` is a context manager that swaps the catalogue (the stand-in-locale test,
   spec § Validation). `strings.CATALOGUE` is the English catalogue.
@@ -75,7 +77,8 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
     `data-f-owner="infra"` on the same row, or on the owner's section); chip buttons carry `data-filter="<filter>:<token>"`
     and match TOKEN-EQUAL, as today's tag filter does (`(" " + tags + " ").indexOf(" " + t + " ")`,
     `scripts/sysadmin/quota_dashboard.py:2917`), so `api` never shows `api-v2`; a `field(kind="search")` carrying
-    `data-filter="<filter>"` matches by case-insensitive SUBSTRING over that filter's attribute; an element is shown
+    `data-filter="<filter>"` matches by case-insensitive SUBSTRING over that filter's attribute, unless it also
+    carries `data-filter-mode="token"`, when the typed text matches TOKEN-EQUAL like a chip (today's typed tag box); an element is shown
     when it passes every active filter of its group; each group's choices persist in `localStorage`;
   - `data-pick-group="<name>"` + panes carrying `data-pick="<value>"`: shows the one pane named by the hash's
     second segment (`/#work/<repo>`), the picker's buttons rewrite that segment; `/v/<view>` is fetched for the
@@ -134,8 +137,8 @@ Docs: none (the subsystem doc `docs/workstation/quota-dashboard.md` is rewritten
    package's `static/` plus fixture fragments, and watch each case fail before step 5's code exists: a confirm
    dialog posts only on confirm and returns focus; a required note refuses empty; an inline comment posts its field
    on Enter; a number input posts `null` when empty, posts `87.5` for a `float` field, and refuses an out-of-range
-   value; a confirm dialog shows the typed value through `data-value-of`; a 409 re-fetches and announces; a chip filter
-   matches token-equal (`api` hides an `api-v2` row) and a search filter by substring, both survive a refresh; the clamp
+   value; a confirm dialog shows the typed value through `data-value-of`; a 409 re-fetches and announces; a chip filter and a
+   `data-filter-mode="token"` field match token-equal (`api` hides an `api-v2` row) and a search filter by substring, both survive a refresh; the clamp
    toggle shows the whole question; the menu button opens and Escape closes it; with a faked clock a slow fetch shows
    nothing before 300 ms, the loading state, "still loading" at 3 s, Retry at 10 s and the error at 30 s; `/#work/b` shows pane `b` and requests
    `/v/work`; the tabs move with the arrow keys; a refresh tick is skipped while a field has focus, a dialog is open,

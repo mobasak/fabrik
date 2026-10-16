@@ -55,7 +55,8 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 1. Write `tests/test_quota_dashboard_views_misc.py` FIRST from fixture data and watch it fail:
    - Commands: every column of today's table appears — the pipeline-order `#`, Command, Stage, Purpose, When to use, Skip when,
      Next, Native subagents, Model tiers (:2140-2170) — and the intro line with the source count; the labelled search
-     (`field(kind="search")` in a `data-filter-group`) keys rows on name and purpose; each command's detail is a
+     (`field(kind="search", data={"filter": "find"})` inside a `group(data={"filter-group": "commands"})`) filters rows
+     that carry `data-f-find="<name> <purpose>"` by substring; each command's detail is a
      disclosure; an empty `commands` renders the corpus-unreadable banner in words.
    - Matrix: a separate tab panel (`role="tablist"`, `tab`, `tabpanel`, `aria-selected`), its columns from
      `ext_services`, the intro with the not-from-the-rendered-corpus caveat counted from `rendered`, and the `of N` totals.

@@ -38,7 +38,8 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - Which rows get which controls and badges, as today (`_switch_cell` :936-990, `_row` badges :790-800): no Switch on
   the active row or on a PARKED row; a PARKED row offers Enable where others offer Disable and its cap field is blank;
   the badges PARKED, RESERVED, WALLED, the cap and the cached-reading age show as `_row` shows them; a row whose slug
-  or email fails `slug_re` / `email_re` gets no controls; the governor verdict says the pool is off when
+  fails `slug_re` gets no Switch (the muted "active" word stays, :980-981) and a row whose email fails `email_re` gets no
+  disable / cap / rotate-at controls (:949); the governor verdict says the pool is off when
   `pool_policy_on` is false (:1246).
 - The bodies today's controls post, read from `render`'s script in `scripts/sysadmin/quota_dashboard.py` (:3300-3370):
   `/switch` `{account}`; `/park` `{account, park: true|false}` (:3327); `/cap` `{account, cap: null | an integer 0–100}`
