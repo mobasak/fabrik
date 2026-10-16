@@ -67,18 +67,25 @@ recorded wording in the spec and change no build step.
 
 ## Interfaces
 
-- **T01 → T02–T07: the UI kit.** `dashboard_ui.components` (every function returns `Safe` and escapes the rest),
-  `dashboard_ui.strings.t` / `use`, the action attributes `data-post`, `data-body`, `data-confirm`, `data-note`, and the
-  two static files. Seam test: `tests/test_quota_dashboard_page_layer.py` (T07 — the escape and catalogue scans over every
-  consumer), with T01's Behavior Contract in T07's Context Files through the spec.
+- **T01 → T02–T07: the UI kit.** `dashboard_ui.components` (every function returns `Safe`, escapes the rest, and
+  `fragment` is the only way to join markup), `dashboard_ui.strings.t` / `use`, and `app.js`'s attributes —
+  `data-post`, `data-body`, `data-confirm`, `data-note`, `data-text-from`, `data-input`, `data-filter-group` /
+  `data-filter-key` / `data-filter`, `data-pick-group` / `data-pick`, the `tabs` and `clamp` markup — the views' ONLY
+  way to behave, so no view ticket writes JavaScript. Seam tests: `tests/test_quota_dashboard_app_js.py` (T01, the
+  script over a fixture page) and `tests/test_quota_dashboard_page_layer.py` (T07 — the escape and catalogue scans
+  over every consumer); each view ticket's own test asserts the attributes it declares.
 - **T02 → T03–T07: the view protocol and the data.** `dashboard_ui.views.VIEWS`, `ViewContext`, `ViewResult`, `load`;
-  `render(data, ctx) -> ViewResult` and optional `collect(ctx) -> dict`; `quota_dashboard._view_data(name, ctx)`'s keys
-  per view; `snapshot.token(item)`; `_LAST_STATUS`; `_LEGACY_TOKEN_UNTIL`. Seam tests: each view ticket's own test calls
-  `render` with the exact keys T02 produces (`tests/test_quota_dashboard_overview.py`, `…_work.py`, `…_accounts.py`,
-  `…_views_misc.py`); T07's browser test drives the wired whole.
-- **T03 / T04 → T02's dispatcher: the targets.** `ViewResult.pause_targets` (the repos list `_publish_pause_targets` takes,
-  `scripts/sysadmin/quota_dashboard.py:2647`) and `ViewResult.item_targets` (`_publish_item_targets`, :2714). Seam test:
-  `tests/test_quota_dashboard_server.py` (T02, with a fake view) and T07's restart case in `tests/test_quota_dashboard.py`.
+  `render(data, ctx) -> ViewResult` and optional `collect(ctx) -> dict`; `quota_dashboard._view_data(name, ctx)`'s keys per
+  view (collector outputs unchanged, plus the configuration values today's builders read — T02 § Produces lists them);
+  `dashboard_ui.fmt` (the nine pure formatters moved out of the module); `snapshot.token(item)`; `_LAST_STATUS`,
+  `_LAST_PROBE_FAILURE`; `_LEGACY_TOKEN_UNTIL`. Seam tests: each view ticket's own test calls `render` with exactly the
+  keys T02 produces (`tests/test_quota_dashboard_overview.py`, `…_work.py`, `…_accounts.py`, `…_views_misc.py`); T07's
+  browser test drives the wired whole.
+- **T03 / T04 → T02's dispatcher: the targets.** `ViewResult.pause_targets` (T03: the repos list
+  `_publish_pause_targets` takes, `scripts/sysadmin/quota_dashboard.py:2647`) and `ViewResult.item_targets` (T03 for the
+  awaiting items it shows, T04 for every item it shows: the entries `_publish_item_targets` takes, :2714); the dispatcher
+  publishes the UNION of every view's last targets. Seam tests: `tests/test_quota_dashboard_server.py` (T02, two fake
+  views) and T07's restart cases.
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
@@ -115,14 +122,17 @@ several inputs, and a split would spread that invariant across tickets that must
 
 ## Behavior Contract
 
+
 ### T01 — from `T01-ui-kit.md`
 
-- **Given** any component and a value holding `<script>`, quotes and `&`, **When** the component renders, **Then** the output carries only the escaped form and never the raw markup (spec § Invariants INV-4; scripts/sysadmin/quota_dashboard.py:42)
+- **Given** any component and a value holding `<script>`, quotes and `&`, **When** the component renders, **Then** the output carries only the escaped form, never the raw markup, and a data attribute name outside [a-z0-9-] is refused (spec § Invariants INV-4; scripts/sysadmin/quota_dashboard.py:42)
 - **Given** a status badge of any severity, **When** it renders, **Then** it shows an icon and a text label as well as the colour (spec § Components; .windsurf/rules/core/design-system-template.md:1290)
 - **Given** the stand-in catalogue is active, **When** every component renders, **Then** no built-in English string remains and an unknown key raises KeyError (spec § Validation; D-926)
-- **Given** the light and the dark token sets in app.css, **When** the contrast test computes every pair, **Then** text pairs reach 4.5:1 and border, focus-ring and status-mark pairs reach 3:1 in both themes (spec § Theme, motion, keyboard)
-- **Given** app.css and components.py, **When** the token scan runs, **Then** no colour literal appears outside the two token blocks (spec § Invariants INV-3)
+- **Given** the palette and the light, dark and system-dark mappings in app.css, **When** the contrast test resolves them, **Then** text pairs reach 4.5:1 and border, focus-ring and status-mark pairs 3:1 in both themes, and the two dark mappings are identical (spec § Theme, motion, keyboard)
+- **Given** app.css and components.py, **When** the token scan runs, **Then** no colour literal appears outside the one palette block (spec § Invariants INV-3)
 - **Given** the shell, **When** it renders, **Then** a skip link is the first focusable element and the theme script runs in the head before the stylesheet, its storage read inside try (spec § Theme, motion, keyboard; .windsurf/rules/saas/60-saas-ui.md:63)
+- **Given** buttons declaring a post with a confirm dialog, a note, an inline field or a number input, **When** the operator acts, **Then** the script posts exactly the declared body only after confirmation, refuses a missing or out-of-range value in words, and on a 409 re-fetches the view (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3337)
+- **Given** a view with a focused field, an open dialog, selected text or a hidden tab, **When** a refresh tick fires, **Then** it is skipped, typed text and filters survive the next swap, and the refresh after the operator's own successful write is forced (spec § Invariants INV-5; scripts/sysadmin/quota_dashboard.py:2924)
 
 ### T02 — from `T02-server-wiring.md`
 
@@ -131,42 +141,43 @@ several inputs, and a split would spread that invariant across tickets that must
 - **Given** a view name in VIEWS, **When** GET /v/<view> is requested, **Then** the server returns that view's HTML fragment, a view that raises returns its error state in words, and any other name returns 404, while /static/app.css and /static/app.js come back with Cache-Control no-cache and an ETag, 304 on a matching If-None-Match, and no other /static/ path is served (spec § Contract deltas)
 - **Given** a verdict POST whose snapshot token was taken before the item's question, status, ground, comment count or merged duplicates changed, **When** it arrives, **Then** the server answers 409 changed and work.py is not run (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:2724)
 - **Given** a verdict POST with no token, **When** the legacy window is open it is accepted as today, **Then** once the window's date has passed it is refused with the same 409 (spec § Which actions confirm; spec § Lifecycle)
-- **Given** a view that returns pause or item targets, **When** a guarded POST for one of them arrives next, **Then** the target is found on the board without a rebuild (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
-- **Given** the last probe failed after the cached payload was read, or the payload is older than a probe cycle, **When** a view that shows quota data is fetched, **Then** it carries the stale banner, built on tokens, and a fresh payload carries none (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:3430)
-- **Given** the budget probe and the spend panel split into data and HTML halves, **When** today's page renders, **Then** its output is unchanged and every existing dashboard test passes (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:1965)
+- **Given** two views that each returned targets, **When** a guarded POST for a target of either arrives, **Then** it is found on the board without a rebuild, whichever view rendered last (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
+- **Given** the probe failed after the payload was read, or the payload is older than a probe cycle, **When** a view that shows quota data is fetched, **Then** it carries the stale banner on tokens and the Health data names the failure, while a fresh payload carries none and a request never probes beyond today's one bounded pointer-moved regeneration (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:3478)
+- **Given** the budget probe and the spend panel split into data and HTML halves, **When** today's page renders and the views fetch their data, **Then** today's output is unchanged, every existing dashboard test passes, and no subprocess or collector runs on a request thread more often than today (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:1965)
 
 ### T03 — from `T03-overview-view.md`
 
 - **Given** merge records in two repos, **When** the blocked-merge reader runs, **Then** a branch is blocked only when its newest record by ULID is refused or catchup-refused, never when a later record merged or is still in flight (spec § Overview item 2; scripts/merge_request.py:1927)
-- **Given** a blocked branch in a repo whose merge owner cannot be resolved, **When** its card renders, **Then** it says the owner is unresolved and shows the resolver's message (receipt row P3-3; scripts/decisions.py:651)
-- **Given** awaiting items across several repos, **When** the Overview renders, **Then** the hub's group comes first, repos follow by their oldest item, gate items lead each group, an ungrounded item sorts after the grounded ones, and only the first non-empty group is expanded (spec § Overview item 1)
-- **Given** an awaiting decision and an awaiting non-decision, **When** their cards render, **Then** the decision offers Accept, Reject and Comment and the non-decision offers Comment only, each card carrying its snapshot token (spec § Overview item 1; scripts/work.py:3813)
-- **Given** no awaiting item anywhere, **When** the Overview renders, **Then** it shows the nothing-waiting line with the time of the last read, never an empty area (spec § Overview item 1; .windsurf/rules/core/design-system-template.md:605)
-- **Given** the stores and the status payload, **When** the summary strip renders, **Then** its counts match the stores and each links to its section (spec § Overview item 0)
+- **Given** a blocked branch in a repo whose merge owner cannot be resolved, **When** its card renders, **Then** it says the owner is unresolved and shows the resolver's own message for that exit (receipt row P3-3; scripts/decisions.py:651)
+- **Given** awaiting items across several repos, **When** the Overview renders, **Then** the hub's group comes first, repos follow by their oldest item, gate items lead each group, an ungrounded item sorts after the grounded ones, only the first non-empty group is expanded, and past 100 decisions each group shows its five oldest and a link to its Work view (spec § Overview item 1; spec § Lifecycle)
+- **Given** an awaiting decision and an awaiting non-decision, **When** their cards render, **Then** each shows its ground, asker, wait and clamped question, the decision offers Accept, Reject and Comment and the non-decision Comment only, and every verdict carries the item's snapshot token (spec § Overview item 1; scripts/work.py:3813)
+- **Given** the stores and the status payload, **When** the summary strip renders, **Then** its counts match the stores and link to their sections, every section shows its read time, and with nothing waiting the nothing-waiting line shows instead of an empty area (spec § Overview item 0; .windsurf/rules/core/design-system-template.md:605)
 - **Given** the band is RED or WALL or a probe has failed, **When** the Overview renders, **Then** the Quota and Health strips appear above the decisions, and otherwise below the agents (spec § Overview item 0; receipt row P5-r1)
-- **Given** agents in every state and a paused agent, **When** the Agents section renders, **Then** every agent the collector lists has a row with its state badge, the dormant count shows per repo, and Resume names every marker it lifts (spec § Overview item 3; scripts/agent_status.py:385)
+- **Given** agents in every state, a paused agent and the status payload, **When** the Agents, Quota and Health sections render, **Then** every agent the collector lists has its row and fields, Resume names every marker it lifts, and the quota strip shows the band, account, successor, windows with resets and the hold (spec § Overview items 3-5; scripts/agent_status.py:385)
+- **Given** a restarted server and the Overview rendered once, **When** the operator Accepts a decision or pauses an agent from it, **Then** the target is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2733)
 
 ### T04 — from `T04-work-view.md`
 
-- **Given** several repos, **When** the Work view renders, **Then** fabrik is first in the picker and the picked repo is kept in the URL across a reload (spec § Information architecture; D-738)
+- **Given** several repos, **When** the Work view renders, **Then** fabrik is first in the picker and each repo's pane is addressable as /#work/<repo> so a reload keeps it (spec § Information architecture; D-738)
 - **Given** an open item, an awaiting decision and an awaiting non-decision, **When** their rows render, **Then** the first two offer Accept, Reject and Comment and the third Comment only (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2361)
-- **Given** a verdict button in the Work view, **When** it renders, **Then** its body carries the item's snapshot token and Reject's dialog requires a reason (spec § Which actions confirm)
-- **Given** a repo whose collector failed, **When** the Work view renders, **Then** that repo shows its error in words and the other repos render normally (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:2285)
+- **Given** a verdict button in the Work view, **When** it renders, **Then** its body carries the item's snapshot token, Accept's dialog takes an optional note and Reject's requires a reason (spec § Which actions confirm)
+- **Given** owners, tags and skipped stores, **When** the Work view renders, **Then** every hub agent and the empty owner have a chip with a count, rows carry their tags for the filter, and the skipped stores are listed (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2404)
+- **Given** a repo whose collector failed, **When** the Work view renders, **Then** that repo shows its error in words, the other repos render, and the view shows its read time (spec § Lifecycle; scripts/sysadmin/quota_dashboard.py:2285)
 - **Given** the rendered Work view, **When** a verdict POST arrives for any item it shows, **Then** the item is found on the board (spec § Invariants INV-1; scripts/sysadmin/quota_dashboard.py:2714)
 
 ### T05 — from `T05-accounts-view.md`
 
-- **Given** a status payload with the rotation paused, the pause file unreadable, or no accounts, **When** the Accounts view renders, **Then** the matching banner shows exactly as today's page shows it (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3064)
+- **Given** a status payload that failed its probe, has rotation paused, has the pause file unreadable, or has no accounts, **When** the Accounts view renders, **Then** the matching banner shows as today's page shows it, and a failed probe keeps the last good reading with its controls (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3052)
 - **Given** accounts in rotation order with a returning and a pending account, **When** the view renders, **Then** every account, the returning row and the pending row appear in that order with their session, weekly and Fable meters (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:3096)
-- **Given** a governor verdict, fleet warnings and the rotation rule, **When** the view renders, **Then** each shows (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1215)
+- **Given** a governor verdict, fleet warnings and the rotation rule, **When** the view renders, **Then** each shows, the rule with its threshold and probe interval (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1215)
 - **Given** any account, **When** the operator opens its Edit disclosure and picks switch, disable, cap or rotate-at, **Then** a dialog states the consequence and only its confirm posts today's body to today's endpoint (spec § Which actions confirm; scripts/sysadmin/quota_dashboard.py:3873)
-- **Given** the status probe failed, **When** the view renders, **Then** it shows the error in words and no controls (spec § Lifecycle)
+- **Given** no reading at all, **When** the view renders, **Then** it shows the error in words and no controls, and the view shows its read time otherwise (spec § Lifecycle)
 
 ### T06 — from `T06-usage-commands-services.md`
 
-- **Given** the command catalogue, **When** the Commands view renders, **Then** every column of today's table appears, the labelled search filters by name and purpose, and each command's detail opens in a disclosure (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2140)
-- **Given** the service matrix, **When** the operator picks its tab, **Then** it shows as its own tab panel following the APG Tabs pattern (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2205)
-- **Given** pool credits and search-API quotas, **When** the views render, **Then** both appear in Services, the pool credits exactly once, and neither appears in Commands (spec § Information architecture; D-176)
+- **Given** the command catalogue, **When** the Commands view renders, **Then** every column of today's table and its intro appear, the labelled search filters by name and purpose, each command's detail opens in a disclosure, and an unreadable corpus says so in words (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2140)
+- **Given** the service matrix, **When** the operator picks its tab, **Then** it shows as its own tab panel following the APG Tabs pattern, with its intro, caveat and totals (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2205)
+- **Given** pool credits and search-API quotas, **When** the views render, **Then** both appear in Services, the pool credits exactly once, neither in Commands, and an unconfigured pool says so in words (spec § Information architecture; D-176)
 - **Given** the Services view, **When** it renders, **Then** the external-services page is a link opening in its own tab and no view holds an iframe (spec § Contract deltas; spec § Invariants INV-3)
 - **Given** the spend sidecar, **When** the Usage view renders, **Then** every datum today's spend panel shows appears (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1021)
 - **Given** each of the three views, **When** it renders, **Then** its freshness stamp uses its data's own cadence and Commands never goes stale (spec § Components)
@@ -203,7 +214,7 @@ several inputs, and a split would spread that invariant across tickets that must
 
 ## Constraints Digest
 
-The spec's § Constraints Digest binds every ticket; its 32 rows are copied here unchanged (verified whole-file and within
+The spec's § Constraints Digest binds every ticket; its 32 rows are copied here unchanged, followed by 4 rows this plan adds for the packs the rubric names (10-python, 40-documentation ×2, 45-testing) (verified whole-file and within
 three lines of each cite on 2026-10-16).
 
 | Quote | Source | Binds |
@@ -260,6 +271,7 @@ three lines of each cite on 2026-10-16).
 - scripts/sysadmin/dashboard_ui/
 - scripts/sysadmin/quota_dashboard.py
 - tests/test_quota_dashboard_ui_kit.py
+- tests/test_quota_dashboard_app_js.py
 - tests/test_quota_dashboard_server.py
 - tests/test_quota_dashboard_overview.py
 - tests/test_quota_dashboard_work.py
@@ -386,7 +398,11 @@ merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_ed
   consumed by T03 and T04 as `data-body`'s `token`; `_LEGACY_TOKEN_UNTIL` is produced `None` by T02 and set by T07;
   `components.stale_banner` is produced by T01 and called by T02's dispatcher; the action attributes are produced by T01
   and only declared by T03–T06. Reconciled during drafting: the asker field (`creator`), the view tickets writing no
-  JavaScript (T01 owns `app.js`), and the payload cache T02 needed for the stale banner.
+  JavaScript (T01 owns `app.js`), and the payload cache T02 needed for the stale banner. Reconciled in review
+  round 1: every client behaviour a view declares now has its T01 attribute (`data-text-from`, `data-input`,
+  filters, pick groups, tabs, clamp, menu, loading timers); the configuration values and pure formatters the old
+  builders used reach the views as T02 data and `dashboard_ui.fmt`; T03 returns `item_targets` as well as
+  `pause_targets`, and the dispatcher publishes the union.
 - Fixed point: not claimed — `/fabrik-plan-review` converges it.
 
 ## Coverage Checklist
@@ -504,6 +520,7 @@ merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_ed
 
 | Pass | Seats | Counters | Method | Hash |
 |---|---|---|---|---|
+| Pass 1 | opus×1 (spine Interfaces, Execution Discipline, Global Constraints, roll-up, File Scope, Checklist; T02; T07) + sonnet×1 (T01, T03–T06; the other spine sections) · shape: agent-tool | found: 37, new: 37, confirmed: 36, fixed: 36, unexecuted: 0, edits: 7 | method: partitioned full pass; every confirmed candidate re-run by the orchestrator (probe fallback, budget subprocess, sync probe, target eviction, uncached collector, item root, cap/threshold bodies, posture.fleet keys, cites); refuted 1 (sonnet C17 — rule packs are budget-exempt by `check_plan_tickets.py` design) | bf031c20… → 76eb6539… |
 
 ## Residual unknowns
 

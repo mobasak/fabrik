@@ -1,18 +1,23 @@
 # T06 — The Usage, Commands and Services views
-Appetite: 240
+Appetite: 260
 
 ## Scope
-Implements the Usage, Commands and Services rows of spec § Information architecture and their Freshness
-stamps (§ Components): Usage is today's spend panel unchanged in content (`_spend_panel`
-`scripts/sysadmin/quota_dashboard.py:1021`); Commands is today's command catalogue (`_commands_table` :2140) as
-a searchable list with per-command detail in a disclosure, and the service matrix (`_ext_matrix_table` :2205,
-D-172) as its own sub-view behind the APG Tabs pattern; Services is the pool credits shown ONCE
-(`_pool_credits_panel` :564), the search-API quotas moved from Commands (`_api_quotas_panel` :487, D-176), the
-external-services intro (`_ext_services_intro`, :3264) and a link that opens `/external-services.html` in its
-own tab (`target="_blank" rel="noopener"`), no iframe. The box-budget banner (`_budget_banner` :2116) is NOT
-here: it is the Overview's Health strip (T03). DO-NOT: edit `scripts/sysadmin/quota_dashboard.py` (T02 split
-the data halves, T07 removes the old builders), fetch from the network at render (`fetch=False`, INV-1), or
-write JavaScript beyond declaring T01's attributes.
+Implements the Usage, Commands and Services rows of spec § Information architecture and their Freshness stamps
+(§ Components). Usage is today's spend panel unchanged in content (`_spend_panel`
+`scripts/sysadmin/quota_dashboard.py:1021`). Commands is today's command catalogue (`_commands_table` :2140) as a
+searchable list with per-command detail in a disclosure, keeping today's intro line (the number of sources read live
+under `commands/_sources/`) and today's "Command corpus unreadable" banner (:3257-3258); and the service matrix
+(`_ext_matrix_table` :2205, D-172) as its own sub-view behind T01's APG `tabs`, with today's matrix intro and its
+caveat (`_ext_matrix_intro` :2173 — the denominator and how many rows did NOT come from the rendered corpus, computed
+from each row's `rendered`) and its `of N` totals row. Services is the pool credits shown ONCE (`_pool_credits_panel`
+:564), the search-API quotas moved from Commands (`_api_quotas_panel` :487, D-176), the external-services intro
+(`_ext_services_intro`, defined at :1443) and a link that opens `/external-services.html` in its own tab
+(`target="_blank" rel="noopener"`), no iframe. The box-budget banner (`_budget_banner` :2116) is NOT here: it is the
+Overview's Health strip (T03). Every region has its loading, empty and error state, errors in words, never a blank
+area (spec § Components): an unconfigured or uncached pool (`pool` is `None`) says so in words. DO-NOT: edit
+`scripts/sysadmin/quota_dashboard.py` (T02 split the data halves, T07 removes the old builders), fetch from the
+network at render (`fetch=False`, INV-1), or write JavaScript (T01's `data-filter-group`, `tabs` and `disclosure`
+carry every behaviour).
 
 Depends: T02
 Parallel: ⚡
@@ -27,39 +32,49 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - tests/test_quota_dashboard_views_misc.py — NEW
 
 ## Consumes
-- T01 `components.*`, `strings.t`; T02 `ViewContext`, `ViewResult` and `_view_data`: usage → `{"spend":
-  _spend_data()}` (the sidecar's `per_model_spend.{tiers, daily, spend_usd, base_rate_per_mtok}`); commands →
-  `{"commands": _load_commands(), "matrix": …}` (`_load_commands` :1574 — keys `name, next, services, natives,
-  rule, tiers, rendered, purpose, when, skip, stage`); services → `{"pool": _pool_credits(fetch=False), "apis":
-  _api_quotas(fetch=False)}` (:176 TTL 300 s, :414 TTL 1,800 s).
+- T01 `components.*` (`table`, `tabs`, `disclosure`, `field`, `freshness`, `fragment`, `region_state`), `strings.t`, the
+  filter attributes; T02 `ViewContext`, `ViewResult`, `dashboard_ui.fmt` (`stage_tone`, `fmt_age`, `ago`) and `_view_data`:
+  - usage → `{"spend": <the sidecar dict: built_at, monthly_spend, window_start, window_end, unweighted,
+    per_model_spend.{tiers, daily, spend_usd, base_rate_per_mtok}> or {"error": …}}`;
+  - commands → `{"commands": <_load_commands() rows: name, next, services, natives, rule, tiers, rendered, purpose,
+    when, skip, stage> or {"error": …}, "ext_services": <_EXT_SERVICES: the matrix's column keys, labels and titles>,
+    "next_cap", "next_tip_cap", "pool_policy_on", "budget_caveats"}` (`_load_commands` :1574);
+  - services → `{"pool": <_pool_credits(fetch=False): a dict, or None when unconfigured or uncached>, "apis":
+    <_api_quotas(fetch=False)>, "ext_page": {"path", "mtime"}}` (:176 TTL 300 s, :414 TTL 1,800 s).
 - Today's builders as the inventory of what must survive: the coder reads `_spend_panel`, `_commands_table`,
-  `_ext_matrix_table`, `_pool_credits_panel`, `_api_quotas_panel` and `_ext_services_intro` in
-  `scripts/sysadmin/quota_dashboard.py` and carries every column and datum over.
+  `_natives_cell`, `_tiers_cell`, `_ext_matrix_intro`, `_ext_matrix_table`, `_pool_credits_panel`, `_fmt_renewal`,
+  `_api_quotas_panel`, `_unclassified_warning` and `_ext_services_intro` in `scripts/sysadmin/quota_dashboard.py` and
+  carries every column, line and datum over.
 
 ## Produces
-- `usage.render`, `commands.render`, `services.render` (T02's protocol), each with a `freshness` stamp at its
-  data's own cadence — pool 300 s, search APIs 1,800 s, the spend sidecar daily — and Commands with none
+- `usage.render`, `commands.render`, `services.render` (T02's protocol), each with a `freshness` stamp at its data's own
+  cadence — pool 300 s, search APIs 1,800 s, the spend sidecar daily (from `built_at`) — and Commands with none
   (`cadence_s=None`: it reads its sources live and never goes stale).
 
 ## Steps
-1. Write `tests/test_quota_dashboard_views_misc.py` FIRST from fixture data and watch it fail: every column of
-   today's command catalogue appears in Commands (`name, next, services, natives, rule, tiers, purpose, when,
-   skip, stage`), the search box has a label and filters the list by name and purpose, each command's detail is
-   a disclosure; the matrix is a separate tab panel with `role="tablist"`/`tab`/`tabpanel` and
-   `aria-selected`; pool credits appear once and only in Services; the search-API quotas appear in Services and
-   not in Commands; the external-services link opens in its own tab and no `<iframe>` exists in any of the three;
-   every datum `_spend_panel` shows appears in Usage; each view's freshness stamp carries its cadence and
-   Commands carries none; a data key holding `{"error": …}` renders that region's error state in words.
+1. Write `tests/test_quota_dashboard_views_misc.py` FIRST from fixture data and watch it fail:
+   - Commands: every column of today's table appears — the pipeline-order `#`, Command, Stage, Purpose, When to use, Skip when,
+     Next, Native subagents, Model tiers (:2140-2170) — and the intro line with the source count; the labelled search
+     (`field(kind="search")` in a `data-filter-group`) keys rows on name and purpose; each command's detail is a
+     disclosure; an empty `commands` renders the corpus-unreadable banner in words.
+   - Matrix: a separate tab panel (`role="tablist"`, `tab`, `tabpanel`, `aria-selected`), its columns from
+     `ext_services`, the intro with the not-from-the-rendered-corpus caveat counted from `rendered`, and the `of N` totals.
+   - Services: pool credits appear once and only here; `pool=None` renders the catalogue's not-configured line, never an
+     empty area; the search-API quotas appear here and not in Commands; the external-services link opens in its own tab
+     and no `<iframe>` exists in any of the three views.
+   - Usage: every datum `_spend_panel` shows appears, `built_at` and the window included.
+   - Freshness: each view's stamp carries its cadence and Commands carries none; a key holding `{"error": …}` renders
+     that region's error in words while the rest of the view renders.
 2. Write the three modules to green.
-3. Run the Gate to green, then `ruff check` on the Touches.
+3. Run the Gate to green, then `.venv/bin/ruff check` on the Touches.
 4. `python scripts/enforcement/check_doc_sync.py`.
 5. `/fabrik-review` on the ticket's changed surface to its coverage-adjudicated exit.
 6. Commit the Touches.
 
 ## Behavior Contract
-- **Given** the command catalogue, **When** the Commands view renders, **Then** every column of today's table appears, the labelled search filters by name and purpose, and each command's detail opens in a disclosure (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2140)
-- **Given** the service matrix, **When** the operator picks its tab, **Then** it shows as its own tab panel following the APG Tabs pattern (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2205)
-- **Given** pool credits and search-API quotas, **When** the views render, **Then** both appear in Services, the pool credits exactly once, and neither appears in Commands (spec § Information architecture; D-176)
+- **Given** the command catalogue, **When** the Commands view renders, **Then** every column of today's table and its intro appear, the labelled search filters by name and purpose, each command's detail opens in a disclosure, and an unreadable corpus says so in words (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2140)
+- **Given** the service matrix, **When** the operator picks its tab, **Then** it shows as its own tab panel following the APG Tabs pattern, with its intro, caveat and totals (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:2205)
+- **Given** pool credits and search-API quotas, **When** the views render, **Then** both appear in Services, the pool credits exactly once, neither in Commands, and an unconfigured pool says so in words (spec § Information architecture; D-176)
 - **Given** the Services view, **When** it renders, **Then** the external-services page is a link opening in its own tab and no view holds an iframe (spec § Contract deltas; spec § Invariants INV-3)
 - **Given** the spend sidecar, **When** the Usage view renders, **Then** every datum today's spend panel shows appears (spec § Information architecture; scripts/sysadmin/quota_dashboard.py:1021)
 - **Given** each of the three views, **When** it renders, **Then** its freshness stamp uses its data's own cadence and Commands never goes stale (spec § Components)
@@ -73,6 +88,6 @@ Docs: none (T07 owns `docs/workstation/quota-dashboard.md`)
 - scripts/sysadmin/quota_dashboard.py
 
 The spec (`docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md`) is NOT a Context File here:
-with `scripts/sysadmin/quota_dashboard.py` it is 263,449 B, over the 262,144 B read budget. Every spec rule
-this ticket needs is stated in its Scope, Steps and Behavior Contract; T01's components already carry the
-§ Components and § Theme rules.
+with `scripts/sysadmin/quota_dashboard.py` it is 263,449 B, over the 262,144 B read budget (the rule packs are
+budget-exempt; the spec is not). Every spec rule this ticket needs is stated in its Scope, Steps and Behavior
+Contract; T01's components already carry the § Components and § Theme rules.

@@ -16,9 +16,9 @@ Depends: T03, T04, T05, T06
 Parallel: ⛓️
 Integration: true
 Complexity: native
-Gate: .venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py tests/test_quota_dashboard_posture.py tests/test_quota_dashboard_banner.py tests/test_quota_dashboard_page_layer.py tests/test_quota_dashboard_browser.py tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_server.py tests/test_quota_dashboard_overview.py tests/test_quota_dashboard_work.py tests/test_quota_dashboard_accounts.py tests/test_quota_dashboard_views_misc.py -q
-Gate: python scripts/final_gate.py --check --json
-Gate: python scripts/enforcement/check_convergence.py
+Gate: .venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py tests/test_quota_dashboard_posture.py tests/test_quota_dashboard_banner.py tests/test_quota_dashboard_page_layer.py tests/test_quota_dashboard_browser.py tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py tests/test_quota_dashboard_server.py tests/test_quota_dashboard_overview.py tests/test_quota_dashboard_work.py tests/test_quota_dashboard_accounts.py tests/test_quota_dashboard_views_misc.py -q
+Gate: .venv/bin/python scripts/final_gate.py --check --json
+Gate: .venv/bin/python scripts/enforcement/check_convergence.py
 Docs: docs/workstation/quota-dashboard.md (the subsystem doc, rewritten); CHANGELOG, INDEX and FEATURES rows through the orchestrator's Deltas
 
 ## Touches
@@ -40,26 +40,39 @@ Docs: docs/workstation/quota-dashboard.md (the subsystem doc, rewritten); CHANGE
 ## Steps
 1. Write `tests/test_quota_dashboard_page_layer.py` FIRST and watch it fail on today's module: the INV-4 scan —
    an AST walk over `scripts/sysadmin/quota_dashboard.py` and every `scripts/sysadmin/dashboard_ui/**/*.py`
-   finds no f-string or `%`/`.format` string holding an HTML tag outside `dashboard_ui/components.py`; the
+   finds no `str` constant matching `<[a-zA-Z/!]` (plain literal, f-string part, `%` or `.format` template alike —
+   so a `'<span>' + value` concatenation is caught too) outside `dashboard_ui/components.py`; the
    catalogue scan — every view rendered from fixture data under `strings.use(<stand-in>)` contains no
    catalogue-owned English string, and an AST scan finds no user-visible string literal in the view modules
-   outside `strings.t` calls; the INV-2 inventory — a fixed list taken from today's five tabs (the Commands
-   columns; the agent-row fields state, NOW, Holds, NEXT, paused, last merge, dormant count; the account-row
-   fields and the four controls; the item-row fields and the verdict controls; the three Quota banners, the
-   Warnings list, the rotation note, the governor verdict, the pool credits, the search-API quotas, the
-   external-services intro, the box-budget line, the spend data) asserts each renders in some view.
+   outside `strings.t` calls; the INV-2 inventory — a fixed list taken from today's five tabs asserts each renders
+   in some view: Repos — the picker, the owner chips with counts, the tag filter, the skipped-store list, the item-row
+   fields and the Accept / Reject / Comment controls; the agents block — the summary counts line, the repo error
+   banner, the quiet-repos line, per agent state, NOW, Holds, NEXT with its queued counts, last merge, merge owner,
+   named-from, windows, paused (by, at, why, partial), pause-not-honoured, the dormant count, and Pause / Resume;
+   Quota — the four banners (probe failed, rotation paused, pause unreadable, no accounts), the account-row fields and
+   the four controls, the returning and pending rows, the governor verdict, the Warnings list, the rotation note with
+   its threshold and probe interval; Usage — the spend data with `built_at` and the window; Commands — the nine
+   catalogue columns, the intro with its source count, the corpus-unreadable banner, the matrix with its intro,
+   caveat and totals, the box-budget line; External — the pool credits, the search-API quotas, the external-services
+   intro and page.
 2. Flip `GET /` and `/index.html` (`scripts/sysadmin/quota_dashboard.py:3943`) to `components.shell`; make
    `/repos.html` a `303` to `/#work` while today is on or before `_LEGACY_TOKEN_UNTIL`, and `404` after it; set
    `_LEGACY_TOKEN_UNTIL` to this ticket's coding date plus 14 days — one date for the redirect and the token
    window, as spec § Lifecycle and § Which actions confirm tie them to the same merge.
 3. Re-point the rebuild-on-miss in `pause_agent` and `item_verdict` (:2662-2665, :2733-2736) from
    `_repos_page(fresh=True)` to the view dispatcher (`overview` for pause targets, `work` for item targets).
-4. Delete the old page layer: `render` (:3049), `_repos_page` (:3014) and its cache (:2255-2256), `_agents_block`
-   (:2745), `_repo_pane`, `_verdict_cell`, `_row`, `_return_row`, `_pending_row`, `_governor_panel`, the HTML
-   halves of `_spend_panel` and `_budget_probe`, `_commands_table`, `_ext_matrix_table`, `_api_quotas_panel`,
-   `_pool_credits_panel`, `_budget_banner`, `_with_stale_banner` and every other function the step-1 AST scan
-   flags — the scan is the list (31 HTML-emitting functions at bc1793413). `generate()` keeps its probe and
-   `_LAST_STATUS` duty and stops writing a page; `_fresh_html`'s callers move to the shell.
+4. Delete the old page layer — the 30 top-level HTML-emitting functions an all-literal AST scan lists at 18d619f1e
+   (31 counting `_row`'s nested `cell`): `_agent_row`, `_agents_block`, `_api_quotas_panel`, `_bar`, `_budget_banner`,
+   the HTML half of `_budget_probe`, `_commands_table`, `_ext_matrix_intro`, `_ext_matrix_table`, `_ext_services_intro`,
+   `_fmt_renewal`, `_governor_panel`, `_item_line`, `_natives_cell`, `_pause_cell`, `_pending_row`,
+   `_pool_credits_panel`, `_repo_pane`, `_repos_body`, `_repos_page` (with its cache, :2255-2256), `_return_row`, `_row`,
+   `_safe_pane`, the HTML half of `_spend_panel`, `_switch_cell`, `_tiers_cell`, `_unclassified_warning`,
+   `_verdict_cell`, `_with_stale_banner`, `render` — plus the constants only they read (`_REPOS_STYLE`,
+   `_REPOS_PICK_JS`, `_OWNER_FILTER_JS`, `REPOS_REFRESH_S`) and anything else step 1's scan still flags. Then:
+   `generate()` keeps its probe, `quota.json` and `_LAST_STATUS` duty and stops writing `index.html`; `/quota.json`
+   serves `_JSON` and, when the payload is older than MAX_AGE_S, starts `_regen_async()` as `_fresh_html` does today
+   (:3947-3951) — `_fresh_html` itself goes; `main --once` (:4077-4093) becomes "probe once, write `quota.json`, print
+   its path, exit" and its `--help` text says so.
 5. Rewrite the HTML-substring tests in `tests/test_quota_dashboard.py` (about 116 of 169; builders `generate`
    36, `_repos_page` 32, `render` 22, `_api_quotas_panel` 13, `_fresh_html` 10) and the 10 / 9 / 1 tests in the
    three sibling files against the new views' landmarks (`aria-labelledby` ids, `data-*` hooks, the catalogue
