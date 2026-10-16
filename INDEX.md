@@ -52,6 +52,8 @@
 | **docs/reference/research/2026-10-14-one-door-lane-ledger.md** | Every fact the three research seats and the lead's own reads returned for the one-door lane spec (Bezos 2015/2016 letters, Google design docs, ADR significance criteria, Uber/Rust/Squarespace RFC tiers, Shape Up appetite, Netflix/Spotify paved roads, GitHub required checks, OPA Gatekeeper enforcement modes), 42 rows, each dispositioned — backs `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` |
 | **docs/reference/research/2026-10-14-coordinator-role-ledger.md** | Every fact the research seat returned for the coordinator role (triage and interrupt roles, router/planner model tiers, WSJF and impact/effort, WIP limits, merge stewards), one row each with its disposition |
 | [2026-10-14-coordinator-role-design.md](docs/superpowers/specs/2026-10-14-coordinator-role-design.md) | CONVERGED spec (approved D-868): the coordinator role — one agent per multi-window repo that sorts mail, derives priority from impact x effort under the quota budget, assigns, merges and keeps the records' status correct, and never builds |
+| **docs/reference/research/2026-10-16-command-centre-dashboard-ledger.md** | Every fact the six research seats and the lead's own probes returned for the dashboard redesign (Baseline web features, WCAG 2.2 and APG, htmx and Jinja2, command-centre IA, confirm-vs-undo, responsive tables), one row each with its disposition |
+| [2026-10-16-command-centre-dashboard-design.md](docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md) | DRAFT spec (W-573fae88): the quota board at :5051 rebuilt as the operator's command-and-control centre — an Overview that answers what needs the operator now, six views, one stdlib page layer with vanilla JS |
 | [2026-10-14-coordinator-role-spec-review.md](docs/development/reviews/2026-10-14-coordinator-role-spec-review.md) | /fabrik-spec-review receipt for the coordinator role spec: 6-pass Pass Ledger, the Opus + Fable panel's accepted changes, the plan-time inputs the planner must settle |
 | **docs/reference/research/2026-09-24-audit-log-everywhere-ledger.md** | Every fact the three research seats of the audit-log-everywhere spec returned (PostgreSQL ownership and default privileges, append-only field practice, live DSN role migration), one row each with its disposition — backs `docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` and D-385 |
 | **docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md** | Every fact the five research seats of the `saas/88-saas-launch-checklist.md` currency turn returned (Paddle seller and refund policy, CCPA thresholds and opt-out link, Planet49 and EDPB fingerprinting, FingerprintJS licence, KVKK VERBIS exemption, KVKK Art. 11 vs GDPR, KDV Geçici 20 and export, hreflang and sitemaps, PgBouncer, Cloudflare caching, dispute thresholds, SOC 2), each dispositioned |
@@ -1406,6 +1408,7 @@ docs/
 │   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
 │   │   ├── 2026-10-14-coordinator-role-ledger.md
 │   │   ├── 2026-10-14-one-door-lane-ledger.md
+│   │   ├── 2026-10-16-command-centre-dashboard-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1515,6 +1518,7 @@ docs/
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
+│       ├── 2026-10-16-command-centre-dashboard-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
