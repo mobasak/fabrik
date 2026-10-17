@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Review commands: `next` recipes pass the run file and read stderr (2026-10-17)
+
+The corpus catches up with D-933's `review_loop_ledger.py next`, which now carries open claims from the run file:
+- `commands/_fragments/term-coverage.md`: `next` reads no diff. It carries the `--ids` and, with `--args <the run
+  file>`, the claims the run left open, never a row for this pass's fix hunk, so the lead still adds that slice.
+- `fabrik-review`, `fabrik-review-scoped`, `fabrik-spec-review`, `fabrik-plan-review`: each `next` recipe adds
+  `--args <a scratch copy of the run file>` whenever that file exists and reads its stderr either way, pointing at
+  `docs/reference/review-loop-workflow.md`. The scoped recipe trims the emitted `models`.
+
+Answers intel mail 01M54XR3QS (D-948). Pinned by `tests/test_review_command_text_defects.py`.
+
 ### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
 
 `CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):

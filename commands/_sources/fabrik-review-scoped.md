@@ -146,7 +146,7 @@ proportionate answer.
    <scratch>/pass-<n>.json --box <box_minutes>` and re-run every `confirmed` check yourself before you fix.
    **Every later pass is sized by the fragment's D5 sentence:** a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), carrying
    only the units whose ledger holds an open claim, each with `models:` the round-1 seats that raised its open claims and
-   its `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>`
+   its `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>` (`--args <a scratch copy of the run file>` added whenever that file exists: it then prints each unit whole, carrying the open claims the `--ids` leave out, with the launch's `models`, which you trim to those seats and stamp at the trimmed count; read its stderr either way, `/opt/fabrik/docs/reference/review-loop-workflow.md`)
    (D-335); a unit with none is not re-dispatched, and the round-1 count is the ceiling. **The partition rule of
    `/fabrik-review` (`--slices`, two cheap finders per slice — D-344) never applies here** — this command's
    escape hatch for a surface that needs it is routing UP, not partitioning down. The lead runs the **Leak check**
