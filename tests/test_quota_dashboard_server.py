@@ -25,8 +25,7 @@ import types
 from datetime import date, timedelta
 from pathlib import Path
 
-os.environ.setdefault("QUOTA_DASH_BUDGET", "0")  # the budget banner shells out to the fleet probe
-import pytest  # noqa: E402
+import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "scripts" / "sysadmin" / "quota_dashboard.py"
@@ -89,7 +88,7 @@ def _req(
 ):
     """One request with an EXPLICIT Host header (http.client sends the given one, never its own)."""
     c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-    hdrs = {"Host": host or f"127.0.0.1:{port}", **(headers or {})}
+    hdrs = {"Host": f"127.0.0.1:{port}" if host is None else host, **(headers or {})}
     if body is not None:
         hdrs.setdefault("Content-Type", "application/json")
     c.request(method, path, body=body, headers=hdrs)
@@ -235,6 +234,83 @@ def test_the_configured_host_is_admitted_only_when_configured(tmp_path, monkeypa
         httpd.shutdown()
 
 
+@pytest.mark.parametrize("wildcard", ["0.0.0.0", "::", "[::]", ""])
+def test_a_wildcard_bind_address_is_never_an_admitted_host(tmp_path, monkeypatch, wildcard):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_HOST=wildcard)
+    httpd, port = _serve(qd)
+    try:
+        for host in (f"0.0.0.0:{port}", f"[::]:{port}", f":{port}", ""):
+            assert _req(port, "GET", "/health", host=host)[0] == 421, (wildcard, host)
+        assert _req(port, "GET", "/health")[0] == 200
+    finally:
+        httpd.shutdown()
+
+
+def _raw(port: int, head: str) -> bytes:
+    s = socket.create_connection(("127.0.0.1", port), timeout=5)
+    s.sendall(head.encode())
+    data = s.recv(4096)
+    s.close()
+    return data.split(b"\r\n", 1)[0]
+
+
+def test_two_host_headers_are_refused(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    httpd, port = _serve(qd)
+    try:
+        line = _raw(
+            port,
+            f"GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nHost: evil.example:{port}\r\n\r\n",
+        )
+        assert b" 421 " in line, line
+        line = _raw(
+            port,
+            f"GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nHost: 127.0.0.1:{port}\r\n\r\n",
+        )
+        assert b" 421 " in line, line
+    finally:
+        httpd.shutdown()
+
+
+def test_every_sec_fetch_site_value_is_read(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    httpd, port = _serve(qd)
+    try:
+        hdr = f"{qd.SWITCH_HEADER}: 1\r\nContent-Type: application/json\r\nContent-Length: 0\r\n"
+        line = _raw(
+            port,
+            f"POST /switch HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{hdr}"
+            "Sec-Fetch-Site: same-origin, cross-site\r\n\r\n",
+        )
+        assert b" 403 " in line, line
+        line = _raw(
+            port,
+            f"POST /switch HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{hdr}"
+            "Sec-Fetch-Site: same-origin\r\nSec-Fetch-Site: Cross-Site\r\n\r\n",
+        )
+        assert b" 403 " in line, line
+    finally:
+        httpd.shutdown()
+
+
+def test_a_cross_site_get_reaches_only_the_harmless_routes(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    triggered: list[int] = []
+    monkeypatch.setattr(qd, "_status_triggers", lambda: triggered.append(1))
+    _install(monkeypatch, "overview", _fake_view("overview"))
+    httpd, port = _serve(qd)
+    cross = {"Sec-Fetch-Site": "cross-site"}
+    try:
+        assert _req(port, "GET", "/health", headers=cross)[:3:2] == (200, b"ok")
+        assert _req(port, "GET", "/static/app.css", headers=cross)[0] == 200
+        status, _h, body = _req(port, "GET", "/v/overview", headers=cross)
+        assert status == 403, body
+        assert triggered == [] and qd._TARGET_SLICES["pause"] == {}
+        assert _req(port, "GET", "/v/overview", headers={"Sec-Fetch-Site": "same-origin"})[0] == 200
+    finally:
+        httpd.shutdown()
+
+
 # ── INV-6: a cross-site POST ────────────────────────────────────────────────────────────────────────
 
 
@@ -284,9 +360,13 @@ def test_a_short_body_with_a_valid_host_is_still_dropped_by_the_socket_timeout(
         )
         t0 = time.time()
         data = s.recv(4096)
+        elapsed = time.time() - t0
         s.close()
-        assert time.time() - t0 < 4.0
-        assert data == b"" or data.startswith(b"HTTP/1.")
+        # dropped by the 0.5 s socket timeout: near it, never instantly (a guard refusal) or a hang
+        assert 0.3 <= elapsed < 4.0, elapsed
+        if data:  # a response, if any, is a refusal — a short body must never switch
+            code = data.split(b"\r\n", 1)[0].split()[1]
+            assert not code.startswith(b"2"), data
     finally:
         httpd.shutdown()
 
@@ -372,8 +452,43 @@ def test_the_view_data_carries_each_views_keys(tmp_path, monkeypatch):
     assert cmd["commands"] == {"error": "OSError: corpus gone"}
     assert [c["key"] for c in cmd["ext_services"]] == [k for k, *_ in qd._EXT_SERVICES]
     ov = qd._view_data("overview", ctx)
-    assert {"key": "status"} not in ov["health"]["failed"]
+    assert not [f for f in ov["health"]["failed"] if f["key"] == "status"]
     assert ov["budget"] == {"disabled": True}
+
+
+def test_the_pool_policy_source_is_loaded_once_per_mtime(tmp_path, monkeypatch):
+    import importlib.util as ilu
+
+    qd = _load(tmp_path, monkeypatch)
+    loads: list[str] = []
+    real = ilu.module_from_spec
+    monkeypatch.setattr(
+        ilu, "module_from_spec", lambda spec: (loads.append(spec.name), real(spec))[1]
+    )
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert qd._pool_policy_on() is True
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    assert qd._pool_policy_on() is False  # the seam is still read per call
+    qd._pool_policy_on()
+    assert loads.count("_fabrik_pool_policy_source") == 1
+
+
+def test_a_config_value_that_raises_is_that_keys_error(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui.views import ViewContext
+
+    ctx = ViewContext(_opt(), _ROOT, time.time())
+    for fn, view, key in (
+        ("_drain_band", "accounts", "drain_band"),
+        ("_pool_policy_on", "accounts", "pool_policy_on"),
+        ("_status_data", "accounts", "status"),
+        ("_owner_orders", "work", "owner_order"),
+    ):
+        with monkeypatch.context() as m:
+            m.setattr(qd, fn, lambda *a, **k: (_ for _ in ()).throw(ValueError("bad")))
+            m.setattr(qd, "_collect_work", lambda opt: [])
+            data = qd._view_data(view, ctx)
+        assert data[key] == {"error": "ValueError: bad"}, fn
 
 
 def test_a_view_that_raises_returns_its_error_state_in_words(tmp_path, monkeypatch):
@@ -395,6 +510,44 @@ def test_a_view_that_raises_returns_its_error_state_in_words(tmp_path, monkeypat
     assert "Traceback" not in text and "/home/x/path" not in text
 
 
+def test_a_fault_anywhere_in_building_the_fragment_is_the_error_state(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    qd.generate()
+    from dashboard_ui import components as ui
+    from dashboard_ui.views import ViewResult
+
+    agents = [
+        {"name": "r", "main": "/x", "error": None, "agents": [{"name": "a", "can_pause": True}]}
+    ]
+    _install(
+        monkeypatch,
+        "accounts",
+        _fake_view(
+            "accounts", render=lambda d, c: ViewResult(html=ui.group("a"), pause_targets=agents)
+        ),
+    )
+    httpd, port = _serve(qd)
+    try:
+        assert _req(port, "GET", "/v/accounts")[0] == 200
+        assert ("r", "a") in qd._PAUSE_TARGETS
+        for part in ("_status_banner", "_status_triggers", "_opt_root"):
+            with monkeypatch.context() as m:
+                m.setattr(
+                    qd, part, lambda *a, **k: (_ for _ in ()).throw(ValueError("broken part"))
+                )
+                status, _h, body = _req(port, "GET", "/v/accounts")
+            text = body.decode()
+            assert status == 200, part
+            assert 'data-state="error"' in text and "ValueError" in text, part
+            assert 'data-stamp="' in text.split(">", 1)[0], part
+            assert ("r", "a") not in qd._PAUSE_TARGETS, part
+            assert _req(port, "GET", "/v/accounts")[0] == 200  # healthy again: the slice is back
+            assert ("r", "a") in qd._PAUSE_TARGETS
+    finally:
+        httpd.shutdown()
+
+
 def test_the_static_files_are_served_with_an_etag_and_nothing_else_is(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     httpd, port = _serve(qd)
@@ -414,6 +567,10 @@ def test_the_static_files_are_served_with_an_etag_and_nothing_else_is(tmp_path, 
             assert (
                 _req(port, "GET", f"/static/{name}", headers={"If-None-Match": '"other"'})[0] == 200
             )
+            for inm in (f"W/{etag}", f'"x", {etag}', "*", f'"x",{etag}'):
+                assert (
+                    _req(port, "GET", f"/static/{name}", headers={"If-None-Match": inm})[0] == 304
+                ), inm
         for path in (
             "/static/../quota_dashboard.py",
             "/static/%2e%2e/x",
@@ -431,8 +588,8 @@ def test_the_static_files_are_served_with_an_etag_and_nothing_else_is(tmp_path, 
 # ── the snapshot token (409) ────────────────────────────────────────────────────────────────────────
 
 
-def test_snapshot_token_shape():
-    sys.path.insert(0, str(_SRC.parent))
+def test_snapshot_token_shape(monkeypatch):
+    monkeypatch.syspath_prepend(str(_SRC.parent))
     from dashboard_ui import snapshot
 
     item = {
@@ -456,6 +613,14 @@ def test_snapshot_token_shape():
         {"alt_ids": ["a", "b", "c"]},
     ):
         assert snapshot.token({**item, **change}) != tok, change
+    # mixed-type alt ids sort by (type, text), so either order gives one token
+    assert snapshot.token({"alt_ids": [1, "1", "a"]}) == snapshot.token({"alt_ids": ["a", "1", 1]})
+    # a non-list alt_ids is its own JSON value, never a silent []
+    for odd in ("W-0000beef", {"a": 1}, 7):
+        assert snapshot.token({"alt_ids": odd}) != snapshot.token({}), odd
+    assert snapshot.token({"alt_ids": {"a": 1, "b": 2}}) == snapshot.token(
+        {"alt_ids": {"b": 2, "a": 1}}
+    )
 
 
 def test_a_verdict_carrying_a_stale_token_is_refused_409_and_runs_nothing(tmp_path, monkeypatch):
@@ -509,6 +674,63 @@ def test_a_verdict_carrying_a_stale_token_is_refused_409_and_runs_nothing(tmp_pa
     finally:
         httpd.shutdown()
     assert json.loads(_item_file(shop, item).read_text())["comments"][-1]["text"] == "three"
+
+
+def test_the_token_is_read_from_the_card_tree_and_checked_against_the_write_tree(
+    tmp_path, monkeypatch
+):
+    import shutil
+
+    shop = _store_repo("shop")
+    item = _store_item(shop, "a task")
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui import snapshot
+
+    card = tmp_path / "card-tree"  # the tree the card was rendered from, apart from main
+    (card / ".fabrik" / "work").mkdir(parents=True)
+    shutil.copy(_item_file(shop, item), _item_file(card, item))
+
+    def tok(tree: Path) -> str:
+        return snapshot.token(json.loads(_item_file(tree, item).read_text()))
+
+    def board(root: Path) -> None:
+        qd._ITEM_TARGETS = {("shop", item): (str(shop), str(root))}
+
+    board(card)
+    same = tok(card)
+    assert qd.item_verdict("shop", item, "comment", "both agree", token=same)[0] == 200
+    # main moved on (work.py wrote there), the card's tree did not: refused, fail closed
+    assert tok(shop) != tok(card)
+    assert qd.item_verdict("shop", item, "comment", "x", token=tok(card)) == (
+        409,
+        {"ok": False, "error": "changed"},
+    )
+    # the card's tree moved, main did not: the token is read from the card's tree
+    shutil.copy(_item_file(shop, item), _item_file(card, item))
+    _edit(card, item, ground="gate")
+    assert qd.item_verdict("shop", item, "comment", "x", token=tok(shop)) == (
+        409,
+        {"ok": False, "error": "changed"},
+    )
+    n = len(json.loads(_item_file(shop, item).read_text())["comments"])
+    # one tree: a missing, corrupt or non-dict item file is changed
+    board(shop)
+    good = tok(shop)
+    for bad in (None, "{bad", "[1]"):
+        saved = _item_file(shop, item).read_text()
+        if bad is None:
+            _item_file(shop, item).unlink()
+        else:
+            _item_file(shop, item).write_text(bad)
+        assert qd.item_verdict("shop", item, "comment", "x", token=good) == (
+            409,
+            {"ok": False, "error": "changed"},
+        ), bad
+        _item_file(shop, item).write_text(saved)
+    assert len(json.loads(_item_file(shop, item).read_text())["comments"]) == n, (
+        "work.py ran on a 409"
+    )
+    assert qd.item_verdict("shop", item, "comment", "fine", token=good)[0] == 200
 
 
 def test_an_absent_token_is_accepted_only_inside_the_legacy_window(tmp_path, monkeypatch):
@@ -601,6 +823,64 @@ def test_each_views_targets_survive_the_others_and_a_failing_view_empties_only_i
         httpd.shutdown()
 
 
+def _pause_repo(name: str, agent: str, paused: object) -> dict:
+    return {
+        "name": name,
+        "main": "/x",
+        "error": None,
+        "agents": [{"name": agent, "can_pause": True, "paused": paused}],
+    }
+
+
+def test_the_newest_publish_wins_a_shared_target(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    qd._publish_pause_targets([_pause_repo("r", "a", 1)], "work")
+    qd._publish_pause_targets([_pause_repo("r", "a", 2)], "overview")
+    qd._publish_pause_targets([_pause_repo("r", "a", 3)], "work")
+    assert qd._PAUSE_TARGETS[("r", "a")]["paused"] == 3
+    qd._publish_pause_targets([_pause_repo("r", "a", 4)], "overview")
+    assert qd._PAUSE_TARGETS[("r", "a")]["paused"] == 4
+
+
+def test_a_publish_between_another_publishers_union_and_its_rebind_is_never_lost(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+    real = qd._targets_lock
+    state = {"hooked": False}
+
+    class _Lock:
+        def __enter__(self):
+            real.acquire()
+            return self
+
+        def __exit__(self, *exc):
+            real.release()
+            if not state["hooked"]:  # a second publisher runs the instant the first lets go
+                state["hooked"] = True
+                qd._publish_item_targets(
+                    [
+                        {
+                            "name": "r",
+                            "main": "/x",
+                            "root": "/x",
+                            "error": None,
+                            "items": [{"id": "W-0000000b"}],
+                        }
+                    ],
+                    "work",
+                )
+            return False
+
+    monkeypatch.setattr(qd, "_targets_lock", _Lock())
+    qd._publish_item_targets(
+        [{"name": "r", "main": "/x", "root": "/x", "error": None, "items": [{"id": "W-0000000a"}]}],
+        "overview",
+    )
+    assert ("r", "W-0000000b") in qd._TARGET_SLICES["item"]["work"]
+    assert set(qd._ITEM_TARGETS) == {("r", "W-0000000a"), ("r", "W-0000000b")}
+
+
 def test_after_a_restart_a_verdict_and_a_pause_are_found_by_the_rebuild_on_miss(
     tmp_path, monkeypatch
 ):
@@ -690,12 +970,13 @@ def test_the_payload_time_is_seeded_before_the_first_probe(tmp_path, monkeypatch
         old = time.time() - 4000
         os.utime(qd._JSON, (old, old))
         monkeypatch.setattr(qd, "_probe", _boom)
-        monkeypatch.setattr(qd, "_credits_async", lambda: None)
+        monkeypatch.setattr(qd, "_credits_async", lambda: None)  # never a network refresher
+        passed = (
+            threading.Event()
+        )  # the loop's first pass has fully run (generate, then the trigger)
+        monkeypatch.setattr(qd, "_maybe_trigger_rotation", lambda payload, done=passed: done.set())
         stop = qd._start_probe_loop()
-        for _ in range(500):
-            if qd._LAST_PROBE_FAILURE[0] is not None:
-                break
-            time.sleep(0.01)
+        assert passed.wait(10), "the probe loop never finished its first pass"
         stop.set()
         assert qd._LAST_PROBE_FAILURE[0] is not None
         ts = qd._LAST_STATUS[0][0]
@@ -704,6 +985,36 @@ def test_the_payload_time_is_seeded_before_the_first_probe(tmp_path, monkeypatch
         else:
             assert ts is None, case
         assert qd._status_stale(time.time()), case  # 4000 s old, or unknown: the banner shows
+
+
+def test_a_slow_seed_never_overwrites_a_newer_reading(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    qd.OUT_DIR.mkdir(parents=True)
+    qd._JSON.write_text(json.dumps({**_payload(), "active": "from-disk"}))
+    reading = threading.Event()
+    release = threading.Event()
+    real_json = qd._JSON
+
+    class _SlowPath(type(real_json)):
+        def read_text(self, *a, **k):
+            text = super().read_text(*a, **k)
+            reading.set()
+            release.wait(5)
+            return text
+
+    monkeypatch.setattr(qd, "_JSON", _SlowPath(real_json))
+    seeder = threading.Thread(target=qd._seed_last_status)
+    seeder.start()
+    assert reading.wait(5)
+    writer = threading.Thread(
+        target=qd._set_last_status, args=(time.time(), {**_payload(), "active": "probed"})
+    )
+    writer.start()
+    time.sleep(0.1)
+    release.set()
+    seeder.join(5)
+    writer.join(5)
+    assert qd._LAST_STATUS[0][1]["active"] == "probed"
 
 
 def test_a_fresh_process_serves_quota_json_without_probing(tmp_path, monkeypatch):
@@ -741,14 +1052,12 @@ def test_a_moved_pointer_triggers_exactly_one_bounded_regeneration(tmp_path, mon
     pointer.unlink()
     pointer.symlink_to(tmp_path / "can")
     gens: list[int] = []
-    real = qd.generate
 
     def counted():
         gens.append(1)
-        return real()
+        raise RuntimeError("connection reset")
 
-    monkeypatch.setattr(qd, "generate", counted)
-    monkeypatch.setattr(qd, "_probe", _boom)  # the flip's probe fails: the pointer still moved
+    monkeypatch.setattr(qd, "_probe", counted)  # the flip's probe fails: the pointer still moved
     _install(monkeypatch, "accounts", _fake_view("accounts"))
     _install(monkeypatch, "overview", _fake_view("overview"))
     monkeypatch.setattr(qd, "_collect_work", lambda opt: [])
@@ -762,6 +1071,66 @@ def test_a_moved_pointer_triggers_exactly_one_bounded_regeneration(tmp_path, mon
     finally:
         httpd.shutdown()
     assert gens == [1]
+
+
+def test_a_pointer_that_stays_moved_costs_one_regeneration_per_timeout_window(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    qd.generate()
+    probes: list[int] = []
+    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)  # a flip the probe never confirms
+    asyncs: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: asyncs.append(1))
+    _install(monkeypatch, "accounts", _fake_view("accounts"))
+    httpd, port = _serve(qd)
+    try:
+        for _ in range(3):
+            assert _req(port, "GET", "/v/accounts")[0] == 200
+    finally:
+        httpd.shutdown()
+    assert probes == [1] and asyncs == []
+
+
+def test_a_payload_past_max_age_starts_one_background_regeneration(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="20")
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    qd.generate()
+    asyncs: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: asyncs.append(1))
+    _install(monkeypatch, "accounts", _fake_view("accounts"))
+    httpd, port = _serve(qd)
+    try:
+        assert _req(port, "GET", "/v/accounts")[0] == 200
+        assert asyncs == [], "a fresh payload starts nothing"
+        old = time.time() - 60
+        os.utime(qd._JSON, (old, old))
+        assert _req(port, "GET", "/v/accounts")[0] == 200
+        assert asyncs == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_a_request_never_waits_on_a_regeneration_already_running(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    qd.generate()
+    probes: list[int] = []
+    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+    _install(monkeypatch, "accounts", _fake_view("accounts"))
+    httpd, port = _serve(qd)
+    qd._gen_lock.acquire()  # the probe loop is mid-pass
+    try:
+        t0 = time.time()
+        assert _req(port, "GET", "/v/accounts")[0] == 200
+        assert time.time() - t0 < 2.0
+    finally:
+        qd._gen_lock.release()
+        httpd.shutdown()
+    assert probes == [], "the loop's pass lands; the request adds no probe of its own"
 
 
 # ── the budget's data half ─────────────────────────────────────────────────────────────────────────
@@ -820,15 +1189,27 @@ def test_two_concurrent_work_requests_collect_once(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     calls: list[int] = []
     gate = threading.Event()
+    collecting = threading.Event()
 
     def slow(opt):
         calls.append(1)
+        collecting.set()
         gate.wait(5)
         return [
             {"name": "shop", "items": [], "error": None, "skipped": [], "main": "/x", "root": "/x"}
         ]
 
+    entered: list[int] = []
+    both_in = threading.Barrier(3, timeout=10)  # the two request threads and this one
+    real_work_data = qd._work_data
+
+    def work_data():
+        entered.append(1)
+        both_in.wait()  # both requests are inside the work-data path before either collects
+        return real_work_data()
+
     monkeypatch.setattr(qd, "_collect_work", slow)
+    monkeypatch.setattr(qd, "_work_data", work_data)
     _install(monkeypatch, "work", _fake_view("work"))
     httpd, port = _serve(qd)
     out: list[int] = []
@@ -839,16 +1220,44 @@ def test_two_concurrent_work_requests_collect_once(tmp_path, monkeypatch):
         ]
         for t in ts:
             t.start()
-        time.sleep(0.3)
+        both_in.wait()
+        assert collecting.wait(5), "the collector never started"
         gate.set()
         for t in ts:
             t.join(timeout=10)
     finally:
         httpd.shutdown()
+    assert entered == [1, 1], "both requests entered"
     assert out == [200, 200] and calls == [1]
     qd._drop_repos_cache()  # a board write drops the cached work data too
-    qd._work_data()
+    real_work_data()
     assert calls == [1, 1]
+
+
+def test_a_failing_collector_is_cached_for_the_ttl_too(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui.views import ViewContext
+
+    calls = {"work": 0, "box": 0}
+
+    def bad_work(opt):
+        calls["work"] += 1
+        raise OSError("store unreadable")
+
+    def bad_box(opt):
+        calls["box"] += 1
+        raise RuntimeError("box unreadable")
+
+    monkeypatch.setattr(qd, "_collect_work", bad_work)
+    monkeypatch.setattr(qd, "_status_module", lambda: types.SimpleNamespace(collect_box=bad_box))
+    ctx = ViewContext(_opt(), _ROOT, time.time())
+    seen = [qd._view_data("overview", ctx) for _ in range(5)]
+    assert calls == {"work": 1, "box": 1}
+    assert all(d["work"] == {"error": "OSError: store unreadable"} for d in seen)
+    assert all(d["box"] == {"error": "RuntimeError: box unreadable"} for d in seen)
+    qd._drop_repos_cache()  # a board write retries at once
+    qd._view_data("work", ctx)
+    assert calls["work"] == 2
 
 
 def test_collect_work_entries_carry_the_tree_they_were_read_from(tmp_path, monkeypatch):
@@ -860,16 +1269,45 @@ def test_collect_work_entries_carry_the_tree_they_were_read_from(tmp_path, monke
 
 
 def test_the_view_package_never_imports_the_dashboard_module():
-    import ast
-
     pkg = _SRC.parent / "dashboard_ui"
     files = sorted(pkg.rglob("*.py"))
     assert len(files) >= 5  # __init__, components, strings, fmt, snapshot, views/__init__
     for py in files:
-        for node in ast.walk(ast.parse(py.read_text(encoding="utf-8"))):
-            names = (
-                [a.name for a in node.names]
-                if isinstance(node, ast.Import)
-                else ([node.module or ""] if isinstance(node, ast.ImportFrom) else [])
-            )
-            assert not any("quota_dashboard" in n for n in names), py
+        assert not _imports_dashboard(py.read_text(encoding="utf-8")), py
+
+
+def _imports_dashboard(src: str) -> bool:
+    """Any import form naming the dashboard module: `import x`, `from x import y`, `from .. import x`,
+    or a string handed to `importlib.import_module` / `__import__`."""
+    import ast
+
+    for node in ast.walk(ast.parse(src)):
+        names: list[str] = []
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names = [node.module or "", *(a.name for a in node.names)]
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            called = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            if called in ("import_module", "__import__"):
+                names = [
+                    a.value
+                    for a in node.args
+                    if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                ]
+        if any("quota_dashboard" in n for n in names):
+            return True
+    return False
+
+
+def test_the_import_scan_sees_every_form():
+    for src in (
+        "import quota_dashboard",
+        "from quota_dashboard import x",
+        "from .. import quota_dashboard",
+        "import importlib\nimportlib.import_module('quota_dashboard')",
+        "__import__('quota_dashboard')",
+    ):
+        assert _imports_dashboard(src), src
+    assert not _imports_dashboard('"""never imports quota_dashboard"""\nimport json')

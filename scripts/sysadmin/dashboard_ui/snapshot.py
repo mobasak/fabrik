@@ -26,12 +26,19 @@ def token(item: Mapping[str, object]) -> str:
     """16 hex characters naming the item's question, status, ground, comment count and alt ids."""
     comments = item.get("comments")
     alt = item.get("alt_ids")
+    alt = [] if alt is None else alt
     reading = [
         item.get("question"),
         item.get("status"),
         item.get("ground"),
         len(comments) if isinstance(comments, (list, tuple)) else 0,
-        sorted(alt, key=str) if isinstance(alt, (list, tuple)) else [],
+        # a list sorts by (type, text), so mixed ids never raise and either order agrees; anything
+        # else (a hand-edited string, an object) is its own JSON value, never a silent []
+        sorted(alt, key=lambda a: (type(a).__name__, str(a)))
+        if isinstance(alt, (list, tuple))
+        else alt,
     ]
-    raw = json.dumps(reading, separators=(",", ":"), ensure_ascii=False, default=str)
+    raw = json.dumps(
+        reading, separators=(",", ":"), ensure_ascii=False, sort_keys=True, default=str
+    )
     return hashlib.sha256(raw.encode("utf-8", "surrogatepass")).hexdigest()[:16]

@@ -1165,23 +1165,32 @@ def _spend_panel() -> str:
     )
 
 
+_policy_mod: tuple[float, object] | None = None  # (source mtime, module) — `_pool_policy_on`'s cache
+
+
 def _pool_policy_on() -> bool:
     """D-181/D-182 (2026-09-07): the OpenRouter pool is OFF by ruling while its credentials stay
     provisioned, so a dispatch here would still spend. The ONE policy is
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
+    global _policy_mod
     try:
         import importlib.util  # noqa: PLC0415
 
         path = _FABRIK_ROOT / "scripts" / "enforcement" / "check_subagent_flywheel.py"
-        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
-        if spec is None or spec.loader is None:
-            return False
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(
-            mod
-        )  # by PATH, under a private name — a bare import could be shadowed
-        return bool(mod._pool_policy_on())
+        mtime = path.stat().st_mtime
+        # re-executed only when the source moves (the `_work_module` shape): a view polls this every
+        # refresh, and the function itself still runs per call, so its env seam is read each time
+        if _policy_mod is None or _policy_mod[0] != mtime:
+            spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+            if spec is None or spec.loader is None:
+                return False
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(
+                mod
+            )  # by PATH, under a private name — a bare import could be shadowed
+            _policy_mod = (mtime, mod)
+        return bool(_policy_mod[1]._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 
@@ -2287,8 +2296,8 @@ _repos_gen = 0  # bumped by every board write; a build that saw it move is not c
 # The views' copies of the two collectors /repos.html reads, cached the same REPOS_TTL_S under the SAME
 # lock and dropped by the same board write — so a collector never sees two concurrent callers (its
 # warnings sink is one list) and runs no more often than /repos.html already runs it.
-_work_cache: tuple[float, list[dict]] | None = None
-_box_cache: tuple[float, dict] | None = None
+_work_cache: tuple[float, list[dict] | Exception] | None = None
+_box_cache: tuple[float, dict | Exception] | None = None
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
 
 
@@ -2359,32 +2368,43 @@ def _collect_work(opt: Path) -> list[dict]:
     return out
 
 
-def _work_data() -> list[dict]:
-    """`_collect_work(_opt_root())`, cached REPOS_TTL_S under `_repos_lock` and dropped by a board
-    write (`_drop_repos_cache`) exactly as `_repos_page` caches its page; a read that raises is not
-    cached, and a write that landed while it ran makes it served once, never cached."""
-    global _work_cache
+def _cached_collect(which: str, collect):
+    """``collect()`` cached REPOS_TTL_S under `_repos_lock`, dropped by a board write
+    (`_drop_repos_cache`) exactly as `_repos_page` caches its page. A collector that RAISES is cached
+    too, and the same error is raised again until the entry expires — a failing (perhaps slow)
+    collector re-run on every render, under the lock, would cost more than /repos.html does. A write
+    that landed while it ran makes the result served once, never cached."""
+    global _work_cache, _box_cache
     with _repos_lock:
         now = time.time()
-        if _work_cache and now - _work_cache[0] < REPOS_TTL_S:
-            return _work_cache[1]
+        cached = _work_cache if which == "work" else _box_cache
+        if cached and now - cached[0] < REPOS_TTL_S:
+            if isinstance(cached[1], BaseException):
+                raise cached[1]
+            return cached[1]
         gen = _repos_gen
-        repos = _collect_work(_opt_root())
-        _work_cache = (now, repos) if _repos_gen == gen else None
-        return repos
+        try:
+            value = collect()
+        except Exception as exc:
+            value = exc
+        entry = (now, value) if _repos_gen == gen else None
+        if which == "work":
+            _work_cache = entry
+        else:
+            _box_cache = entry
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+
+def _work_data() -> list[dict]:
+    """`_collect_work(_opt_root())`, through `_cached_collect`."""
+    return _cached_collect("work", lambda: _collect_work(_opt_root()))
 
 
 def _box_data() -> dict:
-    """`agent_status.collect_box(_opt_root())`, cached like `_work_data` (the Agents block's collector)."""
-    global _box_cache
-    with _repos_lock:
-        now = time.time()
-        if _box_cache and now - _box_cache[0] < REPOS_TTL_S:
-            return _box_cache[1]
-        gen = _repos_gen
-        box = _status_module().collect_box(_opt_root())
-        _box_cache = (now, box) if _repos_gen == gen else None
-        return box
+    """`agent_status.collect_box(_opt_root())` — the Agents block's collector — through `_cached_collect`."""
+    return _cached_collect("box", lambda: _status_module().collect_box(_opt_root()))
 
 
 def _owner_order(owners: set[str]) -> list[str]:
@@ -2691,21 +2711,28 @@ _TARGET_SLICES: dict[str, dict[str, dict]] = {"pause": {}, "item": {}}
 _targets_lock = threading.Lock()
 
 
-def _publish_slice(kind: str, slice_: str, entries: dict) -> dict:
-    """Store ``entries`` as ``slice_``'s targets of ``kind`` and return the union of every slice."""
+def _publish_slice(kind: str, slice_: str, entries: dict) -> None:
+    """Store ``entries`` as ``slice_``'s targets of ``kind`` and rebind that registry to the union of
+    every slice — all under `_targets_lock`, so an older publisher can never rebind after a newer one.
+    The slice is re-inserted LAST, so on a shared key the most recently published slice wins."""
+    global _PAUSE_TARGETS, _ITEM_TARGETS
     with _targets_lock:
-        _TARGET_SLICES[kind][slice_] = entries
+        slices = _TARGET_SLICES[kind]
+        slices.pop(slice_, None)
+        slices[slice_] = entries
         union: dict = {}
-        for part in _TARGET_SLICES[kind].values():
+        for part in slices.values():
             union.update(part)
-        return union
+        if kind == "pause":
+            _PAUSE_TARGETS = union
+        else:
+            _ITEM_TARGETS = union
 _PAUSE_ENV_KEEP = ("PATH", "HOME", "LANG", "TZ")
 PAUSE_TIMEOUT_S = 30
 
 
 def _publish_pause_targets(repos: list[dict], slice_: str = "repos") -> None:
-    global _PAUSE_TARGETS
-    _PAUSE_TARGETS = _publish_slice("pause", slice_, {
+    _publish_slice("pause", slice_, {
         (str(r.get("name")), str(a.get("name"))): {"main": str(r.get("main")), "paused": a.get("paused")}
         for r in repos
         for a in r.get("agents", [])
@@ -2774,8 +2801,7 @@ _LEGACY_TOKEN_UNTIL: date | None = None
 
 
 def _publish_item_targets(repos: list[dict], slice_: str = "repos") -> None:
-    global _ITEM_TARGETS
-    _ITEM_TARGETS = _publish_slice("item", slice_, {
+    _publish_slice("item", slice_, {
         (str(r.get("name")), str(i.get("id"))): (str(r["main"]), str(r.get("root") or r["main"]))
         for r in repos
         if r.get("main") and not r.get("error")
@@ -2783,20 +2809,27 @@ def _publish_item_targets(repos: list[dict], slice_: str = "repos") -> None:
     })
 
 
-def _token_refused(root: str, item: str, token: object) -> bool:
-    """True when the verdict must be refused 409: ``token`` differs from the item's snapshot token as it
-    stands in ``root`` (a missing or unreadable item counts as changed), or no token came and the
-    legacy window (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before work.py takes
-    its store lock — the window between the two is accepted (one operator, one board)."""
+def _token_refused(main: str, root: str, item: str, token: object) -> bool:
+    """True when the verdict must be refused 409. With a ``token``: it must equal the item's snapshot
+    token in ``root`` — the tree the card was read from — AND, when that is not ``main``, in ``main``
+    too, the tree `work.py verdict --repo main` writes (fail closed: two trees that disagree are a
+    changed item). A missing, unreadable or non-object item file counts as changed. Without one: refused
+    once the legacy window (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before
+    work.py takes its store lock — the window between the two is accepted (one operator, one board)."""
     if token is None:
         return _LEGACY_TOKEN_UNTIL is not None and date.today() > _LEGACY_TOKEN_UNTIL
     if Path(item).name != item:  # the target lookup admits only listed ids; never a path
         return True
-    try:
-        current = json.loads((Path(root) / ".fabrik" / "work" / f"{item}.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return True
-    return not isinstance(current, dict) or _snapshot.token(current) != token
+    for tree in dict.fromkeys((root, main)):  # one read when they are the same tree
+        try:
+            current = json.loads(
+                (Path(tree) / ".fabrik" / "work" / f"{item}.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            return True
+        if not isinstance(current, dict) or _snapshot.token(current) != token:
+            return True
+    return False
 
 
 def item_verdict(
@@ -2818,7 +2851,7 @@ def item_verdict(
     if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
     main, root = target
-    if _token_refused(root, item, token):
+    if _token_refused(main, root, item, token):
         return 409, {"ok": False, "error": "changed"}
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     opts = [f"--text={note}"] if note else []
@@ -3495,17 +3528,35 @@ def generate() -> str:
     here; without this lock two probes could run at once (double API cost) and race the two file
     writes (scoped review 2026-09-03). A second caller waits for the running probe, never starts one."""
     with _gen_lock:
-        try:
-            html = _generate_locked()
-        except Exception as exc:
-            # The page on disk is now a stale render that still says "refreshes every 20s". Keep
-            # the failure where the SERVE path can see it (W-6a0f3c65): a traceback in the log was
-            # all the 2026-09-07 freeze left, for 16 cycles. Class only — a message can carry paths.
-            _LAST_RENDER_FAILURE[0] = (time.time(), type(exc).__name__)
-            sys.stderr.write(f"quota_dashboard: regeneration failed ({type(exc).__name__})\n")
-            raise
-        _LAST_RENDER_FAILURE[0] = None
-        return html
+        return _generate_held()
+
+
+def _generate_if_idle() -> bool:
+    """`generate()` only if no regeneration is running — never a wait on `_gen_lock`, which the probe
+    loop may hold for a whole probe timeout (a request would then wait it out AND probe again). False:
+    one was running, and its pass lands instead."""
+    if not _gen_lock.acquire(blocking=False):
+        return False
+    try:
+        _generate_held()
+    finally:
+        _gen_lock.release()
+    return True
+
+
+def _generate_held() -> str:
+    """The body of `generate`, run with `_gen_lock` held."""
+    try:
+        html = _generate_locked()
+    except Exception as exc:
+        # The page on disk is now a stale render that still says "refreshes every 20s". Keep
+        # the failure where the SERVE path can see it (W-6a0f3c65): a traceback in the log was
+        # all the 2026-09-07 freeze left, for 16 cycles. Class only — a message can carry paths.
+        _LAST_RENDER_FAILURE[0] = (time.time(), type(exc).__name__)
+        sys.stderr.write(f"quota_dashboard: regeneration failed ({type(exc).__name__})\n")
+        raise
+    _LAST_RENDER_FAILURE[0] = None
+    return html
 
 
 # (when, error class) of the newest failed regeneration, or None once a regeneration succeeds.
@@ -3561,6 +3612,21 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
 # good probe. Each is one tuple swapped in whole; readers take a single reference.
 _LAST_STATUS: list[tuple[float | None, dict] | None] = [None]
 _LAST_PROBE_FAILURE: list[tuple[float, str] | None] = [None]
+# Every WRITE of `_LAST_STATUS` holds this — the seed's check-read-set and a probe's set — so a slow
+# seed from a request thread can never land after (and over) a newer probe's reading.
+_status_lock = threading.Lock()
+
+
+def _set_last_status(ts: float | None, payload: dict) -> None:
+    with _status_lock:
+        _LAST_STATUS[0] = (ts, payload)
+
+
+def _carry_last_status(payload: dict) -> None:
+    """A fallback pass: ``payload`` under the last GOOD probe's time, unchanged (None: unknown)."""
+    with _status_lock:
+        prev = _LAST_STATUS[0]
+        _LAST_STATUS[0] = (prev[0] if prev else None, payload)
 
 
 def _seed_last_status() -> None:
@@ -3569,13 +3635,16 @@ def _seed_last_status() -> None:
     wrote it, so its mtime says nothing about the reading's age). A missing file seeds nothing."""
     if _LAST_STATUS[0] is not None:
         return
-    try:
-        mtime = _JSON.stat().st_mtime
-        payload = json.loads(_JSON.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return
-    if isinstance(payload, dict) and _LAST_STATUS[0] is None:
-        _LAST_STATUS[0] = (None if payload.get("probe_failed") else mtime, payload)
+    with _status_lock:
+        if _LAST_STATUS[0] is not None:
+            return
+        try:
+            mtime = _JSON.stat().st_mtime
+            payload = json.loads(_JSON.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if isinstance(payload, dict):
+            _LAST_STATUS[0] = (None if payload.get("probe_failed") else mtime, payload)
 
 
 def _generate_locked() -> str:
@@ -3585,7 +3654,7 @@ def _generate_locked() -> str:
     try:
         payload = _probe()
         _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
-        _LAST_STATUS[0] = (time.time(), payload)
+        _set_last_status(time.time(), payload)
         _LAST_PROBE_FAILURE[0] = None
     except Exception as exc:  # transport/CLI/JSON — degrade visibly, never blank the page
         _LAST_PROBE_FAILURE[0] = (time.time(), type(exc).__name__)
@@ -3606,8 +3675,7 @@ def _generate_locked() -> str:
         # The fallback SAYS it is blind: the trigger lowers its bar on this key (see
         # _maybe_trigger_rotation) — a reading that cannot be refreshed is a reading to act on early.
         payload = {**payload, "probe_failed": error}
-        prev = _LAST_STATUS[0]
-        _LAST_STATUS[0] = (prev[0] if prev else None, payload)  # the last GOOD probe's time, unchanged
+        _carry_last_status(payload)  # the last GOOD probe's time, unchanged
         try:
             _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
         except OSError:
@@ -3819,7 +3887,8 @@ def _fresh_html() -> str:
 # ── the command-centre views (plan 2026-10-17-plan-1, T02) ─────────────────────────────────────────
 # `GET /v/<view>` answers one view's fragment. Each view module is a pure renderer (`dashboard_ui.views`);
 # this module hands it everything it reads from here as DATA, because no view may import this module.
-_QUOTA_VIEWS = ("overview", "accounts")  # the views that show quota data: the stale banner, the triggers
+_QUOTA_VIEWS = ("overview", "accounts")
+_WILDCARD_HOSTS = {"", "0.0.0.0", "[::]"}  # bind-everything addresses: never an admitted Host  # the views that show quota data: the stale banner, the triggers
 _STATIC_TYPES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript; charset=utf-8"}
 
 
@@ -3885,14 +3954,16 @@ def _status_banner(now: float) -> object:
 
 def _status_triggers() -> None:
     """Today's two request-side triggers (`_fresh_html`), on the quota views: a moved pointer costs ONE
-    bounded synchronous regeneration per PROBE_TIMEOUT_S; a payload older than MAX_AGE_S (quota.json's
-    mtime — every pass rewrites it, as every pass rewrites the page) starts a background one."""
+    bounded synchronous regeneration per PROBE_TIMEOUT_S — and none at all while a regeneration is
+    already running (`_generate_if_idle`: its pass lands instead of this request waiting it out); a
+    payload older than MAX_AGE_S (quota.json's mtime — every pass rewrites it, as every pass rewrites
+    the page) starts a background one."""
     if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
-        _LAST_SYNC_REGEN[0] = time.time()
         try:
-            generate()
-        except Exception:  # noqa: BLE001 — generate() recorded it; the view shows the banner
-            pass
+            if _generate_if_idle():
+                _LAST_SYNC_REGEN[0] = time.time()
+        except Exception:  # noqa: BLE001 — generate recorded it; the view shows the banner
+            _LAST_SYNC_REGEN[0] = time.time()
         return
     try:
         age = time.time() - _JSON.stat().st_mtime
@@ -3945,7 +4016,7 @@ def _view_data(name: str, ctx) -> dict:
         data.update(
             work=_guarded(_work_data),
             box=_guarded(_box_data),
-            status=_status_data(),
+            status=_guarded(_status_data),
             budget=_guarded(_budget_data),
             ag_states=dict(_AG_STATES),
             hub_agents=list(_HUB_AGENTS),
@@ -3956,13 +4027,13 @@ def _view_data(name: str, ctx) -> dict:
         data.update(
             work=work,
             hub_agents=list(_HUB_AGENTS),
-            owner_order=_owner_orders(work),
+            owner_order=_guarded(_owner_orders, work),
             repos_ttl_s=REPOS_TTL_S,
             next_cap=NEXT_CAP,
             next_tip_cap=NEXT_TIP_CAP,
         )
     elif name == "accounts":
-        status = _status_data()
+        status = _guarded(_status_data)
         data.update(
             status=status,
             queue=(
@@ -3972,11 +4043,11 @@ def _view_data(name: str, ctx) -> dict:
             ),
             trigger_threshold=TRIGGER_THRESHOLD,
             reserve_pct=_RESERVE_PCT,
-            drain_band=_drain_band(),
+            drain_band=_guarded(_drain_band),
             five_hour_s=_FIVE_HOUR_S,
             seven_day_s=_SEVEN_DAY_S,
             switch_header=SWITCH_HEADER,
-            pool_policy_on=_pool_policy_on(),
+            pool_policy_on=_guarded(_pool_policy_on),  # anything but True is OFF to a view
             slug_re=_SLUG_RE.pattern,
             email_re=_EMAIL_RE.pattern,
         )
@@ -4008,13 +4079,12 @@ def _render_view(name: str) -> str:
     """One view's fragment: its data, its module's ``collect`` (merged over it) and ``render``, the
     stale banner on a quota view, the whole wrapped in a root element whose ``data-stamp`` hashes the
     markup. A view that raises renders its error state in words and empties ITS target slice; every
-    other view's targets stay published (the union)."""
-    if name in _QUOTA_VIEWS:
-        _status_triggers()
-    ctx = _views.ViewContext(opt_root=_opt_root(), fabrik_root=_FABRIK_ROOT, now=time.time())
-    pause: list[dict] | None = None
-    items: list[dict] | None = None
+    other view's targets stay published (the union). EVERY step — the triggers, the banner, the
+    wrapper, the publish — runs inside the guard, so no fault drops the connection."""
     try:
+        if name in _QUOTA_VIEWS:
+            _status_triggers()
+        ctx = _views.ViewContext(opt_root=_opt_root(), fabrik_root=_FABRIK_ROOT, now=time.time())
         mod = _views.load(name)
         data = _view_data(name, ctx)
         collect = getattr(mod, "collect", None)
@@ -4023,18 +4093,17 @@ def _render_view(name: str) -> str:
         result = mod.render(data, ctx)
         if not isinstance(result, _views.ViewResult):
             raise TypeError(f"render() returned {type(result).__name__}, not ViewResult")
-        html: object = result.html
-        pause, items = result.pause_targets, result.item_targets
+        body = _ui.fragment(_status_banner(ctx.now) if name in _QUOTA_VIEWS else None, result.html)
+        out = _ui.group(body, tag="section", data={"view-root": name, "stamp": _views.stamp(body)})
+        _publish_pause_targets(result.pause_targets or [], name)
+        _publish_item_targets(result.item_targets or [], name)
+        return out
     except Exception as exc:  # noqa: BLE001 — one view's fault is that view's error state
         sys.stderr.write(f"quota_dashboard: view {name} failed ({type(exc).__name__}: {exc})\n")
-        html = _ui.region_state(
-            "error", _strings.t("view.failed", error=type(exc).__name__), retry=True
-        )
-        pause = items = None
-    _publish_pause_targets(pause or [], name)  # fail-closed: no board, no buttons
-    _publish_item_targets(items or [], name)
-    body = _ui.fragment(_status_banner(ctx.now) if name in _QUOTA_VIEWS else None, html)
-    return _ui.group(body, tag="section", data={"view-root": name, "stamp": _views.stamp(body)})
+        _publish_pause_targets([], name)  # fail-closed: no board, no buttons
+        _publish_item_targets([], name)
+        err = _ui.region_state("error", _strings.t("view.failed", error=type(exc).__name__), retry=True)
+        return _ui.group(err, tag="section", data={"view-root": name, "stamp": _views.stamp(err)})
 
 
 def _known_slugs() -> set[str]:
@@ -4215,15 +4284,23 @@ class _Handler(BaseHTTPRequestHandler):
         port = self.server.server_address[1]
         names = {"127.0.0.1", "localhost", "[::1]"}
         conf = HOST.strip().lower()
-        if conf:
-            names.add(f"[{conf}]" if ":" in conf and not conf.startswith("[") else conf)
+        conf = f"[{conf}]" if ":" in conf and not conf.startswith("[") else conf
+        if conf not in _WILDCARD_HOSTS:  # a wildcard bind is an address no client names
+            names.add(conf)
         allowed = {f"{n}:{port}" for n in names}
         return allowed | names if port == 80 else allowed  # a client omits the default port
 
+    def _cross_site(self) -> bool:
+        """Any ``Sec-Fetch-Site`` value — every header, every comma-separated part — is ``cross-site``."""
+        values = ",".join(self.headers.get_all("Sec-Fetch-Site") or [])
+        return any(v.strip().lower() == "cross-site" for v in values.split(","))
+
     def _guard(self, method: str) -> bool:
-        """Before anything else runs: 421 for a Host outside the allowlist, 403 for a POST the browser
-        marks ``Sec-Fetch-Site: cross-site`` — both before the body is read. True: carry on."""
-        host = (self.headers.get("Host") or "").strip().lower()
+        """Before anything else runs: 421 for a Host outside the allowlist (or more than one Host), 403
+        for a POST — or a GET of a view, which regenerates and republishes — that the browser marks
+        ``Sec-Fetch-Site: cross-site``; all before the body is read. True: carry on."""
+        hosts = self.headers.get_all("Host") or []
+        host = hosts[0].strip().lower() if len(hosts) == 1 else ""
         if host not in self._allowed_hosts():
             sys.stderr.write(f"quota_dashboard: {method} refused — Host {host[:80]!r} is not this board\n")
             raw = b"misdirected request: this board answers only on its own address\n"
@@ -4236,8 +4313,9 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return False
-        if method == "POST" and (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
-            sys.stderr.write(f"quota_dashboard: POST {self.path[:80]!r} refused — cross-site\n")
+        guarded = method == "POST" or self.path.split("?", 1)[0].startswith("/v/")
+        if guarded and self._cross_site():
+            sys.stderr.write(f"quota_dashboard: {method} {self.path[:80]!r} refused — cross-site\n")
             self._json(403, {"ok": False, "error": "cross-site request refused"}, close=True)
             return False
         return True
