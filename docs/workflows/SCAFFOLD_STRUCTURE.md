@@ -244,7 +244,8 @@ The `fabrik scaffold` command runs the same checks after `create_project()` retu
 Step 2's venv and pip install, the local dev database a `--db` Python type creates, step 5, step 6 and a step-7
 spec in the hub's `specs/services/` run only when provisioning is opted in: `fabrik scaffold` calls
 `create_project(provision=True)`; any other caller (a script, a probe, a review seat, a test) gets the files only, its
-spec under its own base, and the skipped steps print the command to run instead (W-e2f0b6e5). Code that needs the
+spec under its own base (inside the project when that base is the hub's scan root), and the skipped venv and
+database steps print the command to run instead (W-e2f0b6e5). Code that needs the
 real steps outside the CLI wraps them in `scaffold.provisioning()`; `FABRIK_SCAFFOLD_OFFLINE` still turns them off
 inside an opt-in.
 

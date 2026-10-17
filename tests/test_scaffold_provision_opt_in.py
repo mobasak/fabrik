@@ -154,9 +154,21 @@ def test_hub_spec_needs_the_opt_in(
     root = tmp_path / "scan-root"
     root.mkdir()
     monkeypatch.setattr(scaffold, "_SYNC_SCAN_ROOT", root)
-    scaffold.create_project(name="pv-spec", description="d", base=root, provision=provision)
-    expected = scaffold.FABRIK_ROOT if hub else root
+    project = scaffold.create_project(
+        name="pv-spec", description="d", base=root, provision=provision
+    )
+    # without the opt-in the spec stays inside the new project: never the hub, never a stray <base>/specs
+    expected = scaffold.FABRIK_ROOT if hub else project
     assert spec_dirs == [expected / "specs" / "services"], spec_dirs
+
+
+def test_registry_sync_needs_the_opt_in(spawned) -> None:
+    """A project directly under the sync's scan root reaches the sync gate; without the opt-in it skips."""
+    scaffold._post_scaffold_sync(Path("/opt") / "never-created-provision-probe")
+    assert spawned == [], spawned
+    with scaffold.provisioning():
+        scaffold._post_scaffold_sync(Path("/opt") / "never-created-provision-probe")
+    assert spawned == ["sync_projects"], spawned
 
 
 def test_cli_opts_in(monkeypatch, tmp_path) -> None:

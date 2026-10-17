@@ -8128,9 +8128,16 @@ def _create_project(
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
             # A scaffold that did not opt in to provisioning (a probe, a seat, a script) is a sandbox
-            # too, even under /opt: its spec stays under its base (W-e2f0b6e5).
-            to_hub = _in_sync_scan_root(project_dir) and _PROVISION.get() is True
-            specs_dir = (FABRIK_ROOT if to_hub else Path(base)) / "specs" / "services"
+            # too, even under /opt: its spec stays inside the new project there, never in the hub's
+            # specs/services/ and never in a stray /opt/specs/ (W-e2f0b6e5).
+            in_scan_root = _in_sync_scan_root(project_dir)
+            if in_scan_root and _PROVISION.get() is True:
+                spec_root = FABRIK_ROOT
+            elif in_scan_root:
+                spec_root = project_dir
+            else:
+                spec_root = Path(base)
+            specs_dir = spec_root / "specs" / "services"
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(
