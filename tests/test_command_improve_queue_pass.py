@@ -392,3 +392,15 @@ def test_grounding_reads_the_governing_spec_and_a_copied_recipe_names_its_form()
         " for its reader to"
         " follow, never handed over to be pasted —" in _phase("## PHASE 3", "## PHASE 4")
     )
+
+
+def test_a_recurrence_is_matched_on_the_step_and_counts_answered_rejects() -> None:
+    """Rows 1792198197, 1792194121, 1792193148: three sightings hid under three nouns, and answered
+    rejects on one unfollowed line were never counted as holds; the recurrence rule now says both."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "A subject already held (matched on what the row asks the author to DO and on its mechanism words — a"
+        " guard, both sides, a false green — as well as on its noun, an already-stated or answered reject"
+        " counted) is a recurrence and is edited, never re-rejected"
+    ) in text
+    assert "a line three such rejects cite is a line not followed, and is rewritten." in text

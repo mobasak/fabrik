@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
+
+- PHASE 2's recurrence rule now matches a held subject on what the row asks the author to DO and on
+  its mechanism words, as well as on its noun. An already-stated or answered reject now counts as a
+  hold. A line that three such rejects cite is a line not followed, and is rewritten. This answers
+  feedback rows 1792198197, 1792194121 and 1792193148. The grader is in
+  `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
 
 - `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
