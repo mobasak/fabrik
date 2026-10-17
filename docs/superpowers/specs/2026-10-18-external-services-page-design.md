@@ -22,9 +22,9 @@ dispositioned, `scripts/check_research_ledger.py` 0 refused).
 in use, or what needs fixing. A step is one decision-bearing action — opening, reading, choosing — never a
 scroll or a focus move.
 1. Open the board's Services view (`http://localhost:5051/#services`).
-2. Read the inventory's summary line and the **Needs attention** list (the inventory section is the first
-   section of the Services view, above its pool and API cards): each row names the provider and why it is
-   there.
+2. Read the inventory's summary line and the **Needs attention** list (the inventory section follows the
+   Services view's pool and API cards, the view's live money-bearing facts): each entry names the provider,
+   or the data source, and why it is there.
 3. To find one provider: type its name into the inventory filter — the group holding the match opens (a
    category group, or the Untriaged queue) and the result count is announced.
 4. Read that provider's full record: a categorised row's detail (account, price, renewal, full project list,
@@ -100,7 +100,7 @@ A **judge panel of three independent Sonnet seats** (Agent tool, D-961), handed 
 alphabetically with no recommendation, **ranked C first unanimously** (3/3), A second (3/3), B third (3/3).
 
 **C.** The inventory's markup becomes one pure function in the page layer,
-`dashboard_ui/inventory.py::render(rows, *, now, synced_at, interactive) -> Safe` — body-only, no `<head>`,
+`dashboard_ui/inventory.py::render(rows, *, now, synced_at, classified_at, interactive) -> Safe` — body-only, no `<head>`,
 no page shell. Two callers:
 1. **Live:** the Services view renders it (`interactive=True`) in place of today's link card, from a guarded
    collector in `quota_dashboard.py` that reads the registry on the view's request.
@@ -144,7 +144,8 @@ table region is the only scroller inside the section).
 
 ### Layout, top to bottom
 
-The inventory is the **first section** of the Services view, above its pool and API cards.
+The inventory section follows the Services view's pool balance and API quota cards (`views/services.py:200-210`),
+which stay first: they are the view's only live, money-bearing facts, and a backlog must not push them down.
 
 1. **Heading + data age.** "External services" and one line: *"registry synced {age} ago · {n} providers"*,
    the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
@@ -169,14 +170,23 @@ The inventory is the **first section** of the Services view, above its pool and 
    - a credit balance older than 48 h, judged against the renderer's `now` from the row's `credit_at`
      (§ Data flow) — `credit_cell`'s existing threshold;
    - unattributed credentials (`kind = credential-unattributed`) on the row;
-   - status `unidentified` or `retiring`.
-   Census today: rule 1 → 0, rule 2 → 0, rule 3 → 21 (20 unidentified + 1 retiring); 21 rows. A fourth rule
+   - status `unidentified` or `retiring`;
+   - **the registry itself is stale**: `synced_at` older than 48 h (the chain runs daily), or `None`;
+   - **the classifier is stalled**: `classified_at` (the mtime of `.tmp/external-services/classify_last.json`,
+     read by each caller, never by the renderer) older than 48 h, or absent — the fault behind the 71%
+     backlog, tracked as W-7e467f2d.
+   The last two are data-source entries, not provider rows: a command centre must show its own source
+   failing. **A reason with more than five rows collapses into one counted entry** pointing at its table
+   ("20 providers unidentified — see the Unidentified table"); five or fewer are listed by name.
+   Census today: rule 1 → 0, rule 2 → 0, rule 3 → 21 (20 unidentified + 1 retiring), registry synced
+   2026-10-17 (fresh), classifier last ran 2026-09-07 (stalled) — so the list shows three entries: the
+   stalled classifier, "20 providers unidentified", and the one retiring provider by name. A fourth rule
    — paid or freemium with no credential — is **not** adopted: it matches 16 rows today (anthropic, amazon,
    algolia, …), most of them funded by a web login the registry cannot see (`account` is set on 0 of 466
    rows), so it would be a list of false alarms (D4).
    A row in this list also appears in its table (the retiring row in its category, the 20 unidentified rows
-   in the Unidentified table); the list itself carries no `data-f-*`, so the filter counts each provider
-   once.
+   in the Unidentified table); the list itself carries no `data-f-*` and is labelled as not filtered, so
+   the filter counts each provider once and the list stays whole while a filter is set.
 4. **The inventory** — the 135 providers with a category, **one table per category** (ux-3): 17 real
    categories (115 rows) and a last **Unidentified** table (20 rows), each a `disclosure()` whose summary shows
    the category, its provider count and its paid and credential counts. Groups are collapsed by default; in
@@ -194,12 +204,19 @@ The inventory is the **first section** of the Services view, above its pool and 
    filter reaches them. The filter's total is every provider once: 135 table rows + 331 entries = 466.
 
 **Filter bar** above the inventory, **live view only** (`interactive=True`): a search box (provider, project,
-account), a cost and a status select, labelled (a11y-8), and a `role="status"` count, "*{n} of {total}
-providers shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today hides non-matching
-`data-f-*` elements and nothing else, so three behaviours are added to `app.js` (§ Contract deltas): select
-controls drive the filter (a `change` listener and the state restore extended from `INPUT|TEXTAREA` to
-`SELECT`); a match inside a closed `<details>` opens it; and a group's `[data-filter-count]` element receives
-the shown and total counts.
+account), a cost and a status select — a new `components.select()` (labelled, a11y-8; `field()` has no
+select, `components.py:227`), in `data-filter-mode="token"` so Cost `free` never matches `freemium`
+(`app.js:461-466` is substring by default) — and a `role="status"` count, "*{n} of {total} providers
+shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today hides non-matching
+`data-f-*` elements and nothing else, so these behaviours are added to `app.js` (§ Contract deltas):
+- select controls drive the filter (a `change` listener; the state restore extended from `INPUT|TEXTAREA`
+  to `SELECT`);
+- a match inside a closed `<details>` opens it, and the group is marked as opened by the filter;
+- a group with zero matches is hidden while a filter is set;
+- when the filter clears, or stops matching inside a group, every group the filter opened closes again
+  and hidden groups return; a group the operator opened by hand stays open — one search-and-clear never
+  restores the full-length page;
+- a group's `[data-filter-count]` element receives the shown and total counts.
 
 **Ordering, no column sorting.** Needs attention first; then category tables in category order, each sorted
 by provider; then the Untriaged queue sorted by provider. The decision and the variant it rejects are in
@@ -215,7 +232,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 ### Data flow (invariants)
 
 - One reader: `load()` moves out of `gen_dashboard.py` into `dashboard_ui/inventory.py` as
-  `load(conn) -> (rows, synced_at)`: it takes an open connection (the caller connects), keeping its queries,
+  `load(conn, *, before_query=None) -> (rows, synced_at)`: it takes an open connection (the caller
+  connects) and calls `before_query(cur)` before each of its queries (the live collector's deadline hook,
+  § Failure; the chain passes none), keeping its queries,
   its `kind`-tolerant column check and its guards (NaN, Infinity and negative balances and prices refused).
   Each row gains `credit_at` (the snapshot's `fetched_at`) beside the balance, so the 48 h rule is judged at
   render time against the renderer's `now` instead of inside `load()`; `synced_at` is `max(api_keys.last_seen)`
@@ -223,7 +242,14 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   it has today — so its callers
   (`scripts/tests/test_registry_sync.py:393`) are unchanged.
 - One renderer: `inventory.render()` takes rows and returns `Safe` markup; it reads no file, database or
-  environment.
+  environment — `classified_at` is passed in by each caller.
+- The data-age line renders through `freshness()` as a `<time data-ts>` (`components.py:400-425`), never an
+  age string computed at render: the view's `stamp()` hashes the markup (`views/__init__.py:66-68`), so text
+  that changes every render would defeat the no-op swap and re-swap a 466-row DOM on every
+  `visibilitychange`.
+- Every group and row-detail `disclosure()` carries a stable `id` (the category slug; the provider id):
+  `app.js:178` keys an id-less `<details>` by its summary text, and many "+{n} more" summaries would
+  collide when a swap restores open state.
 - Zero secrets: the rows carry metadata and a credential COUNT only, exactly as today; the renderer never
   receives a key value.
 - The static file embeds no JSON and no script: the rows are rendered server-side into the markup, so
@@ -241,13 +267,15 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   `registry_db.connect()` (`registry_db.py:33-35`) takes no arguments and sets none. `registry_db.connect()`
   gains optional keyword arguments passed to `psycopg2.connect` (the chain's call, with none, is unchanged);
   the collector passes `connect_timeout=2` and `options="-c statement_timeout=2000"`, and runs `load()`'s
-  queries in one transaction under `SET LOCAL statement_timeout` re-armed before each query to the deadline left,
+  queries in one transaction; its `before_query` hook re-arms `SET LOCAL statement_timeout` before each query to the deadline left,
   never below 1 ms (a `statement_timeout` of 0 disables the bound in Postgres): with nothing left the read is
   abandoned as the section's error state, so the whole read — connect plus every query — ends within 5 s. A stalled Postgres becomes that section's error state,
   never a hung `/v/services`. (On the default unix-socket DSN a connect does not stall on the network; the
   statement bound is what holds there.) The Services view has no timed refresh (it emits no `data-refresh-s`,
   and `app.js`'s `CADENCE` names only overview, work and accounts); `/v/services` is fetched on navigation,
   on `visibilitychange` (`app.js:708-709`) and on a forced refresh. The collector keeps its last good read in
+  one cache slot under a lock, as `_credits_lock` guards the credits refresh (`quota_dashboard.py:531`) —
+  the server is a `ThreadingHTTPServer`, and two parallel `/v/services` requests start one read, not two. It
   memory for 60 s (the registry changes once a day; the only cache the board has today is the credits
   file's 300 s, `quota_dashboard.py:161`), so tab switching and repeated navigation query the registry at
   most once a minute.
@@ -268,12 +296,16 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - `gen_dashboard.py <out>`: same CLI, same exit codes, same atomic write; the output's markup changes.
 - `scripts/dashboard_server.py` (binds `0.0.0.0` by default — its retirement also closes that exposure) and
   its `:8770` port: **removed**. `PORTS.md` has no `8770` row, so nothing there changes.
-- `dashboard_ui/static/app.js`: three additions for the filter bar — `SELECT` controls (`change` listener,
-  state restore), open-on-match for an enclosing `<details>`, and the `[data-filter-count]` text — each with
-  a browser-smoke assertion.
+- `dashboard_ui/static/app.js`: the filter-bar additions of § The design — `SELECT` controls, open-on-match
+  with the opened-by-filter mark, zero-match groups hidden, the filter's inverse on clear, and the
+  `[data-filter-count]` text — each with a browser-smoke assertion.
+- `components.select()`: new — a labelled `<select>` carrying `data-filter` and `data-filter-mode`.
+- The board imports the registry reader (D9): `quota_dashboard.py` adds `scripts/` to `sys.path` and
+  imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
+  missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
   detail is a `disclosure()` passed as cell markup, needing no table change.
-- `dashboard_ui/inventory.py`: new — `load(conn)` and `render(…)`.
+- `dashboard_ui/inventory.py`: new — `load(conn, *, before_query=None)` and `render(…)`.
 
 ## Validation
 
@@ -284,7 +316,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - **Attention rules:** one test per rule (stale credit judged against a fixed `now`, unattributed,
   unidentified, retiring) plus a healthy row and a paid row with no credential that both stay out; an
   `unidentified` row appears in Needs attention and in the Unidentified table; each More-counts value equals
-  its formula on the fixture.
+  its formula on the fixture. The two source rules: a `synced_at` 49 h old (and `None`) and a
+  `classified_at` 49 h old (and `None`) each produce their entry, 47 h old produces none; six rows sharing
+  a reason collapse into one counted entry, five are listed by name.
 - **Untriaged queue:** 331 uncategorised fixture rows render as one section with its count, never as table rows.
 - **Bounded read:** the live collector against a connection that never answers returns the section's error
   state within the timeout, and the rest of the Services view renders.
@@ -297,7 +331,11 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   atomic write keep passing; the markup-pinning cases are rewritten in the change that changes the markup.
 - **Browser smoke** (the parent spec's Playwright harness): the Services view at 1280 and 375 px — typing a
   provider name opens the group holding it (a category table or the Untriaged queue) and the status count
-  updates; each select narrows the rows; the inventory section with groups collapsed is at most 4,000 px
+  updates; each select narrows the rows, and Cost `free` shows no `freemium` row; a group with no match is
+  hidden; clearing the filter closes every group the filter opened, shows the hidden ones again, and leaves
+  a group opened by hand open; the Needs-attention list is unchanged by any filter; the data-age line does
+  not change the fragment's `data-stamp` between two renders a minute apart; the inventory section with
+  groups collapsed is at most 4,000 px
   tall at 1280 px (today's page 28,719), measured on the section, not the whole view.
 - **Accessibility:** axe on the Services view in both themes — 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2,
   4.1.3 (a11y-2…a11y-9).
@@ -345,7 +383,9 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 - The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`,
   `components` and `strings` only, never `quota_dashboard` (the panel's caveat).
 - The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script.
-- The board keeps running under `/usr/bin/python3`; the reader uses psycopg2 only, present there.
+- The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (2.9.11, present for
+  that interpreter) as a named exception to the parent spec's "no new dependency" rule (D9), imported
+  lazily so the rest of the board stays stdlib.
 - Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926).
 
 ## Rejected alternatives
@@ -386,14 +426,16 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 ## Constraints
 
 As § Constraints Digest; and the board's hard rules from the parent spec (loopback-only, request guard,
-stdlib only, no CDN).
+stdlib only — save the D9 exception for the guarded registry read — no CDN).
 
 ## Open / blocking unknowns
 
 - **Open — the Playwright height budget:** 4,000 px for the inventory section at 1280 px, collapsed, is an
-  estimate: heading and summary ≈ 150 px, filter bar ≈ 80 px, 21 attention rows × ≈ 44 px ≈ 920 px, 18 group
-  summaries + More counts + the Untriaged summary (20) × ≈ 52 px ≈ 1,040 px — ≈ 2,200 px, so the bar leaves
-  headroom for the attention list to double. The per-element heights are guesses; the first build measures
+  estimate: heading and summary ≈ 150 px, filter bar ≈ 80 px, 3 attention entries today (collapsed by reason, § The
+  design 3) × ≈ 44 px ≈ 130 px, 18 group summaries + More counts + the Untriaged summary (20) × ≈ 52 px
+  ≈ 1,040 px — ≈ 1,400 px; with at most one collapsed entry per reason the attention list cannot exceed
+  4 provider reasons (stale credit, unattributed, unidentified, retiring) × 5 named rows + 2 source entries =
+  22 entries ≈ 970 px, ≈ 2,240 px in all, so the bar holds in the worst case. The per-element heights are guesses; the first build measures
   them and the plan may restate the bar with its measurement. The pool and API cards below are outside this
   budget.
 - **Open — a CSP for the static file:** with no script and no inline data, a policy of
@@ -429,6 +471,30 @@ stdlib only, no CDN).
   a `303` to `/#services` kept with no removal date. The live section replaces both; the board has no access log that could
   show another reader of the route (`quota_dashboard.py:2867-2868`), so the redirect keeps an unseen bookmark
   working.
+- **D9 — psycopg2 in the board, as a named exception** to the parent spec's "stdlib, no new dependency"
+  constraint (`2026-10-16-command-centre-dashboard-design.md:447`): already installed for `/usr/bin/python3`,
+  imported lazily inside the guarded collector only. The alternative — the chain writes a JSON snapshot
+  the board reads — keeps the board stdlib but makes the live view as old as the last chain run, the
+  day-old snapshot this design replaces. Reversible: the collector's one import site is the whole surface.
+- **D10 — Data-source health is attention**: a stale registry and a stalled classifier are Needs-attention
+  entries, and a reason with more than five rows collapses to a count (the approval panel, both seats).
+
+## Risks the plan carries
+
+From the approval panel (Opus + Fable, both approve-with-changes):
+- The row-detail `disclosure()` sits in the `<th scope="row">` Provider cell (`components.py:205`), so the
+  row header's accessible name grows with the open detail: verify under axe 1.3.1 and move the detail to a
+  `<td>` if it fails.
+- The static file is body-only markup without the shell's `<main id="view">`; inlined `app.css` layout
+  rules assume that container, so the build wraps it minimally and measures it.
+- The 4,000 px budget is still an estimate; with the attention list collapsed by reason it now leaves wide
+  headroom — measure first, never raise the bar before collapsing further.
+- The live view re-sends ~466 rows and 135 detail disclosures on each navigation and `visibilitychange`
+  (~125 KB today); the § Lifecycle 5,000-row render test is a build task, not optional.
+- Retiring the route and `services.ext.*` touches 12 board test sites and about 10 `dashboard_server`
+  loads (§ Personas): sequence the plan so no task leaves a failing test between commits.
+- After D8 the static file has no named reader beyond the chain itself; its retirement (A's path) gets an
+  owner at the plan's close.
 
 ## Intake Inventory
 
