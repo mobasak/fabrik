@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "add pytest-timeout to python-api requirements-dev.txt (src/fabrik/scaffold.py:~2028), file-worker requirements and every _write_server_lint_config backend (saas/chrome/mobile server/), THEN add timeout = 120 to templates/scaffold/python/pyproject.toml.template — the server and worker scaffolds copy its [tool.pytest*] table (D-726); prove with a scaffold that installs its dev deps and runs pytest",
-  "note": "",
+  "note": "duplicate of W-046828fb on the main board",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet"
   ],

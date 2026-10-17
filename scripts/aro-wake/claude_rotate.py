@@ -37,6 +37,7 @@ import os
 import re
 import select
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -1207,6 +1208,63 @@ a bound the test had pinned exactly 8 days earlier (627f8815) — the test then 
 red until fleet ran the full suite and reported it (01M1MG98SC90HB863AW18XJKQ6)."""
 
 
+# Per-process TRANSPORT-DEAD latch for `_oauth_get` (W-5a1b8961, D-939). When ONE call fails on
+# EVERY host with a transport error — an OSError (timeout, URLError, socket, ssl) on every attempt,
+# never an HTTP status — the link is down for this process, and every further call inside the TTL
+# returns None at once instead of spending its own `len(_OAUTH_HOSTS) * attempts * timeout_s`
+# budget. That keeps `--status --json` inside quota_dashboard.py's 60 s subprocess cap under a dead
+# uplink: observed 2026-10-12 (WSL NAT over a Tetrd USB-tether tunnel, every outbound TCP SYN
+# stalled, DNS/ICMP fine) — the fleet loop made N accounts × ~33 s of hopeless probes and the board
+# showed "Live probe failed — TimeoutExpired after 60s" instead of the cached last-good rows.
+# - Only POSITIVE evidence marks it: a non-OSError (a ValueError from a token holding "\n" — raised
+#   by http.client before any I/O —, a malformed body, a bug) is not a dead link, and one bad
+#   credential must not blank every other account (both design critiques executed this).
+# - Any contact clears it: an HTTP status of any kind, a success, or a TLS certificate refusal (a
+#   captive portal answered) proves the link is up — and a call that was in flight while contact
+#   landed never marks afterwards (the contact generation).
+# - Missed on purpose: http.client's BadStatusLine / IncompleteRead are not OSErrors, so a link that
+#   only ever fails that way never latches (fail open, the pre-latch cost).
+# - Sequential callers pay one hopeless call; concurrent callers already in flight when the first
+#   marks still finish their own budget. A link that answers within OAUTH_GET_TIMEOUT_S on any
+#   attempt never marks; one slower than it on EVERY attempt is indistinguishable from dead and
+#   does. The slow-but-answering shape overrunning the dashboard cap is W-afe30d1c's.
+# - The TTL is a safety net for a long-lived caller (the tick, aro-wake, bot.py): a short-lived
+#   `--status` process never outlives it.
+_OAUTH_TRANSPORT_DEAD_TTL_S: Final = 60.0
+_oauth_transport_dead_at: float | None = None
+_oauth_contact_gen = (
+    0  # bumped by every contact; a call that saw contact land meanwhile never marks
+)
+_oauth_transport_lock = threading.Lock()
+
+
+def _oauth_transport_dead() -> bool:
+    with _oauth_transport_lock:
+        at = _oauth_transport_dead_at
+    return at is not None and (time.monotonic() - at) < _OAUTH_TRANSPORT_DEAD_TTL_S
+
+
+def _oauth_contact_seen() -> int:
+    with _oauth_transport_lock:
+        return _oauth_contact_gen
+
+
+def _oauth_mark_transport_dead(since_gen: int | None = None) -> None:
+    """Mark the link dead — unless a contact landed after `since_gen` was read: a call that was
+    in flight when another call reached the API must not re-poison the latch that contact cleared."""
+    global _oauth_transport_dead_at
+    with _oauth_transport_lock:
+        if since_gen is None or since_gen == _oauth_contact_gen:
+            _oauth_transport_dead_at = time.monotonic()
+
+
+def _oauth_clear_transport_dead() -> None:
+    global _oauth_transport_dead_at, _oauth_contact_gen
+    with _oauth_transport_lock:
+        _oauth_transport_dead_at = None
+        _oauth_contact_gen += 1
+
+
 def _oauth_get(
     path: str,
     token: str,
@@ -1251,6 +1309,11 @@ def _oauth_get(
     # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
     # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
     # token — no host will differ); 5xx retries the same host.
+    if _oauth_transport_dead():
+        return None  # the link is down for this process — do not spend another budget
+    gen = _oauth_contact_seen()  # a contact by another call after this point voids our mark
+    transport_only = True  # flips False on anything that is not a transport error
+    saw_transport = False  # flips True on an OSError — the only POSITIVE evidence of a dead link
     for host in _OAUTH_HOSTS:
         req = urllib.request.Request(
             f"https://{host}/api/oauth/{path}",
@@ -1266,17 +1329,32 @@ def _oauth_get(
         for i in range(attempts):
             try:
                 with urllib.request.urlopen(req, timeout=timeout_s) as r:
-                    return json.load(r)
+                    transport_only = False
+                    body = json.load(r)
+                    _oauth_clear_transport_dead()  # the link answered
+                    return body
             except urllib.error.HTTPError as e:
+                transport_only = False
+                _oauth_clear_transport_dead()  # any HTTP status: the transport is alive
                 if e.code in (401, 403):
                     return None  # definitive (dead/wrong token) — no other host will differ
                 if e.code < 500:
                     break  # 429/other-4xx: this HOST refuses — try the next host
                 # 5xx is a transient server error → fall through to the retry
+            except ssl.SSLCertVerificationError:
+                # something answered the TLS handshake (a captive portal, an intercepting proxy):
+                # the link is up, so this is contact, never transport evidence
+                transport_only = False
+                _oauth_clear_transport_dead()
+            except OSError:
+                saw_transport = True  # timeout / URLError / socket / ssl — transient, retry
             except Exception:
-                pass  # timeout / URLError / socket / malformed JSON — transient, retry
+                transport_only = False  # malformed JSON, a bad header, a bug — not a dead link
             if i < attempts - 1:
                 time.sleep(backoff_s * (i + 1))
+    if transport_only and saw_transport:
+        # every host, every attempt: a transport error, nothing else — and no contact meanwhile
+        _oauth_mark_transport_dead(since_gen=gen)
     return None
 
 

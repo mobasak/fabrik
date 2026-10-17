@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:55:41.529784Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c5315db2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-920",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether _battery_lift / _QUOTA_HOT_THIS_TICK=None must require row['source']=='live' — today a blackout tick whose active account has a cache row lifts the hold on stale (possibly too-cool) utilisation (_row_has_reading ignores source; critiques of W-5a1b8961, 2026-10-17)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Battery-hold lift reads a CACHED row as a reading (D-920 review of _row_has_reading)"
+}

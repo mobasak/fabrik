@@ -141,6 +141,24 @@ def _private_monkeypatch():
 
 
 @pytest.fixture(autouse=True)
+def _reset_oauth_transport_latch():
+    """claude_rotate's `_oauth_get` keeps a per-PROCESS transport-dead latch (W-5a1b8961): a test
+    that makes every host fail (tests/test_claude_fleet.py::test_oauth_get_gives_up_after_attempts)
+    trips it, and every later `_oauth_get` in this process would read an instant None. Cleared on
+    every registered copy before each test, selected by FILE (never `hasattr` on arbitrary modules).
+    Out of reach, named: an instance never put in sys.modules (tests/test_claude_rotate_capture.py's
+    `rot`, which never calls `_oauth_get`)."""
+    import sys
+
+    for mod in list(sys.modules.values()):
+        if str(getattr(mod, "__file__", "") or "").endswith("claude_rotate.py") and hasattr(
+            mod, "_oauth_transport_dead_at"
+        ):
+            mod._oauth_transport_dead_at = None
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
     monkeypatch = _private_monkeypatch
     locks = tmp_path / "sound-locks"
