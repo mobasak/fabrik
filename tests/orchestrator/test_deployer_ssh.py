@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,6 +21,7 @@ from fabrik.orchestrator.deployer_ssh import (
     _format_env,
     _generate_docker_compose,
     _parse_env,
+    _read_compose_from_vps,
     _validate_compose,
     _validate_name,
     claude_cli_mount_lines,
@@ -114,6 +115,18 @@ class TestFormatEnv:
         assert reparsed == original
 
 
+class TestReadComposeFromVps:
+    def test_a_non_text_read_is_refused(self):
+        """W-51d6c153: an ssh patch with no return value hands back a MagicMock; the reader
+        refuses it rather than passing a never-ending `.read` on to the YAML parser."""
+        with patch("fabrik.drivers.ssh.ssh"), pytest.raises(DeployError, match="not text"):
+            _read_compose_from_vps("my-app")
+
+    def test_text_is_returned(self):
+        with patch("fabrik.drivers.ssh.ssh", return_value="services: {}\n"):
+            assert _read_compose_from_vps("my-app") == "services: {}\n"
+
+
 # ======================================================================
 # _validate_name
 # ======================================================================
@@ -163,6 +176,14 @@ class TestValidateName:
 
 
 class TestValidateCompose:
+    @pytest.mark.parametrize("content", [MagicMock(), None, b"services: {}\n", 42])
+    def test_non_text_content_is_refused_up_front(self, content):
+        """W-51d6c153: yaml.safe_load streams from anything with a `.read`, and a MagicMock's
+        `.read` never returns empty — an unguarded call grew to 32 GB and killed WSL twice. The
+        guard answers before the parser sees the object."""
+        errors = _validate_compose(content)
+        assert errors and "not text" in errors[0], errors
+
     def _valid_compose(self) -> str:
         """Minimal valid compose YAML."""
         return (

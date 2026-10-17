@@ -1302,6 +1302,11 @@ def _validate_compose(content: str) -> list[str]:
     """
     import yaml as _yaml
 
+    # Text only, checked FIRST: yaml.safe_load on a file-like object (a MagicMock from a test's
+    # unconfigured ssh patch has a `.read` that never returns empty) reads forever — that took
+    # WSL down twice on 2026-10-17 (W-51d6c153's draft). Refuse in microseconds instead.
+    if not isinstance(content, str):
+        return [f"Compose content is not text (got {type(content).__name__})"]
     try:
         data = _yaml.safe_load(content)
     except _yaml.YAMLError as e:
@@ -1462,7 +1467,13 @@ def _read_compose_from_vps(name: str) -> str:
             out = _ssh(f"cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
         except RuntimeError:
             continue
-        if out and out.strip():
+        # The ssh driver returns str; anything else (a test's unconfigured mock) is refused here,
+        # before a YAML parser can stream from it without end (see _validate_compose).
+        if not isinstance(out, str):
+            raise DeployError(
+                f"Reading /opt/{name}/{filename} returned {type(out).__name__}, not text"
+            )
+        if out.strip():
             return out
     raise DeployError(
         f"No compose file found in /opt/{name} "
