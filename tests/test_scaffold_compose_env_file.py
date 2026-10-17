@@ -11,7 +11,7 @@ syntax with ``required: false``: the scaffolder writes no local ``.env``, so the
 Input domain: the two compose outputs, a project name, and a ``.env`` that is present (with keys
 absent from ``environment:`` and one key a literal ``environment:`` value also sets) or absent. The
 docker-backed tests EXECUTE ``docker compose config`` and skip only when docker is not installed;
-they run with the environment stripped to PATH/HOME, because importing ``fabrik`` loads the hub
+they run with the environment stripped to PATH/HOME/DOCKER_HOST/DOCKER_CONFIG, because importing ``fabrik`` loads the hub
 ``.env`` into ``os.environ`` and compose interpolation would read it.
 """
 
@@ -58,9 +58,18 @@ OUTPUTS = {"canonical": _canonical, "template": _template}
 
 def _service_env(project_dir: Path) -> dict[str, str]:
     """The app service's resolved ``environment`` as ``docker compose config`` reports it."""
-    stripped = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME")}
+    keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")  # rootless docker needs the last two
+    stripped = {k: v for k, v in os.environ.items() if k in keep}
     result = subprocess.run(
-        ["docker", "compose", "--project-directory", str(project_dir), "config", "--format", "json"],
+        [
+            "docker",
+            "compose",
+            "--project-directory",
+            str(project_dir),
+            "config",
+            "--format",
+            "json",
+        ],
         capture_output=True,
         text=True,
         env=stripped,
@@ -109,7 +118,10 @@ def test_compose_parses_without_a_local_env_file(tmp_path: Path, output: str) ->
     ("output", "kwargs"),
     [
         ("canonical", {}),
-        ("canonical", {"with_traefik": False, "healthcheck_kind": "process", "process_pattern": "w"}),
+        (
+            "canonical",
+            {"with_traefik": False, "healthcheck_kind": "process", "process_pattern": "w"},
+        ),
         ("template", {}),
     ],
 )
