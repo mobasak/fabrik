@@ -411,7 +411,9 @@ def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monke
     from dashboard_ui.views import overview  # loading `qd` above put scripts/sysadmin on sys.path
 
     # this tree's renderer, never a `dashboard_ui` another tree left in sys.modules (review S-2)
-    assert Path(overview.__file__).resolve().is_relative_to(REPO.resolve()), overview.__file__
+    # the exact file, never a parent check: every linked worktree sits under the main checkout (R2-1)
+    own = REPO / "scripts" / "sysadmin" / "dashboard_ui" / "views" / "overview.py"
+    assert Path(overview.__file__).resolve() == own.resolve(), overview.__file__
     html = unescape(
         "".join(overview._budget_lines(budget))
     )  # a literal with `'` or `&` still matches
