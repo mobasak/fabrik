@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
+
+`CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):
+- The Work items paragraph's reason clause now binds every work-item, decision, mail or merge-request id a
+  response shows the operator, in every repo: its meaning in plain words at its first mention.
+- The bar paragraph's boarded-gate pointer is `NEXT: operator decision — W-<id> — <what it decides>`; only the
+  block is never re-stated.
+
+fabrik-lib is mailed the sentence for its own contract. Operator request W-c5f39b74 (D-944). Pinned by
+`tests/test_work_contract_rule.py`.
+
+### Changed — /fabrik-task: MEASURE greps config and env values for a changed format; a copied rule is first tried as a read (2026-10-17)
+
+`commands/_sources/fabrik-task.md`:
+- MEASURE's population names every config and env value a changed format can sit in, grepped for its shape
+  (e.g. `${`).
+- Phase 2, before a copied mechanism, tries a rule another component already applies as a read of its output;
+  when the copy stays, DECISION says why.
+
+Answers rows 1792233945 and 1792240470, both recurring held subjects (D-936; SIZE_CAP 21753 -> 22044). The
+queue's other 3 rows are held (2) or routed to infra (1) with reasons. Pinned by `tests/test_fabrik_task_queue_pass.py` and
+`tests/test_fabrik_task_source.py`.
+
+### Fixed — Test runs are capped: a runaway test is a named failure, never a host outage (2026-10-17)
+
+On 2026-10-17 one test process grew to about 32 GB (an unpatched `ssh()` handing `yaml.safe_load` a MagicMock, about 300 MB/s) and took WSL, and every session on it, down twice (W-162398ef, D-935). A per-test timeout cannot catch that in time, so test runs are now bounded by kernel cgroup ceilings.
+
+- **New `scripts/capped_run.sh [--mem SIZE] [--timeout SECS] -- <cmd>`.** It runs the command in a named scope with a memory ceiling (default 4G, no swap) and a time limit (default 1800 s). Each scope sits inside the shared `fabrik-tests.slice`, whose runtime-only total (default 12G) bounds every capped run on the box, nested or concurrent.
+- **Exit codes.** It exits 137 with `killed at the memory ceiling`, 124 at the time limit, 2 on a bad bound, otherwise the command's own code. With no user systemd manager it runs the command uncapped and warns.
+- **Three launchers now go through it:** the completion gate's pytest leg (its red row says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s sweep.
+- **The hub suite guards itself.** `tests/memguard.py`, started by `tests/conftest.py`, is a watchdog process. It kills a pytest tree whose summed PSS passes `FABRIK_TEST_RSS_MAX` (3G, below the runner's 4G) and prints the traceback.
+- **Per-test limit.** pytest-timeout joins the dev deps (`uv.lock`) with the ini key `timeout = 600`; hub tests that run the real gate take longer than 120 s. The scaffold template's per-test timeout is fleet's: scaffolded projects need the plugin in every dependency list first.
+- **Rule.** Both CLAUDE.md HARD STOPS rows route every test run through the runner.
+- **Tests.** `tests/test_capped_run.py`; each of 20 mutants turns one red.
+
+### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md` makes three changes:
+- PHASE 2 says the rendered-copy grep is the lead's. The audit seat reads the command source and its fragments,
+  pinned, never `~/.claude`, and checks any wording it proposes against the phases that rely on it.
+- PHASE 3 has the tests that pin a paragraph read before a sentence is placed there. New text goes where no pinned
+  span runs, including the gap between two sentences one pin joins; a pin ending at a period fails when its sentence
+  is extended.
+- PHASE 4 has a fragment edit's brief name the consumers PHASE 3 names.
+
+Answers rows 1792227360, 1792199420, 1792201686 and 1792208187. The last three repeat held subjects. The queue's
+other 3 rows are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
 ### Fixed — chrome-extension scaffold pins its toolchain: packageManager pnpm@11.24.0, @antfu/eslint-config ~7.7.3 (2026-10-17)
 
 A fresh chrome-extension scaffold declared `@antfu/eslint-config` `^7.2.0` and no `packageManager`, so it ran under
@@ -46,6 +94,28 @@ refuse redeploy. Decision: D-937 (W-51d6c153).
   1792192158 (infra) reported four tickets that paraphrased the spec instead, which drove most of a review's first
   round. It recurs on the held subject `size-read-set-first`. The graders are in
   `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
+
+### Fixed — a merge-owner row is read only from the exact label, bold allowed (2026-10-17)
+
+`scripts/decisions.py`, `scripts/docs_updater.py` and the fleet-synced `.claude/hooks/session_orient.py` now read a
+`docs/DECISIONS.md` row as a merge-owner declaration only when its what-cell opens — optionally after a
+`supersedes D-NNN` clause — with the exact upper-case label `MERGE OWNER:`, one optional `**` on each side of the
+colon (W-5d3ed438, D-934, approved D-940). A bold `**MERGE OWNER:** x` or `**MERGE OWNER**: x` now declares; prose
+such as `Merge owner: rotated weekly` no longer reads `rotated` as the owner; a mixed-case un-adoption row is prose
+too. Every one of the 52 ledgers on the box resolves to the owner it did before (the plan's step-6 driver, with a
+two-row control ledger), and `decisions.py --merge-owner .` still prints `coordinator`.
+
+### Changed — review_loop_ledger.py next carries every open claim the --ids leave out (2026-10-17)
+
+- W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's
+  `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). With the run file it now carries
+  every open claim — a union candidate whose verdict (the workflow's own, never re-derived) is confirmed or
+  unverified, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch ledger — printing `CARRIED
+  <id>` / `OPEN NOT CARRIED <id>` on stderr (a union id the run file repeats is named, never carried); a
+  candidate nobody judged — no run file, or a slice with no verdicts — is counted in `NOT CHECKED <n>
+  candidate(s)` with advice that fits what was given; `--drop <id>` closes one the lead settled outside the pass
+  file. Graders in `tests/test_review_loop_ledger.py`, seen red first; 16 single-guard mutants each killed by a
+  named test.
 
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 

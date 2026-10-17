@@ -431,6 +431,7 @@ docs/
 │   │   ├── 2026-10-14-plan-2-one-door-lane.md
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
+│   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1167,6 +1168,8 @@ docs/
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
 │       ├── 2026-10-15-scratch-lifecycle-spec-review.md
+│       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
+│       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1519,6 +1522,7 @@ docs/
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
+│       ├── 2026-10-17-merge-owner-grammar-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1712,6 +1716,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [check_commit_trailers.py](scripts/check_commit_trailers.py) | **commit-msg** hook (hub-local, not synced) rejecting a commit whose `Agent-Role:` trailer git cannot parse — the last point the message is still editable, since a pushed bad block needs a force-push. Delegates to `git interpret-trailers --parse`. Tests: `/opt/ai-model-catalog/engine/tests/test_commit_trailer_guard.py (ai-model-catalog)`. |
 | [install_post_commit_hook.sh](scripts/install_post_commit_hook.sh) | Installs the hub's **post-commit** governance sync as a PLAIN git hook (hub-local, not synced), never pre-commit's post-commit stage, whose whole-tree stash reverted siblings' edits during the ~60 s sync (D-369). Idempotent; replaces pre-commit's shim, refuses a foreign hook; re-run by `wsl_startup_hook.sh`. Tests: `tests/enforcement/test_governance_sync_postcommit.py`. |
 | [install_pre_push_hook.sh](scripts/install_pre_push_hook.sh) | Installs the hub's **pre-push** gate (pre-commit's pre-push stage) SERIALIZED under one `flock` (W-cd77f476): heals a self-copy or empty `pre-push.legacy`, never rewrites a current hook, reports a foreign legacy (exit 3). Run by `wsl_startup_hook.sh` from every shell. Tests: `tests/test_install_pre_push_hook.py`. |
+| [capped_run.sh](scripts/capped_run.sh) | D-935: run one command (a test suite, as a rule) under kernel cgroup ceilings — a per-run memory ceiling and time limit inside the shared `fabrik-tests.slice` total; exit 137 at the ceiling, 124 at the time limit |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (33 enforcement scripts) |
 | [mail.py](scripts/mail.py) | fabrik-mail store + protocol — `send/list/read/claim/ack/requeue/digest/should-reply/who + loop-safety (--auto guards, hops)` for the durable hub↔project AI mailbox (`/opt/fabrik-mail/<repo>/{inbox,archive}`). tmp-then-O_EXCL publish, hand-rolled Crockford-base32 ULID ids (no dep), machinery-presence recipient validation + star-topology enforcement, secret-refusal, 64 KB cap, malformed-quarantine, hub-guarded Telegram digest. Tests: `tests/test_mail.py`. |
 | [merge_request.py](scripts/merge_request.py) | the merge-request loop's one box script (plan 2026-09-30-plan-1-merge-request-loop): `request` — from a linked worktree whose branch is pushed as itself — mails the merge owner and a distinct distributor a script-written body and prints the `SendMessage` doorbell lines; `merge [<id>]` — the owner's only merge path: lock, records, preflight refusals, pure-insertion ledger resolve, owner tests, CAS, carry into a dirty main checkout, push, hub sync, reply and ack; `resume <id>` finishes a stranded or rejected run. Fleet-synced (CORE_SCRIPTS). Tests: `tests/test_merge_request_send.py`, `tests/test_merge_request_merge.py`. |
@@ -2064,6 +2069,8 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_liveness_audit.py](tests/test_liveness_audit.py) | 73 tests — the liveness auditor's three proofs on fake boxes, its own heartbeat (one `LOG_STAMP`-shaped stderr line, flushed after the report so the cron's merged streams keep it on its own line; only a stamped marker line is evidence) and the dead-output paths (`\| head`, `2>&1 \| head`: exit 0; a full disk: exit 1, never a raise; `>&-`: exit 1; `2>&-`: the stamp is skipped and the report stays pure JSON) |
 | [test_quota_stop_hook.py](tests/test_quota_stop_hook.py) | 15 tests — the fleet-wide graceful stop (`.claude/hooks/quota_stop.py`, PreToolUse on the tick's fleet-exhausted stamp): never freezes the fleet on its own defect (no stamp, unreadable state, a stale flag → allow); while the stamp stands it holds work tools and lets a session checkpoint and end |
 | [test_quota_dashboard.py](tests/test_quota_dashboard.py) | 60 tests — the box-local quota dashboard (`scripts/sysadmin/quota_dashboard.py`), its three load-bearing risks: the regeneration floor bounds probe volume, a failed probe never blanks the board, the board shows REMAINING (an inversion would read as plenty when there is none) |
+| [test_capped_run.py](tests/test_capped_run.py) | D-935: the test caps — capped_run.sh's ceiling, time limit, bound checks and shared slice, the three capped launchers, and the hub suite's memguard and per-test timeout |
+| [memguard.py](tests/memguard.py) | D-935: the hub suite's in-process memory guard — a watchdog process that kills a pytest tree past `FABRIK_TEST_RSS_MAX` and prints its traceback (started by tests/conftest.py, or `-p memguard`) |
 | [test_check_command_corpus.py](tests/test_check_command_corpus.py) | 124 tests — the command-corpus gate's eight predicates on fixtures, plus `--selftest` run as a subprocess — its canaries are the predicates' only grader and nothing else on the box ran them |
 | [test_assemble_orch_retired.py](tests/test_assemble_orch_retired.py) | 5 tests — T07a: the three mega sources render with every fragment resolved and no fab-* wrapper; the retired orchestrator names/tokens are gone; the banner-guarded prune removes an installed (symlinked) fab-* skill with its tracked target intact; every composed skill description (all 36) fits the 1024 cap via the real render (plan 2026-09-03-plan-1-multi-agent-per-repo, T07a) |
 | [test_vision_reads_work_stores.py](tests/test_vision_reads_work_stores.py) | 6 tests — T05: `/fabrik-vision` EXISTING reads PLANS.md + STRATEGIC_BACKLOG.md and seeds epics with the owner tag; `/fabrik-epics-review` Step 1.5 mints the merge-owner row; the corpus renders clean (plan 2026-09-06-plan-2) |

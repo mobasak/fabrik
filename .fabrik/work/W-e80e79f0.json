@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-17T13:32:41.344732Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-e80e79f0",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure who keys on the exact OWNER_HANDOFF_REMEDY text (projects' suppressions, tests), then reword to [{path: .env, required: false}, {path: .env.owner, required: false}] with a grader",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "remedy text in app_role_check still advises the short-form env_file D-938 replaced; wording only",
   "status": "open",
   "title": "app_role_check OWNER_HANDOFF_REMEDY (src/fabrik/app_role_check.py:124-129) tells project agents to write env_file [.env, {path: .env.owner, required: false}] — the short form makes .env required, so a fresh checkout fails docker compose config (the W-6f690b90 class); the text is also a _SENTENCE_PATTERNS key, so rewording it must check suppressions keyed on it"
 }

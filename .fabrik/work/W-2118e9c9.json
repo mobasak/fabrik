@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T15:05:53.747112Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2118e9c9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-934",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "refuse an UNDECLARED-token name in --adopt (case-insensitive), with a red-first test in tests/test_docs_updater_adopt.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "docs_updater.py --adopt accepts the name 'undeclared' (_ADOPT_NAME_RE ^[a-z0-9-]{1,32}$, docs_updater.py:1254) and writes 'MERGE OWNER: undeclared', which every reader then takes as the un-adoption row (re.I UNDECLARED token): owner reads None, --merge-owner exits 3, and each later --adopt appends another row (found by the W-5d3ed438 Finish review, slice A, pre-existing)"
+}

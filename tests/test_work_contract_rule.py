@@ -61,7 +61,9 @@ _CANONICAL = (
     "**Work items.** A repo with a `.fabrik/work/` store keeps its open work there "
     "(`python3 scripts/work.py`; `docs/reference/work-tracking.md`): `NEXT:` names the item id "
     "(`W-` and 8 lowercase hex) when one exists and then says in plain words what the item is "
-    "(`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a reader nothing; "
+    "(`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a reader nothing, and "
+    "the same holds in every repo wherever a response shows the operator a work-item, decision, mail "
+    "or merge-request id: it carries its meaning in plain words at its first mention in that response; "
     "a DECISION block the Stop hook accepts becomes an "
     "`awaiting-operator` item on its own, and the agent the operator answers closes it with "
     '`work.py answer <id> --note "<their words>"`. Item files are ordinary files: commit the ones '
@@ -98,3 +100,16 @@ def test_each_template_copy_equals_canonical_after_the_two_sanctioned_substituti
     assert expected != _CANONICAL, "a substitution no longer applies to the canonical text"
     for copy in (_work_paragraph(s) for s in _sections(TEMPLATE)):
         assert copy == expected
+
+
+def test_the_boarded_gate_pointer_carries_its_meaning_in_both_copies() -> None:
+    """W-c5f39b74 (operator 2026-10-17: "what is W-5a1b8961? when you say just number like this, i
+    understand nothing"): the bar paragraph prescribed `NEXT: operator decision — W-<id>` bare, the
+    shape that reached the operator; the pointer now carries what the gate decides, and only the
+    BLOCK is never re-stated."""
+    glossed = "`NEXT: operator decision — W-<id> — <what it decides>`"
+    for path in (HUB, TEMPLATE):
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        assert text.count(glossed) == 1, path
+        assert "`NEXT: operator decision — W-<id>`" not in text, path
+        assert "— and the block never re-stated, because a re-stated block mints a duplicate gate" in text, path

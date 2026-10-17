@@ -16,7 +16,7 @@ file, not its scrollback. So:
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED.
-    review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS]
+    review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS] [--drop ID,ID]
         The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
         every claim listed. With --args (mail 01M4PHYNXJ) — the run's `workflows/<runId>.json`, or a bare args
@@ -24,6 +24,13 @@ file, not its scrollback. So:
         ledger replaced), so stdout is the next launch's `slices`; a run file resolves each id against its
         `result` union candidates, the ids the verdicts carry (`A-S1#2`), never a numbering of its own. stderr
         names the launch slices not carried and the `DISPATCH:` stamp (finders + one refuter per slice).
+        Every OPEN claim the --ids leave out is CARRIED too (W-b1f67743, /fabrik-spec-review row 1790195711): with
+        a run file, a union candidate whose verdict (the workflow's own, normalised) is confirmed or unverified, and
+        with --args a DEFECT_PRESENT/NEW ledger_status id no candidate carries, from the launch ledger
+        (`open_claims`). stderr says `CARRIED <id>`; `OPEN NOT CARRIED <id>` when nothing resolves it; `NOT CHECKED
+        <n> candidate(s)` when no run file was given, since verdicts are read from it alone; `--drop ID[,ID]`
+        closes an open claim the lead settled outside the pass file (`DROPPED <id>`), and a --drop id that is not
+        open, or is in --ids, is refused.
     review_loop_ledger.py pin --pins-dir DIR [--from REF] [--base SHA] [--replace] FILE…
         Run from the repo root before a pass (kaizen 01M4CGJZAX): writes each FILE to DIR/<FILE> — from the
         working tree, or with --from from that commit (a committed range) — and makes every pin AND directory
@@ -320,6 +327,101 @@ def read_run(run: Path, box: float | None) -> dict:
 _LEGACY_STATUS = {"STILL_TRUE": "DEFECT_PRESENT", "NOW_FALSE": "DEFECT_ABSENT"}
 
 
+def _fold(x: object) -> str:
+    """The workflow's `foldId` (.claude/workflows/fabrik-review-loop.js): trim, then lower-case."""
+    return str(x if x is not None else "").strip().lower()
+
+
+def open_claims(
+    doc: dict, result: dict | None, launch: dict | None
+) -> tuple[list[tuple[str, str, dict, str]], list[str], list[str]]:
+    """The claims a pass leaves OPEN: `(id, slice, ledger row, why)` each; the ids reported open that nothing can
+    carry (no row resolves it, or the run file repeats it); and one folded id per candidate left unjudged (no run file, or a slice with no verdicts list).
+
+    Verdicts are read only from a run file's `result` (`--args <workflows/<runId>.json>`), never re-derived: there
+    the workflow has already normalised each verdict (`verdictFor` — a refutation without counter-evidence, a
+    conflict or no answer is `unverified`), made every id unique (`A-S1#2`), folded seat echoes, moved claims on a
+    `recorded: true` ledger entry to its `recorded` list and named each slice as it launched. A candidate is open
+    when its verdict is confirmed or unverified; one with no verdict at its index (a short or missing list) is
+    `unverified` — it is re-verified, never dropped; a slice with no `verdicts` list at all was never judged, and
+    its candidates count as unchecked. A DEFECT_PRESENT/NEW ledger_status id that no candidate
+    carries (compared through `_fold`) is carried from the launch ledger, unless that entry is `recorded: true`.
+    Without a run file no candidate is judged: their folded ids are returned so the lead is told how many lie
+    outside its ids, instead of a second copy of the workflow's rule drifting from it (review round 1).
+
+    COBRA (D-253): the cheapest way to keep a pass small is to `--drop` every carried id; each drop is printed by
+    id beside the carried ones, so what the lead closed by hand stays visible in the transcript."""
+    opened: list[tuple[str, str, dict, str]] = []
+    claimed: set[str] = set()  # folded ids some candidate (or recorded candidate) carries
+
+    def row(c: dict, cid: str) -> dict:
+        return {"id": cid, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
+
+    union = result.get("slices") if isinstance(result, dict) else None
+    unchecked: list[str] = []
+    union_ids: set[str] = set()
+    repeated: set[str] = set()
+    if isinstance(union, list):
+        for s in union:
+            if not isinstance(s, dict) or not isinstance(s.get("name"), str):
+                continue
+            cands = s.get("candidates") if isinstance(s.get("candidates"), list) else []
+            verds = s.get("verdicts")
+            for c in s.get("recorded") if isinstance(s.get("recorded"), list) else []:
+                if isinstance(c, dict):
+                    claimed.add(_fold(c.get("id")))
+            for n, c in enumerate(cands):
+                if not isinstance(c, dict) or not isinstance(c.get("id"), str):
+                    continue
+                if c["id"] in union_ids:
+                    # the workflow makes union ids unique (`A-S1#2`), as `_from_union` relies on: a repeat names no single
+                    # claim, so it is never carried — named instead (review round 2, A-H2)
+                    repeated.add(c["id"])
+                union_ids.add(c["id"])
+                claimed.add(_fold(c["id"]))
+                # a slice nobody judged (no refuter, an older run file): said, not guessed
+                if not isinstance(verds, list):
+                    unchecked.append(_fold(c["id"]))
+                    continue
+                v = verds[n] if n < len(verds) and isinstance(verds[n], dict) else {}
+                verdict = str(v.get("verdict") or "unverified")
+                if verdict in ("confirmed", "unverified"):
+                    opened.append((c["id"], s["name"], row(c, c["id"]), verdict))
+    else:
+        for c in doc.get("candidates") or []:
+            if isinstance(c, dict) and c.get("id") is not None:
+                claimed.add(_fold(c.get("id")))
+                unchecked.append(_fold(c.get("id")))
+    ledger: dict[str, tuple[str, dict]] = {}
+    for s in (launch or {}).get("slices") or []:
+        if isinstance(s, dict) and isinstance(s.get("ledger"), list):
+            for e in s["ledger"]:
+                if isinstance(e, dict) and isinstance(e.get("id"), str):
+                    ledger.setdefault(_fold(e["id"]), (str(s.get("name")), e))
+    stuck: list[str] = []
+    seen: set[str] = set()
+    for r in doc.get("ledger_status") if isinstance(doc.get("ledger_status"), list) else []:
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str):
+            continue
+        status = _LEGACY_STATUS.get(str(r.get("status")), str(r.get("status")))
+        sid, key = r["id"], _fold(r["id"])
+        if status not in ("DEFECT_PRESENT", "NEW") or key in claimed or key in seen:
+            continue
+        seen.add(key)
+        hit = ledger.get(key)
+        if hit is None:
+            stuck.append(sid)
+        elif not hit[1].get("recorded"):
+            e = hit[1]
+            opened.append(
+                (e["id"], hit[0], {k: e.get(k) for k in ("id", "file", "line", "claim")}, status)
+            )
+    # a repeated union id is open but names no single claim: it is reported, never carried
+    stuck += sorted(i for i in repeated if i not in stuck)
+    opened = [o for o in opened if o[0] not in repeated]
+    return opened, stuck, unchecked
+
+
 def ledger_flags(doc: dict) -> list[dict]:
     """ADVISORY flags over a later pass's ledger rows — printed for the lead, never a gate.
 
@@ -572,7 +674,11 @@ def _from_pass(doc: dict, ids: list[str]) -> dict[str, list]:
 
 
 def next_ledger(
-    doc: dict, ids: list[str], args: dict | None = None, result: dict | None = None
+    doc: dict,
+    ids: list[str],
+    args: dict | None = None,
+    result: dict | None = None,
+    carry: list[tuple[str, dict]] | None = None,
 ) -> list[dict]:
     """The next launch's slices. With `args` every slice carries its launch fields and a REPLACED ledger; with a
     run `result` the ids resolve against the union candidates.
@@ -587,6 +693,8 @@ def next_ledger(
         if result and isinstance(result.get("slices"), list)
         else _from_pass(doc, ids)
     )
+    for name, row in carry or []:  # the open claims the --ids left out (`open_claims`)
+        slices.setdefault(name, []).append(row)
     if args is None:
         return [{"name": n, "ledger": rows} for n, rows in slices.items()]
     named = [s.get("name") for s in args["slices"] if isinstance(s, dict)]
@@ -1149,6 +1257,11 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("ledger", type=Path)
     n.add_argument("--ids", required=True, help="comma-separated confirmed candidate ids")
     n.add_argument(
+        "--drop",
+        default="",
+        help="comma-separated OPEN ids the lead closed outside the pass file — never carried",
+    )
+    n.add_argument(
         "--args",
         dest="launch",
         type=Path,
@@ -1265,9 +1378,44 @@ def main(argv: list[str] | None = None) -> int:
                     "ended, then build the next pass"
                 )
             launch, result = load_args(a.launch) if a.launch else (None, None)
-            out = next_ledger(
-                doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result
-            )
+            ids = [i.strip() for i in a.ids.split(",") if i.strip()]
+            drop = list(dict.fromkeys(i.strip() for i in a.drop.split(",") if i.strip()))
+            opened, stuck, unchecked = open_claims(doc, result, launch)
+            named = {_fold(i) for i in ids}
+            open_ids = {_fold(o[0]) for o in opened} | {_fold(s) for s in stuck}
+            bad = [d for d in drop if _fold(d) not in open_ids or _fold(d) in named]
+            if bad:
+                raise LedgerError(
+                    f"--drop {', '.join(bad)}: not an open claim this pass leaves out of --ids — nothing to drop"
+                )
+            gone = {_fold(d) for d in drop}
+            carry = [o for o in opened if _fold(o[0]) not in named and _fold(o[0]) not in gone]
+            out = next_ledger(doc, ids, launch, result, [(o[1], o[2]) for o in carry])
+            for cid, _name, _row, why in carry:
+                print(f"CARRIED {cid} — {why}, not in --ids", file=sys.stderr)
+            for sid in stuck:  # a stuck id is never a candidate, so never in --ids
+                if _fold(sid) not in gone:
+                    how = (
+                        "carry it by hand as {id, file, line, claim}, or --drop it"
+                        if launch is not None
+                        else "re-run next with --args <the run file>, or --drop it"
+                    )
+                    print(
+                        f"OPEN NOT CARRIED {sid} — reported open, but no single candidate this pass and no launch "
+                        f"ledger row carries it: {how}",
+                        file=sys.stderr,
+                    )
+            left = sum(1 for k in unchecked if k not in named)
+            if left:
+                why = (
+                    "their slice carries no verdicts (no refuter answered): re-verify them by hand"
+                    if isinstance(result, dict)
+                    else "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
+                    "the open ones"
+                )
+                print(f"NOT CHECKED {left} candidate(s) outside --ids — {why}", file=sys.stderr)
+            for d in drop:
+                print(f"DROPPED {d}", file=sys.stderr)
             for note in carry_notes(launch, out) if launch else []:
                 print(note, file=sys.stderr)
             print(json.dumps(out, ensure_ascii=False))

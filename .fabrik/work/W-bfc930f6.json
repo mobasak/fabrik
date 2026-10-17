@@ -1,0 +1,26 @@
+{
+  "block_digest": "14e0073bdf816cac44b8beb661e6102aea14026c2cafd6bc27d1993e4e75f4e2",
+  "blocked_by": [],
+  "created": "2026-10-17T15:01:34.605117Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-bfc930f6",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "70288b137312764a8d1a00f43460836aff76346e064d077aeaebfefb4cc8402a"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: \"yes\" to the recommendation B — auto mode stays; targeted allow rules for commands that keep being refused; questions route to the coordinator (D-943)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should every Claude account run in bypass mode, so agents never ask for permission (with force-push, mass-add, volume deletion and the question box still blocked)? Or should they stay in auto mode, with only the specific commands that keep getting blocked pre-approved?",
+  "status": "done",
+  "title": "Should every Claude account run in bypass mode, so agents never ask for permission (with force-push, mass-add, volume deletion and the question box still blocked)? Or should they stay in auto mode, with only the specific commands that keep getting blocked pre-approved?"
+}

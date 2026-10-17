@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T11:17:45.805409Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "701720b0885ef4a38b3b5730203f022a77314b29",
+  "id": "W-162398ef",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce safely: run each tests/test_quota_dashboard*.py file alone under `timeout 120`, `ulimit -v` and `/usr/bin/time -v`; name the test whose RSS climbs; fix it red-first; then bound test runs box-wide",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "P0 incident: one runaway test took WSL down and killed every agent session; recurs on any rerun",
+  "status": "done",
+  "title": "P0 incident 2026-10-17 14:25: WSL out-of-memory — the kernel killed python pid 22764 at 31.9 GB anon RSS (init.scope = a Claude Code child). Two backgrounded, timeout-less runs of `.venv/bin/python -m pytest tests/test_quota_dashboard*.py` (infra W-573fae88 T07, 10:36 and 10:48 log time) never finished; the second started while the first still ran. Find the test that grows memory and fix it at the root, then make every test run bounded (timeout + memory cap) so no test can take the box down again"
+}
