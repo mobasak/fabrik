@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T13:40:04.923486Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-1584d520",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "claude_rotate._cmd_tick returns at 'no quota reading, no flip decision possible' before any cap check, so an active account parked while every probe fails stays active; decide whether parking should force a flip-away with no reading (park review 2026-09-29, pass 2, seat A-sonnet)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: rare edge: parked active account with no reading; decision plus small change — claude_rotate.py:6409 still returns 'no quota reading, no flip decision possible' before any cap/park check; 93c933ef1 added parking but not this",
   "status": "open",
   "title": "Parked ACTIVE account with no quota reading at all is not flipped away"
 }

@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "review loop claimed-fix check: at a round's close, every fix the round's commit or ledger NAMES is grepped against that commit's diff (1789408497) — kaizen mail 01M4PHYRB6"
 }

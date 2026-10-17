@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T16:54:56.783156Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-814f7fef",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: test-grader hardening, one test file — test_review_loop_workflow.py asserts PYTEST_PINS clauses by substring (lines ~1365-1368, 1542); no whole-sentence assert seen; 3c84aed9e is a different pin fix",
   "status": "open",
   "tags": [
     "handoff-2026-10-06"

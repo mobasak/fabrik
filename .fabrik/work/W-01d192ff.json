@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.027719Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-01d192ff",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "**[infra]** **`final_gate.py`'s ruff roots exclude `tests/`** (`_RUFF_ROOTS = (\"scripts/\", \"src/\")`, :2202) — T13's test file went red (UP017 ×2, F841) across eight review rounds unseen. Measure the fire rate over `tests/` box-wide before widening (FIX DIRECTIVE 5). (T16)",
   "note": "migrated-digest:2adc6ffbf92a",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: lint coverage, measure then widen — final_gate.py:3070 _RUFF_ROOTS still ('scripts/','src/'); needs fire-rate measure",
   "status": "open",
   "title": "**`final_gate.py`'s ruff roots exclude `tests/`** (`_RUFF_ROOTS = (\"scripts/\", \"src/\")`, :2202) — T13's test file went red (UP017 ×2, F841) across eight review rounds unseen. Measure the fire rate ..."
 }

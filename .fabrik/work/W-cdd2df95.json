@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.663504Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-cdd2df95",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: seat convenience helper; one script — no probe runner helper under scripts/ (ls scripts | grep -i probe -> only `probes` dir); W-f7bf9a54 is its duplicate",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.139112Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-aa47d91f",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "/fabrik-task over .claude/hooks/final_gate_stop.py (fleet-synced, full review)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "records check 2026-10-17: Stop hook false block traps review-family sessions (3/3 blocks); one fleet-synced hook file plus full review — final_gate_stop.py:1597 _surface_reviewed exists (D-849, 74b38effb for sixth cause); whether uncommitted/DoD causes use it not confirmed (only call at :1856)",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T19:14:19.313661Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-4f63ec9f",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: remaining half: stale checks persist in projects; one loop — vendored-dir half fixed (sync_enforcement_to_projects.py:2170 comment correct, orphan prune :2199-2212); enforcement copy loop :2153-2166 still has no orphan pruning",
   "status": "open",
   "title": "sync_enforcement_to_projects.py: the enforcement copy (:2027-2050) has no orphan pruning, so a check removed from the hub stays in every project; and the vendored-dir comment at :2052 says 'recursive flat copy' though the code preserves paths (review of the DATA_SYNC line, 2026-10-04)"
 }

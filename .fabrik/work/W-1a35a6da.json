@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "an operator-sanctioned route for a privilege-escalation spec's measurement step (fabrik-spec verdict 1790707345.6833036, kaizen 01M4EJQEEG)"
 }

@@ -18,7 +18,7 @@
   "status": "open",
   "tags": [
     "prompts",
-    "waits-operator-resume"
+    "proposed-done"
   ],
   "title": "fleet slice of the /claude-api prompt-audit: prompt text the scaffolder emits into new projects (templates/**/AGENTS.md.j2, template CLAUDE/AGENTS stubs) and the watchdog system prompt — propose-only, D-331 loss-checked"
 }

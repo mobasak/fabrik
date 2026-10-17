@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "`git diff --cached` is the authorship signal, and on this hub the INDEX IS SHARED — three gate checks read a peer's staging as yours"
 }

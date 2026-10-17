@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself"
 }

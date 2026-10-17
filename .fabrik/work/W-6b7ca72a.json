@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "waits-operator-resume"
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "fabrik fix cannot re-seed a non-python-api type's own files (saas server/, node-api package.json, …): they come from scaffold generators, not a template map, so fix_project reports them [unsupported-fix] — follow-up to W-526528b6 / mail 01M335ES"
 }

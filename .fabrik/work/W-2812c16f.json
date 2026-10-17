@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "command_run.py review-loop carry-forward: a slice verified clean with no open claims stays verified (1791461973); a route-up carries the scoped run's REFUTED list into the heavy record (1789298248); round 3's non-decreasing warning names the diagnosis (1788872656); one scope-growth exit sentence rendered into command_run.py and step 5, graded as a pair (1791307287) — kaizen mail 01M4PHYRB6"
 }

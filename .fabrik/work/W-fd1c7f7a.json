@@ -4,7 +4,7 @@
   ],
   "created": "2026-05-25T00:00:00.000000Z",
   "creator": "infra",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-fd1c7f7a",
   "impact": "high",
@@ -18,11 +18,10 @@
   "next": "**[fleet]** **PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan [`2026-10-06-plan-1-postgresql-18-upgrade/`](development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) (spec D-617) — hub branch and runbook ready; the WSL and hub windows are operator gates; the runbook is docs/operations/postgres-major-upgrade-runbook.md (supersedes archived/2026-05-25-postgresql-18-upgrade.md)",
   "note": "migrated-digest:1f6d760e62b0",
   "owner": "fleet",
-  "priority": 2,
-  "score_reason": "PostgreSQL 16 to 18 on WSL and hub; plan ready, two operator windows",
+  "priority": 1,
+  "score_reason": "records check 2026-10-17: operator-run upgrade windows from runbook — PG18 plan Status: EXECUTED 2026-10-07 (D-617, D-647); WSL and hub windows are operator gates still open",
   "status": "open",
   "tags": [
-    "waits-operator-resume",
     "waits-pg18-windows"
   ],
   "title": "**PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan [`2026-10-06-plan-1-postgresql-18-upgrade/`](development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) (spec D-617) — hub branch and runbook ready; the WSL and hub windows are operator gates"

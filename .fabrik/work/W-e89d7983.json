@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "Three CONFIRMED mailed defects on unlocked paths, deferred at the quota band — not blocked, just unstarted"
 }

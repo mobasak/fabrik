@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-25T16:26:25.779618Z",
   "creator": "",
+  "effort": "low",
   "evidence": "",
   "id": "W-7720269d",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: one-line wording fix — scripts/command_feedback_report.py:1805 still prints relative 'python3 scripts/work.py status'",
   "status": "open",
   "title": "command_feedback_report.py --take's claim-not-re-read line names the relative scripts/work.py; from a repo without it the instruction points at a missing file — print /opt/fabrik/scripts/work.py (recorded by the T04 review pass 4, plan 2026-09-25-plan-1)"
 }

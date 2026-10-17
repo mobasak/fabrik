@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.207308Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-19fb060b",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "**[infra]** **Gate behavior question: a STAGED plan with no HEAD commit reds every session's diff-scoped gate un-attributably** (fleet `01M16Q0KQ`, two live occurrences): should `check_test_proposal`/the gate skip index-only plans, or warn-attributing to the stager? Needs a decided semantics, not a patch — the red is real work-in-flight, the tax is cross-session.",
   "note": "migrated-digest:25b75fafdaf7",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: gate attribution annoyance, needs a decided semantics then a small edit — check_test_proposal.py has _new_plans/_baseline_ref but no staged-vs-HEAD handling found; semantics question undecided",
   "status": "open",
   "title": "**Gate behavior question: a STAGED plan with no HEAD commit reds every session's diff-scoped gate un-attributably** (fleet `01M16Q0KQ`, two live occurrences): should `check_test_proposal`/the gate ..."
 }

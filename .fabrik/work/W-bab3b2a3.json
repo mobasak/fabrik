@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:39:57.239069Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-bab3b2a3",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: one-line wording in a corpus source (render, check, commit) — commands/_agents/fabrik-researcher.md:37 'Non-HTML content ... TRY WebFetch FIRST on JSON/XML' — text/markdown not named; no commit with id",
   "status": "open",
   "title": "fabrik-researcher fetch routing omits text/markdown (mail 01M49J7AY5): add `.md` / text/markdown to the 'JSON/XML/PDF -> WebFetch first' line in commands/_agents/fabrik-researcher.md (corpus source: render -> --check -> commit)"
 }

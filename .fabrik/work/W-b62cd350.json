@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "command_run.py round/step ergonomics: `round --command` names its record (1791300827), round/step print which record they wrote when several are open (1791240820), `round --seats 0` refused (1790979495), a refused close exits non-zero (1790382393), `--edited-after` suppresses TERMINAL when code changed after the pin (1790977640) — kaizen mail 01M4PHYRB6"
 }

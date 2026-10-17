@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T19:21:56.062133Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-68b6a454",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "kaizen",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: rule wording, parked — parked waits-tojlo (7b5e9f454, D-560); rule dedup waits until a project declares the Tojlo identity",
   "status": "open",
   "tags": [
     "rules",

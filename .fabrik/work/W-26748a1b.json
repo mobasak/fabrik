@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "The phase-boundary review gate matches receipts by record ORDINAL while plans name them by LETTER, so a reviewed phase reads as unreviewed (2026-09-15, plan-2 Phase H step, found by a refused `comm..."
 }

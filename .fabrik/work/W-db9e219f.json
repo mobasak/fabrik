@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T10:46:44.334209Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-db9e219f",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "upgrade the template with the rntl-v14-async-functions codemod over the emitted tests, then drop the pack's 'scaffold still pins the previous major' note",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: single dependency bump with codemod — templates/mobile-app/package.json:120 @testing-library/react-native ^13.3.3 still pinned",
   "status": "open",
   "tags": [
-    "rules",
-    "waits-operator-resume"
+    "rules"
   ],
   "title": "mobile-app scaffold pins @testing-library/react-native at the previous major (13.3.x); the current stable major (v14) makes render/fireEvent/act async"
 }

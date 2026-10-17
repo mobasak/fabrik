@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and ~585 of ~866 files are the backlog"
 }

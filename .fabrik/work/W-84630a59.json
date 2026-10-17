@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "A plan that indexes phases by LETTER cannot satisfy `step`'s review gate, whose matcher is ORDINAL — the only exit is a waiver that has to explain itself"
 }

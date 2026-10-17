@@ -12,10 +12,10 @@
     "spec": "docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md"
   },
   "next": "design a per-seat probe script the brief names (pins import + pytest from the archive) so seats stop hand-building probe commands; measure first how many seat turns go to probe setup",
-  "note": "",
+  "note": "duplicate of W-cdd2df95 (older, 2026-10-11): both ask for the same ready probe runner for seat briefs; the older item is kept (records check 2026-10-17)",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "review-loop"
   ],

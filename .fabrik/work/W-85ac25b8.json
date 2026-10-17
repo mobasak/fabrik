@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "work.py rule 2 never releases a session's earlier NEXT-claimed item: a session naming a different item each turn holds live claims on all of them until its lease runs out"
 }

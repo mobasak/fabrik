@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T08:48:59.360122Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-51994793",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "fix at core/35's next currency turn: name the IdP's real routes (found by the saas/87 Fable second opinion, 2026-09-30)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: rule wording — .windsurf/rules/core/35-security-auth.md:332 still names /auth/register",
   "status": "open",
   "tags": [
     "rules"

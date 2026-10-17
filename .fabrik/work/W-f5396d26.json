@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "The fleet template ships 3 kB of hub plumbing and hub box facts to ~46 mostly single-agent repos"
 }

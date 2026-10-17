@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Vendor fabrik-lib decision-gate into the hub with its first consumer (pilot 1: final_gate_stop promise/defer detection, shadow mode), per D-550 — intel mail 01M4354D3TE6MC0MRGM57DGTGA"
 }

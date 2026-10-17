@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "`check_plan_tickets` cannot tell a session's OWN plan lock from a sibling's, so a clean tree silently demotes its own findings"
 }

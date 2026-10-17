@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.399026Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-008b06d6",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: rare edge, one script — command_run.py start has no repo_root-differs stacking refusal (grep repo_root shows none at start)",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "The private-index recipe's post-commit assertion wants a TESTED SCRIPT, not a bullet ~46 repos copy by hand"
 }

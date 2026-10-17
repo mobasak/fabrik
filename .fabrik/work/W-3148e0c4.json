@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "check_review_hygiene: flag a split pipe table (a pipe row after a blank line after another pipe row, no separator) (fabrik-spec-review verdict 1790900264.2187293, kaizen 01M4EKAZZF)"
 }

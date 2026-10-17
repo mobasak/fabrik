@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Audit the check set for staged-only scoping (transdoc 01M17VA9's meta-question, 2026-08-30)"
 }

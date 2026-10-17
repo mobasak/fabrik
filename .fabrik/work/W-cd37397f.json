@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "waits-operator-resume"
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "The app-role cutover is refused for the four specs sharing `depends.postgres: main` (2026-09-24)"
 }

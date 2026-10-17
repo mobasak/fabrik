@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "fabrik-task: a repo-local heavy-path list so a sync-EXCLUDED repo routes its own gate/hook/enforcement edits up mechanically"
 }

@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "Retire .windsurfrules from the synced set (Cascade is retired; the file is 8,265 chars against its own 6,000 cap and has no reader)"
 }

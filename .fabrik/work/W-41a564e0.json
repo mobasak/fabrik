@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T17:31:05.840893Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-41a564e0",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "measure which scripts/ tests shell out to ssh/scp/rsync (grep + one run under a temporary shim), then either a root-level conftest that imports the tests/ guard or per-dir conftests; keep the FABRIK_TEST_ALLOW_FLEET grader's scripts/ scan",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: test-hygiene guard, one conftest — scripts/**/test_*.py conftest guard not extended; no commit grep hit; measure-first item",
   "status": "open",
   "tags": [
     "tests"

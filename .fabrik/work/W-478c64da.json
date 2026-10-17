@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.179869Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-478c64da",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "**[fleet]** **Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sysadmin-cron.template`](../scripts/bootstrap/templates/sysadmin-cron.template) for future spokes. There's no `fabrik`-level redeploy step that re-renders the cron template on existing hosts after a template change. Blocked by: another cron template change that needs to propagate.",
   "note": "migrated-digest:306fa0f2fa6b",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: small ops deploy of cron line — no commit; cron template updated, live deploy path for existing hosts pending",
   "status": "open",
   "tags": [
-    "waits-cron-template-change",
-    "waits-operator-resume"
+    "waits-cron-template-change"
   ],
   "title": "**Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sy..."
 }

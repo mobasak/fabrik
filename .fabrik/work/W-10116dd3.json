@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T20:30:40.890195Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-10116dd3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: rare edge in ledger reader; one file — decisions.py:543 refuses newline on append, but _rows (decisions.py:175-182) is per-line so a hand-edited multi-line row still truncates silently; no commit",
   "status": "open",
   "title": "decisions.py: refuse or warn on a multi-line DECISIONS row instead of silently truncating it (fabrik-spec-review verdict 1790250917.1534948, kaizen 01M4EKAZZF)"
 }

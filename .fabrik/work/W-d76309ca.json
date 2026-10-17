@@ -17,8 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-alertmanager-miss",
-    "waits-operator-resume"
+    "waits-operator-review"
   ],
   "title": "**Apprise pre-route through aro-wake** (trio plan Phase 5, deferred): Gatus / GlitchTip / Backrest webhooks currently go straight to Telegram. AI never sees them. Wire Apprise to aro-wake first wit..."
 }

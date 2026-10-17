@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T18:16:56.878529Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-c7de366c",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,10 @@
   "next": "measure first: fabrik plan specs/services/spoke-canary.yaml + read the last apply log for where compose.watchdog.yaml landed; then wrap WatchdogDriver.provision's remote steps in _target_vps_env(ctx) with a grader that asserts the ssh host for a vps2 ctx",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "records check 2026-10-17: spoke watchdog provisions on wrong host; wrap in one ctx helper with a grader — command grep _target_vps_env in src/fabrik/drivers/watchdog.py returns nothing; WatchdogDriver ssh calls at :511,:687 use hub host",
   "status": "open",
   "tags": [
-    "waits-operator-resume",
     "watchdog"
   ],
   "title": "watchdog driver ssh()s the hub for spoke apps: every WatchdogDriver ssh call (build, overlay, HEALTHCHECK and storage probes, bring-up) targets FABRIK_VPS_SSH_HOST and provision() never runs inside deployer_ssh._target_vps_env; specs/services/spoke-canary.yaml (a spoke) has the watchdog on by default (review W-S4/W-O4, 2026-09-29)"

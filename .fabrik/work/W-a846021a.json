@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-17T01:42:08.236827Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a846021a",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "in scripts/enforcement/check_doc_sync.py:510-531 gate the warning on Path('docs/RESILIENCE.md').exists(); add a regression test; found by plan 2026-10-17-plan-1 T01 (dashboard_ui components.py region_state retry)",
   "note": "",
-  "owner": "intel",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: advisory warning false positive; owner moved to infra per beat-owners scripts/** — check_doc_sync.py:510-531 RESILIENCE warning not gated on docs/RESILIENCE.md existing (read the code)",
   "status": "open",
   "tags": [
     "enforcement"

@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "THREE `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution"
 }

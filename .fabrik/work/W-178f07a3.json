@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T19:43:20.499567Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-178f07a3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: gate hardening on a rare misuse; one file — command_run.py round path (~:820-840) has no refusal of --confirmed 0 after confirmed ledger verdicts; no commit grep hit",
   "status": "open",
   "title": "command_run round: refuse --findings 0 / --confirmed 0 after a dispatched workflow whose ledger holds confirmed verdicts (plan-review verdict 1791337661.4608235, kaizen 01M4EG5F6D)"
 }

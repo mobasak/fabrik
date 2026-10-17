@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "Mailbox-clear 2026-08-31 — accepted-direction majors (each cites its finding mail)"
 }

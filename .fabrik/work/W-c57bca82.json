@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T18:04:41.727674Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c57bca82",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: ledger hygiene check; one file — decisions.py has no path-exists check or column-count vs header validation (grep); item itself says measure first",
   "status": "open",
   "title": "decisions.py --check: flag a row whose enforcement path no longer exists (1791230749) and validate column count against the header (1789485954) — kaizen mail 01M4PHYRB6"
 }

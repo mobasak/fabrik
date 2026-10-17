@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.533567Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-e6d0c45c",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: rare edge, one file — review_receipt.py:388 `stem = a.scope if _DATED.match... else f\"{date}-{a.scope}\"` uses scope raw (cite :281 drifted)",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

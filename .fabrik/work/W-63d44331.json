@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.215728Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-63d44331",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "**[infra]** **Playwright-MCP roots vs scratchpad directive contradiction** (brand-identiy `01M15PMZ3` #3): the MCP refuses the system-prompt scratchpad (`outside allowed roots`); agents work around via gitignored `.playwright-mcp/`. Either add the session scratchpad to MCP roots (settings) or sanction `.playwright-mcp/` in the fabrik-gui agent def — one of the two, documented.\n\n---",
   "note": "migrated-digest:d3b3d3ca1311",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: settings tweak, workaround exists — playwright roots vs scratchpad; no commit",
   "status": "open",
   "title": "**Playwright-MCP roots vs scratchpad directive contradiction** (brand-identiy `01M15PMZ3` #3): the MCP refuses the system-prompt scratchpad (`outside allowed roots`); agents work around via gitigno..."
 }

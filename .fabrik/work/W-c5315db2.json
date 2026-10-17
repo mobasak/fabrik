@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-17T14:55:41.529784Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c5315db2",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide whether _battery_lift / _QUOTA_HOT_THIS_TICK=None must require row['source']=='live' — today a blackout tick whose active account has a cache row lifts the hold on stale (possibly too-cool) utilisation (_row_has_reading ignores source; critiques of W-5a1b8961, 2026-10-17)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "records check 2026-10-17: hold lifts on cached reading could release quota wall; small predicate change, owner infra (box mesh rotation) — claude_rotate.py:6550 _row_has_reading ignores row['source'] (docstring: ANY non-None utilization); only commit 0d04b15be is the parent W-5a1b8961",
   "status": "open",
   "tags": [
     "infra"

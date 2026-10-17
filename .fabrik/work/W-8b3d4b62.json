@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "command_run: a close for 'same findings, different author' (fabrik-spec-review verdict 1789151336.5841305, kaizen 01M4EKAZZF)"
 }

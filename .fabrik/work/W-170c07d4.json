@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings"
 }

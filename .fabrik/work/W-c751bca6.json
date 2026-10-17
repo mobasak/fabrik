@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:03:17.532222Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c751bca6",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "records check 2026-10-17: blocks merge flow after base fault but coordinator workaround exists; one script verb — merge_request.py has no retry verb (grep of 'retry' only hits unrelated line); no commit with id",
   "status": "open",
   "tags": [
     "mail-01m48p82r7"

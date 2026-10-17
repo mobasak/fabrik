@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T14:42:36.283732Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-73c5a25b",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "records check 2026-10-17: tenant-isolation security on every emitted saas project; spec required — needs /fabrik-spec; schema.sql RLS/current_tenant_id concerns for every saas scaffold",
   "status": "open",
-  "tags": [
-    "waits-operator-resume"
-  ],
   "title": "saas-skeleton tenant schema: one current_tenant_id() (vendored IdP rls/native.sql), RLS on tenants, cascade-delete blast radius, tenants.deleted_at, jobs exception"
 }

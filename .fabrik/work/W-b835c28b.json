@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "check_doc_links.py's bare-ref matcher is narrower than its subject — widening MEASURED, landing needs a ratchet"
 }

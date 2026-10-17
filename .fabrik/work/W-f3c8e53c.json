@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "check_doc_index: fire on an untracked live doc at creation time (PostToolUse or --lean) (fabrik-spec verdict 1788968233.8121111, kaizen 01M4EJQEEG)"
 }

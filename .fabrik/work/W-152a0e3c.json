@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-25T22:08:22.651793Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-152a0e3c",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "Pick one tense for dry-run previews in scaffold.fix_project and align the backfill test",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: wording alignment — tests/test_backfill_has_user_guide.py:123 still asserts 'backfill has_user_guide: true' dry-run wording",
   "status": "open",
-  "tags": [
-    "waits-operator-resume"
-  ],
   "title": "fix_project dry-run entries mix tenses with the live run ('opencode.json (refresh from master)', 'project.yaml (backfill has_user_guide: …)') and tests/test_backfill_has_user_guide.py:123 pins the dry-run wording — found by the W-526528b6 review (A-core-H1..H3)"
 }

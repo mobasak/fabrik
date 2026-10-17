@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "**Un-extracted duplication across command sources** (measured 2026-08-29 while fixing the `/fabrik-review` ↔ `/fabrik-generate-tests` copy). That fix single-sourced ONE pipeline into `commands/_fra..."
 }

@@ -11,8 +11,10 @@
   ],
   "created": "2026-10-03T11:32:23.603834Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-40e6f88b",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -22,8 +24,9 @@
   },
   "next": "operator ruling first: incident text would leave the box to a third-party API; if allowed, shadow mode logging the probability vector with an explicit unknown option, threshold swept on past incidents, diagnosis stays on the LLM",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: advisory evaluation, optional — needs operator ruling (data leaves box); tag fleet, watchdog is monitoring; owner field empty; proposed-drop tag",
   "status": "open",
   "tags": [
     "fleet",

@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "The synced block's header is false for a third of its groups, and it CANNOT be corrected in one edit (routed 2026-09-19)"
 }

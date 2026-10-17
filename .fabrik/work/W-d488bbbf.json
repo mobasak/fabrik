@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T18:04:40.913272Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-d488bbbf",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: one-line banner text plus grader — final_gate.py --help line 17 says only 'Tier 1: Showstoppers only (syntax, secrets, schema sync)' - no explicit mypy-skipped statement; no fix commit",
   "status": "open",
   "title": "final_gate.py --lean output says plainly it skips mypy, so a merge request is never sent on a lean-only green (1791309119) — kaizen mail 01M4PHYRB6"
 }

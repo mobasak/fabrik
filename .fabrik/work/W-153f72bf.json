@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T17:52:53.989321Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-153f72bf",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: test guard residue, record-only — body says act only if a real call site hits it (0 today); commits 741271c40/6f9d5dc33 recorded residue",
   "status": "open",
   "tags": [
     "tests"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-25T18:39:22.240787Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c373dfe2",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: rare edge (non-dict links), one-line swap plus a test — work.py:4660-4670 _linked_items still uses (it.get('links') or {}).get(key); _links helper exists at work.py:698",
   "status": "open",
   "title": "work.py _linked_items reads (it.get('links') or {}).get(key): a non-dict links makes open_linked/close_linked fail open to None"
 }

@@ -17,8 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-bridge-gap-incident",
-    "waits-operator-resume"
+    "waits-operator-review"
   ],
   "title": "**propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply \"go\"`. Build the `propose`/`ack` HTTP verbs in aro-wake only w..."
 }

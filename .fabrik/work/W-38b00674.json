@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T10:46:44.758448Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-38b00674",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "widen _LOOSE to the mobile/web toolchain names (React Native, Expo SDK, NDK, CMake, JDK, Tailwind, NativeWind) with a false-positive measurement over the corpus, per the currency-pass bar row 6",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: sweep widening with fp measurement — scripts/sysadmin/rules_render_versions.py _LOOSE:36 has no React Native/Expo/NDK shapes (command grep)",
   "status": "open",
   "tags": [
     "rules"

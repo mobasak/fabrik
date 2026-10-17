@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "Adopt the markdown table-termination detector? The measured fire rate is in (2026-09-24)"
 }

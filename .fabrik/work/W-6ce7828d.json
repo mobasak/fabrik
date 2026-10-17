@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:03:21.528959Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-6ce7828d",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: command wording — wording lives in commands/_fragments/design-gate-panel.md (D-613 text 'answers the design-approval gate in the operator's place'); item asks RECOMMENDS wording; not verified whether the classifier denial still occurs",
   "status": "open",
   "tags": [
     "mail-01m492801e"

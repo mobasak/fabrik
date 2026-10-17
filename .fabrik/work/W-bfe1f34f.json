@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "waits-operator-resume"
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Scaffold outputs default to the Ocoron house brand (D-051): saas docs-site custom.css, mobile-app global.css, chrome-extension global.css"
 }

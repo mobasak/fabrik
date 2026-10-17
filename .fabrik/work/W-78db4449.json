@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "assemble_commands.py: WARN when a source's phase count comes from the section fallback, not PHASE headings (1789423201); carry the five route-up triggers in /fabrik-review-scoped's wrapper NEXT entry (1789719869) — kaizen mail 01M4PHYRB6"
 }

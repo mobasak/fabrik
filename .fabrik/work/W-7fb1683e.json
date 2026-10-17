@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T05:55:25.171490Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-7fb1683e",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: blocked on other repo, small wiring — HOLD until fabrik-lib SB-110 lands; id referenced in 7342cb171 only for related docs",
   "status": "open",
   "tags": [
     "waits-fabrik-lib-sb110"

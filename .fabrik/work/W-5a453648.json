@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-16T22:24:58.132709Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-5a453648",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "kaizen: on the next /fabrik-task queue verdict about a refused capture, add one clause to fabrik-task.md phase 5 step 5; scope-growth residue of the 2026-10-17 review (PLAUSIBLE, not confirmed)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: one-clause wording change in a command — ded9a9d5c only mentions the id in an earlier fabrik-task edit; item is an explicitly conditional wording clause (PLAUSIBLE, wait for a queue verdict)",
   "status": "open",
   "tags": [
     "kaizen"

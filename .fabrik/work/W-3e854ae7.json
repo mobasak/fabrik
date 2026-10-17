@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-26T01:42:56.661314Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-3e854ae7",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "Emit a server/ pytest config with pythonpath=[\"src\"] and a server/requirements-dev.txt in _scaffold_saas_backend, graded by running server/tests in a scaffolded tmp project",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: remaining half: add dev requirements — pytest pythonpath config emitted via W-1c722f35 (D-605) but _SAAS_SERVER_REQUIREMENTS (scaffold.py:2203) has no pytest",
   "status": "open",
-  "tags": [
-    "waits-operator-resume"
-  ],
   "title": "saas-skeleton server/ cannot run its own tests: no pytest config (pythonpath=src) and no pytest in its requirements, so server/tests/test_auth.py and test_glitchtip_no_secret_leak.py need PYTHONPATH set by hand (found by the W-dc4f5470 review)"
 }

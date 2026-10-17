@@ -17,7 +17,9 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "kaizen-01m4n1k909"
+    "kaizen-01m4n1k909",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "A --declare key for 'a doc becomes machine-read' in the /fabrik-task lane gate (kaizen 01M4N1K909 group 7; row 1790924889)"
 }

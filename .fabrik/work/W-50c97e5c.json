@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-split"
+  ],
   "title": "Mailbox second pass 2026-09-03 — the findings that need infra's design or ruling, parked here so they are not re-hunted (owner: infra)"
 }

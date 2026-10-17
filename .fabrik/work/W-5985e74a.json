@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-27T23:39:02.117450Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-5985e74a",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "when fabrik-lib ships the fulfilment-worker role and policies, add its minting to src/fabrik/drivers/postgres.py with a test that loads the vendored schema and records a purchase as that role",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: blocked on upstream role definition — plan 2026-10-08-plan-2-payments-fulfilment-role CONVERGED (90b2c05f3); postgres.py has no fulfilment minting; waits on fabrik-lib",
   "status": "open",
-  "tags": [
-    "waits-operator-resume"
-  ],
   "title": "registrar: mint fabrik-lib payments' fulfilment-worker role (INSERT+SELECT on purchases plus its two RLS policies) once fabrik-lib defines it — today nothing writes purchases (fabrik-lib payments/db/schema.sql, Phase D) and the ingest role must NOT get the grant (mails 01M35P4T/01M35P9V)"
 }

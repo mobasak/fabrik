@@ -16,5 +16,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "check_spec_convergence: a draft mode so /fabrik-spec can grade its own DRAFT before handoff (fabrik-spec verdict 1789139668.270968, kaizen 01M4EJQEEG)"
 }

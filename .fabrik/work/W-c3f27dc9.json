@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-17T16:24:22.982220Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c3f27dc9",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure render time and bytes per repo, then page or collapse the Work view so one fetch stays small",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "records check 2026-10-17: dashboard page size, one view; measure then paginate — view code at scripts/sysadmin/dashboard_ui/views/work.py; item created today, plan only archived (4635bfbbc) - defect is new and not a plan-state staleness",
   "status": "open",
   "title": "The command centre's GET /v/work returns 7.5 MB of HTML on this box (live request 2026-10-17): every repo's open items rendered at once"
 }

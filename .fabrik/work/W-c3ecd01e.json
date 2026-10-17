@@ -17,7 +17,9 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "kaizen-01m4n1k909"
+    "kaizen-01m4n1k909",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "A sanctioned HOLD exit for a run parked behind another agent's merge, distinct from BLOCKED — a new close verb (kaizen 01M4N1K909 group 5b; row 1791174957)"
 }
