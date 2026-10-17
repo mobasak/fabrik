@@ -2480,7 +2480,8 @@ def run_adopt(
     if names and (_UNDECLARED_RE.match(row) or not read or read.group(1) != names[0]):
         sys.stderr.write(
             f"docs_updater --adopt: {names[0]!r} cannot be the merge owner — the readers do not read "
-            f"`MERGE OWNER: {names[0]}` back as that name; name an agent that starts with a letter or digit\n"
+            f"`MERGE OWNER: {names[0]}` back as that name (it is the un-adoption token `undeclared`, or it opens "
+            "with `-`); name an agent that starts with a letter or digit and is not `undeclared`\n"
         )
         return 2
 
