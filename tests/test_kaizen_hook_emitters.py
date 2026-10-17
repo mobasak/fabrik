@@ -411,6 +411,35 @@ def test_a_running_reviews_surface_stands_the_uncommitted_cause_down(tmp_path: P
     assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
 
 
+def test_the_stale_opt_out_takes_the_stand_down_with_the_fifth_cause(tmp_path: Path) -> None:
+    """`COMMAND_RUN_STALE_H=0` turns the fifth cause off, so main() must read the FRESH record
+    (None here), never the raw one — or the running review's file is ordered by neither cause
+    (critique C1/F1; review B-1: a raw-record main() passed every other test)."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidopt", "session_file.py — the change under review")
+    env = _env(tmp_path, COMMAND_RUN_STALE_H="0")
+    proc = _run_stop(proj, tmp_path, "sidopt", baseline=[], transcript=tp, env=env)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+    blocks = _of_type(_events(tmp_path, "sidopt"), "stop_block")
+    assert ("uncommitted", "stood_down") not in [(b["cause"], b["outcome"]) for b in blocks], blocks
+
+
+def test_the_fifth_causes_warn_through_stop_orders_the_commit(tmp_path: Path) -> None:
+    """Review A-1, driven through main(): the fifth cause blocks three stops while the commit
+    order stands down; the fourth — its warn-through — must order the commit, never allow the
+    stop with the review's file uncommitted and nothing said."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidwt", "session_file.py — the change under review")
+    reasons = []
+    for i in range(4):
+        proc = _run_stop(proj, tmp_path, "sidwt", baseline=[], transcript=tp, reset=i == 0)
+        reasons.append(json.loads(proc.stdout or "{}").get("reason", ""))
+    assert all("COMMAND STILL RUNNING" in r for r in reasons[:3]), reasons
+    assert "DEFINITION OF DONE NOT MET" in reasons[3], reasons
+
+
 def _with_upstream(tmp_path: Path, proj: Path) -> None:
     bare = tmp_path / "origin.git"
     subprocess.run(

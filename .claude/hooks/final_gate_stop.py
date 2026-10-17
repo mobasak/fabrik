@@ -1351,9 +1351,9 @@ def _urgent_checkpoint(
     owed: list[str] = []
     stood: list[tuple[str, dict]] = []
     arm = _arm_order(sid, str(root))
-    # rec=None: no running-review exemption here — D-306's urgent tier orders the checkpoint
-    # commit before the wall, and losing the work outranks the review-then-commit order
-    mine = sorted(_own_uncommitted(root, authored_map, None, sid))
+    # No running-review exemption here (`_review_exempts_commit` is never asked): D-306's urgent
+    # tier orders the checkpoint commit before the wall — losing the work outranks the review order
+    mine = sorted(_own_uncommitted(root, authored_map))
     if mine:
         more = f" (+{len(mine) - 8} more)" if len(mine) > 8 else ""
         items.append(
@@ -1591,34 +1591,40 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
 _SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
 
 
-def _own_uncommitted(
-    root: Path, authored: dict[str, int], rec: object, sid: str | None = None
-) -> set[str]:
+def _own_uncommitted(root: Path, authored: dict[str, int]) -> set[str]:
     """The session-authored paths that are dirty and whose last edit is newer than their last
-    commit — the uncommitted cause's set, and the urgent checkpoint's (ONE predicate, two callers).
-
-    W-5ce56208: a path the running review-family record names in its `--surface` is subtracted, so
-    the session is never ordered to commit what its own review is still reviewing; the fifth cause
-    blocks that turn instead ("run it to its terminal condition"), and once the record closes this
-    reads nothing and the cause fires again. `rec` MUST be the FRESH record (`_run_record`), never
-    `_run_record_raw`: under the operator's `COMMAND_RUN_STALE_H<=0` opt-out the fresh record is
-    None and the fifth cause cannot block, and `_surface_reviewed` then skips its own staleness
-    test, so a raw record would exempt the file for as long as an abandoned record exists (design
-    critique C1/F1). `rec=None` — the urgent-90 tier, where D-306 orders the checkpoint commit —
-    exempts nothing.
-
-    Cobra (D-253): the cheapest way past it is to name the file in a running review's surface and
-    never close the review; the fifth cause then blocks every turn until its own cap, and the
-    commit cause re-arms the moment the record leaves `running`."""
+    commit (an older edit's dirt is a pipeline's or a sibling's) — the uncommitted cause's set and
+    the urgent checkpoint's (ONE predicate, two callers; W-5ce56208)."""
     dirty = _dirty_paths(root)
-    mine = {
+    return {
         rel
         for rel, edit_ts in authored.items()
         if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
     }
-    if rec is not None and mine:
-        mine -= _surface_reviewed(rec, authored, sid)
-    return mine
+
+
+def _review_exempts_commit(sid: str, transcript_p: str) -> dict | None:
+    """The FRESH running record whose `--surface` the uncommitted cause stands down for, or None.
+
+    W-5ce56208: the session is never ordered to commit what its own running review is still
+    reviewing — but ONLY on a stop the fifth cause will block instead, so a file is never ordered
+    by neither cause. Hence None when:
+    - the record is not fresh (`_run_record`, never `_run_record_raw`: under the operator's
+      `COMMAND_RUN_STALE_H<=0` opt-out the fifth cause cannot block, and `_surface_reviewed` skips
+      its own staleness test, so a raw record would exempt the file for ever — critique C1/F1);
+    - the run's seats are in flight (the fifth cause stands down then, W-4c7edc74);
+    - this stop is the fifth cause's warn-through (its counter at the cap) — the commit order
+      comes back instead of a silent allow (review A-1).
+    The urgent-90 tier never asks: D-306's checkpoint commit outranks the review order.
+
+    Cobra (D-253): the cheapest way past it is to name the file in a running review's surface and
+    never close the review; the fifth cause then blocks to its cap, and at the warn-through stop
+    the commit cause fires again."""
+    run = _run_record(sid)
+    if not run or run.get("state") != "running" or _seats_in_flight(run, transcript_p):
+        return None
+    run_attempts = _read_counters(_counter_path(sid))[4]
+    return run if decide_stall(True, run_attempts)[0] == "block_stall" else None
 
 
 def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
@@ -5037,13 +5043,12 @@ def main(argv: list[str]) -> int:
         authored: dict[str, int] = authored_map
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            # An edit NEWER than the file's last commit counts (an older one's dirt is a
-            # pipeline's or a sibling's); a file the running review names is that review's to
-            # finish first (W-5ce56208) — `_own_uncommitted` holds both rules.
-            everything = _own_uncommitted(root, authored, None, sid)  # one dirty/git pass per Stop
-            live = _run_record(sid)
+            # `_own_uncommitted` is the set; a file the running review names is that review's to
+            # finish first, on the stops its fifth cause blocks (W-5ce56208, `_review_exempts_commit`).
+            everything = _own_uncommitted(root, authored)
+            exempting = _review_exempts_commit(sid, transcript)
             own_uncommitted = (
-                everything - _surface_reviewed(live, authored, sid) if live else everything
+                everything - _surface_reviewed(exempting, authored, sid) if exempting else everything
             )
             if everything - own_uncommitted:
                 _kaizen(
