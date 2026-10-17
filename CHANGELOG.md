@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
+
+`tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` was red
+on master: fabrik-lib's 8bedcaa4 re-documented `load_env`'s return value (`True` means a file parsed to at least one
+key; `False` in four named cases) and the hub's copy was one commit behind (W-6eaa8533, kaizen mail 01M53NBWPX).
+Both vendored files are re-copied from that commit under their 3-line header; the change is docstring-only, no code
+path moves.
+
 ### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)
 
 `fabrik apply` loaded specs through `SpecValidator.load_spec`, which read the raw YAML, while `fabrik plan`, audit and

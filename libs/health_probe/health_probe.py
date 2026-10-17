@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 0e44811c — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 8bedcaa4 — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -67,11 +67,14 @@ def load_env(path: Optional[str] = None) -> bool:
     With ``path=None`` python-dotenv searches upward from this module's directory, so a
     vendored ``libs/health_probe/`` copy still finds the project-root ``.env`` (under
     ``python -c``, a REPL or a tracer it searches the current directory instead — pass
-    ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
-    was found, ``False`` (loading nothing) when python-dotenv is not installed, and ``False``
-    (loading nothing, even from an existing file) when ``PYTHON_DOTENV_DISABLED`` is one of
-    ``1``, ``true``, ``t``, ``yes`` or ``y`` in any case, which python-dotenv honours (1.2.x;
-    other values such as ``on`` or ``enabled`` leave loading ON). Once any
+    ``path`` to be explicit). Returns ``True`` when a file parsed to at least one key, even if
+    nothing changed: every key was already in the real environment, or a key has no ``=``
+    (``FOO`` alone parses with no value and is never set). Returns ``False``,
+    loading nothing, in four cases: no ``.env`` was found; the file parses to no key (empty or
+    comments only); python-dotenv is not installed; or ``PYTHON_DOTENV_DISABLED`` is one of
+    ``1``, ``true``, ``t``, ``yes`` or ``y`` in any case. That last switch exists from
+    python-dotenv 1.2.0; earlier versions ignore it and load the file, and other values such as
+    ``on`` or ``enabled`` leave loading ON. Once any
     ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
     non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here before any key is
     set. python-dotenv parses the whole file first, keeps each key's LAST value in
