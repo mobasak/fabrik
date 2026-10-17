@@ -290,7 +290,7 @@ def test_every_action_work_py_emits_is_classified_for_amber():
     # rung outside it — review S-1), in these spellings: a dict-literal key in either quote style, any
     # call's `action=` keyword (`dict(…)`, `.update(…)`) but argparse's `add_argument`, a
     # `.setdefault("action", …)` / `.update({"action": …})` argument, and `x["action"] = …`.
-    # NOT seen, by design (none occurs in work.py): a comprehension, an augmented or annotated assign,
+    # NOT seen, by design: a comprehension, an augmented or annotated assign,
     # a key held in a variable, and anything another module builds.
     values: list[tuple[ast.AST, bool]] = []  # (value, is the item comment's record)
     for node in ast.walk(tree):
