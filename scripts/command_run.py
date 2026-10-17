@@ -3921,7 +3921,9 @@ def _capture_commit(msg: Path, out: Path) -> int:
         return 1
     # git's subject (`%s`) is the whole FIRST PARAGRAPH, its lines joined by single spaces — a
     # first line alone would refuse a legitimate commit whose subject wraps (review A-sonnet)
-    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n\n", 1)[0].split("\n")]
+    # a whitespace-only line ends the paragraph too, as git's subject does (review A-haiku N-1)
+    first = re.split(r"\n[ \t]*\n", text.replace("\r\n", "\n"), maxsplit=1)[0]
+    lines = [ln.strip() for ln in first.split("\n")]
     lines = [ln for ln in lines if ln]
     subj = " ".join(lines)
     # `--grep` matches ONE line of the raw message, so it searches by the first line; the joined

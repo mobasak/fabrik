@@ -431,6 +431,22 @@ def test_capture_exits_1_never_the_fail_soft_0_on_a_bad_message_or_no_git(
     assert not cap.exists()
 
 
+def test_capture_ends_the_subject_at_a_whitespace_only_line(run_dir: Path, tmp_path: Path) -> None:
+    """git ends the subject paragraph at a line holding only spaces; capture joined the body onto the
+    subject there and refused the commit (review A-haiku N-1)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "ws.txt"
+    msg.write_text("fix: the subject\n   \nthe body\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 8\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
 def test_capture_finds_a_subject_git_stored_with_leading_spaces(
     run_dir: Path, tmp_path: Path
 ) -> None:
