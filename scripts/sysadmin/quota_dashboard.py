@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -38,10 +39,30 @@ import sys
 import threading
 import time
 import urllib.request
-from datetime import datetime
+from datetime import date, datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+# The page layer (plan 2026-10-17-plan-1): this file runs as `__main__`, so its own directory goes on
+# sys.path ONCE — the only form under which `dashboard_ui.views.<name>` and the views' own
+# `from dashboard_ui import components` resolve. The package never imports this module back.
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import dashboard_ui  # noqa: E402
+from dashboard_ui import components as _ui  # noqa: E402
+from dashboard_ui import snapshot as _snapshot  # noqa: E402
+from dashboard_ui import strings as _strings  # noqa: E402
+from dashboard_ui import views as _views  # noqa: E402
+from dashboard_ui.fmt import ago as _ago  # noqa: E402
+from dashboard_ui.fmt import cap as _cap  # noqa: E402
+from dashboard_ui.fmt import fmt_age as _fmt_age  # noqa: E402
+from dashboard_ui.fmt import fmt_reset as _fmt_reset  # noqa: E402
+from dashboard_ui.fmt import opt_root as _opt_root  # noqa: E402
+from dashboard_ui.fmt import posture_sub as _posture_sub  # noqa: E402
+from dashboard_ui.fmt import repo_order as _repo_order  # noqa: E402
+from dashboard_ui.fmt import stage_tone as _stage_tone  # noqa: E402
+from dashboard_ui.fmt import tone as _tone  # noqa: E402
 
 ROTATE_CLI = Path(
     os.getenv("QUOTA_DASH_ROTATE_CLI", "/opt/fabrik/scripts/sysadmin/claude_rotate.py")
@@ -709,62 +730,8 @@ def _probe() -> dict:
     return json.loads(proc.stdout)
 
 
-def _fmt_reset(epoch: float | None) -> str:
-    if not epoch:
-        return "—"
-    dt = datetime.fromtimestamp(float(epoch)).astimezone()
-    delta = float(epoch) - time.time()
-    if delta <= 0:
-        return dt.strftime("%a %d %b %H:%M") + " (due)"
-    hours = delta / 3600.0
-    left = f"{hours:.0f}h" if hours >= 1 else f"{delta / 60:.0f}m"
-    if hours >= 24:
-        left = f"{hours / 24:.1f}d"
-    return f"{dt.strftime('%a %d %b %H:%M')} · in {left}"
-
-
-def _fmt_age(age_s: float | None) -> str:
-    if age_s is None:
-        return ""
-    h = age_s / 3600.0
-    return f"cached {h:.0f}h ago" if h >= 1 else f"cached {age_s / 60:.0f}m ago"
-
-
 def _bar(remaining: float, tone: str) -> str:
     return f'<div class="bar"><span class="fill {tone}" style="width:{max(0.0, min(100.0, remaining)):.1f}%"></span></div>'
-
-
-def _tone(remaining: float) -> str:
-    if remaining <= 5:
-        return "crit"
-    if remaining <= 25:
-        return "warn"
-    return "ok"
-
-
-def _posture_sub(posture: object, key: str) -> str:
-    """The burn and the nearer of wall-or-reset for one window, from the posture file (D-269).
-
-    Empty string when there is nothing to say, so a caller can concatenate it unconditionally. The
-    numbers are the tick's own — the board does not re-derive them, because two derivations of one
-    fact are two things to drift.
-    """
-    if not isinstance(posture, dict):
-        return ""
-    act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
-    wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
-    w = wins.get(key)
-    if not isinstance(w, dict) or w.get("utilization") is None:
-        return ""
-    burn = w.get("burn_per_min")
-    if not (isinstance(burn, (int, float)) and not isinstance(burn, bool) and math.isfinite(burn)):
-        return " · no burn yet"
-    verdict = w.get("verdict")
-    mins = w.get("minutes_to_wall") if verdict == "wall_first" else w.get("minutes_to_reset")
-    if not (isinstance(mins, (int, float)) and not isinstance(mins, bool) and math.isfinite(mins)):
-        return f" · {burn:.2f}%/m"
-    which = "wall" if verdict == "wall_first" else "reset"
-    return f" · {burn:.2f}%/m, {which} in ~{int(mins)}m"
 
 
 def _row(acct: dict, active: str | None, rank: str | None = None, posture: object = None) -> str:
@@ -1018,6 +985,13 @@ def _unclassified_warning(p: dict) -> str:
     )
 
 
+def _spend_data() -> dict:
+    """The data half of `_spend_panel`: the cost sidecar as written, unchanged — top-level
+    ``built_at`` and ``per_model_spend``. Raises on a missing or unparseable file; the panel and
+    `_view_data` each decide what that means for them."""
+    return json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
+
+
 def _spend_panel() -> str:
     """The Usage tab: tier-weighted subscription spend + a daily token calendar.
 
@@ -1036,7 +1010,7 @@ def _spend_panel() -> str:
     exactly what empties `tiers`, and going silent there hides the reason for the silence.
     """
     try:
-        d = json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
+        d = _spend_data()
         p = d.get("per_model_spend") or {}
         tiers, daily = p.get("tiers") or {}, p.get("daily") or []
         spend, base = p.get("spend_usd"), p.get("base_rate_per_mtok")
@@ -1921,14 +1895,6 @@ def _command_services(name: str) -> tuple[set[str], bool]:
     return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
 
 
-def _stage_tone(stage: str) -> str:
-    if stage == "gate":
-        return "crit"
-    if stage == "utility":
-        return "stale"
-    return "cap"
-
-
 def _natives_cell(
     natives: list[tuple[str, tuple[str, ...]]], rule: tuple[bool, tuple[str, ...]] = (False, ())
 ) -> str:
@@ -1959,7 +1925,8 @@ def _tiers_cell(tiers: tuple[str, ...]) -> str:
 
 _BUDGET_TTL_S = 60
 _budget_lock = threading.Lock()
-_budget_cache: dict = {"ts": 0.0, "html": "", "thread": None, "gen": 0}
+# "data" is the parsed reading `_budget_data` serves beside the HTML; valid only while "html" is set
+_budget_cache: dict = {"ts": 0.0, "html": "", "data": None, "thread": None, "gen": 0}
 
 
 def _budget_probe(gen: int | None = None) -> str:
@@ -1976,66 +1943,17 @@ def _budget_probe(gen: int | None = None) -> str:
         d = json.loads(
             subprocess.run(args, capture_output=True, text=True, timeout=45, check=True).stdout
         )
-        caps = d.get("caps") or {}
-        q = d.get("quota") or {}
-        box_caps = d.get("box_caps")
-        if not isinstance(box_caps, dict):
-            # an older script without the pair: the read-only cap must never stand in for the
-            # heavy one (it is the HIGHER number — a fail-open in the OOM direction; round-3 seat)
-            raise ValueError("dispatch_headroom.py --json carries no box_caps — probe out of date")
-        cli = caps.get("concurrency_cap", "?")  # read from the payload, never re-hardcoded
-        parts = []
-        for label, key in (("read-only", "read_only"), ("heavy", "heavy")):
-            box_cap = box_caps.get(key)
-            bound = [box_cap, caps.get("concurrency_cap")] + (
-                [caps["quota_cap"]] if "quota_cap" in caps else []
-            )
-            allowed = 0 if q.get("hold") else min(int(x) for x in bound if x is not None)
-            taken = int((d.get("siblings") or {}).get("seats") or 0)
-            # "(box 3 after 21 reserved)" read as a 24-seat box when the FLOOR had raised a
-            # 2-seat remainder to 3: name the floor when it is what the reader sees (round-7)
-            # the label keys on the script's OWN verdict (`box_caps_floored`, from `floor_granted`)
-            # — never on `box_cap == floor`: an honest remainder of 3 is not the floor, and a
-            # dead box probe's floor is not the siblings' doing (round-8/9 Opus findings)
-            floored = bool(taken) and bool((d.get("box_caps_floored") or {}).get(key))
-            parts.append(
-                f"{label} seats allowed now: <strong>{allowed}</strong> "
-                f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
-                + (
-                    f" = the floor, {taken} reserved by sibling sessions"
-                    if floored
-                    else (f" after {taken} reserved by sibling sessions" if taken else "")
-                )
-                + (f", quota {escape(str(caps['quota_cap']))}" if "quota_cap" in caps else "")
-                + ")"
-            )
-        if q.get("hold"):
-            quota = "<strong>FLEET HOLD — dispatch nothing until relief</strong>"
-        elif q.get("ok"):
-            quota = (
-                f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
-                f"{q.get('eligible')} cool standby(s) of "
-                f"{q.get('eligible_raw', q.get('eligible'))} eligible"
-            )
-        else:
-            quota = "quota: unknown"
-        html = (
-            '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
-            + " · ".join(parts)
-            + f" · CLI cap {escape(str(cli))} · {quota}. The box is the ceiling — every fan-out "
-            "dispatches the SEATS the script prints: a review loop partitions its files into slices "
-            "(Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat) and sizes by "
-            "<code>--slices</code>; a grounding or adjudication surface sizes by <code>--units</code> "
-            "with the three-seat floor." + _budget_caveats(d) + "</p>"
-        )
+        data = {**_budget_reading(d), "read_at": time.time()}
+        html = _budget_html(data)
     except Exception as exc:  # noqa: BLE001 — a panel may never break the board
         html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
+        data = {"error": f"{type(exc).__name__}: {exc}"}
     with _budget_lock:
         # a probe that started before an invalidation (an account switch) must not land its
         # OLD-account html with a fresh stamp: it writes only if its generation is still current
         # (round-5 finding); a synchronous caller (`--once`) passes no generation
         if gen is None or gen == _budget_cache["gen"]:
-            _budget_cache.update(ts=time.time(), html=html)
+            _budget_cache.update(ts=time.time(), html=html, data=data)
         else:
             # orphaned: kick a probe for the CURRENT generation now, or the placeholder stays
             # until some later render happens to notice this thread is dead (round-6 finding)
@@ -2050,6 +1968,93 @@ def _budget_probe(gen: int | None = None) -> str:
             _budget_cache["thread"] = nxt
             nxt.start()
     return html
+
+
+def _budget_reading(d: dict) -> dict:
+    """The data half of the banner: one `dispatch_headroom.py --json` payload reduced to what the box
+    AND the quota allow now, per half — the numbers `_budget_html` prints, computed once. Raises on a
+    payload the banner cannot read (no ``box_caps``, a non-numeric cap), as the banner always has."""
+    caps = d.get("caps") or {}
+    q = d.get("quota") or {}
+    box_caps = d.get("box_caps")
+    if not isinstance(box_caps, dict):
+        # an older script without the pair: the read-only cap must never stand in for the
+        # heavy one (it is the HIGHER number — a fail-open in the OOM direction; round-3 seat)
+        raise ValueError("dispatch_headroom.py --json carries no box_caps — probe out of date")
+    seats = []
+    for label, key in (("read-only", "read_only"), ("heavy", "heavy")):
+        box_cap = box_caps.get(key)
+        bound = [box_cap, caps.get("concurrency_cap")] + (
+            [caps["quota_cap"]] if "quota_cap" in caps else []
+        )
+        allowed = 0 if q.get("hold") else min(int(x) for x in bound if x is not None)
+        taken = int((d.get("siblings") or {}).get("seats") or 0)
+        # "(box 3 after 21 reserved)" read as a 24-seat box when the FLOOR had raised a
+        # 2-seat remainder to 3: name the floor when it is what the reader sees (round-7)
+        # the label keys on the script's OWN verdict (`box_caps_floored`, from `floor_granted`)
+        # — never on `box_cap == floor`: an honest remainder of 3 is not the floor, and a
+        # dead box probe's floor is not the siblings' doing (round-8/9 Opus findings)
+        floored = bool(taken) and bool((d.get("box_caps_floored") or {}).get(key))
+        seats.append(
+            {
+                "label": label,
+                "key": key,
+                "allowed": allowed,
+                "box": box_cap,
+                "taken": taken,
+                "floored": floored,
+                "quota_cap": caps.get("quota_cap"),
+                "has_quota_cap": "quota_cap" in caps,
+            }
+        )
+    return {
+        "seats": seats,
+        "cli_cap": caps.get("concurrency_cap", "?"),  # read from the payload, never re-hardcoded
+        "hold": bool(q.get("hold")),
+        "quota": q,
+        "caveats": _budget_caveat_lines(d),
+    }
+
+
+def _budget_html(r: dict) -> str:
+    """The HTML half of the banner, from `_budget_reading`'s dict — every value escaped once here."""
+    parts = []
+    for seat in r["seats"]:
+        box_cap, taken = seat["box"], seat["taken"]
+        parts.append(
+            f"{seat['label']} seats allowed now: <strong>{seat['allowed']}</strong> "
+            f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
+            + (
+                f" = the floor, {taken} reserved by sibling sessions"
+                if seat["floored"]
+                else (f" after {taken} reserved by sibling sessions" if taken else "")
+            )
+            + (f", quota {escape(str(seat['quota_cap']))}" if seat["has_quota_cap"] else "")
+            + ")"
+        )
+    q = r["quota"]
+    if r["hold"]:
+        quota = "<strong>FLEET HOLD — dispatch nothing until relief</strong>"
+    elif q.get("ok"):
+        quota = (
+            f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
+            f"{q.get('eligible')} cool standby(s) of "
+            f"{q.get('eligible_raw', q.get('eligible'))} eligible"
+        )
+    else:
+        quota = "quota: unknown"
+    caveats = r["caveats"]
+    return (
+        '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
+        + " · ".join(parts)
+        + f" · CLI cap {escape(str(r['cli_cap']))} · {quota}. The box is the ceiling — every fan-out "
+        "dispatches the SEATS the script prints: a review loop partitions its files into slices "
+        "(Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat) and sizes by "
+        "<code>--slices</code>; a grounding or adjudication surface sizes by <code>--units</code> "
+        "with the three-seat floor."
+        + (" ⚠️ " + " · ".join(escape(x) for x in caveats) if caveats else "")
+        + "</p>"
+    )
 
 
 def _all_reasons(d: dict) -> list:
@@ -2076,7 +2081,15 @@ def _all_reasons(d: dict) -> list:
 
 
 def _budget_caveats(d: dict) -> str:
-    """The script's own confidence caveats, rendered — a failed sibling probe ("seats unknown, not
+    """`_budget_caveat_lines`, rendered as the banner's tail (escaped once, here)."""
+    lines = _budget_caveat_lines(d)
+    if not lines:
+        return ""
+    return " ⚠️ " + " · ".join(escape(x) for x in lines)
+
+
+def _budget_caveat_lines(d: dict) -> list[str]:
+    """The script's own confidence caveats, as PLAIN strings — a failed sibling probe ("seats unknown, not
     subtracted"), sibling sessions with no seat figure (a LOWER bound), an env-only own id. Round-7
     finding: the banner printed a confident 23 while `reasons` said the sibling count was unknown."""
     # every DEGRADED-state reason the script emits (round-8 finding: "held at the floor" — a
@@ -2108,22 +2121,16 @@ def _budget_caveats(d: dict) -> str:
         and not any("sibling seats unknown" in x for x in lines)
     ):
         lines.append(f"{sib.get('why') or 'probe failed'} — sibling seats unknown, not subtracted")
-    if not lines:
-        return ""
-    return " ⚠️ " + " · ".join(escape(x) for x in lines)
+    return lines
 
 
-def _budget_banner() -> str:
-    """One line above the commands table, served from a 60 s cache. A stale cache starts ONE
-    background refresh and returns what it has (or a placeholder) — the probe is a subprocess
-    with a fleet round-trip inside it, and `generate()` is reachable synchronously from a request
-    (`_fresh_html`'s pointer-moved branch, `switch_account`), the exact page-hang `_fresh_html`'s
-    docstring records as fixed on 2026-08-18. `QUOTA_DASH_BUDGET=0` disables it (tests)."""
-    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
-        return ""  # a test or a headless render that must not shell out to the fleet probe
+def _budget_cached() -> tuple[str, dict | None]:
+    """The cached banner and its reading. A stale cache starts ONE background refresh and returns what
+    it has — never a subprocess on the caller's thread."""
     with _budget_lock:
         fresh = time.time() - _budget_cache["ts"] < _BUDGET_TTL_S and _budget_cache["html"]
         html = _budget_cache["html"]
+        data = _budget_cache.get("data") if html else None  # an invalidated html voids its reading
         th = _budget_cache["thread"]
         if not fresh and not (th and th.is_alive()):
             th = threading.Thread(
@@ -2134,7 +2141,30 @@ def _budget_banner() -> str:
             )
             _budget_cache["thread"] = th
             th.start()
+    return html, data
+
+
+def _budget_banner() -> str:
+    """One line above the commands table, served from a 60 s cache. A stale cache starts ONE
+    background refresh and returns what it has (or a placeholder) — the probe is a subprocess
+    with a fleet round-trip inside it, and `generate()` is reachable synchronously from a request
+    (`_fresh_html`'s pointer-moved branch, `switch_account`), the exact page-hang `_fresh_html`'s
+    docstring records as fixed on 2026-08-18. `QUOTA_DASH_BUDGET=0` disables it (tests)."""
+    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
+        return ""  # a test or a headless render that must not shell out to the fleet probe
+    html, _data = _budget_cached()
     return html or '<p class="muted">Box budget: computing (dispatch_headroom.py) …</p>'
+
+
+def _budget_data() -> dict:
+    """The data half of `_budget_banner`, from the same cache and the same background refresh:
+    `_budget_reading`'s dict (its ``caveats`` plain strings, for the view to escape once), or
+    ``{"error": …}`` when the probe failed, ``{"computing": True}`` before the first reading lands,
+    ``{"disabled": True}`` under `QUOTA_DASH_BUDGET=0`."""
+    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
+        return {"disabled": True}
+    _html, data = _budget_cached()
+    return data if data else {"computing": True}
 
 
 def _commands_table(rows: list[dict[str, str]]) -> str:
@@ -2254,6 +2284,11 @@ NEXT_TIP_CAP = (
 _repos_lock = threading.Lock()
 _repos_cache: tuple[float, str] | None = None
 _repos_gen = 0  # bumped by every board write; a build that saw it move is not cached
+# The views' copies of the two collectors /repos.html reads, cached the same REPOS_TTL_S under the SAME
+# lock and dropped by the same board write — so a collector never sees two concurrent callers (its
+# warnings sink is one list) and runs no more often than /repos.html already runs it.
+_work_cache: tuple[float, list[dict]] | None = None
+_box_cache: tuple[float, dict] | None = None
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
 
 
@@ -2278,13 +2313,10 @@ def _work_module():
     return _work_mod[1], _work_mod[2]
 
 
-def _opt_root() -> Path:
-    return Path(os.environ.get("FABRIK_OPT_DIR") or "/opt")
-
-
 def _collect_work(opt: Path) -> list[dict]:
-    """One entry per repo with a work store: {name, items, error, skipped, main} — ``main`` (the main
-    checkout a board write goes to) only once the store was read."""
+    """One entry per repo with a work store: {name, items, error, skipped, main, root} — ``main`` (the
+    main checkout a board write goes to) and ``root`` (the tree the items were read from, where a
+    verdict's snapshot token is re-read) only once the store was read."""
     wk, sink = _work_module()
     out: list[dict] = []
     with wk._hook_git_budget():
@@ -2305,6 +2337,7 @@ def _collect_work(opt: Path) -> list[dict]:
                 # where a board write goes: the MAIN checkout, as pause/resume resolve it — never a
                 # linked worktree that happens to sit at /opt/<name> (W-e1f1a1bd)
                 entry["main"] = str(wk._worktrees(repo)[0].resolve())
+                entry["root"] = str(repo)
                 closed = wk._closed_ids(repo)
                 claims = wk._live_claims(repo)
                 for it in items:
@@ -2326,19 +2359,38 @@ def _collect_work(opt: Path) -> list[dict]:
     return out
 
 
-def _repo_order(repos: list[dict]) -> list[dict]:
-    """fabrik first, then by remaining count (desc), then by name."""
-    return sorted(repos, key=lambda r: (r["name"] != "fabrik", -len(r["items"]), r["name"]))
+def _work_data() -> list[dict]:
+    """`_collect_work(_opt_root())`, cached REPOS_TTL_S under `_repos_lock` and dropped by a board
+    write (`_drop_repos_cache`) exactly as `_repos_page` caches its page; a read that raises is not
+    cached, and a write that landed while it ran makes it served once, never cached."""
+    global _work_cache
+    with _repos_lock:
+        now = time.time()
+        if _work_cache and now - _work_cache[0] < REPOS_TTL_S:
+            return _work_cache[1]
+        gen = _repos_gen
+        repos = _collect_work(_opt_root())
+        _work_cache = (now, repos) if _repos_gen == gen else None
+        return repos
+
+
+def _box_data() -> dict:
+    """`agent_status.collect_box(_opt_root())`, cached like `_work_data` (the Agents block's collector)."""
+    global _box_cache
+    with _repos_lock:
+        now = time.time()
+        if _box_cache and now - _box_cache[0] < REPOS_TTL_S:
+            return _box_cache[1]
+        gen = _repos_gen
+        box = _status_module().collect_box(_opt_root())
+        _box_cache = (now, box) if _repos_gen == gen else None
+        return box
 
 
 def _owner_order(owners: set[str]) -> list[str]:
     hub = [o for o in _HUB_OWNERS if o in owners]
     rest = sorted(o for o in owners if o and o not in _HUB_OWNERS)
     return hub + rest + ([""] if "" in owners else [])
-
-
-def _cap(text: str, n: int) -> str:
-    return text if len(text) <= n else text[: n - 1] + "…"
 
 
 def _verdict_cell(item: dict, repo: str) -> str:
@@ -2550,14 +2602,6 @@ def _status_module():
     return _status_mod[1]
 
 
-def _ago(ts: object) -> str:
-    try:
-        s = max(0, int(time.time() - float(ts)))  # type: ignore[arg-type]
-    except (TypeError, ValueError, OverflowError):
-        return ""
-    return f"{s // 60} min ago" if s < 3600 else f"{s // 3600} h ago" if s < 172800 else f"{s // 86400} d ago"
-
-
 def _item_line(item: dict) -> str:
     """An item id is never shown bare: its title rides beside it (operator: "i cant understand what is
     W-41c1ec56 i need explanation for it too")."""
@@ -2640,18 +2684,33 @@ def _agent_row(a: dict, repo: str = "") -> str:
 # COBRA: the cheapest "working button" lets the server's own identity through — the test sets
 # CLAUDE_AGENT, CLAUDE_CODE_SESSION_ID and GIT_DIR on the server and asserts the operator's marker.
 _PAUSE_TARGETS: dict[tuple[str, str], dict] = {}  # REPLACED whole on each build, never mutated
+# Every publisher's last targets, by slice: a view's name, or "repos" for /repos.html's build. The two
+# registries above and `_ITEM_TARGETS` are the UNION, recomputed whole on each publish, so one view's
+# refresh never evicts another view's buttons; a publisher that failed replaces ITS slice with [].
+_TARGET_SLICES: dict[str, dict[str, dict]] = {"pause": {}, "item": {}}
+_targets_lock = threading.Lock()
+
+
+def _publish_slice(kind: str, slice_: str, entries: dict) -> dict:
+    """Store ``entries`` as ``slice_``'s targets of ``kind`` and return the union of every slice."""
+    with _targets_lock:
+        _TARGET_SLICES[kind][slice_] = entries
+        union: dict = {}
+        for part in _TARGET_SLICES[kind].values():
+            union.update(part)
+        return union
 _PAUSE_ENV_KEEP = ("PATH", "HOME", "LANG", "TZ")
 PAUSE_TIMEOUT_S = 30
 
 
-def _publish_pause_targets(repos: list[dict]) -> None:
+def _publish_pause_targets(repos: list[dict], slice_: str = "repos") -> None:
     global _PAUSE_TARGETS
-    _PAUSE_TARGETS = {
+    _PAUSE_TARGETS = _publish_slice("pause", slice_, {
         (str(r.get("name")), str(a.get("name"))): {"main": str(r.get("main")), "paused": a.get("paused")}
         for r in repos
         for a in r.get("agents", [])
         if a.get("can_pause") and not r.get("error")
-    }
+    })
 
 
 def pause_agent(repo: object, agent: object, action: object, why: object = "") -> tuple[int, dict]:
@@ -2708,34 +2767,59 @@ def _run_work(main: str, runs: list[list[str]]) -> tuple[int, dict]:
 # manually also add a comment next to them", W-e1f1a1bd): POST /item-verdict acts only on a (repo, id)
 # the last build listed, through the HUB's `work.py verdict` as the operator — the same runner, env and
 # guard as Pause/Resume (D-916). What accept and reject do to an item stays work.py's.
-_ITEM_TARGETS: dict[tuple[str, str], str] = {}  # (repo, id) -> main checkout; REPLACED whole each build
+# (repo, id) -> (main checkout, the tree the card was read from); the union of every slice, REPLACED whole
+_ITEM_TARGETS: dict[tuple[str, str], tuple[str, str]] = {}
+# The date after which a verdict with no snapshot token is refused (T07 sets it); None: always accepted.
+_LEGACY_TOKEN_UNTIL: date | None = None
 
 
-def _publish_item_targets(repos: list[dict]) -> None:
+def _publish_item_targets(repos: list[dict], slice_: str = "repos") -> None:
     global _ITEM_TARGETS
-    _ITEM_TARGETS = {
-        (str(r.get("name")), str(i.get("id"))): str(r["main"])
+    _ITEM_TARGETS = _publish_slice("item", slice_, {
+        (str(r.get("name")), str(i.get("id"))): (str(r["main"]), str(r.get("root") or r["main"]))
         for r in repos
         if r.get("main") and not r.get("error")
         for i in r.get("items", [])
-    }
+    })
 
 
-def item_verdict(repo: object, item: object, action: object, text: object = "") -> tuple[int, dict]:
+def _token_refused(root: str, item: str, token: object) -> bool:
+    """True when the verdict must be refused 409: ``token`` differs from the item's snapshot token as it
+    stands in ``root`` (a missing or unreadable item counts as changed), or no token came and the
+    legacy window (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before work.py takes
+    its store lock — the window between the two is accepted (one operator, one board)."""
+    if token is None:
+        return _LEGACY_TOKEN_UNTIL is not None and date.today() > _LEGACY_TOKEN_UNTIL
+    if Path(item).name != item:  # the target lookup admits only listed ids; never a path
+        return True
+    try:
+        current = json.loads((Path(root) / ".fabrik" / "work" / f"{item}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    return not isinstance(current, dict) or _snapshot.token(current) != token
+
+
+def item_verdict(
+    repo: object, item: object, action: object, text: object = "", token: object = None
+) -> tuple[int, dict]:
     """Accept, reject or comment on one item the board lists. (http_status, json_body): 400 for an
-    unknown pair or action, or a reject/comment with no words (nothing runs), 502 when work.py refuses
-    or times out (its message), 200 on success."""
+    unknown pair or action, or a reject/comment with no words (nothing runs), 409 ``changed`` when the
+    snapshot ``token`` the card carried no longer matches the item (nothing runs), 502 when work.py
+    refuses or times out (its message), 200 on success."""
     if action not in ("accept", "reject", "comment") or not isinstance(repo, str) or not isinstance(item, str):
         return 400, {"ok": False, "error": "body needs repo, item and action accept|reject|comment"}
     note = _clean_note(text)
     if action != "accept" and not note:
         return 400, {"ok": False, "error": f"{action} needs the operator's words"}
-    main = _ITEM_TARGETS.get((repo, item))
-    if main is None:  # a restarted server, or a frame older than the last build: rebuild once
+    target = _ITEM_TARGETS.get((repo, item))
+    if target is None:  # a restarted server, or a frame older than the last build: rebuild once
         _repos_page(fresh=True)
-        main = _ITEM_TARGETS.get((repo, item))
-    if main is None:
+        target = _ITEM_TARGETS.get((repo, item))
+    if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
+    main, root = target
+    if _token_refused(root, item, token):
+        return 409, {"ok": False, "error": "changed"}
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     opts = [f"--text={note}"] if note else []
     return _run_work(main, [[sys.executable, str(hub), "--repo", main, "verdict", *opts, "--by=dashboard",
@@ -3041,9 +3125,11 @@ def _repos_page(fresh: bool = False) -> str:
 def _drop_repos_cache() -> None:
     """After a board write: the next page is rebuilt, and a build already running is not cached.
     Lock-free on purpose — taking `_repos_lock` would wait out a 5 s build inside the POST."""
-    global _repos_cache, _repos_gen
+    global _repos_cache, _repos_gen, _work_cache, _box_cache
     _repos_gen += 1
     _repos_cache = None
+    _work_cache = None
+    _box_cache = None
 
 
 def render(
@@ -3469,13 +3555,40 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
     return html[: body.end()] + banner + html[body.end() :] if body else banner + html
 
 
+# The payload `_generate_locked` actually used on its last pass — the fallback included — and the time of
+# the last SUCCESSFUL probe behind it, carried unchanged through every fallback pass so an outage ages
+# it (None: unknown, stale at once). And when the probe last failed, with its error class, cleared by a
+# good probe. Each is one tuple swapped in whole; readers take a single reference.
+_LAST_STATUS: list[tuple[float | None, dict] | None] = [None]
+_LAST_PROBE_FAILURE: list[tuple[float, str] | None] = [None]
+
+
+def _seed_last_status() -> None:
+    """Seed `_LAST_STATUS` ONCE from quota.json on disk, before any probe of this process can rewrite
+    it: the file's mtime when it is a real reading, None when it holds `probe_failed` (the fallback
+    wrote it, so its mtime says nothing about the reading's age). A missing file seeds nothing."""
+    if _LAST_STATUS[0] is not None:
+        return
+    try:
+        mtime = _JSON.stat().st_mtime
+        payload = json.loads(_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if isinstance(payload, dict) and _LAST_STATUS[0] is None:
+        _LAST_STATUS[0] = (None if payload.get("probe_failed") else mtime, payload)
+
+
 def _generate_locked() -> str:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    _seed_last_status()  # before this pass's fallback can rewrite quota.json and launder its age
     error = None
     try:
         payload = _probe()
         _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+        _LAST_STATUS[0] = (time.time(), payload)
+        _LAST_PROBE_FAILURE[0] = None
     except Exception as exc:  # transport/CLI/JSON — degrade visibly, never blank the page
+        _LAST_PROBE_FAILURE[0] = (time.time(), type(exc).__name__)
         error = f"{type(exc).__name__}: {exc}"[:200]
         try:
             payload = json.loads(_JSON.read_text(encoding="utf-8"))
@@ -3493,6 +3606,8 @@ def _generate_locked() -> str:
         # The fallback SAYS it is blind: the trigger lowers its bar on this key (see
         # _maybe_trigger_rotation) — a reading that cannot be refreshed is a reading to act on early.
         payload = {**payload, "probe_failed": error}
+        prev = _LAST_STATUS[0]
+        _LAST_STATUS[0] = (prev[0] if prev else None, payload)  # the last GOOD probe's time, unchanged
         try:
             _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
         except OSError:
@@ -3654,6 +3769,7 @@ def _start_probe_loop() -> threading.Event:
     """The server's own cadence: probe every PROBE_INTERVAL_S regardless of viewers, then hand the
     fresh payload to the rotation trigger. Returns the stop event (tests; serve() never sets it)."""
     stop = threading.Event()
+    _seed_last_status()  # the payload's time, before the first probe can fail and rewrite quota.json
 
     def loop() -> None:
         while not stop.is_set():
@@ -3698,6 +3814,227 @@ def _fresh_html() -> str:
     except OSError:
         pass
     return generate()
+
+
+# ── the command-centre views (plan 2026-10-17-plan-1, T02) ─────────────────────────────────────────
+# `GET /v/<view>` answers one view's fragment. Each view module is a pure renderer (`dashboard_ui.views`);
+# this module hands it everything it reads from here as DATA, because no view may import this module.
+_QUOTA_VIEWS = ("overview", "accounts")  # the views that show quota data: the stale banner, the triggers
+_STATIC_TYPES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript; charset=utf-8"}
+
+
+def _guarded(fn, *args, **kwargs) -> object:
+    """A collector's own output, or ``{"error": "<Type>: <message>"}`` when it raises — that key only."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:  # noqa: BLE001 — one collector's failure is its own key's state
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def _status_data() -> dict:
+    """`_LAST_STATUS` for a view: ``{"payload", "read_at", "probe_failure"}`` — ``read_at`` the last good
+    probe's time (None: unknown) — seeded from quota.json in a fresh process; never a probe."""
+    if _LAST_STATUS[0] is None:
+        _seed_last_status()
+    cur = _LAST_STATUS[0]
+    if cur is None:
+        return {"error": "no reading yet"}
+    fail = _LAST_PROBE_FAILURE[0]
+    return {
+        "payload": cur[1],
+        "read_at": cur[0],
+        "probe_failure": {"at": fail[0], "error": fail[1]} if fail else None,
+    }
+
+
+def _status_stale(now: float) -> bool:
+    """The banner's bound (`_with_stale_banner`'s reasoning): the probe failed after the payload's last
+    good probe, or that probe is older than one interval plus one timeout plus a minute, or its time is
+    unknown. No payload at all is no banner — the view says "no reading yet" itself."""
+    cur = _LAST_STATUS[0]
+    if cur is None:
+        return False
+    ts, fail = cur[0], _LAST_PROBE_FAILURE[0]
+    if ts is None or (fail is not None and fail[0] > ts):
+        return True
+    return now - ts > PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60
+
+
+def _status_banner(now: float) -> object:
+    """T01's stale banner for a quota view, or None while the payload is fresh."""
+    if not _status_stale(now):
+        return None
+    cur, fail = _LAST_STATUS[0], _LAST_PROBE_FAILURE[0]
+    ts = cur[0] if cur else None
+    if ts is None:
+        age = _strings.t("stale.age_unknown")
+    else:
+        age_s = max(0.0, now - ts)
+        age = (
+            _strings.t("stale.age_s", n=f"{age_s:.0f}")
+            if age_s < 120
+            else _strings.t("stale.age_min", n=f"{age_s / 60:.0f}")
+        )
+    if fail is not None and (ts is None or fail[0] > ts):
+        when = datetime.fromtimestamp(fail[0]).astimezone().strftime("%H:%M:%S")
+        cause = _strings.t("stale.cause.failed", time=when, error=fail[1])
+    else:
+        cause = _strings.t("stale.cause.old")
+    return _ui.stale_banner(age, cause)
+
+
+def _status_triggers() -> None:
+    """Today's two request-side triggers (`_fresh_html`), on the quota views: a moved pointer costs ONE
+    bounded synchronous regeneration per PROBE_TIMEOUT_S; a payload older than MAX_AGE_S (quota.json's
+    mtime — every pass rewrites it, as every pass rewrites the page) starts a background one."""
+    if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
+        _LAST_SYNC_REGEN[0] = time.time()
+        try:
+            generate()
+        except Exception:  # noqa: BLE001 — generate() recorded it; the view shows the banner
+            pass
+        return
+    try:
+        age = time.time() - _JSON.stat().st_mtime
+    except OSError:
+        age = math.inf
+    if age >= MAX_AGE_S:
+        _LAST_REGEN[0] = _regen_async()
+
+
+def _health(data: dict, now: float) -> dict:
+    """The Overview's health reading: ``stale`` — a view whose data is older than twice its cadence —
+    and ``failed`` — every collector key holding ``error``, plus a probe failure newer than the payload."""
+    stale: list[dict] = []
+    cur = _LAST_STATUS[0]
+    if cur is not None and (cur[0] is None or now - cur[0] > 2 * PROBE_INTERVAL_S):
+        stale.append({"view": "accounts", "age_s": None if cur[0] is None else now - cur[0]})
+    failed = [
+        {"key": k, "error": str(v["error"])}
+        for k, v in data.items()
+        if isinstance(v, dict) and "error" in v
+    ]
+    fail = _LAST_PROBE_FAILURE[0]
+    if fail is not None and (cur is None or cur[0] is None or fail[0] > cur[0]):
+        failed.append({"key": "probe", "error": fail[1], "at": fail[0]})
+    return {"stale": stale, "failed": failed}
+
+
+def _owner_orders(work: object) -> dict[str, list[str]]:
+    """Per repo, the owner order the Repos pane uses (`_repo_pane`): an unowned awaiting item is the
+    operator's, every hub agent and the empty owner present even at zero."""
+    if not isinstance(work, list):
+        return {}
+    out: dict[str, list[str]] = {}
+    for r in work:
+        owners = {
+            str(it.get("owner") or "")
+            or ("operator" if it.get("status") == "awaiting-operator" else "")
+            for it in r.get("items") or []
+        }
+        out[str(r.get("name"))] = _owner_order(owners | set(_HUB_AGENTS) | {""})
+    return out
+
+
+def _view_data(name: str, ctx) -> dict:
+    """What view ``name`` receives: collector outputs unchanged (one that raises becomes
+    ``{"error": …}`` for its key only) and the configuration values today's builders read. Never a
+    probe: the status is `_LAST_STATUS`, the work and box data the REPOS_TTL_S caches."""
+    data: dict = {"now": ctx.now, "refresh_s": REFRESH_S, "probe_interval_s": PROBE_INTERVAL_S}
+    if name == "overview":
+        data.update(
+            work=_guarded(_work_data),
+            box=_guarded(_box_data),
+            status=_status_data(),
+            budget=_guarded(_budget_data),
+            ag_states=dict(_AG_STATES),
+            hub_agents=list(_HUB_AGENTS),
+        )
+        data["health"] = _health(data, ctx.now)
+    elif name == "work":
+        work = _guarded(_work_data)
+        data.update(
+            work=work,
+            hub_agents=list(_HUB_AGENTS),
+            owner_order=_owner_orders(work),
+            repos_ttl_s=REPOS_TTL_S,
+            next_cap=NEXT_CAP,
+            next_tip_cap=NEXT_TIP_CAP,
+        )
+    elif name == "accounts":
+        status = _status_data()
+        data.update(
+            status=status,
+            queue=(
+                _guarded(_queue_for_render, status["payload"], ctx.now)
+                if "payload" in status
+                else {"error": status["error"]}
+            ),
+            trigger_threshold=TRIGGER_THRESHOLD,
+            reserve_pct=_RESERVE_PCT,
+            drain_band=_drain_band(),
+            five_hour_s=_FIVE_HOUR_S,
+            seven_day_s=_SEVEN_DAY_S,
+            switch_header=SWITCH_HEADER,
+            pool_policy_on=_pool_policy_on(),
+            slug_re=_SLUG_RE.pattern,
+            email_re=_EMAIL_RE.pattern,
+        )
+    elif name == "usage":
+        data["spend"] = _guarded(_spend_data)
+    elif name == "commands":
+        data.update(
+            commands=_guarded(_load_commands),
+            ext_services=[
+                {"key": k, "label": label, "title": title} for k, label, title, _pat in _EXT_SERVICES
+            ],
+        )
+    elif name == "services":
+        try:
+            ext_mtime: float | None = EXT_SERVICES_HTML.stat().st_mtime
+        except OSError:
+            ext_mtime = None
+        data.update(
+            pool=_guarded(_pool_credits, fetch=False),
+            apis=_guarded(_api_quotas, ctx.now, fetch=False),
+            ext_page={"path": "/external-services.html", "mtime": ext_mtime},
+        )
+    else:
+        raise LookupError(f"no view named {name!r}")
+    return data
+
+
+def _render_view(name: str) -> str:
+    """One view's fragment: its data, its module's ``collect`` (merged over it) and ``render``, the
+    stale banner on a quota view, the whole wrapped in a root element whose ``data-stamp`` hashes the
+    markup. A view that raises renders its error state in words and empties ITS target slice; every
+    other view's targets stay published (the union)."""
+    if name in _QUOTA_VIEWS:
+        _status_triggers()
+    ctx = _views.ViewContext(opt_root=_opt_root(), fabrik_root=_FABRIK_ROOT, now=time.time())
+    pause: list[dict] | None = None
+    items: list[dict] | None = None
+    try:
+        mod = _views.load(name)
+        data = _view_data(name, ctx)
+        collect = getattr(mod, "collect", None)
+        if callable(collect):
+            data = {**data, **collect(ctx)}
+        result = mod.render(data, ctx)
+        if not isinstance(result, _views.ViewResult):
+            raise TypeError(f"render() returned {type(result).__name__}, not ViewResult")
+        html: object = result.html
+        pause, items = result.pause_targets, result.item_targets
+    except Exception as exc:  # noqa: BLE001 — one view's fault is that view's error state
+        sys.stderr.write(f"quota_dashboard: view {name} failed ({type(exc).__name__}: {exc})\n")
+        html = _ui.region_state(
+            "error", _strings.t("view.failed", error=type(exc).__name__), retry=True
+        )
+        pause = items = None
+    _publish_pause_targets(pause or [], name)  # fail-closed: no board, no buttons
+    _publish_item_targets(items or [], name)
+    body = _ui.fragment(_status_banner(ctx.now) if name in _QUOTA_VIEWS else None, html)
+    return _ui.group(body, tag="section", data={"view-root": name, "stamp": _views.stamp(body)})
 
 
 def _known_slugs() -> set[str]:
@@ -3827,7 +4164,7 @@ def set_account_threshold(email: object, threshold: object) -> tuple[int, dict]:
 def _rerender() -> None:
     """After a board-driven mutation: invalidate the banner cache and render the board NOW."""
     with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
-        _budget_cache.update(ts=0.0, html="")
+        _budget_cache.update(ts=0.0, html="", data=None)
         _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
     # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
     # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
@@ -3859,16 +4196,82 @@ class _Handler(BaseHTTPRequestHandler):
     # stays connected. 15s is generous for a loopback fetch and bounds every read, GET included.
     timeout = float(os.getenv("QUOTA_DASH_SOCKET_TIMEOUT_S", "15"))
 
-    def _json(self, status: int, body: dict) -> None:
+    def _json(self, status: int, body: dict, *, close: bool = False) -> None:
         raw = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
+        if close:  # a refusal that never read the body: the connection cannot carry another request
+            self.send_header("Connection", "close")
+            self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
 
+    def _allowed_hosts(self) -> set[str]:
+        """The Host values this server answers: the loopback names and the configured QUOTA_DASH_HOST,
+        each at the port the server is bound to (a test's port 0 included). INV-6: a DNS-rebinding page
+        reaches this socket under ITS name, and that name is not on the list."""
+        port = self.server.server_address[1]
+        names = {"127.0.0.1", "localhost", "[::1]"}
+        conf = HOST.strip().lower()
+        if conf:
+            names.add(f"[{conf}]" if ":" in conf and not conf.startswith("[") else conf)
+        allowed = {f"{n}:{port}" for n in names}
+        return allowed | names if port == 80 else allowed  # a client omits the default port
+
+    def _guard(self, method: str) -> bool:
+        """Before anything else runs: 421 for a Host outside the allowlist, 403 for a POST the browser
+        marks ``Sec-Fetch-Site: cross-site`` — both before the body is read. True: carry on."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host not in self._allowed_hosts():
+            sys.stderr.write(f"quota_dashboard: {method} refused — Host {host[:80]!r} is not this board\n")
+            raw = b"misdirected request: this board answers only on its own address\n"
+            self.send_response(421)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+            self.wfile.write(raw)
+            return False
+        if method == "POST" and (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+            sys.stderr.write(f"quota_dashboard: POST {self.path[:80]!r} refused — cross-site\n")
+            self._json(403, {"ok": False, "error": "cross-site request refused"}, close=True)
+            return False
+        return True
+
+    def _static(self, name: str) -> None:
+        """``/static/<name>``: only the two files of `_STATIC_TYPES`, revalidated by ETag (no-cache)."""
+        ctype = _STATIC_TYPES.get(name)
+        if ctype is None:
+            self.send_error(404)
+            return
+        try:
+            body = (dashboard_ui.STATIC_DIR / name).read_bytes()  # per request: an edit shows at once
+        except OSError:
+            self.send_error(404)
+            return
+        etag = f'"{hashlib.sha256(body).hexdigest()[:16]}"'
+        sent = {t.strip().removeprefix("W/") for t in (self.headers.get("If-None-Match") or "").split(",")}
+        if etag in sent or "*" in sent:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("ETag", etag)
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
+        if not self._guard("POST"):
+            return
         path = self.path.split("?", 1)[0]
         if path not in ("/switch", "/park", "/cap", "/threshold", "/agent-pause", "/item-verdict"):
             self.send_error(404)
@@ -3905,7 +4308,9 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path == "/item-verdict":
             b = body if isinstance(body, dict) else {}
-            status, out = item_verdict(b.get("repo"), b.get("item"), b.get("action"), b.get("text") or "")
+            status, out = item_verdict(
+                b.get("repo"), b.get("item"), b.get("action"), b.get("text") or "", token=b.get("token")
+            )
             sys.stderr.write(
                 f"quota_dashboard: POST {path} {b.get('repo')!r}/{b.get('item')!r} {b.get('action')!r} by operator"
                 f" -> {status} in {time.time() - t0:.1f}s: {out.get('output') or out.get('error') or ''}\n"
@@ -3941,8 +4346,18 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(status, out)
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib interface)
+        if not self._guard("GET"):
+            return
         path = self.path.split("?", 1)[0]
-        if path in ("/", "/index.html"):
+        if path.startswith("/static/"):
+            self._static(path[len("/static/") :])
+            return
+        if path.startswith("/v/"):
+            if path[len("/v/") :] not in _views.VIEWS:
+                self.send_error(404)
+                return
+            body, ctype = _render_view(path[len("/v/") :]).encode("utf-8"), "text/html; charset=utf-8"
+        elif path in ("/", "/index.html"):
             body, ctype = _fresh_html().encode("utf-8"), "text/html; charset=utf-8"
         elif path == "/quota.json":
             _fresh_html()  # refresh the payload alongside the page
