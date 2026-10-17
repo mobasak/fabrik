@@ -437,17 +437,23 @@ def test_a_pin_or_scratch_copy_citation_merges_with_the_repo_path_citation(shape
 
 
 @pytest.mark.parametrize(
-    "shape",
-    ["/opt/x/a.py", "/p/other/a.py", "/pX/a.py", "/q/p/a.py"],
-    ids=["live", "sibling-pin", "near-root", "embedded-root"],
+    ("shape", "stored"),
+    [
+        ("/opt/x/a.py", "/opt/x/a.py"),
+        ("/p/other/a.py", "other/a.py"),
+        ("/pX/a.py", "/pX/a.py"),
+        ("/q/p/a.py", "/q/p/a.py"),
+    ],
+    ids=["live", "other-file-in-the-pins-dir", "near-root", "embedded-root"],
 )
-def test_a_live_or_different_path_is_never_stripped_into_the_repo_path(shape: str) -> None:
-    """D-625: only the pins root or a seat's scratch arch root is stripped, as a prefix — a live-checkout path, a
-    sibling pin and a look-alike root stay different files, so the two candidates are never merged."""
+def test_a_live_or_different_path_is_never_merged_with_the_repo_path(shape: str, stored: str) -> None:
+    """D-625: only the pins root or a seat's scratch arch root is stripped, and only as a prefix — a live-checkout
+    path and a look-alike or embedded root are kept as cited, and a different file under the pins dir becomes its own
+    repo path (`other/a.py`), so none of them is merged with `a.py`."""
     s, _ = _two_seat_union(shape)
     assert [c["id"] for c in s["candidates"]] == ["S-S1", "S-H1"], s["candidates"]
     assert s["overlap"] == 0
-    assert s["candidates"][0]["file"] == {"/p/other/a.py": "other/a.py"}.get(shape, shape)
+    assert s["candidates"][0]["file"] == stored
 
 
 def test_a_file_that_is_only_a_root_keeps_its_original() -> None:
