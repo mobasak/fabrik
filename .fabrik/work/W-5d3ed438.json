@@ -15,7 +15,7 @@
   },
   "next": "decide the declaration grammar (uppercase MERGE OWNER: as the only declaration signal on bare rows too, and allow the bold-wrapped label) in decisions.py/docs_updater.py/session_orient.py with the shared-fixture parity test; found by the wave-1 review of plan 2026-09-30-plan-1-merge-request-loop, pass 3",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "infra checked 2026-10-15: not fixed — 5412871e0 only routed it here; a misread MERGE OWNER row can send merges to the wrong agent; grammar fix in decisions.py",
   "status": "open",

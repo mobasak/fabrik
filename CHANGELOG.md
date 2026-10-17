@@ -16,6 +16,15 @@ All notable changes to this project will be documented in this file.
   round. It recurs on the held subject `size-read-set-first`. The graders are in
   `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
 
+### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
+
+- W-7f545f4a re-ran the release kit's network checks (W-e2af3303, D-905) now that npm answers. `pnpm install`,
+  `pnpm compile` and the WXT build passed. `pnpm lint` failed on five `e18e` errors and two unused
+  `eslint-disable` warnings in files the kit emits (`scripts/extension-id.mjs`, `keygen.mjs`, `manifest-key.mjs`,
+  `release-check.mjs`, `src/lib/update-version.ts`). `src/fabrik/scaffold.py` now emits module-scope regexes and
+  `Array.from(str, fn)`, and drops the directives. `tests/test_scaffold_chrome_ext_wxt.py`'s network build test
+  also runs `pnpm compile` and `pnpm lint` (red before, green after).
+
 ### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
 
 - Round zero lives in both `commands/_fragments/term-coverage.md` and `term-edit.md`. Its pre-pin input list now

@@ -5081,12 +5081,11 @@ import { createHash } from 'node:crypto';
 
 export function extensionIdFromPub(pubBase64) {
   const hex = createHash('sha256').update(Buffer.from(pubBase64.trim(), 'base64')).digest('hex');
-  return [...hex.slice(0, 32)].map(c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
+  return Array.from(hex.slice(0, 32), c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
 }
 """
 
-_CX_KEYGEN_MJS = r"""/* eslint-disable no-console */
-// ONE-TIME: mints the extension's signing key, which pins its ID. Run it once, early (`pnpm keygen`):
+_CX_KEYGEN_MJS = r"""// ONE-TIME: mints the extension's signing key, which pins its ID. Run it once, early (`pnpm keygen`):
 // until then every install gets a path-derived ID, and the backend's EXTENSION_ID / CORS allow-list
 // and any chrome.identity OAuth redirect (https://<id>.chromiumapp.org/) depend on the pinned one.
 //   - private key -> .keys/extension-key.pem (PKCS#8, mode 0600, gitignored — BACK IT UP: an
@@ -5183,8 +5182,7 @@ console.log('BACK UP extension/.keys/extension-key.pem now — it is gitignored 
 console.log('next: git add extension/extension-key.pub && git commit && git push');
 """
 
-_CX_RELEASE_CHECK_MJS = r"""/* eslint-disable no-console */
-// `make release-ext`'s gate. Refuses (exit 1, with the next steps) unless:
+_CX_RELEASE_CHECK_MJS = r"""// `make release-ext`'s gate. Refuses (exit 1, with the next steps) unless:
 //   1. this is not a store build (STORE_BUILD=1 omits the pinned key, scripts/manifest-key.mjs),
 //   2. extension-key.pub is tracked by git and is a base64 public key,
 //   3. the working tree is clean (every released zip is a `wxt zip` of a committed tree),
@@ -5220,8 +5218,9 @@ const ENV_FILES = [
   '.env.production.chrome.local',
 ];
 // Chrome: 1-4 dot-separated integers, each 0-65535, no leading zero.
+const CHROME_VERSION_RE = /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/;
 function isChromeVersion(v) {
-  return /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/.test(v) && v.split('.').every(n => Number(n) <= 65535);
+  return CHROME_VERSION_RE.test(v) && v.split('.').every(n => Number(n) <= 65535);
 }
 
 function git(...args) {
@@ -5254,8 +5253,9 @@ export function effectiveApiUrl() {
   return found;
 }
 
+const HTTPS_PREFIX_RE = /^https:\/\//i;
 function isHttpsUrl(value) {
-  if (!/^https:\/\//i.test(value))
+  if (!HTTPS_PREFIX_RE.test(value))
     return false;
   try {
     const url = new URL(value);
@@ -5335,8 +5335,9 @@ export function isStoreBuild() {
 
 // Throws unless `pub` is a base64 SPKI public key: a silently wrong key would change the ID under
 // every installed copy, so a bad file fails the build, the release gate and keygen loudly.
+const BASE64_RE = /^[A-Z0-9+/]+={0,2}$/i;
 export function assertPubKey(pub) {
-  let ok = /^[A-Z0-9+/]+={0,2}$/i.test(pub);
+  let ok = BASE64_RE.test(pub);
   if (ok) {
     try {
       const der = Buffer.from(pub, 'base64');
@@ -5437,6 +5438,7 @@ export type NoticeChange = { action: 'set'; notice: UpdateNotice } | { action: '
 
 const VERSION_RE = /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const TRAILING_SLASHES_RE = /\/+$/;
 
 // Chrome's version rule: one to four dot-separated integers (each 0-65535, no leading zero), a
 // missing integer counting as 0.
@@ -5498,7 +5500,7 @@ export function secureBase(raw: string): string {
   if (!secure || url.username || url.password)
     return '';
   // origin + path only: a query or fragment would land in front of /extension/latest
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+  return `${url.origin}${url.pathname}`.replace(TRAILING_SLASHES_RE, '');
 }
 """
 
