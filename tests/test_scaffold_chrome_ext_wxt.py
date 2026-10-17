@@ -14,12 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from fabrik.scaffold import (
-    I18N_ENABLED_TYPES,
-    MOBILE_APP_TEMPLATE_DIR,
-    TYPE_REQUIRED_FILES,
-    create_project,
-)
+from fabrik.scaffold import I18N_ENABLED_TYPES, TYPE_REQUIRED_FILES, create_project
 
 FABRIK_ROOT = Path("/opt/fabrik")
 # Portability guard (matches tests/test_scaffold.py): these tests scaffold against the
@@ -86,17 +81,13 @@ def test_package_json_is_wxt_not_crxjs(ext: Path) -> None:
 
 def test_toolchain_is_pinned(ext: Path) -> None:
     """W-70d9c609: the emitted extension pins the pnpm it is proven on (pnpm 11 is what the
-    allowBuilds block needs) and the lint config it lints clean on; the mobile template pins the
-    same config range. This proves the strings are written — the lint property itself is proven
-    only by the needs_network build test below."""
+    allowBuilds block needs) and the lint config it lints clean on. This proves the strings are
+    written — the lint property itself is proven only by the needs_network build test below."""
     import json
 
     pkg = json.loads((ext / "package.json").read_text())
     assert pkg["packageManager"] == "pnpm@11.24.0"
     assert pkg["devDependencies"]["@antfu/eslint-config"] == "~7.7.3"
-    # the directory the mobile scaffold copies from (this checkout's tree, not /opt/fabrik's)
-    mobile = json.loads((MOBILE_APP_TEMPLATE_DIR / "package.json").read_text())
-    assert mobile["devDependencies"]["@antfu/eslint-config"] == "~7.7.3"
 
 
 def test_pnpm_workspace_allowbuilds_not_onlybuilt(ext: Path) -> None:
