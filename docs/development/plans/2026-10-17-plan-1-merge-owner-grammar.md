@@ -1,6 +1,7 @@
 # Plan — merge-owner row grammar: the exact label, bold allowed (W-5d3ed438)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-17
+Whole-plan review: docs/development/reviews/2026-10-17-plan-1-merge-owner-grammar-review.md
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 0cbf8d780 at authoring; `scripts/decisions.py:55-69`, `scripts/docs_updater.py:1220-1240`, `.claude/hooks/session_orient.py:205-244` (the six patterns and their comment blocks); `tests/test_session_orient_hook.py` (71 test functions, `_OWNER_CASES` at `:1271-1306`, the literal pins at `:879-920`)
@@ -209,7 +210,7 @@ Appetite: 75
 - **Given** a higher-id row `**MERGE OWNER:** rotated weekly`, **When** the three readers resolve, **Then** each returns `rotated` — the documented first-token limit (A9, spec § Goal)
 - **Mocked:** nothing — the three-reader test runs the real hook, the real `docs_updater.read_merge_owner` and a real `decisions.py --merge-owner` subprocess over a synthetic ledger in `tmp_path`.
 
-## Phase B — Finish
+## Phase B — Finish — ✅ EXECUTED 2026-10-17 (155c07fcd)
 
 Appetite: 60
 

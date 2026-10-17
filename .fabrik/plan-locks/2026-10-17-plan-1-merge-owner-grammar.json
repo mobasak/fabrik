@@ -14,7 +14,9 @@
   ],
   "branch": "worktree-intel",
   "started_at": "2026-10-17T17:45:01+03:30",
-  "status": "active",
+  "completed_at": "2026-10-17T19:40:00+03:30",
+  "final_commit": "155c07fcd",
+  "status": "released",
   "baseline_commit": "fafc2db2d",
   "baseline_gate": {"status": "success", "red": []}
 }
