@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "/fabrik-spec: render base images from versions.yaml at scaffold time (one reader, a grader that no template carries a literal), and measure dependency wheels on 3.14/trixie before flipping",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

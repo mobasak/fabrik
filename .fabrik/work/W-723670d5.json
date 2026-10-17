@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "/fabrik-command-improve fabrik-task: reword phase 2's field-boundary clause; it is byte-capped at 11974 (D-657)",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "kaizen",
     "needs-owner",

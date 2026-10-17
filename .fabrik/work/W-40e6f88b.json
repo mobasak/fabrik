@@ -23,11 +23,11 @@
     "spec": ""
   },
   "next": "operator ruling first: incident text would leave the box to a third-party API; if allowed, shadow mode logging the probability vector with an explicit unknown option, threshold swept on past incidents, diagnosis stays on the LLM",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "records check 2026-10-17: advisory evaluation, optional — needs operator ruling (data leaves box); tag fleet, watchdog is monitoring; owner field empty; proposed-drop tag",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "needs-owner",
