@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review_loop_ledger.py next now carries open claims (D-933) — two corpus sentences to refresh (W-b1f67743, your mail 01M4PVPY8J)"
 }
