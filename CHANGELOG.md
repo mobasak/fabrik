@@ -6,13 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
 
-- Five pack lines told every reader to go through `uv`, with no exception for a subagent seat, whose brief
-  forbids every `uv` verb (D8 in the review commands' seat rules) (W-54b0e523):
-  - `45-testing-strategy.md`'s Run-tests bullet, its Banned-table row and its checklist line;
-  - `10-python.md`'s `uv` block;
-  - `50-code-review.md`'s gate note.
-- Each line now names the exception and its source: a subagent seat runs `.venv/bin/python …` (`python3 …` where
-  there is no `.venv`), by its brief's D8 rule.
+- The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,
+  `uv run python scripts/final_gate.py`) with no exception for a subagent seat, whose brief bans every
+  package-manager verb (W-54b0e523).
+- `10-python.md` § Package Manager now states the exception once, in the brief's own words: the verbs it bans, why,
+  and what a seat runs instead (`.venv/bin/python …`, or `python3 …` where there is no `.venv`). It covers that
+  section's, `## Testing`'s and `## Quality Gates`' commands and the two other packs' commands.
+- The other packs point to it: `45-testing-strategy.md`'s Run-tests bullet, its Banned-table row and its checklist
+  line, and `50-code-review.md`'s gate note (`.venv/bin/python scripts/final_gate.py --lean --json --check`).
 
 ### Fixed — `review_loop_ledger.py read` keeps each seat's `notes` and `files_read` in the pass file (2026-10-18)
 

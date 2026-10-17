@@ -37,7 +37,7 @@ Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no co
 **Tier 1 is for iteration only — never the completion gate**: that is the full `--json` run below.
 Add `--check` for a read-only run (no fixes, no auto-stage).
 
-**Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean --json` if the gate script is synced. A subagent seat is the exception: it runs `.venv/bin/python scripts/final_gate.py --check` (`python3 …` where there is no `.venv`) and no `uv` verb, by its brief's D8 rule.
+**Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean --json` if the gate script is synced. A subagent seat runs the same gate as `.venv/bin/python scripts/final_gate.py --lean --json --check`, never through `uv` (`10-python.md` § Package Manager).
 
 ---
 
