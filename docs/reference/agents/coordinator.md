@@ -40,8 +40,8 @@ eligibility, assign priority and assign an agent"*. Every turn something new arr
    value, nobody blocked; LOW = clean-up, wording, a rare edge, an advisory. The higher level wins. **Effort** LOW =
    about one session, a few files, no spec or plan; HIGH = a spec or plan, several sessions, or fleet-wide. Every
    score's `--why` names the check that set it.
-4. **Store it** (until W-1bfb4623): `--impact` with `--effort` always, then any `--priority 0` last (a re-score clears it).
-   HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, placed first by hand (`--tag queued`);
+4. **Store it** (until W-1bfb4623): `--impact` with `--effort` (high-effort MEDIUM excepted), then any `--priority 0` last (a re-score clears it).
+   HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, which you assign first by hand;
    LOW = `--impact low`, batched.
    High effort = P2 major, ONE in flight, every other major `--blocked-by` it; a high-effort MEDIUM cannot be scored
    (tag only) and is held `--blocked-by` it too. URGENT = P0 plus a message to its builder (its charter says to commit,
