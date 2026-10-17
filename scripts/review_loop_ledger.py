@@ -373,11 +373,12 @@ def open_claims(
             for n, c in enumerate(cands):
                 if not isinstance(c, dict) or not isinstance(c.get("id"), str):
                     continue
-                if c["id"] in union_ids:
+                if _fold(c["id"]) in union_ids:
                     # the workflow makes union ids unique (`A-S1#2`), as `_from_union` relies on: a repeat names no single
-                    # claim, so it is never carried — named instead (review round 2, A-H2)
+                    # claim, so it is never carried — named instead (review round 2, A-H2); compared folded, as every
+                    # other id here is, so `alpha-S1` and `alpha-s1 ` are one repeat (W-9f436e18)
                     repeated.add(c["id"])
-                union_ids.add(c["id"])
+                union_ids.add(_fold(c["id"]))
                 claimed.add(_fold(c["id"]))
                 # a slice nobody judged (no refuter, an older run file): said, not guessed
                 if not isinstance(verds, list):
@@ -418,7 +419,10 @@ def open_claims(
             )
     # a repeated union id is open but names no single claim: it is reported, never carried
     stuck += sorted(i for i in repeated if i not in stuck)
-    opened = [o for o in opened if o[0] not in repeated]
+    repeated_f = {
+        _fold(i) for i in repeated
+    }  # every spelling of a repeated id, not only the one seen second
+    opened = [o for o in opened if _fold(o[0]) not in repeated_f]
     return opened, stuck, unchecked
 
 
@@ -1408,12 +1412,20 @@ def main(argv: list[str] | None = None) -> int:
                     )
             left = sum(1 for k in unchecked if k not in named)
             if left:
-                why = (
-                    "their slice carries no verdicts (no refuter answered): re-verify them by hand"
-                    if isinstance(result, dict)
-                    else "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
-                    "the open ones"
-                )
+                if isinstance(result, dict):
+                    why = "their slice carries no verdicts (no refuter answered): re-verify them by hand"
+                elif (
+                    launch is not None
+                ):  # an --args file was given, but it holds no `result` (W-9f436e18)
+                    why = (
+                        "the --args file holds no `result` (bare launch args, or a run that never returned): pass "
+                        "the ended run's workflows/<runId>.json, or re-verify them by hand"
+                    )
+                else:
+                    why = (
+                        "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
+                        "the open ones"
+                    )
                 print(f"NOT CHECKED {left} candidate(s) outside --ids — {why}", file=sys.stderr)
             for d in drop:
                 print(f"DROPPED {d}", file=sys.stderr)

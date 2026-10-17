@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `review_loop_ledger.py next`: right advice for a result-less `--args` file; fold-equal repeated ids (2026-10-17)
+
+An `--args` run file with no `result` key (bare launch args, or a run that never returned) got the advice to pass
+`--args <run file>` though one was passed; it now names the missing `result`. A repeated union id was compared raw,
+so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling was carried; both the guard and the
+filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
+(W-9f436e18).
+
 ### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
 
 `/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and

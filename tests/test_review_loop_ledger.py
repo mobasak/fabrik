@@ -1659,3 +1659,51 @@ def test_next_names_what_the_run_file_could_not_settle(tmp_path: Path) -> None:
     assert "re-run next with --args" not in r.stderr, (
         "--args was given: the advice names the hand route"
     )
+
+
+def test_next_advice_for_an_args_file_with_no_result_never_asks_for_args(tmp_path: Path) -> None:
+    """W-9f436e18 (1): a run file whose run never returned (no `result` key) is still an `--args` file, so the
+    NOT CHECKED advice must not tell the lead to pass `--args <run file>` — it names the missing result instead."""
+    run = tmp_path / "run.json"
+    run.write_text(
+        json.dumps({"runId": "wf_n", "args": {"slices": [{"name": "A", "files": ["a.py"]}]}})
+    )
+    p = tmp_path / "pass.json"
+    p.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {**_union("A-S1", 1, "a"), "seat": "find:A:sonnet"},
+                    {**_union("A-S2", 2, "b"), "seat": "find:A:sonnet"},
+                ],
+                "verdicts": [],
+                "ledger_status": [],
+            }
+        )
+    )
+    r = _tool("next", str(p), "--ids", "A-S1", "--args", str(run))
+    assert r.returncode == 0, r.stderr
+    assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
+    assert "pass --args" not in r.stderr, r.stderr
+    assert "no `result`" in r.stderr, r.stderr
+
+
+def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) -> None:
+    """W-9f436e18 (2): the repeat guard compared raw ids, so `alpha-S1` and `alpha-s1 ` (fold-equal under the
+    workflow's `foldId`) escaped it and both were carried; a fold-equal repeat names no single claim either."""
+    run = _judged_run(
+        tmp_path,
+        [
+            {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
+            {
+                "name": "alpha",
+                "candidates": _cands("alpha-S1", "alpha-s1 "),
+                "verdicts": [_ev("alpha-S1", "confirmed"), _ev("alpha-s1 ", "confirmed")],
+            },
+        ],
+    )
+    r = _tool("next", str(_pass_with(tmp_path)), "--ids", "A-S1", "--args", str(run))
+    assert r.returncode == 0, r.stderr
+    lines = r.stderr.splitlines()
+    assert not any(ln.lower().startswith("carried alpha-s1") for ln in lines), r.stderr
+    assert sum(ln.lower().startswith("open not carried alpha-s1") for ln in lines) >= 1, r.stderr
