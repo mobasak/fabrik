@@ -190,7 +190,7 @@ The inventory is the **first section** of the Services view, above its pool and 
    gets a category from `scripts/classify_services.py`; ux-10), and the providers as a compact list (`<ul>`),
    each entry carrying every field an untriaged row has: provider (a link under the same `https?` gate), key
    count and projects (the first three and a native `<details>` holding the full list when there are
-   more — up to 25 today). Its entries carry the same `data-f-*` attributes as the table rows, so the
+   more — at most 9 today). Its entries carry the same `data-f-*` attributes as the table rows, so the
    filter reaches them. The filter's total is every provider once: 135 table rows + 331 entries = 466.
 
 **Filter bar** above the inventory, **live view only** (`interactive=True`): a search box (provider, project,
@@ -257,9 +257,10 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - `GET /external-services.html` (the board, `quota_dashboard.py:2844`) and the `ext_page` freshness entry
   (`:2400`), `EXT_SERVICES_HTML` and its `QUOTA_DASH_EXT_SERVICES` setting (`:842`): **removed** with the
   link card (`views/services.py:183-193`) and the four strings only it uses — `services.ext.title`,
-  `.missing`, `.age`, `.open` (`strings.py:468-471`). The route itself answers `303` to `/#services` for a bookmark, following the
-  `/repos.html` precedent (`docs/workstation/quota-dashboard.md:249`, through `_LEGACY_TOKEN_UNTIL`), and
-  `404` after that date (D8).
+  `.missing`, `.age`, `.open` (`strings.py:468-471`). The route itself answers a permanent `303` to `/#services`, so a bookmark lands on
+  the section — like the `/repos.html` redirect (`docs/workstation/quota-dashboard.md:249`), but on no
+  removal date: it is not tied to `_LEGACY_TOKEN_UNTIL`, the work-verdict token window that retires that
+  redirect (D8).
 - `gen_dashboard.py <out>`: same CLI, same exit codes, same atomic write; the output's markup changes.
 - `scripts/dashboard_server.py` (binds `0.0.0.0` by default — its retirement also closes that exposure) and
   its `:8770` port: **removed**. `PORTS.md` has no `8770` row, so nothing there changes.
@@ -303,8 +304,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   run writes the new static file.
 - **Growth:** at today's 466 providers a full render is 2 ms and a warm load 18 ms (load excluding the
   connect; the cold connect is the 81 ms measured above). **Trigger:** when the categorised set passes 1,000
-  rows (each group summary prints its provider count, and `select count(*) from services where category is
-  not null and category not in ('?', 'unidentified')` re-counts it — the static file no longer embeds the JSON the census
+  rows (each group summary prints its provider count, and `select count(*) from services where
+  coalesce(nullif(category, ''), '?') not in ('?', 'unidentified')` re-counts it, with `load()`'s own
+  empty-to-`?` mapping — the static file no longer embeds the JSON the census
   above parsed), or a test rendering a 5,000-row
   fixture through `inventory.render()` passes 200 ms (a test the build adds), the inventory moves to its own
   view with server-side filtering. The untriaged queue shrinks once W-7e467f2d restores classification (I8);
@@ -338,7 +340,7 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 - The chain's CLI, exit codes, atomic write and D-106 heartbeat unchanged (I5).
 - The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`,
   `components` and `strings` only, never `quota_dashboard` (the panel's caveat).
-- The live registry read is bounded in time (3 s connect, 3 s statement); the static file carries no script.
+- The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script.
 - The board keeps running under `/usr/bin/python3`; the reader uses psycopg2 only, present there.
 - Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926).
 
@@ -385,14 +387,15 @@ stdlib only, no CDN).
 ## Open / blocking unknowns
 
 - **Open — the Playwright height budget:** 4,000 px for the inventory section at 1280 px, collapsed, is an
-  estimate: heading and summary ≈ 150 px, filter bar ≈ 80 px, 21 attention rows × ≈ 44 px ≈ 920 px, 17 group
-  summaries + More counts + the Untriaged summary (19) × ≈ 52 px ≈ 990 px — ≈ 2,150 px, so the bar leaves
+  estimate: heading and summary ≈ 150 px, filter bar ≈ 80 px, 21 attention rows × ≈ 44 px ≈ 920 px, 18 group
+  summaries + More counts + the Untriaged summary (20) × ≈ 52 px ≈ 1,040 px — ≈ 2,200 px, so the bar leaves
   headroom for the attention list to double. The per-element heights are guesses; the first build measures
   them and the plan may restate the bar with its measurement. The pool and API cards below are outside this
   budget.
 - **Open — a CSP for the static file:** with no script and no inline data, a policy of
   `default-src 'none'; style-src 'unsafe-inline'; img-src https:` becomes possible — the page needs no
-  `script-src`, and MDN's warning against `'unsafe-inline'` (st-9) concerns scripts; the style directive is
+  `script-src`, and MDN's warning against `'unsafe-inline'` (st-9) sits under its inline-JavaScript
+  heading; the style directive is
   this spec's own inference, not st-9's. A later hardening, not added here.
 - Resolved: the board's interpreter can read the registry (§ What exists today, executed).
 - Resolved: `dashboard_server.py` has no launcher — no crontab entry, and neither chain launcher
@@ -419,9 +422,10 @@ stdlib only, no CDN).
 - **D6 — Server-side rows in the static file**, the embedded JSON and the inline client renderer removed.
 - **D7 — The static file carries no script**: `app.js` needs the board's shell and fetches `/v/<view>`
   (§ Chosen approach); filtering is the live view's.
-- **D8 — The board's `/external-services.html` route and link card are removed**: the live section replaces
-  them, and the board has no access log that could show another reader of the route
-  (`quota_dashboard.py:2867-2868`).
+- **D8 — The board stops serving the static file**: the link card goes and `/external-services.html` becomes
+  a permanent `303` to `/#services`. The live section replaces both; the board has no access log that could
+  show another reader of the route (`quota_dashboard.py:2867-2868`), so the redirect keeps an unseen bookmark
+  working.
 
 ## Intake Inventory
 
