@@ -281,9 +281,12 @@ synthetic file built to break it in a scratch repo (round zero's input classes i
 `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
 sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A rule whose
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. The run-before-review rule above holds for a sentence stating how a test or gate
+behaves: it is run on that test's or gate's own real cases before PHASE 4's review. A rule whose
 subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
-new subject, since a method that finds the old subject may find none of the new one.
+new subject, since a method that finds the old subject may find none of the new one. A sentence a
+`_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop
+or a round count) and binds no other.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
@@ -301,7 +304,9 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 against the verdicts it claims to answer, not merely for style. For a `_fragments/` edit the brief names the
 consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no
 seat hunts for homes the fragment does not have. A seat that cannot find the verdict
-in the new text is the finding; for each row it finds answered, it returns the line that states the row's step.
+in the new text is the finding; for each row it finds answered, it returns the line that states the row's step. A sentence a round rewords has its removed words grepped across
+`tests/`, test names and docstrings included, and the commit subject drafted for PHASE 5 (drafted now if not yet written), before that round's pin,
+and each hit is reworded with the sentence.
 
 ## PHASE 5 — Commit, naming what you answered
 

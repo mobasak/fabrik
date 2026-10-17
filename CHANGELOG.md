@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: test-and-gate, fragment-scope and removed-word rules (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md`:
+- PHASE 3: a sentence stating how a test or gate behaves is run on its own real cases before the review; a
+  sentence a `_fragments/` edit adds names the consumers that have its subject and binds no other.
+- PHASE 4: a sentence a round rewords has its removed words grepped across `tests/` and the drafted commit subject.
+
+Answers rows 1792241313, 1792259406 and 1792243098, each recurring an earlier reject after an Opus audit. Rows
+1792241808 and 1792261612 are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
 ### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
 
 The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
