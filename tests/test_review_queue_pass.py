@@ -660,8 +660,8 @@ def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate(
     text = re.sub(r"\s+", " ", SRC.read_text())
     assert "or a row of this checkout's `docs/DECISIONS.md`, which takes no round token." in text
     assert (
-        "the gate refuses an absent owner and every other malformed licence, and the messages of"
-        " `check_review_coverage.py::_residual_errors` are the list."
+        "the gate refuses an absent owner, and the messages of `check_review_coverage.py::_residual_errors` name"
+        " every other licence it refuses (it checks a `D-nnn` only against a ledger with readable `| D-n |` rows)."
     ) in text
     gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
     assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"

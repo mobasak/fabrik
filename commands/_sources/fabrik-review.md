@@ -604,9 +604,11 @@ failure this command exists to prevent. Count them: `N candidates → N FIXED + 
 **Every candidate that did not enter `confirmed:` is rowed in the receipt's `## Residual` section**, in that
 same verdict grammar — `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that
 adjudicated it (or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows
-them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner and every other malformed
-licence, and the messages of `check_review_coverage.py::_residual_errors` are the list. That section is NOT
-a parking lot: nothing enters it un-executed except a `RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then holds open.
+them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner, and the messages of
+`check_review_coverage.py::_residual_errors` name every other licence it refuses (it checks a `D-nnn` only
+against a ledger with readable `| D-n |` rows). That section is NOT a parking lot: nothing enters it
+un-executed except a `RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then
+holds open.
 Pre-existing issues this change did not introduce, and findings in code this change does not OWN that you
 EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with
 their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.
