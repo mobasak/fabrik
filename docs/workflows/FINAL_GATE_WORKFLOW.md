@@ -489,7 +489,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_review_hygiene.py` — Review hygiene (every tier; ADVISORY row, `--strict` — a text-losing receipt overflow BLOCKS)
 - `check_rivals_dossier.py` — Rivals dossier (every tier; advisory — `warn_only`, never blocks)
 - `check_routing_policy.py` — Routing Policy (operator deny + allowlist) (every tier; advisory — `warn_only`, never blocks)
-- `check_rule_grounding.py` — Rule grounding (plans) (every tier; advisory — `warn_only`, never blocks)
+- `check_rule_grounding.py` — Rule grounding (plans) (every tier; advisory — `warn_only`, never blocks). The gate's row shows a budgeted few findings; a reviewer runs `python3 scripts/enforcement/check_rule_grounding.py --all` to see every finding in full
 - `check_schema_sync.py` — Schema Sync (DB Models) (Tier 1/2; ADVISORY row)
 - `check_script_headers.py` — Script Coupling Header (Tier 1/2; advisory — `warn_only`, never blocks)
 - `check_secrets.py` — Secrets (Zero Hardcoding) (Tier 1/2; BLOCKING)

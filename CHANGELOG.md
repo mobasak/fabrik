@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `check_rule_grounding.py --all` prints every finding in full (2026-10-18)
+
+- The check's output is budgeted so it fits the gate's advisory row (the module constants
+  `ADVISORY_BUDGET`, `MAX_LINES` and `MAX_LINE`, applied in `main()`, set how many finding lines print and how
+  long each one is), and the findings past the budget
+  read "N more finding(s) suppressed by the advisory budget".
+- A reviewer who ran the check at a plan review's pass 1 saw only that budgeted few. `/fabrik-plan-review` names
+  the check only at the flip (`commands/_sources/fabrik-plan-review.md:146`), so a finding suppressed at pass 1
+  surfaced only at the flip. In web-ecommerce-factory that cost two extra review passes (mail 01M47T06VV,
+  W-592f5fe4).
+- `--all` lifts the budget, the line cap and the truncation; the bare run, which the gate uses, is unchanged.
+  Graded in `tests/enforcement/test_rule_grounding.py`, red before the flag existed.
+- The flag helps only a run that passes it. Wiring a pass-1 `--all` run into `/fabrik-plan-review` is command
+  wording, routed to kaizen (mail 01M5602897).
+
 ### Changed — /fabrik-execute-plan: a backlog referrer is repointed through the work store (2026-10-18)
 
 Finish step 6 told the finisher to repoint rows in `docs/STRATEGIC_BACKLOG.md` by hand, but a row in its

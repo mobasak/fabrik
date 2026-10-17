@@ -156,6 +156,35 @@ def test_cli_always_exits_zero(tmp_path):
         assert r.returncode == 0, (args, r.returncode, r.stderr[:300])
 
 
+def test_all_prints_every_finding_the_advisory_budget_would_suppress(tmp_path):
+    """W-592f5fe4 (web-ecommerce-factory 01M47T06VV): the gate's budget showed a few findings "as earlier
+    ones are fixed", but /fabrik-plan-review re-runs the check only at pass 1 and the flip, so a finding
+    suppressed at pass 1 surfaced only at the flip and cost two review passes. `--all` lifts the budget,
+    the line cap and the line truncation; the bare run keeps them for the gate's advisory row."""
+    root = _root(tmp_path)
+    long_tail = "x" * 220
+    names = [f"2026-08-30-plan-{n}-fixture.md" for n in range(11)]
+    names.append(f"2026-08-30-plan-99-{long_tail}.md")
+    for name in names:
+        _plan(root, digest_rows=None, name=name)
+    script = str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py")
+    capped, full = (
+        subprocess.run(
+            [sys.executable, script, "--root", str(root), *extra],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+            timeout=60,
+        )
+        for extra in ([], ["--all"])
+    )
+    assert capped.returncode == 0 and full.returncode == 0, (capped.stderr, full.stderr)
+    assert "suppressed by the advisory budget" in capped.stdout, capped.stdout
+    assert "suppressed by the advisory budget" not in full.stdout, full.stdout
+    for name in names:
+        assert name in full.stdout, name
+
+
 # ── 01M1GSBZ (fleet, 2026-09-02): rows are classified by POSITION, never by content — seen RED first ──
 
 
