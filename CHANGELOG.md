@@ -14,7 +14,7 @@ scaffold compose template already did (W-9ead34bd); every deploy path still writ
 runs `docker compose config` on each scaffold type's committed compose in an empty directory. Because compose no
 longer refuses a missing `.env`, `fabrik restart` and `redeploy` now refuse when `/opt/<name>/.env` is not a file
 (a git redeploy resets to the previous commit), instead of starting a stack with no secrets that can still report
-healthy (W-6f690b90).
+healthy (W-6f690b90, D-938).
 
 ### Fixed — fabrik redeploy and restart validate the deployed compose; compose reads refuse non-text (2026-10-17)
 
