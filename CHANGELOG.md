@@ -200,6 +200,9 @@ template's `shape:` block (D-908), because the deployer writes `spec["env"]` int
 same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
 fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
 next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+`tests/orchestrator/test_apply_plan_parity.py` holds the two loaders to the same registrars for every spec, reason
+strings included, and keeps template `shape:` keys inside a nine-key allow-list.
+
 ### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
 
 - PHASE 2's recurrence search now greps the earlier reject reasons for the subject, for what the row
