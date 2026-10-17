@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review_receipt.py skeleton: its by-design refusal sentence lists 3 of the gate's 6 refusals, and \"refuses\" overclaims the ledger check's fail-open"
 }
