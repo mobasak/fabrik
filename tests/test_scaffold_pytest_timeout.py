@@ -5,9 +5,12 @@ seam tests/conftest.py pins (no venv, pip, pnpm or database). For each emitted d
 the grader asks pytest itself — ``_pytest.config.findpaths.determine_setup``, the function a real run calls — which
 config file it would load when that directory is the argument, so a config that exists but is never read
 (chrome-extension's ``server/pyproject.toml`` for its root ``tests/``) does not count. Assumed invocation: one test
-directory per run (the gate's ``pytest tests/``, ``pytest server/tests``); a bare ``pytest`` from a project root whose
-tests sit only under ``server/`` resolves no config. Trees vendored from fabrik-lib (``docs-site``) are exempt: their
-tests are the module's own, and the hub never edits a vendored copy.
+directory per run (the gate's ``pytest tests/``; the saas server's documented ``cd server && pytest tests``); a bare
+``pytest`` from a project root whose tests sit only under ``server/`` resolves no config. Trees vendored from
+fabrik-lib (``docs-site``) are exempt, their tests and their dependency files both: they are the module's own, and the
+hub never edits a vendored copy. ``determine_setup`` is private pytest API; its keyword-only signature with
+``override_ini`` and its 4-tuple return are pytest 9's, so an older pytest skips this module with that reason
+instead of failing with a TypeError.
 """
 
 from __future__ import annotations
@@ -30,10 +33,16 @@ TIMEOUT_REQ = re.compile(r"""^\s*["']?pytest-timeout(?![\w-])""", re.M)
 TYPES = sorted(t for t in SCAFFOLD_TYPES if t != "wordpress")
 VENDORED = ("docs-site",)
 
-pytestmark = pytest.mark.skipif(
-    not Path("/opt/fabrik").exists() or os.getenv("CI") == "true",
-    reason="Requires the full fabrik environment (templates dir)",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not Path("/opt/fabrik").exists() or os.getenv("CI") == "true",
+        reason="Requires the full fabrik environment (templates dir)",
+    ),
+    pytest.mark.skipif(
+        int(pytest.__version__.split(".")[0]) < 9,
+        reason="determine_setup's keyword-only signature and 4-tuple return are pytest 9's",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
@@ -73,6 +82,14 @@ def _resolved_config(test_dir: Path, root: Path) -> tuple[Path, dict[str, str]] 
     return inipath, {k: str(getattr(v, "value", v)) for k, v in inicfg.items()}
 
 
+def _bounded(value: str | None) -> bool:
+    """A missing key, 0 (which disables the limit), inf and a non-number all leave the test unbounded."""
+    try:
+        return value is not None and 0 < float(value) < float("inf")
+    except ValueError:
+        return False
+
+
 def _test_dirs(root: Path) -> list[Path]:
     return sorted(
         {
@@ -87,7 +104,10 @@ def _dep_files(root: Path) -> list[Path]:
     return sorted(
         p
         for p in root.rglob("*")
-        if p.name in DEP_FILES and p.is_file() and not _skip(p.relative_to(root))
+        if p.name in DEP_FILES
+        and p.is_file()
+        and not _skip(p.relative_to(root))
+        and p.relative_to(root).parts[0] not in VENDORED
     )
 
 
@@ -104,8 +124,7 @@ def test_every_test_directory_resolves_a_timeout(projects: dict[str, Path], kind
         path, opts = resolved
         for key in TIMEOUT_KEYS:
             value = opts.get(key)
-            # a missing key, and 0 (which disables the limit), both leave the test unbounded
-            if value is None or not float(value) > 0:
+            if not _bounded(value):
                 missing.append(f"{rel}: {path.relative_to(root).as_posix()} {key}={value!r}")
     assert not missing, missing
 
