@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
+
+- `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
+  every passage elsewhere in the artifact that cites, depends on or restates what the edits changed,
+  the edited paragraph's own section included. That covers a renumbered list's cross-references and
+  the section that owns a promised behaviour, which must state it. It renders into the 17 commands that
+  include the fragment, among them the panel delta round of `/fabrik-spec-review` (feedback row 1792191130).
+  The grader is in `tests/test_spec_review_queue_pass.py`.
+
 ### Changed — the review loops say where pins and pass files live, and term-edit says why D-335's closing seat is never a fresh whole reader (2026-10-17)
 
 - `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-plan-review` and `/fabrik-spec-review` now say that `pins_dir`
