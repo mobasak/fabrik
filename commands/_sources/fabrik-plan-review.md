@@ -167,7 +167,10 @@ In this single turn, run grounding rounds until the closing round CONFIRMS zero
 - For each `spec § <heading>` cite in a spec-fed plan's Scope or Behavior Contract, OPEN the spec at that section and
   confirm the ticket implements it and restates nothing it already says — the cite → section correspondence is an
   anchor of this review (`/fabrik-plan-after-chat`'s emit rule); `check_citations_resolve.py --changed` grades only the
-  `path:line` form, so the `§` form is the seat's read.
+  `path:line` form, so the `§` form is the seat's read. A ticket that quotes spec rules in place of listing the spec
+  (`/fabrik-plan-after-chat` Phase 2, "Size as you draft") has those quotes checked before its other cites: each
+  quoted `<spec path>:<line>` opened and the quote verbatim (a verbatim quote is a cite, never a restatement), and no
+  rule of the spec section holding those lines that the ticket implements left unquoted.
 - For each table/field/migration, verify it exists in the real schema with the stated type/constraints.
 - For each external dependency or data source, either ground it by executing the research NOW
   (`WebSearch` / `mcp__brave-search__brave_web_search` / official-docs `WebFetch`, on a miss `mcp__exa__web_search_exa` /

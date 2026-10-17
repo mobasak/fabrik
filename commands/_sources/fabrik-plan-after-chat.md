@@ -22,7 +22,8 @@ First capture the **source of truth** — do NOT invent scope:
   here, by Phase 5's `handoff` close, for `/fabrik-spec-review`.
 - **A spec-fed plan CITES the spec, never re-narrates it (review-family adoption, D-212 — spec D8):** every
   ticket's `## Scope` and `## Behavior Contract` rows (a monolith: every phase's) CITE the spec section they
-  implement — `spec § <heading>` or `<spec path>:<line>` — and restate nothing that section already says; the
+  implement — `spec § <heading>` or `<spec path>:<line>` — and restate nothing that section already says (a
+  verbatim quote at `<spec path>:<line>` is a cite, not a restatement: Phase 2, "Size as you draft"); the
   "What we already agreed" list below is a list of citations. `/fabrik-plan-review` grades each cite → section
   as an anchor (`check_citations_resolve.py --changed` covers the `path:line` form at pin time — but `--changed` lists files from
   `git diff` only, so an untracked plan or ticket is never in scope (the run prints a ✓ over the other docs,
@@ -479,6 +480,10 @@ a file the ticket edits that alone exceeds the budget goes to the set's single `
 Then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while Touches are
 still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set completes. Build the
 spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never by retyping them.
+When the read-only file a ticket cites inline is the spec, its quoted lines are each spec rule the ticket
+implements, verbatim at `<spec path>:<line>` (a cite under Phase 0's rule, never a paraphrase), in a `> `
+blockquote under `## Context Files`, never a bullet (`check_plan_tickets.py` reads a bullet there as a listed file,
+and a bullet under `## Behavior Contract` holding the word "given" as a behaviour row), and `/fabrik-plan-review` checks those quotes before the ticket's other cites.
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;
 `docs_updater`'s checkbox counters stay RAW, so never fence a DONE-WHEN checklist; copy the
