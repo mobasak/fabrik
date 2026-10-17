@@ -160,7 +160,18 @@ def _refusals(x):
         ("freshness.cadence_s", lambda: ui.freshness(1.0, x)),
         ("shell.views#id", lambda: ui.shell([(x, "V")], "v")),
         ("shell.active", lambda: ui.shell([("v", "V")], x)),
+        ("slug.prefix", lambda: ui.slug("t", prefix=x)),
     ]
+
+
+def _id_makers(x):
+    """(component.param, thunk): the payload turned into an id, expected VALID (never escaped markup)."""
+    return [("slug.text", lambda: ui.slug(x))]
+
+
+@pytest.mark.parametrize("name,call", _id_makers(PAYLOAD), ids=[n for n, _ in _id_makers(PAYLOAD)])
+def test_an_id_maker_turns_any_text_into_a_valid_id(name, call):
+    assert re.fullmatch(r"[A-Za-z][\w:-]*", call(), re.ASCII)
 
 
 @pytest.mark.parametrize("name,call", _escapes(PAYLOAD), ids=[n for n, _ in _escapes(PAYLOAD)])
@@ -180,7 +191,7 @@ def test_every_id_enum_number_and_flag_argument_refuses_anything_else(name, call
 
 def test_the_matrix_covers_every_parameter_of_every_component():
     """A component or a parameter added without a matrix row is a hole: read the signatures."""
-    covered = {n.split("#")[0] for n, _ in _escapes("x") + _refusals("x")}
+    covered = {n.split("#")[0] for n, _ in _escapes("x") + _refusals("x") + _id_makers("x")}
     wanted = set()
     for name, fn in inspect.getmembers(ui, inspect.isfunction):
         if fn.__module__ != ui.__name__ or name.startswith("_"):
@@ -611,6 +622,33 @@ _LABEL_ATTRS = ("aria-label", "title", "alt", "placeholder", "aria-description")
 _ALLOWED = {"%H:%M:%S"}  # a strftime format, not words
 
 
+_LABEL_CALLS = ("_choice", "_id", "_flag", "_real")
+_EXTRA_NAMES = {"page"}  # the aria-current token
+
+
+def _known_names(tree, texts: list[str]) -> set[str]:
+    """Words the module uses as NAMES: tag and attribute names and values in its markup, `_attr`
+    attribute names, and the string values of its module-level constants (kinds, severities, keys)."""
+    import ast
+
+    names: list[str] = []
+    for text in texts:
+        for tag in re.findall(r"<[^<>]*>?", text):
+            names.append(re.sub(r'"[^"]*"', " ", tag))
+            names += re.findall(r'"([^"]*)"', tag)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "_attr" and node.args:
+            if isinstance(node.args[0], ast.Constant):
+                names.append(str(node.args[0].value))
+    for node in tree.body if isinstance(tree, ast.Module) else []:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and not any(
+            getattr(t, "id", "") == "_THEME_SCRIPT" for t in getattr(node, "targets", [])
+        ):
+            names += [n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    words = {w for n in names for w in re.findall(r"[a-z]+", n)}
+    return words | _EXTRA_NAMES
+
+
 def _visible_words(src: str) -> list[str]:
     """Every string literal in ``src`` that would put WORDS on the page: text between tags, or a
     labelling attribute's value. Literals inside t() calls, raise statements and docstrings, and
@@ -626,10 +664,13 @@ def _visible_words(src: str) -> list[str]:
             "compile",
             "fullmatch",
             "match",
+            "sub",
         ):
             skip |= {id(n) for n in ast.walk(node)}
         if isinstance(node, ast.Raise):
             skip |= {id(n) for n in ast.walk(node)}
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") in _LABEL_CALLS:
+            skip |= {id(n) for n in ast.walk(node)}  # error-message labels, never on the page
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef)) and node.body:
             first = node.body[0]
             if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
@@ -660,9 +701,15 @@ def _visible_words(src: str) -> list[str]:
             )
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             texts.append(node.value)
+    known = _known_names(tree, texts)
     bad = []
     for text in texts:
-        if text in _ALLOWED or ("<" not in text and ">" not in text and _NAME.fullmatch(text)):
+        if text in _ALLOWED:
+            continue
+        if "<" not in text and ">" not in text and _NAME.fullmatch(text):
+            # a name-like literal: every word of four letters or more must be a name the module uses
+            if any(len(w) >= 4 and w not in known for w in re.findall(r"[a-z]+", text)):
+                bad.append(text)
             continue
         for attr in _LABEL_ATTRS:
             for value in re.findall(attr + r'="([^"\0]*)"', text):
@@ -910,7 +957,7 @@ def test_contrast_is_computed_for_every_pair_in_both_themes(theme):
 
 
 def _rule(selector: str) -> dict[str, str]:
-    hits = [_decls(b) for s, b in _blocks(_css()) if s == selector]
+    hits = [_decls(b) for s, b in _blocks(_css()) if selector in [x.strip() for x in s.split(",")]]
     assert hits, selector
     merged: dict[str, str] = {}
     for h in hits:
@@ -974,3 +1021,53 @@ def test_a_disabled_button_is_muted_and_dashed_not_faded():
     rule = _rule(".btn:disabled")
     assert "opacity" not in rule and rule.get("color") == "var(--text-muted)"
     assert rule.get("border-style") == "dashed"
+
+
+# ---------------------------------------------------------------- review round 2 regressions
+@pytest.mark.parametrize("text", ["my.repo", "a@x.com", "1", "", "with space", "ünïcode", "a" * 300, "W-1a2b"])
+def test_slug_maps_any_string_to_a_valid_stable_id(text):
+    sid = ui.slug(text)
+    assert re.fullmatch(r"[A-Za-z][\w:-]*", sid, re.ASCII)
+    assert ui.slug(text) == sid
+    assert f'id="{sid}"' in ui.card("t", "b", id=sid)
+    assert ui.slug(text, prefix="card").startswith("card-")
+
+
+def test_slug_keeps_different_strings_apart():
+    texts = ["my.repo", "my-repo", "my_repo", "my repo", "a@x.com", "a-x-com", "1", "01", "", " "]
+    assert len({ui.slug(s) for s in texts}) == len(texts)
+
+
+def test_slug_refuses_a_prefix_that_is_not_an_id():
+    with pytest.raises(ValueError):
+        ui.slug("x", prefix="1bad")
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        "def f():\n    return 'close'\n",
+        "def f(x):\n    return x + ' more'\n",
+    ],
+)
+def test_the_literal_guard_catches_lowercase_words(mutant):
+    assert _visible_words(mutant) != []
+
+
+def test_a_disabled_button_of_every_kind_is_muted_on_a_surface():
+    blocks = [(s, _decls(b)) for s, b in _blocks(_css())]
+    hit = [d for s, d in blocks if ".btn[data-kind]:disabled" in [x.strip() for x in s.split(",")]]
+    assert hit, "a rule covering disabled buttons of every kind"
+    rule = hit[0]
+    assert rule["background"] == "var(--surface-1)" and rule["border-color"] == "var(--border)"
+    assert rule["color"] == "var(--text-muted)"
+    sels = [x.strip() for s, _ in blocks for x in s.split(",") if ":disabled" in s and s == s]
+    assert ".btn[data-kind]:disabled:hover" in sels
+    palette, light, dark, _ = _palette_and_mappings()
+    for mapping in (light, dark):
+
+        def col(tok, mapping=mapping):
+            return palette[re.fullmatch(r"var\((--c-[a-z0-9-]+)\)", mapping[tok]).group(1)]
+
+        assert _ratio(col("--text-muted"), col("--surface-1")) >= 4.5
+        assert _ratio(col("--border"), col("--surface-1")) >= 3.0

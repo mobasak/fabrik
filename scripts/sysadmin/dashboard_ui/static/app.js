@@ -214,10 +214,12 @@
 
   // ---------------------------------------------------------------- refresh: the INV-5 skips
   var inflight = {}; // postKey -> true while that post is on the wire
+  var POST_TIMEOUT_MS = 60000; // a post the board never answers is aborted, never left holding the view
   var pendingForce = false; // a forced refresh deferred while a dialog is open
   function skipTick() {
     if (document.hidden) { return true; }
-    if (Object.keys(inflight).length) { return true; }
+    // a post in flight holds the refresh only while its control is in this view
+    if (Object.keys(inflight).some(function (k) { var el = findKey(k); return !!el && main.contains(el); })) { return true; }
     var a = document.activeElement;
     if (a && main.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { return true; }
     if (document.querySelector("dialog[open]")) { return true; }
@@ -275,7 +277,7 @@
     if (box) { box.textContent = ""; box.hidden = true; }
   }
   function refuse(btn, msg) { inlineError(btn, msg); announce(msg); }
-  var INT = /^-?\d+$/, DEC = /^-?\d+(\.\d+)?$/;
+  var INT = /^-?\d+$/, DEC = /^-?(\d+\.?\d*|\.\d+)$/; // every spelling a number input yields
   function readNumber(spec) {
     // "<key>:<int|float>:<min>:<max>:<nullable|required>:<input id>"
     var p = spec.split(":");
@@ -286,6 +288,8 @@
     var fields = { min: p[2], max: p[3] };
     var word = kind === "int" ? (nullable ? "act.refuse.whole_or_empty" : "act.refuse.whole")
       : (nullable ? "act.refuse.range_or_empty" : "act.refuse.range");
+    // typed text the browser could not read as a number reads as "": never post it as a clear
+    if (el.validity && el.validity.badInput) { return { error: t(word, fields) }; }
     if (raw === "") { return nullable ? { key: key, value: null } : { error: t(word, fields) }; }
     if (!(kind === "int" ? INT : DEC).test(raw)) { return { error: t(word, fields) }; }
     var n = Number(raw);
@@ -317,22 +321,30 @@
     each(document, "[data-post]", function (el) { if (postKey(el) === key) { el.disabled = busy; } });
   }
   function post(btn, body) {
-    var path = btn.getAttribute("data-post") || "";
-    if (path.charAt(0) !== "/" || path.charAt(1) === "/") { refuse(btn, t("act.refuse.path")); return null; }
+    var path = btn.getAttribute("data-post") || "", u = null;
+    // resolve as the browser will: "/\\host" and "//host" leave the origin, so the resolved origin decides
+    try { u = new URL(path, location.href); } catch (e) { u = null; }
+    if (path.charAt(0) !== "/" || !u || u.origin !== location.origin) { refuse(btn, t("act.refuse.path")); return null; }
     var key = postKey(btn);
     if (has(inflight, key)) { return null; }
     restoreFocus = focusKey(btn);
     setBusy(key, true);
     clearInline(btn);
     function live_(b) { return document.contains(b) ? b : findKey(key) || b; } // the control after any swap
-    return fetch(path, {
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, POST_TIMEOUT_MS) : null;
+    var init = {
       method: "POST", cache: "no-store",
       headers: { "Content-Type": "application/json", "X-Quota-Dash": "1" },
       body: JSON.stringify(body)
-    }).then(function (r) {
+    };
+    if (ctl) { init.signal = ctl.signal; }
+    return fetch(u.pathname + u.search, init).then(function (r) {
+      clearTimeout(timer);
       return r.text().then(function (txt) { return { r: r, txt: txt }; }, function () { return { r: r, txt: "" }; });
     }, function () {
-      // the request never reached the board, or its answer never came back
+      // the request never reached the board, its answer never came back, or it timed out
+      clearTimeout(timer);
       setBusy(key, false);
       var b = live_(btn); restoreFocus = null; b.focus();
       refuse(b, t("act.unreachable"));
@@ -379,6 +391,7 @@
   // from it would steal a field the operator has already moved to
   function closeDialog(dlg) { if (dlg && dlg.open) { dlg.close(); returnFocus(dlg); } }
   function confirmDialog(dlg) {
+    if (!dlg) { return; } // a confirm button outside any dialog confirms nothing
     var st = dlg._qd; if (!st) { closeDialog(dlg); return; }
     var btn = st.invoker, body = st.body, mode = btn.getAttribute("data-note");
     if (mode === "optional" || mode === "required") {
@@ -552,7 +565,7 @@
     each(main, "[data-clamp]", function (c) {
       var text = c.querySelector(".clamp-text"), btn = c.querySelector("[data-clamp-toggle]");
       if (!text || !btn || c.hasAttribute("data-expanded")) { return; }
-      if (!text.offsetParent) { return; } // hidden: measure when shown
+      if (!text.offsetParent) { btn.hidden = true; return; } // hidden: no toggle until measured on show
       btn.hidden = !(text.scrollHeight > text.clientHeight + 1);
     });
   }

@@ -712,7 +712,7 @@ def test_a_number_input_whose_field_is_missing_refuses(board):
     assert posts(state) == [] and cat.t("act.refuse.no_field") in _alert_texts(page)
 
 
-@pytest.mark.parametrize("raw", ["1e2", "0x40", "6e1", "60.", "+60", "6 0"])
+@pytest.mark.parametrize("raw", ["1e2", "0x40", "6e1", "+60", "6 0"])
 def test_a_number_is_parsed_strictly(board, raw):
     """Each value is inside 50-100 by Number(); only the strict grammar refuses it."""
     state, page, open_ = board
@@ -1152,3 +1152,185 @@ def test_an_ordinary_tick_keeps_the_filters(board):
     settle(page)
     assert page.locator("[data-stamp]").get_attribute("data-stamp") == "s9"
     assert _visible_rows(page) == ["api"]
+
+
+# ---------------------------------------------------------------- review round 2 regressions
+def test_a_hung_post_times_out_and_never_freezes_other_views(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _slow_post_view(), "work": view("w")})
+    settle(page)
+    page.route("**/agent-resume", lambda route: None)  # the board never answers
+    page.get_by_role("button", name="Resume").click()
+    page.wait_for_timeout(100)
+    page.evaluate("location.hash = '#work'")
+    settle(page)
+    n = state.views_requested("/v/work")
+    page.clock.run_for(20_000)
+    settle(page)
+    assert state.views_requested("/v/work") == n + 1  # the hung post on Overview does not stop Work
+    page.evaluate("location.hash = '#overview'")
+    settle(page)
+    page.clock.run_for(61_000)
+    settle(page)
+    assert cat.t("act.unreachable") in _alert_texts(page)
+    assert not page.get_by_role("button", name="Resume").is_disabled()
+
+
+def test_a_hung_post_is_aborted_after_its_timeout(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _slow_post_view()})
+    settle(page)
+    page.route("**/agent-resume", lambda route: None)
+    page.get_by_role("button", name="Resume").click()
+    page.wait_for_timeout(100)
+    page.clock.run_for(61_000)
+    settle(page)
+    assert cat.t("act.unreachable") in _alert_texts(page)
+    assert not page.get_by_role("button", name="Resume").is_disabled()
+
+
+def test_a_backslash_path_cannot_leave_the_origin(board):
+    state, page, open_ = board
+    seen = []
+    page.on("request", lambda r: seen.append(r.url) if r.method == "POST" else None)
+    open_("#overview", {"overview": view(ui.button("Go", data={"post": "/\\evil.example/x", "body": {}}))})
+    page.get_by_role("button", name="Go").click()
+    settle(page)
+    assert not any("evil.example" in u for u in seen)
+    assert cat.t("act.refuse.path") in _alert_texts(page)
+
+
+def test_a_post_goes_to_the_resolved_same_origin_path(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view(ui.button("Go", data={"post": "/a/../cap?x=1", "body": {}}))})
+    page.get_by_role("button", name="Go").click()
+    wait_posts(page, state, 1)
+    assert state.posts[0][0] == "/cap?x=1"
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("kind", ["primary", "danger", "secondary"])
+def test_a_disabled_button_of_every_kind_stays_legible(board, theme, kind):
+    state, page, open_ = board
+    page.add_init_script(f"try {{ localStorage.setItem('qd-theme', '{theme}'); }} catch (e) {{}}")
+    open_("#overview", {"overview": view(ui.button("Off", kind=kind, data={"post": "/x", "body": {}}))})
+    btn = page.get_by_role("button", name="Off")
+    btn.evaluate("b => { b.disabled = true; }")
+    btn.hover(force=True)
+    page.wait_for_timeout(400)  # past the background transition
+    ratio = btn.evaluate(
+        """b => { const cs = getComputedStyle(b);
+        const rgb = s => s.match(/\\d+(\\.\\d+)?/g).slice(0, 3).map(Number);
+        const lum = c => { const l = c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+                           return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+        const a = lum(rgb(cs.color)), z = lum(rgb(cs.backgroundColor));
+        return (Math.max(a, z) + 0.05) / (Math.min(a, z) + 0.05); }"""
+    )
+    assert ratio >= 4.5
+
+
+def test_a_number_field_with_bad_input_refuses_instead_of_clearing(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _number_view()})
+    page.get_by_label("Weekly cap").click()
+    page.keyboard.type("1-")  # Chrome: value "" with validity.badInput
+    assert page.get_by_label("Weekly cap").evaluate("f => f.validity.badInput") is True
+    page.get_by_role("button", name="Set cap").click()
+    settle(page)
+    assert posts(state) == []
+
+
+@pytest.mark.parametrize("raw,want", [(".5", 0.5), ("5.", 5), ("87.5", 87.5)])
+def test_a_float_accepts_every_number_input_spelling(board, raw, want):
+    state, page, open_ = board
+    frag = view(
+        ui.field("Ratio", name="r", kind="number", id="r"),
+        ui.button("Set", data={"post": "/r", "body": {}, "input": "r:float:0:100:required:r"}),
+    )
+    open_("#overview", {"overview": frag})
+    page.get_by_label("Ratio").wait_for()
+    settle(page)
+    page.evaluate(f"(() => {{ const f = document.getElementById('r'); f.type = 'text'; f.value = {raw!r}; }})()")
+    page.get_by_role("button", name="Set").click()
+    wait_posts(page, state, 1)
+    assert posts(state)[0][1] == {"r": want}
+
+
+def test_a_confirm_button_outside_a_dialog_does_nothing_and_throws_nothing(board):
+    state, page, open_ = board
+    faults = []
+    page.on("pageerror", lambda e: faults.append(str(e)))
+    stray = ui.Safe('<button type="button" data-dialog-confirm>Stray</button>')
+    open_("#overview", {"overview": view(stray)})
+    page.get_by_role("button", name="Stray").click()
+    settle(page)
+    assert faults == [] and posts(state) == []
+
+
+def test_a_clamp_under_a_hidden_ancestor_hides_its_toggle_until_measured(board):
+    state, page, open_ = board
+    frag = view(ui.tabs("Range", [("a", "First", "x"), ("b", "Second", ui.clamp("short"))]))
+    open_("#overview", {"overview": frag})
+    settle(page)
+    assert page.locator("[data-clamp-toggle]").get_attribute("hidden") == ""
+    page.get_by_role("tab", name="Second").click()
+    assert page.locator("[data-clamp-toggle]").get_attribute("hidden") == ""  # short text: nothing cut
+
+
+def test_the_window_scroll_is_restored_when_new_content_lands_above(board):
+    state, page, open_ = board
+    cards = [ui.card(f"Card {i}", "body " * 50) for i in range(60)]
+    open_("#overview", {"overview": view(ui.fragment(*cards), stamp="s1")})
+    settle(page)
+    page.evaluate("window.scrollTo(0, 1500)")
+    extra = [ui.card(f"New {i}", "body " * 50) for i in range(10)]
+    state.fragments["overview"] = view(ui.fragment(*extra, *cards), stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.evaluate("window.scrollY") == 1500
+
+
+def test_the_control_of_a_post_in_flight_is_disabled(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _slow_post_view()})
+    page.route("**/agent-resume", lambda route: None)
+    page.get_by_role("button", name="Resume").click()
+    page.wait_for_timeout(100)
+    assert page.get_by_role("button", name="Resume").is_disabled()
+
+
+def test_post_itself_refuses_a_second_post_for_the_same_key(board):
+    state, page, open_ = board
+    body = {"agent": "infra"}
+    frag = view(
+        ui.button("Resume now", data={"post": "/agent-resume", "body": body}),
+        ui.button("Resume", data={"post": "/agent-resume", "body": body, "confirm": "dlg-r"}),
+        ui.dialog("dlg-r", "Resume?", "It starts again.", "Resume infra", "Keep paused"),
+    )
+    open_("#overview", {"overview": frag})
+    held = []
+    page.route("**/agent-resume", lambda route: held.append(route))
+    page.get_by_role("button", name="Resume", exact=True).click()  # opens the dialog
+    page.evaluate("[...document.querySelectorAll('[data-post]')].find(b => !b.dataset.confirm).click()")
+    page.wait_for_timeout(100)
+    page.get_by_role("button", name="Resume infra").click()  # confirm: post() for the same key
+    page.wait_for_timeout(200)
+    assert len(held) == 1
+
+
+def test_the_topbar_never_overflows_at_phone_width(board):
+    state, page, open_ = board
+    page.set_viewport_size({"width": 390, "height": 800})
+    open_("#overview", {"overview": view("x")})
+    page.evaluate(
+        "document.querySelector('.brand').textContent = 'A very long command centre title '.repeat(4);"
+        "document.querySelector('[data-theme-toggle]').textContent = 'A very long theme label for another language';"
+        "document.querySelector('[data-menu]').textContent = 'A much longer menu label in another language';"
+    )
+    box = page.evaluate(
+        """() => { const bar = document.querySelector('.topbar'), r = bar.getBoundingClientRect();
+        return { fits: [...bar.children].every(c => { const b = c.getBoundingClientRect();
+                   return b.left >= r.left - 0.5 && b.right <= r.right + 0.5 && b.bottom <= r.bottom + 0.5; }),
+                 wide: bar.scrollWidth <= bar.clientWidth }; }"""
+    )
+    assert box["fits"] and box["wide"]

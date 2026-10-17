@@ -184,9 +184,20 @@ a {
   align-items: center;
   gap: var(--space-sm);
   height: var(--topbar-h);
+  overflow: hidden;
   padding: 0 var(--space-md);
   background: var(--surface-1);
   border-bottom: var(--line) solid var(--border);
+}
+
+/* the bar's height is fixed: its buttons shrink and ellipsise rather than overflow it */
+.topbar .btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand {
@@ -290,10 +301,16 @@ a {
   color: var(--on-danger);
 }
 
-.btn:disabled {
+/* a disabled button of ANY kind drops its fill: muted text on a surface, a dashed border */
+.btn:disabled,
+.btn:disabled:hover,
+.btn[data-kind]:disabled,
+.btn[data-kind]:disabled:hover {
   cursor: not-allowed;
-  color: var(--text-muted);
+  background: var(--surface-1);
+  border-color: var(--border);
   border-style: dashed;
+  color: var(--text-muted);
 }
 
 .btn[aria-pressed="true"] {

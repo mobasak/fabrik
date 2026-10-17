@@ -19,6 +19,7 @@ flags any `Safe(` outside this module.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import math
@@ -68,6 +69,20 @@ def _id(value: object, what: str = "id") -> str:
     if not isinstance(value, str) or not _ID.fullmatch(value):
         raise ValueError(f"{what} {value!r} is outside [A-Za-z][A-Za-z0-9_:-]*")
     return value
+
+
+def slug(text: object, prefix: str = "x") -> str:
+    """A valid, stable element id for ANY string — a repo name, an email, an index.
+
+    ``prefix-<readable part>-<8 hex of sha256(text)>``: the readable part keeps ASCII letters,
+    digits, ``_`` and ``-`` (other characters become ``-``, cut to 40), and the hash keeps two
+    different strings apart even when their readable parts agree (``my.repo`` vs ``my-repo``).
+    The same text always gives the same id, so `app.js` can carry state across a refresh by it."""
+    _id(prefix, "slug prefix")
+    raw = "" if text is None else str(text)
+    readable = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-")[:40]
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}-{readable}-{digest}" if readable else f"{prefix}-{digest}"
 
 
 def _flag(value: object, what: str) -> bool:
@@ -285,7 +300,7 @@ def tabs(label: object, items: Sequence[tuple[object, object, object]]) -> Safe:
         if ident in seen:
             raise ValueError(f"tab id {ident!r} appears twice")
         seen.add(ident)
-        tab_id, panel_id = f"tab-{ident}", f"panel-{ident}"
+        tab_id, panel_id = f"tab-{ident}", f"tabpanel-{ident}"
         sel = i == 0
         btns.append(
             f'<button type="button" role="tab"{_attr("id", tab_id)}{_attr("aria-controls", panel_id)}'
