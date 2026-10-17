@@ -93,7 +93,7 @@ or a remembered role `ListAgents` does not show, is a defect fixed before sendin
 the operator which one is live; never send and hope.
 
 **Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you (CLAUDE.md § Work items), which takes it from its builder. End on `none —
-terminal`, an `operator decision — W-<id>` awaiting item, or your own work; on a slip, `work.py release <id>`.
+terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
 
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, or review, test or reproduce a bug —
 those become items for the owning builder: a merged change with no CHANGELOG or INDEX entry → its AUTHOR (D-448); a
