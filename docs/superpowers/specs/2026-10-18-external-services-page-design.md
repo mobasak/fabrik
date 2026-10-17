@@ -260,7 +260,8 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - `GET /external-services.html` (the board, `quota_dashboard.py:2844`) and the `ext_page` freshness entry
   (`:2400`), `EXT_SERVICES_HTML` and its `QUOTA_DASH_EXT_SERVICES` setting (`:842`): **removed** with the
   link card (`views/services.py:183-193`) and the four strings only it uses — `services.ext.title`,
-  `.missing`, `.age`, `.open` (`strings.py:468-471`). The route itself answers a permanent `303` to `/#services`, so a bookmark lands on
+  `.missing`, `.age`, `.open` (`strings.py:468-471`). The route itself answers `303` to `/#services`, with no removal date (the
+  board test asserts the `303`), so a bookmark lands on
   the section — like the `/repos.html` redirect (`docs/workstation/quota-dashboard.md:249`), but on no
   removal date: it is not tied to `_LEGACY_TOKEN_UNTIL`, the work-verdict token window that retires that
   redirect (D8).
@@ -397,9 +398,8 @@ stdlib only, no CDN).
   budget.
 - **Open — a CSP for the static file:** with no script and no inline data, a policy of
   `default-src 'none'; style-src 'unsafe-inline'; img-src https:` becomes possible — the page needs no
-  `script-src`, and MDN's warning against `'unsafe-inline'` (st-9) sits under its inline-JavaScript
-  heading; the style directive is
-  this spec's own inference, not st-9's. A later hardening, not added here.
+  `script-src`; MDN advises avoiding `'unsafe-inline'` (st-9), and allowing it for styles alone is this
+  spec's own inference, not st-9's. A later hardening, not added here.
 - Resolved: the board's interpreter can read the registry (§ What exists today, executed).
 - Resolved: `dashboard_server.py` has no launcher — no crontab entry, and neither chain launcher
   (`scripts/kilo-benchmarks/daily_refresh.sh`, `scripts/wsl_startup_hook.sh`, both of which run the chain)
@@ -426,7 +426,7 @@ stdlib only, no CDN).
 - **D7 — The static file carries no script**: `app.js` needs the board's shell and fetches `/v/<view>`
   (§ Chosen approach); filtering is the live view's.
 - **D8 — The board stops serving the static file**: the link card goes and `/external-services.html` becomes
-  a permanent `303` to `/#services`. The live section replaces both; the board has no access log that could
+  a `303` to `/#services` kept with no removal date. The live section replaces both; the board has no access log that could
   show another reader of the route (`quota_dashboard.py:2867-2868`), so the redirect keeps an unseen bookmark
   working.
 
