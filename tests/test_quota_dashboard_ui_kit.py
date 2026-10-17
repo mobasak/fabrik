@@ -94,6 +94,8 @@ def _escapes(x):
     sev = "warning"
     return [
         ("badge.text", lambda: ui.badge(sev, x)),
+        ("link.label", lambda: ui.link(x, "/p", new_tab=True)),
+        ("link.href", lambda: ui.link("l", "/p?q=" + x)),
         ("card.title", lambda: ui.card(x, "b")),
         ("card.body", lambda: ui.card("t", x)),
         ("card.badge", lambda: ui.card("t", "b", badge=x)),
@@ -140,6 +142,8 @@ def _refusals(x):
     """(component.param, thunk): the payload in an id, enum, number or flag position, expected REFUSED."""
     return [
         ("badge.severity", lambda: ui.badge(x, "t")),
+        ("link.href", lambda: ui.link("l", "javascript:" + x)),
+        ("link.new_tab", lambda: ui.link("l", "/p", new_tab=x)),
         ("card.id", lambda: ui.card("t", "b", id=x)),
         ("table.label_id", lambda: ui.table(x, "L", ["h"], [["c"]])),
         ("button.kind", lambda: ui.button("b", kind=x)),

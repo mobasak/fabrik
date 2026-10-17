@@ -134,6 +134,22 @@ def badge(severity: str, text: object) -> Safe:
     )
 
 
+_HREF = re.compile(r"(/(?!/)|https?://)[^\s\x00-\x1f]*")
+
+
+def link(label: object, href: object, *, new_tab: bool = False) -> Safe:
+    """A link to a same-site path or an http(s) URL (anything else raises: ``javascript:`` never ships); ``new_tab`` opens it in its own tab (``target="_blank" rel="noopener"``) and says so in words."""
+    _flag(new_tab, "link new_tab")
+    if not isinstance(href, str) or not _HREF.fullmatch(href):
+        raise ValueError(f"link href {href!r} is not a same-site path or an http(s) URL")
+    extra = (
+        f' target="_blank" rel="noopener"><span class="sr-only">{_esc(t("link.new_tab"))} </span>'
+        if new_tab
+        else ">"
+    )
+    return Safe(f"<a{_attr('href', href)}{extra}{_esc(label)}</a>")
+
+
 def card(
     title: object,
     body: object,
