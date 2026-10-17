@@ -3,7 +3,7 @@
   "created": "2026-09-08T00:00:00.000000Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0ecb83006ac5f51a4b0636e24ca4a4a4128ce051",
   "id": "W-e9c8a4df",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — ledger row reds every session gate, third time in 24h",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
