@@ -1114,6 +1114,64 @@ class TestDeployLocal:
         cats = [c.args[0] for c in mock_ssh.call_args_list if "cat " in c.args[0]]
         assert cats == ["sudo cat /opt/seo/compose.yaml"], cats
 
+    def test_source_path_is_shell_quoted_in_every_command(self):
+        """source.path is spec-supplied and reaches a root shell: a metacharacter stays inside
+        one quoted word in the existence check, the compose read and the `cd` before `up`."""
+        path = "/srv/a;echo INJECTED"
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": path}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        quoted_file = "'/srv/a;echo INJECTED/compose.yaml'"
+        assert cmds[0] == f"test -f {quoted_file} && echo exists", cmds[0]
+        assert cmds[1] == f"sudo cat {quoted_file}", cmds[1]
+        assert cmds[-1].startswith("cd '/srv/a;echo INJECTED' && "), cmds[-1]
+
+    def test_compose_read_oserror_aborts_before_writing(self):
+        """An OSError from the ssh driver (no ssh binary) refuses like any failed read."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", FileNotFoundError("ssh")]
+            with pytest.raises(DeployError, match=r"/srv/my-app/compose\.yaml"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+
+    def test_uses_claude_cli_with_both_mounts_deploys(self):
+        """The positive half of the mount wiring: a valid compose that mounts both claude paths
+        passes the single read's two checks and reaches `.env` + `up`."""
+        compose = _VALID_LOCAL_COMPOSE.replace(
+            "    networks: [fabrik]\n",
+            "    networks: [fabrik]\n"
+            "    volumes:\n"
+            "      - /root/.claude:/home/appuser/.claude:ro\n"
+            "      - /root/.claude.json:/home/appuser/.claude.json:ro\n",
+        )
+        ctx = _ctx(
+            {
+                "name": "seo",
+                "source": {"type": "local", "path": "/opt/seo"},
+                "shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"},
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", compose, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "seo", ctx.spec["source"], None)
+        mock_write.assert_called()
+        assert "compose up" in mock_ssh.call_args_list[-1].args[0]
+
     def test_compose_read_timeout_aborts_before_writing(self):
         """A compose read that times out refuses like any other failed read; nothing written."""
         ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})

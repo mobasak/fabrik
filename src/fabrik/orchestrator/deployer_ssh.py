@@ -813,9 +813,13 @@ class SSHDeployer:
         else:
             path = source.path or f"/opt/{name}"
 
+        # source.path is spec-supplied and reaches a root shell on the VPS: every command below
+        # quotes it, as the /opt probe and the .env read do (shlex.quote, :390 and _read_env_file).
+        compose_file = shlex.quote(f"{path}/compose.yaml")
+
         # Verify compose exists at the path
         try:
-            _ssh(f"test -f {path}/compose.yaml && echo exists", timeout=10)
+            _ssh(f"test -f {compose_file} && echo exists", timeout=10)
         except RuntimeError:
             raise DeployError(
                 f"Local source for {name}: no compose.yaml found at {path}/compose.yaml"
@@ -825,8 +829,8 @@ class SSHDeployer:
         # as the template, git and docker paths do — the local path was the one door around
         # them. One read serves both checks; a read that fails refuses (nothing written).
         try:
-            compose_content = _ssh(f"sudo cat {path}/compose.yaml", timeout=10)
-        except (RuntimeError, subprocess.TimeoutExpired) as err:
+            compose_content = _ssh(f"sudo cat {compose_file}", timeout=10)
+        except _SSH_FAILURES as err:
             raise DeployError(f"Local source for {name}: cannot read {path}/compose.yaml: {err}")
         errors = _validate_compose(compose_content)
         if errors:
@@ -843,7 +847,7 @@ class SSHDeployer:
         existing = existing or {"name": name, "path": path}
         env = self._build_env(ctx, name, existing, app_path=path)
         _write_env_files(path, env, _write_file_to_vps_path)
-        _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
+        _ssh(f"cd {shlex.quote(path)} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
     # Helpers
