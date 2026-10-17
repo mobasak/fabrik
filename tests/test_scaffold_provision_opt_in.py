@@ -190,3 +190,23 @@ def test_cli_opts_in(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(scaffold, "create_project", fake_create_project)
     result = CliRunner().invoke(cli.cli, ["scaffold", "pv-cli", "-d", "d", "--no-github"])
     assert calls and calls[0].get("provision") is True, (calls, result.output)
+
+
+def test_chrome_extension_venv_installs_the_dev_requirements(tmp_path, monkeypatch, capsys) -> None:
+    """The scaffold-time venv installs requirements-dev.txt (the test deps live there, out of the image's
+    requirements.txt, W-4d6a37c8); the offline hint names the same file."""
+    calls: list[tuple[list[str], object]] = []
+
+    def fake_run(cmd, *_a, **kw):
+        calls.append(([str(c) for c in cmd], kw.get("cwd")))
+        return scaffold.subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(scaffold.subprocess, "run", fake_run)
+    monkeypatch.setattr(scaffold, "_install_pre_commit", lambda *_a, **_k: True)
+    monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
+    project = _scaffold(tmp_path, "chrome-extension", provision=True)
+    pip = [(argv, cwd) for argv, cwd in calls if argv and Path(argv[0]).name.startswith("pip")]
+    assert pip == [([pip[0][0][0], "install", "-r", "requirements-dev.txt"], project)], pip
+
+    _scaffold(tmp_path / "offline", "chrome-extension")
+    assert "pip install -r requirements-dev.txt" in capsys.readouterr().out

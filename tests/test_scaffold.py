@@ -502,7 +502,10 @@ class TestChromeExtensionScaffold:
         # pytest reaches the dev venv through requirements-dev.txt, which `make install` installs; the
         # image's requirements.txt carries runtime deps only (W-4d6a37c8)
         dev = (project_dir / "requirements-dev.txt").read_text()
-        assert "-r requirements.txt" in dev and "pytest" in dev, dev
+        assert re.search(r"^-r requirements\.txt$", dev, re.M), dev
+        assert re.search(r"^pytest>=", dev, re.M) and re.search(r"^pytest-timeout>=", dev, re.M), (
+            dev
+        )
         assert "pytest" not in (project_dir / "requirements.txt").read_text()
         assert (
             ".venv/bin/pip install -r requirements-dev.txt"
