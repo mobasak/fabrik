@@ -17,7 +17,7 @@
   "note": "migrated-digest:2635b7c5948e",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "A ledger row citing a draft plan reds every session's gate; third occurrence in 24 hours",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — ledger row reds every session gate, third time in 24h",
   "status": "open",
   "title": "**A DECISIONS row minted with a DRAFT plan cites artifacts that do not exist yet, and `check_doc_links.py` reds every session's gate on it** (third distinct ledger-reds-the-gate shape in ~24 h — D-..."
 }

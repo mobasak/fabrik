@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-09-22T00:00:00.000000Z",
   "creator": "infra",
   "evidence": "",
@@ -16,5 +18,9 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "medium",
+    "needs-split"
+  ],
   "title": "Deferred: the measured doc-converge queue — 6 tier-1 and 9 tier-2 docs describe machinery that no longer exists (2026-09-22)"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "work the held mails down meanwhile (the Stop hook names them one at a time); spec the claim policy",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

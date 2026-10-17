@@ -4,10 +4,10 @@
   ],
   "created": "2026-10-07T19:53:15.256861Z",
   "creator": "infra",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-d9c06640",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -18,8 +18,8 @@
   "next": "measure: run the probe from kaizen's mail over HEAD; expect 0 of 26 live plans / 85 locks; then add the WARN rows to scripts/enforcement/check_plans.py with a red-first grader; also exclude docs/development/reviews/ receipts from the referrer-repoint sentence at commands/_sources/fabrik-execute-plan.md:1237-1240 (frozen artifacts that predate the grammar)",
   "note": "",
   "owner": "kaizen",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'red'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — WARN for stale plans, measure first",
   "status": "open",
   "tags": [
     "enforcement",

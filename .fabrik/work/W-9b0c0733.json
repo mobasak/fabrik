@@ -1,6 +1,7 @@
 {
   "blocked_by": [
-    "W-ab566484"
+    "W-ab566484",
+    "W-3e9e2f4c"
   ],
   "created": "2026-10-08T19:47:01.033777Z",
   "creator": "intel",
@@ -19,7 +20,7 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "score_reason": "impact HIGH: names 'refuses'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — nine feedback asks on review loop, kaizen mail",
   "status": "open",
   "title": "Review-loop machinery: 9 /fabrik-plan-review feedback asks in code (mail 01M4EG5F43, kaizen D-711): ledger reader refuses a journal with no final result; workflow refuses a seat return omitting ledger ids; carry forward an n/n-verified slice; count shell reads of pinned paths toward files_read; accept pass 4+; seat-brief path rule; check_rule_grounding --all; sync fabrik-review-loop.js to worktrees (infra beat)"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "decide the escape the pair owes (compose reads \\\\n inside double quotes as a newline; a shell source does not) and grade the round trip over every value shape _format_env can emit — src/fabrik/orchestrator/deployer_ssh.py:836-895",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "proposed-drop",

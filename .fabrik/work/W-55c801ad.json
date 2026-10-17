@@ -17,7 +17,7 @@
   "note": "migrated-digest:51d5175098d6",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Sync safety-floor summary line names .env for every failure",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — summary line wording names .env",
   "status": "open",
   "title": "**The fleet sync's SAFETY FLOOR summary line names `.env` whatever pattern failed** — the per-project line was fixed under 01M1H1V2; the `SAFETY FLOOR FAILED in N project(s)` summary still hardcode..."
 }

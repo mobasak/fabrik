@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Stop-hook panel-brief check reads the latest opus seat's text; misfires only when a review seat is resumed after the panel — a rare edge; hook = infra's beat",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — Stop hook misreads panel on resumed seat, rare but hit 3 times",
   "status": "open",
   "tags": [
-    "hooks"
+    "hooks",
+    "medium"
   ],
   "title": "Stop hook panel-brief check matches the Panel: line against the LATEST opus seat's text — a review seat resumed after the panel (spec-review delta rounds) makes a true approval read as a deferral three times (W-573fae88, 2026-10-17)"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "measure how many /opt specs the twin reads as CONVERGED but CONVERGED_RE misses, then decide (panel) whether the outer gate adopts _claims_converged — it widens every rule's population (W-85496017 review A-S2)",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

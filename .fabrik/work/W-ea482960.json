@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "infra: read mail 01M4WWHVXRXFEC828WWFA9HYGJ, claim it, act on it",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
   "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m4wwhvxrxfec828wwfa9hygj",
     "proposed-drop",

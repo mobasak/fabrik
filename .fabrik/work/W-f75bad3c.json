@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "make all four mirrors strip('/') in one change; parity tests test_quota_posture.py:893 and test_stop_hook_spontaneous_review.py:927 already pin them to each other",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

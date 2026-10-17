@@ -17,7 +17,10 @@
   "note": "migrated-digest:7a4b2df94d07",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "check_deps_sync hash continuation defects",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — deps-sync check live defects",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`scripts/enforcement/check_deps_sync.py` (fleet-synced) — live defects the Finish docs review of the adoption plan measured (2026-09-11, owner: infra)** — (a) `--hash=sha256:…` continuation lines..."
 }

@@ -1,6 +1,7 @@
 {
   "blocked_by": [
-    "W-ab566484"
+    "W-ab566484",
+    "W-3e9e2f4c"
   ],
   "created": "2026-10-15T09:31:00.637552Z",
   "creator": "coordinator",
@@ -19,7 +20,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "score_reason": "impact HIGH: names 'refuses'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — receipt tool refuses plan-review and --restamp --range",
   "status": "open",
   "tags": [
     "mail-01m4y582bhyv1nmx91zzjw6nh5"

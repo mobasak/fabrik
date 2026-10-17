@@ -4,7 +4,7 @@
   ],
   "created": "2026-09-30T20:43:40.537386Z",
   "creator": "fleet",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-d8505af5",
   "impact": "high",
@@ -18,8 +18,8 @@
   "next": "when building docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md, apply its item-3 proname-then-signature two-step to grant_payments_role(lane='ingest'): name present + exact signature absent -> RAISE, never the legacy block; red-on-revert test with a (regrole, text DEFAULT '') function",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — ingest role re-widened on signature change",
   "status": "open",
   "tags": [
     "security"

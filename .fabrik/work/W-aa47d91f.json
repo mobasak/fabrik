@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.139112Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-aa47d91f",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "/fabrik-task over .claude/hooks/final_gate_stop.py (fleet-synced, full review)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false block traps review sessions",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "every worktree agent citing a boarded gate is blocked three times or forced to mint a duplicate gate; measured by infra 2026-10-16 ~07:45; one lookup; hook = infra's beat",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook rejects correct cite in worktree; blocks agents",
   "status": "open",
   "tags": [
     "waits-quota"

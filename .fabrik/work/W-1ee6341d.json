@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "breaks refresh for every spoke app with glitchtip (a deploy blocker); one function, verify_dsn_injection must inspect on the target VPS not the hub; owner: deploy/VPS = fleet",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — spoke apply fails and deletes GlitchTip project; deploy blocker",
   "status": "open",
   "tags": [
     "fleet"

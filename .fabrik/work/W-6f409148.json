@@ -19,5 +19,8 @@
   "priority": 3,
   "score_reason": "Spontaneous-edit coverage gap in the record protocol",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**The record protocol's spontaneous-edit coverage gap (pass 3 spec D6, 2026-09-12, owner: infra)** — a review-family `done` covers the code edited since the previous AGENT-closed record, so an edit..."
 }

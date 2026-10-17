@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "guard for already-correct text; no behaviour broken today",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing guard test for message order",
   "status": "open",
   "tags": [
-    "mail-01m53s190t"
+    "mail-01m53s190t",
+    "medium"
   ],
   "title": "command_run.py SCOPE GROWTH messages: add the regression test pinning their fix-then-re-verify-then-close order (W-49f3515f's missing guard; message itself landed in 96e80067c) (kaizen mail 01M53S190T)"
 }

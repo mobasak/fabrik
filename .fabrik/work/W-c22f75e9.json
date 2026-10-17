@@ -21,5 +21,8 @@
   "priority": 2,
   "score_reason": "impact HIGH: names 'red'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "final_gate_stop: a session that STARTS under a walled quota hold writes no SessionStart baseline, so gate-red and uncommitted stay disarmed for its whole life after relief"
 }

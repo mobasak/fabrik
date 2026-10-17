@@ -12,10 +12,10 @@
     "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
   },
   "next": "run scripts/update_vps_docs.py and scripts/vps_sync.py --dry-run from the main checkout once W-36571dff's plan is EXECUTED (read-only ssh; fleet beat), commit the regenerated docs",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

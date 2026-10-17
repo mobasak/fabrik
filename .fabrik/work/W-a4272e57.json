@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "a red test on master hides regressions, and a headless claude without FABRIK_HEADLESS runs the interactive hooks; infra's own D-857 code; one line",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on master, headless spawner unguarded",
   "status": "open",
   "title": "tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears is red on master: scripts/cloud_dispatch.py (D-857, 2026-10-14) runs claude -p without FABRIK_HEADLESS and is not in _UNADOPTED_SPAWNERS"
 }

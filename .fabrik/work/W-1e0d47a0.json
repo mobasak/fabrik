@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — path derivation mismatch in core.worktree repos; rare",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "medium"
   ],
   "title": "merge_request.py::_main_checkout still reads only the first git-worktree-list entry, so in a core.worktree repo it names the git dir's parent while mail.py (W-7317befc) names the working tree; its docstring (:161-170) pins the two derivations equal"
 }

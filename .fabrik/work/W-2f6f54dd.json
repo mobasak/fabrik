@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "design one status set for the refuter VERDICT and the delta ledger_status enums in .claude/workflows/fabrik-review-loop.js, with closeCheck and review_loop_ledger read updated together",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "review-loop",

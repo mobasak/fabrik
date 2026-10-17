@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "fleet checked 2026-10-15: not fixed — deployer_ssh.py:1201 still stages via predictable /tmp/fabrik-<pid>-<name> on the VPS (a security hole); one-function fix",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — predictable remote staging path",
   "status": "open",
   "tags": [
     "deployer",

@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-e338756d",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,11 @@
   "next": "add a last_attempt {at, outcome, registrar_failures} block written on the failure arms of DeploymentOrchestrator.deploy/refresh_infrastructure without touching registrars_applied, with a test",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — failed apply leaves no state file",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "a failed or rolled-back fabrik apply writes no state file, so registrar_failures describes only the last COMPLETED apply"
 }

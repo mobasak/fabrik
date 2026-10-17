@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "impact HIGH: names 'blocks'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook blocks agents repeatedly; false red in hook",
   "status": "open",
   "title": "Stop hook DoD-uncommitted cause blocks a sync-path change while its own running review-family record names it in --surface (4 blocks during W-4c7edc74's review); stand it down for files in a running review's --surface, as the sixth cause already does (_surface_reviewed)"
 }

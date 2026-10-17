@@ -360,6 +360,198 @@ def test_v2_done_accepts_an_undeclared_review_receipt(run_dir: Path, tmp_path: P
     assert r.returncode == 0, r.stdout + r.stderr
 
 
+def _commit_with_msg(repo: Path, rel: str, msg: Path, subject: str) -> str:
+    msg.write_text(f"{subject}\n\nbody\n", encoding="utf-8")
+    (repo / rel).write_text(subject + "\n", encoding="utf-8")
+    _git(repo, "add", "--", rel)
+    _git(repo, "commit", "-q", "-F", str(msg))
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_capture_appends_the_sha_found_by_subject_never_head(run_dir: Path, tmp_path: Path) -> None:
+    """Phase 5's capture as one verb (kaizen 01M55GGMS5): each call appends the sha whose subject is
+    the message file's first line — so a sibling's commit landing on top (HEAD moved) is never
+    captured — and the file reads back as `done --commit $(cat …)` wants it."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "durable" / "commit.sha"
+    m1, m2 = tmp_path / "m1.txt", tmp_path / "m2.txt"
+    a = _commit_with_msg(repo, "src/a.py", m1, "fix: the first change")
+    _commit_with_msg(repo, "src/b.py", tmp_path / "other.txt", "chore: a sibling lands on top")
+    r = _cr(run_dir, "capture", "--msg", str(m1), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == a
+    b = _commit_with_msg(repo, "src/c.py", m2, "fix: the second change")
+    r = _cr(run_dir, "capture", "--msg", str(m2), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [a, b]
+
+
+def test_capture_refuses_with_rc_1_and_appends_nothing(run_dir: Path, tmp_path: Path) -> None:
+    """A subject no commit carries, a missing message file and a blank subject each exit 1 —
+    never the CLI's fail-soft 0 — and leave the capture file untouched."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "commit.sha"
+    unseen = tmp_path / "unseen.txt"
+    unseen.write_text("fix: never committed\n", encoding="utf-8")
+    empty = tmp_path / "empty.txt"
+    # an all-blank message: git drops leading blank lines, so `\\nbody` is the subject "body" and
+    # would refuse for a different reason (review B-haiku NEW-1)
+    empty.write_text("  \n\n \n", encoding="utf-8")
+    cases = (
+        (unseen, "no commit has"),
+        (tmp_path / "missing.txt", "cannot read"),
+        (empty, "empty subject"),
+    )
+    for msg, why in cases:  # each refusal for ITS reason, not merely refused
+        r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+        assert r.returncode == 1, (msg, r.stdout + r.stderr)
+        assert "REFUSED — capture" in r.stderr and why in r.stderr, (msg, r.stderr)
+    assert not cap.exists()
+
+
+def test_capture_exits_1_never_the_fail_soft_0_on_a_bad_message_or_no_git(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A non-UTF-8 message file and a `git` missing from PATH both raised out of `_capture_commit`
+    into main()'s catch-all, which returns 0 with no sha (review A-sonnet): each is a refusal."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "commit.sha"
+    bad = tmp_path / "bad.txt"
+    bad.write_bytes(b"\xff\xfe not utf-8\n")
+    r = _cr(run_dir, "capture", "--msg", str(bad), "--out", str(cap), cwd=repo)
+    assert r.returncode == 1 and "REFUSED — capture" in r.stderr, r.stdout + r.stderr
+    good = tmp_path / "good.txt"
+    _commit_with_msg(repo, "src/a.py", good, "fix: a real subject")
+    nogit = tmp_path / "empty-bin"
+    nogit.mkdir()
+    r = _cr(
+        run_dir,
+        "capture",
+        "--msg",
+        str(good),
+        "--out",
+        str(cap),
+        cwd=repo,
+        extra_env={"PATH": str(nogit)},
+    )
+    assert r.returncode == 1 and "git log failed" in r.stderr, r.stdout + r.stderr
+    assert not cap.exists()
+
+
+def test_capture_skips_leading_blank_lines_as_git_does(run_dir: Path, tmp_path: Path) -> None:
+    """git drops a message's leading blank lines, so its subject is the first non-blank paragraph;
+    capture read the blank lines as an empty subject (review round 2)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "lead.txt"
+    msg.write_text("  \n\nfix: after blank lines\n\nbody\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 6\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_ends_the_subject_at_a_whitespace_only_line(run_dir: Path, tmp_path: Path) -> None:
+    """git ends the subject paragraph at a line holding only spaces; capture joined the body onto the
+    subject there and refused the commit (review A-haiku N-1)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "ws.txt"
+    msg.write_text("fix: the subject\n   \nthe body\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 8\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_finds_a_subject_git_stored_with_leading_spaces(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """git keeps a subject's leading spaces in `%s`; capture strips its own side, so an exact
+    comparison could never match such a commit (review A-haiku)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "padded.txt"
+    msg.write_text("  fix:  a padded   subject  \n", encoding="utf-8")  # inner runs too
+    (repo / "src" / "a.py").write_text("x = 7\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_reads_a_wrapped_subject_as_git_does(run_dir: Path, tmp_path: Path) -> None:
+    """git's `%s` joins the first paragraph's lines with spaces; a first-line-only read refused a
+    legitimate commit whose subject wraps (review A-sonnet)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "wrapped.txt"
+    msg.write_text("fix: a subject that\nwraps onto a second line\n\nbody\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 9\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_refuses_when_the_newest_match_only_quotes_the_subject(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--grep` reads whole messages, so a NEWER commit quoting the subject in its body is the match
+    found; its own subject differs, and capture must refuse rather than append that sha (review
+    B-sonnet: no test reached the subject-equality check)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "m.txt"
+    _commit_with_msg(repo, "src/a.py", msg, "fix: the real change")
+    quoting = tmp_path / "q.txt"
+    quoting.write_text("chore: a later one\n\nfollows fix: the real change\n", encoding="utf-8")
+    (repo / "src" / "b.py").write_text("x = 3\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/b.py")
+    _git(repo, "commit", "-q", "-F", str(quoting))
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 1 and "REFUSED — capture" in r.stderr, r.stdout + r.stderr
+    assert not cap.exists()
+
+
+def test_v2_done_drops_empty_comma_pieces_and_refuses_a_bare_comma(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--commit a,` closes as `--commit a`; `--commit ,` has nothing left and is refused as an
+    empty value, the same as `--commit ""` (review B-sonnet: empty pieces were untested)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", ",")
+    assert r.returncode == 1 and "--commit is empty" in r.stdout + r.stderr, r.stdout + r.stderr
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a},")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_v2_done_takes_a_comma_list_of_commits_as_the_space_form(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--commit a,b` closes exactly as `--commit a b`: a sha never holds a comma, so the split is
+    unambiguous; before it, the comma list was refused as "not this run's commit", which reads
+    like a wrong sha (kaizen 01M55GGMS5, feedback row 1792251777)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a},{b}")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def test_v2_done_still_refuses_a_source_file_under_the_reviews_dir(
     run_dir: Path, tmp_path: Path
 ) -> None:

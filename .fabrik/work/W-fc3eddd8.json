@@ -20,7 +20,8 @@
   "score_reason": "a failed DSN verify on refresh deletes the EXISTING GlitchTip project (data loss) and spoke watchdog runs on the hub; one driver (drivers/watchdog.py) plus a guard, one session; owner: deploy registrars = fleet",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "medium"
   ],
   "title": "Spoke registrar residue after W-1ee6341d: the watchdog registrar (infrastructure.py:1544 -> drivers/watchdog.py, ~20 ssh calls, 0 host swaps) builds, pushes its overlay, runs docker compose up and inspects the app container on the hub for a vps2/vps3 app; a failed GlitchTip DSN verify on refresh deletes the EXISTING project (infrastructure.py:1326); verify_dsn_injection's fallback docker ps ssh (glitchtip.py:460) is unguarded"
 }

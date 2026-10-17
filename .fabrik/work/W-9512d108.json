@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — timed-out command loses output",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "tools/wsl-mcp/server.py bash tool: on timeout the cancelled first communicate() drops the output the command already wrote, so a timed-out command returns empty stdout (pre-existing since 898eb1269; wsl-mcp lint review A-O1)"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T16:54:56.783156Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-814f7fef",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — grader hardening",
   "status": "open",
   "tags": [
     "handoff-2026-10-06"

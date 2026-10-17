@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T03:49:23.466363Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-89a38174",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen feedback on merge_request refusals",
   "status": "open",
   "title": "/fabrik-execute-plan queue - merge_request.py should keep the full failure list of a refusal (kaizen)"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "design where the operator IP comes from (config value vs per-run SSH_CLIENT + runtime addignoreip), then a /fabrik-task with intel for the pack",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "needs-owner",
     "proposed-drop",

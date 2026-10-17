@@ -17,10 +17,11 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gate never lints project server/; false green but awaiting fleet config",
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "medium"
   ],
   "title": "final_gate never lints a project's server/ backend (ruff roots scripts/ src/; mypy skipped green) — fleet W-1c722f35 gate side; decide once fleet's server/ ruff/mypy config lands"
 }

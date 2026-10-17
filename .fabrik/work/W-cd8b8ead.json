@@ -4,7 +4,7 @@
   ],
   "created": "2026-10-08T08:29:52.655306Z",
   "creator": "fleet",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-cd8b8ead",
   "impact": "high",
@@ -18,8 +18,8 @@
   "next": "add the nginx mainline/stable -<codename> shape to _DEBIAN_BASE_RES with a test, and re-run the audit over a scaffolded docusaurus project",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'fails'; effort HIGH: names 'audit' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — new docusaurus project fails audit as shipped, false red",
   "status": "open",
   "tags": [
     "fleet"

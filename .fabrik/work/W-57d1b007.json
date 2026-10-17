@@ -1,6 +1,7 @@
 {
   "blocked_by": [
-    "W-ab566484"
+    "W-ab566484",
+    "W-3e9e2f4c"
   ],
   "created": "2026-10-01T19:55:20.060187Z",
   "creator": "fleet",
@@ -19,7 +20,7 @@
   "note": "Also, if supported: ship templates/docusaurus/.dockerignore (and the dir excludes reference/development/operations/archive in docusaurus.config.js.j2) mirroring _scaffold_docusaurus — TemplateRenderer emits neither, so a template build would take .env/node_modules/build from a long-lived VPS tree into the builder context (Phase B closing pass C3). Also (Finish review pass 1, B1): compose.yaml.j2 hardcodes the healthcheck path /docs/intro/ (the baseline hardcoded :3000/) and ignores spec.health.path/disabled/test, unlike sibling templates; interpolate it when the template path is made to build (a health block without path defaults to /health — set the docusaurus default explicitly).",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — template docusaurus deploy cannot build",
   "status": "open",
   "tags": [
     "fleet"

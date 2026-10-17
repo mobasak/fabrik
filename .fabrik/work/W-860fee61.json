@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-860fee61",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,11 @@
   "next": "call spec_loader.normalize_llm_actions (or WatchdogConfig.model_validate) from OrchestratorValidator.validate in src/fabrik/orchestrator/validator.py, with a test",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'deploy'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — pre-deploy validation for watchdog fields; apply aborts late",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "watchdog: validate llm_actions (and the other watchdog fields) pre-deploy, so a bad value aborts fabrik apply and apply --dry-run instead of failing the registrar after the app deploys"
 }
