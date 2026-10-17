@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T09:08:50.295339Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-70d9c609",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measured 2026-10-17 (W-7f545f4a review, Opus seat): no packageManager field, caret ranges, no lockfile; corepack fetched pnpm 12.14.0 for one run and 11.24.0 for another; eslint 9.39.5 resolved. Decide the pin (scaffolding beat: fleet) and grade it in tests/test_scaffold_chrome_ext_wxt.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "chrome-extension scaffold: pin the toolchain (packageManager pnpm@x.y.z; ~ on @antfu/eslint-config) so a later lint-rule minor cannot turn a fresh scaffold's lint red"
+}
