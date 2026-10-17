@@ -7,9 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — `review_loop_ledger.py next --ids` help says the other open claims are carried (2026-10-17)
 
 The help read "comma-separated confirmed candidate ids" and the docstring "exactly those confirmed ids", although with
-`--args` `next` also carries every other open claim (unverified, DEFECT_PRESENT, NEW) from the run file. Both now say
-so — the remaining half of /fabrik-spec-review row 1790195711 (W-b1f67743); the four review recipes already pair
-`--ids <the confirmed ids>` with `--args`.
+`--args` `next` also carries the other open claims: a run file's confirmed or unverified candidates left out of
+`--ids`, and DEFECT_PRESENT/NEW ledger rows from the launch ledger. Both now say so — the remaining half of
+/fabrik-spec-review row 1790195711 (W-b1f67743); the four review recipes already pair `--ids <the confirmed ids>` with
+`--args`.
 
 ### Fixed — `review_loop_ledger.py next`: right advice for a result-less `--args` file; fold-equal repeated ids (2026-10-17)
 

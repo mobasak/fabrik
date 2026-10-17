@@ -17,7 +17,7 @@ file, not its scrollback. So:
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED.
     review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS] [--drop ID,ID]
-        The next pass's `slices[].ledger` for those confirmed ids (and every open claim carried below), as objects grouped by slice (the id
+        The next pass's `slices[].ledger` for those confirmed ids (and, with --args, the open claims carried below), as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
         every claim listed. With --args (mail 01M4PHYNXJ) — the run's `workflows/<runId>.json`, or a bare args
         object — each slice is emitted whole (files, models, scope, priority, agent copied from the launch, its
@@ -1268,8 +1268,9 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument(
         "--ids",
         required=True,
-        help="comma-separated confirmed candidate ids; with --args, every other open claim (unverified, "
-        "DEFECT_PRESENT, NEW) is carried from the run file as well",
+        help="comma-separated confirmed candidate ids; with --args the other open claims are carried as well — "
+        "a run file's confirmed or unverified candidates left out of --ids, and DEFECT_PRESENT/NEW ledger rows "
+        "from the launch ledger",
     )
     n.add_argument(
         "--drop",
