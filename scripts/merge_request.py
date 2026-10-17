@@ -161,6 +161,10 @@ def _capped(argv: list[str], timeout: int) -> list[str]:
     runner = _capped_run()
     if os.access(runner, os.X_OK):
         return [runner, "--timeout", str(int(timeout)), "--", *argv]
+    print(
+        f"merge_request: WARNING — {runner} is missing; owner tests run UNCAPPED (no memory ceiling)",
+        file=sys.stderr,
+    )
     return list(argv)
 
 

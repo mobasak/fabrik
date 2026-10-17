@@ -588,6 +588,7 @@ def _capped(argv: list[str], timeout: float) -> list[str]:
     runner = _capped_run()
     if os.access(runner, os.X_OK):
         return [runner, "--timeout", str(max(1, int(timeout))), "--", *argv]
+    _warn(f"{runner} is missing — this sweep's pytest runs UNCAPPED (no memory ceiling)")
     return list(argv)
 
 

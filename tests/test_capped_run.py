@@ -282,6 +282,29 @@ def test_automatic_launchers_run_pytest_capped(tmp_path, slice_env, monkeypatch)
     ]
 
 
+def test_a_launcher_with_no_runner_says_it_runs_uncapped(tmp_path, monkeypatch, capsys):
+    """No runner anywhere → the tests still run, and the launcher SAYS they run uncapped."""
+    import kaizen_outcomes as ko
+    import merge_request as mr
+
+    monkeypatch.setenv("FABRIK_CAPPED_RUN", str(tmp_path / "absent.sh"))
+    assert mr._capped(["pytest"], 60) == ["pytest"]
+    assert ko._capped(["pytest"], 60) == ["pytest"]
+    err = capsys.readouterr().err
+    assert (
+        err.count("UNCAPPED") == 2 and "merge_request: WARNING" in err and "kaizen_outcomes:" in err
+    ), err
+
+
+@needs_scope
+def test_the_command_gets_no_extra_fd(slice_env):
+    """The runner's stdin copy (fd 3) is closed for the command: a test must not inherit it."""
+    run = _capped(
+        "--mem", "64M", "--", "bash", "-c", "[ -e /proc/$$/fd/3 ] && echo LEAK || echo CLEAN"
+    )
+    assert run.stdout.strip() == "CLEAN", (run.stdout, run.stderr)
+
+
 @needs_scope
 def test_merge_and_sweep_call_sites_run_their_tests_inside_a_capped_scope(
     tmp_path, slice_env, monkeypatch
