@@ -1517,6 +1517,7 @@ docs/
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
+│       ├── 2026-10-17-merge-owner-grammar-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
