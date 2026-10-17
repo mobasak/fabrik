@@ -8,8 +8,8 @@ config file it would load when that directory is the argument, so a config that 
 directory per run (the gate's ``pytest tests/``; the saas server's documented ``cd server && pytest tests``); a bare
 ``pytest`` from a project root whose tests sit only under ``server/`` resolves no config. Trees vendored from
 fabrik-lib (``docs-site``) are exempt, their tests and their dependency files both: they are the module's own, and the
-hub never edits a vendored copy. ``determine_setup`` is private pytest API; its keyword-only signature with
-``override_ini`` and its 4-tuple return are pytest 9's, so an older pytest skips this module with that reason
+hub never edits a vendored copy. ``determine_setup`` is private pytest API; its ``override_ini`` keyword
+and its 4-tuple return are pytest 9's (pytest 8 has neither), so an older pytest skips this module with that reason
 instead of failing with a TypeError.
 """
 
@@ -40,7 +40,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         int(pytest.__version__.split(".")[0]) < 9,
-        reason="determine_setup's keyword-only signature and 4-tuple return are pytest 9's",
+        reason="determine_setup's override_ini parameter and 4-tuple return are pytest 9's",
     ),
 ]
 
