@@ -351,6 +351,22 @@ def test_duplicate_item_ids_get_unique_elements_and_own_dialogs():
     assert len(set(srcs)) == 2
 
 
+def test_a_faulting_pane_is_isolated_to_its_repo(monkeypatch):
+    real = work._pane
+
+    def boom(data, r, cap, tip_cap):
+        if r["name"] == "bad":
+            raise KeyError("x")
+        return real(data, r, cap, tip_cap)
+
+    monkeypatch.setattr(work, "_pane", boom)
+    res, root = render([repo("fabrik", [item("W-1")]), repo("bad", [item("W-9")])])
+    assert row_of(root, "W-1")
+    pane = find(root, **{"data-pick": "bad"})[0]
+    assert "KeyError" in pane.all_text() and find(pane, **{"data-state": "error"})
+    assert [r["name"] for r in res.item_targets] == ["fabrik"]
+
+
 def test_navs_have_accessible_names():
     _, root = render([repo("fabrik", [item("W-1")])])
     navs = find(root, "nav")

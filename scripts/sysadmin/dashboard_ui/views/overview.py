@@ -706,11 +706,18 @@ def _budget_lines(budget: object) -> list[object]:
         s = _d(s)
         key = s.get("key")
         label = t(f"ov.h.seat.{key}") if key in ("read_only", "heavy") else s.get("label") or "?"
-        box = s.get("box")
-        seats.append(
-            t("ov.h.budget_seat", label=label, allowed=s.get("allowed"), box="?" if box is None else box,
-              taken=s.get("taken") or 0)
-        )  # fmt: skip
+        box = "?" if s.get("box") is None else s.get("box")
+        taken = s.get("taken") or 0
+        # today's wording, every fact kept (INV-2): the floor, the siblings' reservation, the quota cap
+        if s.get("floored"):
+            detail = t("ov.h.seat_box_floor", box=box, taken=taken)
+        elif taken:
+            detail = t("ov.h.seat_box_after", box=box, taken=taken)
+        else:
+            detail = t("ov.h.seat_box", box=box)
+        if s.get("has_quota_cap"):
+            detail = t("ov.h.seat_quota", detail=detail, cap=s.get("quota_cap"))
+        seats.append(t("ov.h.budget_seat", label=label, allowed=s.get("allowed"), detail=detail))
     q = _d(b.get("quota"))
     if b.get("hold"):
         quota = t("ov.h.budget_hold")

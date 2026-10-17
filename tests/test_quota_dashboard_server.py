@@ -680,7 +680,7 @@ def test_a_verdict_carrying_a_stale_token_is_refused_409_and_runs_nothing(tmp_pa
     shop = _store_repo("shop")
     item = _store_item(shop, "a task")
     qd = _load(tmp_path, monkeypatch)
-    qd._repos_page(fresh=True)
+    qd._render_view("work")  # the Work view publishes the item's target
     from dashboard_ui import snapshot
 
     def tok() -> str:
@@ -804,8 +804,10 @@ def test_an_absent_token_is_accepted_only_inside_the_legacy_window(tmp_path, mon
     shop = _store_repo("shop")
     item = _store_item(shop, "a task")
     qd = _load(tmp_path, monkeypatch)
-    qd._repos_page(fresh=True)
-    assert qd._LEGACY_TOKEN_UNTIL is None
+    qd._render_view("work")
+    # T07 set the window: the coding date (2026-10-17) plus 14 days, inclusive
+    assert date(2026, 10, 31) == qd._LEGACY_TOKEN_UNTIL
+    monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", None)  # unset: always open
     assert qd.item_verdict("shop", item, "comment", "legacy")[0] == 200
     monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", date.today())  # on the date itself: still open
     assert qd.item_verdict("shop", item, "comment", "today")[0] == 200
@@ -866,15 +868,15 @@ def test_each_views_targets_survive_the_others_and_a_failing_view_empties_only_i
         assert _req(port, "GET", "/v/overview")[0] == 200  # renders after Work, holds no items
         assert ("shop", item) in qd._ITEM_TARGETS and ("ghost", "lead") in qd._PAUSE_TARGETS
         assert qd._ITEM_TARGETS[("shop", item)] == (str(shop), str(shop))
-        rebuilt: list[int] = []
-        real_page = qd._repos_page
+        rebuilt: list[str] = []
+        real_rebuild = qd._rebuild_targets
         monkeypatch.setattr(
-            qd, "_repos_page", lambda fresh=False: (rebuilt.append(1), real_page(fresh))[1]
+            qd, "_rebuild_targets", lambda view: (rebuilt.append(view), real_rebuild(view))[1]
         )
         assert qd.item_verdict("shop", item, "comment", "found")[0] == 200
         assert rebuilt == [], "a Work-only target was found without a rebuild"
-        # a /repos.html build publishes its own slice and evicts no view's
-        real_page(fresh=True)
+        # a rebuild-on-miss republishes its own view's slice and evicts no other view's
+        real_rebuild("work")
         assert ("ghost", "W-0000dead") in qd._ITEM_TARGETS and (
             "ghost",
             "lead",
@@ -1252,8 +1254,11 @@ def test_the_budget_data_is_disabled_without_a_subprocess_and_never_blocks(tmp_p
     data = qd._budget_data()
     assert data["caveats"] == ["sibling seats unknown <b>, not subtracted"], "plain, unescaped"
     assert [s["allowed"] for s in data["seats"]] == [17, 12]
-    # the HTML half is unchanged: built from the same reading, escaped once
-    assert "&lt;b&gt;" in qd._budget_cache["html"]
+    # the cache holds the reading alone (T07 removed the HTML half), and the view escapes it once
+    assert set(qd._budget_cache) == {"ts", "data", "thread", "gen"}
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    health = qd._render_view("overview").split('id="ov-health"', 1)[1]
+    assert "sibling seats unknown &lt;b&gt;, not subtracted" in health and "<b>," not in health
 
 
 # ── the work-data cache ─────────────────────────────────────────────────────────────────────────────

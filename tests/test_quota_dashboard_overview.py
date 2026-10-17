@@ -865,17 +865,20 @@ def test_health_lists_stale_views_failed_probes_unreadable_records_and_the_budge
     health = {"stale": [{"view": "accounts", "age_s": 125.0}],
               "failed": [{"key": "box", "error": "OSError: x"}, {"key": "probe", "error": "TimeoutExpired"}]}  # fmt: skip
     budget = {
-        "seats": [{"label": "read-only", "key": "read_only", "allowed": 4, "box": 6, "taken": 2},
-                  {"label": "heavy", "key": "heavy", "allowed": 2, "box": 3, "taken": 2}],
+        "seats": [{"label": "read-only", "key": "read_only", "allowed": 4, "box": 6, "taken": 2,
+                   "floored": True, "quota_cap": 3, "has_quota_cap": True},
+                  {"label": "heavy", "key": "heavy", "allowed": 2, "box": 3, "taken": 2,
+                   "floored": False, "quota_cap": None, "has_quota_cap": False}],
         "cli_cap": 10, "hold": False,
         "quota": {"ok": True, "active": "mob", "hottest_pct": 40, "eligible": 2, "eligible_raw": 3},
         "caveats": ["box probe is old"],
     }  # fmt: skip
     _res, root, _ = _render(tmp_path, health=health, budget=budget, merge_unreadable=["/a", "/b"])
     text = words(by_id(root, "ov-health"))
+    # today's page wording (INV-2): the floor, the siblings' reservation and the quota cap survive
     seats = " · ".join([
-        t("ov.h.budget_seat", label=t("ov.h.seat.read_only"), allowed=4, box=6, taken=2),
-        t("ov.h.budget_seat", label=t("ov.h.seat.heavy"), allowed=2, box=3, taken=2)])  # fmt: skip
+        "read-only seats allowed now: 4 (box 6 = the floor, 2 reserved by sibling sessions, quota 3)",
+        "heavy seats allowed now: 2 (box 3 after 2 reserved by sibling sessions)"])  # fmt: skip
     quota = t("ov.h.budget_quota", active="mob", pct=40, eligible=2, raw=3)
     for s in (
         t("ov.h.stale", view="accounts", age=t("ov.dur.min", n=2)),
@@ -907,6 +910,16 @@ def test_not_honoured_shows_only_when_the_reading_is_exactly_false(tmp_path, hon
     box = {"repos": [{"name": "r", "main": "/x/r", "dormant": 0, "agents": [agent]}]}
     _res, root, _ = _render(tmp_path, box=box)
     assert t("ov.ag.not_honoured") not in words(_row(root, "a"))
+
+
+def test_a_seat_with_nothing_reserved_names_the_box_alone(tmp_path):
+    budget = {"seats": [{"key": "heavy", "allowed": 3, "box": 3, "taken": 0, "floored": False,
+                         "has_quota_cap": False}],
+              "cli_cap": 10, "hold": False, "quota": {}, "caveats": []}  # fmt: skip
+    _res, root, _ = _render(tmp_path, budget=budget)
+    text = words(by_id(root, "ov-health"))
+    assert "heavy seats allowed now: 3 (box 3)" in text
+    assert "reserved" not in text and "quota 0" not in text
 
 
 def test_a_healthy_board_says_so_and_a_disabled_budget_renders_nothing(tmp_path):

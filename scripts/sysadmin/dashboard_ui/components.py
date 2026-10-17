@@ -442,6 +442,20 @@ def stale_banner(age_text: object, cause: object) -> Safe:
     )
 
 
+def last_resort(words: object) -> Safe:
+    """A view's error fragment for when building its error state failed too: constant markup around
+    ``words``, escaped with `html.escape` alone — no other component, no catalogue lookup, no id check —
+    so it raises on nothing a caller can pass."""
+    try:
+        text = html.escape(str(words), quote=True)
+    except Exception:  # noqa: BLE001 — a __str__ that raises still gets the fragment
+        text = ""
+    return Safe(
+        '<section data-stamp="error"><div class="region-state" data-state="error" role="alert">'
+        f'<p class="state-message">{text}</p></div></section>'
+    )
+
+
 # The head script: runs before the stylesheet, so the first paint already has the stored theme.
 _THEME_SCRIPT = (
     "(function(){try{var t=localStorage.getItem('qd-theme');"

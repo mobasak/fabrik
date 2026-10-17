@@ -1,28 +1,31 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 #
-# The account-quota dashboard: a localhost page showing every Claude account's session +
-# weekly headroom, reset times, the active pointer, caps and warnings — the `--status` board
-# rendered for a browser tab the operator leaves open.
+# The command centre (plan 2026-10-17-plan-1): the localhost board the operator leaves open — six
+# views (Overview, Work, Accounts, Usage, Commands, Services) over this module's collectors: every
+# Claude account's headroom from the `--status` probe, every repo's work store, every agent's run
+# records, the box budget, the spend sidecar, the command corpus, the pool and search-API balances.
+# The page layer is `dashboard_ui/` (components, catalogue, views, one stylesheet, one script); this
+# module serves it, hands each view its data (`_view_data`) and owns the probe, the routes and the
+# guard. Subsystem doc: docs/workstation/quota-dashboard.md.
 #
 # DESIGN — why there is no regeneration cron:
 #   `claude_rotate.py --status --json` makes live API probes for fresh-token dirs. A */5 cron
-#   would probe forever whether or not anyone is looking, and a self-refreshing browser tab
-#   would probe on every reload. So the page is regenerated ON DEMAND, at most once per
-#   QUOTA_DASH_MAX_AGE_S (default 20s): open tabs stay current, a closed tab costs nothing,
-#   and refresh-spamming the page cannot multiply probe volume. The rendered page always
-#   states the age of its own data — a stale render is visible, never silent.
+#   would probe forever whether or not anyone is looking. So the server probes on its own cadence
+#   (QUOTA_DASH_PROBE_INTERVAL_S) and a quota view re-probes at most once per QUOTA_DASH_MAX_AGE_S:
+#   refresh-spamming a view cannot multiply probe volume. Every view states the age of its own
+#   data, and a quota view carries the stale banner — a stale reading is visible, never silent.
 #
 # The server is stdlib-only, binds loopback by default, and is kept alive by cron
 # (@reboot + a periodic --ensure). It never writes outside its own output dir and never
 # touches credential files: every rotation fact comes from shelling the rotation CLI, which
-# owns that contract. ONE write path exists (2026-09-02): the per-row "switch" button POSTs
-# /switch, which shells `claude_rotate.py --switch <slug>` — a manual flip through the same
-# code the operator runs by hand. The endpoint refuses a request without the custom
-# SWITCH_HEADER (a forged cross-origin POST from any page in the operator's browser cannot
-# carry one without a CORS preflight this server never answers) and a slug the board's own
-# last payload does not list. The flip is pause-, dwell- and cap-exempt (the CLI's
-# manual=True path) — the operator's deliberate act, never automation.
+# owns that contract. Its writes are the operator's clicks, relayed: the account controls
+# (/switch, /park, /cap, /threshold — the rotation CLI and its two maps) and the work controls
+# (/agent-pause, /item-verdict — the hub's work.py as the operator). Every POST refuses a request
+# without the custom SWITCH_HEADER (a forged cross-origin POST cannot carry one without a CORS
+# preflight this server never answers) and a target the board itself did not render; every request
+# is refused 421 unless its Host is this board's own (DNS rebinding) and 403 when a POST or a view
+# GET is marked cross-site.
 """Serve/generate the Claude account-quota dashboard (see module header)."""
 
 from __future__ import annotations
@@ -40,7 +43,6 @@ import threading
 import time
 import urllib.request
 from datetime import date, datetime
-from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -54,15 +56,9 @@ from dashboard_ui import components as _ui  # noqa: E402
 from dashboard_ui import snapshot as _snapshot  # noqa: E402
 from dashboard_ui import strings as _strings  # noqa: E402
 from dashboard_ui import views as _views  # noqa: E402
-from dashboard_ui.fmt import ago as _ago  # noqa: E402
-from dashboard_ui.fmt import cap as _cap  # noqa: E402
-from dashboard_ui.fmt import fmt_age as _fmt_age  # noqa: E402
-from dashboard_ui.fmt import fmt_reset as _fmt_reset  # noqa: E402
+from dashboard_ui.components import last_resort as _last_resort  # noqa: E402
 from dashboard_ui.fmt import opt_root as _opt_root  # noqa: E402
-from dashboard_ui.fmt import posture_sub as _posture_sub  # noqa: E402
-from dashboard_ui.fmt import repo_order as _repo_order  # noqa: E402
-from dashboard_ui.fmt import stage_tone as _stage_tone  # noqa: E402
-from dashboard_ui.fmt import tone as _tone  # noqa: E402
+from dashboard_ui.strings import CATALOGUE as _BUILTIN_WORDS  # noqa: E402
 
 ROTATE_CLI = Path(
     os.getenv("QUOTA_DASH_ROTATE_CLI", "/opt/fabrik/scripts/sysadmin/claude_rotate.py")
@@ -123,7 +119,6 @@ _MAX_BODY = 4096
 _FIVE_HOUR_S = 5 * 3600
 _SEVEN_DAY_S = 7 * 86400
 
-_HTML = OUT_DIR / "index.html"
 _JSON = OUT_DIR / "quota.json"
 # The fleet's active-account pointer (a symlink). Read on every view so a flip — by the tick, a
 # --switch, or the button — regenerates the board at once instead of waiting out the floor.
@@ -489,136 +484,6 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
     return {**out, "age_s": 0.0, "stale": False}
 
 
-def _fmt_renewal(epoch: float | None, now: float) -> str:
-    # `epoch` comes from the cache file, which a human can edit: a string here raised TypeError on
-    # the render path — the same class as the `ts` guard, one field over. Bool is an int in Python.
-    if not isinstance(epoch, (int, float)) or isinstance(epoch, bool) or not epoch:
-        return '<span class="muted">—</span>'
-    try:
-        when = datetime.fromtimestamp(epoch).astimezone().strftime("%d %b")
-    except (OverflowError, OSError, ValueError):
-        return '<span class="muted">—</span>'  # a year-5138 timestamp is not a renewal date
-    days = (epoch - now) / 86400.0
-    if days < 0:
-        # a renewal already in the PAST is a stale reading, not a renewal; "-3d" read as ordinary
-        return f'{escape(when)} <span class="badge warn">overdue</span>'
-    return f'{escape(when)} <span class="muted">({days:.0f}d)</span>'
-
-
-def _api_quotas_panel(quotas: dict | None, now: float) -> str:
-    """The strip under the matrix: what is LEFT of each search API and when it renews. Every cell
-    is a measured number, an explicit 'unlimited', or a stated reason it cannot be known."""
-    if not quotas:
-        return ""
-    rows = []
-    for key, label, _f in API_QUOTA_SOURCES:
-        # the cache is hand-editable and a partial write is possible, so a PROVIDER ENTRY can be a
-        # list, a string or null. `q.get("state")` on any of those is an AttributeError on the
-        # render path — the same untrusted-value class as `ts` and `renews_at`, one level in.
-        q = quotas.get(key)
-        q = q if isinstance(q, dict) else {}
-        state = q.get("state")
-        if state == "ok":
-            if q.get("unlimited"):
-                total = "<b>unlimited</b>"
-                left = '<span class="muted">n/a — no monthly cap</span>'
-            else:
-                total = f"{q.get('total'):,}" if isinstance(q.get("total"), int) else "—"
-                rem = q.get("remaining")
-                left = f"{rem:,}" if isinstance(rem, int) else "—"
-                if isinstance(rem, int) and isinstance(q.get("total"), int) and q["total"] > 0:
-                    # a provider CAN report remaining > total (a mid-period plan upgrade) or a
-                    # NEGATIVE remaining (permitted overage). Neither is meaningful as a
-                    # percentage, so the count is shown and the percentage dropped, never invented.
-                    if 0 <= rem <= q["total"]:
-                        pct = 100.0 * rem / q["total"]
-                        tone = "crit" if pct < 10 else ("warn" if pct < 25 else "cap")
-                        left = f'<span class="badge {tone}">{rem:,} ({pct:.0f}%)</span>'
-                    else:
-                        left = f'<span class="badge warn">{rem:,}</span>'
-            extra = f" · {q['per_second']}/s" if q.get("per_second") else ""
-            unit = escape(str(q.get("unit") or ""))
-            body = (
-                f'<td>{total} <span class="muted">{unit}{escape(extra)}</span></td><td>{left}</td>'
-            )
-            renew = _fmt_renewal(q.get("renews_at"), now)
-        else:
-            why = {
-                "unconfigured": "no API key configured on this box",
-                "unavailable": q.get("why", "not exposed by the provider's API"),
-                "no-headers": "the provider stopped sending its rate-limit headers",
-                "no-data": "the provider's response carried no credit fields",
-                "error": f"probe failed ({q.get('error', '?')})",
-            }.get(str(state), "not read yet")
-            body = f'<td colspan="2" class="muted">{escape(why)}</td>'
-            renew = '<span class="muted">—</span>'
-        # page-level staleness counts too: the whole reading can be past its TTL while no single
-        # provider is flagged, which rendered as a fresh-looking panel of hour-old numbers
-        stale = (
-            ' <span class="badge stale">stale</span>'
-            if q.get("stale") or quotas.get("stale")
-            else ""
-        )
-        rows.append(
-            f"<tr><td><strong>{escape(label)}</strong>{stale}</td>{body}<td>{renew}</td></tr>"
-        )
-    age = quotas.get("age_s")
-    if not isinstance(age, (int, float)):
-        stamp = "not read yet"
-    elif age < 0:
-        # a reading stamped in the FUTURE (a clock jump, a restored snapshot, a hand edit) rendered
-        # as "read -1218540 min ago" — a negative age is a broken clock, not a fresh reading
-        stamp = "stamped in the future — clock skew"
-    else:
-        stamp = f"read {age / 60:.0f} min ago"
-    return (
-        f"<h2>Search-API quota &amp; renewal</h2>"
-        f'<p class="intro">What is left of the three metered search services the matrix above '
-        f"tracks, and when each renews — {escape(stamp)}, refreshed every "
-        f"{API_QUOTAS_TTL_S / 60:.0f} min OFF the render path (a probe costs Brave one query). "
-        f"A blank is never shown: a value we cannot obtain says why.</p>"
-        f"<table><thead><tr><th>Service</th><th>Plan</th><th>Remaining</th><th>Renews</th></tr>"
-        f"</thead><tbody>{''.join(rows)}</tbody></table>"
-    )
-
-
-def _pool_credits_panel(credits: dict | None) -> str:
-    """The board row. Says what the operator will SEE when it runs out, not merely that a number
-    is low — "$0.00 remaining" and "every fanout returns 402" are different sentences to act on."""
-    if not credits:
-        return ""
-    if credits.get("unreadable"):
-        return (
-            '<div class="banner warn">Pool balance UNREADABLE — '
-            f"{escape(str(credits['unreadable']))} while reading the cached balance. The quota board "
-            "below is unaffected; the OpenRouter figure is simply missing, not zero.</div>"
-        )
-    remaining = float(credits.get("remaining") or 0.0)
-    granted = float(credits.get("granted") or 0.0)
-    if remaining <= 0:
-        tone = "crit"
-        note = (
-            " — EXHAUSTED: every <code>fanout()</code> returns HTTP 402 with no output and no "
-            "spend. Top up at openrouter.ai/settings/credits."
-        )
-    elif remaining <= CREDITS_WARN_USD:
-        tone = "warn"
-        note = (
-            f" — under ${CREDITS_WARN_USD:,.0f}; a long fan-out will hit HTTP 402 mid-run. "
-            "Top up at openrouter.ai/settings/credits."
-        )
-    else:
-        tone = "ok"
-        note = ""
-    age = ""
-    if credits.get("stale"):
-        age = f" · {escape(_fmt_age(float(credits.get('age_s') or 0.0)))}, endpoint unreachable"
-    return (
-        f'<section class="gov banner {tone}"><b>OpenRouter pool</b> — '
-        f"${remaining:,.2f} remaining of ${granted:,.2f}{age}{note}</section>"
-    )
-
-
 def _notify(msg: str) -> None:
     """The box's mesh-notify path, same as the rotation tick's. Best-effort by design."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
@@ -730,119 +595,6 @@ def _probe() -> dict:
     return json.loads(proc.stdout)
 
 
-def _bar(remaining: float, tone: str) -> str:
-    return f'<div class="bar"><span class="fill {tone}" style="width:{max(0.0, min(100.0, remaining)):.1f}%"></span></div>'
-
-
-def _row(acct: dict, active: str | None, rank: str | None = None, posture: object = None) -> str:
-    email = str(acct.get("email", "?"))
-    slug = (acct.get("slugs") or ["?"])[0]
-    is_active = bool(active) and slug == active
-    five = acct.get("five_hour") or {}
-    seven = acct.get("seven_day") or {}
-    s_used = five.get("utilization")
-    w_used = seven.get("utilization")
-    s_left = 100.0 - float(s_used) if s_used is not None else None
-    w_left = 100.0 - float(w_used) if w_used is not None else None
-    cap = acct.get("weekly_cap")
-    cap_walled = bool(acct.get("cap_walled"))
-    walled = w_used is not None and float(w_used) >= 100.0
-    stale = _fmt_age(acct.get("age_s")) if acct.get("source") == "cache" else ""
-
-    badges = []
-    if is_active:
-        badges.append(f'<span class="badge active">{escape(rank) if rank else "ACTIVE"}</span>')
-    elif rank:
-        tone = "cap" if rank.endswith("NEXT") else ""
-        badges.append(f'<span class="badge {tone}">{escape(rank)}</span>')
-    parked = acct.get("parked") is True
-    if parked:
-        badges.append('<span class="badge crit">PARKED — out of service</span>')
-    elif cap is not None:
-        badges.append(f'<span class="badge cap">cap {int(cap)}%</span>')
-    if cap_walled and not parked:
-        badges.append('<span class="badge crit">RESERVED — fleet excluded</span>')
-    elif walled:
-        badges.append('<span class="badge crit">WALLED</span>')
-    if stale:
-        badges.append(f'<span class="badge stale">{escape(stale)}</span>')
-
-    def cell(
-        left: float | None,
-        used: float | None,
-        reset: float | None,
-        window_s: float | None = None,
-        extra: str = "",
-    ) -> str:
-        if left is None:
-            return '<td class="num muted">no reading<br><span class="sub">—</span></td>'
-        # A cached reading OLDER than the window it describes measures a window that has since
-        # rolled over — so the NUMBER is not evidence. But the value is still derivable: an
-        # account that is not the active pointer cannot be burning FLEET quota (no session binds
-        # to it), so its rolled-over window is empty by construction. Say that, rather than
-        # printing an unearned percentage ("plenty free" — the permanently-green class) or a
-        # useless "unknown". The one blind spot is the operator's own claude.ai browser use,
-        # which no probe of ours can see — surfaced on capped accounts, which exist for exactly
-        # that reason.
-        age = acct.get("age_s")
-        # A cached reading is stale-past-rollover if EITHER its age exceeds the window OR the
-        # reading's own reset time has already passed. The second clause is the failure the
-        # operator hit: a ~47h cache of a 7-DAY window (age < window) whose weekly reset date is
-        # already in the past still printed "91% used, resets <past date> (due)" — but that window
-        # HAS rolled over, so the number is no longer evidence.
-        reset_passed = reset is not None and float(reset) <= time.time()
-        if acct.get("source") == "cache" and (
-            reset_passed or (window_s and isinstance(age, (int, float)) and age >= window_s)
-        ):
-            blind = (
-                " · browser use is not visible here" if acct.get("weekly_cap") is not None else ""
-            )
-            note = (
-                f"idle — not the active pointer, so no fleet usage since this window rolled{blind}"
-                if not is_active
-                else "last read "
-                + escape(_fmt_age(age))
-                + ", older than the "
-                + (f"{window_s / 3600:.0f}h window" if window_s else "window")
-                + " — re-reads on next use"
-            )
-            label = "idle" if not is_active else "unknown"
-            tone_i = "ok" if not is_active else "warn"
-            return (
-                f'<td class="num"><span class="pct {tone_i}">{label}</span>'
-                f"{_bar(100.0 if not is_active else 0.0, tone_i)}"
-                f'<span class="sub">{note}</span></td>'
-            )
-        tone = _tone(left)
-        return (
-            f'<td class="num"><span class="pct {tone}">{left:.0f}%</span> left'
-            f"{_bar(left, tone)}"
-            f'<span class="sub">{used:.0f}% used · resets {escape(_fmt_reset(reset))}'
-            f"{escape(extra)}</span></td>"
-        )
-
-    # Fable-5's separate weekly limit (from the usage `limits` array, keyed by display_name).
-    # Rendered in its OWN column with the same remaining-framing as Weekly; a cache-served account
-    # that has no Fable reading yet (idle, token not refreshed) shows "no reading" until the tick
-    # re-probes it, exactly like any other window.
-    fable = (acct.get("model_windows") or {}).get("Fable") or {}
-    f_used = fable.get("utilization")
-    f_left = 100.0 - float(f_used) if f_used is not None else None
-
-    return (
-        f'<tr class="{"is-active" if is_active else ""}">'
-        f'<td class="acct"><strong>{escape(email)}</strong><span class="sub">{escape(slug)}</span>'
-        f'<div class="badges">{"".join(badges)}</div></td>'
-        # the posture describes the ACTIVE account only — a standby is not burning fleet quota,
-        # so a forecast for it would be a number with nothing behind it
-        f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S, _posture_sub(posture, 'five_hour') if is_active else '')}"
-        f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'seven_day') if is_active else '')}"
-        f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'fable') if is_active else '')}"
-        f"{_switch_cell(slug, is_active, email, parked, cap, acct.get('session_threshold'))}"
-        "</tr>"
-    )
-
-
 def _queue_for_render(payload: dict, now: float) -> list[dict]:
     """`_queue` with the SAME perishable-first key `_display_order` uses — one source."""
 
@@ -859,310 +611,14 @@ def _queue_for_render(payload: dict, now: float) -> list[dict]:
     return _queue(payload, now, _key=key)
 
 
-def _return_row(n: int, acct: dict, returns_at: float | None) -> str:
-    """The active account's RETURN slot: a ghost row at the position it comes back to the
-    queue, so an account about to be flipped away is visibly "both #1 and #N"."""
-    email = str(acct.get("email", "?"))
-    slug = (acct.get("slugs") or ["?"])[0]
-    when = _fmt_reset(returns_at) if returns_at else "unknown"
-    no = '<td class="num muted">—<br><span class="sub">&nbsp;</span></td>'
-    return (
-        '<tr class="is-return">'
-        f'<td class="acct"><strong>↩ {escape(email)}</strong><span class="sub">{escape(slug)} · returns here</span>'
-        f'<div class="badges"><span class="badge">#{n} — returns {escape(when)}</span>'
-        '<span class="badge stale">active now (#1), back after its reset</span></div></td>'
-        f"{no}{no}{no}"
-        '<td class="act"><span class="muted">no switch — same account</span></td>'
-        "</tr>"
-    )
-
-
-def _pending_row(slug: str) -> str:
-    """A dir `--new-dir` scaffolded that has not had its ONE `/login` yet.
-
-    `--status --json` reports such a dir under `pending`, not `accounts` — it has no identity to
-    group by and no quota to read. The board used to read only `accounts`, so the operator who
-    had just scaffolded `ozgurbasak` (2026-09-06) saw a four-row board and could not tell "not
-    scaffolded" from "not logged in". Rendered greyed, after every account, with NO switch button
-    (there is no chain to switch to) and the one action that pins it."""
-    if not _SLUG_RE.fullmatch(slug):
-        return ""
-    s = escape(slug)
-    no = '<td class="num muted">no reading<br><span class="sub">—</span></td>'
-    return (
-        '<tr class="is-pending">'
-        f'<td class="acct"><strong>{s}</strong><span class="sub">pending-login</span>'
-        '<div class="badges"><span class="badge stale">pending-login — identity unverified</span>'
-        "</div></td>"
-        f"{no}{no}{no}"
-        f'<td class="act"><span class="muted">ONE <code>/login</code> in this dir pins it</span></td>'
-        "</tr>"
-    )
-
-
-def _switch_cell(
-    slug: str,
-    is_active: bool,
-    email: str = "",
-    parked: bool = False,
-    cap: object = None,
-    threshold: object = None,
-) -> str:
-    """The manual controls. `switch →` on every row that is NOT the active pointer (switching to
-    the account you are already on is not a rotation) and not PARKED (a parked account is out of
-    service until enabled); `disable`/`enable` on every row with an email — the operator parks an
-    account from here (2026-09-29: "put a button in the gui so i can enable disable them")."""
-    toggle = ""
-    if _EMAIL_RE.fullmatch(email):
-        verb, label = ("unpark", "enable") if parked else ("park", "disable")
-        tip = (
-            f"Put {email} back in service"
-            if parked
-            else f"Take {email} out of service — it stays listed, the fleet never picks it"
-        )
-        toggle = (
-            f' <button type="button" class="switch park" data-email="{escape(email)}" '
-            f'data-verb="{verb}" title="{escape(tip)}">{label}</button>'
-        )
-        # the weekly cap, editable in place: empty + cap = clear; 0 parks (the loader's contract)
-        cap_value = "" if cap is None or parked else str(int(cap))
-        toggle += (
-            f' <span class="capctl" title="Weekly cap for {escape(email)} — the fleet never picks it at or '
-            f'over this %, the rest is your browser reserve; empty clears, 0 parks">'
-            f'<input type="number" min="0" max="100" step="1" class="capin" '
-            f'data-email="{escape(email)}" value="{cap_value}" placeholder="cap %">'
-            f'<button type="button" class="switch capset" data-email="{escape(email)}">cap</button></span>'
-        )
-        thr_value = "" if threshold is None else f"{float(threshold):g}"
-        toggle += (
-            f' <span class="capctl" title="Rotate threshold for {escape(email)} — the fleet flips away at '
-            f"this % on the 5h window (and weekly when no cap is set); empty = the fleet default "
-            f'{TRIGGER_THRESHOLD:g}%">'
-            f'<input type="number" min="50" max="100" step="0.5" class="thrin" '
-            f'data-email="{escape(email)}" value="{thr_value}" placeholder="{TRIGGER_THRESHOLD:g}">'
-            f'<button type="button" class="switch thrset" data-email="{escape(email)}">rotate at</button></span>'
-        )
-    if parked:
-        return f'<td class="act"><span class="muted">parked</span>{toggle}</td>'
-    if is_active or not _SLUG_RE.fullmatch(slug):
-        return f'<td class="act"><span class="muted">active</span>{toggle}</td>'
-    return (
-        f'<td class="act"><button type="button" class="switch" data-slug="{escape(slug)}" '
-        f'title="Make {escape(slug)} the active account for every session">switch →</button>'
-        f"{toggle}</td>"
-    )
-
-
 _RESERVE_PCT = float(os.getenv("QUOTA_RESERVE_PCT", "80"))
 
 
-def _unclassified_warning(p: dict) -> str:
-    """Tokens no tier claimed, said OUT LOUD — everything else on this panel silently excludes them.
-
-    `claude_p_cost._tier_of` matches the four tier NAMES inside a model id. A Claude model named
-    outside that vocabulary — Mythos is already one, in Anthropic's own cache-pricing footnote —
-    classifies as nothing: its tokens leave the tier table, the cost split AND the calendar with no
-    visible trace. The producer has always published them under `unweighted`; this view never
-    rendered it, so the omission was invisible by construction. The gap sharpened the moment empty
-    months stopped being drawn (D-140): such a month used to appear as a row of blank cells a reader
-    might question, and now it does not appear at all.
-
-    Returns "" when nothing is unclassified — a warning that shows when nothing is wrong is
-    wallpaper, and wallpaper is how the real one gets read past.
-    """
-    unc = p.get("unweighted")
-    if not isinstance(unc, dict):
-        return ""
-    tok = sum(int(v) for v in unc.values() if isinstance(v, (int, float)))
-    if not tok:
-        return ""
-    return (
-        "<p class='intro' style='color:var(--crit)'>&#9888; <b>"
-        f"{tok:,} tokens are NOT in any total on this page</b> &mdash; no tier matched "
-        f"{escape(', '.join(sorted(unc)))}. Add the tier to <code>_TIER_WEIGHT</code> in "
-        "<code>scripts/claude_p_cost.py</code>; until then that spend is unallocated and those days "
-        "are missing from the calendar.</p>"
-    )
-
-
 def _spend_data() -> dict:
-    """The data half of `_spend_panel`: the cost sidecar as written, unchanged — top-level
-    ``built_at`` and ``per_model_spend``. Raises on a missing or unparseable file; the panel and
-    `_view_data` each decide what that means for them."""
+    """The Usage view's data: the cost sidecar as written, unchanged — top-level ``built_at`` and
+    ``per_model_spend``. Raises on a missing or unparseable file; `_view_data` turns that into the
+    view's error state."""
     return json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
-
-
-def _spend_panel() -> str:
-    """The Usage tab: tier-weighted subscription spend + a daily token calendar.
-
-    Operator directive 2026-09-05 — measure ALL Claude Code / `claude -p` usage, price it per TIER
-    (haiku 1x, sonnet 2x, opus 5x, fable 10x), give it its own tab, and give the daily view a hover
-    detail like the Claude Manager extension so that extension can be retired.
-
-    BY TIER, NOT BY MODEL VERSION: every Opus generation shares one weight because they share one
-    list price -- verified live, Opus 5 and Opus 4.8 are both $5/$25, Fable 5 and Fable 5.1 both
-    $10/$50. The concrete ids that rolled into each tier are shown beside it, because a total whose
-    members you cannot see is unverifiable.
-
-    Reads the sidecar, never recomputes (`--refresh` runs on the 06:00 cron). A missing or
-    old-format sidecar renders NOTHING rather than a zeroed table that would read as "$0 spent" —
-    with ONE exception: `_unclassified_warning` survives that path, because tokens no tier claims are
-    exactly what empties `tiers`, and going silent there hides the reason for the silence.
-    """
-    try:
-        d = _spend_data()
-        p = d.get("per_model_spend") or {}
-        tiers, daily = p.get("tiers") or {}, p.get("daily") or []
-        spend, base = p.get("spend_usd"), p.get("base_rate_per_mtok")
-        unclassified = _unclassified_warning(p)
-        if not tiers or not spend or not base:
-            # The warning SURVIVES the blank-panel path, and that is the whole point of computing it
-            # here rather than beside the table. Tokens no tier claims are exactly what empties
-            # `tiers` — so the one state where every token is unrecognised is the one state where
-            # the panel would otherwise go silent, taking the explanation with it.
-            return unclassified
-    except (OSError, ValueError, TypeError, AttributeError):
-        return ""
-
-    rows = []
-    for tier, v in sorted(tiers.items(), key=lambda kv: -(kv[1].get("cost_usd") or 0)):
-        rows.append(
-            f"<tr><td><b>{escape(tier)}</b></td>"
-            f"<td class='num'>{v.get('weight', 0):.0f}&times;</td>"
-            f"<td class='num'>{v.get('tokens', 0):,}</td>"
-            f"<td class='num'>{(v.get('share') or 0) * 100:.1f}%</td>"
-            f"<td class='num'>${v.get('rate_per_mtok', 0):.5f}</td>"
-            f"<td class='num'><b>${v.get('cost_usd', 0):,.2f}</b></td></tr>"
-        )
-    total = sum(v.get("cost_usd") or 0 for v in tiers.values())
-    tok = sum(v.get("tokens") or 0 for v in tiers.values())
-    ok = abs(total - spend) < 0.01
-    recon = (
-        f"<span style='color:var(--ok)'>reconciles to ${spend:,.2f}</span>"
-        if ok
-        else f"<span style='color:var(--crit)'>DOES NOT reconcile: ${total:,.2f} vs ${spend:,.2f}</span>"
-    )
-
-    # ── the calendar: one block per MONTH, newest first ──────────────────────────────────────────
-    # Grouped by whatever months the data contains, so a NEW MONTH APPEARS ON ITS OWN — nothing here
-    # enumerates months, and none has to be added when the year turns.
-    #
-    # Intensity scales to the PEAK day across all history, not an absolute token count: an absolute
-    # scale makes every cell the same shade the moment fleet volume shifts, which is how a heatmap
-    # stops carrying information. `title=` gives native hover detail — no JS, no tooltip library —
-    # which is the Claude Manager behaviour being replaced.
-    import calendar as _cal
-    import datetime as _dt
-
-    peak = max((x.get("tokens") or 0) for x in daily) if daily else 0
-    by_month: dict[str, list] = {}
-    for x in daily:
-        by_month.setdefault((x.get("date") or "")[:7], []).append(x)
-
-    blocks = []
-    for ym in sorted(by_month, reverse=True):  # newest month at the top, going back
-        entries = sorted(by_month[ym], key=lambda e: e.get("date") or "")
-        m_tok = sum(e.get("tokens") or 0 for e in entries)
-        m_cost = sum(e.get("cost_usd") or 0 for e in entries)
-        first = _dt.date.fromisoformat(entries[0]["date"])
-        # Lead the grid with blanks so the 1st lands under its real weekday — a month grid that does
-        # not line up with the week is a bar chart wearing a calendar's clothes.
-        pad = "".join("<div class='cal-pad'></div>" for _ in range(first.weekday()))
-        cells = []
-        for e in entries:
-            t = e.get("tokens") or 0
-            lvl = 0 if not t or not peak else min(4, int(t / peak * 4) + 1)
-            by = e.get("by_tier") or {}
-            detail = " | ".join(f"{k} {v / 1e9:.2f}B" for k, v in by.items() if v) or "no usage"
-            tip = f"{e.get('date', '')}\n{t:,} tokens - ${e.get('cost_usd', 0):,.2f}\n{detail}"
-            day_n = _dt.date.fromisoformat(e["date"]).day
-            cells.append(
-                f"<div class='cal-cell lvl{lvl}' title='{escape(tip)}'><span>{day_n}</span></div>"
-            )
-        label = f"{_cal.month_name[first.month]} {first.year}"
-        # A partial month is MARKED, not silently smaller: September is in progress and May's history
-        # starts on the 13th, so both are allocated fee x coverage. Without the marker the reader
-        # cannot tell a cheap month from an incomplete one.
-        # The fee that applied in this month, shown for context. It is NOT what the block totals to:
-        # days are priced on a ROLLING 30-day window, so a month sums to what its days consumed at
-        # the rate prevailing around them, not to that month's invoice.
-        fee = (p.get("monthly_spend") or {}).get(ym)
-        part = f" &middot; <span class='muted'>fee ${fee:,.0f}/mo</span>" if fee else ""
-        blocks.append(
-            f"<div class='cal-month'><div class='cal-head'><b>{escape(label)}</b>"
-            f"<span class='muted'>{m_tok / 1e9:,.1f}B tokens &middot; ${m_cost:,.2f}{part}</span></div>"
-            f"<div class='cal-dow'>"
-            + "".join(f"<i>{d}</i>" for d in ("M", "T", "W", "T", "F", "S", "S"))
-            + f"</div><div class='cal'>{pad}{''.join(cells)}</div></div>"
-        )
-    legend = "".join(f"<i class='cal-cell lvl{i}'></i>" for i in range(5))
-    cal = (
-        "<h2>Daily token consumption</h2>"
-        f"<p class='intro'>Every recorded day, newest month first, shaded against the busiest day "
-        f"({peak:,} tokens). <b>Hover a day</b> for its exact tokens, allocated cost and per-tier "
-        "split. Every day is priced on a <b>rolling 30-day window ending that day</b> — the fee "
-        "pro-rated across the months it crosses, over the tokens actually run in it — so a month "
-        "block totals what its days consumed at the rate prevailing around them, not that month's "
-        "invoice.</p>"
-        f"<div class='cal-months'>{''.join(blocks)}</div>"
-        f"<p class='intro' style='margin-top:10px'>less {legend} more</p>"
-    )
-    win = f"{p.get('window_start')} to {p.get('window_end')}"
-    built = d.get("built_at") or "-"
-    # WHY THE HEADLINE IS NOT THE MONTHLY FEE. The window is a ROLLING 30 days, so it straddles two
-    # months whose daily rates differ — a $800 fee is $25.81/day across a 31-day August and
-    # $26.67/day across a 30-day September. The sum over 30 such days is therefore never exactly the
-    # monthly fee, and reading "$778.49" as the subscription price is the obvious misreading (the
-    # operator made it on sight, 2026-09-06, which is the evidence this sentence needed writing).
-    # Fail-soft: an unparseable window or a month whose fee the sidecar does not carry drops the
-    # breakdown and keeps the number.
-    fee_now, win_days, fee_note = 0.0, 0, ""
-    try:
-        ws = _dt.date.fromisoformat(str(p.get("window_start")))
-        we = _dt.date.fromisoformat(str(p.get("window_end")))
-        fees = p.get("monthly_spend") or {}
-        win_days = (we - ws).days + 1
-        per_month: dict[str, int] = {}
-        for n in range(win_days):
-            per_month[(ws + _dt.timedelta(days=n)).strftime("%Y-%m")] = (
-                per_month.get((ws + _dt.timedelta(days=n)).strftime("%Y-%m"), 0) + 1
-            )
-        fee_now = float(fees.get(we.strftime("%Y-%m")) or 0.0)
-        parts = []
-        for ym, n in sorted(per_month.items()):
-            fee = fees.get(ym)
-            if fee is None:
-                parts = []
-                break
-            y, m = int(ym[:4]), int(ym[5:7])
-            dim = (_dt.date(y + (m == 12), (m % 12) + 1, 1) - _dt.date(y, m, 1)).days
-            parts.append(
-                f"{n} {_cal.month_name[m]} day{'s' if n != 1 else ''} at ${fee:,.0f}/{dim}"
-            )
-        fee_note = escape(" + ".join(parts))
-    except (ValueError, TypeError, AttributeError):
-        fee_now, win_days, fee_note = 0.0, 0, ""
-    priced = (
-        f"priced against <b>${spend:,.2f}</b> &mdash; what the <b>${fee_now:,.0f}/month</b> "
-        f"subscription costs over THESE {win_days} days ({fee_note}), since a rolling window is "
-        "not a calendar month"
-        if (fee_now and win_days and fee_note)
-        # never assert a breakdown we could not derive
-        else f"priced against <b>${spend:,.2f}</b> for that window"
-    )
-    return (
-        "<h2>Claude subscription &mdash; spend by tier</h2>"
-        f"<p class='intro'>All Claude Code / <code>claude -p</code> usage over <b>{escape(win)}</b> "
-        f"({tok:,} tokens), {priced} &mdash; using "
-        f"<b>haiku 1&times; &middot; sonnet 2&times; &middot; opus 5&times; &middot; fable "
-        f"10&times;</b>. Base ${base:.6f}/MTok at weight 1. &Sigma; {recon}. "
-        "&#9888; An <b>allocation, not an invoice</b> &mdash; the subscription is a flat fee with no "
-        "per-model billing; the weights are an operator assumption matching the list-price ratio "
-        f"1:2:5:10. Rebuilt by the 06:00 cron; last built {escape(str(built))}.</p>"
-        "<table><thead><tr><th>Tier</th><th>Weight</th><th>Tokens</th><th>Share</th>"
-        "<th>$/MTok</th><th>Cost</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>{unclassified}{cal}"
-    )
 
 
 _policy_mod: tuple[float, object] | None = (
@@ -1197,49 +653,6 @@ def _pool_policy_on() -> bool:
         return False
 
 
-def _governor_panel(payload: dict) -> str:
-    """The quota governor's current routing verdict for the active ob@ account (single-key VPS).
-
-    Computed from the same payload the table renders — no extra `--status` probe. Mirrors
-    quota_governor.QuotaGovernor.route: routine sheds to the pool when the account is `cap_walled`
-    or `max(<every utilization window incl. model_windows>) >= RESERVE_PCT`; an incident escalates to
-    pool-diagnose only when `cap_walled`.
-    """
-    active = payload.get("active")
-    row = next(
-        (a for a in (payload.get("accounts") or []) if active in (a.get("slugs") or [])), None
-    )
-    if row is None:
-        return ""
-    utils: list[float] = []
-    for k in ("five_hour", "seven_day"):
-        u = (row.get(k) or {}).get("utilization")
-        if isinstance(u, (int, float)):
-            utils.append(float(u))
-    for w in (row.get("model_windows") or {}).values():
-        u = (w or {}).get("utilization")
-        if isinstance(u, (int, float)):
-            utils.append(float(u))
-    mx = max(utils) if utils else None
-    walled = row.get("cap_walled") is True
-    # match QuotaGovernor.route(): routine sheds when walled OR headroom is UNKNOWN (mx is None →
-    # schema drift) OR max window >= reserve. (The transient single-flight lock + the file-backed
-    # reactive cap are process/file state this payload-only panel does not read — it reflects the
-    # cap_walled + window signals, the governor's primary inputs.)
-    routine = "pool" if (walled or mx is None or mx >= _RESERVE_PCT) else "ob@"
-    incident = "pool-diagnose" if walled else "ob@"
-    if not _pool_policy_on():  # D-181/D-182: the governor may WANT to shed; the pool refuses
-        routine = "ob@ (pool OFF by ruling — shedding disabled)" if routine == "pool" else routine
-        incident = "ob@ (pool OFF by ruling)" if incident == "pool-diagnose" else incident
-    mx_txt = f"{mx:.0f}%" if mx is not None else "unknown"
-    tone = "crit" if walled else ("warn" if routine == "pool" else "ok")
-    return (
-        f'<section class="gov banner {tone}"><b>Quota governor · {escape(str(active or "—"))}</b> — '
-        f"max window {mx_txt} · reserve {_RESERVE_PCT:.0f}% · cap_walled {'yes' if walled else 'no'} · "
-        f"routine → <b>{routine}</b> · incident → <b>{incident}</b></section>"
-    )
-
-
 # the picker's session bar is `_session_bar()` — lazy + guarded (F4); the old import-time
 # `_TARGET_SESSION_MAX` constant bound before any monkeypatch and crashed on garbage
 
@@ -1247,8 +660,8 @@ def _governor_panel(payload: dict) -> str:
 def _display_order(payload: dict, now: float) -> list[dict]:
     """Rows in the order rotation will actually use — the account-only projection of `_queue`.
     ONE key and ONE clock: this used to carry its own copy of the perishable-first key (unknown
-    reset = now+365d, vs inf in `_queue_for_render`) and read `time.time()` while `render()` passed
-    `generated_at` — two copies that could disagree (review 2026-09-06, C5/C6)."""
+    reset = now+365d, vs inf in `_queue_for_render`) and read `time.time()` while the old page's
+    renderer passed `generated_at` — two copies that could disagree (review 2026-09-06, C5/C6)."""
     return [
         e["acct"]
         for e in _queue_for_render(payload, time.time() if now is None else now)
@@ -1410,10 +823,10 @@ def _eligible(a: dict, now: float | None = None) -> bool:
 # source with no slot and a slot with no source, so the list cannot drift from the corpus silently.
 _FABRIK_ROOT = Path(__file__).resolve().parents[2]
 # The external-services page (operator ask 2026-09-03): the STATIC file infra's daily chain regenerates
-# (scripts/gen_dashboard.py, 06:00 cron). This board only SERVES and EMBEDS it — never regenerates it.
+# (scripts/gen_dashboard.py, 06:00 cron). This board only SERVES and LINKS it — never regenerates it.
 # The amortized cost sidecar `claude_p_cost.py --refresh` rebuilds on the 06:00 cron. Read, never
-# recomputed here: the dashboard renders, the producer measures. Resolved AFTER _FABRIK_ROOT but used
-# only inside `_spend_panel`, so call-time resolution is what matters.
+# recomputed here: the dashboard renders, the producer measures. Resolved AFTER _FABRIK_ROOT but read
+# only inside `_spend_data`, so call-time resolution is what matters.
 _COST_SIDECAR = Path(
     os.getenv(
         "CLAUDE_P_COST", str(_FABRIK_ROOT / "scripts" / "kilo-benchmarks" / "claude_p_cost.json")
@@ -1423,23 +836,6 @@ _COST_SIDECAR = Path(
 EXT_SERVICES_HTML = Path(
     os.getenv("QUOTA_DASH_EXT_SERVICES", str(_FABRIK_ROOT / "external-services-dashboard.html"))
 )
-
-
-def _ext_services_intro() -> str:
-    """One line above the embedded page: when the generator last wrote it (its mtime), or that it has
-    not run yet — the chain's liveness contract is 'mtime <= 30 h', so the age is the useful fact."""
-    try:
-        age = time.time() - EXT_SERVICES_HTML.stat().st_mtime
-    except OSError:
-        return (
-            f'<p class="intro">External-services page not generated yet — expected at '
-            f"<code>{escape(str(EXT_SERVICES_HTML))}</code>, written daily by the external-services chain.</p>"
-        )
-    return (
-        f'<p class="intro">The fleet\'s external services &amp; credentials inventory, regenerated '
-        f"{age / 3600:.1f} h ago by the daily chain (<code>scripts/gen_dashboard.py</code>, 06:00) — "
-        f'embedded as-is; <a href="/external-services.html" target="_blank">open in its own tab</a>.</p>'
-    )
 
 
 PIPELINE_ORDER: tuple[str, ...] = (
@@ -1626,7 +1022,7 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         "pool",
         "pool",
         "OpenRouter subagent pool — OFF by ruling (D-181/D-182, 2026-09-07); a dot would mean a LIVE "
-        "fanout() / pick_models() call survives OUTSIDE the <!-- POOL OFF --> comments the corpus keeps for re-enable",
+        "fanout() / pick_models() call survives OUTSIDE the POOL OFF HTML comments the corpus keeps for re-enable",
         # a bare `libs/subagents` PATH is prose about the module, not a call into it (measured:
         # it alone credited fabrik-rivals, whose line names the key autoloader). An import IS a call.
         r"fanout\(|pick_models\(|`fanout`|`pick_models`|(?:from|import) libs\.subagents",
@@ -1636,7 +1032,7 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         "flywheel",
         "Flywheel recording — RETIRED with the pool (D-181/D-182, 2026-09-07): a native seat has no "
         "AgentResult, so nothing records and nothing is scored. A dot here means a LIVE record_agent_run() "
-        "or set_quality() call survived outside the <!-- POOL OFF --> comments",
+        "or set_quality() call survived outside the POOL OFF HTML comments",
         # the CALL form only: the D-181 banner names both symbols in its suspended-instruction
         # enumeration, which is a retirement notice, not a dispatch (and is blanked below anyway).
         r"record_agent_run\(|set_quality\(",
@@ -1906,48 +1302,20 @@ def _command_services(name: str) -> tuple[set[str], bool]:
     return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
 
 
-def _natives_cell(
-    natives: list[tuple[str, tuple[str, ...]]], rule: tuple[bool, tuple[str, ...]] = (False, ())
-) -> str:
-    if not natives:
-        return '<span class="muted">—</span>'
-    parts = []
-    for n, models in natives:
-        tiers = f" <em>({', '.join(models)})</em>" if models else ""
-        parts.append(f"{escape(n)}{tiers}")
-    floor, units = rule
-    count = []
-    if floor:
-        count.append("≥1 opus")
-    if units and units[0].startswith("!"):
-        count.append(escape(units[0][1:]))  # a FIXED floor, not a per-unit rule
-    elif units:
-        shown = ", ".join(escape(u) for u in units[:3]) + ("…" if len(units) > 3 else "")
-        count.append(f"1 per {shown}")
-    head = " + ".join(count) if count else "no per-unit rule"
-    return f"<strong>{head}</strong> · " + ", ".join(parts)
-
-
-def _tiers_cell(tiers: tuple[str, ...]) -> str:
-    if not tiers:
-        return '<span class="muted">—</span>'
-    return " · ".join(escape(x) for x in tiers)
-
-
 _BUDGET_TTL_S = 60
 _budget_lock = threading.Lock()
-# "data" is the parsed reading `_budget_data` serves beside the HTML; valid only while "html" is set
-_budget_cache: dict = {"ts": 0.0, "html": "", "data": None, "thread": None, "gen": 0}
+# "data" is the parsed reading `_budget_data` serves (None: invalidated or never read)
+_budget_cache: dict = {"ts": 0.0, "data": None, "thread": None, "gen": 0}
 
 
-def _budget_probe(gen: int | None = None) -> str:
-    """The slow half of the banner: ONE `dispatch_headroom.py --json` run — its `box_caps` carries the
-    read-only and the heavy bound from the same box probe, so the fleet quota round-trip happens once
-    per refresh, not twice (round-2 finding: the banner tripled probe volume on a module whose header
-    exists to bound it). NEVER on a request thread — see `_budget_banner`. Renders what the box AND
-    the quota allow right now (D-191 — the operator wants the maximum visible); a fleet HOLD says
-    "dispatch nothing" instead of the box number beside `hold=True`. Fail-soft to a one-line reason:
-    no panel may break the board."""
+def _budget_probe(gen: int | None = None) -> dict:
+    """The slow half of the box-budget line: ONE `dispatch_headroom.py --json` run — its `box_caps`
+    carries the read-only and the heavy bound from the same box probe, so the fleet quota round-trip
+    happens once per refresh, not twice (round-2 finding: the banner tripled probe volume on a module
+    whose header exists to bound it). NEVER on a request thread — see `_budget_cached`. Reads what the
+    box AND the quota allow right now (D-191 — the operator wants the maximum visible); a fleet HOLD
+    says "dispatch nothing" instead of the box number beside `hold=True`. Fail-soft to
+    ``{"error": …}``: no panel may break the board."""
     script = _FABRIK_ROOT / "scripts" / "sysadmin" / "dispatch_headroom.py"
     try:
         args = [sys.executable, str(script), "--units", "1", "--json"]
@@ -1955,16 +1323,14 @@ def _budget_probe(gen: int | None = None) -> str:
             subprocess.run(args, capture_output=True, text=True, timeout=45, check=True).stdout
         )
         data = {**_budget_reading(d), "read_at": time.time()}
-        html = _budget_html(data)
     except Exception as exc:  # noqa: BLE001 — a panel may never break the board
-        html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
         data = {"error": f"{type(exc).__name__}: {exc}"}
     with _budget_lock:
         # a probe that started before an invalidation (an account switch) must not land its
-        # OLD-account html with a fresh stamp: it writes only if its generation is still current
+        # OLD-account reading with a fresh stamp: it writes only if its generation is still current
         # (round-5 finding); a synchronous caller (`--once`) passes no generation
         if gen is None or gen == _budget_cache["gen"]:
-            _budget_cache.update(ts=time.time(), html=html, data=data)
+            _budget_cache.update(ts=time.time(), data=data)
         else:
             # orphaned: kick a probe for the CURRENT generation now, or the placeholder stays
             # until some later render happens to notice this thread is dead (round-6 finding)
@@ -1972,19 +1338,19 @@ def _budget_probe(gen: int | None = None) -> str:
             th = _budget_cache["thread"]
             # one re-kick at a time: K stale generations spawned K fleet probes (round-10 Opus)
             if th and th.is_alive() and th is not threading.current_thread():
-                return html
+                return data
             nxt = threading.Thread(
                 target=_budget_probe, args=(cur,), name="budget-banner", daemon=True
             )
             _budget_cache["thread"] = nxt
             nxt.start()
-    return html
+    return data
 
 
 def _budget_reading(d: dict) -> dict:
-    """The data half of the banner: one `dispatch_headroom.py --json` payload reduced to what the box
-    AND the quota allow now, per half — the numbers `_budget_html` prints, computed once. Raises on a
-    payload the banner cannot read (no ``box_caps``, a non-numeric cap), as the banner always has."""
+    """One `dispatch_headroom.py --json` payload reduced to what the box AND the quota allow now, per
+    half — the numbers the Overview's box-budget line prints, computed once. Raises on a payload the
+    line cannot read (no ``box_caps``, a non-numeric cap), as the banner always has."""
     caps = d.get("caps") or {}
     q = d.get("quota") or {}
     box_caps = d.get("box_caps")
@@ -2027,47 +1393,6 @@ def _budget_reading(d: dict) -> dict:
     }
 
 
-def _budget_html(r: dict) -> str:
-    """The HTML half of the banner, from `_budget_reading`'s dict — every value escaped once here."""
-    parts = []
-    for seat in r["seats"]:
-        box_cap, taken = seat["box"], seat["taken"]
-        parts.append(
-            f"{seat['label']} seats allowed now: <strong>{seat['allowed']}</strong> "
-            f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
-            + (
-                f" = the floor, {taken} reserved by sibling sessions"
-                if seat["floored"]
-                else (f" after {taken} reserved by sibling sessions" if taken else "")
-            )
-            + (f", quota {escape(str(seat['quota_cap']))}" if seat["has_quota_cap"] else "")
-            + ")"
-        )
-    q = r["quota"]
-    if r["hold"]:
-        quota = "<strong>FLEET HOLD — dispatch nothing until relief</strong>"
-    elif q.get("ok"):
-        quota = (
-            f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
-            f"{q.get('eligible')} cool standby(s) of "
-            f"{q.get('eligible_raw', q.get('eligible'))} eligible"
-        )
-    else:
-        quota = "quota: unknown"
-    caveats = r["caveats"]
-    return (
-        '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
-        + " · ".join(parts)
-        + f" · CLI cap {escape(str(r['cli_cap']))} · {quota}. The box is the ceiling — every fan-out "
-        "dispatches the SEATS the script prints: a review loop partitions its files into slices "
-        "(Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat) and sizes by "
-        "<code>--slices</code>; a grounding or adjudication surface sizes by <code>--units</code> "
-        "with the three-seat floor."
-        + (" ⚠️ " + " · ".join(escape(x) for x in caveats) if caveats else "")
-        + "</p>"
-    )
-
-
 def _all_reasons(d: dict) -> list:
     """Every half the probe carries — `reasons` (the run's own), `reasons_read_only`,
     `heavy_reasons` — deduped in order; a payload from a probe that predates the halves says so
@@ -2089,14 +1414,6 @@ def _all_reasons(d: dict) -> list:
             "probe payload predates heavy_reasons — the heavy half's caveats are not subtracted"
         )
     return out
-
-
-def _budget_caveats(d: dict) -> str:
-    """`_budget_caveat_lines`, rendered as the banner's tail (escaped once, here)."""
-    lines = _budget_caveat_lines(d)
-    if not lines:
-        return ""
-    return " ⚠️ " + " · ".join(escape(x) for x in lines)
 
 
 def _budget_caveat_lines(d: dict) -> list[str]:
@@ -2135,13 +1452,14 @@ def _budget_caveat_lines(d: dict) -> list[str]:
     return lines
 
 
-def _budget_cached() -> tuple[str, dict | None]:
-    """The cached banner and its reading. A stale cache starts ONE background refresh and returns what
-    it has — never a subprocess on the caller's thread."""
+def _budget_cached() -> dict | None:
+    """The cached reading (None: invalidated or never read). A stale cache starts ONE background
+    refresh and returns what it has — never a subprocess on the caller's thread: the probe is a
+    subprocess with a fleet round-trip inside it, and a view is served on a request thread (the
+    page hang of 2026-08-18)."""
     with _budget_lock:
-        fresh = time.time() - _budget_cache["ts"] < _BUDGET_TTL_S and _budget_cache["html"]
-        html = _budget_cache["html"]
-        data = _budget_cache.get("data") if html else None  # an invalidated html voids its reading
+        data = _budget_cache.get("data")
+        fresh = time.time() - _budget_cache["ts"] < _BUDGET_TTL_S and data is not None
         th = _budget_cache["thread"]
         if not fresh and not (th and th.is_alive()):
             th = threading.Thread(
@@ -2152,123 +1470,19 @@ def _budget_cached() -> tuple[str, dict | None]:
             )
             _budget_cache["thread"] = th
             th.start()
-    return html, data
-
-
-def _budget_banner() -> str:
-    """One line above the commands table, served from a 60 s cache. A stale cache starts ONE
-    background refresh and returns what it has (or a placeholder) — the probe is a subprocess
-    with a fleet round-trip inside it, and `generate()` is reachable synchronously from a request
-    (`_fresh_html`'s pointer-moved branch, `switch_account`), the exact page-hang `_fresh_html`'s
-    docstring records as fixed on 2026-08-18. `QUOTA_DASH_BUDGET=0` disables it (tests)."""
-    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
-        return ""  # a test or a headless render that must not shell out to the fleet probe
-    html, _data = _budget_cached()
-    return html or '<p class="muted">Box budget: computing (dispatch_headroom.py) …</p>'
+    return data
 
 
 def _budget_data() -> dict:
-    """The data half of `_budget_banner`, from the same cache and the same background refresh:
+    """The box-budget reading the Overview's Health strip shows, from `_budget_cached`:
     `_budget_reading`'s dict (its ``caveats`` plain strings, for the view to escape once), or
     ``{"error": …}`` when the probe failed, ``{"computing": True}`` before the first reading lands,
-    ``{"disabled": True}`` under `QUOTA_DASH_BUDGET=0`."""
+    ``{"disabled": True}`` under `QUOTA_DASH_BUDGET=0` (a test or a headless run that must not shell
+    out to the fleet probe)."""
     if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
         return {"disabled": True}
-    _html, data = _budget_cached()
+    data = _budget_cached()
     return data if data else {"computing": True}
-
-
-def _commands_table(rows: list[dict[str, str]]) -> str:
-    body = []
-    for i, r in enumerate(rows, 1):
-        stage = r["stage"] or "—"
-        body.append(
-            f'<tr><td class="ord">{i}</td>'
-            f'<td class="cmd"><strong>/{escape(r["name"])}</strong></td>'
-            f'<td><span class="badge {_stage_tone(r["stage"])}">{escape(stage)}</span></td>'
-            f"<td>{escape(r['purpose'])}</td>"
-            f'<td class="when">{escape(r["when"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{escape(r["skip"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{_natives_cell(r.get("natives") or [], r.get("rule") or (False, ()))}</td>'
-            f'<td class="when">{_tiers_cell(r.get("tiers") or ())}</td></tr>'
-        )
-    return (
-        _budget_banner()
-        + "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
-        "<th>When to use</th><th>Skip when</th><th>Next</th>"
-        "<th title=\"Native Claude Task subagent types the command's LIVE text names (the pool is OFF by "
-        "ruling, D-181/D-182 — every fan-out is native) and the model tier named beside each; "
-        "SEATS PER ROUND first — the command's own dispatch rule, which is what a reader wants when "
-        "they ask how many subagents it calls: an Opus authoritative floor where it has one, plus ONE "
-        "seat per INDEPENDENT unit of the surface (D-186), so the seat count is the UNIT count, never "
-        "a fixed number. Then the seat TYPES it names, each with the model tier written beside "
-        'it">Native subagents</th>'
-        '<th title="Every model tier the command&#39;s OWN steps name — including one no '
-        "seat mention is near, like a tiering paragraph&#39;s &quot;Haiku only for "
-        'trivial-mechanical checks&quot;">Model tiers</th></tr></thead>'
-        f"<tbody>{''.join(body)}</tbody></table>"
-    )
-
-
-def _ext_matrix_intro(rows: list[dict]) -> str:
-    """One line above the matrix: the denominator, where the text came from, and the maintenance
-    contract — a service missing from `_EXT_SERVICES` is the only way this can be wrong."""
-    n = len(rows)
-    unrendered = [r["name"] for r in rows if not r["rendered"]]
-    caveat = ""
-    if unrendered:
-        caveat = (
-            f" <b>{len(unrendered)} of {n} rows did NOT come from the rendered corpus</b> "
-            f"({', '.join(escape(u) for u in unrendered[:6])}"
-            f"{', …' if len(unrendered) > 6 else ''}) — they fell back to <code>_sources/</code>, or "
-            f"could not be read at all. The assembler appends the shared pool and mail fragments, so "
-            f"they UNDER-report; re-render with <code>commands/assemble_commands.py</code> from master."
-        )
-    n_rendered = n - len(unrendered)
-    return (
-        f'<p class="intro">Which outside-the-box service each command actually reaches — read from '
-        f"the corpus itself ({n_rendered} of {n} rows from the rendered "
-        f"commands under <code>{escape(str(RENDERED_COMMANDS))}</code>), so the DOTS are never typed "
-        f"here. A dot means the command "
-        f"names that service's own <b>invocation token</b> (<code>fanout(</code>, <code>WebSearch</code>, "
-        f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it merely mentions the "
-        f"service in prose. Read it as a good index, not a proof: it is a literal text match over the "
-        f"command, so it reads no NEGATIONS (a token named only to say it does <i>not</i> apply is "
-        f"still credited), and it re-reads a command when that file's mtime or size changes — a "
-        f"rewrite that preserves both is invisible to it. "
-        f"Hover a column head for the full name. The COLUMNS are the one hand-held half: <b>adding a new "
-        f"external service to the fleet means adding a row to <code>_EXT_SERVICES</code> in "
-        f"<code>scripts/sysadmin/quota_dashboard.py</code></b>.{caveat}</p>"
-    )
-
-
-def _ext_matrix_table(rows: list[dict]) -> str:
-    """The command x service matrix, with a totals row carrying its own denominator (a count with
-    no denominator is indistinguishable from having looked at nothing — CLAUDE.md § HARD STOPS)."""
-    n = len(rows)
-    head = "".join(
-        f'<th class="svc" title="{escape(title)}">{escape(label)}</th>'
-        for _key, label, title, _pat in _EXT_SERVICES
-    )
-    body = []
-    for r in rows:
-        cells = "".join(
-            '<td class="dot on">&#9679;</td>'
-            if key in r["services"]
-            else '<td class="dot">&middot;</td>'
-            for key, _lbl, _t, _p in _EXT_SERVICES
-        )
-        body.append(f'<tr><td class="cmd"><strong>/{escape(r["name"])}</strong></td>{cells}</tr>')
-    totals = "".join(
-        f'<td class="dot tot">{sum(1 for r in rows if key in r["services"])}</td>'
-        for key, _lbl, _t, _p in _EXT_SERVICES
-    )
-    return (
-        f'<table class="matrix"><thead><tr><th>Command</th>{head}</tr></thead>'
-        f"<tbody>{''.join(body)}</tbody>"
-        f'<tfoot><tr><td class="cmd tot">of {n}</td>{totals}</tr></tfoot></table>'
-    )
 
 
 # ── Repos tab (operator ask 2026-10-11) ─────────────────────────────────────────────────────────
@@ -2278,11 +1492,11 @@ def _ext_matrix_table(rows: list[dict]) -> str:
 # not done/dropped, not hidden by a closed marker. "Remaining" and "claimed" are work.py's own
 # rules, imported by path — a second copy of the closed-marker rule would drift from it.
 #
-# ISOLATION: this is its own page, GET /repos.html, built on request in the handler thread under
-# its own lock and cached REPOS_TTL_S. It never runs inside generate(), so a slow or broken store
-# can neither stall the 20 s probe loop nor delay the rotation trigger, and the main page never
-# carries the ~0.5 MB of rows. Every git call work.py makes here is capped at 1 s
-# (`_hook_git_budget`); a repo that still fails shows its own banner and the others list.
+# ISOLATION: the Work and Overview views read it on request in the handler thread, through
+# `_cached_collect` (cached REPOS_TTL_S under its own lock). It never runs inside generate(), so a
+# slow or broken store can neither stall the 20 s probe loop nor delay the rotation trigger. Every
+# git call work.py makes here is capped at 1 s (`_hook_git_budget`); a repo that still fails shows
+# its own banner and the others list.
 _HUB_OWNERS = ("coordinator", "infra", "fleet", "intel", "kaizen", "operator")
 # The hub agents whose owner chip and section show in every repo pane, even with nothing open, so
 # "kaizen has nothing" and "kaizen is missing" never look the same (operator ask 2026-10-11).
@@ -2293,11 +1507,10 @@ NEXT_TIP_CAP = (
     600  # and so is its tooltip — an uncapped tooltip re-adds the whole MB (measured 1.69 MB)
 )
 _repos_lock = threading.Lock()
-_repos_cache: tuple[float, str] | None = None
-_repos_gen = 0  # bumped by every board write; a build that saw it move is not cached
-# The views' copies of the two collectors /repos.html reads, cached the same REPOS_TTL_S under the SAME
-# lock and dropped by the same board write — so a collector never sees two concurrent callers (its
-# warnings sink is one list) and runs no more often than /repos.html already runs it.
+_repos_gen = 0  # bumped by every board write; a collect that saw it move is not cached
+# The two collectors the Work and Overview views read, cached REPOS_TTL_S under ONE lock and dropped by
+# a board write — so a collector never sees two concurrent callers (its warnings sink is one list) and
+# runs at most once per REPOS_TTL_S however many views and tabs refresh.
 _work_cache: tuple[float, list[dict] | Exception] | None = None
 _box_cache: tuple[float, dict | Exception] | None = None
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
@@ -2372,10 +1585,10 @@ def _collect_work(opt: Path) -> list[dict]:
 
 def _cached_collect(which: str, collect):
     """``collect()`` cached REPOS_TTL_S under `_repos_lock`, dropped by a board write
-    (`_drop_repos_cache`) exactly as `_repos_page` caches its page. A collector that RAISES is cached
-    too, and the same error is raised again until the entry expires — a failing (perhaps slow)
-    collector re-run on every render, under the lock, would cost more than /repos.html does. A write
-    that landed while it ran makes the result served once, never cached."""
+    (`_drop_repos_cache`). A collector that RAISES is cached too, and the same error is raised again
+    until the entry expires — a failing (perhaps slow) collector re-run on every render, under the
+    lock, would hold every view behind it. A write that landed while it ran makes the result served
+    once, never cached."""
     global _work_cache, _box_cache
     with _repos_lock:
         now = time.time()
@@ -2416,191 +1629,6 @@ def _owner_order(owners: set[str]) -> list[str]:
     return hub + rest + ([""] if "" in owners else [])
 
 
-def _verdict_cell(item: dict, repo: str) -> str:
-    """The operator's Accept / Reject buttons and comment box for one row, under the item's last
-    comment (W-e1f1a1bd). An awaiting item that is no decision takes comments only (work.py's rule)."""
-    data = f'data-repo="{escape(repo)}" data-item="{escape(str(item.get("id", "")))}"'
-    raw = item.get("comments")
-    log: list = raw if isinstance(raw, list) else []
-    last = log[-1] if log and isinstance(log[-1], dict) else None
-    out = ""
-    if last:
-        words = _cap(str(last.get("text") or ""), 120)
-        more = f" · {len(log)} notes" if len(log) > 1 else ""
-        head = " ".join(
-            escape(str(last.get(k) or d)) for k, d in (("by", "operator"), ("action", "note"))
-        )
-        ago = _ago(last.get("at"))
-        out += (
-            f'<div class="iv-last">{head}{(": " + escape(words)) if words else ""}'
-            f"{(', ' + escape(ago)) if ago else ''}{more}</div>"
-        )
-    if not (item.get("status") == "awaiting-operator" and item.get("kind") != "decision"):
-        out += (
-            f'<button type="button" class="iv-btn" {data} data-action="accept">Accept</button>'
-            f'<button type="button" class="iv-btn" {data} data-action="reject">Reject</button>'
-        )
-    return (
-        out
-        + f'<input type="text" class="iv-text" {data} maxlength="200" placeholder="comment — Enter saves">'
-    )
-
-
-def _repo_pane(r: dict, shown: bool) -> str:
-    name = str(r["name"])
-    out = [f'<div class="repo" data-repo="{escape(name)}"{"" if shown else " hidden"}>']
-    if r["error"]:
-        out.append(
-            f'<div class="banner crit">{escape(name)}: the work store could not be read — '
-            f"{escape(r['error'])}</div></div>"
-        )
-        return "".join(out)
-    if r.get("skipped"):
-        named = "; ".join(escape(str(w)) for w in r["skipped"][:3])
-        more = f" (+{len(r['skipped']) - 3} more)" if len(r["skipped"]) > 3 else ""
-        out.append(
-            f'<div class="banner warn">{len(r["skipped"])} unreadable work-store file(s) skipped '
-            f"— an item, claim or closed marker: {named}{more}</div>"
-        )
-    items = r["items"]
-    if not items:
-        out.append('<p class="intro">No remaining work in this repo.</p></div>')
-        return "".join(out)
-    count = lambda rows, st: sum(1 for i in rows if i.get("status") == st)  # noqa: E731
-    claimed = lambda rows: sum(1 for i in rows if i.get("_claim"))  # noqa: E731
-    groups: dict[str, list[dict]] = {}
-    for it in items:
-        # a decision waiting on the operator carries no owner: it is the operator's, never "(unassigned)"
-        # (operator 2026-10-15, W-7159f8e2); an OWNED awaiting item stays with its owner
-        owner = str(it.get("owner") or "")
-        if not owner and it.get("status") == "awaiting-operator":
-            owner = "operator"
-        groups.setdefault(owner, []).append(it)
-    out.append(
-        f'<p class="intro"><strong>{len(items)}</strong> remaining · '
-        f"{count(items, 'awaiting-operator')} awaiting the operator · {count(items, 'blocked')} "
-        f"blocked · {claimed(items)} claimed now · {len(groups)} owner(s) with items</p>"
-    )
-    # Every hub agent and the empty owner get a chip and a section even at 0. The empty owner is
-    # labelled "(unassigned)" so a literal owner named "unassigned" stays distinguishable.
-    owners = _owner_order(set(groups) | set(_HUB_AGENTS) | {""})
-    label = lambda o: o or "(unassigned)"  # noqa: E731
-    chips = [f'<button type="button" data-all>All <span>{len(items)}</span></button>']
-    chips += [
-        f'<button type="button" data-owner="{escape(o)}">{escape(label(o))} '
-        f"<span>{len(groups.get(o, []))}</span></button>"
-        for o in owners
-    ]
-    out.append(f'<div class="owners">{"".join(chips)}</div>')
-    for owner in owners:
-        rows = sorted(
-            groups.get(owner, []),
-            key=lambda i: (i.get("status") != "awaiting-operator", i["_prio"], str(i.get("id"))),
-        )
-        meta = (
-            f"{count(rows, 'awaiting-operator')} awaiting · {count(rows, 'blocked')} blocked · "
-            f"{claimed(rows)} claimed"
-        )
-        out.append(
-            f'<details class="og" data-owner="{escape(owner)}"><summary>'
-            f'<h3 class="owner">{escape(label(owner))} <span>{len(rows)}</span></h3> '
-            f'<span class="og-meta">{meta}</span></summary>'
-        )
-        if not rows:
-            out.append('<p class="intro">No open items.</p></details>')
-            continue
-        body = []
-        for i in rows:
-            nxt = str(i.get("next") or "")
-            raw = i.get("tags") or []
-            tag_list = [str(t) for t in (raw if isinstance(raw, list) else [raw]) if t]
-            tags = ", ".join(tag_list)
-            body.append(
-                f'<tr data-tags="{escape(" ".join(tag_list))}">'
-                f"<td><code>{escape(str(i.get('id', '')))}</code></td>"
-                f"<td>{escape(str(i.get('kind', '')))}</td>"
-                f'<td class="st-{escape(str(i.get("status", "")))}">{escape(str(i.get("status", "")))}</td>'
-                f"<td>P{i['_prio']}</td>"
-                f"<td>{escape(str(i.get('title', '')))}</td>"
-                f'<td title="{escape(_cap(nxt, NEXT_TIP_CAP))}">{escape(_cap(nxt, NEXT_CAP))}</td>'
-                f"<td>{escape(tags)}</td>"
-                f"<td>{('claimed by ' + escape(i['_claim'])) if i.get('_claim') else ''}</td>"
-                f"<td>{_verdict_cell(i, name)}</td>"
-                "</tr>"
-            )
-        out.append(
-            "<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>"
-            "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th><th>Operator</th></tr></thead>"
-            f"<tbody>{''.join(body)}</tbody></table></details>"
-        )
-    out.append("</div>")
-    return "".join(out)
-
-
-_REPOS_STYLE = """
- :root { color-scheme: light dark;
-   --bg:#f6f7f9; --card:#fff; --fg:#14161a; --sub:#666e7a; --line:#e3e6ea;
-   --warn:#c47f14; --crit:#c8402f; --accent:#3b6fd4; }
- @media (prefers-color-scheme: dark) { :root {
-   --bg:#0f1216; --card:#171b21; --fg:#e8ecf1; --sub:#98a1ae; --line:#242a33;
-   --warn:#e8b04b; --crit:#ff6b57; --accent:#6f9bff; } }
- * { box-sizing:border-box; }
- body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
-   font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
- .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
- .bar select { font:inherit; padding:6px 10px; border-radius:8px; border:1px solid var(--line);
-   background:var(--card); color:var(--fg); min-width:16rem; }
- .bar a, .stamp { color:var(--sub); font-size:13px; }
- .intro { color:var(--sub); margin:6px 0 12px; }
- .banner { padding:10px 14px; border-radius:8px; margin-bottom:12px; }
- .banner.warn { background:color-mix(in srgb, var(--warn) 16%, transparent); border:1px solid var(--warn); }
- .banner.crit { background:color-mix(in srgb, var(--crit) 16%, transparent); border:1px solid var(--crit); }
- h3.owner { margin:20px 0 8px; font-size:15px; }
- .owners { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; }
- .owners button { font:inherit; font-size:13px; padding:4px 10px; border-radius:999px; cursor:pointer;
-   border:1px solid var(--line); background:var(--card); color:var(--fg); }
- .owners button span { color:var(--sub); }
- .owners button.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, transparent); }
- details.og { margin:10px 0; }
- details.og > summary { cursor:pointer; padding:4px 0; }
- details.og > summary h3.owner { display:inline; margin:0; }
- .og-meta { color:var(--sub); font-size:12px; margin-left:8px; }
- h3.owner span { color:var(--sub); font-weight:400; }
- table { width:100%; border-collapse:separate; border-spacing:0; background:var(--card);
-   border:1px solid var(--line); border-radius:10px; overflow:hidden; }
- th, td { padding:8px 10px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
- thead th { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--sub); }
- tbody tr:last-child td { border-bottom:none; }
- td code { white-space:nowrap; }
- td.st-awaiting-operator { color:var(--warn); font-weight:600; }
- td.st-blocked { color:var(--crit); }
- section.agents { margin:0 0 20px; }
- section.agents h2 { font-size:16px; margin:4px 0 6px; }
- h4.ag-name { margin:14px 0 6px; font-size:14px; }
- h4.ag-name span { color:var(--sub); font-weight:400; font-size:12px; }
- table.ag td.ag-who { white-space:nowrap; font-weight:600; }
- .ag-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600;
-   border:1px solid var(--line); white-space:nowrap; }
- .ag-chip.working { color:#1f8a4c; border-color:#1f8a4c; background:color-mix(in srgb, #1f8a4c 14%, transparent); }
- .ag-chip.idle { color:var(--accent); border-color:var(--accent); }
- .ag-chip.stale { color:var(--warn); border-color:var(--warn); }
- .ag-chip.away { color:var(--sub); }
- .ag-sub { color:var(--sub); font-size:12px; }
- .ag-btn { font:inherit; font-size:12px; margin-top:4px; padding:2px 10px; border-radius:999px; cursor:pointer;
-   border:1px solid var(--line); background:var(--card); color:var(--fg); }
- .ag-btn[data-action="resume"] { border-color:var(--accent); color:var(--accent); }
- .ag-btn:disabled { opacity:.5; cursor:default; }
- table.ag ul { margin:0; padding-left:16px; }
- .iv-last { color:var(--sub); font-size:12px; max-width:28ch; }
- .iv-btn { font:inherit; font-size:12px; margin:2px 4px 2px 0; padding:1px 8px; border-radius:999px; cursor:pointer;
-   border:1px solid var(--line); background:var(--card); color:var(--fg); }
- .iv-btn[data-action="accept"] { border-color:#1f8a4c; color:#1f8a4c; }
- .iv-btn[data-action="reject"] { border-color:var(--crit); color:var(--crit); }
- .iv-btn:disabled, .iv-text:disabled { opacity:.5; cursor:default; }
- .iv-text { font:inherit; font-size:12px; width:22ch; padding:1px 6px; border-radius:6px;
-   border:1px solid var(--line); background:var(--card); color:var(--fg); }
-"""
-
 # ── Agents block on the Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────────────────
 # "i also want to see which agents is active and working on what … for all repos". The data is
 # scripts/agent_status.py::collect_box — derived from the process table, run records and claims, never
@@ -2630,81 +1658,6 @@ def _status_module():
     return _status_mod[1]
 
 
-def _item_line(item: dict) -> str:
-    """An item id is never shown bare: its title rides beside it (operator: "i cant understand what is
-    W-41c1ec56 i need explanation for it too")."""
-    title = _cap(str(item.get("title") or "(no title)"), 110)
-    return f"<code>{escape(str(item.get('id', '')))}</code> {escape(title)}"
-
-
-def _pause_cell(a: dict, repo: str) -> str:
-    """Who paused the agent, and its Pause/Resume button — only where `work.py pause` can succeed
-    (an agent name in a repo whose store has config.json; W-7159f8e2 part 3)."""
-    paused = a.get("paused") or None
-    out = ""
-    if paused:
-        some = " — only some of its windows" if paused.get("partial") else ""
-        out += (
-            f'<div class="ag-sub">paused by {escape(str(paused.get("by") or "?"))}, '
-            f"{escape(_ago(paused.get('at')))}{some}</div>"
-        )
-        if not a.get("pause_honoured"):
-            out += '<div class="ag-sub">not honoured here until this repo\'s work.py syncs</div>'
-    if a.get("can_pause"):
-        action = "resume" if paused else "pause"
-        out += (
-            f'<button type="button" class="ag-btn" data-repo="{escape(repo)}" '
-            f'data-agent="{escape(str(a.get("name", "")))}" data-action="{action}">'
-            f"{'Resume' if paused else 'Pause'}</button>"
-        )
-    return out
-
-
-def _agent_row(a: dict, repo: str = "") -> str:
-    state = str(a.get("state") or "away")
-    chip = f'<span class="ag-chip {escape(state)}" title="{escape(_AG_STATES.get(state, state))}">{escape(state)}</span>'
-    chip += _pause_cell(a, repo)
-    now = a.get("now") or {}
-    if now:
-        phase = f" phase {now.get('phase')}/{now.get('phases')}" if now.get("phases") else ""
-        now_cell = (
-            f"<code>/{escape(str(now.get('command', '')))}</code>{escape(phase)}"
-            f'<div class="ag-sub">{escape(_cap(str(now.get("surface") or ""), 140))}</div>'
-            f'<div class="ag-sub">updated {escape(_ago(now.get("updated_ts")))}</div>'
-        )
-    else:
-        now_cell = '<span class="ag-sub">no running command</span>'
-    claim = a.get("claim")
-    holds = _item_line(claim) if claim else '<span class="ag-sub">—</span>'
-    nxt = a.get("next") or {}
-    top = nxt.get("top") or []
-    more = int(nxt.get("queued") or 0) - len(top)
-    next_cell = (
-        ("<ul>" + "".join(f"<li>{_item_line(i)}</li>" for i in top) + "</ul>") if top else ""
-    )
-    next_cell += f'<div class="ag-sub">+{more} more queued</div>' if more > 0 else ""
-    next_cell = next_cell or '<span class="ag-sub">nothing queued</span>'
-    merges = a.get("merges") or []
-    if merges:
-        m = merges[0]
-        merge_cell = f"<code>{escape(str(m.get('sha', '')))}</code> {escape(_ago(m.get('ts')))}"
-        if m.get("item"):
-            merge_cell += f' <span class="ag-sub">{escape(str(m["item"]))}</span>'
-    elif a.get("merge_owner"):
-        merge_cell = '<span class="ag-sub">merge owner (merges others)</span>'
-    else:
-        merge_cell = '<span class="ag-sub">—</span>'
-    who = f'<td class="ag-who">{escape(str(a.get("name", "")))}'
-    if a.get("named_from") == "record":  # a main-checkout window carries no name of its own
-        who += '<div class="ag-sub">named from its last run</div>'
-    if int(a.get("windows") or 0) > 1:
-        who += f'<div class="ag-sub">{int(a["windows"])} windows</div>'
-    return (
-        f"<tr>{who}</td><td>{chip}</td>"
-        f"<td>{now_cell}</td><td>{holds}</td><td>{next_cell}</td><td>{merge_cell}</td></tr>"
-    )
-
-
 # ── Pause / Resume from the board (operator 2026-10-15: "i want a button to be added there to send
 # pause command to running agent" + "also the resume button"; W-7159f8e2 part 3). The board acts
 # only on a (repo, agent) pair it rendered with a button, through the HUB's work.py (`--repo` the
@@ -2716,7 +1669,7 @@ def _agent_row(a: dict, repo: str = "") -> str:
 # COBRA: the cheapest "working button" lets the server's own identity through — the test sets
 # CLAUDE_AGENT, CLAUDE_CODE_SESSION_ID and GIT_DIR on the server and asserts the operator's marker.
 _PAUSE_TARGETS: dict[tuple[str, str], dict] = {}  # REPLACED whole on each build, never mutated
-# Every publisher's last targets, by slice: a view's name, or "repos" for /repos.html's build. The two
+# Every publisher's last targets, by slice: the name of the view that rendered them. The two
 # registries above and `_ITEM_TARGETS` are the UNION, recomputed whole on each publish, so one view's
 # refresh never evicts another view's buttons; a publisher that failed replaces ITS slice with [].
 _TARGET_SLICES: dict[str, dict[str, dict]] = {"pause": {}, "item": {}}
@@ -2768,7 +1721,7 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
         return 400, {"ok": False, "error": "body needs repo, agent and action pause|resume"}
     target = _PAUSE_TARGETS.get((repo, agent))
     if target is None:  # a restarted server, or a frame older than the last build: rebuild once
-        _repos_page(fresh=True)
+        _rebuild_targets("overview")  # the view whose Agents table carries Pause / Resume
         target = _PAUSE_TARGETS.get((repo, agent))
     if target is None:
         return 400, {
@@ -2829,8 +1782,16 @@ def _run_work(main: str, runs: list[list[str]]) -> tuple[int, dict]:
 # guard as Pause/Resume (D-916). What accept and reject do to an item stays work.py's.
 # (repo, id) -> (main checkout, the tree the card was read from); the union of every slice, REPLACED whole
 _ITEM_TARGETS: dict[tuple[str, str], tuple[str, str]] = {}
-# The date after which a verdict with no snapshot token is refused (T07 sets it); None: always accepted.
-_LEGACY_TOKEN_UNTIL: date | None = None
+# The last day of the 14-day window after the redesign (T07, coded 2026-10-17): until it ends a verdict
+# with no snapshot token — a page loaded before the redesign — is accepted and `/repos.html` redirects
+# to `/#work`; after it the verdict is refused 409 and `/repos.html` is 404 (spec § Lifecycle, § Which
+# actions confirm: one date for both). A work item removes the redirect and this legacy branch on it.
+_LEGACY_TOKEN_UNTIL: date | None = date(2026, 10, 31)
+
+
+def _legacy_window_open(today: date | None = None) -> bool:
+    """True through `_LEGACY_TOKEN_UNTIL` (local date, inclusive); always True while it is None."""
+    return _LEGACY_TOKEN_UNTIL is None or (today or date.today()) <= _LEGACY_TOKEN_UNTIL
 
 
 def _publish_item_targets(repos: list[dict], slice_: str = "repos") -> None:
@@ -2873,11 +1834,7 @@ def _token_refusal(main: str, root: str, item: str, token: object) -> str | None
     (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before work.py takes its store
     lock — the window between the two is accepted (one operator, one board)."""
     if token is None:
-        return (
-            "changed"
-            if _LEGACY_TOKEN_UNTIL is not None and date.today() > _LEGACY_TOKEN_UNTIL
-            else None
-        )
+        return None if _legacy_window_open() else "changed"
     if Path(item).name != item:  # the target lookup admits only listed ids; never a path
         return "changed"
     seen = _tree_token(root, item)
@@ -2905,7 +1862,7 @@ def item_verdict(
         return 400, {"ok": False, "error": f"{action} needs the operator's words"}
     target = _ITEM_TARGETS.get((repo, item))
     if target is None:  # a restarted server, or a frame older than the last build: rebuild once
-        _repos_page(fresh=True)
+        _rebuild_targets("work")  # it lists every open item; the Overview, awaiting ones only
         target = _ITEM_TARGETS.get((repo, item))
     if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
@@ -2934,687 +1891,24 @@ def item_verdict(
     )
 
 
-def _agents_block() -> str:
-    """Every repo's agents: fabrik first, then repos with an agent working, then the others with one."""
-    try:
-        data = _status_module().collect_box(_opt_root())
-    except Exception as exc:  # the Repos panes below never depend on this block
-        _publish_pause_targets([])  # no board, no buttons: an older frame's pair acts on nothing
-        return (
-            '<section class="agents"><h2>Agents — every repo</h2><div class="banner crit">Agents '
-            f"unreadable — {escape(type(exc).__name__)}: {escape(str(exc))}</div></section>"
-        )
-    repos = [r for r in data.get("repos", []) if r.get("agents") or r.get("error")]
-    quiet = len(data.get("repos", [])) - len(repos)
-    _publish_pause_targets(repos)
-    repos.sort(
-        key=lambda r: (
-            r.get("name") != "fabrik",
-            not any(a.get("state") == "working" for a in r.get("agents", [])),
-            str(r.get("name")),
-        )
-    )
-    counts = dict.fromkeys(_AG_STATES, 0)
-    for r in repos:
-        for a in r.get("agents", []):
-            counts[str(a.get("state"))] = counts.get(str(a.get("state")), 0) + 1
-    out = [
-        '<section class="agents"><h2>Agents — every repo</h2>'
-        f'<p class="intro">{counts["working"]} working · {counts["idle"]} idle · {counts["stale"]} stale · '
-        f"{counts['away']} with no window · {quiet} repo(s) with no recent agent. Read from the open "
-        "windows, the agents' run records (last 7 days) and their claims — no record, or an old one, "
-        "means ask the agent.</p>"
-    ]
-    for r in repos:
-        dormant = int(r.get("dormant") or 0)
-        extra = f" <span>· {dormant} dormant (seen over 7 days ago)</span>" if dormant else ""
-        out.append(f'<h4 class="ag-name">{escape(str(r.get("name")))}{extra}</h4>')
-        if r.get("error"):
-            out.append(f'<div class="banner crit">{escape(str(r["error"]))}</div>')
-            continue
-        try:  # a malformed row is that repo's banner, never the page's (the panes must still render)
-            rows = "".join(_agent_row(a, str(r.get("name") or "")) for a in r.get("agents", []))
-        except Exception as exc:
-            out.append(
-                f'<div class="banner crit">agents unreadable — {escape(type(exc).__name__)}: '
-                f"{escape(str(exc))}</div>"
-            )
-            continue
-        out.append(
-            '<table class="ag"><thead><tr><th>Agent</th><th>State</th><th>Now</th><th>Holds</th>'
-            f"<th>Next</th><th>Last merge</th></tr></thead><tbody>{rows}</tbody></table>"
-        )
-    out.append("</section>")
-    return "".join(out)
-
-
-def _safe_pane(r: dict, shown: bool) -> str:
-    """One repo's pane; a malformed item in it becomes that repo's banner, never the page's."""
-    try:
-        return _repo_pane(r, shown)
-    except Exception as exc:
-        name = escape(str(r.get("name", "?")))
-        return (
-            f'<div class="repo" data-repo="{name}"{"" if shown else " hidden"}>'
-            f'<div class="banner crit">{name}: an item could not be rendered — '
-            f"{escape(type(exc).__name__)}: {escape(str(exc))}</div></div>"
-        )
-
-
-def _repos_body() -> str:
-    try:
-        repos = _repo_order(_collect_work(_opt_root()))
-    except Exception as exc:  # the whole read failed: say so here; the quota board is untouched
-        _publish_item_targets([])  # no rows, no buttons: an older frame's pair acts on nothing
-        return (
-            f'<div class="banner crit">Work stores unreadable — {escape(type(exc).__name__)}: '
-            f"{escape(str(exc))}</div>"
-        )
-    _publish_item_targets(repos)
-    if not repos:
-        return (
-            f'<p class="intro">No repo under {escape(str(_opt_root()))} keeps a '
-            "<code>.fabrik/work</code> store.</p>"
-        )
-    total = sum(len(r["items"]) for r in repos)
-    opts = "".join(
-        f'<option value="{escape(str(r["name"]))}">{escape(str(r["name"]))} ({len(r["items"])})</option>'
-        for r in repos
-    )
-    # the same reading as a row's data-tags (_repo_pane): a hand-edited string is one tag
-    tags = sorted(
-        {
-            str(t)
-            for r in repos
-            for i in r["items"]
-            for t in (i.get("tags") if isinstance(i.get("tags"), list) else [i.get("tags")])
-            if t
-        }
-    )
-    tag_opts = "".join(f'<option value="{escape(t)}">' for t in tags)
-    panes = "".join(_safe_pane(r, i == 0) for i, r in enumerate(repos))
-    return (
-        f'<div class="bar"><label>Repo <select id="repo-pick">{opts}</select></label>'
-        '<label>Tag <input id="tag-pick" list="tag-list" size="24" placeholder="every tag"></label>'
-        f'<datalist id="tag-list">{tag_opts}</datalist>'
-        f'<a href="/repos.html?fresh=1">refresh</a></div>'
-        f'<p class="intro">{len(repos)} repos keep a <code>.fabrik/work</code> store · {total} '
-        "remaining items in all of them (open, blocked or awaiting the operator; done and dropped "
-        "are not shown) · grouped by owner, the hub's agents first.</p>"
-        f"{panes}"
-    )
-
-
-# The owner chips, one IIFE of their own so an error here cannot take the repo picker with it.
-# Per pane (every div.repo, keyed by its data-repo); sections are found by iterating details.og and
-# comparing data-owner, never by a selector built from an owner name. Stored keys cannot collide:
-# "*" is All, "~" the empty owner and every named owner is "=" + its name (a hand-edited owner
-# literally "*" or "~" stays its own key); only a MISSING (null) or unknown key falls back to All,
-# so the empty owner can never read as "nothing stored". Under All the sections the operator opened
-# are remembered too (the Repos frame is rebuilt on every return to the tab), and each toggle
-# re-reads that list before writing it, so a second frame never writes back a stale copy. Each pane
-# runs in its own try, so one pane's error leaves the others working. A NAMED function, called once on
-# load and again by the in-place refresh after each swap of #live (W-7159f8e2): the swapped panes are
-# new nodes, so their listeners are bound once and the stored choices are re-applied.
-_OWNER_FILTER_JS = (
-    "function initOwners() {"
-    ' function key(o) { return o === "" ? "~" : "=" + o; }'
-    ' function chipKey(b) { return b.hasAttribute("data-all") ? "*" : key(b.getAttribute("data-owner")); }'
-    ' document.querySelectorAll("div.repo").forEach(function (pane) { try {'
-    '  var repo = pane.getAttribute("data-repo");'
-    '  var chips = pane.querySelectorAll("div.owners button"); if (!chips.length) { return; }'
-    '  var secs = pane.querySelectorAll("details.og");'
-    "  function get(k) { try { return localStorage.getItem(k + repo); } catch (e) { return null; } }"
-    "  function put(k, v) { try { localStorage.setItem(k + repo, v); } catch (e) {} }"
-    '  function load() { var v = []; try { v = JSON.parse(get("repo-open:") || "[]"); } catch (e) { v = []; }'
-    "   return Array.isArray(v) ? v : []; }"
-    "  var opened = load();"
-    '  var known = ["*"]; secs.forEach(function (d) { known.push(key(d.getAttribute("data-owner"))); });'
-    '  var mode = "*";'
-    "  function apply(want) { mode = want;"
-    '   secs.forEach(function (d) { var k = key(d.getAttribute("data-owner"));'
-    '    if (want === "*") { d.hidden = false; d.open = opened.indexOf(k) >= 0; }'
-    "    else { d.hidden = k !== want; d.open = k === want; } });"
-    '   chips.forEach(function (b) { b.classList.toggle("on", chipKey(b) === want); }); }'
-    '  var want = get("repo-owner:"); if (want === null || known.indexOf(want) < 0) { want = "*"; }'
-    "  apply(want);"
-    '  chips.forEach(function (b) { b.addEventListener("click", function () {'
-    '   var k = chipKey(b); apply(k); put("repo-owner:", k); }); });'
-    '  secs.forEach(function (d) { d.addEventListener("toggle", function () { if (mode !== "*") { return; }'
-    '   opened = load(); var k = key(d.getAttribute("data-owner")); var i = opened.indexOf(k);'
-    "   if (d.open && i < 0) { opened.push(k); } if (!d.open && i >= 0) { opened.splice(i, 1); }"
-    '   put("repo-open:", JSON.stringify(opened)); }); });'
-    " } catch (e) {} });"
-    "} initOwners();"
-)
-
-
-# The repo picker, and the in-place refresh (operator 2026-10-15: "it must be uptodate all the time",
-# W-7159f8e2). Both scripts sit OUTSIDE #live, so a swap never removes or re-runs them; after each swap
-# initPicker() and initOwners() re-bind the new nodes and re-apply the stored choices (repo, owner chip,
-# opened sections — all in localStorage). It polls the CACHED page (REPOS_TTL_S): frames polling in the
-# same TTL window share one build, while a lone viewer polling at the TTL rebuilds about once per poll
-# (~5 s measured live, under _repos_lock). It skips a hidden browser tab AND a frame its parent page has
-# hidden (another dashboard tab shown: the frame's own document.hidden stays false then), an unchanged
-# stamp, a focused picker and a live text selection; a failed fetch keeps the last content.
-# Rejected: reloading the frame (it blinks every cycle).
-REPOS_REFRESH_S = float(os.getenv("QUOTA_DASH_REPOS_REFRESH_S", "20"))
-_REPOS_PICK_JS = (
-    "function initPicker() {"
-    ' var pick = document.getElementById("repo-pick"); if (!pick) { return; }'
-    ' function show(name) { document.querySelectorAll("div.repo").forEach(function (d) {'
-    ' d.hidden = d.getAttribute("data-repo") !== name; }); }'
-    ' var want = null; try { want = localStorage.getItem("repo-pick"); } catch (e) {}'
-    " var known = Array.prototype.some.call(pick.options, function (o) { return o.value === want; });"
-    " if (!want || !known) { want = pick.options[0].value; }"
-    " pick.value = want; show(want);"
-    ' pick.addEventListener("change", function () { show(pick.value);'
-    '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
-    "} initPicker();"
-    # The tag box (W-e1f1a1bd): rows whose data-tags lack the tag are hidden; the choice is stored
-    # like the picker's, and a stored tag no longer on the page falls back to every row.
-    "function initTags() {"
-    ' var box = document.getElementById("tag-pick"); if (!box) { return; }'
-    ' var want = ""; try { want = localStorage.getItem("repo-tag") || ""; } catch (e) {}'
-    ' if (!Array.prototype.some.call(document.querySelectorAll("#tag-list option"),'
-    '  function (o) { return o.value === want; })) { want = ""; }'
-    ' function apply(t) { document.querySelectorAll("tr[data-tags]").forEach(function (tr) {'
-    '  tr.hidden = t !== "" && (" " + tr.getAttribute("data-tags") + " ").indexOf(" " + t + " ") < 0; }); }'
-    " box.value = want; apply(want);"
-    ' box.addEventListener("input", function () { var t = box.value.trim(); apply(t);'
-    '  try { localStorage.setItem("repo-tag", t); } catch (e) {} });'
-    "} initTags();"
-    # force (after a Pause/Resume or a verdict): a fresh build, past the focus, selection and
-    # same-stamp skips — never past a hidden tab or frame; words typed in a comment box survive any swap
-    " function refreshRepos(force) {"
-    "  force = force === true;"
-    "  if (document.hidden) { return; }"
-    "  try { var fe = window.frameElement; if (fe && fe.offsetParent === null) { return; } } catch (e) {}"
-    '  var act = document.activeElement; if (!force && act && act.id === "repo-pick") { return; }'
-    # a swap rebuilds every input in #live: while the operator is IN a box (picker, tag box, comment)
-    # the poll waits; the forced refresh after a write never does — typed words are carried across
-    '  if (!force && act && act.closest && act.closest("#live") && /^(INPUT|TEXTAREA|SELECT)$/.test(act.tagName))'
-    "   { return; }"
-    "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (!force && sel) { return; }"
-    '  fetch(force ? "/repos.html?fresh=1" : "/repos.html", {cache: "no-store"})'
-    "  .then(function (r) { return r.ok ? r.text() : null; })"
-    "  .then(function (text) { if (!text) { return; }"
-    '   var doc = new DOMParser().parseFromString(text, "text/html");'
-    '   var nw = doc.getElementById("live"), cur = document.getElementById("live"); if (!nw || !cur) { return; }'
-    '   var ns = nw.querySelector(".stamp"), cs = cur.querySelector(".stamp");'
-    "   if (!force && ns && cs && ns.textContent === cs.textContent) { return; }"
-    '   function boxes(f) { Array.prototype.forEach.call(document.querySelectorAll("input.iv-text"), function (x) {'
-    '    f(x, JSON.stringify([x.getAttribute("data-repo"), x.getAttribute("data-item")])); }); }'
-    "   var kept = {}; boxes(function (x, k) { if (x.value) { kept[k] = x.value; } });"
-    "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker(); initTags();"
-    "   boxes(function (x, k) { if (kept[k]) { x.value = kept[k]; } });"
-    '   if (typeof initOwners === "function") { initOwners(); } window.scrollTo(0, y);'
-    "  }).catch(function () {}); }"
-    f" setInterval(refreshRepos, {int(REPOS_REFRESH_S * 1000)});"
-    # Pause/Resume (W-7159f8e2 part 3): ONE delegated listener, here at the top level — outside #live
-    # and outside initPicker/initOwners, which re-run after every swap — so it binds once per load.
-    # confirm() like the board's other write buttons; the 20 s poll cannot fire while it is open.
-    ' document.addEventListener("click", function (ev) {'
-    '  var b = ev.target && ev.target.closest ? ev.target.closest("button.ag-btn") : null;'
-    "  if (!b || b.disabled) { return; }"
-    '  var repo = b.getAttribute("data-repo"), agent = b.getAttribute("data-agent"),'
-    '   action = b.getAttribute("data-action");'
-    '  if (!repo || !agent || (action !== "pause" && action !== "resume")) { return; }'
-    '  if (!confirm((action === "pause" ? "Pause " : "Resume ") + agent + " in " + repo + "?"'
-    '   + (action === "pause" ? " It stops starting new work at its next turn boundary." : ""))) { return; }'
-    "  b.disabled = true;"
-    '  fetch("/agent-pause", {method: "POST", cache: "no-store",'
-    f'   headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},'
-    "   body: JSON.stringify({repo: repo, agent: agent, action: action})})"
-    # a non-JSON answer (a proxy's error page) is the server's answer, never "unreachable"
-    '  .then(function (r) { return r.json().catch(function () { return {error: "HTTP " + r.status}; })'
-    "   .then(function (j) { return [r.status, j]; }); })"
-    "  .then(function (sj) {"
-    '   if (sj[0] === 200 && sj[1].ok) { b.textContent = action === "pause" ? "paused" : "resumed";'
-    "    refreshRepos(true); return; }"
-    '   b.disabled = false; b.title = (sj[1] && sj[1].error) || "failed";'
-    '   b.textContent = "failed — retry " + action; })'
-    '  .catch(function () { b.disabled = false; b.textContent = "server unreachable — retry " + action; });'
-    " });"
-    # Accept / Reject / comment (W-e1f1a1bd): the same top-level delegation. Reject and comment need
-    # the row's words (work.py refuses them without); Accept and Reject ask confirm() first.
-    " function sendVerdict(el, action) {"
-    '  var repo = el.getAttribute("data-repo"), item = el.getAttribute("data-item"); if (!repo || !item) { return; }'
-    '  var row = el.closest ? el.closest("tr") : null, box = row ? row.querySelector("input.iv-text") : null;'
-    '  var text = box ? box.value.trim() : "";'
-    '  if (action !== "accept" && !text) { if (box) { box.placeholder = action === "reject"'
-    '   ? "say why, then Reject" : "type a comment first"; box.focus(); } return; }'
-    '  if (action !== "comment" && !confirm((action === "accept" ? "Accept " : "Reject ") + item + " in "'
-    '   + repo + "?" + (text ? " With: " + text : ""))) { return; }'
-    "  el.disabled = true;"
-    '  fetch("/item-verdict", {method: "POST", cache: "no-store",'
-    f'   headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},'
-    "   body: JSON.stringify({repo: repo, item: item, action: action, text: text})})"
-    '  .then(function (r) { return r.json().catch(function () { return {error: "HTTP " + r.status}; })'
-    "   .then(function (j) { return [r.status, j]; }); })"
-    "  .then(function (sj) {"
-    '   if (sj[0] === 200 && sj[1].ok) { if (box) { box.value = ""; }'
-    '    if (action !== "comment") { el.textContent = action === "accept" ? "accepted" : "rejected"; }'
-    "    refreshRepos(true); return; }"
-    '   el.disabled = false; el.title = (sj[1] && sj[1].error) || "failed";'
-    '   if (action !== "comment") { el.textContent = "failed — retry"; } else { el.placeholder = "failed — " + el.title; } })'
-    '  .catch(function () { el.disabled = false; el.title = "server unreachable — retry"; }); }'
-    ' document.addEventListener("click", function (ev) {'
-    '  var b = ev.target && ev.target.closest ? ev.target.closest("button.iv-btn") : null;'
-    "  if (!b || b.disabled) { return; }"
-    '  var a = b.getAttribute("data-action"); if (a === "accept" || a === "reject") { sendVerdict(b, a); } });'
-    ' document.addEventListener("keydown", function (ev) {'
-    '  var x = ev.target; if (!x || !x.classList || !x.classList.contains("iv-text") || x.disabled'
-    '   || ev.key !== "Enter") { return; }'
-    '  ev.preventDefault(); sendVerdict(x, "comment"); });'
-)
-
-
-def _wants_fresh(request_path: str) -> bool:
-    """`/repos.html?fresh=1` (the page's refresh link) bypasses the cache; exactly `fresh=1`."""
-    query = request_path.split("?", 1)[1] if "?" in request_path else ""
-    return "fresh=1" in query.split("&")
-
-
-def _repos_page(fresh: bool = False) -> str:
-    """The /repos.html page, cached REPOS_TTL_S, built under its own lock."""
-    global _repos_cache
-    with _repos_lock:
-        now = time.time()
-        if not fresh and _repos_cache and now - _repos_cache[0] < REPOS_TTL_S:
-            return _repos_cache[1]
-        gen = _repos_gen
-        stamp = datetime.fromtimestamp(now).astimezone().strftime("%H:%M:%S")
-        page = (
-            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>Repos — remaining work</title><style>{_REPOS_STYLE}</style></head><body>"
-            '<div id="live">'
-            f'<div class="stamp">read {escape(stamp)} · refreshes itself every {int(REPOS_REFRESH_S)}s '
-            f"(figures up to {int(REPOS_REFRESH_S + REPOS_TTL_S)}s old)</div>"
-            f"{_agents_block()}"
-            f"{_repos_body()}"
-            "</div>"
-            f"<script>{_REPOS_PICK_JS}</script>"
-            f"<script>{_OWNER_FILTER_JS}</script></body></html>"
-        )
-        # a write that landed while this page was being built made it stale: serve it once, never cache it
-        _repos_cache = (now, page) if _repos_gen == gen else None
-        return page
-
-
 def _drop_repos_cache() -> None:
-    """After a board write: the next page is rebuilt, and a build already running is not cached.
-    Lock-free on purpose — taking `_repos_lock` would wait out a 5 s build inside the POST."""
-    global _repos_cache, _repos_gen, _work_cache, _box_cache
+    """After a board write: the next view re-reads the stores, and a collect already running is not
+    cached. Lock-free on purpose — taking `_repos_lock` would wait out a 5 s collect inside the POST."""
+    global _repos_gen, _work_cache, _box_cache
     _repos_gen += 1
-    _repos_cache = None
     _work_cache = None
     _box_cache = None
-
-
-def render(
-    payload: dict, generated_at: float, error: str | None = None, credits: dict | None = None
-) -> str:
-    accounts = _display_order(payload, generated_at)
-    active = payload.get("active")
-    warns = payload.get("fleet_warnings") or []
-    pause = payload.get("pause")
-    gen = datetime.fromtimestamp(generated_at).astimezone().strftime("%a %d %b %Y · %H:%M:%S %Z")
-
-    banner = ""
-    if error:
-        banner = (
-            f'<div class="banner crit">Live probe failed — showing the last good reading. '
-            f"{escape(error)}</div>"
-        )
-    if pause == "marker":
-        banner += '<div class="banner warn">Auto-rotation is PAUSED by the operator marker.</div>'
-    elif pause == "error":
-        banner += (
-            '<div class="banner crit">Pause state unreadable — rotation is failing closed.</div>'
-        )
-    if not accounts:
-        banner += '<div class="banner warn">No fleet accounts reporting yet.</div>'
-
-    warn_html = ""
-    if warns:
-        items = "".join(f"<li>{escape(str(w))}</li>" for w in warns)
-        warn_html = f'<section class="warns"><h2>Warnings</h2><ul>{items}</ul></section>'
-
-    rows = ""
-    q = _queue_for_render(payload, generated_at)
-    back = next((e for e in q if e["kind"] == "return"), None)
-    for e in q:
-        n, a, kind = e["n"], e["acct"], e["kind"]
-        if kind == "active":
-            rank = f"#{n} ACTIVE" + (
-                f" · also #{back['n']} (returns {_fmt_reset(back['returns_at'])})" if back else ""
-            )
-        elif kind == "eligible":
-            rank = f"#{n} NEXT" if n == 2 else f"#{n} in line"
-        elif kind == "returns":
-            rank = (
-                f"#{n} — returns {_fmt_reset(e['returns_at'])}"
-                if e["returns_at"]
-                else f"#{n} — return time unknown"
-            )
-        else:  # the active account's own return slot
-            rows += _return_row(n, a, e["returns_at"])
-            continue
-        rows += _row(a, active, rank, payload.get("posture"))
-    # Scaffolded-but-unlogged dirs LAST: real rows first, then the one thing the operator still
-    # owes. Older payloads (no `pending` key) render nothing extra.
-    rows += "".join(_pending_row(str(x)) for x in (payload.get("pending") or []))
-    gov_html = _governor_panel(payload)
-    credits_html = _pool_credits_panel(credits)
-    # Fail-soft by contract: `_spend_panel` returns "" on a missing/old-format sidecar, so the Usage
-    # tab stays empty rather than rendering a zeroed table that would read as "we spent nothing this
-    # month" — except when the sidecar reports tokens no tier claimed, which is returned even on that
-    # path so the pane explains its own emptiness.
-    spend_html = _spend_panel()
-    cmd_rows = _load_commands()
-    cmd_html = _commands_table(cmd_rows)
-    # no corpus ⇒ no heading either; the pane's own "corpus unreadable" banner already says why
-    try:
-        api_quotas_html = _api_quotas_panel(_api_quotas(generated_at, fetch=False), generated_at)
-    except Exception as exc:  # noqa: BLE001 — a quota panel may never break the board
-        sys.stderr.write(f"quota_dashboard: api-quota panel failed ({type(exc).__name__}: {exc})\n")
-        api_quotas_html = f'<div class="banner warn">Search-API quota panel unavailable — {escape(type(exc).__name__)}.</div>'
-    ext_matrix_html = (
-        "<h2>External services per command</h2>"
-        + _ext_matrix_intro(cmd_rows)
-        + _ext_matrix_table(cmd_rows)
-        if cmd_rows
-        else ""
-    )
-    return f"""<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude quota — {escape(str(active or "no active account"))}</title>
-<style>
- :root {{ color-scheme: light dark;
-   --bg:#f6f7f9; --card:#fff; --fg:#14161a; --sub:#666e7a; --line:#e3e6ea;
-   --ok:#1a9d5a; --warn:#c47f14; --crit:#c8402f; --accent:#3b6fd4; }}
- @media (prefers-color-scheme: dark) {{ :root {{
-   --bg:#0f1216; --card:#171b21; --fg:#e8ecf1; --sub:#98a1ae; --line:#242a33;
-   --ok:#3ecf8e; --warn:#e8b04b; --crit:#ff6b57; --accent:#6f9bff; }} }}
- * {{ box-sizing:border-box; }}
- body {{ margin:0; padding:24px; background:var(--bg); color:var(--fg);
-   font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }}
- .wrap {{ max-width:1600px; margin:0 auto; }}
- header {{ display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;
-   justify-content:space-between; margin-bottom:18px; }}
- h1 {{ font-size:20px; margin:0; font-weight:650; }}
- h1 .who {{ color:var(--accent); }}
- .stamp {{ color:var(--sub); font-size:13px; }}
- .banner {{ padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:14px; }}
- .banner.warn {{ background:color-mix(in srgb, var(--warn) 16%, transparent); border:1px solid var(--warn); }}
- .banner.crit {{ background:color-mix(in srgb, var(--crit) 16%, transparent); border:1px solid var(--crit); }}
- table {{ width:100%; border-collapse:separate; border-spacing:0; background:var(--card);
-   border:1px solid var(--line); border-radius:12px; overflow:hidden; }}
- th, td {{ padding:14px 16px; text-align:left; vertical-align:top;
-   border-bottom:1px solid var(--line); }}
- thead th {{ font-size:12px; letter-spacing:.06em; text-transform:uppercase;
-   color:var(--sub); font-weight:600; background:transparent; }}
- tbody tr:last-child td {{ border-bottom:none; }}
- tr.is-active {{ background:color-mix(in srgb, var(--accent) 8%, transparent); }}
- .acct strong {{ display:block; font-size:15px; }}
- .sub {{ display:block; color:var(--sub); font-size:12.5px; margin-top:3px; }}
- .num {{ width:32%; }}
- .pct {{ font-size:26px; font-weight:680; letter-spacing:-.02em; }}
- .pct.ok {{ color:var(--ok); }} .pct.warn {{ color:var(--warn); }} .pct.crit {{ color:var(--crit); }}
- .muted {{ color:var(--sub); }}
- .bar {{ height:6px; border-radius:99px; background:var(--line); margin:8px 0 4px; overflow:hidden; }}
- .fill {{ display:block; height:100%; border-radius:99px; }}
- .fill.ok {{ background:var(--ok); }} .fill.warn {{ background:var(--warn); }} .fill.crit {{ background:var(--crit); }}
- .badges {{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }}
- .badge {{ font-size:11px; padding:2px 7px; border-radius:99px; border:1px solid var(--line);
-   color:var(--sub); white-space:nowrap; }}
- .badge.active {{ border-color:var(--accent); color:var(--accent); font-weight:650; }}
- .badge.cap {{ border-color:var(--accent); color:var(--accent); }}
- .badge.crit {{ border-color:var(--crit); color:var(--crit); }}
- .warns {{ margin-top:18px; background:var(--card); border:1px solid var(--line);
-   border-radius:12px; padding:14px 18px; }}
- .warns h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
-   color:var(--sub); margin:0 0 8px; }}
- .warns ul {{ margin:0; padding-left:18px; }} .warns li {{ margin:4px 0; font-size:13.5px; }}
- footer {{ margin-top:16px; color:var(--sub); font-size:12.5px; }}
- .act {{ width:1%; white-space:nowrap; vertical-align:middle; }}
- button.switch {{ font:inherit; font-size:13px; font-weight:600; padding:6px 12px; border-radius:8px;
-   border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer; }}
- button.switch:hover {{ background:color-mix(in srgb, var(--accent) 12%, transparent); }}
- button.switch[disabled] {{ opacity:.5; cursor:progress; }}
- .capctl {{ white-space:nowrap; margin-left:6px; }}
- .capin {{ width:4.6em; font:inherit; font-size:13px; padding:5px 6px; border-radius:8px; border:1px solid var(--line, #888); background:transparent; color:inherit; margin-right:4px; }}
- @media (max-width:720px) {{ .num {{ width:auto; }} th:nth-child(1) {{ width:40%; }} }}
- nav.tabs {{ display:flex; gap:6px; margin-bottom:14px; border-bottom:1px solid var(--line); }}
- nav.tabs button {{ font:inherit; font-size:13.5px; font-weight:600; padding:8px 14px; border:1px solid transparent;
-   border-bottom:none; border-radius:8px 8px 0 0; background:transparent; color:var(--sub); cursor:pointer; }}
- nav.tabs button.is-on {{ color:var(--accent); border-color:var(--line); background:var(--card); margin-bottom:-1px; }}
- .badge.stale {{ border-color:var(--line); color:var(--sub); }}
- #pane-commands td {{ font-size:13.5px; }} #pane-commands .ord {{ color:var(--sub); width:1%; }}
- #pane-commands .cmd strong {{ white-space:nowrap; color:var(--accent); }} #pane-commands .when {{ color:var(--sub); }}
- #pane-commands .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
- #pane-commands h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
-   color:var(--sub); margin:30px 0 8px; }}
- table.matrix {{ table-layout:auto; }}
- table.matrix th.svc {{ width:1%; text-align:center; white-space:nowrap; font-size:12.5px;
-   letter-spacing:.02em; cursor:help; padding-left:10px; padding-right:10px; }}
- table.matrix td.dot {{ text-align:center; width:1%; padding-left:10px; padding-right:10px;
-   color:var(--line); font-size:15px; line-height:1.1; }}
- table.matrix td.dot.on {{ color:var(--accent); }}
- table.matrix td.dot.tot, table.matrix td.cmd.tot {{ color:var(--sub); font-size:12px;
-   font-weight:600; font-variant-numeric:tabular-nums; }}
- table.matrix tfoot td {{ border-top:1px solid var(--line); }}
- #pane-usage .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
- #pane-usage h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
-   color:var(--sub); margin:22px 0 8px; }}
- #pane-usage .muted {{ color:var(--sub); font-size:12px; }}
- .cal {{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }}
- .cal-months {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }}
- @media (max-width:1100px) {{ .cal-months {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} }}
- @media (max-width:620px) {{ .cal-months {{ grid-template-columns:1fr; }} }}
- .cal-month {{ background:var(--card); border:1px solid var(--line); border-radius:12px;
-   padding:14px 16px; }}
- .cal-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-   margin-bottom:10px; }}
- .cal-head b {{ font-size:14px; }}
- .cal-dow {{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-bottom:5px; }}
- .cal-dow i {{ font-style:normal; font-size:10px; color:var(--sub); text-align:center; }}
- .cal-pad {{ aspect-ratio:1; }}
- .cal-cell {{ aspect-ratio:1; border-radius:7px; border:1px solid var(--line);
-   background:var(--card); display:flex; align-items:flex-end; justify-content:flex-end;
-   padding:3px 4px; cursor:default; }}
- .cal-cell span {{ font-size:10px; color:var(--sub); line-height:1; }}
- .cal-cell:hover {{ outline:2px solid var(--accent); outline-offset:1px; }}
- .cal-cell.lvl1 {{ background:color-mix(in srgb, var(--accent) 18%, var(--card)); }}
- .cal-cell.lvl2 {{ background:color-mix(in srgb, var(--accent) 38%, var(--card)); }}
- .cal-cell.lvl3 {{ background:color-mix(in srgb, var(--accent) 60%, var(--card)); }}
- .cal-cell.lvl4 {{ background:color-mix(in srgb, var(--accent) 85%, var(--card)); }}
- .cal-cell.lvl3 span, .cal-cell.lvl4 span {{ color:var(--bg); }}
- i.cal-cell {{ display:inline-block; width:14px; height:14px; aspect-ratio:auto;
-   vertical-align:-3px; margin:0 2px; padding:0; }}
-</style></head><body><div class="wrap">
-<header>
-  <h1>Claude account quota — active: <span class="who">{escape(str(active or "none"))}</span></h1>
-  <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
-    <span id="conn">live</span></div>
-</header>
-<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="repos">Repos</button><button type="button" class="tab" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="usage">Usage</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
-<section id="pane-repos" class="pane">
-<iframe id="repos-frame" title="Repos — remaining work" data-src="/repos.html" style="width:100%;min-height:85vh;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>
-</section>
-<section id="pane-quota" class="pane" hidden>
-{banner}
-{gov_html}
-{credits_html}
-<table>
-  <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th><th></th></tr></thead>
-  <tbody>{rows}</tbody>
-</table>
-{warn_html}
-</section>
-<section id="pane-usage" class="pane" hidden>
-{spend_html}
-</section>
-<section id="pane-commands" class="pane" hidden>
-{'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}
-<p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
-{cmd_html}
-{ext_matrix_html}
-{api_quotas_html}
-</section>
-<section id="pane-external" class="pane" hidden>
-{credits_html}
-{_ext_services_intro()}
-{'<iframe id="ext-frame" title="External services" data-src="/external-services.html" style="width:100%;min-height:80vh;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>' if EXT_SERVICES_HTML.is_file() else ""}
-</section>
-<footer>Rotation flips the active pointer at {TRIGGER_THRESHOLD:.0f}% on the 5h window (or either window, or an account's
-configured weekly cap). This board probes every {int(PROBE_INTERVAL_S)}s on its own and invokes the rotation tick the
-moment the active account crosses that line; the cron tick every 5 minutes is the backstop.
-The <em>switch →</em> button flips it NOW (pause-, dwell- and cap-exempt, like <code>--switch</code>);
-every session bound to the pointer follows it — no restart.</footer>
-</div><script>
-/* Health-gated auto-refresh (2026-08-18 — replaces meta http-equiv=refresh). The meta tag
-   died on the first failed load after a WSL restart: the browser's error page carries no
-   refresh tag, so the tab froze until a manual F5 — the operator hit this twice. This
-   reloader NEVER navigates on failure: it polls /health and reloads only when the server
-   answers, so the tab rides out server restarts, WSL restarts, and host hibernation, and
-   self-heals the moment the box is back. */
-(function () {{
-  /* Tabs: the choice lives in location.hash so the 20s reload lands on the same tab. */
-  var tabs = document.querySelectorAll("nav.tabs button");
-  function showTab(name) {{
-    tabs.forEach(function (b) {{ b.classList.toggle("is-on", b.getAttribute("data-tab") === name); }});
-    document.querySelectorAll("section.pane").forEach(function (p) {{ p.hidden = (p.id !== "pane-" + name); }});
-    // a frame loads only when its tab is shown: a src would re-fetch it on every 20s reload
-    var fr = document.getElementById(name === "repos" ? "repos-frame" : name === "external" ? "ext-frame" : "");
-    if (fr && !fr.getAttribute("src")) {{ fr.setAttribute("src", fr.getAttribute("data-src")); }}
-  }}
-  var reloadDue = false;
-  tabs.forEach(function (b) {{ b.addEventListener("click", function () {{
-    var name = b.getAttribute("data-tab");
-    if (history.replaceState) {{ history.replaceState(null, "", name === "repos" ? location.pathname : "#" + name); }}
-    if (reloadDue && name !== "repos") {{ location.reload(); return; }}
-    showTab(name);
-  }}); }});
-  // GENERIC restore. This used to name "commands" and "external" literally, so every tab added
-  // later fell through to quota on the {REFRESH_S}s auto-reload — the page would silently jump
-  // off whatever you were reading. Any pane that exists is now restorable by its own hash.
-  var want = (location.hash || "").replace("#", "");
-  showTab(want && document.getElementById("pane-" + want) ? want : "repos");
-  var conn = document.getElementById("conn");
-  setInterval(function () {{
-    fetch("/health", {{cache: "no-store"}})
-      .then(function (r) {{
-        if (!r.ok) {{ return; }}
-        if (conn) {{ conn.textContent = "live"; }}
-        // On Repos a reload would reset the frame's scroll; remember it is due and take it the
-        // moment another tab is opened, so Quota never shows figures older than one cycle.
-        var on = document.querySelector("nav.tabs button.is-on");
-        if (on && on.getAttribute("data-tab") === "repos") {{ reloadDue = true; return; }}
-        location.reload();
-      }})
-      .catch(function () {{
-        if (conn) {{ conn.textContent = "server unreachable — retrying"; }}
-      }});
-  }}, {REFRESH_S} * 1000);
-  document.querySelectorAll("button.park").forEach(function (btn) {{
-    btn.addEventListener("click", function () {{
-      var email = btn.getAttribute("data-email"), verb = btn.getAttribute("data-verb");
-      var ask = verb === "park"
-        ? "Take " + email + " OUT of service?\\n\\nIt stays listed; the fleet never picks it until you enable it again."
-        : "Put " + email + " back IN service?";
-      if (!confirm(ask)) {{ return; }}
-      btn.disabled = true;
-      fetch("/park", {{method: "POST", cache: "no-store",
-        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
-        body: JSON.stringify({{account: email, park: verb === "park"}})}})
-        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
-        .then(function (sj) {{
-          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
-          alert("Failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
-          btn.disabled = false;
-        }})
-        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
-    }});
-  }});
-  document.querySelectorAll("button.capset").forEach(function (btn) {{
-    btn.addEventListener("click", function () {{
-      var email = btn.getAttribute("data-email");
-      var inp = btn.parentNode.querySelector("input.capin");
-      var raw = inp ? inp.value.trim() : "";
-      var cap = raw === "" ? null : Number(raw);
-      if (cap !== null && (!Number.isInteger(cap) || cap < 0 || cap > 100)) {{ alert("cap must be a whole number 0–100, or empty to clear"); return; }}
-      var ask = cap === null ? "Clear the weekly cap on " + email + "?" : "Set the weekly cap on " + email + " to " + cap + "%?" + (cap === 0 ? "\\n\\n0 PARKS it." : "");
-      if (!confirm(ask)) {{ return; }}
-      btn.disabled = true;
-      fetch("/cap", {{method: "POST", cache: "no-store",
-        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
-        body: JSON.stringify({{account: email, cap: cap}})}})
-        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
-        .then(function (sj) {{
-          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
-          alert("Cap failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
-          btn.disabled = false;
-        }})
-        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
-    }});
-  }});
-  document.querySelectorAll("button.thrset").forEach(function (btn) {{
-    btn.addEventListener("click", function () {{
-      var email = btn.getAttribute("data-email");
-      var inp = btn.parentNode.querySelector("input.thrin");
-      var raw = inp ? inp.value.trim() : "";
-      var thr = raw === "" ? null : Number(raw);
-      if (thr !== null && (!isFinite(thr) || thr < 50 || thr > 100)) {{ alert("threshold must be 50–100, or empty for the fleet default"); return; }}
-      var ask = thr === null ? "Use the fleet default threshold for " + email + "?" : "Rotate away from " + email + " at " + thr + "%?";
-      if (!confirm(ask)) {{ return; }}
-      btn.disabled = true;
-      fetch("/threshold", {{method: "POST", cache: "no-store",
-        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
-        body: JSON.stringify({{account: email, threshold: thr}})}})
-        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
-        .then(function (sj) {{
-          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
-          alert("Threshold failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
-          btn.disabled = false;
-        }})
-        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
-    }});
-  }});
-  document.querySelectorAll("button.switch:not(.park):not(.capset):not(.thrset)").forEach(function (btn) {{
-    btn.addEventListener("click", function () {{
-      var slug = btn.getAttribute("data-slug");
-      if (!confirm("Switch the active account to " + slug + " now?\\n\\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
-      btn.disabled = true; btn.textContent = "switching…";
-      fetch("/switch", {{method: "POST", cache: "no-store",
-        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
-        body: JSON.stringify({{account: slug}})}})
-        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
-        .then(function (sj) {{
-          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
-          alert("Switch failed (" + sj[0] + "):\\n" + (sj[1].error || sj[1].raw || JSON.stringify(sj[1])));
-          btn.disabled = false; btn.textContent = "switch →";
-        }})
-        .catch(function (e) {{ alert("Switch request failed: " + e); btn.disabled = false; btn.textContent = "switch →"; }});
-    }});
-  }});
-}})();
-</script>
-</body></html>"""
 
 
 _gen_lock = threading.Lock()
 
 
-def generate() -> str:
-    """Probe + write index.html/quota.json. Falls back to the last good payload on error.
-    SERIALIZED: the probe loop, a past-the-floor view, a pointer-moved view and a switch all land
-    here; without this lock two probes could run at once (double API cost) and race the two file
-    writes (scoped review 2026-09-03). A second caller waits for the running probe, never starts one."""
+def generate() -> dict:
+    """Probe, write quota.json and `_LAST_STATUS`; returns the payload. Falls back to the last good
+    payload on error. SERIALIZED: the probe loop, a past-the-floor view, a pointer-moved view and a
+    switch all land here; without this lock two probes could run at once (double API cost) and race
+    the file write (scoped review 2026-09-03). A second caller waits for the running probe, never
+    starts one."""
     with _gen_lock:
         return _generate_held()
 
@@ -3632,66 +1926,17 @@ def _generate_if_idle() -> bool:
     return True
 
 
-def _generate_held() -> str:
-    """The body of `generate`, run with `_gen_lock` held."""
+def _generate_held() -> dict:
+    """The body of `generate`, run with `_gen_lock` held. A pass that raises (the probe's own failure
+    is caught inside; this is everything else) records its error CLASS as the probe failure, so the
+    quota views' stale banner names it (W-6a0f3c65: a traceback in the log was all the 2026-09-07
+    freeze left, for 16 cycles). Class only — a message can carry paths."""
     try:
-        html = _generate_locked()
+        return _generate_locked()
     except Exception as exc:
-        # The page on disk is now a stale render that still says "refreshes every 20s". Keep
-        # the failure where the SERVE path can see it (W-6a0f3c65): a traceback in the log was
-        # all the 2026-09-07 freeze left, for 16 cycles. Class only — a message can carry paths.
-        _LAST_RENDER_FAILURE[0] = (time.time(), type(exc).__name__)
+        _LAST_PROBE_FAILURE[0] = (time.time(), type(exc).__name__)
         sys.stderr.write(f"quota_dashboard: regeneration failed ({type(exc).__name__})\n")
         raise
-    _LAST_RENDER_FAILURE[0] = None
-    return html
-
-
-# (when, error class) of the newest failed regeneration, or None once a regeneration succeeds.
-# One tuple swapped in whole under _gen_lock; readers take a single reference, never a torn pair.
-_LAST_RENDER_FAILURE: list[tuple[float, str] | None] = [None]
-
-
-def _with_stale_banner(html: str, page_mtime: float) -> str:
-    """The page as SERVED: ``html`` unchanged, or with a banner when the reader is looking at a stale
-    render. Injected at serve time, so the file on disk stays the last good render.
-
-    Two triggers, because a failure is not the only way to go stale. (1) The newest regeneration
-    RAISED after this page was written: the banner names its error class. (2) The page is older than
-    one probe interval plus one probe timeout: no regeneration has finished since, which is what a
-    HUNG probe or a restarted process looks like, and neither ever records a failure. Trigger (2)
-    reads only the file's mtime, so it needs no memory (the `_ext_services_intro` pattern)."""
-    failure = _LAST_RENDER_FAILURE[0]  # one snapshot: the regen thread swaps the whole tuple
-    if failure is not None and failure[0] < page_mtime:
-        failure = None  # a page written after the failure is not the failure's stale page
-    age_s = max(0.0, time.time() - page_mtime)
-    # The loop's interval is a PERIOD measured from a probe's START: after a quick probe it waits
-    # ~interval, and the next probe may legally run the full timeout before it writes. So a HEALTHY
-    # page reaches interval + timeout + render before it is replaced; the bound adds a minute for
-    # render and scheduling, so a merely slow probe never draws the banner (review round 1, S1).
-    if failure is None and age_s <= PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60:
-        return html
-    age = f"{age_s:.0f} s" if age_s < 120 else f"{age_s / 60:.0f} min"
-    if failure is not None:
-        when = datetime.fromtimestamp(failure[0]).astimezone().strftime("%H:%M:%S")
-        cause = (
-            f"the last regeneration failed at {escape(when)} with "
-            f"<code>{escape(failure[1])}</code>; the details are in the dashboard log"
-        )
-    else:
-        cause = "no regeneration has finished since — a probe may be hung or still running"
-    banner = (
-        '<div id="render-failed" role="alert" style="background:#7a1f1f;color:#fff;'
-        'padding:.6em 1em;margin:0 0 1em;border-radius:6px">'
-        f"Stale page: what you see was rendered {escape(age)} ago, and {cause}.</div>"
-    )
-    anchor = '<div class="wrap">'
-    if anchor in html:
-        return html.replace(anchor, anchor + banner, 1)
-    # A page without the wrap div (a future template): just after the <body> tag. A page with no
-    # <body> tag at all has nowhere better, so the banner is prepended there.
-    body = re.search(r"<body(?=[\s>])[^>]*>", html, re.IGNORECASE)
-    return html[: body.end()] + banner + html[body.end() :] if body else banner + html
 
 
 # The payload `_generate_locked` actually used on its last pass — the fallback included — and the time of
@@ -3735,7 +1980,7 @@ def _seed_last_status() -> None:
             _LAST_STATUS[0] = (None if payload.get("probe_failed") else mtime, payload)
 
 
-def _generate_locked() -> str:
+def _generate_locked() -> dict:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     _seed_last_status()  # before this pass's fallback can rewrite quota.json and launder its age
     error = None
@@ -3768,26 +2013,7 @@ def _generate_locked() -> str:
             _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
         except OSError:
             pass
-    # The pool balance rides the SAME loop, behind its own TTL, and can never break the board:
-    # _pool_credits already fails soft, and this guard covers anything it did not anticipate.
-    # Cache only — see _pool_credits(fetch=False). The refresh happens off this lock.
-    # The guard the comment above PROMISES, which was never written: an exception here takes the
-    # render with it, and `_regen_async` runs generate() on a daemon thread that swallows it, so
-    # the board freezes silently at its last good page. A missing balance is a missing panel.
-    try:
-        credits = _pool_credits(fetch=False)
-    except Exception as exc:  # noqa: BLE001 — the pool balance may never break the quota board
-        # ...but it must not vanish in SILENCE either. "No panel" already means "the pool is not
-        # configured on this box", so a FAULT rendering identically is indistinguishable from a
-        # deliberate absence, and its only trace would be a log nobody reads — the same shape as the
-        # freeze this file was carrying an hour ago. Say it on the PAGE.
-        sys.stderr.write(
-            f"quota_dashboard: pool-credits read failed ({type(exc).__name__}: {exc})\n"
-        )
-        credits = {"unreadable": type(exc).__name__}
-    html = render(payload, time.time(), error, credits=credits)
-    _HTML.write_text(html, encoding="utf-8")
-    return html
+    return payload
 
 
 _regen_lock = threading.Lock()
@@ -3943,33 +2169,25 @@ def _start_probe_loop() -> threading.Event:
     return stop
 
 
-def _fresh_html() -> str:
-    """The last-written page, always served instantly; a stale one triggers a BACKGROUND
-    regeneration. A request must never block on the probe: on 2026-08-18 evening the probe
-    hung (rotate --status shelling out to the claude CLI) and every page load sat on it for
-    its full 60s cap — the operator read the dashboard as "not reachable". The in-page
-    reloader re-fetches within 60s anyway, so serving one stale view costs nothing. Only a
-    first-ever request (no page on disk yet) generates inline."""
+def _shell_page() -> str:
+    """`GET /`: the app shell, the Overview first (spec § Contract deltas). It carries no data, so it
+    answers at once whatever the probe is doing; `app.js` fetches the view the URL names."""
+    return _ui.shell([(v, _strings.t(f"nav.{v}")) for v in _views.VIEWS], "overview")
+
+
+def _quota_json() -> bytes:
+    """`GET /quota.json`: the last payload on disk, served at once — never a wait on the probe (on
+    2026-08-18 a hung probe held every page load for its full 60 s cap). A payload older than
+    MAX_AGE_S, or none at all, starts ONE background regeneration, so a polling client keeps it
+    current; nothing on disk yet is ``{}``."""
     try:
-        mtime = _HTML.stat().st_mtime
-        age = time.time() - mtime
-        html = _HTML.read_text(encoding="utf-8")
-        if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
-            # A flip happened since the render (measured 2026-09-02: the board showed the OLD
-            # account for up to floor + reload after a --switch). One synchronous regeneration,
-            # bounded by the probe timeout and never more than once per timeout window — a
-            # hung probe can cost ONE view the wait, never every view.
-            _LAST_SYNC_REGEN[0] = time.time()
-            try:
-                return generate()
-            except Exception:  # noqa: BLE001 — generate() recorded it; serve what we have, say so
-                return _with_stale_banner(html, mtime)
-        if age >= MAX_AGE_S:
-            _LAST_REGEN[0] = _regen_async()
-        return _with_stale_banner(html, mtime)
+        age = time.time() - _JSON.stat().st_mtime
+        body = _JSON.read_bytes()
     except OSError:
-        pass
-    return generate()
+        age, body = math.inf, b"{}"
+    if age >= MAX_AGE_S:
+        _LAST_REGEN[0] = _regen_async()
+    return body
 
 
 # ── the command-centre views (plan 2026-10-17-plan-1, T02) ─────────────────────────────────────────
@@ -4016,7 +2234,7 @@ def _status_data() -> dict:
 
 
 def _status_stale(now: float) -> bool:
-    """The banner's bound (`_with_stale_banner`'s reasoning): the probe failed after the payload's last
+    """The stale banner's bound: the probe failed after the payload's last
     good probe, or that probe is older than one interval plus one timeout plus a minute, or its time is
     unknown. No payload at all is no banner — the view says "no reading yet" itself."""
     cur = _LAST_STATUS[0]
@@ -4052,11 +2270,11 @@ def _status_banner(now: float) -> object:
 
 
 def _status_triggers() -> None:
-    """Today's two request-side triggers (`_fresh_html`), on the quota views: a moved pointer costs ONE
-    bounded synchronous regeneration per PROBE_TIMEOUT_S — and none at all while a regeneration is
-    already running (`_generate_if_idle`: its pass lands instead of this request waiting it out); a
-    payload older than MAX_AGE_S (quota.json's mtime — every pass rewrites it, as every pass rewrites
-    the page) starts a background one."""
+    """The two request-side triggers, on the quota views: a moved pointer costs ONE bounded
+    synchronous regeneration per PROBE_TIMEOUT_S (measured 2026-09-02: after a --switch the board
+    showed the OLD account until the next probe) — and none at all while a regeneration is already
+    running (`_generate_if_idle`: its pass lands instead of this request waiting it out); a payload
+    older than MAX_AGE_S (quota.json's mtime — every pass rewrites it) starts a background one."""
     if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
         try:
             if _generate_if_idle():
@@ -4091,7 +2309,7 @@ def _health(data: dict, now: float) -> dict:
 
 
 def _owner_orders(work: object) -> dict[str, list[str]]:
-    """Per repo, the owner order the Repos pane uses (`_repo_pane`): an unowned awaiting item is the
+    """Per repo, the owner order the Work view's pane uses: an unowned awaiting item is the
     operator's, every hub agent and the empty owner present even at zero."""
     if not isinstance(work, list):
         return {}
@@ -4175,14 +2393,15 @@ def _view_data(name: str, ctx) -> dict:
     return data
 
 
-def _render_view(name: str) -> str:
+def _render_view(name: str, *, triggers: bool = True) -> str:
     """One view's fragment: its data, its module's ``collect`` (merged over it) and ``render``, the
     stale banner on a quota view, the whole wrapped in a root element whose ``data-stamp`` hashes the
     markup. A view that raises renders its error state in words and empties ITS target slice; every
     other view's targets stay published (the union). EVERY step — the triggers, the banner, the
-    wrapper, the publish — runs inside the guard, so no fault drops the connection."""
+    wrapper, the publish — runs inside the guard, so no fault drops the connection. ``triggers=False``
+    skips the quota views' regeneration triggers (`_rebuild_targets`: a POST needs targets, not a probe)."""
     try:
-        if name in _QUOTA_VIEWS:
+        if triggers and name in _QUOTA_VIEWS:
             _status_triggers()
         ctx = _views.ViewContext(opt_root=_opt_root(), fabrik_root=_FABRIK_ROOT, now=time.time())
         mod = _views.load(name)
@@ -4209,6 +2428,15 @@ def _render_view(name: str) -> str:
         return _error_fragment(name, kind)
 
 
+def _rebuild_targets(view: str) -> None:
+    """The guarded POSTs' rebuild-on-miss (INV-1): re-read the stores and render ``view``, which
+    publishes the targets it shows — so a restarted server, or a frame older than the last render,
+    never answers "not on the board" for a target the operator can see. The fresh read mirrors the
+    old page's ``fresh=True`` rebuild; the view's markup is discarded."""
+    _drop_repos_cache()
+    _render_view(view, triggers=False)
+
+
 def _error_fragment(name: str, kind: str) -> str:
     """A view's error state, in words — with the stale banner on a quota view (its own guard: a broken
     banner costs the banner, never the error state). If building it raises too, `_last_resort_fragment`."""
@@ -4228,16 +2456,14 @@ def _error_fragment(name: str, kind: str) -> str:
 
 
 def _last_resort_fragment() -> str:
-    """A constant error fragment built without components, which cannot raise: the catalogue's word
-    through a guarded lookup, escaped here once."""
+    """A constant error fragment that cannot raise (`components.last_resort`, bound at import so a
+    broken `_ui` cannot reach it): the active catalogue's word through a guarded lookup, else the
+    built-in catalogue's."""
     try:
         words = str(_strings.t("state.failed"))
     except Exception:  # noqa: BLE001
-        words = "This view could not be loaded."
-    return (
-        '<section data-stamp="error"><div class="region-state" data-state="error" role="alert">'
-        f'<p class="state-message">{escape(words)}</p></div></section>'
-    )
+        words = _BUILTIN_WORDS.get("state.failed", "")
+    return _last_resort(words)
 
 
 def _known_slugs() -> set[str]:
@@ -4365,12 +2591,12 @@ def set_account_threshold(email: object, threshold: object) -> tuple[int, dict]:
 
 
 def _rerender() -> None:
-    """After a board-driven mutation: invalidate the banner cache and render the board NOW."""
-    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
-        _budget_cache.update(ts=0.0, html="", data=None)
+    """After an account control's write: invalidate the box-budget cache and re-probe NOW."""
+    with _budget_lock:  # the budget's own 60 s cache would show the OLD account's headroom
+        _budget_cache.update(ts=0.0, data=None)
         _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
-    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
-    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
+    # a fresh reading NOW — bypasses the floor on purpose; at most one probe per click (a budget probe
+    # still in flight from before the switch re-kicks for this generation when it lands)
     generate()
 
 
@@ -4585,19 +2811,22 @@ class _Handler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
         elif path in ("/", "/index.html"):
-            body, ctype = _fresh_html().encode("utf-8"), "text/html; charset=utf-8"
+            body, ctype = _shell_page().encode("utf-8"), "text/html; charset=utf-8"
         elif path == "/quota.json":
-            _fresh_html()  # refresh the payload alongside the page
-            try:
-                body = _JSON.read_bytes()
-            except OSError:
-                body = b"{}"
-            ctype = "application/json"
+            body, ctype = _quota_json(), "application/json"
         elif path == "/health":
             body, ctype = b"ok", "text/plain"
         elif path == "/repos.html":
-            body = _repos_page(fresh=_wants_fresh(self.path)).encode("utf-8")
-            ctype = "text/html; charset=utf-8"
+            # the old Repos page: a bookmark lands on the Work view for the 14-day window, then 404
+            if not _legacy_window_open():
+                self.send_error(404)
+                return
+            self.send_response(303)
+            self.send_header("Location", "/#work")
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
         elif path == "/external-services.html":
             # Only a regular `.html` file is ever served — the env override is the operator's own
             # process env on a 127.0.0.1-only server (single-operator threat model), but a symlink
@@ -4723,18 +2952,14 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument(
         "--once",
         action="store_true",
-        help="regenerate the page and exit (computes the box-budget banner first — up to 45 s on a slow fleet probe)",
+        help="probe the fleet once, write quota.json, print its path and exit (the page itself is served live)",
     )
     g.add_argument("--serve", action="store_true", help="run the localhost server (foreground)")
     g.add_argument("--ensure", action="store_true", help="start the server if it is not running")
     args = ap.parse_args(argv)
     if args.once:
-        # a one-shot render is not a request thread: compute the banner synchronously, or the
-        # daemon thread dies with the interpreter and the page says "computing" forever (round 4)
-        if os.getenv("QUOTA_DASH_BUDGET", "1") != "0":
-            _budget_probe()
         generate()
-        sys.stdout.write(f"{_HTML}\n")
+        sys.stdout.write(f"{_JSON}\n")
         return 0
     if args.ensure:
         return ensure()

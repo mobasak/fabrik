@@ -141,6 +141,7 @@ def _escapes(x):
         ("shell.views", lambda: ui.shell([("v", x)], "v")),
         ("shell.body", lambda: ui.shell([("v", "V")], "v", body=x)),
         ("fragment.parts", lambda: ui.fragment(x)),
+        ("last_resort.words", lambda: ui.last_resort(x)),
     ]
 
 
@@ -272,6 +273,16 @@ def test_a_link_and_a_section_are_labelled_markup():
 def test_tabs_refuse_duplicate_ids():
     with pytest.raises(ValueError):
         ui.tabs("L", [("a", "A", "1"), ("a", "B", "2")])
+
+
+def test_the_last_resort_fragment_raises_on_nothing():
+    class Bad:
+        def __str__(self):
+            raise RuntimeError("no words")
+
+    for words in ("x", None, 3, Bad()):
+        out = ui.last_resort(words)
+        assert type(out) is ui.Safe and 'role="alert"' in out and 'data-stamp="error"' in out
 
 
 def test_none_renders_as_nothing_and_a_none_data_value_is_skipped():
