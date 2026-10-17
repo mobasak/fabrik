@@ -1270,7 +1270,7 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
     plural = "values" if len(sources) > 1 else "value"  # one key reads exactly as it always did
     note = f"{', '.join(sources)} ({plural} redacted)." if sources else ""
     child_env = ({_TDB_KEY: tdb} if tdb else {}) | extra
-    code, out = run_cmd(
+    code, out = _run_capped_pytest(
         [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
         timeout=TIMEOUTS["pytest"],
         extra_env=child_env or None,
@@ -3662,6 +3662,54 @@ def _module_absent(out: str, module: str) -> bool:
     into a green NOT INSTALLED skip (W-2cfa7b8e). The name must end there: no word char or dot.
     """
     return re.search(rf"No module named {re.escape(module)}(?![\w.])", out) is not None
+
+
+# ── The memory ceiling on the pytest leg (W-162398ef, D-935) ──────────────────────────────────
+# On 2026-10-17 a test process grew to ~32 GB and took the whole WSL box down twice; a wall clock
+# cannot stop ~300 MB/s in time. The leg runs under `capped_run.sh` (a cgroup ceiling per run plus a
+# shared slice total for the box), reached by its absolute hub path: every /opt repo shares this box,
+# and the runner is hub-only, never synced. Missing runner -> the leg runs as before, and says so.
+# Kept down here, after every line the contracts cite by number (tests/test_governance_template_split.py).
+_CAPPED_RUN_DEFAULT = "/opt/fabrik/scripts/capped_run.sh"
+_CEILING_MARK = "capped_run: killed at the memory ceiling"
+
+
+def _capped_argv(argv: list[str], timeout: int) -> tuple[list[str], str]:
+    """``argv`` wrapped in the box's capped runner, and a note when it could not be."""
+    sibling = (
+        Path(__file__).resolve().parent / "capped_run.sh"
+    )  # the hub's (or this worktree's) own
+    runner = os.getenv("FABRIK_CAPPED_RUN") or (
+        str(sibling) if sibling.is_file() else _CAPPED_RUN_DEFAULT
+    )
+    if os.path.isfile(runner) and os.access(runner, os.X_OK):
+        return [runner, "--timeout", str(int(timeout)), "--", *argv], ""
+    return list(argv), (
+        f"\u26a0 the suite ran uncapped (no memory ceiling): {runner} is missing (W-162398ef)."
+    )
+
+
+def _run_capped_pytest(
+    argv: list[str], timeout: int, extra_env: dict[str, str] | None = None
+) -> tuple[int, str]:
+    """`run_cmd` for the pytest leg, under the capped runner. The runner stops the suite at
+    ``timeout`` and names it; the outer bound only catches a runner that itself hangs (its own
+    backstop is +30 s, then +10 s to kill). A ceiling kill gets a plain-words line at the END, where
+    the row's tail keeps it; an uncapped run says so the same way."""
+    wrapped, note = _capped_argv(argv, timeout)
+    code, out = run_cmd(wrapped, timeout=timeout + (0 if note else 60), extra_env=extra_env)
+    # rc 137 AND the runner's own line among the last few: a failing test that merely QUOTES the
+    # runner's message (tests/test_capped_run.py does) must not read as a ceiling kill
+    if code == 137 and any(_CEILING_MARK in line for line in out.splitlines()[-5:]):
+        out += (
+            "\n\u26a0 KILLED AT THE MEMORY CEILING: a test grew past the run's memory ceiling and the "
+            "kernel killed the suite \u2014 a runaway allocation (an unpatched mock read in a loop is "
+            "the usual cause), not a host outage. Find it with `capped_run.sh -- python -m pytest -x "
+            "-q --durations=0 <dir>`; raise FABRIK_TEST_MEM_MAX only for a suite that measurably needs it."
+        )
+    if note:
+        out += "\n" + note
+    return code, out
 
 
 if __name__ == "__main__":

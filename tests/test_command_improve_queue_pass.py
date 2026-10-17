@@ -433,3 +433,29 @@ def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pi
     coverage = ROOT / "commands" / "_fragments" / "term-coverage.md"
     classes = "boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs"
     assert classes in re.sub(r"\s+", " ", coverage.read_text())
+
+
+
+def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() -> None:
+    """Rows 1792227360 (an audit seat told to grep the rendered ~/.claude command, which no seat may open),
+    1792199420 (recurring held multi-span-coherence: the audit seat's proposed wording was not checked against the
+    phases relying on it), 1792201686 (recurring held extend-a-pinned-sentence-as-a-new-sentence: a sentence placed
+    beside a pinned one broke its pin) and 1792208187 (recurring held fragment-consumers-from-temp-render)."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "That rendered-copy grep is the lead's: the audit seat reads the command source and the fragments it includes,"
+        " pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks any wording it"
+        " proposes against the phases that rely on the sentence it would change." in p2
+    )
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn '<a"
+        " phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two"
+        " sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is"
+        " extended." in p3
+    )
+    p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
+    assert (
+        "For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each"
+        " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have." in p4
+    )

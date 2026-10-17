@@ -110,12 +110,13 @@ def _patched(vps: _Vps):
         patch.object(deployer_ssh, "_assert_claude_cli_mounts", lambda content, spec: None),
         patch.object(deployer_ssh, "_compose_up", lambda name, disabled, ssh_fn: None),
         patch.object(SSHDeployer, "find_existing", lambda self, name: {"name": name}),
+        patch.object(deployer_ssh, "_assert_deployed_env_present", lambda name: None),
     )
 
 
 def _apply(vps: _Vps, ctx: DeploymentContext) -> None:
     p = _patched(vps)
-    with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
+    with p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]:
         SSHDeployer().deploy(ctx)
 
 
@@ -212,7 +213,7 @@ def test_redeploy_and_rollback_persist_their_sha() -> None:
     # Success: the pulled SHA lands in .env before the stack comes up.
     vps = _Vps("GIT_SHA=" + OLD + "\nSENTRY_DSN=x\n")
     p = _patched(vps)
-    with p[0], p[1]:
+    with p[0], p[1], p[2], p[3], p[7]:
         SSHDeployer().redeploy("my-app", source_type="git")
     env = vps.last_env()
     assert env["GIT_SHA"] == NEW
@@ -224,7 +225,7 @@ def test_redeploy_and_rollback_persist_their_sha() -> None:
     # Rollback: the health check fails, the code is reset, and .env names the code now running.
     vps = _Vps("GIT_SHA=" + OLD + "\nSENTRY_DSN=x\n", fail_first_up=True)
     p = _patched(vps)
-    with p[0], p[1], pytest.raises(DeployError, match="rolled back"):
+    with p[0], p[1], p[2], p[3], p[7], pytest.raises(DeployError, match="rolled back"):
         SSHDeployer().redeploy("my-app", source_type="git")
     assert [_parse_env(w)["GIT_SHA"] for w in vps.writes] == [NEW, OLD]
     assert vps.last_env()["SENTRY_DSN"] == "x"
@@ -256,7 +257,14 @@ def test_unreadable_sha_leaves_env_alone(answer, caplog) -> None:
     vps = _Vps("GIT_SHA=" + OLD + "\n", rev_parse=answer)
     p = _patched(vps)
     caplog.clear()
-    with p[0], p[1], caplog.at_level(logging.WARNING, logger="fabrik.orchestrator.deployer_ssh"):
+    with (
+        p[0],
+        p[1],
+        p[2],
+        p[3],
+        p[7],
+        caplog.at_level(logging.WARNING, logger="fabrik.orchestrator.deployer_ssh"),
+    ):
         SSHDeployer().redeploy("my-app", source_type="git")
     assert vps.writes == []
     assert any("compose up" in c for c in vps.calls)

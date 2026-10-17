@@ -14,6 +14,97 @@ the readers' capture needs a letter or digit first. `run_adopt` now builds the o
 that owner; `undeclared-team` stays a valid owner (W-2118e9c9). The hook comment that claimed `--adopt` could not
 mint that name is now true and says why.
 
+### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
+
+`CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):
+- The Work items paragraph's reason clause now binds every work-item, decision, mail or merge-request id a
+  response shows the operator, in every repo: its meaning in plain words at its first mention.
+- The bar paragraph's boarded-gate pointer is `NEXT: operator decision — W-<id> — <what it decides>`; only the
+  block is never re-stated.
+
+fabrik-lib is mailed the sentence for its own contract. Operator request W-c5f39b74 (D-944). Pinned by
+`tests/test_work_contract_rule.py`.
+
+### Changed — /fabrik-task: MEASURE greps config and env values for a changed format; a copied rule is first tried as a read (2026-10-17)
+
+`commands/_sources/fabrik-task.md`:
+- MEASURE's population names every config and env value a changed format can sit in, grepped for its shape
+  (e.g. `${`).
+- Phase 2, before a copied mechanism, tries a rule another component already applies as a read of its output;
+  when the copy stays, DECISION says why.
+
+Answers rows 1792233945 and 1792240470, both recurring held subjects (D-936; SIZE_CAP 21753 -> 22044). The
+queue's other 3 rows are held (2) or routed to infra (1) with reasons. Pinned by `tests/test_fabrik_task_queue_pass.py` and
+`tests/test_fabrik_task_source.py`.
+
+### Fixed — Test runs are capped: a runaway test is a named failure, never a host outage (2026-10-17)
+
+On 2026-10-17 one test process grew to about 32 GB (an unpatched `ssh()` handing `yaml.safe_load` a MagicMock, about 300 MB/s) and took WSL, and every session on it, down twice (W-162398ef, D-935). A per-test timeout cannot catch that in time, so test runs are now bounded by kernel cgroup ceilings.
+
+- **New `scripts/capped_run.sh [--mem SIZE] [--timeout SECS] -- <cmd>`.** It runs the command in a named scope with a memory ceiling (default 4G, no swap) and a time limit (default 1800 s). Each scope sits inside the shared `fabrik-tests.slice`, whose runtime-only total (default 12G) bounds every capped run on the box, nested or concurrent.
+- **Exit codes.** It exits 137 with `killed at the memory ceiling`, 124 at the time limit, 2 on a bad bound, otherwise the command's own code. With no user systemd manager it runs the command uncapped and warns.
+- **Three launchers now go through it:** the completion gate's pytest leg (its red row says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s sweep.
+- **The hub suite guards itself.** `tests/memguard.py`, started by `tests/conftest.py`, is a watchdog process. It kills a pytest tree whose summed PSS passes `FABRIK_TEST_RSS_MAX` (3G, below the runner's 4G) and prints the traceback.
+- **Per-test limit.** pytest-timeout joins the dev deps (`uv.lock`) with the ini key `timeout = 600`; hub tests that run the real gate take longer than 120 s. The scaffold template's per-test timeout is fleet's: scaffolded projects need the plugin in every dependency list first.
+- **Rule.** Both CLAUDE.md HARD STOPS rows route every test run through the runner.
+- **Tests.** `tests/test_capped_run.py`; each of 20 mutants turns one red.
+
+### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md` makes three changes:
+- PHASE 2 says the rendered-copy grep is the lead's. The audit seat reads the command source and its fragments,
+  pinned, never `~/.claude`, and checks any wording it proposes against the phases that rely on it.
+- PHASE 3 has the tests that pin a paragraph read before a sentence is placed there. New text goes where no pinned
+  span runs, including the gap between two sentences one pin joins; a pin ending at a period fails when its sentence
+  is extended.
+- PHASE 4 has a fragment edit's brief name the consumers PHASE 3 names.
+
+Answers rows 1792227360, 1792199420, 1792201686 and 1792208187. The last three repeat held subjects. The queue's
+other 3 rows are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
+### Fixed — chrome-extension scaffold pins its toolchain: packageManager pnpm@11.24.0, @antfu/eslint-config ~7.7.3 (2026-10-17)
+
+A fresh chrome-extension scaffold declared `@antfu/eslint-config` `^7.2.0` and no `packageManager`, so it ran under
+whatever pnpm the box resolved, though its `allowBuilds` block needs pnpm 11. It now pins `pnpm@11.24.0` and `~7.7.3`,
+the versions its real install, compile, zero-warning lint and build pass on. Transitive plugin drift stays open as
+W-961f1958, the mobile-app template's range as W-fc58e9b7 (W-70d9c609, D-941).
+
+### Fixed — scaffolded composes parse in a fresh checkout: saas services and the audit-jobs companion load .env as optional (2026-10-17)
+
+The three services of the saas compose (`_write_saas_compose`) and the `<name>-audit-jobs` companion
+(`_append_audit_jobs_service`, every database-backed Python type) declared `env_file: [.env]`, which compose treats as
+required. The scaffolder writes no local `.env`, so `docker compose config` refused in a fresh checkout ("env file
+…/.env not found"). They now use the long form with `required: false`, as `_write_canonical_compose` and the
+scaffold compose template already did (W-9ead34bd); every deploy path still writes `.env` before `up`. A new test
+runs `docker compose config` on each scaffold type's committed compose in an empty directory. Because compose no
+longer refuses a missing `.env`, `fabrik restart` and `redeploy` now refuse when `/opt/<name>/.env` is not a file
+(a git redeploy resets to the previous commit), instead of starting a stack with no secrets that can still report
+healthy (W-6f690b90, D-938).
+
+### Fixed — fabrik redeploy and restart validate the deployed compose; compose reads refuse non-text (2026-10-17)
+
+`SSHDeployer.redeploy()` and `restart()` started `docker compose up` without `_validate_compose`, the one route around
+the invariants every `fabrik apply` path enforces. Both now validate `/opt/<name>`'s compose first and refuse with the
+same `Compose validation failed for <name>` error; a git redeploy checks right after `git pull` and resets to the
+previous commit on a violation or a failed read, before the GIT_SHA write, the build and the up. The compose reader now
+reads with `sudo` (the rendered compose is root-only), refuses an existing file it cannot read instead of falling
+through to a stale legacy file, and refuses a non-text answer; `_validate_compose` refuses non-text before parsing. The
+non-text guards came first: an earlier draft fed an unconfigured test mock to the YAML parser, which reads it forever,
+and took WSL down twice. fabrik-citation-verifier and proxy, whose repo compose already fails `fabrik apply`, now also
+refuse redeploy. Decision: D-937 (W-51d6c153).
+
+### Changed — a ticket that cannot list the spec quotes its rules verbatim, and plan-review checks those quotes first (2026-10-17)
+
+- `/fabrik-plan-after-chat` Phase 2's "Size as you draft" paragraph now covers a ticket whose READ budget pushes
+  the spec out of its Context Files. The ticket quotes each spec rule it implements verbatim at
+  `<spec path>:<line>`, in a `> ` blockquote under `## Context Files` and never as a bullet, because
+  `check_plan_tickets.py` reads a bullet there as a listed file, and a bullet under Behavior Contract holding
+  "given" as a behaviour row. Phase 0's cite rule says such a quote is a cite, not a restatement.
+  `/fabrik-plan-review`'s spec-cite bullet checks those quotes before the ticket's other cites. Feedback row
+  1792192158 (infra) reported four tickets that paraphrased the spec instead, which drove most of a review's first
+  round. It recurs on the held subject `size-read-set-first`. The graders are in
+  `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
+
 ### Fixed — the review loop merges one defect cited by its pin path and by its repo path (2026-10-17)
 
 `.claude/workflows/fabrik-review-loop.js` now takes each candidate's `file` through the same root strip `readsFile`
@@ -53,6 +144,30 @@ two-row control ledger), and `decisions.py --merge-owner .` still prints `coordi
   `release-check.mjs`, `src/lib/update-version.ts`). `src/fabrik/scaffold.py` now emits module-scope regexes and
   `Array.from(str, fn)`, and drops the directives. `tests/test_scaffold_chrome_ext_wxt.py`'s network build test
   also runs `pnpm compile` and `pnpm lint` (red before, green after).
+
+### Fixed — fabrik apply's local deploy path validates its compose before writing anything (2026-10-17)
+
+`SSHDeployer._deploy_local` wrote `.env` and ran `docker compose up` without `_validate_compose`, so a local-source
+compose with no memory limit, no container_name, the retired `coolify` network or a non-amd64 platform deployed
+unchecked while the template, clone-based and docker paths refuse it. It now reads `<source.path>/compose.yaml` once,
+refuses with the same `Compose validation failed for <name>` error (and on a failed read), runs the claude-mount check on
+the same bytes, and only then writes. `source.path` is shell-quoted in every command, a leading `~/` kept expandable.
+Three local-source projects (proposal-creator, trading-core, triggered-content-orchestration) now refuse until their
+compose is fixed; `fabrik apply --dry-run` does not show it, because it returns before the read. Decision: D-932
+(W-807287f1). Filed from the review: W-51d6c153 (`redeploy`/`restart` run `compose up` unvalidated) and W-2907ccef
+(`_validate_compose` misses `include:`/`extends:` and null limits; the mount check is a substring match).
+
+### Fixed — scaffolded compose files hand the deploy's .env to the container (2026-10-17)
+
+`_write_canonical_compose` and `templates/scaffold/docker/compose.yaml.template` emitted no `env_file`, so the keys
+`fabrik apply` writes to `/opt/<name>/.env` — DATABASE_URL, REDIS_URL, SENTRY_DSN, declared secrets — fed only
+`${VAR}` interpolation and never reached the container (`docker compose config` showed them absent). Both now declare
+`env_file: [{path: .env, required: false}]` on the app service; literal `environment:` values still win, and a fresh
+checkout with no `.env` still parses. New projects only: the 7 deployed projects whose committed compose lacks it
+adopt on their own, and a redeploy stays a Gate 2. `tests/test_scaffold_compose_env_file.py` proves it with
+`docker compose config`. Decision: D-931 (W-9ead34bd). Filed from the review: W-05004b41 (`_format_env` never escapes `$`,
+which compose interpolates inside env_file values) and W-6f690b90 (the audit-jobs companion and the saas services still
+use the required short form).
 
 ### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
 
@@ -104,6 +219,9 @@ template's `shape:` block (D-908), because the deployer writes `spec["env"]` int
 same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
 fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
 next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+`tests/orchestrator/test_apply_plan_parity.py` holds the two loaders to the same registrars for every spec, reason
+strings included, and keeps template `shape:` keys inside a nine-key allow-list.
+
 ### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
 
 - PHASE 2's recurrence search now greps the earlier reject reasons for the subject, for what the row

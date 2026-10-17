@@ -1,0 +1,26 @@
+{
+  "block_digest": "7b14784e313a676c4e937715d39782decf242fa57af0ec3fba43b818a2f3ac05",
+  "blocked_by": [],
+  "created": "2026-10-17T15:47:54.934878Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-589e744e",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "f103683c4b32963653053f6601a10370ca2f72d2477aa3893cd6fb52d9a35675"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: if it is sure no repos are using them, it can delete.",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet delete the two empty development databases `envp_chrome_dev` and `envp_pyapidb_dev`? A review run left them on this machine's local PostgreSQL by mistake. Nothing uses them, and production isn't involved.",
+  "status": "done",
+  "title": "May fleet delete the two empty development databases `envp_chrome_dev` and `envp_pyapidb_dev`? A review run left them on this machine's local PostgreSQL by mistake. Nothing uses them, and production isn't involved."
+}

@@ -207,8 +207,9 @@ class SpecValidator:
 
         # The template's shape: block only — never env/resources/health, which the
         # deployer would write into the app's .env (D-908). Plan merges every key; the
-        # registrar decision reads only shape, so plan and apply resolve the same
-        # registrars (W-989653a7).
+        # registrar decision reads the merged shape plus the spec's own domain, infra,
+        # watchdog and depends, so plan and apply resolve the same registrars
+        # (W-989653a7; tests/orchestrator/test_apply_plan_parity.py proves it per spec).
         try:
             return merge_template_defaults(spec, self.templates_dir, keys=("shape",))
         except (OSError, ValueError, yaml.YAMLError) as e:

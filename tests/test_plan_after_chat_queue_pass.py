@@ -212,3 +212,48 @@ def test_the_reader_census_names_a_build_script() -> None:
         " Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a"
         " reader) and runs before the Phase 2 shape decision."
     ) in phase1
+
+
+def test_a_ticket_that_cannot_list_the_spec_quotes_it_and_review_checks_the_quotes_first() -> None:
+    """Row 1792192158 (a recurrence of HELD size-read-set-first, row 1790199174): the READ budget pushed the spec
+    out of four tickets' Context Files and they paraphrased it, while Phase 0's cite rule says restate nothing.
+    The emit rule says such a ticket quotes the spec verbatim, and /fabrik-plan-review checks those quotes first."""
+    flat = _flat()
+    i = flat.index("**Size as you draft.**")
+    assert (
+        "When the read-only file a ticket cites inline is the spec, its quoted lines are each spec rule the ticket"
+        " implements, verbatim at `<spec path>:<line>` (a cite under Phase 0's rule, never a paraphrase), in a `> `"
+        " blockquote under `## Context Files`, never a bullet (`check_plan_tickets.py` reads a bullet there as a"
+        ' listed file, and a bullet under `## Behavior Contract` holding the word "given" as a behaviour row), and'
+        " `/fabrik-plan-review` checks those quotes before the ticket's other cites."
+    ) in flat[i : flat.index("**Worked ticket skeleton**", i)]
+    assert (
+        "and restate nothing that section already says (a verbatim quote at `<spec path>:<line>` is a cite, not a"
+        ' restatement: Phase 2, "Size as you draft"); the'
+    ) in flat[: flat.index("## Phase 1")]
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert (
+        'A ticket that quotes spec rules in place of listing the spec (`/fabrik-plan-after-chat` Phase 2, "Size as'
+        ' you draft") has those quotes checked before its other cites: each quoted `<spec path>:<line>` opened and'
+        " the quote verbatim (a verbatim quote is a cite, never a restatement), and no rule of the spec section"
+        " holding those lines that the ticket implements left unquoted."
+    ) in review
+
+
+def test_the_gate_reads_a_bulleted_spec_quote_and_skips_a_blockquote() -> None:
+    """Row 1792192158: the emit rule puts spec quotes in a `> ` blockquote because check_plan_tickets.py reads a
+    bullet under Context Files as a listed file (re-adding the spec to the READ budget) and a bullet under
+    Behavior Contract holding "given" as a behaviour row. Both halves are run, not read."""
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    try:
+        import check_plan_tickets as gate
+    finally:
+        sys.path.pop(0)
+    bullet = '- `docs/specs/x.md:57`: "refresh only when a given token has expired"'
+    quote = '> `docs/specs/x.md:57`: "refresh only when a given token has expired"'
+    assert gate._list_paths(bullet) == ["docs/specs/x.md"]
+    assert gate.GIVEN_ROW_RE.findall(bullet)
+    assert gate._list_paths(quote) == []
+    assert gate.GIVEN_ROW_RE.findall(quote) == []

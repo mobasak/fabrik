@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T09:34:05.392054Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-12df6ed0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M50QJ1RDT6R2Y7WVDZ3T7H5W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: nested start swept a parent's RUN-SCRATCH — measured cause: a CLOSED run's folder written into after its close; fixed in scratch_sweep (W-9f3f097c, D-918)"
+}

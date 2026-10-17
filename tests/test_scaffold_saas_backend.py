@@ -173,8 +173,10 @@ def test_compose_services(project: Path) -> None:
     # as a ${...} default — a fabricated blank-password URL would fail first boot.
     raw = (project / "compose.yaml").read_text()
     assert "POSTGRES_PASSWORD" not in raw
+    # Optional (W-6f690b90): a fresh checkout has no .env, and compose refuses a required one.
+    for svc in (NAME, "api", "worker"):
+        assert services[svc].get("env_file") == [{"path": ".env", "required": False}]
     for svc in ("api", "worker"):
-        assert services[svc].get("env_file") == [".env"]
         assert not any("DATABASE_URL" in e for e in services[svc].get("environment", []))
 
 

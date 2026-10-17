@@ -1,4 +1,10 @@
 {
+  "alt_block_digests": [
+    "f0cecfef197463b44c7cbac9edb5e2902564d51c79ed14c374897699d0387dcd"
+  ],
+  "alt_ids": [
+    "W-ca382ec0"
+  ],
   "block_digest": "e1508b7defa9009261557a6196215b4b6c179036041ec614ef84a59969597edc",
   "blocked_by": [],
   "created": "2026-10-16T07:28:43.690888Z",
@@ -14,7 +20,8 @@
     "spec": ""
   },
   "msg_digests": [
-    "3fbb23186fe44ab43dcaecd76a58d8e81688a54087f8f69bf25ca10a9be87051"
+    "3fbb23186fe44ab43dcaecd76a58d8e81688a54087f8f69bf25ca10a9be87051",
+    "4d82ca0628e409353c2f5da2d8a8ef75543d2bea26a8fac1c87b686be60d49de"
   ],
   "next": "",
   "note": "",

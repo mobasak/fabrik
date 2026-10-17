@@ -79,6 +79,17 @@ def test_package_json_is_wxt_not_crxjs(ext: Path) -> None:
     assert deps["webext-permission-toggle"].startswith("^6"), "pin the stable v6 line"
 
 
+def test_toolchain_is_pinned(ext: Path) -> None:
+    """W-70d9c609: the emitted extension pins the pnpm it is proven on (pnpm 11 is what the
+    allowBuilds block needs) and the lint config it lints clean on. This proves the strings are
+    written — the lint property itself is proven only by the needs_network build test below."""
+    import json
+
+    pkg = json.loads((ext / "package.json").read_text())
+    assert pkg["packageManager"] == "pnpm@11.24.0"
+    assert pkg["devDependencies"]["@antfu/eslint-config"] == "~7.7.3"
+
+
 def test_pnpm_workspace_allowbuilds_not_onlybuilt(ext: Path) -> None:
     """pnpm 11 uses allowBuilds (onlyBuiltDependencies was removed) so install exits 0."""
     ws = (ext / "pnpm-workspace.yaml").read_text()
