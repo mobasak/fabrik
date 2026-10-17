@@ -1542,9 +1542,9 @@ def _assert_deployed_env_present(name: str) -> None:
 
     The scaffold composes load ``.env`` with ``required: false`` so a fresh checkout parses
     (W-6f690b90), which means compose no longer refuses when the file is gone. Every deploy path
-    writes it before ``up`` (``_write_env_files``); restart and redeploy write none, so without
-    this check they would start a stack with no DATABASE_URL or secrets that can still report
-    healthy. An empty ``.env`` (a deploy with no keys) is present. Anything but the exact
+    writes it before ``up`` (``_write_env_files``); restart and redeploy do not write it before
+    this check (a git redeploy's ``_persist_git_sha`` runs after it), so without the check they
+    would start a stack with no DATABASE_URL or secrets that can still report healthy. An empty ``.env`` (a deploy with no keys) is present. Anything but the exact
     ``present`` answer refuses.
     """
     from fabrik.drivers.ssh import ssh as _ssh

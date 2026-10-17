@@ -753,17 +753,31 @@ class TestAssertDeployedEnvPresent:
             assert _assert_deployed_env_present("my-app") is None
         assert mock_ssh.call_args.args[0].startswith("sudo sh -c ")
 
-    @pytest.mark.parametrize("answer", ["absent", "", None, b"present", "present\nextra"])
-    def test_anything_but_present_refuses(self, answer):
+    @pytest.mark.parametrize(
+        ("answer", "state"),
+        [
+            ("absent", "is absent"),
+            ("", "is unconfirmed"),
+            (None, "is unconfirmed"),
+            (b"present", "is unconfirmed"),
+            ("present\nextra", "is unconfirmed"),
+        ],
+    )
+    def test_anything_but_present_refuses(self, answer, state):
         with (
             patch("fabrik.drivers.ssh.ssh", return_value=answer),
-            pytest.raises(DeployError, match=r"/opt/my-app/\.env"),
+            pytest.raises(DeployError, match=rf"/opt/my-app/\.env {state}"),
         ):
             _assert_deployed_env_present("my-app")
 
     @pytest.mark.parametrize(
         "failure",
-        [RuntimeError("Permission denied"), subprocess.TimeoutExpired(["ssh"], 15), OSError("ssh")],
+        [
+            RuntimeError("Permission denied"),
+            subprocess.TimeoutExpired(["ssh"], 15),
+            OSError("ssh"),
+            ValueError("bad host"),
+        ],
     )
     def test_a_failed_probe_refuses(self, failure):
         with (
@@ -919,6 +933,19 @@ class TestSSHDeployerRedeploy:
             pytest.raises(DeployError, match=r"/opt/my-app/\.env is absent"),
         ):
             SSHDeployer().restart("my-app")
+        assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
+
+    @pytest.mark.parametrize("source_type", ["template", "local"])
+    def test_non_git_redeploy_refuses_when_the_deployed_env_is_absent(self, source_type):
+        with (
+            patch(
+                "fabrik.orchestrator.deployer_ssh._read_compose_from_vps",
+                return_value=_VALID_LOCAL_COMPOSE,
+            ),
+            patch("fabrik.drivers.ssh.ssh", side_effect=["absent"]) as mock_ssh,
+            pytest.raises(DeployError, match=r"/opt/my-app/\.env is absent"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type=source_type)
         assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
 
     def test_git_redeploy_resets_when_the_deployed_env_is_absent(self):
