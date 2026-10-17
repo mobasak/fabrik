@@ -405,17 +405,18 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
     )
 
 
-def _two_seat_union(haiku_file: str) -> tuple[dict, dict]:
-    """The sonnet seat cites `a.py:3`, the haiku seat cites the same defect at line 4 as `haiku_file`."""
+def _two_seat_union(sonnet_file: str) -> tuple[dict, dict]:
+    """The sonnet seat — taken in FIRST, so its candidate is the one kept — cites the defect at line 3 as
+    `sonnet_file`; the haiku seat cites the same defect at line 4 as `a.py`."""
     out, _, prompts = _harness(
         _ARGS,
         {
-            "find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-S1", 3)]},
-            "find:S:haiku": {
+            "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
                 "notes": "n",
-                "candidates": [{**_cand("S-H1", 4), "file": haiku_file}],
+                "candidates": [{**_cand("S-S1", 3), "file": sonnet_file}],
             },
+            "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-H1", 4)]},
         },
     )
     return out["slices"][0], prompts
@@ -446,14 +447,14 @@ def test_a_live_or_different_path_is_never_stripped_into_the_repo_path(shape: st
     s, _ = _two_seat_union(shape)
     assert [c["id"] for c in s["candidates"]] == ["S-S1", "S-H1"], s["candidates"]
     assert s["overlap"] == 0
-    assert s["candidates"][1]["file"] == {"/p/other/a.py": "other/a.py"}.get(shape, shape)
+    assert s["candidates"][0]["file"] == {"/p/other/a.py": "other/a.py"}.get(shape, shape)
 
 
 def test_a_file_that_is_only_a_root_keeps_its_original() -> None:
     """A `file` that strips to the empty string (the pins dir itself) keeps the seat's original value rather than
     reading as no file at all."""
     s, _ = _two_seat_union("/p/")
-    assert s["candidates"][1]["file"] == "/p/", s["candidates"]
+    assert s["candidates"][0]["file"] == "/p/", s["candidates"]
 
 
 def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed() -> None:
