@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "decide: set the flag in those specs, or audit every deployed spec and report a volume-with-flag-false as reverse shape mismatch",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

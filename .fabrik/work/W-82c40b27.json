@@ -17,7 +17,10 @@
   "note": "migrated-digest:1644056e9226",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Missing grader for the parity contract FROZEN header",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing grader near deploy parity gate",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "No executable check grades the parity contract's `FROZEN` header (2026-09-02, owner: infra)"
 }

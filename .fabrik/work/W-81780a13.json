@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:55.301882Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-81780a13",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — DECISION harvest files duplicate awaiting-operator items (1 question became 4)",
   "status": "open",
   "title": "WHAT: work.py's DECISION harvest files a NEW awaiting-operator item whenever a re-emitted DECISION block is re-worded — one plan-3 approval question became 4 items in 30 min here (W-5a723715, W-3d1d2cfa, W-0cab7373, W-8c38ccb4)."
 }

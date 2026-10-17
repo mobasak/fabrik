@@ -13,6 +13,96 @@ The step now says to change the item in `.fabrik/work/<id>.json` (a delivered on
 row 1792256116 is held and row 1792251685 is plan wording.
 Pinned by `tests/test_execute_plan_queue_pass.py`.
 
+### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
+
+- The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,
+  `uv run python scripts/final_gate.py`) with no exception for a subagent seat, whose brief bans every
+  package-manager verb (W-54b0e523).
+- `10-python.md` § Package Manager now states the exception once, in the brief's terms: the verbs it bans, why,
+  and what a seat runs instead (`.venv/bin/python …`, or `python3 …` where there is no `.venv`). It covers every
+  `uv` command in `10-python.md` (its Package Manager, Testing and Quality Gates blocks and its Banned table) and in
+  the two other packs; a Dockerfile's `RUN uv sync` is the image build's.
+- The other packs point to it: `45-testing-strategy.md`'s Run-tests bullet, its Banned-table row and its checklist
+  line, and `50-code-review.md`'s gate note (`.venv/bin/python scripts/final_gate.py --lean --json --check`).
+
+### Fixed — `review_loop_ledger.py read` keeps each seat's `notes` and `files_read` in the pass file (2026-10-18)
+
+- The pass file's `seats[]` entries had timing, tokens and flags, but not the seat's own report. A lead resuming a
+  review from the durable SCRATCH folder after a shutdown got the findings back, but not each seat's coverage
+  statement or MACHINERY block, which the close-out feedback is built from (kaizen mail 01M55F55HE).
+- Each seat now carries `notes` and `files_read`; a seat with no result gets `[]` for both.
+  - `notes` keeps every returned result's non-blank string note.
+  - `files_read` is the union of every result's non-blank string entries, trimmed, deduplicated and in first-seen
+    order.
+- `read_no_file` now uses the same rule. Before, a finder that returned `[null]` was counted as having read a file,
+  because `str(None)` is `"None"`.
+- Graded in `tests/test_review_loop_ledger.py`. The single-result assertions were red before the fix on
+  `KeyError: 'notes'`. The new test, a seat that returns three times, was red on the first cut, which kept `""`,
+  `"None"` and untrimmed duplicates.
+
+### Added — a test pins the scratch sweep's rule that a held session folder is not dead for its run folders (2026-10-18)
+
+- `tests/test_scratch_sweep_run_folders.py::test_a_held_session_dir_is_not_dead_for_its_run_folders`, 12 cases
+  (W-d8592740). The scratch root is reached directly or through a symlink. The holder is a file in the session
+  folder, the folder itself, or a working directory, set up in a fake /proc. The death signal is a gone-pid sessions
+  record or a stale transcript. `--dead --apply` must keep the held session's stale `running` folder, giving the
+  live-signal reason, and must consume the same folder in a second session with no holder.
+- Before this test, `test_scratch_sweep.py` and this file stayed green with `_session_dead_for_runs`'s held check
+  removed (258 passed), and the folder was consumed while a live process held a file in its session. Each mutant the
+  review measured now fails:
+  - removing the check: all 12 cases;
+  - comparing only the resolved path: the 6 symlinked-root cases;
+  - keeping every folder whenever any holder exists: all 12;
+  - checking holders only inside the sessions-record branch: the 6 transcript cases;
+  - checking holders only after the sessions-record return: the 6 record cases;
+  - ignoring sessions records altogether: the 6 record cases, whose transcript is fresh on the test clock.
+- `_classify_sid`'s live-holder branch was already pinned: with it removed, `test_a_process_under_the_dir_is_liveness`
+  fails.
+
+### Fixed — chrome-extension's production image no longer installs pytest (2026-10-18)
+
+A scaffolded chrome-extension listed pytest and pytest-timeout in its root `requirements.txt`, which is also the
+Dockerfile's install list, so every image carried the test runner. They now live in a root `requirements-dev.txt`
+(`-r requirements.txt` plus the test deps) that `make install` and the scaffold-time venv install; the image's
+`requirements.txt` keeps runtime deps only (W-4d6a37c8, the exception D-959 recorded).
+
+### Fixed — scaffold code provisions only when asked: no more real databases from probes and seats (2026-10-18)
+
+A review seat's direct `create_project` call left two real PostgreSQL databases on the WSL dev cluster, because the
+venv, the dev database, the hub registry sync, the `.mcp.json` emit and a hub deploy spec ran for every caller that
+had not set `FABRIK_SCAFFOLD_OFFLINE` — and only the test suite set it. They now run only inside an explicit opt-in:
+`create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()`. Every other caller —
+a probe, a seat, `scripts/retype_project.py`, the `pack_layout_audit` gate check, a scaffold step called directly,
+a thread that does not copy the caller's context — gets the files only, its spec under its own base (none at all when the base is /opt), and the
+skipped venv and database steps print the command to run instead (W-e2f0b6e5; the two databases were dropped under D-949).
+
+### Fixed — every scaffolded Python test run has a 120 s per-test hang guard (2026-10-17)
+
+No scaffolded project gave a test a time limit. The python template's `[tool.pytest.ini_options]`, which every
+type with Python tests copies, now sets `timeout = 120` (pytest-timeout) and `faulthandler_timeout = 120` (built in, a stack dump
+even without the plugin); every dependency file that names pytest also names pytest-timeout; file-worker emits
+the `requirements-dev.txt` its Makefile installs, the saas-family server a `server/requirements-dev.txt` of test
+deps, and chrome-extension a root `pytest.ini`, because pytest never reads its `server/pyproject.toml` for the
+root `tests/`. Vendored fabrik-lib trees (`docs-site`) are left as vendored. A hang guard only — the capped
+runner stays the memory guard (D-935, W-046828fb).
+### Fixed — the board-banner test checks the banner the dashboard actually renders (2026-10-18)
+
+`tests/test_assemble_dispatch_step.py::test_v7_the_rendered_board_banner_carries_no_retired_literal` was red on master since the command-centre integration split `quota_dashboard._budget_probe()` (now the banner's data) from `dashboard_ui/views/overview.py::_budget_lines` (its rendering). The test now drives both, asserts the rendered seat and quota facts before its retired-literal check, reads the text unescaped, and requires the renderer to be this tree's exact `overview.py` — a `dashboard_ui` from another checkout, a nested worktree included, fails it (W-5567c00b).
+
+### Changed — in the hub, every review sends its seats through the Agent tool and never calls the Workflow tool (2026-10-18)
+
+A new note, `commands/_fragments/no-workflow-hub.md`, sits right after the frontmatter of the seven review command sources that launch the review-loop Workflow (`/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-repo-review`, `/fabrik-deploy-plan-review`, `/fabrik-execute-plan`) and above § Launch in `docs/reference/review-loop-workflow.md`. In the hub (a checkout whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under it) it replaces every Workflow launch the command names with the same seats and briefs as one `Agent` message, recorded `shape: agent-tool`, and never puts a workflow, permission or approval question to the operator. Outside the hub the commands read as before. Each Agent-tool fallback sentence cites D-961, and `subagents-core`'s lead and pin-args sentences and the probe catalogue's args and relaunch lines are gated "outside the hub". `tests/test_review_queue_pass.py` pins the note, its placement and every fallback copy (W-9d8326a4, D-961).
+
+### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
+
+- The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
+  tracked (`_is_tracked`), so the hub — which has no RESILIENCE or OPERATIONS doc — is no longer told to update one
+  after a `retry` diff or a compose change (W-a846021a). PORTS.md (D-380), INDEX.md, FEATURES and QUICKSTART keep their
+  rows. Treating a UI "Retry" word as not-retry was rejected after measuring: the incident matched the identifier
+  `retry: bool`, and no diff-text rule tells it from `retry=3` (0 UI-label hits in 8,027 fleet .py commits).
+- tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
+  doc so they keep testing the patterns.
+
 ### Changed — seat home-directory reads: a named file, Bash-bounded and size-checked; writes stay banned (2026-10-18)
 
 The seat rule for `$HOME` paths no longer bans every `.claude*` read on a stall that does not reproduce (replayed on Claude
@@ -48,6 +138,10 @@ An `--args` run file with no `result` key (bare launch args, or a run that never
 so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling was carried; both the guard and the
 filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
 (W-9f436e18).
+
+### Fixed — the Stop hook no longer orders a commit of the file a running review is still reviewing (2026-10-17)
+
+`.claude/hooks/final_gate_stop.py`'s uncommitted cause no longer counts a file that the fresh, running review-family record names in its `--surface`. Before this, a session was told to commit mid-review, the reverse of the lane's order. The fifth cause now blocks that turn instead, telling the session to run the review to its terminal condition. The exemption holds only on a stop the fifth cause actually blocks (`_review_exempts_commit`): with the run's seats in flight, on its warn-through stop, or once the record closes, the commit is ordered again, so no stop leaves the file ordered by neither cause. The exemption is gated on the same fresh record the fifth cause blocks on, so the `COMMAND_RUN_STALE_H=0` opt-out cannot turn an abandoned record into a permanent exemption. The urgent-90 checkpoint still orders the commit (D-306). Both callers now share one predicate, `_own_uncommitted`. A stand-down lands in the kaizen stream as `stop_block` `stood_down` (W-5ce56208).
 
 ### Added — `command_run.py capture`, and `--commit` takes a comma list (2026-10-17)
 

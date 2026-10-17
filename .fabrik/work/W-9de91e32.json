@@ -17,7 +17,7 @@
   "note": "migrated-digest:d6d49af48311",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Execution-notes reader for plan checks",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — execution-notes reader",
   "status": "open",
   "title": "**An Execution-notes reader for plans (pass 3 spec D9 assumed one; 2026-09-12, owner: infra)** — `check_plan_quality.py` reads no `### Execution notes`, so the D9 Finish docs-review skip rule and e..."
 }

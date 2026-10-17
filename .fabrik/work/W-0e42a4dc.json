@@ -4,7 +4,7 @@
   ],
   "created": "2026-10-07T01:12:04.417474Z",
   "creator": "infra",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-0e42a4dc",
   "impact": "high",
@@ -18,8 +18,8 @@
   "next": "",
   "note": "",
   "owner": "intel",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'refuses'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording prescribes a shape the isolation check refuses (6 hits, one file)",
   "status": "open",
   "tags": [
     "corpus"

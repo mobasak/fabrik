@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T17:31:05.840893Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-41a564e0",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,9 +16,11 @@
   "next": "measure which scripts/ tests shell out to ssh/scp/rsync (grep + one run under a temporary shim), then either a root-level conftest that imports the tests/ guard or per-dir conftests; keep the FABRIK_TEST_ALLOW_FLEET grader's scripts/ scan",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing live-fleet guard for tests",
   "status": "open",
   "tags": [
+    "medium",
     "tests"
   ],
   "title": "scripts/**/test_*.py (25 files) run with no live-fleet guard: tests/conftest.py's Popen guard + PATH shim only load for tests/ (review G-S3/G-O7, W-56f180f7)"

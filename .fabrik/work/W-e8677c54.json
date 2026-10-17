@@ -4,10 +4,10 @@
   ],
   "created": "2026-10-08T19:41:26.168004Z",
   "creator": "infra",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-e8677c54",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,8 +18,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'blocked'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — drift invisible class",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "work.py drift: an ARCHIVED plan whose Status is BLOCKED (or not EXECUTED/SUPERSEDED) is invisible to every class (W-fbdd17c8 critiques)"
 }

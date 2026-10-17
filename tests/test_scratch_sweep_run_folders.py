@@ -584,6 +584,61 @@ def test_the_dead_rule_consumes_a_stale_running_folder_the_own_session_keeps(
     assert sdir.exists(), out  # the run pass alone removed it
 
 
+@pytest.mark.parametrize("death", ["record", "transcript"])
+@pytest.mark.parametrize("holder", ["fd-file", "fd-dir", "cwd"])
+@pytest.mark.parametrize("root_via", ["real", "symlink"])
+def test_a_held_session_dir_is_not_dead_for_its_run_folders(
+    root_via: str,
+    holder: str,
+    death: str,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W-d8592740: `--dead` must not call a session dead for its run folders while a live process
+    holds something in its session directory outside those folders. SID_A has that holder and keeps
+    its stale `running` folder, for the reason the live signal gives; SID_B has the same folder and
+    death signal with no holder and loses it, so a rule that keeps every folder whenever ANY holder
+    exists goes red too. Each axis closes an escape the review measured: a scratch root reached
+    through a symlink (a guard comparing only the resolved path misses there, because the probe
+    keys a holder by the path as passed), three holder shapes (a file, the directory itself, a
+    working directory) and both death signals (a gone-pid sessions record, a stale transcript)."""
+    real_root = harness
+    if root_via == "symlink":
+        link = tmp_path / "rootlink"
+        os.symlink(str(real_root), link)
+        monkeypatch.setenv("SCRATCH_SWEEP_ROOT", str(link))
+    held_dir, bare_dir = _session(real_root, SID_A), _session(real_root, SID_B)
+    held = _run_folder(held_dir, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+    bare = _run_folder(bare_dir, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+    notes = held_dir / "scratchpad" / "notes.txt"
+    notes.write_text("open in a live pane", encoding="utf-8")
+    for sdir in (held_dir, bare_dir):
+        _age_tree(sdir, HOUR)
+    proc_root = _one_pid_proc(tmp_path)
+    if holder == "fd-file":
+        os.symlink(str(notes.resolve()), proc_root / "1" / "fd" / "3")
+    elif holder == "fd-dir":
+        os.symlink(str(held_dir.resolve()), proc_root / "1" / "fd" / "3")
+    else:
+        os.symlink(str((held_dir / "scratchpad").resolve()), proc_root / "1" / "cwd")
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc_root))
+    for sid in (SID_A, SID_B):
+        transcript = tmp_path / "tx" / SLUG / f"{sid}.jsonl"
+        if death == "record":
+            _dead_record(tmp_path, sid)
+            _age(transcript, 0)  # fresh on the test clock: the record is the only death signal
+        else:
+            _age(transcript, 8 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert held.exists(), out
+    kept = [ln for ln in out.splitlines() if SID_A in ln and held.name in ln]
+    assert any("running in a session with a live signal" in ln for ln in kept), out
+    assert not bare.exists(), out
+
+
 def test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace(
     harness: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

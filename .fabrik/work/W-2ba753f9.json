@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "convenience; without it agents may prompt or fall back to uncapped runs",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — allowlist avoids prompts/uncapped runs",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Settings allowlist entry for scripts/capped_run.sh so agents' capped test runs need no permission prompt (residual of P0 W-162398ef); a settings change goes through review before registration"
 }

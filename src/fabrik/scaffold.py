@@ -14,6 +14,8 @@
 # strings), so three checks now consult the marker — all other gate checks still run.
 # Real runtime secrets never live here; they belong in .env.
 
+import contextlib
+import contextvars
 import fnmatch
 import json
 import logging
@@ -22,7 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import date
 from pathlib import Path
 from types import ModuleType
@@ -1923,20 +1925,53 @@ def metrics_app():
     )
 
 
-def _scaffold_offline() -> bool:
-    """``FABRIK_SCAFFOLD_OFFLINE`` set to 1/true/yes/on: ``create_project`` writes every file but
-    creates no venv, installs nothing, probes or creates no local database, skips the hub registry
-    sync and the ``.mcp.json`` emitter. The venv and database steps print the command to run
-    instead. Read at CALL time. The test suite pins it for the whole session (tests/conftest.py):
-    those steps cost ~25 s per scaffold and rewrote the hub's registry from inside tests
-    (W-b0c1b4fc). It scopes ``create_project`` only — ``fabrik scaffold``'s own registry save, sync and
-    GitHub wiring around it are separate."""
+# Provisioning — the venv + pip install, the local dev database, the hub registry sync, the
+# ``.mcp.json`` emit and a deploy spec in the hub's tracked specs/services/ — happens only inside an
+# explicit opt-in: ``create_project(provision=True)`` (the ``fabrik scaffold`` CLI) or this context
+# manager. The default is False for every caller, and for every thread that does not copy the
+# caller's context (threading.Thread, a ThreadPoolExecutor worker), so a probe, a review seat or a
+# script that calls create_project or a scaffold step directly gets files only (W-e2f0b6e5: a seat's
+# direct call left two real databases on the WSL dev cluster).
+_PROVISION: contextvars.ContextVar[bool] = contextvars.ContextVar("_PROVISION", default=False)
+
+
+@contextlib.contextmanager
+def provisioning() -> Iterator[None]:
+    """Opt in to provisioning for the scaffold code run inside this block."""
+    token = _PROVISION.set(True)
+    try:
+        yield
+    finally:
+        _PROVISION.reset(token)
+
+
+def _scaffold_env_offline() -> bool:
     return os.environ.get("FABRIK_SCAFFOLD_OFFLINE", "").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+
+
+def _scaffold_offline() -> bool:
+    """True unless provisioning was opted in (``provisioning()`` / ``create_project(provision=True)``)
+    AND ``FABRIK_SCAFFOLD_OFFLINE`` is not set to 1/true/yes/on. Offline, scaffold code writes every
+    file but creates no venv, installs nothing, probes or creates no local database, skips the hub
+    registry sync and the ``.mcp.json`` emitter; the venv and database steps print the command to run
+    instead. Read at CALL time. The test suite pins the env switch for the whole session
+    (tests/conftest.py), so even an opted-in test stays offline unless it deletes the variable. It
+    scopes scaffold code only — ``fabrik scaffold``'s own registry save, sync and GitHub wiring
+    around create_project are separate."""
+    return _scaffold_env_offline() or _PROVISION.get() is not True
+
+
+def _offline_reason() -> str:
+    return (
+        "FABRIK_SCAFFOLD_OFFLINE is set"
+        if _scaffold_env_offline()
+        else "provisioning not requested"
+    )
 
 
 def _create_local_dev_database(db_name_dev: str) -> None:
@@ -1946,6 +1981,7 @@ def _create_local_dev_database(db_name_dev: str) -> None:
     if _scaffold_offline():
         click.echo(
             f"⏭  Offline scaffold: create the database with sudo -u postgres createdb {db_name_dev}"
+            f" ({_offline_reason()})"
         )
         return
     try:
@@ -2035,6 +2071,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "-r requirements.txt\n"
         "pytest>=8.3.0\n"
         "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"  # the pyproject sets timeout = 120 (W-046828fb)
         "ruff\n"
         "mypy\n"
         "bandit\n"
@@ -2153,6 +2190,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
         click.echo(
             "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -2219,6 +2257,16 @@ _SAAS_SERVER_REQUIREMENTS = (
     "redis>=5.0\n"  # jti denylist / instant revocation, and pause_state.py's client
     # --- vendored app-audit-log (libs/audit_log) — the scheduled jobs' sync connection ---
     "psycopg[binary]>=3.1\n"
+)
+
+# server/requirements-dev.txt — test deps only; never installed in the image (W-046828fb).
+_SAAS_SERVER_DEV_REQUIREMENTS = (
+    "# Backend test dependencies (the Dockerfile installs requirements.txt only). From server/:\n"
+    "#   pip install -r requirements-dev.txt && pytest tests\n"
+    "-r requirements.txt\n"
+    "pytest>=8.3.0\n"
+    "pytest-asyncio>=0.24.0\n"  # pyproject sets asyncio_mode = "auto"
+    "pytest-timeout>=2.3.0\n"  # pyproject sets timeout = 120
 )
 
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
@@ -3522,6 +3570,9 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
         return text.replace("__PKG__", package_name).replace("__NAME__", name)
 
     (server_dir / "requirements.txt").write_text(_SAAS_SERVER_REQUIREMENTS)
+    # Test-only deps are never installed in the image (the Dockerfile installs requirements.txt). The
+    # copied [tool.pytest.ini_options] sets asyncio_mode and timeout, which need these plugins.
+    (server_dir / "requirements-dev.txt").write_text(_SAAS_SERVER_DEV_REQUIREMENTS)
 
     # server/Dockerfile — mirror the python Dockerfile, entrypoint at <pkg>.main:app.
     # The saas backend serves /api/health (not /health), so retarget the image
@@ -4993,6 +5044,21 @@ supabase>=2.9.0
 pypdf>=4.3.0
 redis>=5.0
 """
+    )
+    # requirements-dev.txt — what the Makefile's setup-dev installs (W-046828fb: the file was referenced
+    # but never emitted). python-api's dev list: its lint targets run ruff and mypy, and the copied
+    # pytest config sets asyncio_mode and timeout, which need pytest-asyncio and pytest-timeout.
+    (project_dir / "requirements-dev.txt").write_text(
+        "-r requirements.txt\n"
+        "pytest>=8.3.0\n"
+        "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"
+        "ruff\n"
+        "mypy\n"
+        "bandit\n"
+        "semgrep\n"
+        "sqlfluff\n"
+        "vulture\n"
     )
 
     # f) Overwrite .env.example with worker-specific vars
@@ -6496,9 +6562,20 @@ ephemeral — never register in a bare global).
         f"    )\n"
     )
 
-    # requirements.txt (at root, for server)
+    # requirements.txt (at root, for server) is the image's install list: runtime deps only. The test
+    # deps live in requirements-dev.txt, which `make install` and the scaffold-time venv install
+    # (W-4d6a37c8; pytest-timeout backs the pytest.ini hang guard, W-046828fb).
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\nstructlog>=24.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\n"
+    )
+    (project_dir / "requirements-dev.txt").write_text(
+        "# Test dependencies (the Dockerfile installs requirements.txt only); `make install` installs this.\n"
+        "-r requirements.txt\npytest>=8.0.0\npytest-timeout>=2.3.0\n"
+    )
+    # pytest.ini — the config pytest reads for the ROOT tests/ (server/pyproject.toml is never read
+    # for a root run): the same hang guard the template's [tool.pytest.ini_options] sets (W-046828fb).
+    (project_dir / "pytest.ini").write_text(
+        "[pytest]\npythonpath = server/src\ntimeout = 120\nfaulthandler_timeout = 120\n"
     )
 
     # tests/test_health.py
@@ -6632,7 +6709,7 @@ release-ext:
 # Install all dependencies
 install:
 \tpython -m venv .venv
-\t.venv/bin/pip install -r requirements.txt
+\t.venv/bin/pip install -r requirements-dev.txt
 \tcd extension && pnpm install
 
 # Run tests
@@ -6736,7 +6813,8 @@ EXTENSION_LATEST_SHA256=
         import click
 
         click.echo(
-            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -6748,7 +6826,7 @@ EXTENSION_LATEST_SHA256=
         else venv_path / "Scripts" / "pip.exe"
     )
     result = subprocess.run(
-        [str(venv_pip), "install", "-r", "requirements.txt"],
+        [str(venv_pip), "install", "-r", "requirements-dev.txt"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -7735,7 +7813,10 @@ def _emit_mcp_config(project_dir: Path) -> None:
     Crash-safe by contract: a failed emission never breaks a scaffold — the repo is
     covered by the next hub-wide emission run instead. The emitter derives the set
     from the repo's ``project.yaml`` type + the roster-ruled overlay tables, so this
-    call must come AFTER the type patch."""
+    call must come AFTER the type patch. Offline (no opt-in, or FABRIK_SCAFFOLD_OFFLINE) it does
+    nothing: the emitter copies hub credentials into the repo (W-e2f0b6e5)."""
+    if _scaffold_offline():  # offline: the next hub-wide emission run covers it
+        return
     emitter = FABRIK_ROOT / "scripts/sysadmin/emit_mcp_project_config.py"
     try:
         r = subprocess.run(
@@ -7917,6 +7998,32 @@ def create_project(
     generate_spec: bool = True,
     preplan: object = None,  # T3-01: a fabrik.preplan.Preplan instance or None
     use_database: bool = False,
+    *,
+    provision: bool = False,
+) -> Path:
+    """Create a new project with full structure.
+
+    ``provision=True`` (the ``fabrik scaffold`` CLI) runs it inside ``provisioning()``: the venv,
+    the local dev database, the hub registry sync, the ``.mcp.json`` emit and a hub deploy spec for
+    an /opt project. Any other caller gets the files only, unless it already runs inside
+    ``provisioning()`` — ``provision=False`` is not an opt-out (W-e2f0b6e5).
+    """
+    args = (name, description, base, project_type, preset, generate_spec, preplan, use_database)
+    if provision is True:  # a truthy string such as "no" is not an opt-in
+        with provisioning():
+            return _create_project(*args)
+    return _create_project(*args)
+
+
+def _create_project(
+    name: str,
+    description: str,
+    base: Path,
+    project_type: str,
+    preset: str | None,
+    generate_spec: bool,
+    preplan: object,
+    use_database: bool,
 ) -> Path:
     """Create a new project with full structure.
 
@@ -8013,15 +8120,30 @@ def create_project(
 
     # MCP split (plan-3, D-028/D-029): emit the repo's ruled .mcp.json (gitignored)
     # so the FIRST Claude window opens with the correct per-type/overlay server set.
-    if not _scaffold_offline():  # offline: the next hub-wide emission run covers it
-        _emit_mcp_config(project_dir)
+    _emit_mcp_config(project_dir)  # offline (no opt-in): skipped inside
 
     # Auto-generate deployment spec for supported types.
     # ``use_database`` propagates the CLI ``--db`` flag through so the emitted
     # spec carries ``shape.needs_database: true`` and the postgres registrar
     # fires on ``fabrik apply``. Pre-fix (B1) the flag was silently dropped,
     # so DB-backed projects deployed without a VPS Postgres database.
-    if generate_spec and project_type in SPEC_ENABLED_TYPES:
+    in_scan_root = _in_sync_scan_root(project_dir)
+    if (
+        generate_spec
+        and project_type in SPEC_ENABLED_TYPES
+        and in_scan_root
+        and _PROVISION.get() is not True
+    ):
+        # Not opted in, under the hub's scan root: the hub's tracked specs/services/ belongs to the
+        # provisioning path, and a copy inside the new repo would land after its initial commit,
+        # leaving it dirty and switching on project-side spec checks (W-e2f0b6e5).
+        import click
+
+        click.echo(
+            "⏭  Deploy spec not written (provisioning not requested): `fabrik scaffold` writes it"
+            " to the hub's specs/services/"
+        )
+    elif generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             # Real /opt scaffolds write their deploy spec to the hub's specs/services/ (where
             # `fabrik apply` reads it). A scaffold to a NON-/opt base — tests (tmp_path), sandboxes —
@@ -8030,11 +8152,8 @@ def create_project(
             # `base`, so every full test-suite run rewrote all committed specs with whatever the
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
-            specs_dir = (
-                (FABRIK_ROOT if _in_sync_scan_root(project_dir) else Path(base))
-                / "specs"
-                / "services"
-            )
+            # Reaching here under the scan root means provisioning was opted in (the branch above).
+            specs_dir = (FABRIK_ROOT if in_scan_root else Path(base)) / "specs" / "services"
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(

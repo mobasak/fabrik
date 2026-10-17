@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-10-04T08:01:54.592213Z",
   "creator": "infra",
   "evidence": "",
@@ -17,5 +19,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "request — an auto-armed fabrik-mail watcher so a hub session acts on new mail without a prompt, and survives a window restart"
 }

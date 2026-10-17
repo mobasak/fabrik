@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "blocks every pnpm install box-wide and intel's W-e2af3303 finish; a recurrence; box DNS = infra's beat",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — DNS blocks every pnpm install box-wide",
   "status": "open",
   "tags": [
     "waits-npm-hang-recurs"

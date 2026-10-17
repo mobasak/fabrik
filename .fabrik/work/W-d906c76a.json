@@ -17,7 +17,7 @@
   "note": "migrated-digest:0ff9d25f6194",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Recorded residual for store-surface release NEXT routing",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — store-terminal adjudication waits on release",
   "status": "open",
   "tags": [
     "waits-store-surface-release"

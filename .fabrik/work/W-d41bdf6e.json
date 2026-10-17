@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T14:22:18.858964Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-d41bdf6e",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,10 +16,8 @@
   "next": "mail infra (rule-pack owner) with the landing commit when the saas-skeleton legal-pages build lands",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on legal-pages build",
   "status": "open",
-  "tags": [
-    "waits-operator-resume"
-  ],
   "title": "saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships"
 }

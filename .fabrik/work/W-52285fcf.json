@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:23:04.494987Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-52285fcf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WZMR2TQ6AX0S8VBTW1H476",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: i18n validate_i18n extractor — findings 1 and 2 FIXED in fabrik-lib (SB-126, fabrik-lib D-441); one rule beyond your hub version, and one hole your kit shares"
+}

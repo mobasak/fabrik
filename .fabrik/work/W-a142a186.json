@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:42.892889Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a142a186",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — synced gate check import-root assumption breaks projects",
   "status": "open",
   "title": "Second addendum to 01M3WW45D0QVW14KJQW70PFE2P: same import-root assumption in a synced gate check."
 }

@@ -1,5 +1,7 @@
 # The review loop as a workflow — `fabrik-review-loop`
 
+> **⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part).** In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool. Every `Workflow` launch this page describes (a round-1 pass, a delta or closing pass, a relaunch, a wave) is replaced by its Agent-tool fallback: the same seats and the same briefs as ONE `Agent` message, with each seat's absolute scratch folder and the pass's pin, and the close or the Pass row records `shape: agent-tool`. A workflow, permission or approval question never goes to the operator. Outside the hub this page stands as written.
+
 **What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review` by file; `/fabrik-spec-review`, `/fabrik-plan-review` by section, chunk 6; `/fabrik-review-scoped` and every review-shaped units fan-out, one slice per unit, chunk 6b) run as a Claude Code workflow script,
 `.claude/workflows/fabrik-review-loop.js`, so the seat dispatch, the seats' reports and the execution of every
 candidate's check happen outside the lead session's transcript — one fresh refuter per slice executes them. One `Workflow` call per pass, one ledger back.
@@ -11,7 +13,7 @@ mostly ran one grep (§ 4.9 findings 27, 41), and the refuter's box grows with i
 below `box_minutes`). The reviewer agent carries `experimental.cacheTtl: 1h`, which Claude Code ignores while a
 subscription is spending usage credits (finding 41).
 
-## Launch (the command source does this; the lead never dispatches seats one by one)
+## Launch (outside the hub — D-961; the command source does this; the lead never dispatches seats one by one)
 
 ```text
 Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: { … } })
@@ -46,7 +48,7 @@ builds the next pass from the copy (`next --args`) — no seat is ever pointed a
 ```
 
 - `pinned` — always `true`: a launch without `pin_manifest` is refused before it runs; kept so a reader of the field never breaks.
-- `seats[].files_read` — a COUNT here (the number of files the seat listed), not the list it returned; the list is in the seat's own result row (`journal.jsonl`), which `review_loop_ledger.py read` keeps.
+- `seats[].files_read` — a COUNT here (the number of files the seat listed), not the list it returned; the list is in the seat's own result row (`journal.jsonl`). `review_loop_ledger.py read` writes it into the PASS file's `seats[].files_read` as a LIST (every result's non-blank string entries, trimmed and deduplicated), beside the seat's `notes`, so the same key is a count in this ledger and a list in the pass file.
 - `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate — a candidate's `file` is normalised as it is taken in, before that comparison, exactly as a `files_read` entry is before its lead test — trimmed, backticks dropped, a leading `file://` or `./` dropped, and one `<pins_dir>/` or `<scratch_dir>/<seat>/arch/` root stripped — so `<pins_dir>/f` and `<scratch_dir>/<seat>/arch/f` name `f` (W-177082fc); a live-checkout or `base_pin_dir` path stays as cited, a value that strips to nothing keeps its original, and no `:line` or annotation suffix is removed (`also` carries the twin's id, `also_seat` its seat, and `also_seats` every seat that raised it — the list the per-seat `confirmed` credit is computed from); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
 - `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; a check the never-execute rule forbids (a script that deletes, deploys, provisions, writes outside the seat's scratch or contacts a non-local host, by any route — an import, `runpy`, a test, a wrapper) is never run: the refuter returns it `unverified` with the cited lines, and on a later pass the seat leaves that claim out of `ledger_status`, so it stays open for the lead (`SEAT_ISOLATION`, kaizen 01M4W2D1N8); the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; a row matches its candidate by exact id, else by a case- or space-folded id that names exactly ONE candidate (the same one-to-one rule `open` applies to ledger ids); with
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
@@ -95,7 +97,7 @@ while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts ever
 
 ## Fallback
 
-When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in one message
+When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in one message
 with the same briefs and schemas, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) names `shape: agent-tool`. Both shapes are the
 same loop; the workflow is the one that keeps the lead's turns flat.
 

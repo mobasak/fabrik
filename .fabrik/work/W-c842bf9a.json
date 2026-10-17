@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "Operator-ordered fix: the coordinator cannot do its core job (mail to work item) without waiting on another agent",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-ordered: coordinator cannot create work items for mail",
   "status": "open",
   "tags": [
     "queued",

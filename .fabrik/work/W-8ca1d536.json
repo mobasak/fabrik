@@ -4,10 +4,10 @@
   ],
   "created": "2026-10-03T15:44:18.315690Z",
   "creator": "infra",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-8ca1d536",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,8 +18,11 @@
   "next": "Do the remaining work: The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open.",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing class-8 check in deploy-plan review; only watch dropped",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Reopened from W-e98a82f6 (closed in error by triage wave 1, overturned by the third check): The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open."
 }

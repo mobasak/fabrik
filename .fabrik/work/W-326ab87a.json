@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-326ab87a",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "/fabrik-command-improve fabrik-review-scoped: replace the clause, execute both scenarios (failed copy, ABA) against the new form",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording in review-scoped step 5, kaizen-owned",
   "status": "open",
   "tags": [
     "kaizen"

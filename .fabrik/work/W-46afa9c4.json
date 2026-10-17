@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-46afa9c4",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "move the system prompt server-side (a constant or server-only env), drop systemPrompt from the request body, grader = a request carrying systemPrompt reaches the model without it; saas-skeleton template change (fleet beat)",
   "note": "",
   "owner": "fleet",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — client-supplied systemPrompt on app key, injection/abuse in emitted template",
   "status": "open",
   "tags": [
     "security"

@@ -17,7 +17,10 @@
   "note": "migrated-digest:cd84c2023eeb",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "assemble_commands.py gate-visibility gaps",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gate visibility gaps for assembler",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`commands/assemble_commands.py` — the gates that never see it, and the read-only gate's completeness (2026-09-10, owner: infra)** — (a) `scripts/final_gate.py:700-717` `detect_src_package()` retu..."
 }

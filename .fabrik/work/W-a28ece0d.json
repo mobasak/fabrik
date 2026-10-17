@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "build spec D6 + V7 and plan B4 as written, with B1's haiku case and Phase B step 5's three tie-break mutants",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra",
     "proposed-drop",

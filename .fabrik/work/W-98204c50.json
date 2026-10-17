@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-98204c50",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "reproduce with a worktree requester whose item is in the main checkout's store; release via work.py --repo <main>",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — merge_request PARTIAL for main-store item; merge flow",
   "status": "open",
   "tags": [
     "infra"

@@ -12,9 +12,12 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already landed in 92e01c6d7 — owner infra confirmed 2026-10-18 (records check D-954); closed as done-by-other-work",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "check_review_hygiene: flag a split pipe table (a pipe row after a blank line after another pipe row, no separator) (fabrik-spec-review verdict 1790900264.2187293, kaizen 01M4EKAZZF)"
 }

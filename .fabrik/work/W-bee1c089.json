@@ -4,10 +4,10 @@
   ],
   "created": "2026-10-08T11:49:27.702507Z",
   "creator": "fleet",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-bee1c089",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,10 +18,11 @@
   "next": "call _audit_log_schema_block() up front in create_project for types that fold the audit log, beside _registry_codename(); recorded by the 01M476P2 scoped review (S3/O2)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'fails'; effort HIGH: names 'audit' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — fabrik new leaves half-written project on rare failure",
   "status": "open",
   "tags": [
+    "medium",
     "scaffold"
   ],
   "title": "fabrik new leaves a half-written project when the audit-log fold fails (fabrik-lib missing, or the module's apply hint moved): validate the fold before the first write"

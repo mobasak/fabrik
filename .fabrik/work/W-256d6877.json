@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-256d6877",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "Do the remaining work: _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone.",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — usage grammar fails to round-trip; command_run close defect",
   "status": "open",
   "title": "Reopened from W-b2a64f17 (closed in error by triage wave 1, overturned by the third check): _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone."
 }

@@ -12,9 +12,12 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already landed in bb995e60e — owner infra confirmed 2026-10-18 (records check D-954); closed as done-by-other-work",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "check_doc_index: fire on an untracked live doc at creation time (PostToolUse or --lean) (fabrik-spec verdict 1788968233.8121111, kaizen 01M4EJQEEG)"
 }

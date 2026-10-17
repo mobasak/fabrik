@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "impact HIGH: names 'loses'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — reaped record loses parent coverage, false Stop block",
   "status": "open",
   "title": "command_run.py start drops a coroner-reaped record's parked stack frames: when the live record is died/expired, parent=None and covered, first_review_reach and reviewed_surfaces are carried from the top record only, so a nested child's reaped session loses its parent's coverage (fails closed, a false Stop block)"
 }

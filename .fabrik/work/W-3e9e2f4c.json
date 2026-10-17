@@ -1,7 +1,5 @@
 {
-  "blocked_by": [
-    "W-573fae88"
-  ],
+  "blocked_by": [],
   "created": "2026-10-16T21:33:46.820646Z",
   "creator": "infra",
   "effort": "high",
@@ -22,7 +20,8 @@
   "score_reason": "operator 2026-10-16 asked for the whole dashboard to be user-friendly; a second GUI redesign = major; held behind the one major in flight",
   "status": "open",
   "tags": [
-    "dashboard"
+    "dashboard",
+    "medium"
   ],
   "title": "External-services page (scripts/gen_dashboard.py output, 28,719 px tall) needs the same treatment as the command-centre redesign — it is another generator's page, outside W-573fae88's page layer, so the board only links it"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "make the sync export committed HEAD (git archive HEAD of the synced paths into a temp dir, rsync from there) and add a grader that a dirty synced path is not shipped",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "proposed-drop",

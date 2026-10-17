@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T16:10:49.773927Z",
+  "creator": "fleet",
+  "evidence": "6da847a4f95b7718a0daead2b62ffee962e04fc1",
+  "id": "W-4d6a37c8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "split the deps, update tests/test_scaffold.py's assertion that requirements.txt names pytest, keep the root pytest.ini",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "chrome-extension scaffold: test deps (pytest, pytest-timeout) sit in the root requirements.txt, which is also the production image's install list — split them into a root requirements-dev.txt and point the Makefile install target and the scaffold-time venv step at it (W-046828fb exception)"
+}

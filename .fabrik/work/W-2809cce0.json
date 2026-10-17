@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "add a charset/absolute-path validator to spec_loader Source.path (allow ~, /, [A-Za-z0-9._-]), keeping the deliberate unquoted ~ expansion; test the refusal; found by the docusaurus Finish review, pass 1, A4 (pre-existing class, the diff kept path unquoted on purpose)",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "proposed-drop",

@@ -17,10 +17,10 @@
     "b3b43ed2cc8017d62e6a962c5de3b968cd6f729b7702d2bda6398c7301ce52bd"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-18: \"yes fleet can do it.\"",
   "owner": "",
   "priority": 2,
   "question": "May fleet run a read-only probe on vps1 to measure current CPU use and CPU limits for all 32 containers (`docker ps -a`, `docker inspect -f '{{.HostConfig.NanoCpus}}'`, one `docker stats --no-stream`), to size the missing CPU limits?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet run a read-only probe on vps1 to measure current CPU use and CPU limits for all 32 containers (`docker ps -a`, `docker inspect -f '{{.HostConfig.NanoCpus}}'`, one `docker stats --no-stream`), to size the missing CPU limits?"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "measure: grep fleet mail and kaizen logs for same-file rewrite collisions outside plans; build only if more than one repo hit it",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

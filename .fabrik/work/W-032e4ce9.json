@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:29:58.859687Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-032e4ce9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-956 rule update (seat-brief wording, kaizen's beat); a few lines",
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Seat brief (commands/_fragments/subagents-core.md) gives no seat form for ruff or mypy — the gate resolves ruff outside .venv, so a seat has no stated way to run uv run ruff/mypy without uv; also the label 'D8' names three different rules across the corpus (intel, W-54b0e523 review, a98e8a0c6)"
+}

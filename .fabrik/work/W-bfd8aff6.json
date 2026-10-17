@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "operator 2026-10-16: tryton-crm urgent (D-921); the release has waited 17 days on deploy",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator said tryton-crm urgent (D-921)",
   "status": "open",
   "tags": [
     "waits-gate2",

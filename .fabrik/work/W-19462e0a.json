@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:19.643646Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-19462e0a",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — design-amend phase-5 accepted without effect: silent no-op in command_run",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "command_run.py --design-amend takes a committed PATH, but reads like a design note; a phase-5 amend is accepted without effect"
 }

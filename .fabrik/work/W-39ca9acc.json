@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-39ca9acc",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,11 +16,12 @@
   "next": "infra: read mail 01M4YTXV0F7G8Z6G9RWVM4WGK1, claim it, act on it",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — flaky stop-hook test under load",
   "status": "open",
   "tags": [
-    "mail-01m4ytxv0f7g8z6g9rwvm4wgk1"
+    "mail-01m4ytxv0f7g8z6g9rwvm4wgk1",
+    "medium"
   ],
   "title": "Flaky test: test_final_gate_stop_hook coroner-reaped case went red once under a concurrent 30-file run (mail 01M4YTXV0F7G8Z6G9RWVM4WGK1)"
 }

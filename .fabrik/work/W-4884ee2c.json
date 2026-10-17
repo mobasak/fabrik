@@ -17,7 +17,10 @@
   "note": "migrated-digest:296c69b069d1",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "command_run.py --confirmed adoption is per record",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — per-record adoption gap",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`command_run.py`: adoption of `--confirmed` is a property of ONE record** (2026-09-09, owner: infra) — a `handoff`/`blocked`/`done` then a fresh `start` opens an un-adopted record whose bare `--f..."
 }

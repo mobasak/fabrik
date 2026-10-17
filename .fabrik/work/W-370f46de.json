@@ -17,7 +17,7 @@
   "note": "migrated-digest:7ff876d03903",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "FINAL_GATE_WORKFLOW.md enforcement-scripts residue",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — docs residue in workflow doc",
   "status": "open",
   "title": "**`docs/workflows/FINAL_GATE_WORKFLOW.md` § Enforcement Scripts — the residue the Finish docs review of the adoption plan RECORDED (2026-09-11, owner: infra)** — nine passes reconciled the gate's o..."
 }

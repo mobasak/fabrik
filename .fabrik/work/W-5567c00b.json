@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T21:44:52.195409Z",
+  "creator": "infra",
+  "evidence": "25fb2260450944a77846522d6d412353a9a54f55",
+  "id": "W-5567c00b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce on origin/master, attribute with git log -S on scripts/sysadmin/quota_dashboard.py, fix the banner or the test at the root with a red-first guard",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "title": "tests/test_assemble_dispatch_step.py::test_v7_the_rendered_board_banner_carries_no_retired_literal is red on master (seen at 499e414f1): the quota dashboard's board banner payload no longer renders 'Box budget (D-189' — the test's positive control fails on the probe dict"
+}

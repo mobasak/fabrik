@@ -101,10 +101,54 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
         p for r in roots for p in sorted(r.rglob("*.md")) if "cannot load the script" in _norm(p)
     ]
     assert len(copies) >= 10, [p.name for p in copies]
-    missing = [
-        p.name for p in copies if "(the tool runs only on their explicit opt-in)" not in _norm(p)
+    for clause in (
+        # D-961 (supersedes D-957 in part): the hub never calls the Workflow tool, so a hub review's
+        # seats always take the Agent-tool path and no approval dialog reaches the operator
+        "or the session is in the hub (D-961: the hub never calls the `Workflow` tool), "
+        "or the operator did not invoke this",
+        "(the tool runs only on their explicit opt-in)",
+    ):
+        missing = [p.name for p in copies if clause not in _norm(p)]
+        assert not missing, (clause, missing)
+
+
+_BANNER = ROOT / "commands" / "_fragments" / "no-workflow-hub.md"
+
+
+def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> None:
+    """D-961: the override sits at the TOP of every source that launches the review-loop Workflow, so
+    no lead sentence ("They run as ONE `Workflow` call …") is read before it; the note names the hub
+    test and replaces every launch, later passes and relaunches included."""
+    note = _norm(_BANNER)
+    for phrase in (
+        "NO `Workflow` IN THE HUB — D-961",
+        "a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under "
+        "`/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool",
+        "Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a "
+        "relaunch, a wave) is replaced by its Agent-tool fallback",
+        "A workflow, permission or approval question never goes to the operator.",
+        "Outside the hub this command's text stands as written.",
+    ):
+        assert phrase in note, phrase
+    launching = [
+        p
+        for p in sorted((ROOT / "commands" / "_sources").glob("*.md"))
+        if "fabrik-review-loop.js" in p.read_text(encoding="utf-8")
     ]
-    assert not missing, missing
+    assert len(launching) >= 7, [p.name for p in launching]
+    for p in launching:
+        head = p.read_text(encoding="utf-8").split("\n")[:8]
+        assert "{{include:no-workflow-hub}}" in head, p.name
+    doc = _norm(ROOT / "docs" / "reference" / "review-loop-workflow.md")
+    assert "NO `Workflow` IN THE HUB — D-961" in doc.split("## Launch")[0]
+    assert "## Launch (outside the hub — D-961;" in doc
+    # the shared texts that reach commands WITHOUT the note gate every Workflow step inline
+    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
+    assert "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call" in core
+    assert "pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args" in core
+    cat = _norm(CAT)
+    assert "outside the hub (D-961), write the Workflow args JSON to scratch and relaunch" in cat
+    assert "in the hub, re-dispatch its `Agent` seats over the same ledger" in cat
 
 
 def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:
@@ -619,13 +663,21 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in _section(src, "## Reporting", "{{include:close-chain}}")
     # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
     # negation-safe-assertions)
-    assert "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write" in src
+    assert (
+        "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write"
+        in src
+    )
     assert (
         "**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract"
         " is equality, a regex widened to `.*`)"
     ) in _section(src, "**Test-quality checklist", "## Phase 2")
-    lessons = _section(src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**")
-    assert "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count" in lessons
+    lessons = _section(
+        src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**"
+    )
+    assert (
+        "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count"
+        in lessons
+    )
     assert (
         "a probe of a served build reads the port the server actually bound, from its own output, or serves the"
         " files with no port at all (Playwright `page.route`), never a port the brief assumed"

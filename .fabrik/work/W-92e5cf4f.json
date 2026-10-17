@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T18:04:43.312596Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-92e5cf4f",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — gate message wording",
   "status": "open",
   "title": "check_feature_coverage.py finding text says 'cite a prefix before the first , ; or ·' when a token fails after a split (1790948096); check_convergence.py's failure quotes the expected heading regex or an example (1788816207) — kaizen mail 01M4PHYRB6"
 }

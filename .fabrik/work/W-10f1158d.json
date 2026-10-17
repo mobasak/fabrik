@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "a red mesh test hides real regressions in the self-watch/rotation mesh every hub agent relies on; found during W-5279e834",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — red mesh test hides rotation regressions",
   "status": "open",
   "tags": [
     "waits-quota"

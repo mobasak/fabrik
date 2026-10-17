@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-84088533",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "Re-run the census (scratchpad docindex_census2 shape: shared-basename docs per /opt repo); when it reads 0 outside the hub, mail the remaining repos, then move shared_problems into problems with a red-first grader",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory flip, follow-up",
   "status": "open",
   "tags": [
     "check-doc-index"
