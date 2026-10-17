@@ -8122,7 +8122,23 @@ def _create_project(
     # spec carries ``shape.needs_database: true`` and the postgres registrar
     # fires on ``fabrik apply``. Pre-fix (B1) the flag was silently dropped,
     # so DB-backed projects deployed without a VPS Postgres database.
-    if generate_spec and project_type in SPEC_ENABLED_TYPES:
+    in_scan_root = _in_sync_scan_root(project_dir)
+    if (
+        generate_spec
+        and project_type in SPEC_ENABLED_TYPES
+        and in_scan_root
+        and _PROVISION.get() is not True
+    ):
+        # Not opted in, under the hub's scan root: the hub's tracked specs/services/ belongs to the
+        # provisioning path, and a copy inside the new repo would land after its initial commit,
+        # leaving it dirty and switching on project-side spec checks (W-e2f0b6e5).
+        import click
+
+        click.echo(
+            "⏭  Deploy spec not written (provisioning not requested): `fabrik scaffold` writes it"
+            " to the hub's specs/services/"
+        )
+    elif generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             # Real /opt scaffolds write their deploy spec to the hub's specs/services/ (where
             # `fabrik apply` reads it). A scaffold to a NON-/opt base — tests (tmp_path), sandboxes —
@@ -8131,17 +8147,8 @@ def _create_project(
             # `base`, so every full test-suite run rewrote all committed specs with whatever the
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
-            # A scaffold that did not opt in to provisioning (a probe, a seat, a script) is a sandbox
-            # too, even under /opt: its spec stays inside the new project there, never in the hub's
-            # specs/services/ and never in a stray /opt/specs/ (W-e2f0b6e5).
-            in_scan_root = _in_sync_scan_root(project_dir)
-            if in_scan_root and _PROVISION.get() is True:
-                spec_root = FABRIK_ROOT
-            elif in_scan_root:
-                spec_root = project_dir
-            else:
-                spec_root = Path(base)
-            specs_dir = spec_root / "specs" / "services"
+            # Reaching here under the scan root means provisioning was opted in (the branch above).
+            specs_dir = (FABRIK_ROOT if in_scan_root else Path(base)) / "specs" / "services"
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(

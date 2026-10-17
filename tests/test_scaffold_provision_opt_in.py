@@ -159,9 +159,13 @@ def test_hub_spec_needs_the_opt_in(
     project = scaffold.create_project(
         name="pv-spec", description="d", base=root, provision=provision
     )
-    # without the opt-in the spec stays inside the new project: never the hub, never a stray <base>/specs
-    expected = scaffold.FABRIK_ROOT if hub else project
-    assert spec_dirs == [expected / "specs" / "services"], spec_dirs
+    if hub:
+        assert spec_dirs == [scaffold.FABRIK_ROOT / "specs" / "services"], spec_dirs
+    else:
+        # without the opt-in no spec at all: never the hub, never <base>/specs, never an untracked copy
+        # inside the new repo after its initial commit
+        assert spec_dirs == [], spec_dirs
+        assert not (project / "specs").exists()
 
 
 def test_registry_sync_needs_the_opt_in(spawned) -> None:

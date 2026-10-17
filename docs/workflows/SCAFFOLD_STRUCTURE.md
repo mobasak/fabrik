@@ -245,7 +245,7 @@ Step 2's venv and pip install, the local dev database a `--db` scaffold creates 
 chrome-extension), step 5, step 6 and a step-7 spec in the hub's `specs/services/` run only when provisioning is
 opted in: `fabrik scaffold` calls
 `create_project(provision=True)`; any other caller (a script, a probe, a review seat, a test) gets the files only, its
-spec under its own base (inside the project when that base is the hub's scan root), and the skipped venv and
+spec under its own base (none at all when that base is the hub's scan root), and the skipped venv and
 database steps print the command to run instead (W-e2f0b6e5). Code that needs the
 real steps outside the CLI wraps them in `scaffold.provisioning()` (a thread it starts is not opted in unless it
 copies the context); `FABRIK_SCAFFOLD_OFFLINE` still turns off the venv, database, sync and `.mcp.json` steps inside
