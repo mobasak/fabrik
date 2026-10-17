@@ -232,3 +232,16 @@ def test_the_finish_docs_review_runs_before_the_finish_review() -> None:
     assert text.index("run /fabrik-docs-review over the changed docs") < text.index(
         "run §Finish: /fabrik-review"
     )
+
+
+def test_a_backlog_referrer_is_repointed_through_the_work_store() -> None:
+    """Row 1792251373: Finish step 6 told the finisher to repoint rows in `docs/STRATEGIC_BACKLOG.md`, whose open items
+    are a block `work.py render` writes from each item's `title`, so a row edited apart from its item is overwritten. The sentence is asserted whole,
+    between the clause before it and the sentence after it, so a dropped or appended exception fails it."""
+    assert (
+        "and `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row "
+        "inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the "
+        "block's only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a"
+        " delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than "
+        "editing the row. Doc Link Integrity DOES catch a missed one"
+    ) in _norm()
