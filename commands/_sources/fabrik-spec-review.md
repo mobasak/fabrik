@@ -2,6 +2,8 @@
 description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). A two-model panel answers design approval (split → operator), then Status: CONVERGED; on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
+{{include:no-workflow-hub}}
+
 
 Converge this design spec to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212).** This is to
 `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: the adversarial, independent
@@ -243,7 +245,7 @@ round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix;
 a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` (`--args <a scratch copy of the run file>` added whenever that file exists: it then prints each slice whole and carries the open claims the `--ids` leave out; read its stderr either way, `/opt/fabrik/docs/reference/review-loop-workflow.md`) — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
-ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
+ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool — the NO `Workflow` IN THE HUB note), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
 The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`,

@@ -102,15 +102,45 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
     ]
     assert len(copies) >= 10, [p.name for p in copies]
     for clause in (
-        # D-957 and the operator's 2026-10-18 follow-up: a hub agent never calls the Workflow tool,
-        # so its review seats always take the Agent-tool path and no approval dialog reaches the operator
-        "or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no "
-        "approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), "
-        "or the operator did not invoke this",
+        # D-961 (supersedes D-957 in part): the hub never calls the Workflow tool, so a hub review's
+        # seats always take the Agent-tool path and no approval dialog reaches the operator
+        "or the session is in the hub (D-961: the hub never calls the `Workflow` tool — the NO "
+        "`Workflow` IN THE HUB note), or the operator did not invoke this",
         "(the tool runs only on their explicit opt-in)",
     ):
         missing = [p.name for p in copies if clause not in _norm(p)]
         assert not missing, (clause, missing)
+
+
+_BANNER = ROOT / "commands" / "_fragments" / "no-workflow-hub.md"
+
+
+def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> None:
+    """D-961: the override sits at the TOP of every source that launches the review-loop Workflow, so
+    no lead sentence ("They run as ONE `Workflow` call …") is read before it; the note names the hub
+    test and replaces every launch, later passes and relaunches included."""
+    note = _norm(_BANNER)
+    for phrase in (
+        "NO `Workflow` IN THE HUB — D-961",
+        "a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under "
+        "`/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool",
+        "Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a "
+        "relaunch, a wave) is replaced by its Agent-tool fallback",
+        "A workflow, permission or approval question never goes to the operator.",
+        "Outside the hub this command's text stands as written.",
+    ):
+        assert phrase in note, phrase
+    launching = [
+        p
+        for p in sorted((ROOT / "commands" / "_sources").glob("*.md"))
+        if "fabrik-review-loop.js" in p.read_text(encoding="utf-8")
+    ]
+    assert len(launching) >= 7, [p.name for p in launching]
+    for p in launching:
+        head = p.read_text(encoding="utf-8").split("\n")[:8]
+        assert "{{include:no-workflow-hub}}" in head, p.name
+    doc = _norm(ROOT / "docs" / "reference" / "review-loop-workflow.md")
+    assert "NO `Workflow` IN THE HUB — D-961" in doc.split("## Launch")[0]
 
 
 def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:

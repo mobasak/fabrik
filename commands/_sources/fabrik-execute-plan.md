@@ -2,6 +2,8 @@
 description: Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) instead runs DISPATCHER mode over the whole Board. Supersedes superpowers:executing-plans + superpowers:subagent-driven-development. TRIGGER — EN: "execute this plan", "run the approved plan phase by phase"; TR: "bu planı uygula", "onaylı planı adım adım çalıştır" — fires once a plan is APPROVED and ready to build. SKIP: authoring/converging the plan (→ /fabrik-plan-after-chat, /fabrik-plan-review) or standalone test authoring (→ /fabrik-generate-tests). Stage: 4-build.
 argument-hint: "<path to plan file>"
 ---
+{{include:no-workflow-hub}}
+
 
 # Autonomous Plan Executor
 
@@ -279,7 +281,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass, its args
    carrying the fragment `review_loop_ledger.py pin` printed, as printed (`pins_dir`, `pin_manifest`, `digest`,
    and `base_pin_dir` with `--base`)
-   (`<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), every later pass the round-1 seats over their own slice ledgers
+   (`<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool — the NO `Workflow` IN THE HUB note), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), every later pass the round-1 seats over their own slice ledgers
    (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its
    slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression
    test. Every finding terminates **FIXED or REFUTED** (proof required to refute); an `unverified` verdict never

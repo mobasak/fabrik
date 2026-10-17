@@ -1,5 +1,7 @@
 # The review loop as a workflow — `fabrik-review-loop`
 
+> **⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part).** In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool. Every `Workflow` launch this page describes (a round-1 pass, a delta or closing pass, a relaunch, a wave) is replaced by its Agent-tool fallback: the same seats and the same briefs as ONE `Agent` message, with each seat's absolute scratch folder and the pass's pin, and the close or the Pass row records `shape: agent-tool`. A workflow, permission or approval question never goes to the operator. Outside the hub this page stands as written.
+
 **What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review` by file; `/fabrik-spec-review`, `/fabrik-plan-review` by section, chunk 6; `/fabrik-review-scoped` and every review-shaped units fan-out, one slice per unit, chunk 6b) run as a Claude Code workflow script,
 `.claude/workflows/fabrik-review-loop.js`, so the seat dispatch, the seats' reports and the execution of every
 candidate's check happen outside the lead session's transcript — one fresh refuter per slice executes them. One `Workflow` call per pass, one ledger back.
@@ -11,7 +13,7 @@ mostly ran one grep (§ 4.9 findings 27, 41), and the refuter's box grows with i
 below `box_minutes`). The reviewer agent carries `experimental.cacheTtl: 1h`, which Claude Code ignores while a
 subscription is spending usage credits (finding 41).
 
-## Launch (the command source does this; the lead never dispatches seats one by one)
+## Launch (outside the hub — D-961; the command source does this; the lead never dispatches seats one by one)
 
 ```text
 Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: { … } })
@@ -95,7 +97,7 @@ while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts ever
 
 ## Fallback
 
-When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in one message
+When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), or the session is in the hub (D-961: the hub never calls the `Workflow` tool — the NO `Workflow` IN THE HUB note), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in one message
 with the same briefs and schemas, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) names `shape: agent-tool`. Both shapes are the
 same loop; the workflow is the one that keeps the lead's turns flat.
 
