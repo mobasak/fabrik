@@ -186,11 +186,15 @@ Treat every intended step as unproven until verified against the real code/schem
   real `path:line`. A path that looks right is not grounding; a column name is not its values (read them).
   For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch it; each
   lands in that ticket's File Scope, since a test pinning the old shape is fallout the anchors never show.
-  For each function or value whose BEHAVIOUR the plan changes, census its production readers before any step that
-  changes it: the call sites (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path
-  for the path-injected and string readers, with the count, each marked when its file is fleet-synced (the hub's
-  `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its command and output cited in the
-  plan's Evidence; its readers and the tests that pin the old behaviour in File Scope or named as untouched.
+  For each function, value or build script (a `package.json` script or Makefile target, e.g. a `build:prod` read by a
+  Dockerfile, a container gate and a generator) whose BEHAVIOUR the plan changes, census its production
+  readers before any step that changes it: the call sites (`find_referencing_symbols`) plus a grep of its name,
+  its file's basename and its path for the path-injected and string readers, with the count, each marked when its
+  file is fleet-synced (the hub's `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its
+  command and output cited in the plan's Evidence; its readers and the tests that pin the old behaviour in File
+  Scope or named as untouched. A build script's census follows each caller transitively (an alias script, a
+  Makefile target, a Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted
+  as a reader) and runs before the Phase 2 shape decision.
   **Symbol-level questions go through the `serena` MCP first** — `find_symbol` (the definition body
   without reading the whole file), `find_referencing_symbols` (every real call-site, where a grep of a
   common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file

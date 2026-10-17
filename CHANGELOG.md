@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
+
+- Round zero lives in both `commands/_fragments/term-coverage.md` and `term-edit.md`. Its pre-pin input list now
+  includes a guard the fix ADDS, run over the fix's own hunks as well. Feedback row 1792201902 (infra) reported
+  two late findings that were a new guard missing the fix's own code. It is the fourth answered reject on round
+  zero's live-population clause, which makes that line one the loops do not follow. The grader is in
+  `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-review says a by-design D-owner is a ledger row, and points at the gate for the refusals (2026-10-17)
+
+- `/fabrik-review` Phase 2's by-design bullet now says a `D-nnn` owner is a row of the checkout's
+  `docs/DECISIONS.md`, which infra's 66ed34d47 (D-876) made the coverage gate check. § Reporting no longer lists
+  some of the gate's refusals. It points at `check_review_coverage.py::_residual_errors`, whose messages are the
+  full list (W-91ef9165, mail 01M4YS0EZV). The grader is in `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
+
+- PHASE 3's synthetic file for a recipe is now built to break it, in a scratch repo. It uses round zero's input
+  classes from `commands/_fragments/term-coverage.md` and, for a recipe, a regex metacharacter or backtick in a
+  commit subject and a sibling commit inside the window the recipe scans. A rule whose subject the edit widens is run
+  before PHASE 4's first pin, through the rule's own search methods, on a sample of the new subject. This answers
+  feedback rows 1792200478 and 1792189926. The grader is in `tests/test_command_improve_queue_pass.py`.
+
+### Changed — a plan's reader census covers a build script it changes (2026-10-17)
+
+- In `/fabrik-plan-after-chat` Phase 1, the reader census covered only a function or value. It now also covers a
+  build script (a `package.json` script or Makefile target). The census follows each caller of the script
+  transitively: an alias script, a Makefile target, a Dockerfile, a generator that writes one, and a gate that
+  builds or runs the image. It runs before the Phase 2 shape decision. The mirror bullet in `/fabrik-plan-review`
+  names the same scope. This answers feedback row 1792194136; the grader is in
+  `tests/test_plan_after_chat_queue_pass.py`.
+
 ### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
 
 `tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` was red
@@ -22,6 +54,15 @@ template's `shape:` block (D-908), because the deployer writes `spec["env"]` int
 same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
 fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
 next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
+
+- PHASE 2's recurrence search now greps the earlier reject reasons for the subject, for what the row
+  asks the author to DO, and for its mechanism words. An answered reject stays final. When three or
+  more answered rejects on one subject cite the same line, that line is a line not followed, and it
+  becomes a candidate group for the run's ONE edit. `--reject` warns only on an identical `HELD:` tag.
+  The kaizen charter points at this rule. This answers feedback rows 1792198197, 1792194121 and
+  1792193148. The grader is in `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
 
 - `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
