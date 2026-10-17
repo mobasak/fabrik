@@ -38,6 +38,29 @@ All notable changes to this project will be documented in this file.
 - `_classify_sid`'s live-holder branch was already pinned: with it removed, `test_a_process_under_the_dir_is_liveness`
   fails.
 
+### Fixed — scaffold code provisions only when asked: no more real databases from probes and seats (2026-10-18)
+
+A review seat's direct `create_project` call left two real PostgreSQL databases on the WSL dev cluster, because the
+venv, the dev database, the hub registry sync, the `.mcp.json` emit and a hub deploy spec ran for every caller that
+had not set `FABRIK_SCAFFOLD_OFFLINE` — and only the test suite set it. They now run only inside an explicit opt-in:
+`create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()`. Every other caller —
+a probe, a seat, `scripts/retype_project.py`, the `pack_layout_audit` gate check, a scaffold step called directly,
+a thread that does not copy the caller's context — gets the files only, its spec under its own base (none at all when the base is /opt), and the
+skipped venv and database steps print the command to run instead (W-e2f0b6e5; the two databases were dropped under D-949).
+
+### Fixed — every scaffolded Python test run has a 120 s per-test hang guard (2026-10-17)
+
+No scaffolded project gave a test a time limit. The python template's `[tool.pytest.ini_options]`, which every
+type with Python tests copies, now sets `timeout = 120` (pytest-timeout) and `faulthandler_timeout = 120` (built in, a stack dump
+even without the plugin); every dependency file that names pytest also names pytest-timeout; file-worker emits
+the `requirements-dev.txt` its Makefile installs, the saas-family server a `server/requirements-dev.txt` of test
+deps, and chrome-extension a root `pytest.ini`, because pytest never reads its `server/pyproject.toml` for the
+root `tests/`. Vendored fabrik-lib trees (`docs-site`) are left as vendored. A hang guard only — the capped
+runner stays the memory guard (D-935, W-046828fb).
+### Changed — in the hub, every review sends its seats through the Agent tool and never calls the Workflow tool (2026-10-18)
+
+A new note, `commands/_fragments/no-workflow-hub.md`, sits right after the frontmatter of the seven review command sources that launch the review-loop Workflow (`/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-repo-review`, `/fabrik-deploy-plan-review`, `/fabrik-execute-plan`) and above § Launch in `docs/reference/review-loop-workflow.md`. In the hub (a checkout whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under it) it replaces every Workflow launch the command names with the same seats and briefs as one `Agent` message, recorded `shape: agent-tool`, and never puts a workflow, permission or approval question to the operator. Outside the hub the commands read as before. Each Agent-tool fallback sentence cites D-961, and `subagents-core`'s lead and pin-args sentences and the probe catalogue's args and relaunch lines are gated "outside the hub". `tests/test_review_queue_pass.py` pins the note, its placement and every fallback copy (W-9d8326a4, D-961).
+
 ### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
 
 - The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be

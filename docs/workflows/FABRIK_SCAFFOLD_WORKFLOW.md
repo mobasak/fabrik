@@ -152,7 +152,7 @@ src/index.js   tests/   Dockerfile   compose.yaml   package.json
 
 **`file-worker`** — Background file processor:
 ```
-worker/main.py   Dockerfile   compose.yaml   requirements.txt
+worker/main.py   Dockerfile   compose.yaml   requirements.txt   requirements-dev.txt
 ```
 
 **`saas-skeleton`** — Next.js full SaaS:
@@ -196,6 +196,7 @@ server/             # Python backend (FastAPI)
 Dockerfile
 compose.yaml
 requirements.txt
+pytest.ini          # root tests/ config: pythonpath server/src, the 120 s hang guard
 Makefile
 ```
 
@@ -400,7 +401,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Production Python dependencies |
-| `requirements-dev.txt` | Generated inline | Development dependencies (ruff, mypy, etc.) |
+| `requirements-dev.txt` | Generated inline | Development dependencies (ruff, mypy, pytest, pytest-timeout, etc.); file-worker emits one too, and the saas family a `server/requirements-dev.txt` of test deps. The template's `[tool.pytest.ini_options]` sets `timeout = 120` and `faulthandler_timeout = 120` (W-046828fb) |
 | `Dockerfile` | `docker/Dockerfile.python` | Production Docker build |
 | `compose.yaml` | `docker/compose.yaml.template` | Docker Compose config |
 | `pyproject.toml` | `python/pyproject.toml.template` | Python project config |

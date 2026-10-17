@@ -630,7 +630,9 @@ def _tempfile_under_basetemp(tmp_path_factory):
 # function-scoped pin runs AFTER module-scoped fixtures, and tests/test_scaffold_saas_backend.py
 # builds its project in one, so it scaffolded online. Read at call time by
 # `scaffold._scaffold_offline()`; a test that wants the real steps deletes the variable with its own
-# monkeypatch, which restores it afterwards. Grader: tests/test_scaffold_offline_seam.py.
+# monkeypatch, which restores it afterwards, AND opts in (`create_project(provision=True)` or
+# `scaffold.provisioning()`, W-e2f0b6e5). Graders: tests/test_scaffold_offline_seam.py,
+# tests/test_scaffold_provision_opt_in.py.
 @pytest.fixture(autouse=True, scope="session")
 def _offline_scaffold():
     previous = os.environ.get("FABRIK_SCAFFOLD_OFFLINE")

@@ -1793,6 +1793,7 @@ def scaffold(
             generate_spec=not no_spec,
             use_database=db,
             preplan=preplan_obj,
+            provision=True,  # the venv, the dev DB, the registry sync: the CLI's job (W-e2f0b6e5)
         )
         click.echo(f"✅ Created: {project_dir}")
 
