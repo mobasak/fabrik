@@ -11,7 +11,7 @@ its own feedback queues) spend limited quota, so their time goes to the highest-
 time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
 coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume
 (byte-identical to `templates/governance/CLAUDE.md`). This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890, D-923, D-924.
+D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -44,8 +44,8 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
 4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
    P3 fill-in · low/high = time sink, proposed for a drop · P0 = incident.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing. Drops go to the operator in one batched item until W-c160abfb sets the rule. The first pass
-   (2026-10-15) stays held with the tag `waits-operator-review`; release a hold only on the operator's word.
+   gets nothing. A time sink is dropped on scoring with its reason, no operator batch (D-955, the operator's
+   answer to W-c160abfb); a drop is undone by reopening the item. Release any other hold only on the operator's word.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
