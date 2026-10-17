@@ -48,8 +48,8 @@ Intake: 6 items — 6 IN, 0 OUT-OF-SCOPE, 0 ASK.
 ## Global Constraints (every phase inherits these)
 
 - **Every existing declaration reads as today.** The ledger is immutable; the real reader, `decisions.py --merge-owner`,
-  run over every `/opt/*/docs/DECISIONS.md` gives the same owner and exit code per ledger before and after the edit
-  (Phase A step 6).
+  run over every `/opt/*/docs/DECISIONS.md` gives the same owner and exit code per ledger from the base SHA's copy and
+  from the edited one, run back to back (Phase A step 6).
 - **Three copies, one grammar.** The hook cannot import the scripts; the same pattern text goes into all three files,
   and the parity test pins it. The hook's one deliberate divergence — the `(?!UNDECLARED…)` guard inside its owner
   regex — stays, AFTER `(?:\*\*)?\s*`.
@@ -113,10 +113,9 @@ Appetite: 75
 **Consumes:** nothing from another phase.
 
 **Steps** (sequential):
-1. Take the before-baseline: the step 6 owner loop, run before any edit, into `<scratch>/owners-before.txt`. Then write
-   the Phase A graders (Behaviour Contract below) in `tests/test_session_orient_hook.py` — the new `_OWNER_CASES`
-   rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file; see A1, A3, A4,
-   A6 and four of A2's five spellings red against today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/rule_cases.py` ran
+1. Write the Phase A graders (Behaviour Contract below) in `tests/test_session_orient_hook.py` — the new
+   `_OWNER_CASES` rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file;
+   see A1, A3, A3b, A4, A6 and four of A2's five spellings red against today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/rule_cases.py` ran
    every case). Two are green today: A2's `**Merge owner:**` spelling (today its closing `**` blocks the capture) and
    A5 (`\s*` already refuses an asterisk after the colon). Their red is proven on mutants in a throwaway worktree:
    with the bold token in place but the `(?-i:…)` removed, `**Merge owner:** rotated` reads `rotated` and that case
@@ -130,17 +129,22 @@ Appetite: 75
    change expected per the census in Evidence); `ruff check` and `ruff format --check` on the four files.
 5. The two doc sentences (D4): `docs/reference/multi-agent-operating-model.md:123-124` and
    `docs/workstation/hooks-index.md:16`.
-6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`; then the real reader over every
-   ledger, after the edit, diffed against the same loop run before it (the base taken in step 1, or re-taken from a
-   throwaway worktree at the base SHA) — the diff is empty:
-   `for r in /opt/*/; do [ -f "$r/docs/DECISIONS.md" ] && printf '%s %s rc=%s\n' "$r" "$(python3 scripts/decisions.py
-   --merge-owner "$r" 2>/dev/null)" "$?"; done > <scratch>/owners-after.txt; diff <scratch>/owners-before.txt
-   <scratch>/owners-after.txt`. Paste both results in Evidence.
-7. `/fabrik-review-scoped` on Phase A's surface; fix what it finds.
+6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`; then the real reader over ev6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`. Then run the base reader and the edited
+   reader back to back over every ledger on the box, so no session's append can fall between them — the base from a
+   throwaway worktree at the base SHA, the edited from this tree — and diff them; each command is one line:
 
-**Behavior Contract (Phase A):**
+   ```bash
+   git worktree add --detach <scratch>/base <base SHA>
+   for r in /opt/*/; do [ -f "$r/docs/DECISIONS.md" ] && printf '%s %s rc=%s\n' "$r" "$(python3 <scratch>/base/scripts/decisions.py --merge-owner "$r" 2>/dev/null)" "$?"; done > <scratch>/owners-before.txt
+   for r in /opt/*/; do [ -f "$r/docs/DECISIONS.md" ] && printf '%s %s rc=%s\n' "$r" "$(python3 scripts/decisions.py --merge-owner "$r" 2>/dev/null)" "$?"; done > <scratch>/owners-after.txt
+   diff <scratch>/owners-before.txt <scratch>/owners-after.txt
+   git worktree remove --force <scratch>/base
+   ```
 
-- **Given** a ledger whose D-002 is `**MERGE OWNER:** beta` above `MERGE OWNER: alpha`, **When** the three readers resolve the owner, **Then** each returns `beta` (A1, spec V1)
+   The diff is empty, and the before-file is a real reading, not a run of usage errors: its line count and its `rc=`
+   tallies are pasted beside it (52 lines, 9 `rc=0`, 43 `rc=3` at authoring; an `rc=2` or `rc=127` line means the
+   command did not run). Paste both results in Evidence.
+ven** a ledger whose D-002 is `**MERGE OWNER:** beta` above `MERGE OWNER: alpha`, **When** the three readers resolve the owner, **Then** each returns `beta` (A1, spec V1)
 - **Given** a higher-id row opening `Merge owner: rotated weekly` — and the same with `merge owner:`, `Merge Owner:`, `MERGE owner:`, `**Merge owner:**` — **When** the three readers resolve, **Then** each returns `alpha` (A2, spec V2; five spellings)
 - **Given** a higher-id row `**MERGE OWNER:** UNDECLARED — un-adopted`, **When** the three readers resolve, **Then** each reports undeclared (A3, spec V3)
 - **Given** a higher-id row `Merge owner: UNDECLARED` above `MERGE OWNER: alpha`, **When** the three readers resolve, **Then** each returns `alpha` — the un-adoption row obeys the same case rule (A3b, spec D2)
@@ -379,3 +383,4 @@ Written by `/fabrik-plan-review`; the candidates and their dispositions are in
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (O: spec What exists/Chosen/Delta/Validation/Decisions + plan Global Constraints/Phase A/File Scope/Digest/Checklist/Evidence) + sonnet×1 (S: every other section of both) · all axes; shape: agent-tool | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0, edits: 20 | method: citation + re-derivation — full pass; the orchestrator executed every candidate (`pass1_verify.py`, `rule_cases.py`, the real-reader owner loop) | a72b988a… → 5c6a9983… (plan); spec fc30bdb7… → 8a4602fa… |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 fix hunks + one hop; shape: agent-tool | found: 7, new: 7, confirmed: 3, fixed: 3, unexecuted: 0, edits: 4 | method: re-derivation — the 13 pass-1 ledger rows re-executed (all CLOSED; the step-6 loop run as a python driver and against a broken-prefix mutant, `rule_cases.py` re-run, the pins probed on edited copies); 3 confirmed, all own-fix of pass 1 (the step-6 loop broke when pasted, its live-ledger window, A3b missing from step 1's red list) | 0a097a56… → 9c91b6e4… (plan); spec 8a4602fa… → 8a4602fa… |

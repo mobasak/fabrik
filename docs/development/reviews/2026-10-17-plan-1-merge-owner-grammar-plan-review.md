@@ -29,6 +29,7 @@ Built from the spec's own § Intake Inventory (4 items: 4 IN).
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (O: spec What exists/Chosen/Delta/Validation/Decisions + plan Global Constraints/Phase A/File Scope/Digest/Checklist/Evidence) + sonnet×1 (S: every other section of both) · all axes; shape: agent-tool | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0, edits: 20 | method: citation + re-derivation — full pass; the orchestrator executed every candidate (`pass1_verify.py`, `rule_cases.py`, the real-reader owner loop) | a72b988a… → 5c6a9983… (plan); spec fc30bdb7… → 8a4602fa… |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 fix hunks + one hop; shape: agent-tool | found: 7, new: 7, confirmed: 3, fixed: 3, unexecuted: 0, edits: 4 | method: re-derivation — the 13 pass-1 ledger rows re-executed (all CLOSED; the step-6 loop run as a python driver and against a broken-prefix mutant, `rule_cases.py` re-run, the pins probed on edited copies); 3 confirmed, all own-fix of pass 1 (the step-6 loop broke when pasted, its live-ledger window, A3b missing from step 1's red list) | 0a097a56… → 9c91b6e4… (plan); spec 8a4602fa… → 8a4602fa… |
 
 ### Pass 1 candidates
 
@@ -51,3 +52,14 @@ Built from the spec's own § Intake Inventory (4 items: 4 IN).
 
 Also found by the orchestrator while fixing: the spec's § Growth trigger named `owner_census.py` without a path —
 FIXED, its absolute durable path cited.
+
+### Pass 2 candidates
+
+| Id | Finding | Disposition |
+|---|---|---|
+| O-N1 | Step 6's loop wrapped across a line inside `$(…)`: pasted as written, `decisions.py` runs with no arguments and every line reads `rc=127`, so the diff is empty whatever the edit does (own-fix: round 1) | CONFIRMED (seat's `subprocess` probe: `x first rc=127`; `decisions.py` with no argument exits 2), FIXED — step 6 is a fenced block, one command per line, and the before-file's line count and `rc=` tallies are pasted (an `rc=2`/`rc=127` line means it did not run); executed: diff empty, 52 lines, 9 `rc=0`, 43 `rc=3` |
+| S-N3, O-N4 | The before and after loops read the live ledgers at different times, so another session's append between them makes the diff non-empty for a reason unrelated to the grammar (own-fix: round 1) | CONFIRMED (by construction: the hub ledger is appended by every session), FIXED — step 6 runs the base reader (a throwaway worktree at the base SHA) and the edited reader back to back; Global Constraint 1 aligned |
+| O-N2 | Step 1's red-today list omitted A3b, which is red today (own-fix: round 1) | CONFIRMED (`rule_cases.py`: `A3b … old='' red today`), FIXED |
+| S-N1 | File Scope omits `INDEX.md`, `CHANGELOG.md`, `docs/STRATEGIC_BACKLOG.md`, which Phase B edits | REFUTED — they are governance files, kept out of File Scope by the plan grammar (`check_plan_tickets.py::GOVERNANCE_FILES`) |
+| S-N2 | ONE-HOP: spec § Lifecycle Adoption names only declaring rows as the old/new difference; a mixed-case un-adoption row differs too | RECORDED — measured (wording; the census holds no such row, 0 of 52; changes no behaviour) |
+| O-N3 | ONE-HOP: `probes/rule_cases.py` loads the live `decisions.py` as its old grammar, so after step 2 its "red today" column is meaningless | RECORDED — measured (the probe is run-folder evidence, run before the edit in step 1; the in-repo graders are the tests, whose red is watched in step 1) |
