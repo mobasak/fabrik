@@ -166,6 +166,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   relief is EXPECTED, not promised — the rotation switches only if the named account really has
   headroom when its window turns. A stamp written before this field existed holds its own write
   time, which is never later than its mtime, so it migrates silently to the old behaviour. ⚠️ A SECOND end-of-episode row exists, `wall-episode-closed` (`site`, `relieved`, `closed_for` — the accounts whose episodes it ended, a list because the row is fleet-wide and two can be open at once, empty when the ledger could not be read; no census counters): the relief path writes it when there was no stamp to clear, so the ledger latch on the wall advisory re-arms; like a RELIEF-site `hold-lifted` and a `flip` it is FLEET-wide (a DWELL-site `hold-lifted` is a hold cleared on expectation and ends nothing) — the reader (`_open_wall_episode`) treats any of the three as ending every account's open episode. It is never a `hold-lifted` row, because that row's counters are the relief wake's census and a close with hardcoded zeros would read as a lift that found nobody. And the MESSAGE latch is not the HOLD: when the ledger says the episode was advised but the stamp is gone (the dwell branch cleared it expecting a flip, and the successor drained first), the tick re-arms the stamp from the episode's own row — content the promised resume, mtime the row's `ts` — without a second broadcast.
+- **Battery hold (W-83a8ee68, D-898):** the operator's "as like quota hold, if the laptop battery goes under 6% percent all agents inside repos should gracefully stop without losing where they left". It IS the quota hold: while the box is on battery (power per `_power_state` — the battery's own status when it is definite (`Discharging` = battery; `Charging`/`Full`/`Not charging` = mains, whatever `AC1/online` says), else `AC1/online` (`1` mains, `0` battery, unreadable unknown, which neither arms nor lifts)) at or below `CLAUDE_BATTERY_HOLD_PCT` (default 7), the `fleet-exhausted` stamp is written with a third tier line, `battery`, which every tier reader (`quota_stop.py`, `quota_posture_hook.py`, `final_gate_stop.py`, `_stamp_tier` here) reads as `walled` — they fail closed on a tier they do not know — so the same graceful stop, Stop-hook yield and dispatch hold follow with no reader change; `quota_stop.py` only swaps its message head for "BATTERY HOLD". `--battery-tick` (a `*/1` cron line, pending the operator's crontab edit — § Cron) ARMS it — also over a standing `urgent-90` stamp, which holds nothing — and every `--tick` arms it too, in a `finally`, so a quota tick that raises never skips it. Only the `*/5` tick LIFTS it, on MAINS by the same classifier — the arm and the lift read ONE rule, so no reading arms and lifts in one tick (`tests/test_battery_hold.py::test_arm_and_lift_never_disagree`) — and only when the quota leg found the active account cool on a REAL reading THAT tick (`_QUOTA_HOT_THIS_TICK`, reset to `unknown` by every tick) — hot: the stamp becomes the quota's tier and nobody is woken into a wall; unread (a probe blackout, a quota tick that raised): the battery hold simply stays for the next tick — so a probe blackout that persists (a network death) keeps the fleet held on mains until a reading arrives, fail closed. The lift's `.holdlifted` reads `<epoch> battery` so the self-watch's RESUME line names the battery; a quota lift keeps its one field. The quota leg's own clears (`_clear_stamp`, relief and dwell) KEEP a battery stamp and, on a low battery, turn a quota stamp into a battery one — neither wakes. A wall reached during a battery hold still mails ONCE: under a battery stamp the advisory's latch is the episode's ledger row, not the stamp's presence, and while the battery is low the stamp it writes stays `battery` (a wall never softens it to `urgent-90`). A `hold-lifted` row with `site: battery` ends no quota episode (skipped like `site: dwell`). No readable `BAT1` → no hold, ever. Tests: `tests/test_battery_hold.py`.
 - **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
   override. It warns if the target carries a cap.
 
@@ -435,6 +436,17 @@ The `--keepalive` line is RETIRED: the flag is a no-op that prints why on every 
 so the line is harmless until the operator deletes it (crontab edits are the operator's — the block
 above is the crontab as installed, byte for byte).
 
+**Pending the operator's crontab edit — the battery hold's 1-minute arm (W-83a8ee68).** Until it is
+installed the `*/5` tick arms the hold (in its `finally`), up to five minutes after the crossing:
+
+```cron
+* * * * * flock -n $HOME/.claude/state/battery.lock python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --battery-tick >> $HOME/.claude/rotate-tick.log 2>&1
+```
+
+It needs the merged hub: an older `/opt/fabrik` copy does not know `--battery-tick`, and an unknown
+first argument there is passed to `claude` — a session a minute. The line uses its own lock (never
+`rotate.lock`, which a 45-second-per-account probe tick holds), arms only, and prints only when it acts.
+
 The `flock -n $HOME/.claude/state/rotate.lock` wrapper is load-bearing, not tidiness: the relief wake fires on the stamp's exists→unlink TRANSITION, and that is single-fire only because two ticks never overlap — a hand-run `--tick` must use the same wrapper (`flock -n ~/.claude/state/rotate.lock python3 scripts/sysadmin/claude_rotate.py --tick`), or a hand tick racing the cron one can wake every pane twice.
 
 The hourly `--drift-check` cron and the SessionStart drift-check hook are gone — a settings
@@ -468,7 +480,11 @@ retried** — retrying a dead/wrong token only burns the budget. Both knobs are 
 `OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**) — PER HOST, and there
 are two hosts. ONE call is inside the 60s cap; the AGGREGATE is not: the live fleet path makes
 `usage` + an hourly `profile` call per fresh account with no budget across the loop, so any
-sustained slowness breaches the cap. The derived figures live in one place — the STRATEGIC_BACKLOG
+sustained slowness breaches the cap. A DEAD link no longer does: after one call fails on every host
+and attempt with a transport error (an OSError) and nothing else, `_oauth_get` answers None at once
+for `_OAUTH_TRANSPORT_DEAD_TTL_S` (60 s), and any contact clears it — an HTTP status, a success, or a
+TLS certificate refusal (D-942, `tests/test_oauth_transport_latch.py`). A link that is slow but still
+answering is not covered; that is W-afe30d1c. The derived figures live in one place — the STRATEGIC_BACKLOG
 row `claude_rotate.py --status --json can exceed …`. A sustained outage still falls soft to the last-good
 reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
 in `tests/test_claude_fleet.py` (`test_oauth_get_*`).

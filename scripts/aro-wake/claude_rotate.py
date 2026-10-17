@@ -37,6 +37,7 @@ import os
 import re
 import select
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -1207,6 +1208,63 @@ a bound the test had pinned exactly 8 days earlier (627f8815) — the test then 
 red until fleet ran the full suite and reported it (01M1MG98SC90HB863AW18XJKQ6)."""
 
 
+# Per-process TRANSPORT-DEAD latch for `_oauth_get` (W-5a1b8961, D-939). When ONE call fails on
+# EVERY host with a transport error — an OSError (timeout, URLError, socket, ssl) on every attempt,
+# never an HTTP status — the link is down for this process, and every further call inside the TTL
+# returns None at once instead of spending its own `len(_OAUTH_HOSTS) * attempts * timeout_s`
+# budget. That keeps `--status --json` inside quota_dashboard.py's 60 s subprocess cap under a dead
+# uplink: observed 2026-10-12 (WSL NAT over a Tetrd USB-tether tunnel, every outbound TCP SYN
+# stalled, DNS/ICMP fine) — the fleet loop made N accounts × ~33 s of hopeless probes and the board
+# showed "Live probe failed — TimeoutExpired after 60s" instead of the cached last-good rows.
+# - Only POSITIVE evidence marks it: a non-OSError (a ValueError from a token holding "\n" — raised
+#   by http.client before any I/O —, a malformed body, a bug) is not a dead link, and one bad
+#   credential must not blank every other account (both design critiques executed this).
+# - Any contact clears it: an HTTP status of any kind, a success, or a TLS certificate refusal (a
+#   captive portal answered) proves the link is up — and a call that was in flight while contact
+#   landed never marks afterwards (the contact generation).
+# - Missed on purpose: http.client's BadStatusLine / IncompleteRead are not OSErrors, so a link that
+#   only ever fails that way never latches (fail open, the pre-latch cost).
+# - Sequential callers pay one hopeless call; concurrent callers already in flight when the first
+#   marks still finish their own budget. A link that answers within OAUTH_GET_TIMEOUT_S on any
+#   attempt never marks; one slower than it on EVERY attempt is indistinguishable from dead and
+#   does. The slow-but-answering shape overrunning the dashboard cap is W-afe30d1c's.
+# - The TTL is a safety net for a long-lived caller (the tick, aro-wake, bot.py): a short-lived
+#   `--status` process never outlives it.
+_OAUTH_TRANSPORT_DEAD_TTL_S: Final = 60.0
+_oauth_transport_dead_at: float | None = None
+_oauth_contact_gen = (
+    0  # bumped by every contact; a call that saw contact land meanwhile never marks
+)
+_oauth_transport_lock = threading.Lock()
+
+
+def _oauth_transport_dead() -> bool:
+    with _oauth_transport_lock:
+        at = _oauth_transport_dead_at
+    return at is not None and (time.monotonic() - at) < _OAUTH_TRANSPORT_DEAD_TTL_S
+
+
+def _oauth_contact_seen() -> int:
+    with _oauth_transport_lock:
+        return _oauth_contact_gen
+
+
+def _oauth_mark_transport_dead(since_gen: int | None = None) -> None:
+    """Mark the link dead — unless a contact landed after `since_gen` was read: a call that was
+    in flight when another call reached the API must not re-poison the latch that contact cleared."""
+    global _oauth_transport_dead_at
+    with _oauth_transport_lock:
+        if since_gen is None or since_gen == _oauth_contact_gen:
+            _oauth_transport_dead_at = time.monotonic()
+
+
+def _oauth_clear_transport_dead() -> None:
+    global _oauth_transport_dead_at, _oauth_contact_gen
+    with _oauth_transport_lock:
+        _oauth_transport_dead_at = None
+        _oauth_contact_gen += 1
+
+
 def _oauth_get(
     path: str,
     token: str,
@@ -1251,6 +1309,11 @@ def _oauth_get(
     # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
     # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
     # token — no host will differ); 5xx retries the same host.
+    if _oauth_transport_dead():
+        return None  # the link is down for this process — do not spend another budget
+    gen = _oauth_contact_seen()  # a contact by another call after this point voids our mark
+    transport_only = True  # flips False on anything that is not a transport error
+    saw_transport = False  # flips True on an OSError — the only POSITIVE evidence of a dead link
     for host in _OAUTH_HOSTS:
         req = urllib.request.Request(
             f"https://{host}/api/oauth/{path}",
@@ -1266,17 +1329,32 @@ def _oauth_get(
         for i in range(attempts):
             try:
                 with urllib.request.urlopen(req, timeout=timeout_s) as r:
-                    return json.load(r)
+                    transport_only = False
+                    body = json.load(r)
+                    _oauth_clear_transport_dead()  # the link answered
+                    return body
             except urllib.error.HTTPError as e:
+                transport_only = False
+                _oauth_clear_transport_dead()  # any HTTP status: the transport is alive
                 if e.code in (401, 403):
                     return None  # definitive (dead/wrong token) — no other host will differ
                 if e.code < 500:
                     break  # 429/other-4xx: this HOST refuses — try the next host
                 # 5xx is a transient server error → fall through to the retry
+            except ssl.SSLCertVerificationError:
+                # something answered the TLS handshake (a captive portal, an intercepting proxy):
+                # the link is up, so this is contact, never transport evidence
+                transport_only = False
+                _oauth_clear_transport_dead()
+            except OSError:
+                saw_transport = True  # timeout / URLError / socket / ssl — transient, retry
             except Exception:
-                pass  # timeout / URLError / socket / malformed JSON — transient, retry
+                transport_only = False  # malformed JSON, a bad header, a bug — not a dead link
             if i < attempts - 1:
                 time.sleep(backoff_s * (i + 1))
+    if transport_only and saw_transport:
+        # every host, every attempt: a transport error, nothing else — and no contact meanwhile
+        _oauth_mark_transport_dead(since_gen=gen)
     return None
 
 
@@ -2839,16 +2917,29 @@ def _cmd_tick() -> int:
     Fleet mode dispatches to :func:`_fleet_tick_inner` BEFORE :func:`_tick_inner` ever runs:
     the legacy tick is single-live-account-shaped (``live_name`` from ``_active_account()``
     matches no fleet slug) and could reach ``_tick_switch`` — the fleet branch must be
-    structurally unable to install anything."""
+    structurally unable to install anything.
+
+    The battery hold (W-83a8ee68) runs in the ``finally``: a quota tick that returns early or
+    raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
+    is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall."""
+    global _QUOTA_HOT_THIS_TICK
+    # UNKNOWN until the quota leg positively finds the active account cool on a real reading —
+    # a blackout, a raise before the advisory, or a skipped advisory keeps the battery hold
+    _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
     try:
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
             return _fleet_tick_inner(fleet_dirs)
+        _QUOTA_HOT_THIS_TICK = (
+            None  # the legacy tick writes no fleet-exhausted stamp: no quota hold
+        )
         return _tick_inner()
     except Exception as e:  # noqa: BLE001 — cron-hosted: a broken tick must never look
         #                     like a broken cron; the class+message is the diagnostic
         print(f"tick: INTERNAL ERROR {type(e).__name__}: {e}")
         return 0
+    finally:
+        _battery_leg(time.time(), lift=True)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -6497,11 +6588,28 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     ), row
 
 
-def _clear_stamp(stamp: Path) -> bool:
+def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
     """Unlink the fleet-exhausted stamp; True when it is gone. A stamp that cannot be removed
     (permissions, a directory in its place) is reported and left — the hold then STANDS, so no
     wake may follow: the tick must never tell the fleet the hold lifted while the hook still reads
-    the stamp (scoped review of Phase A, 2026-09-07)."""
+    the stamp (scoped review of Phase A, 2026-09-07).
+
+    The battery hold (W-83a8ee68) shares this stamp, so the QUOTA leg's clears (relief, dwell)
+    must not end it: unless ``battery_lift``, a battery-tier stamp is KEPT, and a quota stamp
+    while the battery is low is REWRITTEN as battery-tier — both answer False, so no wake follows.
+    Only :func:`_battery_lift` passes ``battery_lift=True``."""
+    if not battery_lift:
+        if _stamp_is_battery(stamp):
+            print("tick: fleet-exhausted stamp KEPT — it is the battery hold's, not the quota's")
+            return False
+        if _battery_low():
+            try:
+                _touch_stamp(stamp, time.time(), _stamp_body("0", _STAMP_TIER_BATTERY))
+            except OSError as exc:
+                print(f"tick: battery hold could not take over the stamp ({exc}) — it stands")
+                return False
+            print("tick: quota relief on a low battery — the stamp is now the battery hold's")
+            return False
     try:
         stamp.unlink(missing_ok=True)
         return True
@@ -6511,6 +6619,170 @@ def _clear_stamp(stamp: Path) -> bool:
         )
         _ledger_append({"event": "hold-stuck", "ts": time.time(), "error": str(exc)[:200]})
         return False
+
+
+# ── the battery hold (W-83a8ee68, D-898) ─────────────────────────────────────────────────────
+# Operator 2026-10-15: "as like quota hold, if the laptop battery goes under 6% percent all agents
+# inside repos should gracefully stop without losing where they left by knowing they might lose
+# their context". The hold IS the quota hold: the same `fleet-exhausted` stamp with a third tier
+# line, `battery`, which every tier reader (this file's `_stamp_tier`, quota_stop.py,
+# quota_posture_hook.py, final_gate_stop.py) reads as `walled` because it is not a tier they know
+# — they all fail closed on an unknown one — so the hook holds, the Stop hook yields and dispatch
+# stops with no reader change. Armed by `--battery-tick` every minute AND by every tick; lifted
+# only by the tick, the one place that knows whether the quota is hot right now.
+# ⚠️ COBRA (D-253): the cheapest way to look done is a hold that arms on a low reading alone; the
+# hold keys on `Discharging` AND the line, and lifts on MAINS, never on the percentage, so a
+# charging laptop at 5% holds nothing and a flickering 7→8% never releases it.
+_STAMP_TIER_BATTERY: Final = "battery"
+_BATTERY_MAINS_STATUS: Final = frozenset({"Charging", "Full", "Not charging"})
+_QUOTA_UNKNOWN: Final = "unknown"
+# None = cool on a real reading; `walled`/`urgent-90` = hot; `_QUOTA_UNKNOWN` = not read this tick.
+# `_cmd_tick` resets it to UNKNOWN; `_fleet_active_wall_advisory` sets it.
+_QUOTA_HOT_THIS_TICK: str | None = None
+
+
+def _battery_hold_pct() -> float:
+    """The hold line, in percent — the operator's "6-7%" taken at its top (D-898)."""
+    return _env_float("CLAUDE_BATTERY_HOLD_PCT", 7.0)
+
+
+def _read_power_word(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip() or None
+    except OSError:
+        return None
+
+
+def _ac_online() -> str | None:
+    """AC1's `online` word — `1` mains, `0` explicitly offline, None unreadable."""
+    ac = Path(os.environ.get("CLAUDE_AC_DIR") or "/sys/class/power_supply/AC1")
+    return _read_power_word(ac / "online")
+
+
+def _power_state(status: str) -> str:
+    """The ONE power classifier — the arm and the lift both read it, so they can never disagree
+    (two review rounds found them disagreeing when each kept its own rule). The battery's own
+    status wins when it is definite: `Discharging` is battery, `Charging`/`Full`/`Not charging`
+    is mains, whatever AC1 says (a stuck AC flag can neither veto a draining battery nor fake one).
+    Any other status (`Unknown`, a driver's own word) defers to AC1: `1` mains, `0` battery,
+    unreadable `unknown` — which neither arms nor lifts, so a standing hold keeps (fail closed)."""
+    if status == "Discharging":
+        return "battery"
+    if status in _BATTERY_MAINS_STATUS:
+        return "mains"
+    ac = _ac_online()
+    return "mains" if ac == "1" else "battery" if ac == "0" else "unknown"
+
+
+def _battery_reading() -> tuple[str, float | None, str] | None:
+    """``(status, pct, power)`` from BAT1/AC1 — ``power`` is :func:`_power_state` — or None when
+    BAT1 has no readable status (no battery → no hold, fail open by design)."""
+    bat = Path(os.environ.get("CLAUDE_BATTERY_DIR") or "/sys/class/power_supply/BAT1")
+    status = _read_power_word(bat / "status")
+    if status is None:
+        return None
+    raw = _read_power_word(bat / "capacity")
+    try:
+        pct = float(raw) if raw is not None else None
+    except ValueError:
+        pct = None
+    if pct is not None and not math.isfinite(pct):
+        pct = None
+    return status, pct, _power_state(status)
+
+
+def _battery_low() -> bool:
+    """On battery power (per :func:`_power_state`) at or below the hold line. An unreadable
+    capacity is not low (no evidence of how much is left)."""
+    r = _battery_reading()
+    return r is not None and r[2] == "battery" and r[1] is not None and r[1] <= _battery_hold_pct()
+
+
+def _stamp_is_battery(stamp: Path) -> bool:
+    """Is the stamp the battery hold's? Line 2 read RAW, exactly the way `_stamp_tier` reads it
+    (`is_file()` first so a FIFO never blocks; `newline=""` and `split("\\n")` so a control byte
+    never shifts the line) — `_stamp_tier` itself folds `battery` into `walled`."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == _STAMP_TIER_BATTERY
+
+
+def _stamp_raw_tier(stamp: Path) -> str | None:
+    """Line 2 as written, or None — `_stamp_tier` answers `walled` for anything it does not know."""
+    try:
+        if not stamp.is_file():
+            return None
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return None
+    return lines[1].strip() if len(lines) > 1 else None
+
+
+def _battery_arm(now: float) -> None:
+    """Low battery and no hold (no stamp, or the quota's softer `urgent-90`, which holds nothing)
+    → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    if not _battery_low():
+        return
+    stamp = _fleet_exhaustion_stamp()
+    if stamp.exists() and _stamp_raw_tier(stamp) != _STAMP_TIER_URGENT:
+        return  # already holding: the battery's own, or the quota's wall
+    r = _battery_reading()
+    _touch_stamp(stamp, now, _stamp_body("0", _STAMP_TIER_BATTERY))
+    print(
+        f"tick: BATTERY HOLD armed — {r[1] if r else '?'}% on battery (line {_battery_hold_pct():g}%)"
+    )
+    _ledger_append({"event": "battery-hold", "ts": now, "pct": r[1] if r else None})
+
+
+def _battery_lift(now: float) -> None:
+    """Mains power and the battery's stamp → lift it and wake every armed self-watch, unless the
+    quota leg found the active account hot THIS tick: then the stamp becomes the quota's tier and
+    nobody is woken into the wall (its own relief wakes them)."""
+    stamp = _fleet_exhaustion_stamp()
+    if not _stamp_is_battery(stamp):
+        return
+    r = _battery_reading()
+    if r is None or r[2] != "mains":
+        return  # battery, unknown, or no reading: only mains power lifts it
+    if _QUOTA_HOT_THIS_TICK == _QUOTA_UNKNOWN:
+        # the quota leg never reached a real reading this tick (a blackout, a raise, a skipped
+        # advisory): waking now could wake the fleet into a wall — keep the hold, retry next tick
+        print(
+            "tick: mains power is back but the quota is unread this tick — the battery hold stays"
+        )
+        return
+    if _QUOTA_HOT_THIS_TICK is not None:
+        _touch_stamp(stamp, now, _stamp_body("0", _QUOTA_HOT_THIS_TICK))
+        print(
+            f"tick: mains power is back but the quota is {_QUOTA_HOT_THIS_TICK} — the hold stays the quota's, no wake"
+        )
+        return
+    if _clear_stamp(stamp, battery_lift=True):
+        print("tick: BATTERY HOLD lifted — mains power is back")
+        _wake_held_sessions(now, _STAMP_TIER_BATTERY, True)
+
+
+def _battery_leg(now: float, *, lift: bool) -> None:
+    """Arm, then (from the tick only) lift. Never raises: the battery must never kill a tick."""
+    try:
+        _battery_arm(now)
+        if lift:
+            _battery_lift(now)
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_cmd_tick`'s own guard
+        print(f"tick: battery hold leg ERROR {type(exc).__name__}: {exc}")
+
+
+def _cmd_battery_tick() -> int:
+    """`--battery-tick`, the 1-minute cron: ARM only, silent unless it acts, so the hold lands
+    within a minute of the crossing; the 5-minute tick owns the lift. Always exits 0."""
+    _battery_leg(time.time(), lift=False)
+    return 0
 
 
 def _selfwatch_lock_dir() -> Path:
@@ -6620,8 +6892,11 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
                 except OSError:
                     counts["errors"] += 1
                     continue
+                # the battery lift names itself so the self-watch's RESUME line can say which
+                # hold went; a quota lift keeps its byte-exact one-field shape (W-83a8ee68)
+                body = f"{int(now)} battery\n" if reason == _STAMP_TIER_BATTERY else f"{int(now)}\n"
                 try:
-                    os.write(fd, f"{int(now)}\n".encode())
+                    os.write(fd, body.encode())
                 finally:
                     os.close(fd)
                 counts["woken"] += 1
@@ -6999,8 +7274,10 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             if not expired:
                 open_rows[acct] = row
         elif ev in _EPISODE_END_EVENTS and open_rows:
-            if ev == _WAKE_EVENT and row.get("site") == "dwell":
-                continue  # a hold cleared on EXPECTATION — the account is still walled (F1)
+            if ev == _WAKE_EVENT and row.get("site") in ("dwell", _STAMP_TIER_BATTERY):
+                # dwell: a hold cleared on EXPECTATION — the account is still walled (F1);
+                # battery: mains power came back, which says nothing about the quota (W-83a8ee68)
+                continue
             open_rows.clear()
     return open_rows, True
 
@@ -7258,6 +7535,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
     reading_ok = _row_has_reading(row)
+    # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall;
+    # COOL (None) only on a real reading — a blackout leaves it `_QUOTA_UNKNOWN` (D-180's rule)
+    global _QUOTA_HOT_THIS_TICK
+    if walled or urgent:
+        _QUOTA_HOT_THIS_TICK = _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT
+    elif row is not None and reading_ok:
+        _QUOTA_HOT_THIS_TICK = None
     if row is None or not (walled or urgent):
         if stamp.exists() and not reading_ok:
             # D-180: a probe blackout is NOT relief — unlinking here consumed the one transition
@@ -7331,17 +7615,27 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # release is evaluated only on a tick, so a tick landing a hair early waits one more (the
     # strict `<` is what lets an exactly-aligned tick release — Delta 14 seat A, F4).
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
-    latched = stamp.exists() and (
-        inside_floor
-        or not (
-            (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
-            or (promised is not None and now >= promised)
+    # A BATTERY stamp (W-83a8ee68) says nothing about this wall: its presence is not the wall's
+    # latch, so the episode's own ledger row decides — the wall mails once during a battery hold,
+    # and the dwell branch's walled→battery hand-back never re-fires it (no storm).
+    battery_held = _stamp_is_battery(stamp)
+    latched = (
+        stamp.exists()
+        and not battery_held
+        and (
+            inside_floor
+            or not (
+                (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
+                or (promised is not None and now >= promised)
+            )
         )
     )
     # ⚠️ The stamp is a PRESENCE latch and presence can be lost — a failed write, a tempdir
     # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
     # very function writes is the recomputable copy of the same fact (01M2P19KP9GE9S).
-    if latched or (not stamp.exists() and _advisory_ledger_latch(str(row["email"]), now)):
+    if latched or (
+        (not stamp.exists() or battery_held) and _advisory_ledger_latch(str(row["email"]), now)
+    ):
         # ⚠️ The MESSAGE is latched; the HOLD is not. The dwell branch clears the stamp on the
         # EXPECTATION of a flip, and since the dwell-site wake row ends no episode (Delta 9),
         # the ledger latch holds through that clear — so when the successor drained before the
@@ -7386,7 +7680,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             now,
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
-                _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
+                # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
+                # `urgent-90` (which holds nothing), and only mains power may lift it (W-83a8ee68)
+                _STAMP_TIER_BATTERY
+                if _battery_low()
+                else _STAMP_TIER_WALLED
+                if walled
+                else _STAMP_TIER_URGENT,
             ),
         )
     except OSError as exc:
@@ -8160,7 +8460,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --park|--unpark <email> | --next | --capture-current"
-            " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
+            " | --drift-check | --status | --probe-current | --tick | --battery-tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
             " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
         )
@@ -8189,6 +8489,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_probe_current(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
+    if args[0] == "--battery-tick":
+        return _cmd_battery_tick()
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
     if args[0] == "--new-dir":

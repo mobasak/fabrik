@@ -53,6 +53,10 @@ from typing import Any
 CERT_DIR = ("docs", "development", "certifications")
 CERT_DIR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+$")
 TICKET_FILE_RE = re.compile(r"^TC\d{2}[a-z]?-[a-z0-9-]+\.md$")
+# The two non-ticket files a board carries beside its spine: the denominator, and the start recipe
+# /fabrik-user-test and /fabrik-service-test mandate (W-d7847226). Exact names — a look-alike is a
+# misnamed ticket; check_doc_sprawl.py's CERT_BOARD_RE admits the same two.
+BOARD_NON_TICKET_FILES = frozenset({"ledger.md", "runtime.md"})
 BOARD_HEADING = "## Test Board"
 FORBIDDEN_HEADING = "## Ticket Board"
 CERT_LOCK_DIR = (".fabrik", "cert-locks")
@@ -328,7 +332,7 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
             )
 
         for tf in sorted(board_dir.glob("*.md")):
-            if tf.name == spine.name or tf.name == "ledger.md":
+            if tf.name == spine.name or tf.name in BOARD_NON_TICKET_FILES:
                 continue
             if not TICKET_FILE_RE.match(tf.name):
                 findings.append(

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:55:41.828716Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-afe30d1c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "thread a per-run deadline through _fleet_account_rows (stop probing, fall back to cache once monotonic() > start + budget); the transport-dead latch (W-5a1b8961) covers only a total blackout — a half-dead link (one host timing out, the other 429) costs ~16 s per call and ~4 accounts overrun quota_dashboard's 60 s cap",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "--status --json: a whole-loop wall-clock deadline for a slow-but-alive uplink"
+}

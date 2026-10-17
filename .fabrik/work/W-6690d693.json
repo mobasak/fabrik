@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:19:53.714661Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6690d693",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-935",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "(1) merge_request/kaizen _capped: say 'missing or not executable' (it fires on os.access X_OK); (2) capped_run.sh: reset-failed this user's dead fabrik-test-<pid>-* scopes at start (a SIGKILLed runner leaves one failed unit, Result=timeout, measured 2026-10-17); (3) memguard: sum VmRSS each poll and read smaps_rollup PSS only past the limit (11 ms per read at 300 MB, holds mmap_lock); (4) a test for the uncapped path's 3<&-",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "capped_run follow-ups from the D-935 review: runner warning wording, failed-unit cleanup after a SIGKILL, memguard PSS read cost"
+}

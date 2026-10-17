@@ -44,7 +44,7 @@ ALLOWED_NEW_ROOT_DOCS = frozenset(
 # board wearing the plan-set shape would be dispatched to CODING agents.
 CERT_BOARD_RE = re.compile(
     r"^docs/development/certifications/\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+/"
-    r"(?:\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+\.md|ledger\.md|TC\d{2}[a-z]?-[a-z0-9-]+\.md)$"
+    r"(?:\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+\.md|ledger\.md|runtime\.md|TC\d{2}[a-z]?-[a-z0-9-]+\.md)$"
 )
 
 # Docs scaffold-created files - CLOSED allowlist
