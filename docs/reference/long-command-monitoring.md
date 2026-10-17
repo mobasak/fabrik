@@ -77,9 +77,8 @@ What it does on every launch:
 Three launchers already use it: the completion gate's pytest leg (`final_gate.py`, whose red row then
 says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s
 sweep. The hub's own suite also guards itself from inside (`tests/memguard.py`, a watchdog that kills
-the tree past `FABRIK_TEST_RSS_MAX`, default 4G, and prints the traceback) and has a per-test limit
-(`timeout = 600` in the hub, where tests run the real gate; `timeout = 120` in the python scaffold
-template; pytest-timeout).
+the tree past `FABRIK_TEST_RSS_MAX`, default 3G, and prints the traceback) and has a per-test limit
+(`timeout = 600`, pytest-timeout; tests that run the real gate take over 120 s).
 
 ---
 

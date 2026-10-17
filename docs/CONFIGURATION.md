@@ -459,12 +459,15 @@ runaway is a named failure, never a host outage. `docs/reference/long-command-mo
 - `FABRIK_TEST_TIMEOUT`: one run's time limit in seconds (default `1800`). The gate passes its own
   900 s.
 - `FABRIK_TEST_RSS_MAX`: the hub suite's in-process guard (`tests/memguard.py`, started by
-  `tests/conftest.py`). It kills a pytest process tree past this size and prints the traceback
-  (default `4G`).
+  `tests/conftest.py`). It kills a pytest process tree whose summed PSS passes this size and prints
+  the traceback (default `3G`, below the runner's 4G so the traceback prints before the kernel kills).
 
-Sizes are `<digits><K|M|G>`, at least 1M. The runner refuses a bad value with exit 2; the guard falls
-back to its default and says so. `FABRIK_TEST_SLICE` (the slice name) and `FABRIK_CAPPED_RUN` (the
-runner's path, default `/opt/fabrik/scripts/capped_run.sh`) exist for tests and moved installs only.
+Sizes are `<digits><K|M|G>`, from 1M to 999999999G, and a timeout is 1 to 604800 seconds. The runner
+refuses a bad value with exit 2; the guard falls back to its default and says so. `FABRIK_TEST_SLICE`
+(the slice name, ending `.slice`) and `FABRIK_CAPPED_RUN` exist for tests and moved installs only. The
+three launchers find the runner as `FABRIK_CAPPED_RUN`, else the `capped_run.sh` beside them, else
+`/opt/fabrik/scripts/capped_run.sh`. A project's synced copy has no runner beside it, so it takes the
+hub path.
 
 ---
 

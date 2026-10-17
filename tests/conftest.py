@@ -17,12 +17,18 @@ def _load_memguard():
     import importlib.util
     import sys
 
+    if "memguard" in sys.modules:  # already loaded (`-p memguard`): one module, so one watchdog
+        return sys.modules["memguard"]
     spec = importlib.util.spec_from_file_location(
         "memguard", Path(__file__).with_name("memguard.py")
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["memguard"] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop("memguard", None)
+        raise
     return module
 
 

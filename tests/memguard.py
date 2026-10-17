@@ -5,16 +5,17 @@ MagicMock; replayed, ~300 MB/s) and took the whole WSL box, and every session on
 `scripts/capped_run.sh` bounds a run from OUTSIDE; this guard bounds the hub suite from INSIDE,
 however it was launched — bare, backgrounded, or by a test that spawns pytest.
 
-A watchdog PROCESS (a thread would starve while C code holds the GIL) sums VmRSS over the pytest
-process and its descendants every 0.5 s. Past `FABRIK_TEST_RSS_MAX` (default 4G) it sends SIGUSR1
-— faulthandler, registered here, dumps every thread's traceback into a file (a stderr dump would
-land in pytest's capture and die with it) — then SIGKILLs the tree and copies the dump, with a
-one-line verdict, to the ORIGINAL stderr it inherited while capture was suspended. Its stdin and
+A watchdog PROCESS (a thread would starve while C code holds the GIL) sums PSS (VmRSS where
+smaps_rollup is unreadable) over the pytest process and its descendants every 0.25 s. Past
+`FABRIK_TEST_RSS_MAX` (default 3G, below capped_run.sh's 4G) it sends SIGUSR1 — faulthandler,
+registered here, dumps every thread's traceback into a file (a stderr dump would land in pytest's
+capture and die with it) — then copies the dump, with a one-line verdict, to the ORIGINAL stderr it
+inherited while capture was suspended, deletes the dump, and SIGKILLs the tree. Its stdin and
 stdout are /dev/null and it dies with its parent (PR_SET_PDEATHSIG), so it never holds a caller's
 pipe open. The hub conftest calls `start`/`stop`; `-p memguard` loads it as a plugin elsewhere.
 
 Cobra (D-253): the cheapest way to "pass" this guard is a limit so high it never fires; the default
-sits ~35x above the dashboard suite's measured 110 MB peak, and a bad value falls back to it.
+sits ~28x above the dashboard suite's measured 110 MB peak, and a bad value falls back to it.
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-DEFAULT_LIMIT = "4G"
+# 3G, below capped_run.sh's 4G per-run ceiling: under the runner the kernel would otherwise kill first
+# and the traceback naming the runaway test would never be printed.
+DEFAULT_LIMIT = "3G"
 WATCHDOG: subprocess.Popen | None = None
 _DUMP = None  # the open faulthandler file; kept so the registration stays valid
 _DUMP_PATH: Path | None = None
@@ -58,41 +61,50 @@ def tree(root):
     return out
 
 def rss(pid):
-    try:
-        with open(f"/proc/{pid}/status") as fh:
-            for line in fh:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024
-    except OSError:
-        pass
+    # PSS, not VmRSS: forked children share pages, and summing RSS over a tree counts each shared
+    # page once per process, killing a legitimate multi-process suite as a "runaway"
+    for path, key in ((f"/proc/{pid}/smaps_rollup", "Pss:"), (f"/proc/{pid}/status", "VmRSS:")):
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    if line.startswith(key):
+                        return int(line.split()[1]) * 1024
+        except OSError:
+            pass
     return 0
 
 while os.getppid() == ppid:
-    pids = tree(ppid)
-    total = sum(rss(p) for p in pids)
+    total = sum(rss(p) for p in tree(ppid))
     if total > limit:
         try:
             os.kill(ppid, signal.SIGUSR1)
         except OSError:
             pass
-        time.sleep(1)
-        for pid in reversed(pids):
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
-        msg = (f"memguard: killed pytest pid {ppid} — its process tree reached {total // 2**20} MB, "
+        time.sleep(0.5)  # faulthandler writes in microseconds; at ~300 MB/s every second costs 300 MB
+        msg = (f"memguard: killing pytest pid {ppid} — its process tree reached {total // 2**20} MB, "
                f"past FABRIK_TEST_RSS_MAX={label} (W-162398ef). A test is allocating without bound "
                "(an unpatched mock read in a loop is the usual cause). Traceback at the kill:\n")
         try:
             with open(dump, errors="replace") as fh:
                 msg += fh.read()
+            os.unlink(dump)  # the parent dies before its own cleanup can run
         except OSError:
             msg += "(no traceback was written)\n"
+        # The verdict goes out BEFORE the kill, and PDEATHSIG is cleared first: the kernel fires it
+        # when the parent exits, which would cut this write short.
         sys.stderr.write(msg)
         sys.stderr.flush()
+        try:
+            ctypes.CDLL(None, use_errno=True).prctl(1, 0)
+        except Exception:
+            pass
+        for pid in reversed(tree(ppid)):  # re-walked: a pid from before the wait may be reused
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
         sys.exit(0)
-    time.sleep(0.5)
+    time.sleep(0.25)
 """
 
 

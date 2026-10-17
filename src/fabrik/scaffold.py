@@ -2035,7 +2035,6 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "-r requirements.txt\n"
         "pytest>=8.3.0\n"
         "pytest-asyncio>=0.24.0\n"
-        "pytest-timeout>=2.3.0\n"  # the template's `timeout = 120` ini key needs it (W-162398ef)
         "ruff\n"
         "mypy\n"
         "bandit\n"

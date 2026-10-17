@@ -3698,7 +3698,9 @@ def _run_capped_pytest(
     the row's tail keeps it; an uncapped run says so the same way."""
     wrapped, note = _capped_argv(argv, timeout)
     code, out = run_cmd(wrapped, timeout=timeout + (0 if note else 60), extra_env=extra_env)
-    if _CEILING_MARK in out:
+    # rc 137 AND the runner's own line among the last few: a failing test that merely QUOTES the
+    # runner's message (tests/test_capped_run.py does) must not read as a ceiling kill
+    if code == 137 and any(_CEILING_MARK in line for line in out.splitlines()[-5:]):
         out += (
             "\n\u26a0 KILLED AT THE MEMORY CEILING: a test grew past the run's memory ceiling and the "
             "kernel killed the suite \u2014 a runaway allocation (an unpatched mock read in a loop is "

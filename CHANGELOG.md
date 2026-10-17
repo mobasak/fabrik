@@ -11,10 +11,10 @@ On 2026-10-17 one test process grew to about 32 GB (an unpatched `ssh()` handing
 - **New `scripts/capped_run.sh [--mem SIZE] [--timeout SECS] -- <cmd>`.** It runs the command in a named scope with a memory ceiling (default 4G, no swap) and a time limit (default 1800 s). Each scope sits inside the shared `fabrik-tests.slice`, whose runtime-only total (default 12G) bounds every capped run on the box, nested or concurrent.
 - **Exit codes.** It exits 137 with `killed at the memory ceiling`, 124 at the time limit, 2 on a bad bound, otherwise the command's own code. With no user systemd manager it runs the command uncapped and warns.
 - **Three launchers now go through it:** the completion gate's pytest leg (its red row says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s sweep.
-- **The hub suite guards itself.** `tests/memguard.py`, started by `tests/conftest.py`, is a watchdog process. It kills a pytest tree past `FABRIK_TEST_RSS_MAX` (4G) and prints the traceback.
-- **Per-test limit.** pytest-timeout joins the dev deps (`uv.lock`) with the ini key `timeout = 600`; hub tests that run the real gate take longer than 120 s. The scaffold's python template gets `timeout = 120`, and its `requirements-dev.txt` gets the plugin.
+- **The hub suite guards itself.** `tests/memguard.py`, started by `tests/conftest.py`, is a watchdog process. It kills a pytest tree whose summed PSS passes `FABRIK_TEST_RSS_MAX` (3G, below the runner's 4G) and prints the traceback.
+- **Per-test limit.** pytest-timeout joins the dev deps (`uv.lock`) with the ini key `timeout = 600`; hub tests that run the real gate take longer than 120 s. The scaffold template's per-test timeout is fleet's: scaffolded projects need the plugin in every dependency list first.
 - **Rule.** Both CLAUDE.md HARD STOPS rows route every test run through the runner.
-- **Tests.** `tests/test_capped_run.py` has 16 tests, and each of 9 mutants turns one red.
+- **Tests.** `tests/test_capped_run.py`; each of 18 mutants turns one red.
 
 ### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
 

@@ -572,7 +572,12 @@ CHECK_UNREAPABLE = "timeout (unreapable)"
 REAP_TIMEOUT_S = 5.0
 
 
-_CAPPED_RUN = Path(__file__).resolve().parents[1] / "capped_run.sh"
+def _capped_run() -> str:
+    """The box's capped runner: FABRIK_CAPPED_RUN, else this tree's own, else the hub's absolute path."""
+    sibling = Path(__file__).resolve().parents[1] / "capped_run.sh"
+    return os.getenv("FABRIK_CAPPED_RUN") or (
+        str(sibling) if sibling.is_file() else "/opt/fabrik/scripts/capped_run.sh"
+    )
 
 
 def _capped(argv: list[str], timeout: float) -> list[str]:
@@ -580,8 +585,9 @@ def _capped(argv: list[str], timeout: float) -> list[str]:
     project's runaway suite is a failed check, never a host outage (W-162398ef). The runner's own
     limit sits 30 s past the budget, so this sweep's own overrun path (the honest dash and the group
     kill) fires first; the scope's RuntimeMaxSec is the backstop for a tree that escapes the group."""
-    if os.access(_CAPPED_RUN, os.X_OK):
-        return [str(_CAPPED_RUN), "--timeout", str(max(1, int(timeout))), "--", *argv]
+    runner = _capped_run()
+    if os.access(runner, os.X_OK):
+        return [runner, "--timeout", str(max(1, int(timeout))), "--", *argv]
     return list(argv)
 
 

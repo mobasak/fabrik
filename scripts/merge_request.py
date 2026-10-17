@@ -146,14 +146,21 @@ def _run(
         raise RefusedError(f"cannot run {argv[0]}: {exc}") from exc
 
 
-_CAPPED_RUN = Path(__file__).resolve().parent / "capped_run.sh"
+def _capped_run() -> str:
+    """The box's capped runner: FABRIK_CAPPED_RUN, else this tree's own, else the hub's absolute
+    path — a project's synced copy of this script has no runner beside it (the runner is hub-only)."""
+    sibling = Path(__file__).resolve().parent / "capped_run.sh"
+    return os.getenv("FABRIK_CAPPED_RUN") or (
+        str(sibling) if sibling.is_file() else "/opt/fabrik/scripts/capped_run.sh"
+    )
 
 
 def _capped(argv: list[str], timeout: int) -> list[str]:
     """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so a
     runaway owner test is a red, never a host outage (W-162398ef). No runner → ``argv`` as is."""
-    if os.access(_CAPPED_RUN, os.X_OK):
-        return [str(_CAPPED_RUN), "--timeout", str(int(timeout)), "--", *argv]
+    runner = _capped_run()
+    if os.access(runner, os.X_OK):
+        return [runner, "--timeout", str(int(timeout)), "--", *argv]
     return list(argv)
 
 

@@ -24,6 +24,9 @@ REPO = Path(__file__).resolve().parents[1]
 CAPPED = REPO / "scripts" / "capped_run.sh"
 sys.path.insert(0, str(REPO / "scripts"))
 sys.path.insert(0, str(REPO / "tests"))
+sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
+
+from test_merge_request_merge import world  # noqa: E402,F401 — the merge tests' own fixture
 
 ALLOC = "b = bytearray(300 * 1024 * 1024)\nprint('survived', len(b))\n"
 
@@ -91,7 +94,10 @@ def test_capped_run_passes_rc_and_output_through(slice_env):
 def test_capped_run_ends_a_hang_and_its_tree(tmp_path, slice_env):
     marker = f"{61 + uuid.uuid4().int % 1000 / 1000:.3f}"  # a sleep length no other process uses
     hang = tmp_path / "hang.sh"
-    hang.write_text(f"#!/bin/bash\nsetsid sleep {marker} &\nsleep {marker}\n", encoding="utf-8")
+    # the tree ignores SIGTERM, so only the scope's TimeoutStopSec SIGKILL ends it in time
+    hang.write_text(
+        f'#!/bin/bash\ntrap "" TERM\nsetsid sleep {marker} &\nsleep {marker}\n', encoding="utf-8"
+    )
     hang.chmod(0o755)
     started = time.monotonic()
     run = _capped("--mem", "128M", "--timeout", "2", "--", str(hang), timeout=60)
@@ -116,6 +122,10 @@ def test_capped_run_ends_a_hang_and_its_tree(tmp_path, slice_env):
         ("--mem", "512K", "--", "true"),  # below the 1M floor
         ("--timeout", "-1", "--", "true"),
         ("--timeout", "0", "--", "true"),
+        ("--timeout", "9223372036854775800", "--", "true"),  # would wrap the backstop's arithmetic
+        ("--timeout", "604801", "--", "true"),  # past 7 days
+        ("--mem", "99999999999999G", "--", "true"),  # overflows systemd's parser
+        ("--mem", "01G", "--", "true"),
         ("--mem", "1G"),  # no command
     ],
 )
@@ -156,6 +166,65 @@ def test_capped_run_without_a_user_manager_runs_uncapped_and_says_so(tmp_path):
     assert "WARNING" in run.stderr and "UNCAPPED" in run.stderr, run.stderr
 
 
+@pytest.mark.parametrize("name", ["badname", "-.slice", "a b.slice"])
+def test_capped_run_refuses_a_bad_slice_name(name):
+    """A bad slice name is refused (exit 2) — it once fell through to running UNCAPPED."""
+    run = _capped("--", "true", env={**os.environ, "FABRIK_TEST_SLICE": name})
+    assert run.returncode == 2 and "bad slice name" in run.stderr, run.stderr
+    assert "UNCAPPED" not in run.stderr
+
+
+@needs_scope
+def test_capped_run_hands_stdin_through_and_survives_a_closed_one(slice_env):
+    piped = subprocess.run(
+        [str(CAPPED), "--mem", "64M", "--", "cat"],
+        input="hello\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert piped.returncode == 0 and piped.stdout == "hello\n", (piped.stdout, piped.stderr)
+    closed = subprocess.run(
+        ["bash", "-c", f'{CAPPED} --mem 64M -- echo ran <&-; echo "rc=$?"'],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert "ran\nrc=0" in closed.stdout, (closed.stdout, closed.stderr)
+    assert "UNCAPPED" not in closed.stderr, closed.stderr  # a closed stdin is not a missing manager
+
+
+@needs_scope
+def test_a_terminated_runner_leaves_no_scope_behind(slice_env):
+    """SIGTERM to the runner (a caller giving up) exits 143 and stops the scope — no live unit, and no
+    `failed` unit left in this test's slice."""
+    proc = subprocess.Popen(
+        [str(CAPPED), "--mem", "64M", "--", "sleep", "300"], stderr=subprocess.PIPE, text=True
+    )
+    time.sleep(2)
+    proc.terminate()
+    assert proc.wait(timeout=30) == 143
+    time.sleep(1)
+    units = subprocess.run(
+        ["systemctl", "--user", "list-units", "--all", "--plain", "--no-legend", "fabrik-test-*"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.splitlines()
+    mine = []
+    for line in units:
+        unit = line.split()[0]
+        where = subprocess.run(
+            ["systemctl", "--user", "show", unit, "-p", "Slice", "--value"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        if where == slice_env:
+            mine.append(line)
+    assert mine == [], mine
+
+
 # ── the automatic launchers ──────────────────────────────────────────────────────────
 
 
@@ -189,6 +258,19 @@ def test_automatic_launchers_run_pytest_capped(tmp_path, slice_env, monkeypatch)
 
     assert mr._capped(["python", "-m", "pytest"], 60)[:4] == [str(CAPPED), "--timeout", "60", "--"]
 
+    # a project's synced copy has no runner beside it: it must take the hub's, never run uncapped
+    import importlib.util
+
+    synced = tmp_path / "project" / "scripts"
+    synced.mkdir(parents=True)
+    shutil.copy2(REPO / "scripts" / "merge_request.py", synced / "merge_request.py")
+    spec = importlib.util.spec_from_file_location(
+        "synced_merge_request", synced / "merge_request.py"
+    )
+    copy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(copy)
+    assert copy._capped_run() == "/opt/fabrik/scripts/capped_run.sh"
+
     sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
     import kaizen_outcomes as ko
 
@@ -198,6 +280,44 @@ def test_automatic_launchers_run_pytest_capped(tmp_path, slice_env, monkeypatch)
         "60",
         "--",
     ]
+
+
+@needs_scope
+def test_merge_and_sweep_call_sites_run_their_tests_inside_a_capped_scope(
+    tmp_path, slice_env, monkeypatch
+):
+    """The two call sites, not just their helpers: the launched command records its own cgroup, and
+    it must sit in a capped_run scope (`fabrik-test-…scope`) under this test's slice."""
+    import kaizen_outcomes as ko  # noqa: PLC0415
+    from test_kaizen_outcomes import (  # noqa: PLC0415 — the sweep's own fixture helpers
+        _commit,
+        _repo,
+    )
+
+    root = tmp_path / "opt"
+    proj = _repo(root, "capped")
+    _commit(proj, "pyproject.toml", "chore: pytest cfg", content="[tool.pytest.ini_options]\n")
+    seen = tmp_path / "sweep.cgroup"
+    fake = proj / ".venv" / "bin" / "python"
+    fake.parent.mkdir(parents=True)
+    fake.write_text(f'#!/bin/sh\ncat /proc/self/cgroup > "{seen}"\nexit 0\n', encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("KAIZEN_SWEEP_PROJECTS", "capped")
+    monkeypatch.setenv("KAIZEN_SWEEP_TIMEOUT_S", "60")
+    ko.run_sweep(root=root)
+    text = seen.read_text(encoding="utf-8")
+    assert "fabrik-test-" in text and slice_env in text, text
+
+
+@needs_scope
+def test_merge_owner_tests_run_inside_a_capped_scope(world, slice_env):  # noqa: F811
+    seen = world.tmp / "owner.cgroup"
+    world.write(".fabrik/merge-tests", f'cat /proc/self/cgroup > "{seen}"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    text = seen.read_text(encoding="utf-8")
+    assert "fabrik-test-" in text and slice_env in text, text
 
 
 # ── the hub suite's own guard ────────────────────────────────────────────────────────
@@ -223,7 +343,14 @@ def test_memguard_kills_a_runaway_and_reports_it(tmp_path, slice_env):
         ),
         encoding="utf-8",
     )
-    env = {**os.environ, "FABRIK_TEST_RSS_MAX": "200M", "PYTHONPATH": str(REPO / "tests")}
+    dumps = tmp_path / "tmpdir"
+    dumps.mkdir()
+    env = {
+        **os.environ,
+        "FABRIK_TEST_RSS_MAX": "200M",
+        "PYTHONPATH": str(REPO / "tests"),
+        "TMPDIR": str(dumps),
+    }
     run = _capped(
         "--mem",
         "1G",
@@ -245,6 +372,25 @@ def test_memguard_kills_a_runaway_and_reports_it(tmp_path, slice_env):
     assert run.returncode == 137, (run.returncode, run.stdout[-500:], run.stderr[-500:])
     assert "memguard:" in run.stderr and "200M" in run.stderr, run.stderr[-800:]
     assert "test_grows_forever" in run.stderr, run.stderr[-800:]
+    assert list(dumps.glob("fabrik-memguard-*")) == []  # the kill leaves no dump file behind
+
+
+def test_the_gate_names_a_ceiling_kill_only_when_the_runner_reports_one(monkeypatch):
+    """rc 137 plus the runner's own line in the tail is a ceiling kill; a failing test that merely
+    QUOTES that line (rc 1) is an ordinary red."""
+    import final_gate as fg
+
+    mark = (
+        "capped_run: killed at the memory ceiling (4G per run, 12G for fabrik-tests.slice) — pytest"
+    )
+    for code, out, named in (
+        (137, "F\n1 failed\n" + mark, True),
+        (1, f"E   AssertionError: {mark!r}\n" + "x\n" * 10 + "1 failed", False),
+        (1, "1 failed\n" + mark, False),
+    ):
+        monkeypatch.setattr(fg, "run_cmd", lambda *a, _c=code, _o=out, **k: (_c, _o))
+        _, text = fg._run_capped_pytest(["pytest"], 30)
+        assert ("KILLED AT THE MEMORY CEILING" in text) is named, (code, text)
 
 
 def test_this_hub_session_is_capped(request):
