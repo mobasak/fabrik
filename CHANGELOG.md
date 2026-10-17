@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a test pins the scratch sweep's rule that a held session folder is not dead for its run folders (2026-10-18)
+
+- `tests/test_scratch_sweep_run_folders.py::test_a_held_session_dir_is_not_dead_for_its_run_folders`, 12 cases
+  (W-d8592740). The scratch root is reached directly or through a symlink. The holder is a file in the session
+  folder, the folder itself, or a working directory, set up in a fake /proc. The death signal is a gone-pid sessions
+  record or a stale transcript. `--dead --apply` must keep the held session's stale `running` folder, giving the
+  live-signal reason, and must consume the same folder in a second session with no holder.
+- Before this test, `test_scratch_sweep.py` and this file stayed green with `_session_dead_for_runs`'s held check
+  removed (258 passed), and the folder was consumed while a live process held a file in its session. Each mutant the
+  review measured now fails:
+  - removing the check: all 12 cases;
+  - comparing only the resolved path: the 6 symlinked-root cases;
+  - keeping every folder whenever any holder exists: all 12;
+  - checking holders only inside the sessions-record branch: the 6 transcript cases;
+  - checking holders only after the sessions-record return: the 6 record cases;
+  - ignoring sessions records altogether: the 6 record cases, whose transcript is fresh on the test clock.
+- `_classify_sid`'s live-holder branch was already pinned: with it removed, `test_a_process_under_the_dir_is_liveness`
+  fails.
+
 ### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
 
 - The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
