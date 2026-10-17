@@ -359,7 +359,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   provider name opens the group holding it (a category table or the Untriaged queue) and the status count
   updates; each select narrows the rows, and Cost `free` shows no `freemium` row; a group with no match is
   hidden; clearing the filter closes every group the filter opened, shows the hidden ones again, and leaves
-  a group opened by hand open; the Needs-attention list is unchanged by any filter; the data-age stamp does
+  a group opened by hand open — also after filter, a forced swap, then clear, with the filter values,
+  the `qd-filter-open:<group>` record and the visible filtering unchanged by the swap; the Needs-attention
+  list is unchanged by any filter; the data-age stamp does
   not change the fragment's `data-stamp` between two renders a minute apart; the inventory section with
   groups collapsed is at most 4,000 px
   tall at 1280 px (today's page 28,719), measured on the section, not the whole view.
