@@ -358,8 +358,8 @@ Every candidate lands on ONE of these, and only the first counts toward `confirm
   `unexecuted:` counter, and an unexecuted CODE candidate on the closing row blocks the exit.
 - **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** —
   reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N
-  (never the round being closed — otherwise the closing round mints its own licence) or a D-row,
-  which needs no round token. The parentheses hold the owner and nothing else — with its
+  (never the round being closed — otherwise the closing round mints its own licence) or a row of this
+  checkout's `docs/DECISIONS.md`, which takes no round token. The parentheses hold the owner and nothing else — with its
   `, round N` for a receipt row, several owners `;`-joined — and the reason follows them:
   `RECORDED — by design (D-432) — <why>`; a reason inside them, `(D-432: <why>)`, is refused as an
   absent owner.
@@ -604,9 +604,9 @@ failure this command exists to prevent. Count them: `N candidates → N FIXED + 
 **Every candidate that did not enter `confirmed:` is rowed in the receipt's `## Residual` section**, in that
 same verdict grammar — `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that
 adjudicated it (or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows
-them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner, a `D-nnn` this checkout's
-`docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. That section is NOT a parking lot: nothing enters it un-executed except a
-`RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then holds open.
+them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner and every other malformed
+licence, and the messages of `check_review_coverage.py::_residual_errors` are the list. That section is NOT
+a parking lot: nothing enters it un-executed except a `RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then holds open.
 Pre-existing issues this change did not introduce, and findings in code this change does not OWN that you
 EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with
 their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.

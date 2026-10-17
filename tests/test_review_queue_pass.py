@@ -652,15 +652,16 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
 
 
-def test_the_residual_paragraph_names_every_by_design_refusal_the_gate_makes() -> None:
+def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
     """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
-    D-nnn absent from the checkout's ledger; the Reporting paragraph listed only the other two refusals. It now
-    carries the receipt skeleton's own sentence, and the skeleton still says it."""
+    D-nnn absent from the checkout's ledger. Phase 2's bullet, where the grammar is defined, now says the D-owner
+    is a row of that ledger; the Reporting paragraph points at the gate's own messages instead of listing a subset
+    (a three-item list missed three refusals and the ledger check's fail-open)."""
     text = re.sub(r"\s+", " ", SRC.read_text())
-    refusal = (
-        "the gate refuses an absent owner, a `D-nnn` this checkout's `docs/DECISIONS.md` has no row for, and a"
-        " round that is not below the closing `Pass N`."
-    )
-    assert refusal in text
-    skeleton = re.sub(r"\s+", " ", (ROOT / "scripts" / "review_receipt.py").read_text())
-    assert refusal[0].upper() + refusal[1:] in skeleton
+    assert "or a row of this checkout's `docs/DECISIONS.md`, which takes no round token." in text
+    assert (
+        "the gate refuses an absent owner and every other malformed licence, and the messages of"
+        " `check_review_coverage.py::_residual_errors` are the list."
+    ) in text
+    gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
+    assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"
