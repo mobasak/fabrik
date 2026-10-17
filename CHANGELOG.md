@@ -14,7 +14,7 @@ On 2026-10-17 one test process grew to about 32 GB (an unpatched `ssh()` handing
 - **The hub suite guards itself.** `tests/memguard.py`, started by `tests/conftest.py`, is a watchdog process. It kills a pytest tree whose summed PSS passes `FABRIK_TEST_RSS_MAX` (3G, below the runner's 4G) and prints the traceback.
 - **Per-test limit.** pytest-timeout joins the dev deps (`uv.lock`) with the ini key `timeout = 600`; hub tests that run the real gate take longer than 120 s. The scaffold template's per-test timeout is fleet's: scaffolded projects need the plugin in every dependency list first.
 - **Rule.** Both CLAUDE.md HARD STOPS rows route every test run through the runner.
-- **Tests.** `tests/test_capped_run.py`; each of 18 mutants turns one red.
+- **Tests.** `tests/test_capped_run.py`; each of 20 mutants turns one red.
 
 ### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
 
