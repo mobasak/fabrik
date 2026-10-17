@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
+
+- Round zero lives in both `commands/_fragments/term-coverage.md` and `term-edit.md`. Its pre-pin input list now
+  includes a guard the fix ADDS, run over the fix's own hunks as well. Feedback row 1792201902 (infra) reported
+  two late findings that were a new guard missing the fix's own code. It is the fourth answered reject on round
+  zero's live-population clause, which makes that line one the loops do not follow. The grader is in
+  `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-review says a by-design D-owner is a ledger row, and points at the gate for the refusals (2026-10-17)
 
 - `/fabrik-review` Phase 2's by-design bullet now says a `D-nnn` owner is a row of the checkout's
