@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
+
+- The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
+  tracked (`_is_tracked`), so the hub — which has no RESILIENCE or OPERATIONS doc — is no longer told to update one
+  after a `retry` diff or a compose change (W-a846021a). PORTS.md (D-380), INDEX.md, FEATURES and QUICKSTART keep their
+  rows. Treating a UI "Retry" word as not-retry was rejected after measuring: the incident matched the identifier
+  `retry: bool`, and no diff-text rule tells it from `retry=3` (0 UI-label hits in 8,027 fleet .py commits).
+- tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
+  doc so they keep testing the patterns.
+
 ### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
 
 `commands/_fragments/review-probe-catalogue.md` § Graders: "a prose grader asserts the whole generated sentence, not a

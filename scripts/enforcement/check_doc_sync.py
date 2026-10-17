@@ -500,11 +500,18 @@ def main(argv: list[str] | None = None) -> int:
                 "registry (D-380): ask the hub with `python3 scripts/mail.py send --to fabrik "
                 "--to-agent fleet --kind request` (the body on stdin), never edit the copy."
             )
+    # SERVICES, OPERATIONS and RESILIENCE are docs a repo may legitimately lack (the hub tracks no
+    # OPERATIONS or RESILIENCE), so their rows fire only where the doc is tracked (W-a846021a); the
+    # INDEX.md, docs/QUICKSTART.md and docs/FEATURES.md rows above warn even where that doc is missing.
     # SERVICES ← compose service added/removed (new worker, sidecar, etc.).
-    if compose_changed and "docs/SERVICES.md" not in staged_set:
+    if compose_changed and "docs/SERVICES.md" not in staged_set and _is_tracked("docs/SERVICES.md"):
         warnings.append("compose service changed but docs/SERVICES.md not updated (check it).")
     # OPERATIONS ← compose changed; ops runbooks track per-service procedures.
-    if compose_changed and "docs/OPERATIONS.md" not in staged_set:
+    if (
+        compose_changed
+        and "docs/OPERATIONS.md" not in staged_set
+        and _is_tracked("docs/OPERATIONS.md")
+    ):
         warnings.append("compose changed but docs/OPERATIONS.md not updated (check runbooks).")
 
     # RESILIENCE ← retry/backoff/circuit-breaker/fallback code changed. Inspect the
@@ -525,7 +532,11 @@ def main(argv: list[str] | None = None) -> int:
         if any(re.search(p, diff_text, re.IGNORECASE) for p in RESILIENCE_PATTERNS):
             resilience_touched = True
             break
-    if resilience_touched and "docs/RESILIENCE.md" not in staged_set:
+    if (
+        resilience_touched
+        and "docs/RESILIENCE.md" not in staged_set
+        and _is_tracked("docs/RESILIENCE.md")
+    ):
         warnings.append(
             "Retry/backoff/circuit-breaker code changed but docs/RESILIENCE.md not updated."
         )
