@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scratch-sweep run-folder tests no longer read the box's live /proc (2026-10-17)
+
+`tests/test_scratch_sweep_run_folders.py`'s `harness` now points `FABRIK_PROC_ROOT` at a fake one-pid /proc. On the live one, a same-user process the sweep could not read, started after a test folder was made, kept that folder. `test_the_write_after_close_signal_stays_bounded` then failed 2 of 40 runs on master. The three cases whose holder or liveness is a real process opt back in with `_live_proc`. An autouse teardown check fails any harness test that ends on the live /proc without opting in, whatever spelling put it there. `test_the_harness_reads_a_one_pid_fake_proc` pins the fake and the opt-in set.
+
 ### Fixed — `--status --json` no longer overruns the dashboard's 60 s probe cap on a dead uplink (2026-10-17)
 
 `claude_rotate.py`'s `_oauth_get` keeps a per-process transport-dead latch (W-5a1b8961, D-942), in both vendored copies. When one call fails on every host and attempt with a transport error (an OSError) and nothing else, later calls inside 60 s return None at once instead of each spending its own hosts × attempts × timeout budget. Before this, a dead link made the fleet loop spend N accounts × ~33 s, and the board showed a probe failure instead of its cached rows.

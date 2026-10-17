@@ -234,8 +234,54 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("SCRATCH_SWEEP_SESSIONS_DIRS", str(tmp_path / "sessions"))
     monkeypatch.setenv("SCRATCH_SWEEP_JANITOR_REPO", "")
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "no-locks"))
-    monkeypatch.delenv("FABRIK_PROC_ROOT", raising=False)
+    # a quiet one-pid /proc: the live one carries transient same-uid gaps (2 of 8 probes), and a gap
+    # that starts after a folder was made keeps it — a test that wants a real holder opts back in
+    # with `_live_proc`
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(tmp_path)))
+    monkeypatch.delenv(_LIVE_OPT_IN, raising=False)  # an exported or leaked opt-in never carries in
+    monkeypatch.setenv(_HARNESS_ON, "1")  # the harness got this far: the teardown check applies
     return root
+
+
+_LIVE_OPT_IN = "SCRATCH_SWEEP_TEST_LIVE_PROC"  # set by _live_proc, cleared by the harness
+_HARNESS_ON = "SCRATCH_SWEEP_TEST_HARNESS"  # set once the harness has pointed at its fake /proc
+
+
+def _live_proc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read the real /proc — only for a case whose holder or liveness is a real process."""
+    monkeypatch.delenv("FABRIK_PROC_ROOT", raising=False)
+    monkeypatch.setenv(_LIVE_OPT_IN, "1")
+
+
+@pytest.fixture(autouse=True)
+def _no_live_proc_unless_opted_in(monkeypatch: pytest.MonkeyPatch):
+    """A box process the sweep cannot read, started after a folder was made, keeps that folder:
+    a harness on the live /proc made the write-after-close grader fail on a busy box (2 in 40
+    runs on master). So a harness test must END on a fake /proc unless it opted in with
+    `_live_proc`: the check reads, at teardown, the /proc `_proc_root` resolves to (teardown runs
+    before `monkeypatch` undoes, so the env is the test's). It catches an accidental revert — a
+    `delenv`, `setenv` to "/proc" or "", a link to /proc — and skips a test whose harness never
+    finished setup. Cobra (D-253): it is a snapshot of the end state, so the cheap ways past it are
+    deliberate ones — a live /proc only inside `monkeypatch.context()`, a directory of links to
+    /proc's entries, an explicit `proc_root=` argument, or setting the opt-in env by hand; none of
+    those is a revert, and a test written that way is visible in review."""
+    yield
+    if os.environ.get(_HARNESS_ON) != "1" or os.environ.get(_LIVE_OPT_IN) == "1":
+        return
+    root = sw._proc_root().resolve()  # a link to the live /proc is the live /proc
+    assert root != Path("/proc").resolve(), "a harness test read the live /proc without _live_proc"
+
+
+def test_the_harness_reads_a_one_pid_fake_proc(harness: Path) -> None:
+    """The default the teardown check enforces, and the opt-in set it allows."""
+    root = sw._proc_root().resolve()
+    assert root.is_relative_to(harness.parent.resolve())
+    assert sorted(os.listdir(root)) == ["1"]  # the one-pid fake, not a copy of a real /proc
+    assert {
+        "running-live",
+        "fd-inside",
+        "cwd-inside",
+    } == LIVE_PROC_CASES  # widen it on purpose only
 
 
 def _session(root: Path, sid: str = SID_A) -> Path:
@@ -382,6 +428,9 @@ def _fake_gap_proc(tmp_path: Path) -> Path:
     return proc_root
 
 
+# the B2 cases whose holder or liveness is a real process: the only ones on the live /proc
+LIVE_PROC_CASES = frozenset({"running-live", "fd-inside", "cwd-inside"})
+
 ACTIVE_FOLDERS = [
     "running-live",
     "running-fresh-heartbeat",
@@ -410,6 +459,7 @@ def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.Mon
         # the session must be PROVABLY live, and `--dead` is the mode whose dead rule reads it:
         # `--run-folders` passes no liveness test, so this row once passed on another condition
         # without the session's liveness ever being consulted (W-c0a1d324 F3)
+        _live_proc(monkeypatch)  # the live record names this process: liveness reads the real /proc
         _live_record(tmp_path, SID_A)
         return (
             _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=30 * DAY),
@@ -435,6 +485,8 @@ def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.Mon
         _age(seat, HOUR)
         return folder, [], False
     folder = _run_folder(sdir, case)
+    if case in LIVE_PROC_CASES - {"running-live"}:
+        _live_proc(monkeypatch)  # the holder is a real child process
     if case == "fd-inside":
         code = f"import time; f = open({str(folder / 'f0')!r}); print('ok', flush=True); time.sleep(60)"
         child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE)
@@ -496,6 +548,8 @@ def test_active_condition_keeps(
     the dead-session cases, through `--dead --apply` too (spec INV-1)."""
     sdir = _session(harness)
     folder, children, dead_mode = _build_active(case, sdir, tmp_path, monkeypatch)
+    on_live = sw._proc_root().resolve() == Path("/proc").resolve()
+    assert on_live == (case in LIVE_PROC_CASES), case  # live /proc gaps keep folders by themselves
     try:
         rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
         assert rc == 0, out
@@ -1014,9 +1068,11 @@ def test_nightly_runs_while_a_session_lock_is_held(
         rc, out = _main(capsys, "--dead", "--apply")
     assert rc == 0, out
     assert "another sweep holds the lock" not in out, out
-    # the night ran: its run pass removed the consumed folder (the held lock fd makes the session
-    # itself read `live`, which is the holder rule doing its job)
+    # the night ran: its run pass removed the consumed folder. The held lock fd is invisible on the
+    # fake /proc; the session reads `unclassified` because its run folder's `.owner` was written 40 h
+    # ago, so the run pass decides and the session dir stays
     assert not folder.exists(), out
+    assert sdir.exists(), out  # the run pass took the folder, never the whole session
 
 
 def test_vanished_folder_is_skipped(harness: Path) -> None:
