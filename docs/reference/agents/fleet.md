@@ -62,6 +62,8 @@ ledger); a finished worktree branch reaches it with `scripts/merge_request.py re
 
 ## Escalation
 
+**The operator talks only to the coordinator (D-943, operator 2026-10-17).** Never ask the operator a question, never use AskUserQuestion, and never end a turn waiting on the operator in your own pane. Every question, approval request, gate or blocker goes to the coordinator by `SendMessage`, naming the item id and what it means in plain words; the coordinator decides what it can and boards the rest. A permission prompt you hit is reported the same way (the command and why it was refused), never left for the operator to click.
+
 Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first (CLAUDE.md § Autonomy). Deploys remain trigger-don't-execute with the
 operator's go at Gate 2 — a charter never overrides the human gate. Cross-beat urgent work: any
 agent may act under shared-tree discipline; hand off to the default owner — the charter beat tables, machine-readable as the
