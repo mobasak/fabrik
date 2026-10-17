@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE reads a new env var's transport on the started process (2026-10-17)
+
+`commands/_sources/fabrik-task.md` Phase 1: the population a change measures now names the transport handing a new
+env var to the process (compose `environment:`, `env_file`, a build arg, another launcher), read on the started
+process (e.g. `docker compose run --rm <svc> env`) with its keys recorded, never its values. Answers row 1792258556,
+the third verdict on held measure-the-env-writers-not-only-the-spec (D-951; SIZE_CAP 22044 -> 22272). The queue's
+other 6 rows are already stated or routed to infra. Pinned by `tests/test_fabrik_task_queue_pass.py`.
+
 ### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
 
 `/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and

@@ -205,12 +205,15 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
 
 def test_measure_greps_config_and_env_values_and_design_reads_a_copied_rule_first() -> None:
     """Row 1792233945 (a `${` format change missed the spec env values that carry it), recurring held
-    measure-the-env-writers-not-only-the-spec; row 1792240470 (a rule copied from another component could have
+    measure-the-env-writers-not-only-the-spec, and row 1792258556 (a var compose read only for interpolation, never
+    handed to the container), the same subject again; row 1792240470 (a rule copied from another component could have
     been read from its output), recurring the untagged reject 1791965012 (every other place the rule lives) and
     held gate-legs-before-a-new-leg (reuse what already runs before drafting a duplicate)."""
     assert (
         "every host it runs on, every config and env value a changed format can sit in (grep them for its shape,"
-        " e.g. `${`), and the n behind"
+        " e.g. `${`), the transport handing a new env var to the process (compose `environment:`, `env_file`, a"
+        " build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its"
+        " keys recorded, never its values), and the n behind"
     ) in _section("## Phase 1", "## Phase 2")
     assert (
         "D-rows settled. Before such a copy, a rule another component already applies is tried as a read of its"
