@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
+
+`CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):
+- The Work items paragraph's reason clause now binds every work-item, decision, mail or merge-request id a
+  response shows the operator, in every repo: its meaning in plain words at its first mention.
+- The bar paragraph's boarded-gate pointer is `NEXT: operator decision — W-<id> — <what it decides>`; only the
+  block is never re-stated.
+
+fabrik-lib is mailed the sentence for its own contract. Operator request W-c5f39b74 (D-944). Pinned by
+`tests/test_work_contract_rule.py`.
+
 ### Changed — /fabrik-task: MEASURE greps config and env values for a changed format; a copied rule is first tried as a read (2026-10-17)
 
 `commands/_sources/fabrik-task.md`:
