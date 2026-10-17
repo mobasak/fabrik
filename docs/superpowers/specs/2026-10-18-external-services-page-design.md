@@ -238,16 +238,19 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - Registry unreachable in the live view: the inventory section shows `region_state("error", …)` with the
   cause; the rest of Services renders (the parent spec's guarded-collector rule). The read is bounded in
   time, because `_guarded` (`quota_dashboard.py:2218-2223`) catches exceptions but has no timeout and
-  `registry_db.connect()` (`registry_db.py:35-37`) takes no arguments and sets none. `registry_db.connect()`
+  `registry_db.connect()` (`registry_db.py:33-35`) takes no arguments and sets none. `registry_db.connect()`
   gains optional keyword arguments passed to `psycopg2.connect` (the chain's call, with none, is unchanged);
   the collector passes `connect_timeout=2` and `options="-c statement_timeout=2000"`, and runs `load()`'s
-  queries in one transaction under `SET LOCAL statement_timeout` re-armed to the deadline left, so the whole
-  read — connect plus every query — ends within 5 s. A stalled Postgres becomes that section's error state,
+  queries in one transaction under `SET LOCAL statement_timeout` re-armed before each query to the deadline left,
+  never below 1 ms (a `statement_timeout` of 0 disables the bound in Postgres): with nothing left the read is
+  abandoned as the section's error state, so the whole read — connect plus every query — ends within 5 s. A stalled Postgres becomes that section's error state,
   never a hung `/v/services`. (On the default unix-socket DSN a connect does not stall on the network; the
-  statement bound is what holds there.) The board re-requests `/v/services` on its refresh cadence, so the
-  collector keeps its last good read in memory for 60 s (the registry changes once a day; the only cache the
-  board has today is the credits file's 300 s, `quota_dashboard.py:161`), and an open tab queries the registry
-  at most once a minute.
+  statement bound is what holds there.) The Services view has no timed refresh (it emits no `data-refresh-s`,
+  and `app.js`'s `CADENCE` names only overview, work and accounts); `/v/services` is fetched on navigation,
+  on `visibilitychange` (`app.js:708-709`) and on a forced refresh. The collector keeps its last good read in
+  memory for 60 s (the registry changes once a day; the only cache the board has today is the credits
+  file's 300 s, `quota_dashboard.py:161`), so tab switching and repeated navigation query the registry at
+  most once a minute.
 - Registry unreachable in the chain: `gen_dashboard.py` prints its one typed line and exits 1, the previous
   file stands — unchanged (`main()` today).
 - An empty registry: the summary shows zeros and each section its empty state, never a blank page.

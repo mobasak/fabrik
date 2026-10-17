@@ -12,6 +12,7 @@
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (slice rules: chosen approach, design, contract deltas, decisions, digest) + sonnet×1 (slice context: personas → intake, lifecycle, docs, unknowns) + sonnet×1 fabrik-researcher (slice research: the cited facts) · all axes | found: 32, new: 32, confirmed: 24, fixed: 24, unexecuted: 0, edits: 27 | method: every candidate re-executed by the lead — census recount from the embedded JSON (attention union 37, account 0 of 466, 17 real categories, 115 categorised), `app.js` read at :10, :36, :453-540, :700-717, `components.table` / `_esc` / `live_region`, `PORTS.md` grep (no 8770), the reference greps | 7ca217c17d4cd1036bfa8ca75c01e1f6 → 4e783eefc45760a2205ee1414a7dd0a6 |
 | Pass 2 | opus×1 + sonnet×1 + sonnet×1 fabrik-researcher (round-1 owners) · delta over every round-1 hunk + one hop | found: 16, new: 16, confirmed: 13, fixed: 13, unexecuted: 0, edits: 22 | method: re-derivation — 28 round-1 ids re-executed (27 FIXED, rules-11 FIX_WRONG); new candidates re-executed by the lead: `clamp()` markup and `initClamps` `app.js:587`, the test grep for the removed names (12 sites), `registry_db.connect()` `:35-37`, the 115-row recount (88 keys, 5 bad URLs), `/repos.html` precedent `quota-dashboard.md:249`, the strings keys `:468-471` | 4e783eefc45760a2205ee1414a7dd0a6 → d5ab9930668d0e62184d6b075b7e129b |
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners) · the pass-2 fixed set only (scope-growth remainder round) | found: 11, new: 11, confirmed: 9, fixed: 9, unexecuted: 0, edits: 10 | method: re-derivation — 14 pass-2 ids re-executed FIXED; new residues re-executed by the lead: `registry_db.py` `cat -n` (33-35), `refresh-s` grep (overview, work, accounts only), the untriaged project maximum 9, the height sum (20 summaries), the CSP ledger row st-9 | d5ab9930668d0e62184d6b075b7e129b → fc581a0c0164ee6f14f8de4ade3b8cf7 |
 
 ## Findings
 
@@ -57,3 +58,12 @@
 | rules-r2-cite | 2 | `app.js:10` off by one | FIXED r2 (`:11`) — found by both section seats |
 | research-p2-1 | 2 | CSP sentence implied st-9 backing | FIXED r2 (the style directive is the spec's own inference) |
 | research-p2-2 | 2 | Ledger ux-3 disposition overstated GOV.UK | FIXED r2 (ledger row reworded; `check_research_ledger.py` 0 refused) |
+| R3-1 | 3 | Digest still said 3 s / 3 s | FIXED r3 (2 s connect, 5 s read) |
+| R3-2 | 3 | Height sum missed the Unidentified table | FIXED r3 (20 summaries, ≈ 2,200 px) |
+| R3-3 | 3 | "up to 25" over the wrong set | FIXED r3 (untriaged maximum 9) — same as rules-p3-5 |
+| R3-4 | 3 | Growth SQL vs `load()`'s empty-to-`?` | FIXED r3 (`coalesce(nullif(category,''),'?')`) |
+| R3-5 | 3 | Redirect tied to `_LEGACY_TOKEN_UNTIL` | FIXED r3 (a permanent `303`, D8 restated) — same as rules-p3-4 |
+| R3-6 | 3 | CSP "concerns scripts" | FIXED r3 (where MDN's warning sits) |
+| rules-p3-1 | 3 | Re-arm to 0 disables the bound | FIXED r3 (never below 1 ms; nothing left → error state) |
+| rules-p3-2 | 3 | `registry_db.py:35-37` | FIXED r3 (`:33-35`) |
+| rules-p3-3 | 3 | Services has no refresh cadence | FIXED r3 (fetch triggers stated from `app.js`; cache rationale restated) |
