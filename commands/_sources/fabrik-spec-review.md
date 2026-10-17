@@ -243,7 +243,7 @@ round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix;
 a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` (`--args <a scratch copy of the run file>` added whenever that file exists: it then prints each slice whole and carries the open claims the `--ids` leave out; read its stderr either way, `/opt/fabrik/docs/reference/review-loop-workflow.md`) — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
-ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
+ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
 The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`,

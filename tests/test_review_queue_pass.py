@@ -101,10 +101,16 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
         p for r in roots for p in sorted(r.rglob("*.md")) if "cannot load the script" in _norm(p)
     ]
     assert len(copies) >= 10, [p.name for p in copies]
-    missing = [
-        p.name for p in copies if "(the tool runs only on their explicit opt-in)" not in _norm(p)
-    ]
-    assert not missing, missing
+    for clause in (
+        # D-957 and the operator's 2026-10-18 follow-up: a hub agent never calls the Workflow tool,
+        # so its review seats always take the Agent-tool path and no approval dialog reaches the operator
+        "or the session is a hub agent's (in the hub a review never calls the `Workflow` tool, so no "
+        "approval dialog reaches the operator — D-957 and the operator's 2026-10-18 follow-up), "
+        "or the operator did not invoke this",
+        "(the tool runs only on their explicit opt-in)",
+    ):
+        missing = [p.name for p in copies if clause not in _norm(p)]
+        assert not missing, (clause, missing)
 
 
 def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:
@@ -619,13 +625,21 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in _section(src, "## Reporting", "{{include:close-chain}}")
     # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
     # negation-safe-assertions)
-    assert "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write" in src
+    assert (
+        "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write"
+        in src
+    )
     assert (
         "**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract"
         " is equality, a regex widened to `.*`)"
     ) in _section(src, "**Test-quality checklist", "## Phase 2")
-    lessons = _section(src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**")
-    assert "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count" in lessons
+    lessons = _section(
+        src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**"
+    )
+    assert (
+        "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count"
+        in lessons
+    )
     assert (
         "a probe of a served build reads the port the server actually bound, from its own output, or serves the"
         " files with no port at all (Playwright `page.route`), never a port the brief assumed"
