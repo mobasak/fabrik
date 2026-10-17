@@ -27,6 +27,8 @@ uv add httpx                    # Add dependency
 uv run pytest                   # Run via uv
 ```
 
+A subagent seat is the exception: it runs no `uv` verb and runs Python as `.venv/bin/python …` (`python3 …` where there is no `.venv`), by its brief's D8 rule.
+
 Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 
 **Pinning policy:** `uv.lock` IS the pin — `pyproject.toml` uses `>=` floors, no routine upper
