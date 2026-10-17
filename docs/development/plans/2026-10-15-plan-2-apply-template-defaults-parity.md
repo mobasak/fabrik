@@ -45,6 +45,8 @@ as "nothing to violate" — adjudicated in the Coverage Checklist. core/40-docum
 
 ## Phase A — pins first, then one merge helper on the apply path
 
+✅ EXECUTED 2026-10-17 (2935ce9f6; review fixes 6dae6d526)
+
 Appetite: 50
 
 **Files:** `specs/services/translator.yaml`, `specs/services/longephedia-vault.yaml`,
@@ -120,6 +122,8 @@ Steps:
    commit Phase A (explicit paths + trailers, `Agent-Phase: A`).
 
 ## Phase B — the parity graders
+
+✅ EXECUTED 2026-10-17 (ce84cebf8; review fixes 7df3c97b4, 9ac74a948)
 
 Appetite: 30
 
