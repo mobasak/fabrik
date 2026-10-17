@@ -6,8 +6,8 @@
 # - pip-tools: pip-compile pyproject.toml
 # - poetry: poetry install
 #
-# Version: 1.0.0
-# Last Updated: 2025-12-13
+# Version: 1.1.0
+# Last Updated: 2026-10-17
 
 [project]
 name = "project-name"  # CHANGE: Your project name (lowercase, hyphens)
@@ -46,6 +46,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-timeout>=2.3.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
@@ -146,6 +147,11 @@ testpaths = ["tests"]
 pythonpath = ["src"]  # Make src-layout packages importable without `pip install -e .`
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+# A hung test fails after 120 s (pytest-timeout) and every stack is dumped at 120 s (built in, so the
+# dump happens even without the plugin) — a hang guard only; a runaway that eats memory is the
+# capped runner's to stop (D-935, W-046828fb).
+timeout = 120
+faulthandler_timeout = 120
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
