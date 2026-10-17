@@ -515,6 +515,7 @@ class SSHDeployer:
         if dry_run:
             logger.info("[DRY RUN] Would restart %s", name)
             return
+        _assert_deployed_compose_valid(name)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def redeploy(
@@ -542,6 +543,15 @@ class SSHDeployer:
             # contract, which redeploy previously lacked.
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
+            # W-51d6c153: the pulled compose is checked BEFORE the GIT_SHA write, the build and
+            # the up; a violation resets the checkout to old_sha, so the running containers and
+            # the code on disk stay on the last commit that passed.
+            try:
+                _assert_deployed_compose_valid(name)
+            except DeployError:
+                if old_sha:
+                    _ssh(f"cd /opt/{name} && sudo git reset --hard {old_sha}", timeout=60)
+                raise
             new_sha = _read_head_sha(name, _ssh)
             if new_sha:
                 _persist_git_sha(name, new_sha, _ssh)
@@ -593,6 +603,7 @@ class SSHDeployer:
             # than fabricate one — the operator must re-run apply/redeploy or
             # restore from a known-good spec.
             recreate_flags = " --force-recreate" if force else ""
+            _assert_deployed_compose_valid(name)
             try:
                 _ssh(
                     f"cd /opt/{name} && sudo docker compose up -d --wait{recreate_flags}",
@@ -1479,6 +1490,17 @@ def _read_compose_from_vps(name: str) -> str:
         f"No compose file found in /opt/{name} "
         "(looked for compose.yaml, compose.yml, docker-compose.yml, docker-compose.yaml)"
     )
+
+
+def _assert_deployed_compose_valid(name: str) -> None:
+    """Refuse a deployed compose at ``/opt/<name>`` that breaks the Fabrik invariants — the same
+    check and message the apply paths use (W-51d6c153: redeploy and restart were the doors
+    around it). A read failure raises from ``_read_compose_from_vps``."""
+    errors = _validate_compose(_read_compose_from_vps(name))
+    if errors:
+        raise DeployError(
+            f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
 
 
 def _generate_docker_compose(

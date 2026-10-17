@@ -673,8 +673,54 @@ class TestSSHDeployerReadEnv:
 
 
 class TestSSHDeployerRedeploy:
+    """redeploy()/restart() validate /opt/<name>'s compose first (W-51d6c153); every test hands
+    the read an explicit string, never an unconfigured mock (a MagicMock fed to the YAML parser
+    reads forever — WSL went down twice on 2026-10-17)."""
+
+    @staticmethod
+    def _compose(text: str = ""):
+        return patch(
+            "fabrik.orchestrator.deployer_ssh._read_compose_from_vps",
+            return_value=text or _VALID_LOCAL_COMPOSE,
+        )
+
+    _VIOLATING = "services:\n  web:\n    image: x\n    networks: [coolify]\n"
+
+    def test_redeploy_refuses_a_violating_compose_before_up(self):
+        with (
+            self._compose(self._VIOLATING),
+            patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh,
+            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="template")
+        assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
+
+    def test_git_redeploy_resets_to_old_sha_on_a_violating_compose(self):
+        old = "a" * 40
+        with (
+            self._compose(self._VIOLATING),
+            patch("fabrik.drivers.ssh.ssh", side_effect=[old + "\n", "", ""]) as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._persist_git_sha") as persist,
+            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        assert "git pull" in cmds[1], cmds
+        assert cmds[2] == f"cd /opt/my-app && sudo git reset --hard {old}", cmds
+        assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
+        persist.assert_not_called()
+
+    def test_restart_refuses_a_violating_compose(self):
+        with (
+            self._compose(self._VIOLATING),
+            patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh,
+            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+        ):
+            SSHDeployer().restart("my-app")
+        mock_ssh.assert_not_called()
+
     def test_redeploy_template(self):
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+        with self._compose(), patch("fabrik.drivers.ssh.ssh") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="template")
 
@@ -684,7 +730,7 @@ class TestSSHDeployerRedeploy:
         assert "--force-recreate" not in cmds[0]
 
     def test_redeploy_template_force(self):
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+        with self._compose(), patch("fabrik.drivers.ssh.ssh") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="template", force=True)
 
@@ -692,7 +738,7 @@ class TestSSHDeployerRedeploy:
         assert "--force-recreate" in cmds[0]
 
     def test_redeploy_git(self):
-        with patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
+        with self._compose(), patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="git")
 
@@ -709,7 +755,7 @@ class TestSSHDeployerRedeploy:
         )
 
     def test_redeploy_git_force(self):
-        with patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
+        with self._compose(), patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="git", force=True)
 
