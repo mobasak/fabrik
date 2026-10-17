@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
+
+- PHASE 3's synthetic file for a recipe is now built to break it, for example a regex metacharacter or a backtick
+  in a subject, or a sibling commit inside the range. A rule whose subject the edit widens is also run, through the
+  rule's own search methods, on a sample of the new subject. This answers feedback rows 1792200478 and
+  1792189926. The grader is in `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — a plan's reader census covers a build script it changes (2026-10-17)
 
 - In `/fabrik-plan-after-chat` Phase 1, the reader census covered only a function or value. It now also covers a
