@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.703521Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ec8d59c2deb6f83df12ff3e0d24be0f697030ad3",
   "id": "W-51eee9fd",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "intel 2026-10-17: one reversible /fabrik-task change — re-key the seat-brief read ban from PATH to TOOL; it is command/brief wording, kaizen's beat",
-  "status": "open",
+  "status": "done",
   "tags": [
     "handoff-2026-10-06"
   ],
