@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a ticket that cannot list the spec quotes its rules verbatim, and plan-review checks those quotes first (2026-10-17)
+
+- `/fabrik-plan-after-chat` Phase 2's "Size as you draft" paragraph now covers a ticket whose READ budget pushes
+  the spec out of its Context Files. The ticket quotes each spec rule it implements verbatim at
+  `<spec path>:<line>`, in a `> ` blockquote under `## Context Files` and never as a bullet, because
+  `check_plan_tickets.py` reads a bullet there as a listed file, and a bullet under Behavior Contract holding
+  "given" as a behaviour row. Phase 0's cite rule says such a quote is a cite, not a restatement.
+  `/fabrik-plan-review`'s spec-cite bullet checks those quotes before the ticket's other cites. Feedback row
+  1792192158 (infra) reported four tickets that paraphrased the spec instead, which drove most of a review's first
+  round. It recurs on the held subject `size-read-set-first`. The graders are in
+  `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
+
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 
 - W-7f545f4a re-ran the release kit's network checks (W-e2af3303, D-905) now that npm answers. `pnpm install`,
