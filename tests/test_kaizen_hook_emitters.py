@@ -379,6 +379,38 @@ def test_stop_block_cause_uncommitted(tmp_path: Path) -> None:
     assert [(b["cause"], b["outcome"]) for b in blocks] == [("uncommitted", "blocked")]
 
 
+def _running_review(tmp_path: Path, sid: str, surface: str) -> None:
+    runs = tmp_path / "runs"  # `_env` points COMMAND_RUN_DIR here
+    runs.mkdir(exist_ok=True)
+    now = time.time()
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": now - 60,
+        "updated_ts": now,
+        "surface": surface,
+    }
+    (runs / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+
+def test_a_running_reviews_surface_stands_the_uncommitted_cause_down(tmp_path: Path) -> None:
+    """W-5ce56208 end to end: a dirty authored file the running review names gets the fifth
+    cause ("run it to its terminal condition"), never an order to commit before the review closes,
+    and the stand-down is in the event stream. The control names another file and is blocked as
+    uncommitted, so main() — not only the helper — carries the exemption."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidrev", "session_file.py — the change under review")
+    proc = _run_stop(proj, tmp_path, "sidrev", baseline=[], transcript=tp)
+    reason = json.loads(proc.stdout).get("reason", "")
+    assert "COMMAND STILL RUNNING" in reason and "DEFINITION OF DONE" not in reason, reason
+    blocks = _of_type(_events(tmp_path, "sidrev"), "stop_block")
+    assert ("uncommitted", "stood_down") in [(b["cause"], b["outcome"]) for b in blocks], blocks
+    _running_review(tmp_path, "sidctl", "other_file.py")
+    proc = _run_stop(proj, tmp_path, "sidctl", baseline=[], transcript=tp)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+
+
 def _with_upstream(tmp_path: Path, proj: Path) -> None:
     bare = tmp_path / "origin.git"
     subprocess.run(

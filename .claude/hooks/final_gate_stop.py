@@ -1351,12 +1351,9 @@ def _urgent_checkpoint(
     owed: list[str] = []
     stood: list[tuple[str, dict]] = []
     arm = _arm_order(sid, str(root))
-    dirty = _dirty_paths(root)
-    mine = sorted(
-        rel
-        for rel, edit_ts in authored_map.items()
-        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
-    )
+    # rec=None: no running-review exemption here — D-306's urgent tier orders the checkpoint
+    # commit before the wall, and losing the work outranks the review-then-commit order
+    mine = sorted(_own_uncommitted(root, authored_map, None, sid))
     if mine:
         more = f" (+{len(mine) - 8} more)" if len(mine) > 8 else ""
         items.append(
@@ -1592,6 +1589,36 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
 
 
 _SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
+
+
+def _own_uncommitted(
+    root: Path, authored: dict[str, int], rec: object, sid: str | None = None
+) -> set[str]:
+    """The session-authored paths that are dirty and whose last edit is newer than their last
+    commit — the uncommitted cause's set, and the urgent checkpoint's (ONE predicate, two callers).
+
+    W-5ce56208: a path the running review-family record names in its `--surface` is subtracted, so
+    the session is never ordered to commit what its own review is still reviewing; the fifth cause
+    blocks that turn instead ("run it to its terminal condition"), and once the record closes this
+    reads nothing and the cause fires again. `rec` MUST be the FRESH record (`_run_record`), never
+    `_run_record_raw`: under the operator's `COMMAND_RUN_STALE_H<=0` opt-out the fresh record is
+    None and the fifth cause cannot block, and `_surface_reviewed` then skips its own staleness
+    test, so a raw record would exempt the file for as long as an abandoned record exists (design
+    critique C1/F1). `rec=None` — the urgent-90 tier, where D-306 orders the checkpoint commit —
+    exempts nothing.
+
+    Cobra (D-253): the cheapest way past it is to name the file in a running review's surface and
+    never close the review; the fifth cause then blocks every turn until its own cap, and the
+    commit cause re-arms the moment the record leaves `running`."""
+    dirty = _dirty_paths(root)
+    mine = {
+        rel
+        for rel, edit_ts in authored.items()
+        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
+    }
+    if rec is not None and mine:
+        mine -= _surface_reviewed(rec, authored, sid)
+    return mine
 
 
 def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
@@ -5010,16 +5037,22 @@ def main(argv: list[str]) -> int:
         authored: dict[str, int] = authored_map
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            dirty = _dirty_paths(root)
-            for rel, edit_ts in authored.items():
-                if rel not in dirty:
-                    continue
-                # The session's last edit already COMMITTED → today's dirt on the
-                # same file belongs to someone else (pipeline/sibling), not this
-                # session. Only an edit NEWER than the file's last commit counts.
-                if edit_ts and _last_commit_ts(root, rel) >= edit_ts:
-                    continue
-                own_uncommitted.add(rel)
+            # An edit NEWER than the file's last commit counts (an older one's dirt is a
+            # pipeline's or a sibling's); a file the running review names is that review's to
+            # finish first (W-5ce56208) — `_own_uncommitted` holds both rules.
+            everything = _own_uncommitted(root, authored, None, sid)  # one dirty/git pass per Stop
+            live = _run_record(sid)
+            own_uncommitted = (
+                everything - _surface_reviewed(live, authored, sid) if live else everything
+            )
+            if everything - own_uncommitted:
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="uncommitted",
+                    outcome="stood_down",
+                    files=len(everything - own_uncommitted),
+                )
 
         # Attribute NEW gate failures by CITED PATH, not just check name: on shared
         # master a sibling's staged/dirty files flip a check red mid-session, and

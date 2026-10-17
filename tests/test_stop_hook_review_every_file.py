@@ -241,6 +241,67 @@ def test_a_running_reviews_surface_exempts_a_committed_file(tmp_path: Path, monk
     ]
 
 
+def _dirty_authored(tmp_path: Path) -> tuple[Path, dict[str, int]]:
+    repo = _repo(tmp_path)
+    now = int(time.time())
+    _commit_at(repo, "scripts/sync.py", now - 600)
+    (repo / "scripts" / "sync.py").write_text("changed\n")  # an edit newer than its commit
+    return repo, {"scripts/sync.py": now}
+
+
+def _write_run(tmp_path: Path, monkeypatch, sid: str, surface: str, state: str = "running") -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir(exist_ok=True)
+    now = time.time()
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": state,
+        "started_epoch": now - 60,
+        "updated_ts": now,
+        "surface": surface,
+    }
+    (runs / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
+
+
+def test_own_uncommitted_stands_down_for_a_running_reviews_surface(tmp_path: Path, monkeypatch):
+    """W-5ce56208: a file the FRESH running review names in --surface is not ordered committed —
+    the review comes first; every other shape is still reported (today's behaviour)."""
+    monkeypatch.delenv("COMMAND_RUN_STALE_H", raising=False)
+    repo, authored = _dirty_authored(tmp_path)
+    assert fgs._own_uncommitted(repo, authored, None, "s") == {"scripts/sync.py"}
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py — the change under review")
+    assert fgs._own_uncommitted(repo, authored, fgs._run_record("s"), "s") == set()
+    _write_run(tmp_path, monkeypatch, "s", "something else")
+    assert fgs._own_uncommitted(repo, authored, fgs._run_record("s"), "s") == {"scripts/sync.py"}
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py", state="done")
+    assert fgs._own_uncommitted(repo, authored, fgs._run_record("s"), "s") == {"scripts/sync.py"}
+
+
+def test_own_uncommitted_never_exempts_under_the_stale_opt_out(tmp_path: Path, monkeypatch):
+    """`COMMAND_RUN_STALE_H=0` turns the fifth cause off (`_run_record` is None), so the exemption
+    must go with it — or an abandoned record exempts the file for ever (critique C1/F1)."""
+    repo, authored = _dirty_authored(tmp_path)
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py")
+    monkeypatch.setenv("COMMAND_RUN_STALE_H", "0")
+    assert fgs._own_uncommitted(repo, authored, fgs._run_record("s"), "s") == {"scripts/sync.py"}
+
+
+def test_the_urgent_checkpoint_still_orders_the_commit_during_a_review(tmp_path: Path, monkeypatch):
+    """D-306: at urgent-90 the checkpoint commit outranks the review order, so the urgent tier never
+    takes the exemption (critique C2/F5)."""
+    monkeypatch.delenv("COMMAND_RUN_STALE_H", raising=False)
+    repo, authored = _dirty_authored(tmp_path)
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py")
+    monkeypatch.setattr(fgs, "_ahead_of_upstream", lambda *a, **k: 0)
+    monkeypatch.setattr(fgs, "_seats_in_flight", lambda rec, tp: False)
+    monkeypatch.setattr(fgs, "_unreviewed_spontaneous_files", lambda *a, **k: [])
+    monkeypatch.setattr(fgs, "_merge_owner_duty", lambda root, sid: None)
+    monkeypatch.setattr(fgs, "_urgent_sidecar", lambda sid: tmp_path / "side.urgent")
+    out = fgs._urgent_checkpoint(repo, "s", "s", authored, [], None, "")
+    assert out is not None and "COMMIT your own work — scripts/sync.py" in out, out
+
+
 def test_an_ignored_file_is_not_shipped_work(tmp_path: Path):
     repo = _repo(tmp_path)
     (repo / ".gitignore").write_text(".env\nscratch/\n")
