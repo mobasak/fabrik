@@ -826,6 +826,28 @@ def _validate_names(names: list[str], ap: argparse.ArgumentParser, flag: str) ->
             ap.error(f"{flag}: invalid agent name {n!r} — must match [a-z0-9-]{{1,32}}")
 
 
+def _refuse_unreadable_merge_owner(first: str, ap: argparse.ArgumentParser) -> None:
+    """W-390556a1: /fabrik-epics-review mints `MERGE OWNER: <first --assign name>`, so that name must read back as
+    the owner. The grammar admits `undeclared` (the readers' un-adoption token) and a leading `-` (which their capture
+    refuses); the readers' own regexes decide, on the row's shape — the round-trip docs_updater.py --adopt uses.
+    A copy with no `decisions.py` beside it skips the check: on this box that is only the copy `docs_updater.py
+    --adopt` delegates to, which has already refused such a first name (W-2118e9c9)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from decisions import _UNDECLARED_RE, MERGE_OWNER_RE
+    except ImportError:
+        return
+
+    row = f"MERGE OWNER: {first} — "
+    read = MERGE_OWNER_RE.match(row)
+    if _UNDECLARED_RE.match(row) or not read or read.group(1) != first:
+        ap.error(
+            f"--assign: {first!r} cannot be the merge owner — the readers do not read `MERGE OWNER: {first}` back "
+            "as that name (it is the un-adoption token `undeclared`, or it opens with `-`); put an agent that "
+            "starts with a letter or digit and is not `undeclared` first"
+        )
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--epics-dir", default="docs/development/epics")
@@ -870,6 +892,7 @@ def main(argv=None) -> int:
         if not assign_names:
             ap.error("--assign requires at least one name")
         _validate_names(assign_names, ap, "--assign")
+        _refuse_unreadable_merge_owner(assign_names[0], ap)
 
     owners: set[str] | None = None
     if args.owners is not None:

@@ -688,6 +688,27 @@ def test_assign_rejects_group_reference_name_before_any_write(tmp_path):
     assert (tmp_path / "e1.md").read_bytes() == before
 
 
+@pytest.mark.parametrize("first", ["undeclared", "-x", "-undeclared", "-"])
+def test_assign_refuses_a_first_name_the_merge_owner_readers_cannot_read_back(
+    tmp_path, capsys, first
+):
+    """W-390556a1: /fabrik-epics-review mints `MERGE OWNER: <first --assign name>` by hand, and these names pass the
+    agent-name grammar but are not read back as that owner (`undeclared` is the un-adoption token, a leading `-`
+    fails the readers' capture) — the same hole docs_updater.py --adopt closed in W-2118e9c9. Refused before any
+    write; a later name in the list is an epic owner only and is not checked."""
+    _write_epic(tmp_path / "e1.md", 1)
+    _write_epic(tmp_path / "e2.md", 2, deps="[1]")
+    before = {p.name: p.read_bytes() for p in _files(tmp_path)}
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--epics-dir", str(tmp_path), f"--assign={first},beta"])
+
+    assert exc_info.value.code == 2
+    assert "cannot be the merge owner" in capsys.readouterr().err
+    assert {p.name: p.read_bytes() for p in _files(tmp_path)} == before
+    assert main(["--epics-dir", str(tmp_path), "--assign", "undeclared-team,beta"]) == 0
+
+
 def test_owners_rejects_invalid_name(tmp_path):
     _write_epic(tmp_path / "e1.md", 1, owner="alpha")
 

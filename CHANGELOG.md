@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
+
+`/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and
+names opening with `-`, which the readers do not read back as that owner — the same hole `docs_updater.py --adopt`
+closed in W-2118e9c9. `--assign` now runs the same round-trip through `decisions.py`'s `MERGE_OWNER_RE` and
+`_UNDECLARED_RE` and refuses (exit 2, before any write); a later name in the list is an epic owner only and is not
+checked (W-390556a1).
+
 ### Fixed — `review_loop_ledger.py next` keeps a retried finder's candidate in its own slice (2026-10-17)
 
 A finder retry runs under the label `find:<slice>:<model>:retry`, and `_slice_of` split off only the last `:` field,
