@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
+
+- The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,
+  `uv run python scripts/final_gate.py`) with no exception for a subagent seat, whose brief bans every
+  package-manager verb (W-54b0e523).
+- `10-python.md` § Package Manager now states the exception once, in the brief's terms: the verbs it bans, why,
+  and what a seat runs instead (`.venv/bin/python …`, or `python3 …` where there is no `.venv`). It covers every
+  `uv` command in `10-python.md` (its Package Manager, Testing and Quality Gates blocks and its Banned table) and in
+  the two other packs; a Dockerfile's `RUN uv sync` is the image build's.
+- The other packs point to it: `45-testing-strategy.md`'s Run-tests bullet, its Banned-table row and its checklist
+  line, and `50-code-review.md`'s gate note (`.venv/bin/python scripts/final_gate.py --lean --json --check`).
+
+### Fixed — `review_loop_ledger.py read` keeps each seat's `notes` and `files_read` in the pass file (2026-10-18)
+
+- The pass file's `seats[]` entries had timing, tokens and flags, but not the seat's own report. A lead resuming a
+  review from the durable SCRATCH folder after a shutdown got the findings back, but not each seat's coverage
+  statement or MACHINERY block, which the close-out feedback is built from (kaizen mail 01M55F55HE).
+- Each seat now carries `notes` and `files_read`; a seat with no result gets `[]` for both.
+  - `notes` keeps every returned result's non-blank string note.
+  - `files_read` is the union of every result's non-blank string entries, trimmed, deduplicated and in first-seen
+    order.
+- `read_no_file` now uses the same rule. Before, a finder that returned `[null]` was counted as having read a file,
+  because `str(None)` is `"None"`.
+- Graded in `tests/test_review_loop_ledger.py`. The single-result assertions were red before the fix on
+  `KeyError: 'notes'`. The new test, a seat that returns three times, was red on the first cut, which kept `""`,
+  `"None"` and untrimmed duplicates.
+
+### Added — a test pins the scratch sweep's rule that a held session folder is not dead for its run folders (2026-10-18)
+
+- `tests/test_scratch_sweep_run_folders.py::test_a_held_session_dir_is_not_dead_for_its_run_folders`, 12 cases
+  (W-d8592740). The scratch root is reached directly or through a symlink. The holder is a file in the session
+  folder, the folder itself, or a working directory, set up in a fake /proc. The death signal is a gone-pid sessions
+  record or a stale transcript. `--dead --apply` must keep the held session's stale `running` folder, giving the
+  live-signal reason, and must consume the same folder in a second session with no holder.
+- Before this test, `test_scratch_sweep.py` and this file stayed green with `_session_dead_for_runs`'s held check
+  removed (258 passed), and the folder was consumed while a live process held a file in its session. Each mutant the
+  review measured now fails:
+  - removing the check: all 12 cases;
+  - comparing only the resolved path: the 6 symlinked-root cases;
+  - keeping every folder whenever any holder exists: all 12;
+  - checking holders only inside the sessions-record branch: the 6 transcript cases;
+  - checking holders only after the sessions-record return: the 6 record cases;
+  - ignoring sessions records altogether: the 6 record cases, whose transcript is fresh on the test clock.
+- `_classify_sid`'s live-holder branch was already pinned: with it removed, `test_a_process_under_the_dir_is_liveness`
+  fails.
+
 ### Fixed — chrome-extension's production image no longer installs pytest (2026-10-18)
 
 A scaffolded chrome-extension listed pytest and pytest-timeout in its root `requirements.txt`, which is also the
@@ -30,6 +76,10 @@ the `requirements-dev.txt` its Makefile installs, the saas-family server a `serv
 deps, and chrome-extension a root `pytest.ini`, because pytest never reads its `server/pyproject.toml` for the
 root `tests/`. Vendored fabrik-lib trees (`docs-site`) are left as vendored. A hang guard only — the capped
 runner stays the memory guard (D-935, W-046828fb).
+### Changed — in the hub, every review sends its seats through the Agent tool and never calls the Workflow tool (2026-10-18)
+
+A new note, `commands/_fragments/no-workflow-hub.md`, sits right after the frontmatter of the seven review command sources that launch the review-loop Workflow (`/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-repo-review`, `/fabrik-deploy-plan-review`, `/fabrik-execute-plan`) and above § Launch in `docs/reference/review-loop-workflow.md`. In the hub (a checkout whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under it) it replaces every Workflow launch the command names with the same seats and briefs as one `Agent` message, recorded `shape: agent-tool`, and never puts a workflow, permission or approval question to the operator. Outside the hub the commands read as before. Each Agent-tool fallback sentence cites D-961, and `subagents-core`'s lead and pin-args sentences and the probe catalogue's args and relaunch lines are gated "outside the hub". `tests/test_review_queue_pass.py` pins the note, its placement and every fallback copy (W-9d8326a4, D-961).
+
 ### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
 
 - The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
@@ -39,6 +89,15 @@ runner stays the memory guard (D-935, W-046828fb).
   `retry: bool`, and no diff-text rule tells it from `retry=3` (0 UI-label hits in 8,027 fleet .py commits).
 - tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
   doc so they keep testing the patterns.
+
+### Changed — seat home-directory reads: a named file, Bash-bounded and size-checked; writes stay banned (2026-10-18)
+
+The seat rule for `$HOME` paths no longer bans every `.claude*` read on a stall that does not reproduce (replayed on Claude
+Code 2.1.302: Read, grep and python open all returned at once). A seat now reads a home file only when its brief itself names
+that file by path, through Bash under `timeout 120`, `stat -L -c %s` first and in ranges of at most 64 KiB when larger, never
+the Read tool; every write under the home directory stays banned. Changed in `commands/_agents/fabrik-reviewer.md`,
+`.windsurf/rules/core/62-using-subagents.md` (fleet-synced) and `commands/_fragments/design-critique.md`; pinned by
+`tests/test_seat_home_read_rule.py`. Decision D-962; work item W-51eee9fd.
 
 ### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
 
