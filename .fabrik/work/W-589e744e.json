@@ -17,10 +17,10 @@
     "f103683c4b32963653053f6601a10370ca2f72d2477aa3893cd6fb52d9a35675"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-17: if it is sure no repos are using them, it can delete.",
   "owner": "",
   "priority": 2,
   "question": "May fleet delete the two empty development databases `envp_chrome_dev` and `envp_pyapidb_dev`? A review run left them on this machine's local PostgreSQL by mistake. Nothing uses them, and production isn't involved.",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet delete the two empty development databases `envp_chrome_dev` and `envp_pyapidb_dev`? A review run left them on this machine's local PostgreSQL by mistake. Nothing uses them, and production isn't involved."
 }
