@@ -12,6 +12,10 @@ so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling wa
 filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
 (W-9f436e18).
 
+### Added — `command_run.py capture`, and `--commit` takes a comma list (2026-10-17)
+
+`python3 scripts/command_run.py capture --msg <file> --out <file>` replaces `/fabrik-task` phase 5's chained capture shell line with one plain command, which a worktree session's guard accepts. It finds the commit by its message file's subject, never `HEAD`, checks that the subject matches exactly, and appends the sha. It exits 1 on any miss. `done`/`blocked`/`handoff --commit a,b` now close exactly like `--commit a b`; before this, the comma form was refused as "not this run's commit". Both answer feedback rows routed by kaizen (mail 01M55GGMS5).
+
 ### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
 
 The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
