@@ -14,8 +14,8 @@ dispositioned, `scripts/check_research_ledger.py` 0 refused).
 |---|---|---|---|
 | **Operator (PRIMARY)** | The human who runs the box | In their own words: *"also dashboard, repos have a mess ui. i want it to be done in best user friendly way. best ui practises. it will be our command and control centre"* (2026-10-16, relayed verbatim by the coordinator; the parent spec's primary persona) | None new |
 | The board's collector | `quota_dashboard.py --serve` (cron `--ensure`, crontab lines 93-94, `/usr/bin/python3`) | A guarded registry read on the Services view's request | Reads the registry; a failed read degrades the one section (§ The design, Failure) |
-| The daily chain | `scripts/external_services_chain.sh`, step `gen_dashboard` (`:117`), heartbeat stamped after every step (D-106) | `gen_dashboard.py <out>` keeps writing one self-contained file atomically | None new — its contract is unchanged |
-| Registry writers | `scripts/registry_sync.py`, `scripts/classify_services.py`, `gather_envs.py` | Nothing: they feed the registry the page reads | None new |
+| The daily chain | `scripts/external_services_chain.sh`, step `gen_dashboard` (`:117`), heartbeat stamped after every step (D-106) | `gen_dashboard.py <out>` keeps writing one self-contained file atomically | Its CLI contract is unchanged; `gen_dashboard.py` and the board's collector each read `classify_last.json`'s mtime (from the hub root: `gen_dashboard`'s repo root, `quota_dashboard.py`'s `_FABRIK_ROOT`) and pass it as `classified_at` |
+| Registry writers | `scripts/registry_sync.py`, `scripts/classify_services.py`, `gather_envs.py` | Nothing: they feed the registry the page reads; `classify_services.py`'s existing `classify_last.json` write is read for its mtime only | None new — the attention rule adapts to the classifier's existing write, never the reverse |
 | Test suite | `tests/test_external_services_chain.py` (59 tests; it loads `gen_dashboard`, and names `dashboard_server` on 14 lines, about 10 of them loads), `scripts/tests/test_registry_sync.py` (50; `:393` calls `gen_dashboard.load()`), the board tests that reference the route, `ext_page`, `EXT_SERVICES_HTML`, `QUOTA_DASH_EXT_SERVICES` or the `services.ext.*` keys (`tests/test_quota_dashboard.py:1850`, `:1859`, `:1866`, `:2244-2275`; `tests/test_quota_dashboard_server.py:454`; `tests/test_quota_dashboard_views_misc.py:175`, `:327-343`, `:450`; `tests/test_quota_dashboard_page_layer.py:469`, `:662`, `:784`) | Stable output landmarks | infra, in the change that removes what a test pins: the `dashboard_server` tests are deleted with the server; the markup-pinning generator tests and every board test listed is rewritten against the new section or, for the route, against its `303`; `test_registry_sync.py:393` keeps passing because `gen_dashboard` re-exports `load` (§ Data flow) |
 
 **The primary loop, counted (the STEP BUDGET).** The operator wants to know whether a service is funded and
@@ -147,8 +147,10 @@ table region is the only scroller inside the section).
 The inventory section follows the Services view's pool balance and API quota cards (`views/services.py:200-210`),
 which stay first: they are the view's only live, money-bearing facts, and a backlog must not push them down.
 
-1. **Heading + data age.** "External services" and one line: *"registry synced {age} ago · {n} providers"*,
-   the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
+1. **Heading + data age.** "External services" and one line, a `services.inv.synced` string *"Registry
+   {time} · {n} providers"* whose `{time}` is `freshness(synced_at, 86400)` — `app.js` ticks its text
+   relative and marks it stale past two 24 h cadences, which is the 48 h registry rule; the static file
+   shows the absolute read time — the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
    `api_keys` row it reads *"registry never synced"*. In the static file, the line adds *"snapshot written
    {time}"* and the legend today's footer carries (*no secret values; a credential count only; ⚠ credit =
    older than 48 h*).
@@ -172,12 +174,18 @@ which stay first: they are the view's only live, money-bearing facts, and a back
    - unattributed credentials (`kind = credential-unattributed`) on the row;
    - status `unidentified` or `retiring`;
    - **the registry itself is stale**: `synced_at` older than 48 h (the chain runs daily), or `None`;
-   - **the classifier is stalled**: `classified_at` (the mtime of `.tmp/external-services/classify_last.json`,
-     read by each caller, never by the renderer) older than 48 h, or absent — the fault behind the 71%
-     backlog, tracked as W-7e467f2d.
+   - **the classifier is stalled**: work remains (the Untriaged count is above 0) **and** `classified_at` is
+     older than 48 h or absent. `classified_at` is the mtime of
+     `.tmp/external-services/classify_last.json` under the hub root, read by each caller, never by the
+     renderer; the classifier writes that file only when it classified something
+     (`classify_services.py:503-504` returns before the write with nothing to do), so the backlog gate is
+     what keeps an empty queue from reading as stalled. It is the fault behind the 71% backlog, tracked
+     as W-7e467f2d.
    The last two are data-source entries, not provider rows: a command centre must show its own source
-   failing. **A reason with more than five rows collapses into one counted entry** pointing at its table
-   ("20 providers unidentified — see the Unidentified table"); five or fewer are listed by name.
+   failing. **A reason with more than five rows collapses into one counted entry**: a native `<details>`
+   whose summary is the count ("20 providers unidentified") and whose body lists every name, so each
+   stays reachable whichever tables the rows sit in, with or without script; five or fewer are listed by
+   name.
    Census today: rule 1 → 0, rule 2 → 0, rule 3 → 21 (20 unidentified + 1 retiring), registry synced
    2026-10-17 (fresh), classifier last ran 2026-09-07 (stalled) — so the list shows three entries: the
    stalled classifier, "20 providers unidentified", and the one retiring provider by name. A fourth rule
@@ -247,7 +255,10 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   age string computed at render: the view's `stamp()` hashes the markup (`views/__init__.py:66-68`), so text
   that changes every render would defeat the no-op swap and re-swap a 466-row DOM on every
   `visibilitychange`.
-- Every group and row-detail `disclosure()` carries a stable `id` (the category slug; the provider id):
+- Every group and row-detail `disclosure()` carries a stable `id` made by `components.slug()`
+  (`components.py:78`) from the category or the provider name — never the raw name, which `_id()`
+  (`:72-75`) refuses for the 17 providers whose names carry a dot (`www.googleapis`, `portal.azure`, …);
+  a test feeds `www.googleapis`:
   `app.js:178` keys an id-less `<details>` by its summary text, and many "+{n} more" summaries would
   collide when a swap restores open state.
 - Zero secrets: the rows carry metadata and a credential COUNT only, exactly as today; the renderer never
@@ -274,9 +285,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   statement bound is what holds there.) The Services view has no timed refresh (it emits no `data-refresh-s`,
   and `app.js`'s `CADENCE` names only overview, work and accounts); `/v/services` is fetched on navigation,
   on `visibilitychange` (`app.js:708-709`) and on a forced refresh. The collector keeps its last good read in
-  one cache slot under a lock, as `_credits_lock` guards the credits refresh (`quota_dashboard.py:531`) —
-  the server is a `ThreadingHTTPServer`, and two parallel `/v/services` requests start one read, not two. It
-  memory for 60 s (the registry changes once a day; the only cache the board has today is the credits
+  memory in one cache slot under a lock, as `_credits_lock` guards the credits refresh (`quota_dashboard.py:531`) —
+  the server is a `ThreadingHTTPServer`, and two parallel `/v/services` requests start one read, not two. That
+  last good read is held for 60 s (the registry changes once a day; the only cache the board has today is the credits
   file's 300 s, `quota_dashboard.py:161`), so tab switching and repeated navigation query the registry at
   most once a minute.
 - Registry unreachable in the chain: `gen_dashboard.py` prints its one typed line and exits 1, the previous
@@ -300,7 +311,8 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   with the opened-by-filter mark, zero-match groups hidden, the filter's inverse on clear, and the
   `[data-filter-count]` text — each with a browser-smoke assertion.
 - `components.select()`: new — a labelled `<select>` carrying `data-filter` and `data-filter-mode`.
-- The board imports the registry reader (D9): `quota_dashboard.py` adds `scripts/` to `sys.path` and
+- The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` (an append, not the
+  `insert(0)` of `:52-54`, so none of its 80-odd script names can shadow a module the board imports) and
   imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
   missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
@@ -317,8 +329,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   unidentified, retiring) plus a healthy row and a paid row with no credential that both stay out; an
   `unidentified` row appears in Needs attention and in the Unidentified table; each More-counts value equals
   its formula on the fixture. The two source rules: a `synced_at` 49 h old (and `None`) and a
-  `classified_at` 49 h old (and `None`) each produce their entry, 47 h old produces none; six rows sharing
-  a reason collapse into one counted entry, five are listed by name.
+  `classified_at` 49 h old (and `None`) each produce their entry, 47 h old produces none, and a 49 h old
+  `classified_at` with an empty Untriaged queue produces none; six rows sharing a reason collapse into one
+  counted `<details>` listing all six names, five are listed by name.
 - **Untriaged queue:** 331 uncategorised fixture rows render as one section with its count, never as table rows.
 - **Bounded read:** the live collector against a connection that never answers returns the section's error
   state within the timeout, and the rest of the Services view renders.
@@ -490,8 +503,9 @@ From the approval panel (Opus + Fable, both approve-with-changes):
 - The 4,000 px budget is still an estimate; with the attention list collapsed by reason it now leaves wide
   headroom — measure first, never raise the bar before collapsing further.
 - The live view re-sends ~466 rows and 135 detail disclosures on each navigation and `visibilitychange`
-  (~125 KB today); the § Lifecycle 5,000-row render test is a build task, not optional.
-- Retiring the route and `services.ext.*` touches 12 board test sites and about 10 `dashboard_server`
+  (the old page was ~125 KB with its embedded JSON; the new fragment is unmeasured — the build measures it);
+  the § Lifecycle 5,000-row render test is a build task, not optional.
+- Retiring the route and `services.ext.*` touches the 11 board test sites § Personas lists and about 10 `dashboard_server`
   loads (§ Personas): sequence the plan so no task leaves a failing test between commits.
 - After D8 the static file has no named reader beyond the chain itself; its retirement (A's path) gets an
   owner at the plan's close.
