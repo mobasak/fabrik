@@ -118,8 +118,9 @@ def _escapes(x):
         ("field.data", lambda: ui.field("l", name="n", id="i", data={"filter": x})),
         ("group.body", lambda: ui.group(x)),
         ("group.data", lambda: ui.group("b", data={"pick": x})),
-        ("link.text", lambda: ui.link("#a", x)),
-        ("link.href#fragment", lambda: ui.link("#" + x, "t")),
+        ("link.label#fragment", lambda: ui.link(x, "#a")),
+        ("link.href#fragment", lambda: ui.link("t", "#" + x)),
+        ("link.href#url", lambda: ui.link("t", "https://x.example/?q=" + x)),
         ("section.title", lambda: ui.section(x, "b", id="s")),
         ("section.body", lambda: ui.section("t", x, id="s")),
         ("dialog.title", lambda: ui.dialog("d", x, "B", "Go", "Stop")),
@@ -146,7 +147,7 @@ def _refusals(x):
     """(component.param, thunk): the payload in an id, enum, number or flag position, expected REFUSED."""
     return [
         ("badge.severity", lambda: ui.badge(x, "t")),
-        ("link.href", lambda: ui.link("l", "javascript:" + x)),
+        ("link.href#javascript", lambda: ui.link("l", "javascript:" + x)),
         ("link.new_tab", lambda: ui.link("l", "/p", new_tab=x)),
         ("card.id", lambda: ui.card("t", "b", id=x)),
         ("table.label_id", lambda: ui.table(x, "L", ["h"], [["c"]])),
@@ -156,7 +157,7 @@ def _refusals(x):
         ("group.tag", lambda: ui.group("b", tag=x)),
         ("group.id", lambda: ui.group("b", id=x)),
         ("value_of.input_id", lambda: ui.value_of(x)),
-        ("link.href", lambda: ui.link(x, "t")),
+        ("link.href#bare", lambda: ui.link("t", x)),
         ("section.id", lambda: ui.section("t", "b", id=x)),
         ("dialog.id", lambda: ui.dialog(x, "T", "B", "Go", "Stop")),
         ("dialog.note", lambda: ui.dialog("d", "T", "B", "Go", "Stop", note=x)),
@@ -230,21 +231,34 @@ def test_an_id_outside_the_html_id_alphabet_is_refused(bad):
     "href",
     [
         "javascript:alert(1)",
-        "https://x.example/",
+        "JavaScript:alert(1)",
+        "data:text/html,x",
+        "ftp://x.example/",
         "//x.example/",
         "/\\x.example",
         "",
         "# a",
         "/a\nb",
+        "/a\x00b",
+        "#a\x7fb",
+        "x.example",
     ],
 )
 def test_a_link_leaving_the_origin_or_carrying_a_scheme_is_refused(href):
     with pytest.raises(ValueError):
-        ui.link(href, "t")
+        ui.link("t", href)
+
+
+@pytest.mark.parametrize(
+    "href", ["#work-fabrik", "/#work/fabrik", "/p?q=1", "https://example.com/x", "http://x.example/"]
+)
+def test_a_fragment_a_same_site_path_and_an_http_url_are_accepted(href):
+    (a,) = find_all(parse(ui.link("t", href)), "a")
+    assert a.attrs["href"] == href
 
 
 def test_a_link_and_a_section_are_labelled_markup():
-    root = parse(ui.fragment(ui.link("/#work/my%20repo", "Go"), ui.section("Title", "b", id="s1")))
+    root = parse(ui.fragment(ui.link("Go", "/#work/my%20repo"), ui.section("Title", "b", id="s1")))
     (a,) = find_all(root, "a")
     assert a.attrs["href"] == "/#work/my%20repo" and a.all_text() == "Go"
     (sec,) = find_all(root, "section")

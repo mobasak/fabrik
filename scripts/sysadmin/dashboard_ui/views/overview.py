@@ -286,7 +286,7 @@ def _decisions(data: dict, ctx: ViewContext, groups: list, shown: list) -> ui.Sa
                 _line(
                     t("ov.dec.more", n=len(items)),
                     " ",
-                    ui.link("/#work/" + quote(name, safe=""), t("ov.dec.more_link", repo=name)),
+                    ui.link(t("ov.dec.more_link", repo=name), "/#work/" + quote(name, safe="")),
                 )
             )
         parts.append(
@@ -729,33 +729,33 @@ def _summary(data: dict, ctx: ViewContext, groups: list) -> ui.Safe:
     stamp = ui.freshness(_epoch(data.get("now")), data.get("refresh_s") or None)
     links: list[object] = []
     if _err(data.get("work")) is not None:
-        links.append(ui.link("#ov-decisions", t("ov.sum.work_error")))
+        links.append(ui.link(t("ov.sum.work_error"), "#ov-decisions"))
     elif not groups:
-        links.append(ui.link("#ov-decisions", t("ov.sum.no_decisions")))
+        links.append(ui.link(t("ov.sum.no_decisions"), "#ov-decisions"))
     for repo, items in groups:
         times = [e for e in (_epoch(i.get("created")) for i in items) if e is not None]
         age = _dur(ctx.now - min(times)) if times else t("ov.dur.unknown")
         links.append(
             ui.link(
-                "#ov-decisions", t("ov.sum.decisions", repo=repo.get("name"), n=len(items), age=age)
+                t("ov.sum.decisions", repo=repo.get("name"), n=len(items), age=age), "#ov-decisions"
             )
         )
-    links.append(ui.link("#ov-merges", t("ov.sum.merges", n=len(_l(data.get("blocked"))))))
+    links.append(ui.link(t("ov.sum.merges", n=len(_l(data.get("blocked")))), "#ov-merges"))
     repos, _quiet = _agent_repos(data.get("box"))
     idle = sum(1 for r in repos for a in _l(r.get("agents")) if _d(a).get("state") != "working")
-    links.append(ui.link("#ov-agents", t("ov.sum.agents", n=idle)))
+    links.append(ui.link(t("ov.sum.agents", n=idle), "#ov-agents"))
     band, account = _band(data.get("status")), _active_account(data.get("status"))
     links.append(
         ui.link(
-            "#ov-quota",
             t("ov.sum.band", band=band, account=account or "?")
             if band
             else t("ov.sum.band_unknown"),
+            "#ov-quota",
         )
     )
     faults = len(_health_faults(data))
     links.append(
-        ui.link("#ov-health", t("ov.sum.health", n=faults) if faults else t("ov.sum.healthy"))
+        ui.link(t("ov.sum.health", n=faults) if faults else t("ov.sum.healthy"), "#ov-health")
     )
     return ui.section(t("ov.summary.title"), ui.fragment(stamp, _items(*links)), id="ov-summary")
 

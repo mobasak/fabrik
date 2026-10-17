@@ -43,7 +43,8 @@ CLAMP_LINES = range(1, 7)
 
 _DATA_KEY = re.compile(r"[a-z0-9-]+")
 _ID = re.compile(r"[A-Za-z][\w:-]*", re.ASCII)
-_HREF = re.compile(r"[#/][^\s\x00-\x1f\x7f]*")
+# a link target: a fragment, a same-site path (never `//` or `/\`, which leave the origin) or an http(s) URL
+_HREF = re.compile(r"(#|/(?![/\\])|https?://)[^\s\x00-\x1f\x7f]*")
 # data-* names a component writes itself; a caller's data= may not shadow them
 RESERVED_DATA_KEYS = frozenset(
     {
@@ -135,20 +136,20 @@ def badge(severity: str, text: object) -> Safe:
     )
 
 
-_HREF = re.compile(r"(/(?!/)|https?://)[^\s\x00-\x1f]*")
-
-
 def link(label: object, href: object, *, new_tab: bool = False) -> Safe:
-    """A link to a same-site path or an http(s) URL (anything else raises: ``javascript:`` never ships); ``new_tab`` opens it in its own tab (``target="_blank" rel="noopener"``) and says so in words."""
+    """A link: ``href`` is a same-document fragment (``#…``), a same-site path (``/…``, never ``//`` or
+    ``/\\``, which leave the origin) or an absolute ``http(s)://`` URL; anything else — ``javascript:``,
+    ``data:``, a control character — raises. ``new_tab`` opens it in its own tab (``target="_blank"
+    rel="noopener"``) and says so in words."""
     _flag(new_tab, "link new_tab")
     if not isinstance(href, str) or not _HREF.fullmatch(href):
-        raise ValueError(f"link href {href!r} is not a same-site path or an http(s) URL")
+        raise ValueError(f"link href {href!r} is not a fragment, a same-site path or an http(s) URL")
     extra = (
         f' target="_blank" rel="noopener"><span class="sr-only">{_esc(t("link.new_tab"))} </span>'
         if new_tab
         else ">"
     )
-    return Safe(f"<a{_attr('href', href)}{extra}{_esc(label)}</a>")
+    return Safe(f'<a class="link"{_attr("href", href)}{extra}{_esc(label)}</a>')
 
 
 def card(
@@ -248,14 +249,6 @@ def group(
     _choice(tag, GROUP_TAGS, "group tag")
     ident = _attr("id", _id(id)) if id is not None else ""
     return Safe(f"<{tag}{ident}{_data(data)}>{_esc(body)}</{tag}>")
-
-
-def link(href: object, text: object) -> Safe:
-    """An in-app link: ``href`` is a same-document fragment (``#…``) or a same-origin path (``/…``,
-    never ``//`` or ``/\\``, which leave the origin); anything else — a scheme included — is refused."""
-    if not isinstance(href, str) or not _HREF.fullmatch(href) or href.startswith(("//", "/\\")):
-        raise ValueError(f"link href {href!r} is not a same-origin path or fragment")
-    return Safe(f'<a class="link"{_attr("href", href)}>{_esc(text)}</a>')
 
 
 def section(title: object, body: object, *, id: object) -> Safe:
