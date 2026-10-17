@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik redeploy and restart validate the deployed compose; compose reads refuse non-text (2026-10-17)
+
+`SSHDeployer.redeploy()` and `restart()` started `docker compose up` without `_validate_compose`, the one route around
+the invariants every `fabrik apply` path enforces. Both now validate `/opt/<name>`'s compose first and refuse with the
+same `Compose validation failed for <name>` error; a git redeploy checks right after `git pull` and resets to the
+previous commit on a violation or a failed read, before the GIT_SHA write, the build and the up. The compose reader now
+reads with `sudo` (the rendered compose is root-only), refuses an existing file it cannot read instead of falling
+through to a stale legacy file, and refuses a non-text answer; `_validate_compose` refuses non-text before parsing. The
+non-text guards came first: an earlier draft fed an unconfigured test mock to the YAML parser, which reads it forever,
+and took WSL down twice. fabrik-citation-verifier and proxy, whose repo compose already fails `fabrik apply`, now also
+refuse redeploy. Decision: D-937 (W-51d6c153).
+
 ### Changed — a ticket that cannot list the spec quotes its rules verbatim, and plan-review checks those quotes first (2026-10-17)
 
 - `/fabrik-plan-after-chat` Phase 2's "Size as you draft" paragraph now covers a ticket whose READ budget pushes
