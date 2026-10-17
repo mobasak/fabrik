@@ -3927,7 +3927,7 @@ def _capture_commit(msg: Path, out: Path) -> int:
     first = re.split(r"\n[ \t]*\n", body, maxsplit=1)[0]
     lines = [ln.strip() for ln in first.split("\n")]
     lines = [ln for ln in lines if ln]
-    subj = " ".join(lines)
+    subj = " ".join(" ".join(lines).split())  # runs collapsed, as on git's side below
     # `--grep` matches ONE line of the raw message, so it searches by the first line; the joined
     # paragraph exists only in `%s`, where the equality check below reads it
     needle = lines[0] if lines else ""

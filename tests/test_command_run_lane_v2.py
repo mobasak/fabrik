@@ -477,7 +477,7 @@ def test_capture_finds_a_subject_git_stored_with_leading_spaces(
     comparison could never match such a commit (review A-haiku)."""
     repo = _repo(tmp_path, lane=None)
     msg = tmp_path / "padded.txt"
-    msg.write_text("  fix: a padded subject  \n", encoding="utf-8")
+    msg.write_text("  fix:  a padded   subject  \n", encoding="utf-8")  # inner runs too
     (repo / "src" / "a.py").write_text("x = 7\n", encoding="utf-8")
     _git(repo, "add", "--", "src/a.py")
     _git(repo, "commit", "-q", "-F", str(msg))
