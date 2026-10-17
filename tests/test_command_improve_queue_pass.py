@@ -459,3 +459,31 @@ def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() ->
         "For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each"
         " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have." in p4
     )
+
+
+REMOVED_WORDS_RULE = (
+    "A sentence a round rewords has its removed words grepped across `tests/`, test names and docstrings included, and"
+    " the commit subject drafted for PHASE 5 (drafted now if not yet written), before that round's pin, and each hit is"
+    " reworded with the sentence."
+)
+FRAGMENT_SCOPE_RULE = (
+    "A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a"
+    " review loop or a round count) and binds no other."
+)
+TEST_PROBE_RULE = (
+    "The run-before-review rule above holds for a sentence stating how a test or gate behaves: it is run on that"
+    " test's or gate's own real cases before PHASE 4's review."
+)
+
+
+def test_test_fragment_and_removed_word_rules() -> None:
+    """Row 1792241313 (five answered rejects on the probe rule: test and gate sentences never met their own cases),
+    1792259406 (the third answered reject on "must be obeyable in each": a close-chain sentence bound 37 commands with
+    no review loop) and 1792243098 (recurring held commit-subject-written-after-closing-round: removed words left in
+    test names)."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "and its mail id goes in the FEEDBACK line. " + TEST_PROBE_RULE + " A rule whose" in p3
+    assert "may find none of the new one. " + FRAGMENT_SCOPE_RULE + " Then, **from the main master checkout only**" in p3
+    assert "A reworded sentence's removed words" not in p3
+    p4 = _phase("## PHASE 4", "## PHASE 5")
+    assert "it returns the line that states the row's step. " + REMOVED_WORDS_RULE in p4

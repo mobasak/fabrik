@@ -24,6 +24,16 @@ filter that keeps repeats out of the carried list now compare folded ids, as the
 
 `python3 scripts/command_run.py capture --msg <file> --out <file>` replaces `/fabrik-task` phase 5's chained capture shell line with one plain command, which a worktree session's guard accepts. It finds the commit by its message file's subject, never `HEAD`, checks that the subject matches exactly, and appends the sha. It exits 1 on any miss. `done`/`blocked`/`handoff --commit a,b` now close exactly like `--commit a b`; before this, the comma form was refused as "not this run's commit". Both answer feedback rows routed by kaizen (mail 01M55GGMS5).
 
+### Changed — /fabrik-command-improve: test-and-gate, fragment-scope and removed-word rules (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md`:
+- PHASE 3: a sentence stating how a test or gate behaves is run on its own real cases before the review; a
+  sentence a `_fragments/` edit adds names the consumers that have its subject and binds no other.
+- PHASE 4: a sentence a round rewords has its removed words grepped across `tests/` and the drafted commit subject.
+
+Answers rows 1792241313, 1792259406 and 1792243098, each recurring an earlier reject after an Opus audit. Rows
+1792241808 and 1792261612 are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
 ### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
 
 The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
