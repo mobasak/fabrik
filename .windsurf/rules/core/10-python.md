@@ -27,13 +27,13 @@ uv add httpx                    # Add dependency
 uv run pytest                   # Run via uv
 ```
 
-**A subagent seat is the one exception, for every `uv` command a pack tells a reader to run** — this section's,
-the Testing and Quality Gates sections' below, and `45-testing-strategy.md`'s and `50-code-review.md`'s (a
-Dockerfile's `RUN uv sync` is the image build's, not a reader's). Its brief bans every
+**A subagent seat is the one exception, for every `uv` command a pack tells a reader to run** — every one in this
+pack, and in `45-testing-strategy.md` and `50-code-review.md` (a Dockerfile's `RUN uv sync` is the image build's,
+not a reader's). Its brief bans every
 package-manager verb — `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install` — because `uv run`
 syncs the environment by default and a linked worktree's `.venv` is normally a symlink to the shared one, so one
 seat's sync changes every agent's interpreter. A seat runs Python as `.venv/bin/python …` (`python3 …` where there
-is no `.venv`): `.venv/bin/python -m pytest tests/`, `.venv/bin/python -m ruff check .`.
+is no `.venv`): `.venv/bin/python -m pytest tests/`, `.venv/bin/python scripts/final_gate.py --check`.
 
 Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 

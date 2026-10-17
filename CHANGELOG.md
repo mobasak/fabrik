@@ -9,9 +9,10 @@ All notable changes to this project will be documented in this file.
 - The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,
   `uv run python scripts/final_gate.py`) with no exception for a subagent seat, whose brief bans every
   package-manager verb (W-54b0e523).
-- `10-python.md` § Package Manager now states the exception once, in the brief's own words: the verbs it bans, why,
-  and what a seat runs instead (`.venv/bin/python …`, or `python3 …` where there is no `.venv`). It covers that
-  section's, `## Testing`'s and `## Quality Gates`' commands and the two other packs' commands.
+- `10-python.md` § Package Manager now states the exception once, in the brief's terms: the verbs it bans, why,
+  and what a seat runs instead (`.venv/bin/python …`, or `python3 …` where there is no `.venv`). It covers every
+  `uv` command in `10-python.md` (its Package Manager, Testing and Quality Gates blocks and its Banned table) and in
+  the two other packs; a Dockerfile's `RUN uv sync` is the image build's.
 - The other packs point to it: `45-testing-strategy.md`'s Run-tests bullet, its Banned-table row and its checklist
   line, and `50-code-review.md`'s gate note (`.venv/bin/python scripts/final_gate.py --lean --json --check`).
 
