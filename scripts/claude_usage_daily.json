@@ -824,7 +824,7 @@
       "claude-haiku-4-5-20251001": 10082231
     },
     "2026-10-17": {
-      "claude-opus-5-5": 2065988037,
+      "claude-opus-5-5": 2114933766,
       "claude-sonnet-5-5": 141324289,
       "claude-haiku-5-5": 93485279,
       "claude-fable-5-1": 2943345,
@@ -832,7 +832,7 @@
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-17T14:47:17+03:30",
+  "merged_at": "2026-10-17T14:59:49+03:30",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
