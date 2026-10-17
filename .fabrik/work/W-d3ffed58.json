@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:25:16.001723Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d3ffed58",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Z72F08PJB74CXB5RVDJ4BA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Operator ruling 2026-10-15, verbatim: \"i will not go back to nat mode.\" Mirrored stays; D-814's NAT restore is off the table."
+}

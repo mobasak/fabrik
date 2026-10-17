@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T23:04:29.323897Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5599cf1b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53FAWCP6G4XSQEXKDGZZB9J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: worktree-kaizen"
+}

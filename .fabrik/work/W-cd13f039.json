@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:25:16.327701Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cd13f039",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Z7Y23QDN1K1HM7C0BTR3P7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Deciding test run by the operator 2026-10-15 ~10:30: step 1 CONFIRMS a process-name-keyed drop (curl copied to %TEMP%\\chrome.exe times out into WSL 127.0.0.1:8765; the same copy as curlx.exe gets 200). Step 1 was run with OpenVPN Connect's agent_ovpnconnect and ovpnhelper_service STOPPED (Star"
+}

@@ -16,7 +16,8 @@ it, or name in the brief why the shape does not have it.
   template's emitted file — never in its source alone; a line the change leaves emitted by no invocation (a pack
   line with no mandate keyword, a section under a conditional heading) is named in the brief as dropped.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
-  branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
+  branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code through
+  every branch it summarises (refusals and fallbacks, not only the happy path), and execute
   every "X only when Y" claim the fix adds.
 - Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or
   dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, the
@@ -58,7 +59,7 @@ it, or name in the brief why the shape does not have it.
   `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
   repo-wide service lists and absence statements; every reader of a changed predicate's verdict (a notice, message or
-  wall line that reads the same hold), named before the closing round.
+  wall line that reads the same hold), and of each field a fix writes, named before the closing round.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
@@ -156,20 +157,24 @@ it, or name in the brief why the shape does not have it.
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
   are marked before they are rewritten.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
-  wrap-normalised; every statement of a changed number or count in the whole file; same-subject lines in the pack, doc
-  summary rows and artifact generators that restate it; residue words of a flipped decision; a cross-pack citation's
-  terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script
-  over every doc that cites the file (find the symbol the prose names, compare it with the target line), never
-  renumbered by hand.
+  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring
+  and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no longer
+  exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in the round the
+  fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates); every statement
+  of a changed number or count in the whole file; same-subject lines in the pack, doc summary rows and artifact
+  generators that restate it; residue words of a flipped decision; a cross-pack citation's terms against the section it
+  cites; a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script over every doc that cites the
+  file (find the symbol the prose names, compare it with the target line), never renumbered by hand.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
-  claim, checked against the code lines it names, and a sentence describing a matcher or regex executed over its input
-  space (punctuation, underscore, empty) before the pin; a count cites the command (with its range — the brief hands
-  the seat that exact command) and the line that holds it, a measured count names its population, a closing brief
-  names each figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet
-  in prose is a checkable claim; an evidence block in a report or receipt pastes the artifact's section whole and
-  names the file it was copied from, by path and md5 (one that elides is a claim, not evidence); an unverified
-  hand-derived enumeration is deleted.
+  claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
+  matcher, regex or guard written from its input space executed on both sides (punctuation, underscore, empty, the
+  lead's escape variants and every one the seats returned) before the pin, never from its subject's own docstring; a
+  count cites the command (with its range — the brief hands the seat that exact command) and the line that holds it, a
+  measured count names its population, a closing brief names each figure's source and the record's own round trend, a
+  live value is a timestamped snapshot; a code snippet in prose is a checkable claim; an evidence block in a report or
+  receipt pastes the artifact's section whole and names the file it was copied from, by path and md5 (one that elides is
+  a claim, not evidence); an unverified hand-derived enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 
