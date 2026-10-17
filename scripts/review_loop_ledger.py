@@ -16,8 +16,9 @@ file, not its scrollback. So:
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED. Each seat also keeps its
-        `notes` (its coverage statement and MACHINERY block) and its `files_read`, one list per seat, so a lead
-        resuming from FILE still has what the close-out feedback is built from.
+        `notes` (every result's non-blank string note: its coverage statement and MACHINERY block) and its
+        `files_read` (every result's non-blank string entries, trimmed and deduplicated), so a lead resuming from
+        FILE still has what the close-out feedback is built from.
     review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS] [--drop ID,ID]
         The next pass's `slices[].ledger` for those confirmed ids (and, with --args, the open claims carried below), as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
@@ -288,15 +289,18 @@ def read_run(run: Path, box: float | None) -> dict:
         got = [r for r in results.get(aid, []) if isinstance(r, dict)]
         # a finder that returned but listed no file reviewed nothing (01M4C00TSS); the workflow fails it when no
         # SLICE file is credited, which needs the slice list this reader does not have — so only the zero case here
-        read_none = (
-            label.startswith("find:")
-            and bool(got)
-            and not any(
-                isinstance(r.get("files_read"), list)
-                and any(str(e).strip() for e in r["files_read"])
+        # what the seat read: every result's non-blank string entries, trimmed, deduplicated, first-seen order —
+        # one rule for the pass file's `files_read` and for this flag, so a `[null]` reads as no file in both
+        files_read = list(
+            dict.fromkeys(
+                e.strip()
                 for r in got
+                if isinstance(r.get("files_read"), list)
+                for e in r["files_read"]
+                if isinstance(e, str) and e.strip()
             )
         )
+        read_none = label.startswith("find:") and bool(got) and not files_read
         doc["seats"].append(
             {
                 "label": label,
@@ -310,17 +314,14 @@ def read_run(run: Path, box: float | None) -> dict:
                 "read_no_file": read_none,
                 "duplicate_results": len(got),
                 # the seat's own report — its coverage statement and MACHINERY block — and what it read, kept so
-                # a lead resuming from the pass file can still write the close-out (kaizen 01M55F55HE); a list
-                # per field, one entry per returned result, since a seat can return twice
-                "notes": [r["notes"] for r in got if isinstance(r.get("notes"), str)],
-                "files_read": list(
-                    dict.fromkeys(
-                        str(e)
-                        for r in got
-                        if isinstance(r.get("files_read"), list)
-                        for e in r["files_read"]
-                    )
-                ),
+                # a lead resuming from the pass file can still write the close-out (kaizen 01M55F55HE); a seat can
+                # return more than once, so `notes` keeps each result's non-blank string note
+                "notes": [
+                    r["notes"]
+                    for r in got
+                    if isinstance(r.get("notes"), str) and r["notes"].strip()
+                ],
+                "files_read": files_read,
             }
         )
         for result in got:
