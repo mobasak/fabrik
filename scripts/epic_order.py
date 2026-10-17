@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import importlib.util
 import itertools
 import json
 import os
@@ -830,17 +831,20 @@ def _refuse_unreadable_merge_owner(first: str, ap: argparse.ArgumentParser) -> N
     """W-390556a1: /fabrik-epics-review mints `MERGE OWNER: <first --assign name>`, so that name must read back as
     the owner. The grammar admits `undeclared` (the readers' un-adoption token) and a leading `-` (which their capture
     refuses); the readers' own regexes decide, on the row's shape — the round-trip docs_updater.py --adopt uses.
-    A copy with no `decisions.py` beside it skips the check: on this box that is only the copy `docs_updater.py
-    --adopt` delegates to, which has already refused such a first name (W-2118e9c9)."""
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    try:
-        from decisions import _UNDECLARED_RE, MERGE_OWNER_RE
-    except ImportError:
+    A copy with no `decisions.py` FILE beside it skips the check: on this box that is only the copy `docs_updater.py
+    --adopt` delegates to, which has already refused such a first name (W-2118e9c9). A `decisions.py` that is present
+    but no longer defines either regex raises (AttributeError) rather than skipping, and the module is loaded by path,
+    never through `sys.path`, so an importer's path and module table stay as they were."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decisions.py")
+    if not os.path.isfile(path):
         return
+    spec = importlib.util.spec_from_file_location("_epic_order_decisions", path)
+    decisions = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(decisions)
 
     row = f"MERGE OWNER: {first} — "
-    read = MERGE_OWNER_RE.match(row)
-    if _UNDECLARED_RE.match(row) or not read or read.group(1) != first:
+    read = decisions.MERGE_OWNER_RE.match(row)
+    if decisions._UNDECLARED_RE.match(row) or not read or read.group(1) != first:
         ap.error(
             f"--assign: {first!r} cannot be the merge owner — the readers do not read `MERGE OWNER: {first}` back "
             "as that name (it is the un-adoption token `undeclared`, or it opens with `-`); put an agent that "

@@ -709,6 +709,54 @@ def test_assign_refuses_a_first_name_the_merge_owner_readers_cannot_read_back(
     assert main(["--epics-dir", str(tmp_path), "--assign", "undeclared-team,beta"]) == 0
 
 
+def test_the_first_name_guard_fails_loud_when_decisions_lacks_its_regexes(tmp_path):
+    """W-390556a1 review: the guard skips only when no `decisions.py` FILE sits beside the script; one that no longer
+    defines the readers' regexes (a rename) must stop `--assign`, never silently admit `undeclared` again."""
+    import subprocess
+    import sys
+
+    tree = tmp_path / "scripts"
+    tree.mkdir()
+    (tree / "epic_order.py").write_text(_SCRIPT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    (tree / "decisions.py").write_text("import re\nNOTHING = re.compile('x')\n", encoding="utf-8")
+    epics = tmp_path / "epics"
+    epics.mkdir()
+    _write_epic(epics / "e1.md", 1)
+    before = (epics / "e1.md").read_bytes()
+
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-P",
+            "-B",
+            str(tree / "epic_order.py"),
+            "--epics-dir",
+            str(epics),
+            "--assign=undeclared,b",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert r.returncode != 0, r.stdout
+    assert "MERGE_OWNER_RE" in r.stderr or "_UNDECLARED_RE" in r.stderr, r.stderr
+    assert (epics / "e1.md").read_bytes() == before
+
+
+def test_the_first_name_guard_leaves_sys_path_and_sys_modules_alone(tmp_path):
+    """W-390556a1 review: the guard loads decisions.py by path, so an importer calling `main` repeatedly keeps its
+    `sys.path` and never gets a `decisions` module it did not import."""
+    import sys
+
+    _write_epic(tmp_path / "e1.md", 1)
+    path_before, had_decisions = list(sys.path), "decisions" in sys.modules
+    for _ in range(3):
+        assert main(["--epics-dir", str(tmp_path), "--assign", "alpha"]) == 0
+    assert sys.path == path_before
+    assert ("decisions" in sys.modules) == had_decisions
+
+
 def test_owners_rejects_invalid_name(tmp_path):
     _write_epic(tmp_path / "e1.md", 1, owner="alpha")
 
