@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T21:45:19.377680Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c5640690",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 LOW: redundant code, no wrong result (intel, 471a9d123)",
+  "status": "open",
+  "title": "scratch_sweep.py: the os.path.realpath(sid_dir) in held half of each held check never matches, because probe_holders keys held by the path as passed — redundant code, not wrong (intel note on W-d8592740, 471a9d123)"
+}
