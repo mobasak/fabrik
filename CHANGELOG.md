@@ -29,6 +29,18 @@ queue's other 3 rows are held (2) or routed to infra (1) with reasons. Pinned by
 Answers rows 1792227360, 1792199420, 1792201686 and 1792208187. The last three repeat held subjects. The queue's
 other 3 rows are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
 
+### Fixed — scaffolded composes parse in a fresh checkout: saas services and the audit-jobs companion load .env as optional (2026-10-17)
+
+The three services of the saas compose (`_write_saas_compose`) and the `<name>-audit-jobs` companion
+(`_append_audit_jobs_service`, every database-backed Python type) declared `env_file: [.env]`, which compose treats as
+required. The scaffolder writes no local `.env`, so `docker compose config` refused in a fresh checkout ("env file
+…/.env not found"). They now use the long form with `required: false`, as `_write_canonical_compose` and the
+scaffold compose template already did (W-9ead34bd); every deploy path still writes `.env` before `up`. A new test
+runs `docker compose config` on each scaffold type's committed compose in an empty directory. Because compose no
+longer refuses a missing `.env`, `fabrik restart` and `redeploy` now refuse when `/opt/<name>/.env` is not a file
+(a git redeploy resets to the previous commit), instead of starting a stack with no secrets that can still report
+healthy (W-6f690b90, D-938).
+
 ### Fixed — fabrik redeploy and restart validate the deployed compose; compose reads refuse non-text (2026-10-17)
 
 `SSHDeployer.redeploy()` and `restart()` started `docker compose up` without `_validate_compose`, the one route around
