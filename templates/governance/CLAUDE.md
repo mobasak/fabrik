@@ -585,7 +585,9 @@ real work — never a merge that might arrive.
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
 `/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists and then says in
 plain words what the item is (`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a
-reader nothing; a DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own,
+reader nothing, and the same holds in every repo wherever a response shows the operator a work-item,
+decision, mail or merge-request id: it carries its meaning in plain words at its first mention in that
+response; a DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own,
 and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
 files: commit the ones your verbs changed with your task. The MAIN checkout's store also takes writes
@@ -597,7 +599,7 @@ session (the first item it names that is open, ready, not a `next` item and held
 `mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there closes it.
 `NEXT: none — terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
 
-**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn. A gate ALREADY on the board (the prompt's `work: awaiting operator — W-<id>` line) is pointed at by that id instead — `NEXT: operator decision — W-<id>`, every id an open awaiting item — and never re-stated, because a re-stated block mints a duplicate gate:
+**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn. A gate ALREADY on the board (the prompt's `work: awaiting operator — W-<id>` line) is pointed at by that id instead — `NEXT: operator decision — W-<id> — <what it decides>`, every id an open awaiting item — and the block never re-stated, because a re-stated block mints a duplicate gate:
 
 ```
 DECISION NEEDED (ground: gate|underivable|owned)
