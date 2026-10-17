@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Review loop: briefs kept durable, untouched slices said, guards as round-trips, counts after the closing pass (2026-10-17)
+
+- `commands/_sources/fabrik-review.md`: the briefs and fix lists the lead writes for each pass go under the run's
+  durable `SCRATCH:` folder with the pins and pass files. When the fix diff leaves a slice's files untouched, the
+  closing-pass brief says so, naming each file's md5 in both passes' pin manifests.
+- `commands/_fragments/term-coverage.md` and `term-edit.md` (round zero): a guard added because one bad input reached a reader is
+  written as the readers' round-trip, never as a check for that one input.
+- `commands/_fragments/close-chain.md`: in a command that runs a review loop, a mutant or test count reaches the
+  D-row or CHANGELOG only after the closing pass.
+
+Answers rows 1792252856, 1792251120, 1792255300 and 1792247279, each recurring an earlier held or routed reject. The queue's
+other 7 rows are held or rejected with reasons. Pinned by `tests/test_review_queue_pass.py`.
+
 ### Changed — Review commands: `next` recipes pass the run file and read stderr (2026-10-17)
 
 The corpus catches up with D-933's `review_loop_ledger.py next`, which now carries open claims from the run file:
