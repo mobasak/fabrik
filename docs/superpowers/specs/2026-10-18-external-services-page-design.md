@@ -222,10 +222,10 @@ shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today 
 - select controls drive the filter (a `change` listener; the state restore extended from `INPUT|TEXTAREA`
   to `SELECT`);
 - a match inside a closed `<details>` opens it, and its `slug()` id is recorded under its own storage key,
-  `qd-filter-open:<group>` (a list of ids, read and written in the same `try` as the other stored state),
-  never inside `qd-filter:<group>`, whose every key `validFilterState` (`app.js:489-495`) and
+  `qd-filter-open:<group>` (a list of ids, through the existing `load()`/`save()` helpers),
+  never inside `qd-filter:<group>`, whose every key `validFilterState` (`app.js:492-498`) and
   `applyFilters` read as a field filter — a foreign key there would fail validation and reset the stored
-  filters (`app.js:499-506`); a reload test covers both keys. The id is recorded as opened by the filter — recorded, never inferred from
+  filters (`initFilters`, the reset at `app.js:504`); a reload test covers both keys. The id is recorded as opened by the filter — recorded, never inferred from
   open-plus-match, since a hand-opened group that also matches looks the same; the record survives a
   swap (`swap()` carries only `open`, `app.js:194`, `:211`);
 - a group with zero matches is hidden while a filter is set;
