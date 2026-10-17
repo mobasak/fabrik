@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -123,8 +123,11 @@ class TestReadComposeFromVps:
             _read_compose_from_vps("my-app")
 
     def test_text_is_returned(self):
-        with patch("fabrik.drivers.ssh.ssh", return_value="services: {}\n"):
+        """Read with sudo: the template path writes the rendered compose root:root 0600, which
+        a plain `cat` by the non-root ssh user cannot open (W-51d6c153 critiques)."""
+        with patch("fabrik.drivers.ssh.ssh", return_value="services: {}\n") as mock_ssh:
             assert _read_compose_from_vps("my-app") == "services: {}\n"
+        assert mock_ssh.call_args.args[0].startswith("sudo cat /opt/my-app/compose.yaml")
 
 
 # ======================================================================
@@ -176,7 +179,7 @@ class TestValidateName:
 
 
 class TestValidateCompose:
-    @pytest.mark.parametrize("content", [MagicMock(), None, b"services: {}\n", 42])
+    @pytest.mark.parametrize("content", [None, b"services: {}\n", 42, ["services"]])
     def test_non_text_content_is_refused_up_front(self, content):
         """W-51d6c153: yaml.safe_load streams from anything with a `.read`, and a MagicMock's
         `.read` never returns empty — an unguarded call grew to 32 GB and killed WSL twice. The
@@ -709,6 +712,44 @@ class TestSSHDeployerRedeploy:
         assert cmds[2] == f"cd /opt/my-app && sudo git reset --hard {old}", cmds
         assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
         persist.assert_not_called()
+
+    def test_git_redeploy_resets_on_a_read_timeout_and_names_a_failed_reset(self):
+        """A timed-out compose read still resets the checkout; a reset that fails is reported as
+        a DeployError naming both errors — never the bare ssh error, never a silent skip."""
+        import subprocess
+
+        old = "b" * 40
+        read_timeout = patch(
+            "fabrik.orchestrator.deployer_ssh._read_compose_from_vps",
+            side_effect=subprocess.TimeoutExpired(["ssh"], 15),
+        )
+        with (
+            read_timeout,
+            patch("fabrik.drivers.ssh.ssh", side_effect=[old + "\n", "", ""]) as mock_ssh,
+            pytest.raises(DeployError, match=f"checkout reset to {old[:12]}"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+        assert mock_ssh.call_args_list[2].args[0].endswith(f"git reset --hard {old}")
+
+        with (
+            self._compose(self._VIOLATING),
+            patch(
+                "fabrik.drivers.ssh.ssh",
+                side_effect=[old + "\n", "", RuntimeError("index.lock")],
+            ),
+            pytest.raises(DeployError, match=r"(?s)AND the reset to .* failed.*index.lock"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+
+    def test_git_redeploy_never_resets_to_a_non_sha(self):
+        """A rev-parse answer that is not a 40-hex SHA never reaches the reset command."""
+        with (
+            self._compose(self._VIOLATING),
+            patch("fabrik.drivers.ssh.ssh", side_effect=["fatal: ambiguous\n", ""]) as mock_ssh,
+            pytest.raises(DeployError, match="no valid previous commit"),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+        assert not any("reset" in c.args[0] for c in mock_ssh.call_args_list)
 
     def test_restart_refuses_a_violating_compose(self):
         with (

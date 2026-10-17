@@ -544,14 +544,30 @@ class SSHDeployer:
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             # W-51d6c153: the pulled compose is checked BEFORE the GIT_SHA write, the build and
-            # the up; a violation resets the checkout to old_sha, so the running containers and
-            # the code on disk stay on the last commit that passed.
+            # the up; a violation or a failed read resets the checkout to old_sha, so the running
+            # containers and the code on disk stay on the last commit that passed (left on the
+            # pulled commit, the next redeploy would capture it as its rollback point).
             try:
                 _assert_deployed_compose_valid(name)
-            except DeployError:
-                if old_sha:
+            except (DeployError, *_SSH_FAILURES) as err:
+                if not _GIT_SHA_RE.fullmatch(old_sha):
+                    raise DeployError(
+                        f"Redeploy of {name!r} refused; no valid previous commit to reset to "
+                        f"({old_sha[:40]!r}), pulled code left on disk, containers untouched: {err}"
+                    ) from err
+                try:
                     _ssh(f"cd /opt/{name} && sudo git reset --hard {old_sha}", timeout=60)
-                raise
+                except _SSH_FAILURES as rb_err:
+                    raise DeployError(
+                        f"Redeploy of {name!r} refused, AND the reset to {old_sha[:12]} failed — "
+                        f"pulled code is on disk, containers untouched. Reason: {err}; "
+                        f"reset error: {rb_err}"
+                    ) from err
+                logger.warning("Redeploy of %s refused; checkout reset to %s", name, old_sha[:12])
+                raise DeployError(
+                    f"Redeploy of {name!r} refused; checkout reset to {old_sha[:12]}, "
+                    f"containers untouched. {err}"
+                ) from err
             new_sha = _read_head_sha(name, _ssh)
             if new_sha:
                 _persist_git_sha(name, new_sha, _ssh)
@@ -1475,7 +1491,7 @@ def _read_compose_from_vps(name: str) -> str:
 
     for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
         try:
-            out = _ssh(f"cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
+            out = _ssh(f"sudo cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
         except RuntimeError:
             continue
         # The ssh driver returns str; anything else (a test's unconfigured mock) is refused here,
