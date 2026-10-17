@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-plan-review pass 1 should run check_rule_grounding.py --all (new flag, W-592f5fe4)"
 }
