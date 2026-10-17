@@ -112,9 +112,12 @@ Appetite: 75
 
 **Steps** (sequential):
 1. Write the Phase A graders (Behaviour Contract below) in `tests/test_session_orient_hook.py` — the new `_OWNER_CASES`
-   rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file; see A1–A4 and A6
-   red against today's grammar. A5 is green today (`\s*` already refuses an asterisk after the colon): its red is
-   proven on a mutant — in a throwaway worktree, write `\**` for `(?:\*\*)?` in all three files and watch A5 fail.
+   rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file; see A1, A3, A4,
+   A6 and four of A2's five spellings red against today's grammar (`rule_cases.py` in the review's run folder ran
+   every case). Two are green today: A2's `**Merge owner:**` spelling (today its closing `**` blocks the capture) and
+   A5 (`\s*` already refuses an asterisk after the colon). Their red is proven on mutants in a throwaway worktree:
+   with the bold token in place but the `(?-i:…)` removed, `**Merge owner:** rotated` reads `rotated` and that case
+   fails; with `\**` written for `(?:\*\*)?` in all three files, A5 fails.
 2. Edit the six patterns (D1, D2), keeping the hook's guard after the bold token.
 3. Edit the three comment blocks, and the stale comments in the test file (`tests/test_session_orient_hook.py:722`,
    "Case-insensitive: the phrase match is", and `:1301`).
