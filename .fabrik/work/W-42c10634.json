@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-42c10634",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,11 +16,12 @@
   "next": "if a later edit to ai/25-3d-generation.md trips or slips a guard, replace that guard's substring/prefix match with a parsed structure (table cells, bullet labels) rather than another spelling; the battery at the review receipt lists the 31 regressions and 9 rewordings already proven",
   "note": "",
   "owner": "kaizen",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'fail'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "re-scored 2026-10-17 on the item's own next: it acts only 'if a later edit … trips or slips a guard' — no failure observed today, so preventive (the 2026-10-15 pass scored HIGH on the word 'fail' alone)",
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-guard-trips"
   ],
   "title": "tests/test_3d_generation_pack.py guards are string matchers: further rewordings may slip past or false-fail (scope-growth stop of the D-503 review, 2026-10-02)"
 }
