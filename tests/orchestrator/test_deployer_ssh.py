@@ -8,6 +8,7 @@ with mocked SSH.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -973,6 +974,24 @@ class TestDeployDocker:
 # _deploy_local — SSH-level assertions
 # ======================================================================
 
+# A compose that passes `_validate_compose` (W-807287f1: the local path now reads and validates it).
+_VALID_LOCAL_COMPOSE = (
+    "services:\n"
+    "  my-app:\n"
+    "    image: example/app:1\n"
+    "    platform: linux/amd64\n"
+    "    container_name: my-app\n"
+    "    restart: unless-stopped\n"
+    "    deploy:\n"
+    "      resources:\n"
+    "        limits:\n"
+    "          memory: 256M\n"
+    "    networks: [fabrik]\n"
+    "networks:\n"
+    "  fabrik:\n"
+    "    external: true\n"
+)
+
 
 class TestDeployLocal:
     def test_writes_env_and_up(self):
@@ -988,6 +1007,7 @@ class TestDeployLocal:
         ):
             mock_ssh.side_effect = [
                 "exists",  # test -f compose.yaml
+                _VALID_LOCAL_COMPOSE,  # sudo cat compose.yaml (validated)
                 "absent",  # .env probe — a first deploy has none
                 "",  # docker compose up -d
             ]
@@ -1020,6 +1040,7 @@ class TestDeployLocal:
         ):
             mock_ssh.side_effect = [
                 "exists",  # test -f /srv/my-app/compose.yaml
+                _VALID_LOCAL_COMPOSE,  # sudo cat /srv/my-app/compose.yaml (validated)
                 "present",  # .env probe
                 existing_env,  # sudo cat /srv/my-app/.env
                 "",  # docker compose up -d --wait
@@ -1050,7 +1071,11 @@ class TestDeployLocal:
             patch("fabrik.drivers.ssh.ssh") as mock_ssh,
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
         ):
-            mock_ssh.side_effect = ["exists", RuntimeError("sudo: a password is required")]
+            mock_ssh.side_effect = [
+                "exists",
+                _VALID_LOCAL_COMPOSE,
+                RuntimeError("sudo: a password is required"),
+            ]
             with pytest.raises(DeployError, match=r"/srv/my-app/\.env"):
                 SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
         mock_write.assert_not_called()
@@ -1070,7 +1095,7 @@ class TestDeployLocal:
     def test_uses_claude_cli_requires_mount_in_compose(self):
         """Wiring: _deploy_local enforces the claude mount for a uses_claude_cli service — a
         compose without it aborts the deploy (proves the validator is actually wired in, and
-        that the extra compose read only happens when the flag is on)."""
+        that the mount check runs on the single compose read the validation already made)."""
         ctx = _ctx(
             {
                 "name": "seo",
@@ -1081,11 +1106,147 @@ class TestDeployLocal:
         with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
             mock_ssh.side_effect = [
                 "exists",  # test -f compose.yaml
-                "services:\n  seo:\n    volumes: []\n",  # cat compose.yaml — NO claude mount
+                _VALID_LOCAL_COMPOSE,  # cat compose.yaml — passes validation, NO claude mount
             ]
             deployer = SSHDeployer()
             with pytest.raises(DeployError, match="does not mount BOTH"):
                 deployer._deploy_local(ctx, "seo", ctx.spec["source"], None)
+        cats = [c.args[0] for c in mock_ssh.call_args_list if "cat " in c.args[0]]
+        assert cats == ["sudo cat /opt/seo/compose.yaml"], cats
+
+    def test_source_path_is_shell_quoted_in_every_command(self):
+        """source.path is spec-supplied and reaches a root shell: a metacharacter stays inside
+        one quoted word in the existence check, the compose read and the `cd` before `up`."""
+        path = "/srv/a;echo INJECTED"
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": path}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        quoted_file = "'/srv/a;echo INJECTED/compose.yaml'"
+        assert cmds[0] == f"test -f {quoted_file} && echo exists", cmds[0]
+        assert cmds[1] == f"sudo cat {quoted_file}", cmds[1]
+        assert cmds[-1].startswith("cd '/srv/a;echo INJECTED' && "), cmds[-1]
+
+    def test_a_tilde_source_path_stays_expandable_in_every_command(self):
+        """A leading ~/ is left for the remote shell (as the .env writer leaves it), while the
+        rest of the path is still one quoted word — quoting the tilde would refuse every
+        ~-rooted local source with "no compose.yaml found"."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "~/apps/my app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        assert cmds[0] == "test -f ~/'apps/my app/compose.yaml' && echo exists", cmds[0]
+        assert cmds[1] == "sudo cat ~/'apps/my app/compose.yaml'", cmds[1]
+        assert cmds[-1].startswith("cd ~/'apps/my app' && "), cmds[-1]
+
+    def test_compose_read_oserror_aborts_before_writing(self):
+        """An OSError from the ssh driver (no ssh binary) refuses like any failed read."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", FileNotFoundError("ssh")]
+            with pytest.raises(DeployError, match=r"/srv/my-app/compose\.yaml"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+
+    def test_uses_claude_cli_with_both_mounts_deploys(self):
+        """The positive half of the mount wiring: a valid compose that mounts both claude paths
+        passes the single read's two checks and reaches `.env` + `up`."""
+        compose = _VALID_LOCAL_COMPOSE.replace(
+            "    networks: [fabrik]\n",
+            "    networks: [fabrik]\n"
+            "    volumes:\n"
+            "      - /root/.claude:/home/appuser/.claude:ro\n"
+            "      - /root/.claude.json:/home/appuser/.claude.json:ro\n",
+        )
+        ctx = _ctx(
+            {
+                "name": "seo",
+                "source": {"type": "local", "path": "/opt/seo"},
+                "shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"},
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", compose, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "seo", ctx.spec["source"], None)
+        mock_write.assert_called()
+        assert "compose up" in mock_ssh.call_args_list[-1].args[0]
+
+    def test_compose_read_timeout_aborts_before_writing(self):
+        """A compose read that times out refuses like any other failed read; nothing written."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", subprocess.TimeoutExpired(["ssh"], 10)]
+            with pytest.raises(DeployError, match=r"/srv/my-app/compose\.yaml"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+
+    # W-807287f1: the local path validates its compose like the git/template/docker paths.
+    _VIOLATING_COMPOSE = "services:\n  web:\n    image: x\n    networks: [coolify]\nnetworks:\n  coolify:\n    external: true\n"
+
+    def test_invalid_compose_aborts_before_writing_or_up(self):
+        """A compose missing the Fabrik invariants (memory limit, container_name, platform, the
+        `fabrik` network) refuses with the validator's list — no `.env` write, no `compose up`."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", self._VIOLATING_COMPOSE, "absent", ""]
+            with pytest.raises(DeployError, match="Compose validation failed for my-app") as exc:
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        assert "limits.memory" in str(exc.value)
+        mock_write.assert_not_called()
+        assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
+
+    def test_compose_is_read_from_the_source_path(self):
+        """The validated bytes come from `<source.path>/compose.yaml`, never `/opt/<name>`."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        reads = [c.args[0] for c in mock_ssh.call_args_list if " cat " in f" {c.args[0]} "]
+        assert reads and all("/srv/my-app/compose.yaml" in r for r in reads), reads
+        assert not any("/opt/my-app" in c.args[0] for c in mock_ssh.call_args_list)
+
+    def test_compose_read_failure_aborts_before_writing(self):
+        """A compose read that fails (e.g. a refused sudo) refuses; nothing is written."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", RuntimeError("sudo: a password is required")]
+            with pytest.raises(DeployError, match=r"/srv/my-app/compose\.yaml"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
 
     def test_default_path_from_name(self):
         ctx = _ctx(
@@ -1098,7 +1259,7 @@ class TestDeployLocal:
             patch("fabrik.drivers.ssh.ssh") as mock_ssh,
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
         ):
-            mock_ssh.side_effect = ["exists", "absent", ""]  # compose, .env probe, up
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]  # +compose read
             deployer = SSHDeployer()
             deployer._deploy_local(ctx, "my-app", ctx.spec["source"], None)
 
@@ -2097,7 +2258,7 @@ class TestOwnerEnvSplit:
         ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
         ctx.secrets = {}
         with (
-            patch("fabrik.drivers.ssh.ssh", side_effect=["exists", ""]),
+            patch("fabrik.drivers.ssh.ssh", side_effect=["exists", _VALID_LOCAL_COMPOSE, ""]),
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
             patch.object(SSHDeployer, "_build_env", return_value=dict(self._MERGED_DICT)),
         ):

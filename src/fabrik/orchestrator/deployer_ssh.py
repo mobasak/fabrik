@@ -805,7 +805,7 @@ class SSHDeployer:
         source: dict[str, Any] | Source,
         existing: dict[str, Any] | None,
     ) -> None:
-        """Deploy a local compose directory — just write .env and up."""
+        """Deploy a local compose directory — validate its compose, write .env, up."""
         from fabrik.drivers.ssh import ssh as _ssh
 
         if isinstance(source, dict):
@@ -813,18 +813,33 @@ class SSHDeployer:
         else:
             path = source.path or f"/opt/{name}"
 
+        # source.path is spec-supplied and reaches a root shell on the VPS: every command below
+        # quotes it (_shell_path), keeping a leading ~/ for the shell to expand, as the .env
+        # writer does (_write_file_to_vps_path leaves a tilde app dir unquoted).
+        compose_file = _shell_path(f"{path}/compose.yaml")
+
         # Verify compose exists at the path
         try:
-            _ssh(f"test -f {path}/compose.yaml && echo exists", timeout=10)
+            _ssh(f"test -f {compose_file} && echo exists", timeout=10)
         except RuntimeError:
             raise DeployError(
                 f"Local source for {name}: no compose.yaml found at {path}/compose.yaml"
             )
 
+        # W-807287f1: validate the compose against the Fabrik invariants BEFORE any write or up,
+        # as the template, git and docker paths do — the local path was the one door around
+        # them. One read serves both checks; a read that fails refuses (nothing written).
+        try:
+            compose_content = _ssh(f"sudo cat {compose_file}", timeout=10)
+        except _SSH_FAILURES as err:
+            raise DeployError(f"Local source for {name}: cannot read {path}/compose.yaml: {err}")
+        errors = _validate_compose(compose_content)
+        if errors:
+            raise DeployError(
+                f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+            )
         # shape.uses_claude_cli → the project compose must mount the host's rotated ~/.claude
-        # (guard the extra read behind the flag — the common case does no extra SSH round-trip)
-        if (ctx.spec.get("shape") or {}).get("uses_claude_cli"):
-            _assert_claude_cli_mounts(_ssh(f"sudo cat {path}/compose.yaml", timeout=10), ctx.spec)
+        _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write/merge .env. ``find_existing`` probes /opt/<name> only, so a source living
         # elsewhere arrives with existing=None; the compose verified above proves the app is at
@@ -833,7 +848,7 @@ class SSHDeployer:
         existing = existing or {"name": name, "path": path}
         env = self._build_env(ctx, name, existing, app_path=path)
         _write_env_files(path, env, _write_file_to_vps_path)
-        _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
+        _ssh(f"cd {_shell_path(path)} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -932,6 +947,17 @@ def claude_cli_mount_lines(container_home: str) -> list[str]:
         f"{VPS_CLAUDE_HOME}:{home}/.claude:ro",
         f"{VPS_CLAUDE_HOME}.json:{home}/.claude.json:ro",
     ]
+
+
+def _shell_path(path: str) -> str:
+    """``path`` as ONE shell word for a remote command, a leading ``~/`` (or a bare ``~``) left
+    outside the quotes so the remote shell still expands it to the ssh user's home; anything else
+    — ``;``, spaces, ``$`` — stays inside ``shlex.quote``. ``~user/…`` is quoted whole (literal)."""
+    if path == "~":
+        return "~"
+    if path.startswith("~/"):
+        return "~/" + shlex.quote(path[2:])
+    return shlex.quote(path)
 
 
 def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
