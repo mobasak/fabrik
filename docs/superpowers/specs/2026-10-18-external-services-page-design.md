@@ -149,8 +149,9 @@ which stay first: they are the view's only live, money-bearing facts, and a back
 
 1. **Heading + data age.** "External services" and one line, a `services.inv.synced` string *"Registry
    {time} · {n} providers"* whose `{time}` is `freshness(synced_at, 86400)` — `app.js` ticks its text
-   relative and marks it stale past two 24 h cadences, which is the 48 h registry rule; the static file
-   shows the absolute read time — the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
+   relative and marks it stale past two 24 h cadences, which is the 48 h registry rule. The static file,
+   with no script to tick it, prints the sync instant absolutely with its date (*"Registry synced
+   2026-10-17 14:30"*), never `freshness()`'s time-of-day-only text — the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
    `api_keys` row it reads *"registry never synced"*. In the static file, the line adds *"snapshot written
    {time}"* and the legend today's footer carries (*no secret values; a credential count only; ⚠ credit =
    older than 48 h*).
@@ -219,7 +220,9 @@ shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today 
 `data-f-*` elements and nothing else, so these behaviours are added to `app.js` (§ Contract deltas):
 - select controls drive the filter (a `change` listener; the state restore extended from `INPUT|TEXTAREA`
   to `SELECT`);
-- a match inside a closed `<details>` opens it, and the group is marked as opened by the filter;
+- a match inside a closed `<details>` opens it, and the group is marked as opened by the filter; the mark
+  is derived again from the filter state whenever the filter re-applies after a swap (`swap()` carries
+  only `open`, `app.js:194`, `:211`), so it survives a refresh;
 - a group with zero matches is hidden while a filter is set;
 - when the filter clears, or stops matching inside a group, every group the filter opened closes again
   and hidden groups return; a group the operator opened by hand stays open — one search-and-clear never
@@ -255,10 +258,13 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   age string computed at render: the view's `stamp()` hashes the markup (`views/__init__.py:66-68`), so text
   that changes every render would defeat the no-op swap and re-swap a 466-row DOM on every
   `visibilitychange`.
-- Every group and row-detail `disclosure()` carries a stable `id` made by `components.slug()`
-  (`components.py:78`) from the category or the provider name — never the raw name, which `_id()`
-  (`:72-75`) refuses for the 17 providers whose names carry a dot (`www.googleapis`, `portal.azure`, …);
-  a test feeds `www.googleapis`:
+- Every `<details>` in the section — group and row-detail `disclosure()`s, the untriaged entries' native
+  `<details>`, the collapsed attention reasons — carries a stable `id` made by
+  `components.slug(text, prefix)` (`components.py:78`) with a distinct prefix per kind (`grp`, `row`,
+  `untr`, `attn`), from the category or the provider name — never the raw name, which `_id()` (`:72-75`)
+  refuses for the 12 providers whose names carry a dot (`www.googleapis`, `portal.azure`, …), and never
+  unprefixed, since `captcha` is both a provider and a category; a test feeds `www.googleapis` and
+  `captcha`:
   `app.js:178` keys an id-less `<details>` by its summary text, and many "+{n} more" summaries would
   collide when a swap restores open state.
 - Zero secrets: the rows carry metadata and a credential COUNT only, exactly as today; the renderer never
@@ -311,7 +317,9 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   with the opened-by-filter mark, zero-match groups hidden, the filter's inverse on clear, and the
   `[data-filter-count]` text — each with a browser-smoke assertion.
 - `components.select()`: new — a labelled `<select>` carrying `data-filter` and `data-filter-mode`.
-- The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` (an append, not the
+- The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` once, at import time,
+  guarded like its own directory's insert (the chain suite's
+  `test_the_dashboard_modules_insert_their_directory_once` pins that class) — an append, not the
   `insert(0)` of `:52-54`, so none of its 80-odd script names can shadow a module the board imports) and
   imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
   missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
@@ -396,7 +404,7 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 - The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`,
   `components` and `strings` only, never `quota_dashboard` (the panel's caveat).
 - The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script.
-- The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (2.9.11, present for
+- The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (2.9.9, present for
   that interpreter) as a named exception to the parent spec's "no new dependency" rule (D9), imported
   lazily so the rest of the board stays stdlib.
 - Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926).
@@ -449,8 +457,8 @@ stdlib only — save the D9 exception for the guarded registry read — no CDN).
   ≈ 1,040 px — ≈ 1,400 px; with at most one collapsed entry per reason the attention list cannot exceed
   4 provider reasons (stale credit, unattributed, unidentified, retiring) × 5 named rows + 2 source entries =
   22 entries ≈ 970 px, ≈ 2,240 px in all, so the bar holds in the worst case. The per-element heights are guesses; the first build measures
-  them and the plan may restate the bar with its measurement. The pool and API cards below are outside this
-  budget.
+  them and the plan may restate the bar with its measurement. The pool and API cards above the section are outside
+  this budget.
 - **Open — a CSP for the static file:** with no script and no inline data, a policy of
   `default-src 'none'; style-src 'unsafe-inline'; img-src https:` becomes possible — the page needs no
   `script-src`; MDN advises avoiding `'unsafe-inline'` (st-9), and allowing it for styles alone is this

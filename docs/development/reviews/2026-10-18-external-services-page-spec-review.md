@@ -16,6 +16,7 @@
 | Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the pass-3 fixed set only (scope-growth remainder round) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 11 pass-3 ids re-executed FIXED (`cat -n registry_db.py`, `CADENCE` `app.js:55`, the `refresh-s` grep, the height sum, the SQL mapping); new: "permanent 303" (both seats) and the CSP heading claim the ledger row st-9 does not hold | fc581a0c0164ee6f14f8de4ade3b8cf7 → 93b5aed990cad959704f3e41c2d17e95 |
 | Pass 5 | opus×1 + sonnet×1 (round-1 owners) · the pass-4 fixed set only (scope-growth remainder round); slice research standing clean since Pass 2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — rules-p4-1 and context-p4-1 re-executed DEFECT_ABSENT (`grep -n "permanent\|303"` → 0 "permanent", three `303` sites all "no removal date"; the CSP sentence against ledger st-9 `:39`); flip gate `check_spec_convergence.py` on a CONVERGED copy → 0 findings of 1 named | 93b5aed990cad959704f3e41c2d17e95 → 93b5aed990cad959704f3e41c2d17e95 |
 | Pass 6 | opus×1 + fable×1 (the design-approval panel, D-613; independent, same brief) · design gate over the converged spec | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 20 | method: both seats approve-with-changes; every change re-executed by the lead before folding — parent spec `:447` "no new dependency", `quota_dashboard.py:44-62` imports nothing from `scripts/`, `registry_db.py:17` top-level psycopg2, `field()` `components.py:227` has no select, `stamp()` `views/__init__.py:66-68` hashes markup, `_credits_lock` `:531`, the pool/API cards `views/services.py:200-210`, `classify_last.json` mtime 2026-09-07 | 93b5aed990cad959704f3e41c2d17e95 → ac364d012acb84e13023e6b22aa88d92 |
+| Pass 7 | opus×1 + sonnet×1 (round-1 owners) · delta over the panel fold (panel.diff, 242 lines) + one hop | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0, edits: 18 | method: re-derivation — 24 panel claims re-executed (11 hold); new candidates re-executed by the lead: `classify_services.py:503-504` returns before the record write, the `_id()` census (12 names fail, not 17; `captcha` is provider and category), `/usr/bin/python3` psycopg2 `2.9.9`, the spliced Failure sentence, `freshness()` text `strings.py:53` | ac364d012acb84e13023e6b22aa88d92 → 0eacbc6247bb04c36819dd4439d05f98 |
 
 ## Findings
 
@@ -78,4 +79,16 @@
 | panel-4 | 6 | Filter has no inverse; zero-match groups stay (opus + fable) | FIXED r6 (opened-by-filter mark, zero-match hidden, close on clear, hand-opened kept; smoke assertions) |
 | panel-5 | 6 | No `select()` component; substring match makes `free` show `freemium` (fable) | FIXED r6 (`components.select()`, token mode) |
 | panel-6 | 6 | Backlog above the live pool/API cards; 20 tombstone rows (fable; opus risk) | FIXED r6 (inventory follows the cards; a reason with more than five rows collapses to a count; height re-derived) |
+| P7-1 | 7 | "Classifier stalled" fires forever on an empty queue | FIXED r7 (gated on Untriaged > 0) — same as rules-p7-1 |
+| P7-2 | 7 | Raw provider names as ids fail `_id()` | FIXED r7 (`slug(text, prefix)`, a prefix per kind, every `<details>` covered; 12 names, `captcha` collision) — with rules-p7-2 |
+| P7-3 | 7 | Spliced cache sentence | FIXED r7 |
+| P7-4 | 7 | Data-age wording vs `freshness()` text; static loses the date | FIXED r7 (`services.inv.synced` embeds `freshness(synced_at, 86400)`; static prints the dated instant) — with rules-p7-3 |
+| P7-5 | 7 | Collapsed reason "points at its table" across many tables | FIXED r7 (a native `<details>` listing every name) |
+| P7-6 | 7 | "12 board test sites" vs 11 listed | FIXED r7 |
+| P7-7 | 7 | ~125 KB is the old page's size | FIXED r7 (the new fragment is measured by the build) |
+| P7-8 | 7 | `sys.path` insert position | FIXED r7 (append) |
+| rules-p7-4 | 7 | psycopg2 2.9.11 | FIXED r7 (2.9.9 on `/usr/bin/python3`) |
+| rules-p7-5 | 7 | "cards below" after the move | FIXED r7 ("above the section") |
+| rules-p7-6 | 7 | Opened-by-filter mark lost on swap | FIXED r7 (derived again from the filter state on re-apply) |
+| rules-p7-7 | 7 | Lazy `sys.path` add grows per request | FIXED r7 (once, at import time, guarded) |
 | panel-7 | 6 | Plan risks (both seats) | FIXED r6 (§ Risks the plan carries; stable disclosure ids, `freshness()` age, cache lock written into § Data flow / § Failure) |
