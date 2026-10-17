@@ -1028,7 +1028,8 @@ def load_spec(spec_path: str | Path) -> Spec:
 
     Raises:
         FileNotFoundError: If spec file doesn't exist
-        ValueError: If spec validation fails
+        ValueError: If spec validation fails, or the template's defaults.yaml (or its
+            ``shape:``) is not a mapping (``merge_template_defaults``)
         yaml.YAMLError: If YAML parsing fails
     """
     path = Path(spec_path)
