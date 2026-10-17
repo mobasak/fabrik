@@ -846,13 +846,13 @@ class TestD3bStrictNameGrammar:
         monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
         monkeypatch.setattr(du, "PLANS_INDEX", idx)
 
-        rc = du.run_adopt(["undeclared", "beta"], single_window=True)
-        err = capsys.readouterr().err
-
-        assert rc == 2
-        assert "undeclared" in err
-        assert not idx.exists()
-        assert not decisions.exists()
+        for first in ("undeclared", "-x", "-undeclared", "-"):
+            rc = du.run_adopt([first, "beta"], single_window=True)
+            err = capsys.readouterr().err
+            assert rc == 2, first
+            assert "cannot be the merge owner" in err, (first, err)
+            assert not idx.exists(), first
+            assert not decisions.exists(), first
 
         assert du.run_adopt(["undeclared-team"], single_window=True) == 0
         assert du.read_merge_owner() == ("undeclared-team", "D-001")

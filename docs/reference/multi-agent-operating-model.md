@@ -115,7 +115,8 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   epic's `phased_order()` position or a plan's Board progress). `—` is an untagged row, filled by adoption.
 - **Adoption** — `python scripts/docs_updater.py --adopt <name>[,<name>…]`, run ONCE by agent-1 in
   the main checkout (refuses below 2 live sessions unless `--single-window`; D-154, D-155; and refuses a
-  first name the readers take as the un-adoption token, `undeclared` in any case — W-2118e9c9): seeds the
+  first name the merge-owner readers would not read back as that owner — the un-adoption token `undeclared`, or a
+  name opening with `-` — W-2118e9c9): seeds the
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
   work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
   `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
