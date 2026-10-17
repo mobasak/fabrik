@@ -480,7 +480,11 @@ retried** — retrying a dead/wrong token only burns the budget. Both knobs are 
 `OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**) — PER HOST, and there
 are two hosts. ONE call is inside the 60s cap; the AGGREGATE is not: the live fleet path makes
 `usage` + an hourly `profile` call per fresh account with no budget across the loop, so any
-sustained slowness breaches the cap. The derived figures live in one place — the STRATEGIC_BACKLOG
+sustained slowness breaches the cap. A DEAD link no longer does: after one call fails on every host
+and attempt with a transport error (an OSError) and nothing else, `_oauth_get` answers None at once
+for `_OAUTH_TRANSPORT_DEAD_TTL_S` (60 s), and any contact clears it — an HTTP status, a success, or a
+TLS certificate refusal (D-942, `tests/test_oauth_transport_latch.py`). A link that is slow but still
+answering is not covered; that is W-afe30d1c. The derived figures live in one place — the STRATEGIC_BACKLOG
 row `claude_rotate.py --status --json can exceed …`. A sustained outage still falls soft to the last-good
 reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
 in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
