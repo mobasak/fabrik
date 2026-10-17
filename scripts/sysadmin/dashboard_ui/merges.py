@@ -8,9 +8,11 @@ newest request. A branch is blocked when that newest record was refused (``outco
 
 Read-only: this module never merges, retries or writes. The merge owner it names is the one
 `merge_request.py::_merge_owner` would resolve — the same resolver (`decisions.py --merge-owner`),
-under the same interpreter, asked once per repo with a blocked branch and cached `OWNER_TTL_S` —
-every repo in parallel under ONE deadline, one call per repo however many renders ask at once, the
-cached answer served while a refresh runs (`_owners`).
+under the same interpreter, asked once per repo with a blocked branch and cached `OWNER_TTL_S`. A
+render NEVER waits on it (it sits on every Overview GET and on the pause rebuild-on-miss): the
+lookup runs in the background, every repo in parallel, one call per repo however many renders ask
+at once; until the first answer lands a branch reads ``owner_resolving``, and an expired answer is
+served while its refresh runs (`_owners`).
 
 Cobra check (D-253): the cheapest way to pass "the blocked list is right" without the outcome is
 reading only ``outcome`` — a parked ``catchup-refused`` record carries none and would vanish, and a
@@ -28,10 +30,9 @@ import threading
 import time
 from pathlib import Path
 
-__all__ = ["OWNER_DEADLINE_S", "OWNER_TIMEOUT_S", "OWNER_TTL_S", "blocked"]
+__all__ = ["OWNER_TIMEOUT_S", "OWNER_TTL_S", "blocked"]
 
 OWNER_TIMEOUT_S: float = 10.0  # one resolver subprocess's own timeout
-OWNER_DEADLINE_S: float = OWNER_TIMEOUT_S  # how long one render waits for the WHOLE set of owners
 OWNER_TTL_S: float = (
     20.0  # the Overview's refresh cadence: one resolver call per repo per view period
 )
@@ -112,21 +113,21 @@ def _run_flight(key: tuple[str, str], flight: _Flight) -> None:
     flight.done.set()
 
 
-def _owners(fabrik_root: Path, repo_dirs: list[Path]) -> dict[Path, tuple[str | None, str | None]]:
-    """The merge owner of every repo in ``repo_dirs``, resolved in PARALLEL under ONE deadline of
-    `OWNER_DEADLINE_S` for the whole set. A fresh cached answer is served as is; an expired one is
-    served too while ONE background call refreshes it (stale-while-revalidate); a repo with no answer
-    joins the call already in flight for it (single-flight) or starts one, and reads "timed out" if
-    none lands before the deadline."""
-    deadline = time.monotonic() + OWNER_DEADLINE_S
-    out: dict[Path, tuple[str | None, str | None]] = {}
-    waits: list[tuple[Path, _Flight]] = []
+def _owners(
+    fabrik_root: Path, repo_dirs: list[Path]
+) -> dict[Path, tuple[str | None, str | None, bool]]:
+    """``(owner, owner_error, resolving)`` for every repo in ``repo_dirs``, from the cache ONLY —
+    this never waits on the resolver. A fresh cached answer is served as is; an expired one is served
+    too while ONE background call refreshes it (stale-while-revalidate); a repo with no answer yet
+    reads ``resolving`` while the call in flight for it (single-flight; every repo in parallel) runs.
+    A resolver thread that cannot start is that render's ``owner_error``, never cached."""
+    out: dict[Path, tuple[str | None, str | None, bool]] = {}
     with _owner_lock:
         for repo_dir in repo_dirs:
             key = (str(fabrik_root), str(repo_dir))
             hit = _OWNER_CACHE.get(key)
             if hit is not None and time.monotonic() - hit[0] < OWNER_TTL_S:
-                out[repo_dir] = (hit[1], hit[2])
+                out[repo_dir] = (hit[1], hit[2], False)
                 continue
             flight = _INFLIGHT.get(key)
             if flight is None:
@@ -141,12 +142,11 @@ def _owners(fabrik_root: Path, repo_dirs: list[Path]) -> dict[Path, tuple[str | 
                     flight.result = (None, f"{type(exc).__name__}: {exc}")
                     flight.done.set()
             if hit is not None:  # stale: keep serving it while the refresh runs
-                out[repo_dir] = (hit[1], hit[2])
-            else:
-                waits.append((repo_dir, flight))
-    for repo_dir, flight in waits:
-        flight.done.wait(max(0.0, deadline - time.monotonic()))
-        out[repo_dir] = flight.result if flight.done.is_set() else (None, "timed out")
+                out[repo_dir] = (hit[1], hit[2], False)
+            elif flight.done.is_set():  # the thread could not start: this render's message
+                out[repo_dir] = (*flight.result, False)
+            else:  # nothing known yet: the page says "resolving" and the next render has it
+                out[repo_dir] = (None, None, True)
     return out
 
 
@@ -182,7 +182,7 @@ def blocked(
     now: float | None = None,
 ) -> list[dict]:
     """Every blocked branch across ``<opt_root>/*/.git/fabrik-merge/``: ``{repo, branch, item, requester,
-    id, age_s, reason, owner, owner_error}``. A record that cannot be read, is not JSON, is not an
+    id, age_s, reason, owner, owner_error, owner_resolving}``. A record that cannot be read, is not JSON, is not an
     object or has no ULID ``id`` is skipped and its path appended to ``unreadable`` — never raised."""
     clock = time.time() if now is None else now
     out: list[dict] = []
@@ -217,7 +217,7 @@ def blocked(
             found.append((name, sorted(stuck, key=lambda r: r["id"].upper())))
     owners = _owners(fabrik_root, [opt_root / name for name, _recs in found])
     for name, stuck in found:
-        owner, owner_error = owners[opt_root / name]
+        owner, owner_error, resolving = owners[opt_root / name]
         for rec in stuck:
             ms = _ulid_ms(rec["id"])
             out.append(
@@ -231,6 +231,7 @@ def blocked(
                     "reason": str(rec.get("reason") or ""),
                     "owner": owner,
                     "owner_error": owner_error,
+                    "owner_resolving": resolving,
                 }
             )
     return out
