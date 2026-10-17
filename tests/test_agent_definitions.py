@@ -180,3 +180,5 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
     assert "a `NEEDS-RAW-FETCH` naming the next offset, never an absence" in researcher
     assert "Paging is necessary, not sufficient" in researcher
     assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
+    assert "judging the claim on the final page like any other" in researcher
+    assert "VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher
