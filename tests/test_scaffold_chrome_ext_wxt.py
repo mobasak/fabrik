@@ -351,6 +351,13 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     dev_env = {k: v for k, v in os.environ.items() if k != "STORE_BUILD"}
     inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
+    # W-7f545f4a: the emitted project type-checks and lints clean out of the box — the release
+    # kit's scripts once tripped five e18e rules nothing ran until the network was back
+    for script in ("compile", "lint"):
+        run = subprocess.run(["pnpm", script], cwd=ext, capture_output=True, text=True, timeout=300)
+        assert run.returncode == 0, (
+            f"pnpm {script} failed:\n{run.stdout[-3000:]}{run.stderr[-1000:]}"
+        )
     # A3 (W-e2af3303): the pinned key reaches the built manifest; a store build leaves it out.
     keygen = subprocess.run(["pnpm", "keygen"], cwd=ext, capture_output=True, text=True, timeout=60)
     assert keygen.returncode == 0, keygen.stderr

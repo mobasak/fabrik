@@ -242,7 +242,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F27 | RECORDED — by design (D-893) — the update-check wiring is graded by source reads; the TS is not executable without installed deps, its pure rules are (A4) |
 | F28 | RECORDED — by design (D-893) — the lock omits CHANGELOG and DECISIONS: governance ledgers sit outside plan locks by grammar |
 | F29 | RECORDED — measured (the lock's `red` key vs `red_checks` is a naming difference with no reader) |
-| F30 | RECORDED — unexecuted (pnpm install, compile, lint and the network WXT build: WSL cannot resolve registry.npmjs.org; re-run when infra W-f0fd555a reports DNS back) |
+| F30 | RECORDED — measured (executed 2026-10-17 under W-7f545f4a with node v24.18.0 and pnpm 11.24.0, registry.npmjs.org answering 200 over IPv4: pnpm install, pnpm compile and the network WXT build test passed; pnpm lint failed on five e18e errors and two unused-directive warnings in the kit's emitted scripts, fixed in the W-7f545f4a commit, whose build test now also runs compile and lint) |
 | F31 | RECORDED — measured (compose healthcheck start_period null predates this diff; out of surface, routed to fleet) |
 | F32 | REFUTED (raised by two seats, A-sonnet and C-haiku; src/fabrik/orchestrator/deployer_ssh.py:856-900 writes a spec env LOG_LEVEL into the deployed .env, which `- LOG_LEVEL=${LOG_LEVEL:-INFO}` reads, so the template filter does not drop it) |
 | F33 | RECORDED — by design (D-893) — pass-1 F9 owns it: a spec PYTHONUNBUFFERED of 0 loses to the template's literal 1: 12-factor XI mandates unbuffered stdout |
