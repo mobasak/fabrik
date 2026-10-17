@@ -171,7 +171,12 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
     """W-eb9db7c0: WebFetch returns a cross-host redirect unfollowed and reads a long page in
     windows, so the researcher re-fetches the redirect target and pages on with `offset` before
     an ABSENCE verdict."""
-    researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    researcher = " ".join((SRC / "fabrik-researcher.md").read_text(encoding="utf-8").split())
     assert "six measured failure shapes" in researcher
-    assert researcher.count("`REDIRECT DETECTED`") == 1
-    assert "call again with that `offset` until the note is gone" in researcher
+    assert "`REDIRECT DETECTED` reply naming the server's `Location` URL" in researcher
+    assert "fetch that URL and cite both the original and the final one" in researcher
+    assert "line that the TOOL appends after the answer" in researcher
+    assert "Before any ABSENCE verdict on that page, call again with that `offset`" in researcher
+    assert "a `NEEDS-RAW-FETCH` naming the next offset, never an absence" in researcher
+    assert "Paging is necessary, not sufficient" in researcher
+    assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
