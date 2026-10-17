@@ -360,6 +360,62 @@ def test_v2_done_accepts_an_undeclared_review_receipt(run_dir: Path, tmp_path: P
     assert r.returncode == 0, r.stdout + r.stderr
 
 
+def _commit_with_msg(repo: Path, rel: str, msg: Path, subject: str) -> str:
+    msg.write_text(f"{subject}\n\nbody\n", encoding="utf-8")
+    (repo / rel).write_text(subject + "\n", encoding="utf-8")
+    _git(repo, "add", "--", rel)
+    _git(repo, "commit", "-q", "-F", str(msg))
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_capture_appends_the_sha_found_by_subject_never_head(run_dir: Path, tmp_path: Path) -> None:
+    """Phase 5's capture as one verb (kaizen 01M55GGMS5): each call appends the sha whose subject is
+    the message file's first line — so a sibling's commit landing on top (HEAD moved) is never
+    captured — and the file reads back as `done --commit $(cat …)` wants it."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "durable" / "commit.sha"
+    m1, m2 = tmp_path / "m1.txt", tmp_path / "m2.txt"
+    a = _commit_with_msg(repo, "src/a.py", m1, "fix: the first change")
+    _commit_with_msg(repo, "src/b.py", tmp_path / "other.txt", "chore: a sibling lands on top")
+    r = _cr(run_dir, "capture", "--msg", str(m1), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == a
+    b = _commit_with_msg(repo, "src/c.py", m2, "fix: the second change")
+    r = _cr(run_dir, "capture", "--msg", str(m2), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [a, b]
+
+
+def test_capture_refuses_with_rc_1_and_appends_nothing(run_dir: Path, tmp_path: Path) -> None:
+    """A subject no commit carries, a missing message file and an empty first line each exit 1 —
+    never the CLI's fail-soft 0 — and leave the capture file untouched."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "commit.sha"
+    unseen = tmp_path / "unseen.txt"
+    unseen.write_text("fix: never committed\n", encoding="utf-8")
+    empty = tmp_path / "empty.txt"
+    empty.write_text("\nbody\n", encoding="utf-8")
+    for msg in (unseen, tmp_path / "missing.txt", empty):
+        r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+        assert r.returncode == 1, (msg, r.stdout + r.stderr)
+        assert "REFUSED — capture" in r.stderr
+    assert not cap.exists()
+
+
+def test_v2_done_takes_a_comma_list_of_commits_as_the_space_form(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--commit a,b` closes exactly as `--commit a b`: a sha never holds a comma, so the split is
+    unambiguous; before it, the comma list was refused as "not this run's commit", which reads
+    like a wrong sha (kaizen 01M55GGMS5, feedback row 1792251777)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a},{b}")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def test_v2_done_still_refuses_a_source_file_under_the_reviews_dir(
     run_dir: Path, tmp_path: Path
 ) -> None:

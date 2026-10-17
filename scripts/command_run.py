@@ -3887,9 +3887,61 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
+    p = sub.add_parser(
+        "capture",
+        help="append the sha of the commit whose subject is --msg's first line to --out (phase 5)",
+        parents=[common],
+    )
+    p.add_argument("--msg", required=True, help="the commit message file the commit used (-F)")
+    p.add_argument("--out", required=True, help="the capture file; one sha is appended per call")
     p = sub.add_parser("status", help="print the record", parents=[common])
     p.add_argument("--json", action="store_true", default=True)
     return ap
+
+
+def _capture_commit(msg: Path, out: Path) -> int:
+    """Phase 5's capture as ONE plain command (kaizen 01M55GGMS5, feedback row 1792254064): find
+    the commit by its own SUBJECT — the first line of the message file it was made with — never by
+    `HEAD`, which a sibling's commit landing during the post-commit hook would move; check the found
+    commit's subject is that line exactly; append its sha to the capture file. A worktree session's
+    guard refuses the chained shell recipe this replaces. Runs in the cwd's repo, touches no run
+    record, and returns 1 (never main's fail-soft 0) on any miss.
+
+    `--grep` reads the whole message, so a NEWER commit merely quoting the subject in its body is
+    the match found, and its own subject differs: that refuses, never captures the wrong sha.
+
+    Cobra (D-253): the cheapest way past it is a subject another commit also carries — `-F --grep`
+    takes the NEWEST match, so two commits with one subject capture the later; a unique subject per
+    commit is the author's part, and the close's own binding check refuses a sha that is not this
+    run's."""
+    try:
+        subj = msg.read_text(encoding="utf-8").split("\n", 1)[0].strip()
+    except OSError as e:
+        sys.stderr.write(f"REFUSED — capture: cannot read --msg {msg}: {e}\n")
+        return 1
+    if not subj:
+        sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty first line\n")
+        return 1
+    found = subprocess.run(
+        ["git", "log", "-1", "--format=%H%x00%s", "-F", "--grep", subj],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    sha, _, got = found.stdout.strip().partition("\x00")
+    if found.returncode != 0 or not sha or got != subj:
+        sys.stderr.write(f"REFUSED — capture: no commit has the subject {subj!r}\n")
+        return 1
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("a", encoding="utf-8") as fh:
+            fh.write(sha + "\n")
+    except OSError as e:
+        sys.stderr.write(f"REFUSED — capture: cannot append to --out {out}: {e}\n")
+        return 1
+    print(sha)
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -3898,6 +3950,8 @@ def main(argv: list[str]) -> int:
     except SystemExit as e:  # argparse's own exit — keep it, it is a usage error
         return int(e.code or 0)
     try:
+        if args.cmd == "capture":
+            return _capture_commit(Path(args.msg), Path(args.out))
         sid = _session_id(args.session)
 
         # Readers run lock-free: `line` is invoked on EVERY reply, so it must stay
@@ -4724,7 +4778,8 @@ def _task_size_gate(
 
 _TASK_COMMIT_HELP = (
     "the SHA of this run's commit, from phase 5's capture file — at lane v2 every commit of the "
-    "run, in order. `fabrik-task` ONLY: REQUIRED on `done` there, optional on `blocked`/`handoff` "
+    "run, in order, space- or comma-separated. `fabrik-task` ONLY: REQUIRED on `done` there, optional "
+    "on `blocked`/`handoff` "
     "(which may close before any commit exists), and REFUSED on every other command"
 )
 
@@ -5506,6 +5561,16 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
             return _refuse("REFUSED — --review belongs to --command fabrik-task"), {}
         return 0, {}
 
+    # A sha never holds a comma, so `--commit a,b` is unambiguous: split it into the
+    # space-separated form both closes read (kaizen 01M55GGMS5, feedback row 1792251777). A value
+    # with no comma passes through whole, so `--commit ""` and a whitespace value keep their own
+    # refusals; empty pieces of a comma list (`a,`) are dropped.
+    if commits is not None:
+        commits = [
+            part
+            for c in commits
+            for part in ([c] if "," not in c else [p for p in c.split(",") if p.strip()] or [""])
+        ]
     declared = rec.get("declared")
     if isinstance(declared, dict) and declared.get("gate") == 2:
         return _task_close_v2(rec, args, commits, review)
