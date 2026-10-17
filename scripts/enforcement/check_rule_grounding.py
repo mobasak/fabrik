@@ -353,9 +353,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--root", default=".", help="repo root to audit (default: cwd)")
     # The budget below sizes the GATE's advisory row; a reviewer's run needs every finding at once, or a
-    # finding suppressed at /fabrik-plan-review's pass 1 surfaces only at the flip (web-ecommerce-factory
-    # 01M47T06VV: two extra review passes). Cobra (D-253): the flag helps only a run that passes it, so the
-    # command text that runs this check at pass 1 must say --all.
+    # finding suppressed at a plan review's pass 1 surfaces only at the flip (web-ecommerce-factory
+    # 01M47T06VV: two extra review passes). Cobra (D-253): the flag helps only a run that passes it, so a
+    # command that has a reviewer run this check must say --all.
     parser.add_argument(
         "--all",
         action="store_true",

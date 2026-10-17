@@ -6,12 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added — `check_rule_grounding.py --all` prints every finding in full (2026-10-18)
 
-- The check's output is budgeted (500 characters, 10 lines, each line truncated to 200) so it fits the gate's
-  advisory row; the rest read "N more finding(s) suppressed … they surface a few per run as earlier ones are fixed".
-- `/fabrik-plan-review` runs the check only at pass 1 and at the flip, so a finding suppressed at pass 1 surfaced
-  only at the flip. In web-ecommerce-factory that cost two extra review passes (mail 01M47T06VV, W-592f5fe4).
+- The check's output is budgeted so it fits the gate's advisory row: 500 characters and 10 lines including the
+  census, the remedy and the "N more finding(s) suppressed …" marker, with each finding line truncated to 200.
+- A reviewer who ran the check at a plan review's pass 1 saw only that budgeted few. `/fabrik-plan-review` names
+  the check only at the flip (`commands/_sources/fabrik-plan-review.md:146`), so a finding suppressed at pass 1
+  surfaced only at the flip. In web-ecommerce-factory that cost two extra review passes (mail 01M47T06VV,
+  W-592f5fe4).
 - `--all` lifts the budget, the line cap and the truncation; the bare run, which the gate uses, is unchanged.
   Graded in `tests/enforcement/test_rule_grounding.py`, red before the flag existed.
+- The flag helps only a run that passes it. Wiring a pass-1 `--all` run into `/fabrik-plan-review` is command
+  wording, routed to kaizen (mail 01M5602897).
 
 ### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
 
