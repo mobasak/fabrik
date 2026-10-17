@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Plan-review seat briefs should grade a pinned plan-set copy with check_plan_tickets.py --allow-external (fabrik-lib 01M41A605P finding 3)"
 }
