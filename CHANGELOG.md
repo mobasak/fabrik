@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik apply's local deploy path validates its compose before writing anything (2026-10-17)
+
+`SSHDeployer._deploy_local` wrote `.env` and ran `docker compose up` without `_validate_compose`, so a local-source
+compose with no memory limit, no container_name, the retired `coolify` network or a non-amd64 platform deployed
+unchecked while the template, clone-based and docker paths refuse it. It now reads `<source.path>/compose.yaml` once,
+refuses with the same `Compose validation failed for <name>` error (and on a failed read), runs the claude-mount check on
+the same bytes, and only then writes. `source.path` is shell-quoted in every command, a leading `~/` kept expandable.
+Three local-source projects (proposal-creator, trading-core, triggered-content-orchestration) now refuse until their
+compose is fixed; `fabrik apply --dry-run` does not show it, because it returns before the read. Decision: D-932
+(W-807287f1). Filed from the review: W-51d6c153 (`redeploy`/`restart` run `compose up` unvalidated) and W-2907ccef
+(`_validate_compose` misses `include:`/`extends:` and null limits; the mount check is a substring match).
+
 ### Fixed — scaffolded compose files hand the deploy's .env to the container (2026-10-17)
 
 `_write_canonical_compose` and `templates/scaffold/docker/compose.yaml.template` emitted no `env_file`, so the keys
