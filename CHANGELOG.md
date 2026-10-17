@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the SCOPE GROWTH messages are now pinned whole by tests (2026-10-17)
+
+Both of `command_run.py`'s scope-growth messages, the in-lane one and the ordinary-window one, tell a review to fix the window's open defects, re-verify the fixed set alone, and close on a quiet round. `tests/test_command_run.py` now pins both messages whole, by equality, and `tests/test_command_run_lane_v2.py` pins that `round` prints the in-lane one with nothing after it. So a dropped, reordered, negated or added instruction fails. Before this, only each message's headline was pinned, so the wording that once let a run close with confirmed defects still open could return green (kaizen, mail 01M53S190T; W-49f3515f).
+
 ### Fixed — the scratch-sweep run-folder tests no longer read the box's live /proc (2026-10-17)
 
 `tests/test_scratch_sweep_run_folders.py`'s `harness` now points `FABRIK_PROC_ROOT` at a fake one-pid /proc. On the live one, a same-user process the sweep could not read, started after a test folder was made, kept that folder. `test_the_write_after_close_signal_stays_bounded` then failed 2 of 40 runs on master. The three cases whose holder or liveness is a real process opt back in with `_live_proc`. An autouse teardown check fails any harness test that ends on the live /proc without opting in, whatever spelling put it there. `test_the_harness_reads_a_one_pid_fake_proc` pins the fake and the opt-in set.
