@@ -18,6 +18,15 @@ All notable changes to this project will be documented in this file.
 - The flag helps only a run that passes it. Wiring a pass-1 `--all` run into `/fabrik-plan-review` is command
   wording, routed to kaizen (mail 01M5602897).
 
+### Changed — /fabrik-execute-plan: a backlog referrer is repointed through the work store (2026-10-18)
+
+Finish step 6 told the finisher to repoint rows in `docs/STRATEGIC_BACKLOG.md` by hand, but a row in its
+`AUTO-GENERATED:BACKLOG` block is written by `work.py render`, the block's only writer, so a hand edit is overwritten.
+The step now says to change the item in `.fabrik/work/<id>.json` (a delivered one closes with `work.py done <id>
+--evidence <sha>`) and run `work.py render`, pointing at `docs/reference/work-tracking.md`. Answers row 1792251373;
+row 1792256116 is held and row 1792251685 is plan wording.
+Pinned by `tests/test_execute_plan_queue_pass.py`.
+
 ### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
 
 - The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,

@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "/fabrik-task over .claude/hooks/final_gate_stop.py (fleet-synced, full review)",
-  "note": "",
+  "note": "duplicate of W-5ce56208, merged 1192f35e6 (8a493fadb, 261dab576, D-953) — infra confirmed 2026-10-18; built slightly narrower to close a review-found hole",
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false block traps review sessions",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "kaizen-01m4n1k909"
   ],
