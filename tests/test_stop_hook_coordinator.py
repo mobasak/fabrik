@@ -285,9 +285,13 @@ def test_every_action_work_py_emits_is_classified_for_amber():
     """A new action must be placed deliberately: unlisted, it would block at AMBER by default."""
     import re
 
-    src = (_TREE / "scripts" / "work.py").read_text(encoding="utf-8")
+    whole = (_TREE / "scripts" / "work.py").read_text(encoding="utf-8")
+    # The stop ladder runs from `_stop_action` to the end of `cmd_queue`; elsewhere `"action":`
+    # is another record's field (an item comment's `action`, W-e1f1a1bd), never a stop action.
+    start = whole.index("\ndef _stop_action(")
+    src = whole[start : whole.index("\ndef ", whole.index("\ndef cmd_queue(") + 1)]
     emitted = set(re.findall(r'"action": "([a-z-]+)"', src))
-    # every `"action":` value is a literal name or None, so the regex above sees them all
+    # every `"action":` value in the ladder is a literal name or None, so the regex sees them all
     assert src.count('"action":') == len(re.findall(r'"action": (?:"[a-z-]+"|None)', src))
     assert emitted == set(_STARTS) | set(_FINISHES), emitted ^ (set(_STARTS) | set(_FINISHES))
     assert frozenset(_STARTS) == hook._COORD_AMBER_STARTS
