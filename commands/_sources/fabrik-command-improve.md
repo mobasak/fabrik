@@ -190,7 +190,9 @@ target resolved and lock-checked as below. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
 loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
-command's current text).
+command's current text). That rendered-copy grep is the lead's: the audit seat reads the command source and the
+fragments it includes, pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks
+any wording it proposes against the phases that rely on the sentence it would change.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -229,7 +231,10 @@ rule lives), the target's own routing rules (state the overlap), its fan-out par
 whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
 contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
 binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot). A row that prescribes how the command works — a step, an
+works around (a mode may already cover the blind spot). The tests that pin a paragraph's sentences are read before
+a sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and the new text goes where no
+pinned span runs, the gap between two sentences one pin joins included; a pin that ends at a sentence's period also
+fails when that sentence is extended. A row that prescribes how the command works — a step, an
 order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
 mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
 self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
@@ -293,7 +298,9 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 `/fabrik-review-scoped` over the changed surface, run to its exit — one round plus the delta rounds
 § Drive bounds. Sized by the surface: one source file is one unit, so `dispatch_headroom.py --units 1
 --mechanical 1` — and the seats read the EDIT
-against the verdicts it claims to answer, not merely for style. A seat that cannot find the verdict
+against the verdicts it claims to answer, not merely for style. For a `_fragments/` edit the brief names the
+consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no
+seat hunts for homes the fragment does not have. A seat that cannot find the verdict
 in the new text is the finding; for each row it finds answered, it returns the line that states the row's step.
 
 ## PHASE 5 — Commit, naming what you answered
