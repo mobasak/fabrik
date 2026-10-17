@@ -387,8 +387,10 @@ _BANNER_PAYLOAD = {
 
 
 def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monkeypatch):
-    """`_budget_probe` swallows every exception into `Box budget unavailable: …`, so the positive
-    control comes FIRST — an absence check against that fallback would pass vacuously."""
+    """`_budget_probe` collects the banner's DATA and the Overview's `_budget_lines` renders it (the
+    command-centre split, W-573fae88 T07); the test drives both, so the positive control — the real
+    banner's `Box budget:` line, not the probe's `{"error": …}` fallback — comes FIRST and an absence
+    check cannot pass vacuously."""
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
     src = REPO / "scripts" / "sysadmin" / "quota_dashboard.py"
@@ -403,8 +405,13 @@ def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monke
         stderr = ""
 
     monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _Run())
-    html = qd._budget_probe()
-    assert "Box budget (D-189" in html, html  # positive control: the real banner, not the fallback
+    budget = qd._budget_probe()
+    assert "error" not in budget, budget  # the probe parsed the payload, not its fallback
+    monkeypatch.syspath_prepend(str(REPO / "scripts" / "sysadmin"))
+    from dashboard_ui.views import overview
+
+    html = "".join(overview._budget_lines(budget))
+    assert "Box budget: " in html and "CLI cap" in html, html  # positive control: the real banner
     joined = _joined(html)
     assert not [lit for lit in _RETIRED_LITERALS if lit in joined], html
 
