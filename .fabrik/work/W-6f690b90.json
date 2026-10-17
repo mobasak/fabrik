@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T09:23:28.024446Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6f690b90",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "switch those env_file entries to {path: .env, required: false} like the canonical compose (W-9ead34bd), updating the pins in tests/test_scaffold_audit_log.py:294,548,581, tests/test_companion_services.py:65,80 and tests/test_scaffold_saas_backend.py:177",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Scaffold composes with a short-form env_file (.env required) refuse docker compose config in a fresh checkout: the audit-jobs companion (_append_audit_jobs_service, every db-enabled python-api/file-worker/chrome-extension/mobile-app) and the three saas services; found by the W-9ead34bd review (seat 2 executed: \"env file .../.env not found\", rc 1)"
+}

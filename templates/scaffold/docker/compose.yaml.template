@@ -32,8 +32,12 @@ services:
       - GLITCHTIP_DSN=${GLITCHTIP_DSN:-}
       - APP_GIT_SHA=${GIT_SHA:-unknown}
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      # Optional (uncomment if using database)
-      # - DATABASE_URL=${DATABASE_URL}
+    # Every other key of the deploy's .env (DATABASE_URL, REDIS_URL, declared secrets) reaches
+    # the container through env_file; the entries above still win. Optional, because a fresh
+    # checkout has no .env and every deploy writes one before `up`.
+    env_file:
+      - path: .env
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s
