@@ -86,7 +86,8 @@ Test runs carry a 120 s per-test hang guard (W-046828fb): the python template's 
 `timeout` and `faulthandler_timeout`, and every dependency file that names pytest also names pytest-timeout —
 python-api, python-api-gpu and mobile-app in their `requirements-dev.txt`, file-worker in the `requirements-dev.txt` its
 Makefile installs, the saas family (saas-skeleton, static-site, office-extension) in `server/requirements-dev.txt`,
-and chrome-extension in its root `requirements.txt`. chrome-extension also emits a root `pytest.ini` carrying the
+and chrome-extension in a root `requirements-dev.txt` that keeps the test deps out of the image's
+`requirements.txt` (W-4d6a37c8). chrome-extension also emits a root `pytest.ini` carrying the
 two settings, because its root `tests/` never reads `server/pyproject.toml`.
 
 `.github/` is not emitted: CI checks are retired fleet-wide (operator directive), and `scripts/ci_local.sh` is the

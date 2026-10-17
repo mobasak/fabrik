@@ -38,6 +38,13 @@ All notable changes to this project will be documented in this file.
 - `_classify_sid`'s live-holder branch was already pinned: with it removed, `test_a_process_under_the_dir_is_liveness`
   fails.
 
+### Fixed — chrome-extension's production image no longer installs pytest (2026-10-18)
+
+A scaffolded chrome-extension listed pytest and pytest-timeout in its root `requirements.txt`, which is also the
+Dockerfile's install list, so every image carried the test runner. They now live in a root `requirements-dev.txt`
+(`-r requirements.txt` plus the test deps) that `make install` and the scaffold-time venv install; the image's
+`requirements.txt` keeps runtime deps only (W-4d6a37c8, the exception D-959 recorded).
+
 ### Fixed — scaffold code provisions only when asked: no more real databases from probes and seats (2026-10-18)
 
 A review seat's direct `create_project` call left two real PostgreSQL databases on the WSL dev cluster, because the
