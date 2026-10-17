@@ -43,6 +43,8 @@ CLAMP_LINES = range(1, 7)
 
 _DATA_KEY = re.compile(r"[a-z0-9-]+")
 _ID = re.compile(r"[A-Za-z][\w:-]*", re.ASCII)
+# a link target: a fragment, a same-site path (never `//` or `/\`, which leave the origin) or an http(s) URL
+_HREF = re.compile(r"(#|/(?![/\\])|https?://)[^\s\x00-\x1f\x7f]*")
 # data-* names a component writes itself; a caller's data= may not shadow them
 RESERVED_DATA_KEYS = frozenset(
     {
@@ -132,6 +134,24 @@ def badge(severity: str, text: object) -> Safe:
         f'<span class="sr-only">{_esc(t("sev." + severity))}: </span>'
         f'<span class="badge-text">{_esc(text)}</span></span>'
     )
+
+
+def link(label: object, href: object, *, new_tab: bool = False) -> Safe:
+    """A link: ``href`` is a same-document fragment (``#…``), a same-site path (``/…``, never ``//`` or
+    ``/\\``, which leave the origin) or an absolute ``http(s)://`` URL; anything else — ``javascript:``,
+    ``data:``, a control character — raises. ``new_tab`` opens it in its own tab (``target="_blank"
+    rel="noopener"``) and says so in words."""
+    _flag(new_tab, "link new_tab")
+    if not isinstance(href, str) or not _HREF.fullmatch(href):
+        raise ValueError(
+            f"link href {href!r} is not a fragment, a same-site path or an http(s) URL"
+        )
+    extra = (
+        f' target="_blank" rel="noopener"><span class="sr-only">{_esc(t("link.new_tab"))} </span>'
+        if new_tab
+        else ">"
+    )
+    return Safe(f'<a class="link"{_attr("href", href)}{extra}{_esc(label)}</a>')
 
 
 def card(
@@ -225,12 +245,29 @@ def field(
 
 
 def group(
-    body: object, *, tag: str = "div", data: Mapping[str, object] | None = None, id: object = None
+    body: object,
+    *,
+    tag: str = "div",
+    data: Mapping[str, object] | None = None,
+    id: object = None,
+    label: object = None,
 ) -> Safe:
-    """A container carrying attributes — a filter group, a pick group, a pane, a filterable section."""
+    """A container carrying attributes — a filter group, a pick group, a pane, a filterable section.
+    ``label`` becomes its ``aria-label`` (an accessible name for a ``nav`` or a region)."""
     _choice(tag, GROUP_TAGS, "group tag")
     ident = _attr("id", _id(id)) if id is not None else ""
-    return Safe(f"<{tag}{ident}{_data(data)}>{_esc(body)}</{tag}>")
+    name = _attr("aria-label", label) if label is not None else ""
+    return Safe(f"<{tag}{ident}{name}{_data(data)}>{_esc(body)}</{tag}>")
+
+
+def section(title: object, body: object, *, id: object) -> Safe:
+    """A titled region of a view: `<section>` labelled by its own `<h2>`, so it is a landmark."""
+    ident = _id(id, "section id")
+    title_id = f"{ident}-title"
+    return Safe(
+        f'<section class="section"{_attr("id", ident)}{_attr("aria-labelledby", title_id)}>'
+        f'<h2 class="section-title"{_attr("id", title_id)}>{_esc(title)}</h2>{_esc(body)}</section>'
+    )
 
 
 def value_of(input_id: object) -> Safe:

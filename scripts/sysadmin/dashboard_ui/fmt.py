@@ -4,6 +4,8 @@ Nine helpers today's HTML builders use and the views share: each reads only its 
 clock and the environment, never a module-level name of the dashboard module (an AST scan at
 18d619f1e). The dashboard imports them back under their old private names, so its builders and
 tests are untouched; a view imports them from here, because no view may import the dashboard module.
+`read_ts` is the one helper written for the views: the gate every collector timestamp passes before
+`components.freshness`, which refuses a bad one by design.
 """
 
 # AFTER-EDIT: docs/workstation/quota-dashboard.md
@@ -23,6 +25,7 @@ __all__ = [
     "fmt_reset",
     "opt_root",
     "posture_sub",
+    "read_ts",
     "repo_order",
     "stage_tone",
     "tone",
@@ -95,6 +98,26 @@ def posture_sub(posture: object, key: str) -> str:
         return f" · {burn:.2f}%/m"
     which = "wall" if verdict == "wall_first" else "reset"
     return f" · {burn:.2f}%/m, {which} in ~{int(mins)}m"
+
+
+# the latest read time a stamp may show: 2096, under every platform's time_t and datetime range
+READ_TS_MAX = 4e9
+
+
+def read_ts(x: object) -> float | None:
+    """A collector's read time as epoch seconds a freshness stamp can show, or None.
+
+    Anything but a finite real number in (0, `READ_TS_MAX`) — a bool, a string, NaN, infinity, a
+    negative or a far-future value — is None, which `components.freshness` renders as "not read",
+    so one broken timestamp costs its region the stamp instead of raising out of the whole view.
+    """
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return None
+    try:
+        v = float(x)
+    except OverflowError:  # an int past float's range
+        return None
+    return v if math.isfinite(v) and 0 < v < READ_TS_MAX else None
 
 
 def repo_order(repos: list[dict]) -> list[dict]:

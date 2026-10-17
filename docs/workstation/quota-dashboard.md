@@ -440,8 +440,15 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/dashboard_ui/__init__.py`
 - `scripts/sysadmin/dashboard_ui/components.py`
 - `scripts/sysadmin/dashboard_ui/fmt.py`
+- `scripts/sysadmin/dashboard_ui/merges.py`
 - `scripts/sysadmin/dashboard_ui/snapshot.py`
 - `scripts/sysadmin/dashboard_ui/strings.py`
 - `scripts/sysadmin/dashboard_ui/views/__init__.py`
+- `scripts/sysadmin/dashboard_ui/views/accounts.py`
+- `scripts/sysadmin/dashboard_ui/views/commands.py`
+- `scripts/sysadmin/dashboard_ui/views/overview.py`
+- `scripts/sysadmin/dashboard_ui/views/services.py`
+- `scripts/sysadmin/dashboard_ui/views/usage.py`
+- `scripts/sysadmin/dashboard_ui/views/work.py`
 - `scripts/sysadmin/quota_dashboard.py`
 <!-- END related-scripts -->

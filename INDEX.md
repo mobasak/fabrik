@@ -2088,6 +2088,18 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | `scripts/sysadmin/dashboard_ui/snapshot.py` | Snapshot tokens: the hash a card carries so a verdict on a changed item is refused |
 | `scripts/sysadmin/dashboard_ui/views/__init__.py` | The view protocol: `VIEWS`, `ViewContext`, `ViewResult`, `load`, `stamp` |
 | [2026-10-17-plan-1-command-centre-dashboard-T02-review.md](docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T02-review.md) | /fabrik-review wave receipt for T02 (server wiring): three passes, confirmed 21 → 7 → 0 |
+| [test_quota_dashboard_overview.py](tests/test_quota_dashboard_overview.py) | Overview view and blocked-merge reader tests (T03) |
+| [test_quota_dashboard_work.py](tests/test_quota_dashboard_work.py) | Work view tests (T04) |
+| [test_quota_dashboard_accounts.py](tests/test_quota_dashboard_accounts.py) | Accounts view tests (T05) |
+| [test_quota_dashboard_views_misc.py](tests/test_quota_dashboard_views_misc.py) | Usage, Commands and Services view tests (T06) |
+| `scripts/sysadmin/dashboard_ui/merges.py` | The fleet-wide blocked-merge reader: newest record per branch, merge owner per repo |
+| `scripts/sysadmin/dashboard_ui/views/overview.py` | Overview view: summary, decisions waiting, blocked merges, agents, quota, health |
+| `scripts/sysadmin/dashboard_ui/views/work.py` | Work view: repo queues, owner chips, tag filter, verdict controls |
+| `scripts/sysadmin/dashboard_ui/views/accounts.py` | Accounts view: rotation queue, meters, governor, per-account controls |
+| `scripts/sysadmin/dashboard_ui/views/usage.py` | Usage view: tier spend tables and the monthly calendar |
+| `scripts/sysadmin/dashboard_ui/views/commands.py` | Commands view: the command catalogue and its service-matrix tab |
+| `scripts/sysadmin/dashboard_ui/views/services.py` | Services view: pool credits, search-API quotas, the external-services link |
+| [2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md](docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md) | /fabrik-review wave receipt for T03–T06 (the views) |
 | [test_check_command_corpus.py](tests/test_check_command_corpus.py) | 124 tests — the command-corpus gate's eight predicates on fixtures, plus `--selftest` run as a subprocess — its canaries are the predicates' only grader and nothing else on the box ran them |
 | [test_assemble_orch_retired.py](tests/test_assemble_orch_retired.py) | 5 tests — T07a: the three mega sources render with every fragment resolved and no fab-* wrapper; the retired orchestrator names/tokens are gone; the banner-guarded prune removes an installed (symlinked) fab-* skill with its tracked target intact; every composed skill description (all 36) fits the 1024 cap via the real render (plan 2026-09-03-plan-1-multi-agent-per-repo, T07a) |
 | [test_vision_reads_work_stores.py](tests/test_vision_reads_work_stores.py) | 6 tests — T05: `/fabrik-vision` EXISTING reads PLANS.md + STRATEGIC_BACKLOG.md and seeds epics with the owner tag; `/fabrik-epics-review` Step 1.5 mints the merge-owner row; the corpus renders clean (plan 2026-09-06-plan-2) |
