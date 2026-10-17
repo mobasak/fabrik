@@ -147,14 +147,15 @@ table region is the only scroller inside the section).
 The inventory section follows the Services view's pool balance and API quota cards (`views/services.py:200-210`),
 which stay first: they are the view's only live, money-bearing facts, and a backlog must not push them down.
 
-1. **Heading + data age.** "External services" and one line, a `services.inv.synced` string *"Registry
-   {time} · {n} providers"* whose `{time}` is `freshness(synced_at, 86400)` — `app.js` ticks its text
-   relative and marks it stale past two 24 h cadences, which is the 48 h registry rule. The static file,
-   with no script to tick it, prints the sync instant absolutely with its date (*"Registry synced
-   2026-10-17 14:30"*), never `freshness()`'s time-of-day-only text — the age from `max(api_keys.last_seen)` (st-2 — the data's time, never the render time); with no
-   `api_keys` row it reads *"registry never synced"*. In the static file, the line adds *"snapshot written
-   {time}"* and the legend today's footer carries (*no secret values; a credential count only; ⚠ credit =
-   older than 48 h*).
+1. **Heading + data age.** The section is a `card()` titled "External services" whose `age` is the
+   board's standard stamp, `freshness(synced_at, 86400)` — the same element every Services card shows
+   (`components.py:168-174`, `:400-425`), with the board's own words ("Read … ago", "Stale — …" past two
+   24 h cadences, which is the 48 h registry rule), so no sentence wraps it. Beneath the title, one plain
+   line: *"{n} providers"*. `synced_at` is `max(api_keys.last_seen)` (st-2 — the data's time, never the
+   render time); with no `api_keys` row the stamp reads the board's "not read" state (`read_ts=None`). The
+   static file, with no script to tick the stamp, prints instead *"Registry synced {date time zone}"*
+   (`2026-10-17 14:30 +03:00`), *"snapshot written {date time zone}"*, and the legend today's footer
+   carries (*no secret values; a credential count only; ⚠ credit = older than 48 h*).
 2. **Summary line** — five plain counts (numbers, not filter controls): *Needs attention · Paid or freemium ·
    Free or self-host · Untriaged · Total*. Beneath it, a collapsed **More counts** disclosure holds the rest
    of today's ten stat cards: categories, projects (distinct), credit tracked, credit stale, renewals set,
@@ -220,9 +221,10 @@ shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today 
 `data-f-*` elements and nothing else, so these behaviours are added to `app.js` (§ Contract deltas):
 - select controls drive the filter (a `change` listener; the state restore extended from `INPUT|TEXTAREA`
   to `SELECT`);
-- a match inside a closed `<details>` opens it, and the group is marked as opened by the filter; the mark
-  is derived again from the filter state whenever the filter re-applies after a swap (`swap()` carries
-  only `open`, `app.js:194`, `:211`), so it survives a refresh;
+- a match inside a closed `<details>` opens it, and its `slug()` id is recorded in the stored filter state
+  (`qd-filter:<group>`, beside the field values) as opened by the filter — recorded, never inferred from
+  open-plus-match, since a hand-opened group that also matches looks the same; the record survives a
+  swap (`swap()` carries only `open`, `app.js:194`, `:211`);
 - a group with zero matches is hidden while a filter is set;
 - when the filter clears, or stops matching inside a group, every group the filter opened closes again
   and hidden groups return; a group the operator opened by hand stays open — one search-and-clear never
@@ -254,7 +256,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   (`scripts/tests/test_registry_sync.py:393`) are unchanged.
 - One renderer: `inventory.render()` takes rows and returns `Safe` markup; it reads no file, database or
   environment — `classified_at` is passed in by each caller.
-- The data-age line renders through `freshness()` as a `<time data-ts>` (`components.py:400-425`), never an
+- The data age renders through `freshness()` as a `<time data-ts>` (`components.py:400-425`), never an
   age string computed at render: the view's `stamp()` hashes the markup (`views/__init__.py:66-68`), so text
   that changes every render would defeat the no-op swap and re-swap a 466-row DOM on every
   `visibilitychange`.
@@ -320,7 +322,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` once, at import time,
   guarded like its own directory's insert (the chain suite's
   `test_the_dashboard_modules_insert_their_directory_once` pins that class) — an append, not the
-  `insert(0)` of `:52-54`, so none of its 80-odd script names can shadow a module the board imports) and
+  `insert(0)` of `:52-54`, so none of its 77 script names can shadow a module the board imports) and
   imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
   missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
@@ -354,7 +356,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   provider name opens the group holding it (a category table or the Untriaged queue) and the status count
   updates; each select narrows the rows, and Cost `free` shows no `freemium` row; a group with no match is
   hidden; clearing the filter closes every group the filter opened, shows the hidden ones again, and leaves
-  a group opened by hand open; the Needs-attention list is unchanged by any filter; the data-age line does
+  a group opened by hand open; the Needs-attention list is unchanged by any filter; the data-age stamp does
   not change the fragment's `data-stamp` between two renders a minute apart; the inventory section with
   groups collapsed is at most 4,000 px
   tall at 1280 px (today's page 28,719), measured on the section, not the whole view.
@@ -404,8 +406,9 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 - The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`,
   `components` and `strings` only, never `quota_dashboard` (the panel's caveat).
 - The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script.
-- The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (2.9.9, present for
-  that interpreter) as a named exception to the parent spec's "no new dependency" rule (D9), imported
+- The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that
+  interpreter: 2.9.11 from the user site `~/.local` when `HOME` is set, as under the board's cron and
+  `--serve`; 2.9.9 from the system `dist-packages` otherwise) as a named exception to the parent spec's "no new dependency" rule (D9), imported
   lazily so the rest of the board stays stdlib.
 - Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926).
 
