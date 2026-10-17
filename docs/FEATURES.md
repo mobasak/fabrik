@@ -1,6 +1,20 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17
+
+## The command centre — the box's quota and work board on one page layer (✅ Shipped, 2026-10-17)
+
+Plan `docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/` (spec approved D-925, i18n exemption D-926; whole-plan review `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-review.md`). Box-local; the full behaviour is in `docs/workstation/quota-dashboard.md`.
+
+| Feature | Description | Endpoint / Module |
+|---|---|---|
+| Shell | One page with six views, one stylesheet and one script. Every view's markup comes from the escaped components in `dashboard_ui/components.py`. | `GET /` · `scripts/sysadmin/dashboard_ui/` |
+| Overview | The quota strip by serving account, the box budget, blocked merges with their owner, and the awaiting-operator cards with Accept / Reject / Comment. | `GET /v/overview` · `views/overview.py` |
+| Work | Every repo's open work items, with a per-repo picker. A repo that fails to load is named, never counted. | `GET /v/work` · `views/work.py` |
+| Accounts | Which account serves now, which comes next, and each account's caps and state. | `GET /v/accounts` · `views/accounts.py` |
+| Usage, Commands, Services | Spend and usage, the rendered command corpus, and the external services with their credit warnings. | `GET /v/usage` · `/v/commands` · `/v/services` |
+| Request guard | Only the loopback Host names and the configured `QUOTA_DASH_HOST` are answered (421 otherwise). Every POST needs the custom header (403 otherwise), and a card's verdict carries its snapshot token. | `quota_dashboard.py` |
+| Old page | The five-tab page is removed; `/repos.html` redirects to the shell for 14 days. | `quota_dashboard.py` |
 
 ## The coordinator role — sort, prioritise, merge, keep the records; never build (📋 Planned, 2026-10-15)
 

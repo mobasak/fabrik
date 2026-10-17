@@ -1,6 +1,7 @@
 # Plan — the operator's command-and-control centre: the quota board rebuilt on one page layer (W-573fae88)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-17
+Whole-plan review: docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-review.md
 **Owner:** infra
 
 Spec: `docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` — CONVERGED, approved by the Opus + Fable
@@ -53,7 +54,7 @@ recorded wording in the spec and change no build step.
 | T04 | Work view | T02 | ⚡ | ✅ | 94b61806d |
 | T05 | Accounts view | T02 | ⚡ | ✅ | 94b61806d |
 | T06 | Usage, Commands, Services views | T02 | ⚡ | ✅ | 94b61806d |
-| T07 | Integration | T03, T04, T05, T06 | ⛓️ | 🔵 | |
+| T07 | Integration | T03, T04, T05, T06 | ⛓️ | ✅ | 986b8ce22 |
 
 ## Merge Order
 
@@ -381,6 +382,49 @@ ulid ms range 1790828164895 1792188016628
 awaiting tokens 43 distinct 43
 merge dirs ['brand-identiy-creator', 'fabrik', 'fabrik-lib', 'iterative_image_editor', 'site-provisioner', 'trade-intelligence', 'tryton-crm', 'web-ecommerce-factory', 'whatsapp-agent']
 ```
+
+### D7 live request (2026-10-17, T07 at 986b8ce22)
+
+The plan shipped HTTP surface, so validation issued real requests against the running server: `quota_dashboard.py --serve` from worktree-infra on port 5091, with `QUOTA_DASH_OUT_DIR` in scratch so the live board's files were untouched. Output verbatim:
+
+```text
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/
+200 28439B text/html; charset=utf-8
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/v/overview
+200 244806B text/html; charset=utf-8
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/v/work
+200 7501413B text/html; charset=utf-8
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/v/accounts
+200 33815B text/html; charset=utf-8
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/static/app.js
+200 35926B text/javascript; charset=utf-8
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/repos.html
+303 0B 
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}B %{content_type}" http://127.0.0.1:5091/quota.json
+200 11351B application/json
+$ curl -s http://127.0.0.1:5091/ | grep -o "<title>[^<]*</title>"
+<title>Command centre</title>
+$ curl -s -o /dev/null -w "%{http_code}" -H "Host: evil.example" http://127.0.0.1:5091/
+421
+$ curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:5091/agent-pause
+403
+```
+
+`/repos.html` answers 303 (the 14-day redirect), a foreign Host 421, and a POST with no custom header 403. The one probe the server ran invoked the rotation tick once through its relief check (the same flock-guarded tick the cron runs). It made no flip: `claude_rotate.py --status` still read active sarp.
+
+### Requirements coverage (Finish step 3, 2026-10-17)
+
+Each line of § What we already agreed, with what delivers it:
+
+- **Approach B, six views:** `dashboard_ui/views/__init__.py::VIEWS` = overview, work, accounts, usage, commands, services. Each answered 200 in the D7 live request above (T01–T06 at 01c83d1e7, 4c614aabd and 94b61806d; T07 at 986b8ce22).
+- **INV-1 … INV-6, the confirm table, the snapshot token with its legacy window:** slices A–D of the whole-plan review (`docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-review.md`); `_LEGACY_TOKEN_UNTIL` is proven by a past-date mutant in `tests/test_quota_dashboard_server.py`.
+- **The Host allowlist and the cross-site POST refusal:** 421 and 403 in the live request; `test_the_configured_host_is_admitted_only_when_configured` (P3-1).
+- **English only with one tested catalogue (D-926):** `dashboard_ui/strings.py`, with the literal scan in `tests/test_quota_dashboard_page_layer.py`.
+- **P3-3:** `test_a_blocked_merge_card_names_the_owner_or_says_it_is_unresolved`.
+- **P4-r1:** `test_a_failed_regeneration_puts_a_stale_banner_on_the_served_view` and `test_a_quota_views_error_state_keeps_the_stale_banner`.
+- **P5-r1:** `test_red_wall_or_a_failed_probe_moves_quota_and_health_above_the_decisions`.
+
+Gaps: none against the agreed list. Two items were filed, not owed: W-c3f27dc9 (`/v/work` is 7.5 MB) and W-d8592740 (a scratch-sweep rule outside this plan).
 
 ## Self-audit
 

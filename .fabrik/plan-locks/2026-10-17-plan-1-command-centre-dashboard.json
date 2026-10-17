@@ -1,5 +1,5 @@
 {
- "plan": "docs/development/plans/2026-10-17-plan-1-command-centre-dashboard",
+ "plan": "docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard",
  "owned_paths": [
   "scripts/sysadmin/dashboard_ui/",
   "scripts/sysadmin/quota_dashboard.py",
@@ -20,7 +20,9 @@
  ],
  "branch": "worktree-infra",
  "started_at": "2026-10-16T23:12:02.159467+00:00",
- "status": "active",
+ "status": "released",
  "baseline_commit": "5648cf5e0b725a551718b4e0ab2c5f61bf32beb8",
- "tickets": {}
+ "tickets": {},
+ "final_commit": "986b8ce22",
+ "completed_at": "2026-10-17T16:47:40.674237+00:00"
 }

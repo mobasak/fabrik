@@ -15,7 +15,7 @@ its own URL — `/#overview` (the default), `/#work`, `/#accounts`, `/#usage`, `
 Tool: `scripts/sysadmin/quota_dashboard.py` (the server, the collectors, the probe loop) and its page
 layer `scripts/sysadmin/dashboard_ui/` · Output: `~/.claude/quota-dashboard/quota.json` (and the
 pool/search-API caches beside it) · Log: `~/.claude/quota-dashboard.log`. The redesign is plan
-`docs/development/plans/2026-10-17-plan-1-command-centre-dashboard/` over spec
+`docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/` over spec
 `docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` (D-925).
 
 ## The page layer
