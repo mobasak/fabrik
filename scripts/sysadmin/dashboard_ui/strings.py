@@ -60,6 +60,7 @@ CATALOGUE: dict[str, str] = {
     "view.failed": "This view could not be built ({error}). Try again; if it keeps failing, the dashboard log has the details.",
     "act.done": "Done.",
     "act.changed": "This item changed since the view was loaded. The view was reloaded; check it and try again.",
+    "act.diverged": "The board's copy of this repo is out of step with its main checkout, so nothing was sent. Sync the checkout, then try again.",
     "act.failed": "That did not work: {error}",
     "act.unreachable": "The board did not answer. Reload the view to see whether the change landed.",
     "act.clear": "clear",

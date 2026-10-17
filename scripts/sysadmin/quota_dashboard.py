@@ -2380,7 +2380,8 @@ def _cached_collect(which: str, collect):
         cached = _work_cache if which == "work" else _box_cache
         if cached and now - cached[0] < REPOS_TTL_S:
             if isinstance(cached[1], BaseException):
-                raise cached[1]
+                # its traceback dropped: the same instance re-raised would grow one per hit, all TTL long
+                raise cached[1].with_traceback(None)
             return cached[1]
         gen = _repos_gen
         try:
@@ -2809,27 +2810,35 @@ def _publish_item_targets(repos: list[dict], slice_: str = "repos") -> None:
     })
 
 
-def _token_refused(main: str, root: str, item: str, token: object) -> bool:
-    """True when the verdict must be refused 409. With a ``token``: it must equal the item's snapshot
-    token in ``root`` — the tree the card was read from — AND, when that is not ``main``, in ``main``
-    too, the tree `work.py verdict --repo main` writes (fail closed: two trees that disagree are a
-    changed item). A missing, unreadable or non-object item file counts as changed. Without one: refused
-    once the legacy window (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before
-    work.py takes its store lock — the window between the two is accepted (one operator, one board)."""
+def _tree_token(tree: str, item: str) -> str | None:
+    """The item's snapshot token as it stands in ``tree``; None for a missing, unreadable or
+    non-object item file."""
+    try:
+        current = json.loads((Path(tree) / ".fabrik" / "work" / f"{item}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return _snapshot.token(current) if isinstance(current, dict) else None
+
+
+def _token_refusal(main: str, root: str, item: str, token: object) -> str | None:
+    """Why the verdict is refused 409, or None to let it run.
+
+    ``"diverged"``: ``root`` — the tree the card was read from — is not ``main``, the tree
+    `work.py verdict --repo main` writes, and the item differs between them. No token the card can show
+    would pass, so the refusal says so: the board's checkout is out of step with the repo's main and the
+    operator must sync it (fail closed, never a verdict on an item the operator did not see).
+    ``"changed"``: the trees agree but the posted token differs from the item as it stands — or the item
+    file is missing, unreadable or not an object — or no token came once the legacy window
+    (`_LEGACY_TOKEN_UNTIL`, local date, inclusive) has closed. Read before work.py takes its store
+    lock — the window between the two is accepted (one operator, one board)."""
     if token is None:
-        return _LEGACY_TOKEN_UNTIL is not None and date.today() > _LEGACY_TOKEN_UNTIL
+        return "changed" if _LEGACY_TOKEN_UNTIL is not None and date.today() > _LEGACY_TOKEN_UNTIL else None
     if Path(item).name != item:  # the target lookup admits only listed ids; never a path
-        return True
-    for tree in dict.fromkeys((root, main)):  # one read when they are the same tree
-        try:
-            current = json.loads(
-                (Path(tree) / ".fabrik" / "work" / f"{item}.json").read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError):
-            return True
-        if not isinstance(current, dict) or _snapshot.token(current) != token:
-            return True
-    return False
+        return "changed"
+    seen = _tree_token(root, item)
+    if root != main and seen != _tree_token(main, item):
+        return "diverged"
+    return None if seen is not None and seen == token else "changed"
 
 
 def item_verdict(
@@ -2837,7 +2846,8 @@ def item_verdict(
 ) -> tuple[int, dict]:
     """Accept, reject or comment on one item the board lists. (http_status, json_body): 400 for an
     unknown pair or action, or a reject/comment with no words (nothing runs), 409 ``changed`` when the
-    snapshot ``token`` the card carried no longer matches the item (nothing runs), 502 when work.py
+    snapshot ``token`` the card carried no longer matches the item, or ``diverged`` when the board's
+    tree and main disagree about it (`_token_refusal`; nothing runs), 502 when work.py
     refuses or times out (its message), 200 on success."""
     if action not in ("accept", "reject", "comment") or not isinstance(repo, str) or not isinstance(item, str):
         return 400, {"ok": False, "error": "body needs repo, item and action accept|reject|comment"}
@@ -2851,8 +2861,9 @@ def item_verdict(
     if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
     main, root = target
-    if _token_refused(main, root, item, token):
-        return 409, {"ok": False, "error": "changed"}
+    refusal = _token_refusal(main, root, item, token)
+    if refusal is not None:
+        return 409, {"ok": False, "error": refusal}
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     opts = [f"--text={note}"] if note else []
     return _run_work(main, [[sys.executable, str(hub), "--repo", main, "verdict", *opts, "--by=dashboard",
@@ -3887,8 +3898,14 @@ def _fresh_html() -> str:
 # ── the command-centre views (plan 2026-10-17-plan-1, T02) ─────────────────────────────────────────
 # `GET /v/<view>` answers one view's fragment. Each view module is a pure renderer (`dashboard_ui.views`);
 # this module hands it everything it reads from here as DATA, because no view may import this module.
-_QUOTA_VIEWS = ("overview", "accounts")
-_WILDCARD_HOSTS = {"", "0.0.0.0", "[::]"}  # bind-everything addresses: never an admitted Host  # the views that show quota data: the stale banner, the triggers
+_QUOTA_VIEWS = ("overview", "accounts")  # the views that show quota data: the stale banner, the triggers
+_WILDCARD_HOSTS = {"", "0.0.0.0", "[::]"}  # bind-everything addresses: never an admitted Host
+
+
+def _host_literal(host: str) -> str:
+    """``host`` as a Host header names it: lowercased, an IPv6 literal in brackets."""
+    h = host.strip().lower()
+    return f"[{h}]" if ":" in h and not h.startswith("[") else h
 _STATIC_TYPES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript; charset=utf-8"}
 
 
@@ -4099,11 +4116,43 @@ def _render_view(name: str) -> str:
         _publish_item_targets(result.item_targets or [], name)
         return out
     except Exception as exc:  # noqa: BLE001 — one view's fault is that view's error state
-        sys.stderr.write(f"quota_dashboard: view {name} failed ({type(exc).__name__}: {exc})\n")
+        kind = type(exc).__name__
+        try:
+            sys.stderr.write(f"quota_dashboard: view {name} failed ({kind}: {exc})\n")
+        except Exception:  # noqa: BLE001 — an exception whose str() raises still gets its error state
+            sys.stderr.write(f"quota_dashboard: view {name} failed ({kind})\n")
         _publish_pause_targets([], name)  # fail-closed: no board, no buttons
         _publish_item_targets([], name)
-        err = _ui.region_state("error", _strings.t("view.failed", error=type(exc).__name__), retry=True)
+        return _error_fragment(name, kind)
+
+
+def _error_fragment(name: str, kind: str) -> str:
+    """A view's error state, in words — with the stale banner on a quota view (its own guard: a broken
+    banner costs the banner, never the error state). If building it raises too, `_last_resort_fragment`."""
+    try:
+        banner = None
+        if name in _QUOTA_VIEWS:
+            if True:
+                banner = _status_banner(time.time())
+        err = _ui.fragment(
+            banner, _ui.region_state("error", _strings.t("view.failed", error=kind), retry=True)
+        )
         return _ui.group(err, tag="section", data={"view-root": name, "stamp": _views.stamp(err)})
+    except Exception:  # noqa: BLE001 — the error path must answer whatever is broken
+        return _last_resort_fragment()
+
+
+def _last_resort_fragment() -> str:
+    """A constant error fragment built without components, which cannot raise: the catalogue's word
+    through a guarded lookup, escaped here once."""
+    try:
+        words = str(_strings.t("state.failed"))
+    except Exception:  # noqa: BLE001
+        words = "This view could not be loaded."
+    return (
+        '<section data-stamp="error"><div class="region-state" data-state="error" role="alert">'
+        f'<p class="state-message">{escape(words)}</p></div></section>'
+    )
 
 
 def _known_slugs() -> set[str]:
@@ -4283,8 +4332,7 @@ class _Handler(BaseHTTPRequestHandler):
         reaches this socket under ITS name, and that name is not on the list."""
         port = self.server.server_address[1]
         names = {"127.0.0.1", "localhost", "[::1]"}
-        conf = HOST.strip().lower()
-        conf = f"[{conf}]" if ":" in conf and not conf.startswith("[") else conf
+        conf = _host_literal(HOST)
         if conf not in _WILDCARD_HOSTS:  # a wildcard bind is an address no client names
             names.add(conf)
         allowed = {f"{n}:{port}" for n in names}
@@ -4512,9 +4560,12 @@ def _health_ok() -> bool:
     """One GET /health with a short timeout. A listener that accepts but never answers is NOT up."""
     import http.client
 
+    # a wildcard bind answers on loopback, and only there under a Host the allowlist admits — sending
+    # `Host: 0.0.0.0:<port>` would read a healthy server as wedged and SIGTERM it every cron tick
+    target = "127.0.0.1" if _host_literal(HOST) in _WILDCARD_HOSTS else HOST
     try:
         c = http.client.HTTPConnection(
-            HOST, PORT, timeout=float(os.getenv("QUOTA_DASH_ENSURE_TIMEOUT_S", "5"))
+            target, PORT, timeout=float(os.getenv("QUOTA_DASH_ENSURE_TIMEOUT_S", "5"))
         )
         c.request("GET", "/health")
         r = c.getresponse()

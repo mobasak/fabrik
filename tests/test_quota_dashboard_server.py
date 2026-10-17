@@ -548,6 +548,57 @@ def test_a_fault_anywhere_in_building_the_fragment_is_the_error_state(tmp_path, 
         httpd.shutdown()
 
 
+def test_a_quota_views_error_state_keeps_the_stale_banner(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    qd.generate()
+    monkeypatch.setattr(qd, "_probe", _boom)
+    qd.generate()  # the probe failed after the payload: stale
+    _install(monkeypatch, "accounts", _fake_view("accounts", render=lambda d, c: 1 / 0))
+    httpd, port = _serve(qd)
+    try:
+        text = _req(port, "GET", "/v/accounts")[2].decode()
+        assert 'data-state="error"' in text and "ZeroDivisionError" in text
+        assert 'id="render-failed"' in text, "the error state still says the figures are stale"
+        # a banner that itself breaks costs the banner, never the error state
+        monkeypatch.setattr(qd, "_status_banner", lambda now: 1 / 0)
+        status, _h, body = _req(port, "GET", "/v/accounts")
+        assert status == 200 and 'data-state="error"' in body.decode()
+    finally:
+        httpd.shutdown()
+
+
+def test_the_error_path_has_a_last_resort_that_cannot_raise(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    _install(monkeypatch, "usage", _fake_view("usage"))
+    from dashboard_ui import components as real_ui
+    from dashboard_ui import strings
+
+    broken = types.SimpleNamespace(
+        fragment=real_ui.fragment,
+        region_state=real_ui.region_state,
+        stale_banner=real_ui.stale_banner,
+        group=lambda *a, **k: (_ for _ in ()).throw(ValueError("group broke")),
+    )
+    monkeypatch.setattr(qd, "_ui", broken)
+    httpd, port = _serve(qd)
+    try:
+        status, _h, body = _req(port, "GET", "/v/usage")
+        text = body.decode()
+        assert status == 200
+        assert 'role="alert"' in text and strings.t("state.failed") in text
+        assert 'data-stamp="' in text.split(">", 1)[0]
+        monkeypatch.setattr(qd, "_ui", real_ui)
+        monkeypatch.setattr(
+            qd._views, "stamp", lambda markup: (_ for _ in ()).throw(ValueError("x"))
+        )
+        monkeypatch.setattr(qd._strings, "t", lambda *a, **k: (_ for _ in ()).throw(KeyError("x")))
+        status, _h, body = _req(port, "GET", "/v/usage")
+        assert status == 200 and 'role="alert"' in body.decode()
+    finally:
+        httpd.shutdown()
+
+
 def test_the_static_files_are_served_with_an_etag_and_nothing_else_is(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     httpd, port = _serve(qd)
@@ -699,19 +750,33 @@ def test_the_token_is_read_from_the_card_tree_and_checked_against_the_write_tree
     board(card)
     same = tok(card)
     assert qd.item_verdict("shop", item, "comment", "both agree", token=same)[0] == 200
-    # main moved on (work.py wrote there), the card's tree did not: refused, fail closed
+    # main moved on (work.py wrote there), the card's tree did not: the trees DIVERGED — refused, and
+    # said as such, whichever tree's token the card carries (no token could pass until they agree)
     assert tok(shop) != tok(card)
-    assert qd.item_verdict("shop", item, "comment", "x", token=tok(card)) == (
-        409,
-        {"ok": False, "error": "changed"},
-    )
-    # the card's tree moved, main did not: the token is read from the card's tree
+    for posted in (tok(card), tok(shop), "0" * 16):
+        assert qd.item_verdict("shop", item, "comment", "x", token=posted) == (
+            409,
+            {"ok": False, "error": "diverged"},
+        ), posted
+    # the card's tree moved, main did not: diverged again
     shutil.copy(_item_file(shop, item), _item_file(card, item))
     _edit(card, item, ground="gate")
-    assert qd.item_verdict("shop", item, "comment", "x", token=tok(shop)) == (
+    assert qd.item_verdict("shop", item, "comment", "x", token=tok(card))[1]["error"] == "diverged"
+    # main is gone from under a card's tree that still has the item: diverged, never a pass
+    saved_main = _item_file(shop, item).read_text()
+    _item_file(shop, item).unlink()
+    assert qd.item_verdict("shop", item, "comment", "x", token=tok(card))[1]["error"] == "diverged"
+    _item_file(shop, item).write_text(saved_main)
+    # the trees agree again: a stale token is "changed", the current one passes
+    shutil.copy(_item_file(shop, item), _item_file(card, item))
+    stale = tok(card)
+    _edit(card, item, ground="owned")
+    _edit(shop, item, ground="owned")
+    assert qd.item_verdict("shop", item, "comment", "x", token=stale) == (
         409,
         {"ok": False, "error": "changed"},
     )
+    assert qd.item_verdict("shop", item, "comment", "agreed", token=tok(card))[0] == 200
     n = len(json.loads(_item_file(shop, item).read_text())["comments"])
     # one tree: a missing, corrupt or non-dict item file is changed
     board(shop)
@@ -1006,14 +1071,21 @@ def test_a_slow_seed_never_overwrites_a_newer_reading(tmp_path, monkeypatch):
     seeder = threading.Thread(target=qd._seed_last_status)
     seeder.start()
     assert reading.wait(5)
-    writer = threading.Thread(
-        target=qd._set_last_status, args=(time.time(), {**_payload(), "active": "probed"})
-    )
+    written = threading.Event()
+
+    def write() -> None:
+        qd._set_last_status(time.time(), {**_payload(), "active": "probed"})
+        written.set()
+
+    writer = threading.Thread(target=write)
     writer.start()
-    time.sleep(0.1)
+    # the probe's write must WAIT for the seed (one lock): unlocked, it lands now and the seed overwrites it
+    landed_early = written.wait(1.0)
     release.set()
     seeder.join(5)
     writer.join(5)
+    assert not landed_early, "the probe's write ran while the seed held the reading"
+    assert written.is_set()
     assert qd._LAST_STATUS[0][1]["active"] == "probed"
 
 
@@ -1258,6 +1330,34 @@ def test_a_failing_collector_is_cached_for_the_ttl_too(tmp_path, monkeypatch):
     qd._drop_repos_cache()  # a board write retries at once
     qd._view_data("work", ctx)
     assert calls["work"] == 2
+    # each hit raises a FRESH error: a cached instance re-raised grows its traceback every time
+    import traceback
+
+    depths = []
+    for _ in range(5):
+        try:
+            qd._work_data()
+        except OSError as exc:
+            depths.append(len(traceback.extract_tb(exc.__traceback__)))
+            assert str(exc) == "store unreadable"
+    assert len(depths) == 5 and len(set(depths)) == 1, depths
+
+
+def test_a_wildcard_bind_still_passes_its_own_health_check(tmp_path, monkeypatch):
+    from http.server import ThreadingHTTPServer
+
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_HOST="0.0.0.0", QUOTA_DASH_PORT=str(port))
+    httpd = ThreadingHTTPServer(("0.0.0.0", port), qd._Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        assert qd._health_ok() is True, "ensure() would SIGTERM a healthy server every tick"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_collect_work_entries_carry_the_tree_they_were_read_from(tmp_path, monkeypatch):
