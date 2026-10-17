@@ -1,8 +1,9 @@
 """chrome-extension scaffold emits a WXT (not @crxjs) extension lane.
 
-Structure assertions (fast, no pnpm/build). The end-to-end build gate
-(`pnpm install` → `wxt build` → tsc → size-limit → eslint, all exit 0) is the
-integration verification run at plan-execution time — see the plan's Evidence.
+Structure assertions (fast, no pnpm/build), plus one `needs_network` build test
+(deselected by default; run with `-m needs_network`): `pnpm install` → `pnpm compile`
+(tsc) → `pnpm lint` (eslint) → keygen → `wxt build`, all exit 0. size-limit is not
+run here.
 """
 
 from __future__ import annotations
