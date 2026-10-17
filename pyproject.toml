@@ -38,6 +38,8 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    # W-162398ef (operator-authorised): a hung test is a failure, never a stuck run
+    "pytest-timeout>=2.3.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
@@ -104,6 +106,12 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "--ignore=tests/test_pipeline_runner.py -m 'not needs_network'"
+# Per-test limit (pytest-timeout, W-162398ef). The INI key, not `--timeout` in addopts: with the plugin
+# absent the key only warns, the flag refuses every run (exit 4). Memory is capped separately — a
+# runaway grows ~300 MB/s, faster than any timeout (tests/memguard.py, scripts/capped_run.sh).
+# 600, not the scaffold's 120: this is a hang detector, and hub tests that run the real completion
+# gate take longer than 120 s (test_final_gate_advisory_display.py: 209 s, measured 2026-10-17, D-935).
+timeout = 600
 markers = [
     "requires_fabrik_env: marks tests requiring /opt/fabrik environment (skipped in CI)",
     "needs_network: performs a REAL package install or build (pnpm/npm/uv). Excluded from the default run by addopts — measured 2026-09-02: it is what made `pytest tests/test_scaffold*.py` never finish. Run explicitly with `-m needs_network`.",

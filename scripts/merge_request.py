@@ -146,6 +146,28 @@ def _run(
         raise RefusedError(f"cannot run {argv[0]}: {exc}") from exc
 
 
+def _capped_run() -> str:
+    """The box's capped runner: FABRIK_CAPPED_RUN, else this tree's own, else the hub's absolute
+    path — a project's synced copy of this script has no runner beside it (the runner is hub-only)."""
+    sibling = Path(__file__).resolve().parent / "capped_run.sh"
+    return os.getenv("FABRIK_CAPPED_RUN") or (
+        str(sibling) if sibling.is_file() else "/opt/fabrik/scripts/capped_run.sh"
+    )
+
+
+def _capped(argv: list[str], timeout: int) -> list[str]:
+    """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so a
+    runaway owner test is a red, never a host outage (W-162398ef). No runner → ``argv`` as is."""
+    runner = _capped_run()
+    if os.access(runner, os.X_OK):
+        return [runner, "--timeout", str(int(timeout)), "--", *argv]
+    print(
+        f"merge_request: WARNING — {runner} is missing; owner tests run UNCAPPED (no memory ceiling)",
+        file=sys.stderr,
+    )
+    return list(argv)
+
+
 def _git(*args: str, cwd: Path | None = None, timeout: int = GIT_TIMEOUT_S) -> str:
     res = _run(["git", *args], timeout, cwd=cwd)
     if res.returncode != 0:
@@ -1182,7 +1204,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         )
         env = {**os.environ, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
-        run = _run(argv, TEST_TIMEOUT_S, cwd=wt, env=env)
+        # the outer bound only catches a runner that itself hangs; the runner stops the tests first
+        run = _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env)
     else:
         touched = [
             p
@@ -1200,7 +1223,12 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
             Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
             env = _fallback_env(wt, Path(shim))
-            run = _run([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S, cwd=wt, env=env)
+            run = _run(
+                _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
+                TEST_TIMEOUT_S + 60,
+                cwd=wt,
+                env=env,
+            )
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""
