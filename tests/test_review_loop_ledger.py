@@ -1685,7 +1685,7 @@ def test_next_advice_for_an_args_file_with_no_result_never_asks_for_args(tmp_pat
     assert r.returncode == 0, r.stderr
     assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
     assert "pass --args" not in r.stderr, r.stderr
-    assert "no `result`" in r.stderr, r.stderr
+    assert "no usable `result`" in r.stderr, r.stderr
 
 
 def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) -> None:
@@ -1697,8 +1697,12 @@ def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) 
             {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
             {
                 "name": "alpha",
-                "candidates": _cands("alpha-S1", "alpha-s1 "),
-                "verdicts": [_ev("alpha-S1", "confirmed"), _ev("alpha-s1 ", "confirmed")],
+                "candidates": _cands("alpha-S1", "alpha-s1 ", "ALPHA-s1"),
+                "verdicts": [
+                    _ev("alpha-S1", "refuted"),
+                    _ev("alpha-s1 ", "confirmed"),
+                    _ev("ALPHA-s1", "confirmed"),
+                ],
             },
         ],
     )
@@ -1706,4 +1710,9 @@ def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) 
     assert r.returncode == 0, r.stderr
     lines = r.stderr.splitlines()
     assert not any(ln.lower().startswith("carried alpha-s1") for ln in lines), r.stderr
-    assert sum(ln.lower().startswith("open not carried alpha-s1") for ln in lines) >= 1, r.stderr
+    assert sum(ln.lower().startswith("open not carried alpha-s1") for ln in lines) == 1, (
+        "three spellings of one repeated claim are named once"
+    )
+    # the ids the lead NAMES are matched folded too: a fold-equal repeat is refused, never resolved to one spelling
+    named = _tool("next", str(_pass_with(tmp_path)), "--ids", "A-S1,alpha-S1", "--args", str(run))
+    assert named.returncode == 2 and "more than once" in named.stderr, named.stderr
