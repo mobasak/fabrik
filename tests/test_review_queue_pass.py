@@ -104,8 +104,8 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
     for clause in (
         # D-961 (supersedes D-957 in part): the hub never calls the Workflow tool, so a hub review's
         # seats always take the Agent-tool path and no approval dialog reaches the operator
-        "or the session is in the hub (D-961: the hub never calls the `Workflow` tool — the NO "
-        "`Workflow` IN THE HUB note), or the operator did not invoke this",
+        "or the session is in the hub (D-961: the hub never calls the `Workflow` tool), "
+        "or the operator did not invoke this",
         "(the tool runs only on their explicit opt-in)",
     ):
         missing = [p.name for p in copies if clause not in _norm(p)]
@@ -141,6 +141,14 @@ def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> Non
         assert "{{include:no-workflow-hub}}" in head, p.name
     doc = _norm(ROOT / "docs" / "reference" / "review-loop-workflow.md")
     assert "NO `Workflow` IN THE HUB — D-961" in doc.split("## Launch")[0]
+    assert "## Launch (outside the hub — D-961;" in doc
+    # the shared texts that reach commands WITHOUT the note gate every Workflow step inline
+    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
+    assert "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call" in core
+    assert "pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args" in core
+    cat = _norm(CAT)
+    assert "outside the hub (D-961), write the Workflow args JSON to scratch and relaunch" in cat
+    assert "in the hub, re-dispatch its `Agent` seats over the same ledger" in cat
 
 
 def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:
