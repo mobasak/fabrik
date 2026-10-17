@@ -499,9 +499,18 @@ class TestChromeExtensionScaffold:
 
         project_dir = tmp_path / "test-ext"
 
-        # Verify pytest in requirements.txt
-        reqs = (project_dir / "requirements.txt").read_text()
-        assert "pytest" in reqs, "pytest missing from requirements.txt"
+        # pytest reaches the dev venv through requirements-dev.txt, which `make install` installs; the
+        # image's requirements.txt carries runtime deps only (W-4d6a37c8)
+        dev = (project_dir / "requirements-dev.txt").read_text()
+        assert re.search(r"^-r requirements\.txt$", dev, re.M), dev
+        assert re.search(r"^pytest>=", dev, re.M) and re.search(r"^pytest-timeout>=", dev, re.M), (
+            dev
+        )
+        assert "pytest" not in (project_dir / "requirements.txt").read_text()
+        assert (
+            ".venv/bin/pip install -r requirements-dev.txt"
+            in (project_dir / "Makefile").read_text()
+        )
 
         # Verify Makefile test target has PYTHONPATH
         makefile = (project_dir / "Makefile").read_text()

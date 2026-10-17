@@ -6562,10 +6562,15 @@ ephemeral — never register in a bare global).
         f"    )\n"
     )
 
-    # requirements.txt (at root, for server). It is also the image's install list and already carries
-    # pytest, so pytest-timeout joins it here (W-046828fb; splitting the test deps out is its own item).
+    # requirements.txt (at root, for server) is the image's install list: runtime deps only. The test
+    # deps live in requirements-dev.txt, which `make install` and the scaffold-time venv install
+    # (W-4d6a37c8; pytest-timeout backs the pytest.ini hang guard, W-046828fb).
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\npytest-timeout>=2.3.0\nstructlog>=24.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\n"
+    )
+    (project_dir / "requirements-dev.txt").write_text(
+        "# Test dependencies (the Dockerfile installs requirements.txt only); `make install` installs this.\n"
+        "-r requirements.txt\npytest>=8.0.0\npytest-timeout>=2.3.0\n"
     )
     # pytest.ini — the config pytest reads for the ROOT tests/ (server/pyproject.toml is never read
     # for a root run): the same hang guard the template's [tool.pytest.ini_options] sets (W-046828fb).
@@ -6704,7 +6709,7 @@ release-ext:
 # Install all dependencies
 install:
 \tpython -m venv .venv
-\t.venv/bin/pip install -r requirements.txt
+\t.venv/bin/pip install -r requirements-dev.txt
 \tcd extension && pnpm install
 
 # Run tests
@@ -6808,7 +6813,7 @@ EXTENSION_LATEST_SHA256=
         import click
 
         click.echo(
-            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
             f" ({_offline_reason()})"
         )
         return
@@ -6821,7 +6826,7 @@ EXTENSION_LATEST_SHA256=
         else venv_path / "Scripts" / "pip.exe"
     )
     result = subprocess.run(
-        [str(venv_pip), "install", "-r", "requirements.txt"],
+        [str(venv_pip), "install", "-r", "requirements-dev.txt"],
         cwd=project_dir,
         capture_output=True,
         text=True,
