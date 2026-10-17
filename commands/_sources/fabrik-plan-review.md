@@ -256,7 +256,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   the consumer side merged three libraries with zero production callers — reproducing the exact
   stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run
   as a rescue).
-- **Reader census (the mirror of the consumer audit)** — for every existing function or value whose behaviour the
+- **Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose behaviour the
   plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census, its command and output in the
   plan's Evidence. A seat re-runs that census; a reader it finds that the plan does not name is a defect.
 
