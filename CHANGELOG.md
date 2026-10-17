@@ -7,9 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Changed — a plan's reader census covers a build script it changes (2026-10-17)
 
 - In `/fabrik-plan-after-chat` Phase 1, the reader census covered only a function or value. It now also covers a
-  build script (a `package.json` script or Makefile target), whose readers include a Dockerfile, a container gate
-  and a generator that run it. The mirror bullet in `/fabrik-plan-review` names the same scope. This answers
-  feedback row 1792194136; the grader is in `tests/test_plan_after_chat_queue_pass.py`.
+  build script (a `package.json` script or Makefile target). The census follows each caller of the script
+  transitively: an alias script, a Makefile target, a Dockerfile, a generator that writes one, and a gate that
+  builds or runs the image. It runs before the Phase 2 shape decision. The mirror bullet in `/fabrik-plan-review`
+  names the same scope. This answers feedback row 1792194136; the grader is in
+  `tests/test_plan_after_chat_queue_pass.py`.
 
 ### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
 
