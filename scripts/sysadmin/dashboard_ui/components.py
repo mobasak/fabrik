@@ -43,6 +43,7 @@ CLAMP_LINES = range(1, 7)
 
 _DATA_KEY = re.compile(r"[a-z0-9-]+")
 _ID = re.compile(r"[A-Za-z][\w:-]*", re.ASCII)
+_HREF = re.compile(r"[#/][^\s\x00-\x1f\x7f]*")
 # data-* names a component writes itself; a caller's data= may not shadow them
 RESERVED_DATA_KEYS = frozenset(
     {
@@ -231,6 +232,24 @@ def group(
     _choice(tag, GROUP_TAGS, "group tag")
     ident = _attr("id", _id(id)) if id is not None else ""
     return Safe(f"<{tag}{ident}{_data(data)}>{_esc(body)}</{tag}>")
+
+
+def link(href: object, text: object) -> Safe:
+    """An in-app link: ``href`` is a same-document fragment (``#…``) or a same-origin path (``/…``,
+    never ``//`` or ``/\\``, which leave the origin); anything else — a scheme included — is refused."""
+    if not isinstance(href, str) or not _HREF.fullmatch(href) or href.startswith(("//", "/\\")):
+        raise ValueError(f"link href {href!r} is not a same-origin path or fragment")
+    return Safe(f'<a class="link"{_attr("href", href)}>{_esc(text)}</a>')
+
+
+def section(title: object, body: object, *, id: object) -> Safe:
+    """A titled region of a view: `<section>` labelled by its own `<h2>`, so it is a landmark."""
+    ident = _id(id, "section id")
+    title_id = f"{ident}-title"
+    return Safe(
+        f'<section class="section"{_attr("id", ident)}{_attr("aria-labelledby", title_id)}>'
+        f'<h2 class="section-title"{_attr("id", title_id)}>{_esc(title)}</h2>{_esc(body)}</section>'
+    )
 
 
 def value_of(input_id: object) -> Safe:

@@ -116,6 +116,10 @@ def _escapes(x):
         ("field.data", lambda: ui.field("l", name="n", id="i", data={"filter": x})),
         ("group.body", lambda: ui.group(x)),
         ("group.data", lambda: ui.group("b", data={"pick": x})),
+        ("link.text", lambda: ui.link("#a", x)),
+        ("link.href#fragment", lambda: ui.link("#" + x, "t")),
+        ("section.title", lambda: ui.section(x, "b", id="s")),
+        ("section.body", lambda: ui.section("t", x, id="s")),
         ("dialog.title", lambda: ui.dialog("d", x, "B", "Go", "Stop")),
         ("dialog.body", lambda: ui.dialog("d", "T", x, "Go", "Stop")),
         ("dialog.confirm_label", lambda: ui.dialog("d", "T", "B", x, "Stop")),
@@ -148,6 +152,8 @@ def _refusals(x):
         ("group.tag", lambda: ui.group("b", tag=x)),
         ("group.id", lambda: ui.group("b", id=x)),
         ("value_of.input_id", lambda: ui.value_of(x)),
+        ("link.href", lambda: ui.link(x, "t")),
+        ("section.id", lambda: ui.section("t", "b", id=x)),
         ("dialog.id", lambda: ui.dialog(x, "T", "B", "Go", "Stop")),
         ("dialog.note", lambda: ui.dialog("d", "T", "B", "Go", "Stop", note=x)),
         ("disclosure.open", lambda: ui.disclosure("s", "b", open=x)),
@@ -214,6 +220,33 @@ def test_an_id_outside_the_html_id_alphabet_is_refused(bad):
         with pytest.raises(ValueError):
             call()
     assert 'id="ok:a_1-b"' in ui.card("t", "b", id="ok:a_1-b")
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "javascript:alert(1)",
+        "https://x.example/",
+        "//x.example/",
+        "/\\x.example",
+        "",
+        "# a",
+        "/a\nb",
+    ],
+)
+def test_a_link_leaving_the_origin_or_carrying_a_scheme_is_refused(href):
+    with pytest.raises(ValueError):
+        ui.link(href, "t")
+
+
+def test_a_link_and_a_section_are_labelled_markup():
+    root = parse(ui.fragment(ui.link("/#work/my%20repo", "Go"), ui.section("Title", "b", id="s1")))
+    (a,) = find_all(root, "a")
+    assert a.attrs["href"] == "/#work/my%20repo" and a.all_text() == "Go"
+    (sec,) = find_all(root, "section")
+    assert sec.attrs["aria-labelledby"] == "s1-title"
+    (h2,) = find_all(sec, "h2")
+    assert h2.attrs["id"] == "s1-title" and h2.all_text() == "Title"
 
 
 def test_tabs_refuse_duplicate_ids():
