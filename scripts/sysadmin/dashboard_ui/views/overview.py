@@ -165,10 +165,18 @@ def _ground(item: dict) -> ui.Safe:
     return ui.badge("neutral", t("ov.ground.other", ground=g))
 
 
-def _card(repo: str, item: dict, now: float) -> ui.Safe:
-    ident = str(item.get("id") or "")
+def _has_id(item: dict) -> bool:
+    """Whether the board can act on ``item``: work.py's verdict takes a string id and nothing else
+    (the Work view's same rule), so an item without one gets no controls and no target."""
+    return isinstance(item.get("id"), str) and bool(item["id"])
+
+
+def _card(repo: str, item: dict, now: float, seq: int = 0) -> ui.Safe:
+    actionable = _has_id(item)
+    ident = item["id"] if actionable else ""
     question = str(item.get("question") or "") or t("ov.dec.no_question")
-    key = f"{repo}/{ident}"
+    # an id-less card is keyed by its position, so two of them never share element ids
+    key = f"{repo}/{ident}" if actionable else f"{repo}\x00no-id\x00{seq}"
     tok = token(item)
 
     def body(action: str) -> dict:
@@ -176,7 +184,9 @@ def _card(repo: str, item: dict, now: float) -> ui.Safe:
 
     comment_id = ui.slug(key, "cm")
     actions: list[object] = []
-    if item.get("kind") == "decision":
+    if not actionable:
+        pass  # no verdict, no comment: work.py would refuse every one of them
+    elif item.get("kind") == "decision":
         acc_id, rej_id = ui.slug(key, "acc"), ui.slug(key, "rej")
         actions += [
             ui.button(
@@ -216,20 +226,22 @@ def _card(repo: str, item: dict, now: float) -> ui.Safe:
                 note="required",
             ),
         ]
-    actions += [
-        ui.field(t("ov.dec.comment_label", id=ident), name=comment_id, id=comment_id),
-        ui.button(
-            t("ov.dec.comment"),
-            data={"post": "/item-verdict", "body": body("comment"), "text-from": comment_id},
-        ),
-    ]
+    if actionable:
+        actions += [
+            ui.field(t("ov.dec.comment_label", id=ident), name=comment_id, id=comment_id),
+            ui.button(
+                t("ov.dec.comment"),
+                data={"post": "/item-verdict", "body": body("comment"), "text-from": comment_id},
+            ),
+        ]
     creator = item.get("creator")
     title = str(item.get("title") or "") or t("ov.dec.no_title")
     return ui.card(
-        t("ov.dec.card_title", id=ident, title=title),
+        t("ov.dec.card_title", id=ident, title=title) if actionable else title,
         ui.fragment(
             _line(t("ov.dec.asker", who=creator) if creator else t("ov.dec.asker_unknown")),
             ui.clamp(question, 3),
+            None if actionable else _line(t("ov.dec.no_id")),
         ),
         badge=_ground(item),
         age=t("ov.dec.wait", age=_since(item.get("created"), now)),
@@ -282,8 +294,8 @@ def _decisions(data: dict, ctx: ViewContext, groups: list, shown: list) -> ui.Sa
             )
             keep = {id(it) for it in oldest[:FEW]}
             visible = [it for it in items if id(it) in keep]
-        shown.append({**repo, "items": visible})
-        body = [_card(name, it, now) for it in visible]
+        shown.append({**repo, "items": [it for it in visible if _has_id(it)]})  # no id, no target
+        body = [_card(name, it, now, seq) for seq, it in enumerate(visible)]
         if cut:
             body.append(
                 _line(
@@ -318,6 +330,8 @@ def _merges(data: dict, ctx: ViewContext) -> ui.Safe:
             owner = (
                 t("ov.merge.owner", owner=b["owner"])
                 if b.get("owner")
+                else t("ov.merge.owner_resolving")
+                if b.get("owner_resolving") is True
                 else t("ov.merge.owner_unresolved", error=b["owner_error"])
                 if b.get("owner_error")
                 else t("ov.merge.owner_unresolved_bare")
@@ -619,24 +633,24 @@ def _quota(data: dict, ctx: ViewContext) -> ui.Safe:
     lines.append(
         _line(t("ov.q.successor", account=succ_name) if succ_name else t("ov.q.no_successor"))
     )
-    row = next(
-        (
-            a
-            for a in _l(payload.get("accounts"))
-            if isinstance(a, dict) and payload.get("active") in _l(a.get("slugs"))
-        ),
-        {},
-    )
-    resets = {
-        "five_hour": _d(row.get("five_hour")).get("resets_at_epoch"),
-        "seven_day": _d(row.get("seven_day")).get("resets_at_epoch"),
-        "fable": _d(_d(row.get("model_windows")).get("Fable")).get("resets_at_epoch"),
-    }
+    accounts = [a for a in _l(payload.get("accounts")) if isinstance(a, dict)]
+
+    def reset_of(window: str, slug: object) -> object:
+        """The reset of THIS window's reading, from the row of the account the fleet read it from
+        (`posture.fleet.windows.<w>.slug`) — never the active account's, a different account's
+        window; None (shown "—") when that account has no row."""
+        row = next((a for a in accounts if slug and slug in _l(a.get("slugs"))), None)
+        if row is None:
+            return None
+        if window == "fable":
+            return _d(_d(row.get("model_windows")).get("Fable")).get("resets_at_epoch")
+        return _d(row.get(window)).get("resets_at_epoch")
+
     for w in _WINDOWS:
         reading = _d(windows.get(w))
         u = _num(reading.get("utilization"))
         label = t(f"ov.q.w.{w}")
-        reset = fmt.fmt_reset(_num(resets[w]))
+        reset = fmt.fmt_reset(_num(reset_of(w, reading.get("slug"))))
         lines.append(
             _line(
                 t(
@@ -706,11 +720,18 @@ def _budget_lines(budget: object) -> list[object]:
         s = _d(s)
         key = s.get("key")
         label = t(f"ov.h.seat.{key}") if key in ("read_only", "heavy") else s.get("label") or "?"
-        box = s.get("box")
-        seats.append(
-            t("ov.h.budget_seat", label=label, allowed=s.get("allowed"), box="?" if box is None else box,
-              taken=s.get("taken") or 0)
-        )  # fmt: skip
+        box = "?" if s.get("box") is None else s.get("box")
+        taken = s.get("taken") or 0
+        # today's wording, every fact kept (INV-2): the floor, the siblings' reservation, the quota cap
+        if s.get("floored"):
+            detail = t("ov.h.seat_box_floor", box=box, taken=taken)
+        elif taken:
+            detail = t("ov.h.seat_box_after", box=box, taken=taken)
+        else:
+            detail = t("ov.h.seat_box", box=box)
+        if s.get("has_quota_cap"):
+            detail = t("ov.h.seat_quota", detail=detail, cap=s.get("quota_cap"))
+        seats.append(t("ov.h.budget_seat", label=label, allowed=s.get("allowed"), detail=detail))
     q = _d(b.get("quota"))
     if b.get("hold"):
         quota = t("ov.h.budget_hold")

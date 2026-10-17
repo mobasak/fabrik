@@ -1,9 +1,9 @@
 """The dashboard's pure formatters — moved verbatim out of `quota_dashboard` (plan 2026-10-17-plan-1, T02).
 
-Nine helpers today's HTML builders use and the views share: each reads only its arguments, the
-clock and the environment, never a module-level name of the dashboard module (an AST scan at
-18d619f1e). The dashboard imports them back under their old private names, so its builders and
-tests are untouched; a view imports them from here, because no view may import the dashboard module.
+Nine helpers the views share: each reads only its arguments, the clock, the environment and the
+string catalogue (every word they return is a `strings.t` key, so a stand-in catalogue reaches them
+too), never a module-level name of the dashboard module (an AST scan at 18d619f1e). A view imports
+them from here, because no view may import the dashboard module.
 `read_ts` is the one helper written for the views: the gate every collector timestamp passes before
 `components.freshness`, which refuses a bad one by design.
 """
@@ -17,6 +17,8 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
+
+from .strings import t
 
 __all__ = [
     "ago",
@@ -41,13 +43,9 @@ def ago(ts: object) -> str:
         s = max(0, int(time.time() - float(ts)))  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError):
         return ""
-    return (
-        f"{s // 60} min ago"
-        if s < 3600
-        else f"{s // 3600} h ago"
-        if s < 172800
-        else f"{s // 86400} d ago"
-    )
+    if s < 3600:
+        return t("fmt.ago_min", n=s // 60)
+    return t("fmt.ago_h", n=s // 3600) if s < 172800 else t("fmt.ago_d", n=s // 86400)
 
 
 def cap(text: str, n: int) -> str:
@@ -58,21 +56,25 @@ def fmt_age(age_s: float | None) -> str:
     if age_s is None:
         return ""
     h = age_s / 3600.0
-    return f"cached {h:.0f}h ago" if h >= 1 else f"cached {age_s / 60:.0f}m ago"
+    return t("fmt.cached_h", n=f"{h:.0f}") if h >= 1 else t("fmt.cached_m", n=f"{age_s / 60:.0f}")
 
 
 def fmt_reset(epoch: float | None) -> str:
     if not epoch:
-        return "—"
+        return t("fmt.reset_none")
     dt = datetime.fromtimestamp(float(epoch)).astimezone()
+    when = dt.strftime("%a %d %b %H:%M")
     delta = float(epoch) - time.time()
     if delta <= 0:
-        return dt.strftime("%a %d %b %H:%M") + " (due)"
+        return t("fmt.reset_due", when=when)
     hours = delta / 3600.0
-    left = f"{hours:.0f}h" if hours >= 1 else f"{delta / 60:.0f}m"
     if hours >= 24:
-        left = f"{hours / 24:.1f}d"
-    return f"{dt.strftime('%a %d %b %H:%M')} · in {left}"
+        left = t("fmt.left_d", n=f"{hours / 24:.1f}")
+    elif hours >= 1:
+        left = t("fmt.left_h", n=f"{hours:.0f}")
+    else:
+        left = t("fmt.left_m", n=f"{delta / 60:.0f}")
+    return t("fmt.reset_in", when=when, left=left)
 
 
 def posture_sub(posture: object, key: str) -> str:
@@ -91,13 +93,13 @@ def posture_sub(posture: object, key: str) -> str:
         return ""
     burn = w.get("burn_per_min")
     if not (isinstance(burn, (int, float)) and not isinstance(burn, bool) and math.isfinite(burn)):
-        return " · no burn yet"
+        return t("fmt.no_burn")
     verdict = w.get("verdict")
     mins = w.get("minutes_to_wall") if verdict == "wall_first" else w.get("minutes_to_reset")
     if not (isinstance(mins, (int, float)) and not isinstance(mins, bool) and math.isfinite(mins)):
-        return f" · {burn:.2f}%/m"
-    which = "wall" if verdict == "wall_first" else "reset"
-    return f" · {burn:.2f}%/m, {which} in ~{int(mins)}m"
+        return t("fmt.burn", burn=f"{burn:.2f}")
+    key = "fmt.burn_wall" if verdict == "wall_first" else "fmt.burn_reset"
+    return t(key, burn=f"{burn:.2f}", mins=int(mins))
 
 
 # the latest read time a stamp may show: 2096, under every platform's time_t and datetime range

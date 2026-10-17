@@ -2093,6 +2093,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_quota_dashboard_work.py](tests/test_quota_dashboard_work.py) | Work view tests (T04) |
 | [test_quota_dashboard_accounts.py](tests/test_quota_dashboard_accounts.py) | Accounts view tests (T05) |
 | [test_quota_dashboard_views_misc.py](tests/test_quota_dashboard_views_misc.py) | Usage, Commands and Services view tests (T06) |
+| [test_quota_dashboard_page_layer.py](tests/test_quota_dashboard_page_layer.py) | Page-layer guards for the command-centre dashboard (T07): no markup, English literal or `Safe` outside components.py, each scanner with its mutant spellings |
+| [test_quota_dashboard_browser.py](tests/test_quota_dashboard_browser.py) | Browser smoke tests for the command-centre dashboard (T07): every view at 390/720/1440 px, no sideways scroll, one-line short badges, a held swap while a dialog is open |
+| [quota_dashboard_isolation.py](tests/quota_dashboard_isolation.py) | Shared test helper: the network guard (connect and connect_ex) and the HOME / provider-key / MCP-config isolation every quota-dashboard test file imports |
 | `scripts/sysadmin/dashboard_ui/merges.py` | The fleet-wide blocked-merge reader: newest record per branch, merge owner per repo |
 | `scripts/sysadmin/dashboard_ui/views/overview.py` | Overview view: summary, decisions waiting, blocked merges, agents, quota, health |
 | `scripts/sysadmin/dashboard_ui/views/work.py` | Work view: repo queues, owner chips, tag filter, verdict controls |

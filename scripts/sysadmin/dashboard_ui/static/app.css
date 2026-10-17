@@ -365,6 +365,17 @@ textarea.input {
   white-space: nowrap;
 }
 
+/* a badge carrying data (a collector's error, a path — `components.badge` marks it data-wrap at 40
+   characters) wraps anywhere rather than pushing the page sideways; a short badge never wraps, so a
+   table or a flex row cannot squeeze it to one letter a line */
+.badge[data-wrap] {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.badge[data-wrap] .badge-text { min-width: 0; }
+
 .badge-icon {
   color: var(--sev-neutral);
 }

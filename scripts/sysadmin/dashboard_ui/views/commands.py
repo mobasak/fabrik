@@ -39,7 +39,10 @@ _STAGE_SEVERITY = {"crit": "warning", "stale": "neutral", "cap": "info"}  # fmt.
 _UNRENDERED_SHOWN = 6
 
 
-def _rendered_root() -> str:
+def _rendered_root(given: object = None) -> str:
+    """The server's ``RENDERED_COMMANDS`` (``data["rendered_root"]``); today's computation only when absent."""
+    if given:
+        return str(given)
     return os.getenv("QUOTA_DASH_RENDERED_COMMANDS") or str(Path.home() / ".claude" / "commands")
 
 
@@ -163,7 +166,7 @@ def _catalogue(rows: list[dict]):
     )
 
 
-def _matrix(rows: list[dict], ext: list[dict]):
+def _matrix(rows: list[dict], ext: list[dict], root: object = None):
     n = len(rows)
     unrendered = [_text(r.get("name")) for r in rows if not r.get("rendered")]
     caveat = ""
@@ -176,7 +179,7 @@ def _matrix(rows: list[dict], ext: list[dict]):
             more=", …" if len(unrendered) > _UNRENDERED_SHOWN else "",
         )
     intro = (
-        t("commands.matrix.intro", rendered=n - len(unrendered), n=n, root=_rendered_root())
+        t("commands.matrix.intro", rendered=n - len(unrendered), n=n, root=_rendered_root(root))
         + caveat
     )
     keys = [(_text(e.get("key")), _text(e.get("label")), _text(e.get("title"))) for e in ext]
@@ -233,7 +236,11 @@ def render(data: dict, ctx: ViewContext) -> ViewResult:
             t("commands.tabs"),
             [
                 ("commands-list", t("commands.tab.list"), listing),
-                ("commands-matrix", t("commands.tab.matrix"), _matrix(rows, ext)),
+                (
+                    "commands-matrix",
+                    t("commands.tab.matrix"),
+                    _matrix(rows, ext, data.get("rendered_root")),
+                ),
             ],
         )
     )

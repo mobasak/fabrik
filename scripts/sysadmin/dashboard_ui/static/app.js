@@ -62,7 +62,7 @@
     var arg = parts.length > 1 ? decode(parts.slice(1).join("/")) : "";
     if (view === null || arg === null) { return { view: defaultView, arg: "" }; } // malformed: the default
     if (!view) { view = defaultView; }
-    if (!known[view]) { return null; }
+    if (!has(known, view)) { return null; } // own names only: "#constructor" is no view
     return { view: view, arg: arg };
   }
   function markNav(view) {
@@ -130,8 +130,16 @@
       .then(function (text) {
         if (my !== seq) { return; }
         clearTimers(); loading = null;
+        if (document.querySelector("dialog[open]")) {
+          // the operator opened a dialog while this fetch was out: never swap under it (INV-5) —
+          // drop the response and refresh, forced, once the dialog closes
+          pendingForce = true; schedule(); return;
+        }
         try {
           swap(text, force || navigating);
+          var anchor = landAt ? document.getElementById(landAt) : null;
+          landAt = null;
+          if (anchor && main.contains(anchor)) { anchor.scrollIntoView(); }
         } catch (e) {
           console.error("qd: the view could not be shown", e);
           showState("qd-state-broken");
@@ -250,9 +258,16 @@
     if (s > 0) { tickTimer = setInterval(function () { refresh(false); }, s * 1000); }
   }
   function stopTicks() { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } tickPeriod = 0; }
+  var landAt = null; // an in-view anchor a reload named (the Overview's summary links: #ov-…)
   function route(first) {
     var r = parseHash();
-    if (!r) { return; }
+    if (!r) {
+      // a hash naming no view is an anchor inside one: a click on it is the browser's own scroll,
+      // but a LOAD on it must still open the default view (and refresh it), then land on the anchor
+      if (first !== true) { return; }
+      landAt = (location.hash || "").replace(/^#/, "");
+      r = { view: defaultView, arg: "" };
+    }
     // the first route fetches unless the server already rendered this view into <main>
     var rendered = main.firstElementChild && main.getAttribute("data-view") === r.view;
     var needFetch = first === true ? !rendered : r.view !== current.view || !main.firstElementChild;
@@ -632,7 +647,7 @@
     if ((hit = el.closest("[data-nav]"))) { setMenu(false); return; }
     if ((hit = el.closest("[data-dialog-cancel]"))) { closeDialog(hit.closest("dialog")); return; }
     if ((hit = el.closest("[data-dialog-confirm]"))) { confirmDialog(hit.closest("dialog")); return; }
-    if ((hit = el.closest("[data-retry], [data-reload]"))) { fetchView({ navigate: true }); return; }
+    if ((hit = el.closest("[data-retry]"))) { fetchView({ navigate: true }); return; }
     if ((hit = el.closest("[data-clamp-toggle]"))) { toggleClamp(hit); return; }
     if ((hit = el.closest('[role="tab"]'))) { selectTab(hit, true); return; }
     if ((hit = el.closest("[data-pick-to]"))) {
@@ -648,6 +663,20 @@
   });
   document.addEventListener("keydown", function (ev) {
     var el = ev.target;
+    var modal = ev.key === "Tab" ? document.querySelector("dialog[open]") : null;
+    if (modal) {
+      // a native modal keeps focus off the page but lets Tab run off its end into the browser:
+      // wrap it, so the dialog's stops are a loop (spec § Components, Confirm dialog)
+      var stops = Array.prototype.filter.call(
+        modal.querySelectorAll("button, input, textarea, select, a[href], [tabindex]:not([tabindex='-1'])"),
+        function (s) { return !s.disabled && !s.hidden && s.offsetParent !== null; });
+      if (stops.length) {
+        var at = stops.indexOf(document.activeElement);
+        var to = ev.shiftKey ? (at <= 0 ? stops.length - 1 : -1) : (at === -1 || at === stops.length - 1 ? 0 : -1);
+        if (to >= 0) { ev.preventDefault(); stops[to].focus(); }
+      }
+      return;
+    }
     if (ev.key === "Escape") {
       var b = menuButton();
       if (b && b.getAttribute("aria-expanded") === "true") { setMenu(false); b.focus(); return; }

@@ -49,11 +49,11 @@ recorded wording in the spec and change no build step.
 |---|---|---|---|---|---|
 | T01 | UI kit | — | ⚡ | ✅ | 01c83d1e7 |
 | T02 | Server wiring | T01 | ⛓️ | ✅ | 4c614aabd |
-| T03 | Overview view | T02 | ⚡ | ✅ | |
-| T04 | Work view | T02 | ⚡ | ✅ | |
-| T05 | Accounts view | T02 | ⚡ | ✅ | |
-| T06 | Usage, Commands, Services views | T02 | ⚡ | ✅ | |
-| T07 | Integration | T03, T04, T05, T06 | ⛓️ | ⬜ | |
+| T03 | Overview view | T02 | ⚡ | ✅ | 94b61806d |
+| T04 | Work view | T02 | ⚡ | ✅ | 94b61806d |
+| T05 | Accounts view | T02 | ⚡ | ✅ | 94b61806d |
+| T06 | Usage, Commands, Services views | T02 | ⚡ | ✅ | 94b61806d |
+| T07 | Integration | T03, T04, T05, T06 | ⛓️ | 🔵 | |
 
 ## Merge Order
 

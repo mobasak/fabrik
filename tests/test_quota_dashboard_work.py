@@ -14,6 +14,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _PKG = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "dashboard_ui"
 sys.path.insert(0, str(_PKG.parent))
 
@@ -349,6 +355,42 @@ def test_duplicate_item_ids_get_unique_elements_and_own_dialogs():
     # each Comment button reads its own field
     srcs = [b.attrs["data-text-from"] for b in buttons_in(root) if "data-text-from" in b.attrs]
     assert len(set(srcs)) == 2
+
+
+def test_a_faulting_pane_is_isolated_to_its_repo(monkeypatch):
+    real = work._pane
+
+    def boom(data, r, cap, tip_cap):
+        if r["name"] == "bad":
+            raise KeyError("x")
+        return real(data, r, cap, tip_cap)
+
+    monkeypatch.setattr(work, "_pane", boom)
+    res, root = render([repo("fabrik", [item("W-1")]), repo("bad", [item("W-9")])])
+    assert row_of(root, "W-1")
+    pane = find(root, **{"data-pick": "bad"})[0]
+    assert "KeyError" in pane.all_text() and find(pane, **{"data-state": "error"})
+    assert [r["name"] for r in res.item_targets] == ["fabrik"]
+
+
+def test_a_faulted_repo_is_not_counted_in_the_intro_or_the_picker(monkeypatch):
+    real = work._pane
+
+    def boom(data, r, cap, tip_cap):
+        if r["name"] == "bad":
+            raise KeyError("x")
+        return real(data, r, cap, tip_cap)
+
+    monkeypatch.setattr(work, "_pane", boom)
+    _, root = render([repo("fabrik", [item("W-1")]), repo("bad", [item("W-9"), item("W-8")])])
+    picks = {
+        b.attrs["data-pick-to"]: b.all_text().strip()
+        for b in root.walk()
+        if "data-pick-to" in b.attrs
+    }
+    assert picks == {"fabrik": "fabrik 1", "bad": "bad"}
+    intro = [n for n in root.walk() if n.tag == "span" and "remaining items" in n.all_text()][0]
+    assert intro.all_text().startswith("1 repos") and "1 remaining items" in intro.all_text()
 
 
 def test_navs_have_accessible_names():

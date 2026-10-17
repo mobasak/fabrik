@@ -27,6 +27,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "scripts" / "sysadmin" / "quota_dashboard.py"
 _HUB_WORK = _ROOT / "scripts" / "work.py"
@@ -42,10 +48,12 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     for k, v in env.items():
         monkeypatch.setenv(k, v)
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_srv_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
 
 
@@ -168,6 +176,14 @@ def _store_item(repo: Path, title: str) -> str:
 
 def _item_file(repo: Path, item: str) -> Path:
     return repo / ".fabrik" / "work" / f"{item}.json"
+
+
+def _card_token(repo: Path, item: str) -> str:
+    """The snapshot token the item's card carries — what the page posts with a verdict (a test that
+    posts none relies on the legacy window, which closes on `_LEGACY_TOKEN_UNTIL`)."""
+    from dashboard_ui import snapshot
+
+    return snapshot.token(json.loads(_item_file(repo, item).read_text()))
 
 
 def _edit(repo: Path, item: str, **fields) -> None:
@@ -420,31 +436,32 @@ def test_the_view_data_carries_each_views_keys(tmp_path, monkeypatch):
     ctx = ViewContext(opt_root=_opt(), fabrik_root=_ROOT, now=time.time())
     common = {"now", "refresh_s", "probe_interval_s"}
     want = {
-        "overview": {"work", "box", "status", "budget", "health", "ag_states", "hub_agents"},
+        "overview": {"work", "box", "status", "budget", "health"},
         "work": {"work", "hub_agents", "owner_order", "repos_ttl_s", "next_cap", "next_tip_cap"},
         "accounts": {
             "status",
             "queue",
             "trigger_threshold",
             "reserve_pct",
-            "drain_band",
             "five_hour_s",
             "seven_day_s",
-            "switch_header",
             "pool_policy_on",
             "slug_re",
             "email_re",
         },
         "usage": {"spend"},
-        "commands": {"commands", "ext_services"},
-        "services": {"pool", "apis", "ext_page"},
+        "commands": {"commands", "ext_services", "rendered_root"},
+        "services": {"pool", "apis", "ext_page", "warn_usd"},
     }
     for name, keys in want.items():
         data = qd._view_data(name, ctx)
         assert set(data) == common | keys, name
     acc = qd._view_data("accounts", ctx)
     assert acc["status"]["payload"]["accounts"][0]["email"] == "mob@ocoron.com"
-    assert acc["slug_re"] == qd._SLUG_RE.pattern and acc["switch_header"] == qd.SWITCH_HEADER
+    assert acc["slug_re"] == qd._SLUG_RE.pattern
+    # the server owns these two knobs; the views read them from here, never from the environment
+    assert qd._view_data("commands", ctx)["rendered_root"] == str(qd.RENDERED_COMMANDS)
+    assert qd._view_data("services", ctx)["warn_usd"] == qd.CREDITS_WARN_USD
     assert [e["kind"] for e in acc["queue"]][0] == "active"
     # a collector that raises becomes {"error": "<Type>: <message>"} for that key only
     monkeypatch.setattr(qd, "_load_commands", lambda: (_ for _ in ()).throw(OSError("corpus gone")))
@@ -479,7 +496,6 @@ def test_a_config_value_that_raises_is_that_keys_error(tmp_path, monkeypatch):
 
     ctx = ViewContext(_opt(), _ROOT, time.time())
     for fn, view, key in (
-        ("_drain_band", "accounts", "drain_band"),
         ("_pool_policy_on", "accounts", "pool_policy_on"),
         ("_status_data", "accounts", "status"),
         ("_owner_orders", "work", "owner_order"),
@@ -680,7 +696,7 @@ def test_a_verdict_carrying_a_stale_token_is_refused_409_and_runs_nothing(tmp_pa
     shop = _store_repo("shop")
     item = _store_item(shop, "a task")
     qd = _load(tmp_path, monkeypatch)
-    qd._repos_page(fresh=True)
+    qd._render_view("work")  # the Work view publishes the item's target
     from dashboard_ui import snapshot
 
     def tok() -> str:
@@ -804,8 +820,10 @@ def test_an_absent_token_is_accepted_only_inside_the_legacy_window(tmp_path, mon
     shop = _store_repo("shop")
     item = _store_item(shop, "a task")
     qd = _load(tmp_path, monkeypatch)
-    qd._repos_page(fresh=True)
-    assert qd._LEGACY_TOKEN_UNTIL is None
+    qd._render_view("work")
+    # T07 set the window: the coding date (2026-10-17) plus 14 days, inclusive
+    assert date(2026, 10, 31) == qd._LEGACY_TOKEN_UNTIL
+    monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", None)  # unset: always open
     assert qd.item_verdict("shop", item, "comment", "legacy")[0] == 200
     monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", date.today())  # on the date itself: still open
     assert qd.item_verdict("shop", item, "comment", "today")[0] == 200
@@ -866,15 +884,18 @@ def test_each_views_targets_survive_the_others_and_a_failing_view_empties_only_i
         assert _req(port, "GET", "/v/overview")[0] == 200  # renders after Work, holds no items
         assert ("shop", item) in qd._ITEM_TARGETS and ("ghost", "lead") in qd._PAUSE_TARGETS
         assert qd._ITEM_TARGETS[("shop", item)] == (str(shop), str(shop))
-        rebuilt: list[int] = []
-        real_page = qd._repos_page
+        rebuilt: list[str] = []
+        real_rebuild = qd._rebuild_targets
         monkeypatch.setattr(
-            qd, "_repos_page", lambda fresh=False: (rebuilt.append(1), real_page(fresh))[1]
+            qd, "_rebuild_targets", lambda view: (rebuilt.append(view), real_rebuild(view))[1]
         )
-        assert qd.item_verdict("shop", item, "comment", "found")[0] == 200
+        assert (
+            qd.item_verdict("shop", item, "comment", "found", token=_card_token(shop, item))[0]
+            == 200
+        )
         assert rebuilt == [], "a Work-only target was found without a rebuild"
-        # a /repos.html build publishes its own slice and evicts no view's
-        real_page(fresh=True)
+        # a rebuild-on-miss republishes its own view's slice and evicts no other view's
+        real_rebuild("work")
         assert ("ghost", "W-0000dead") in qd._ITEM_TARGETS and (
             "ghost",
             "lead",
@@ -957,7 +978,10 @@ def test_after_a_restart_a_verdict_and_a_pause_are_found_by_the_rebuild_on_miss(
     qd = _load(tmp_path, monkeypatch)
     # a fresh process: no view rendered, no board built, every registry empty
     assert qd._ITEM_TARGETS == {} and qd._PAUSE_TARGETS == {}
-    assert qd.item_verdict("shop", item, "comment", "after restart")[0] == 200
+    assert (
+        qd.item_verdict("shop", item, "comment", "after restart", token=_card_token(shop, item))[0]
+        == 200
+    )
     qd._ITEM_TARGETS = {}
     qd._PAUSE_TARGETS = {}
     qd._TARGET_SLICES["item"].clear()
@@ -1121,6 +1145,8 @@ def test_a_moved_pointer_triggers_exactly_one_bounded_regeneration(tmp_path, mon
     pointer = tmp_path / "active"
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
     qd.generate()
     pointer.unlink()
@@ -1156,16 +1182,17 @@ def test_a_pointer_that_stays_moved_costs_one_regeneration_per_timeout_window(
     probes: list[int] = []
     monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)  # a flip the probe never confirms
-    asyncs: list[int] = []
-    monkeypatch.setattr(qd, "_regen_async", lambda: asyncs.append(1))
     _install(monkeypatch, "accounts", _fake_view("accounts"))
     httpd, port = _serve(qd)
     try:
         for _ in range(3):
             assert _req(port, "GET", "/v/accounts")[0] == 200
+            worker = qd._LAST_REGEN[0]
+            if worker is not None:
+                worker.join(10)
     finally:
         httpd.shutdown()
-    assert probes == [1] and asyncs == []
+    assert probes == [1]  # one background pass for the window, never one per view
 
 
 def test_a_payload_past_max_age_starts_one_background_regeneration(tmp_path, monkeypatch):
@@ -1191,8 +1218,10 @@ def test_a_request_never_waits_on_a_regeneration_already_running(tmp_path, monke
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     monkeypatch.setattr(qd, "_probe", lambda: _payload())
     qd.generate()
-    probes: list[int] = []
-    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    probes: list[str] = []
+    monkeypatch.setattr(
+        qd, "_probe", lambda: (probes.append(threading.current_thread().name), _payload())[1]
+    )
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
     _install(monkeypatch, "accounts", _fake_view("accounts"))
     httpd, port = _serve(qd)
@@ -1201,10 +1230,14 @@ def test_a_request_never_waits_on_a_regeneration_already_running(tmp_path, monke
         t0 = time.time()
         assert _req(port, "GET", "/v/accounts")[0] == 200
         assert time.time() - t0 < 2.0
+        assert probes == [], "the request adds no probe of its own"
     finally:
         qd._gen_lock.release()
         httpd.shutdown()
-    assert probes == [], "the loop's pass lands; the request adds no probe of its own"
+    worker = qd._LAST_REGEN[0]
+    if worker is not None:
+        worker.join(10)
+    assert probes in ([], ["quota-regen"]), probes  # at most one pass, off the request thread
 
 
 # ── the budget's data half ─────────────────────────────────────────────────────────────────────────
@@ -1252,8 +1285,11 @@ def test_the_budget_data_is_disabled_without_a_subprocess_and_never_blocks(tmp_p
     data = qd._budget_data()
     assert data["caveats"] == ["sibling seats unknown <b>, not subtracted"], "plain, unescaped"
     assert [s["allowed"] for s in data["seats"]] == [17, 12]
-    # the HTML half is unchanged: built from the same reading, escaped once
-    assert "&lt;b&gt;" in qd._budget_cache["html"]
+    # the cache holds the reading alone (T07 removed the HTML half), and the view escapes it once
+    assert set(qd._budget_cache) == {"ts", "data", "thread", "gen"}
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    health = qd._render_view("overview").split('id="ov-health"', 1)[1]
+    assert "sibling seats unknown &lt;b&gt;, not subtracted" in health and "<b>," not in health
 
 
 # ── the work-data cache ─────────────────────────────────────────────────────────────────────────────
@@ -1413,3 +1449,21 @@ def test_the_import_scan_sees_every_form():
     ):
         assert _imports_dashboard(src), src
     assert not _imports_dashboard('"""never imports quota_dashboard"""\nimport json')
+
+
+def test_this_files_tests_cannot_open_a_non_loopback_socket():
+    """The shared network guard covers this file too: a connect off loopback is refused at once."""
+    import socket
+
+    from tests.quota_dashboard_isolation import NET_DENIED
+
+    with pytest.raises(OSError, match="test network guard"):
+        socket.create_connection(("192.0.2.1", 9), timeout=1)
+    assert NET_DENIED and "192.0.2.1" in NET_DENIED[0]
+    del NET_DENIED[:]  # this test's own refusal was the point
+
+
+def test_this_files_loader_reads_no_real_home_and_no_mcp_config(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    assert Path.home() == tmp_path / "home" and qd._MCP_CONFIGS == ()
+    assert qd._mcp_key("brave-search", "BRAVE_API_KEY") is None

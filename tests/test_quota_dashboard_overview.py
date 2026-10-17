@@ -19,6 +19,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "scripts" / "sysadmin"))
 
@@ -131,9 +137,21 @@ def _status(band="GREEN", probe_failed=None, read_at=NOW - 5, hold=None):
             {
                 "email": "mob@example.com",
                 "slugs": ["mob"],
-                "five_hour": {"utilization": 40, "resets_at_epoch": NOW + 3600},
-                "seven_day": {"utilization": 30, "resets_at_epoch": NOW + 86400 * 2},
+                # the ACTIVE account's own resets differ from the fleet readers' (ob, can) below,
+                # so a reset read from the wrong row shows
+                "five_hour": {"utilization": 95, "resets_at_epoch": NOW + 600},
+                "seven_day": {"utilization": 30, "resets_at_epoch": NOW + 86400 * 5},
                 "model_windows": {"Fable": {"utilization": 10, "resets_at_epoch": NOW + 86400 * 3}},
+            },
+            {
+                "email": "ob@example.com",
+                "slugs": ["ob"],
+                "five_hour": {"utilization": 41, "resets_at_epoch": NOW + 3600},
+            },
+            {
+                "email": "can@example.com",
+                "slugs": ["can"],
+                "seven_day": {"utilization": 77, "resets_at_epoch": NOW + 86400 * 2},
             },
         ],  # fmt: skip
         "posture": {
@@ -222,6 +240,8 @@ if repo == "sleepy":
     time.sleep(0.4); print("intel"); sys.exit(0)
 if repo == "filed":
     print(pathlib.Path(__file__).with_name("owner.txt").read_text().strip()); sys.exit(0)
+if repo == "sleep4":
+    time.sleep(4); print("fleet"); sys.exit(0)
 if repo.startswith("slow"):
     time.sleep(5)
 sys.stderr.write("decisions: cannot read /x/docs/DECISIONS.md (boom)\\n"); sys.exit(1)
@@ -258,6 +278,14 @@ def _records(opt: Path, repo: str, recs: list[dict]) -> Path:
     return d
 
 
+def _settled(opt: Path, hub: Path, **kw) -> list[dict]:
+    """`blocked` once the owner lookups it started have landed: the first call never waits on the
+    resolver (it reads "resolving"), so a test about the owner reads the call after the refresh."""
+    merges.blocked(opt, hub, **kw)
+    _drain()
+    return merges.blocked(opt, hub, **kw)
+
+
 def _rec(ms, branch, *, phase="replied", outcome=None, rand=0, **extra):
     r = {"id": _ulid(ms, rand), "phase": phase, "branch": branch, "item": "W-1", "requester": "fleet",
          **extra}  # fmt: skip
@@ -282,6 +310,8 @@ def test_a_branch_is_blocked_only_when_its_newest_record_is_refused_or_catchup_r
     (d / "list.json").write_text("[1, 2]", encoding="utf-8")
     _records(opt, "beta", [_rec(t0, "x", phase="refused", outcome="refused", reason="conflict")])
     bad: list[str] = []
+    merges.blocked(opt, hub, now=NOW)
+    _drain()
     out = merges.blocked(opt, hub, unreadable=bad, now=NOW)
     got = {(b["repo"], b["branch"]) for b in out}
     assert got == {("alpha", "b-refused"), ("alpha", "b-catchup"), ("beta", "x")}
@@ -300,7 +330,7 @@ def test_an_unresolvable_owner_is_named_with_the_resolvers_own_message(tmp_path)
     t0 = int((NOW - 60) * 1000)
     for repo in ("beta", "gamma"):
         _records(opt, repo, [_rec(t0, "x", phase="refused", outcome="refused")])
-    out = {b["repo"]: b for b in merges.blocked(opt, hub)}
+    out = {b["repo"]: b for b in _settled(opt, hub)}
     # exit 3: the resolver's own STDOUT, not a constant
     assert out["beta"]["owner"] is None
     assert out["beta"]["owner_error"] == "UNDECLARED: beta declares no merge owner"
@@ -315,8 +345,23 @@ def test_a_resolver_that_hangs_is_reported_as_timed_out(tmp_path, monkeypatch):
     opt, hub = tmp_path / "opt", _hub(tmp_path)
     monkeypatch.setattr(merges, "OWNER_TIMEOUT_S", 0.5)
     _records(opt, "slow", [_rec(int(NOW * 1000), "x", phase="refused", outcome="refused")])
+    (b,) = _settled(opt, hub)
+    assert b["owner"] is None and b["owner_error"] == "timed out" and not b["owner_resolving"]
+
+
+def test_a_render_never_waits_on_the_resolver(tmp_path):
+    opt, hub = tmp_path / "opt", _hub(tmp_path)
+    _records(opt, "sleep4", [_rec(int(NOW * 1000), "x", phase="refused", outcome="refused")])
+    t0 = time.monotonic()
+    got = overview.collect(ViewContext(opt_root=opt, fabrik_root=hub, now=NOW))
+    assert time.monotonic() - t0 < 0.5  # the resolver needs 4 s
+    (b,) = got["blocked"]
+    assert b["owner"] is None and b["owner_error"] is None and b["owner_resolving"] is True
+    _res, root, _ = _render(tmp_path, **got)
+    assert t("ov.merge.owner_resolving") in words(by_id(root, "ov-merges"))
+    _drain()  # the background lookup lands
     (b,) = merges.blocked(opt, hub)
-    assert b["owner"] is None and b["owner_error"] == "timed out"
+    assert b["owner"] == "fleet" and b["owner_resolving"] is False
 
 
 def test_the_owner_is_resolved_once_per_repo_and_cached(tmp_path):
@@ -325,21 +370,11 @@ def test_the_owner_is_resolved_once_per_repo_and_cached(tmp_path):
     _records(opt, "alpha", [_rec(t0, "a", phase="refused", outcome="refused"),
                             _rec(t0, "b", phase="refused", outcome="refused", rand=1)])  # fmt: skip
     _records(opt, "delta", [_rec(t0, "a", outcome="merged")])  # nothing blocked: never asked
+    _settled(opt, hub)
     merges.blocked(opt, hub)
-    merges.blocked(opt, hub)
-    _drain()  # a refresh the second call started (an expired TTL) would land here
+    _drain()  # a refresh the third call started (an expired TTL) would land here
     calls = (hub / "scripts" / "calls.log").read_text().splitlines()
     assert calls == [f"--merge-owner {opt / 'alpha'}"]
-
-
-def test_the_overall_deadline_answers_before_a_slow_resolver_finishes(tmp_path, monkeypatch):
-    opt, hub = tmp_path / "opt", _hub(tmp_path)
-    monkeypatch.setattr(merges, "OWNER_DEADLINE_S", 0.3)  # the subprocess timeout stays 10 s
-    _records(opt, "sleepy", [_rec(int(NOW * 1000), "x", phase="refused", outcome="refused")])
-    t0 = time.monotonic()
-    (b,) = merges.blocked(opt, hub)
-    assert b["owner"] is None and b["owner_error"] == "timed out"
-    assert time.monotonic() - t0 < 0.39  # the stub needs 0.4 s
 
 
 def test_a_thread_that_cannot_start_never_wedges_the_repo(tmp_path, monkeypatch):
@@ -357,7 +392,7 @@ def test_a_thread_that_cannot_start_never_wedges_the_repo(tmp_path, monkeypatch)
     (b,) = merges.blocked(opt, hub)
     assert b["owner"] is None and b["owner_error"] == "RuntimeError: can't start new thread"
     assert not merges._INFLIGHT
-    (b,) = merges.blocked(opt, hub)  # the next render retries and resolves normally
+    (b,) = _settled(opt, hub)  # the next render retries and resolves normally
     assert b["owner"] == "coordinator" and b["owner_error"] is None
 
 
@@ -371,16 +406,19 @@ def test_blocked_branches_come_out_in_ulid_order_whatever_the_case(tmp_path):
     assert [b["branch"] for b in merges.blocked(opt, hub)] == ["one", "two"]
 
 
-def test_hanging_resolvers_run_in_parallel_under_one_deadline(tmp_path, monkeypatch):
+def test_hanging_resolvers_run_in_parallel_in_the_background(tmp_path, monkeypatch):
     opt, hub = tmp_path / "opt", _hub(tmp_path)
     monkeypatch.setattr(merges, "OWNER_TIMEOUT_S", 0.5)
     for repo in ("slow1", "slow2", "slow3", "slow4"):
         _records(opt, repo, [_rec(int(NOW * 1000), "x", phase="refused", outcome="refused")])
     t0 = time.monotonic()
     out = merges.blocked(opt, hub)
+    assert time.monotonic() - t0 < 0.4  # nothing waits on a resolver
+    assert [b["owner_resolving"] for b in out] == [True] * 4
+    _drain()
     took = time.monotonic() - t0
-    assert [b["owner_error"] for b in out] == ["timed out"] * 4
-    assert took < 1.5, took  # one deadline for the set; one after another would be >= 2.0 s
+    assert took < 1.5, took  # all four in parallel; one after another would be >= 2.0 s
+    assert [b["owner_error"] for b in merges.blocked(opt, hub)] == ["timed out"] * 4
 
 
 def test_concurrent_renders_share_one_resolver_call_per_repo(tmp_path):
@@ -399,7 +437,12 @@ def test_concurrent_renders_share_one_resolver_call_per_repo(tmp_path):
         th.start()
     for th in threads:
         th.join(10)
-    assert results == [{"sleepy": "intel", "alpha": "coordinator"}] * 4
+    assert len(results) == 4
+    _drain()
+    assert {b["repo"]: b["owner"] for b in merges.blocked(opt, hub)} == {
+        "sleepy": "intel",
+        "alpha": "coordinator",
+    }
     calls = sorted((hub / "scripts" / "calls.log").read_text().splitlines())
     assert calls == [f"--merge-owner {opt / 'alpha'}", f"--merge-owner {opt / 'sleepy'}"]
 
@@ -409,7 +452,7 @@ def test_an_expired_owner_is_served_while_one_refresh_runs_then_replaced(tmp_pat
     monkeypatch.setattr(merges, "OWNER_TTL_S", 0.2)
     (hub / "scripts" / "owner.txt").write_text("fleet", encoding="utf-8")
     _records(opt, "filed", [_rec(int(NOW * 1000), "x", phase="refused", outcome="refused")])
-    assert merges.blocked(opt, hub)[0]["owner"] == "fleet"
+    assert _settled(opt, hub)[0]["owner"] == "fleet"
     (hub / "scripts" / "owner.txt").write_text("intel", encoding="utf-8")
     time.sleep(0.3)  # past the TTL
     assert merges.blocked(opt, hub)[0]["owner"] == "fleet"  # the cached answer, while it refreshes
@@ -607,6 +650,29 @@ def test_a_decision_card_shows_ground_asker_wait_and_clamped_question_with_three
     field = by_id(root, com.attrs["data-text-from"])
     assert field.tag == "input"
     assert find(card, "label", **{"for": com.attrs["data-text-from"]})
+
+
+@pytest.mark.parametrize("bad_id", [None, "", 7], ids=["missing", "empty", "number"])
+def test_an_item_without_a_string_id_gets_no_controls_and_no_target(tmp_path, bad_id):
+    item = _item("W-x", question="Who am I?")
+    if bad_id is None:
+        del item["id"]
+    else:
+        item["id"] = bad_id
+    twin = dict(item)  # two id-less items in one repo must not share element ids
+    res, root, html = _render(tmp_path, work=[_repo("alpha", [item, twin, _item("W-ok")])])
+    sec = by_id(root, "ov-decisions")
+    cards = find(sec, "article")
+    assert len(cards) == 3
+    nameless = [c for c in cards if "Who am I?" in words(c)]
+    assert len(nameless) == 2
+    for c in nameless:
+        # the clamp's own "show all" toggle stays; no action control does
+        assert not _posts(c) and not find(c, "dialog") and not find(c, "input")
+        assert t("ov.dec.no_id") in words(c)
+    ids = [n.attrs["id"] for n in root.walk() if "id" in n.attrs]
+    assert len(ids) == len(set(ids))
+    assert [i["id"] for r in res.item_targets for i in r["items"]] == ["W-ok"]
 
 
 def test_an_awaiting_non_decision_offers_comment_only(tmp_path):
@@ -826,6 +892,21 @@ def test_the_quota_strip_shows_band_account_successor_windows_resets_and_hold(tm
     assert t("ov.q.band_on", band="RED", window=t("ov.q.w.seven_day")) not in text
 
 
+def test_each_window_reset_is_its_own_readers_never_the_active_accounts(tmp_path):
+    status = _status()
+    status["payload"]["posture"]["fleet"]["windows"]["five_hour"] = {
+        "utilization": 20,
+        "slug": "gone",
+    }
+    _res, root, _ = _render(tmp_path, status=status)
+    text = words(by_id(root, "ov-quota"))
+    # "gone" has no account row: its reset is unknown, never the active mob's 10-minute one
+    assert t("ov.q.window", window=t("ov.q.w.five_hour"), pct="20", slug="gone", reset="—") in text
+    for w in ("five_hour", "seven_day", "fable"):  # (the next-relief line names NOW+600 itself)
+        assert f"{t(f'ov.q.w.{w}')}:" in text
+        assert "resets " + fmt.fmt_reset(NOW + 600) not in text, w
+
+
 def _band_line(root) -> str:
     return words(find(by_id(root, "ov-quota"), "span", **{"class": "badge"})[0])
 
@@ -865,17 +946,20 @@ def test_health_lists_stale_views_failed_probes_unreadable_records_and_the_budge
     health = {"stale": [{"view": "accounts", "age_s": 125.0}],
               "failed": [{"key": "box", "error": "OSError: x"}, {"key": "probe", "error": "TimeoutExpired"}]}  # fmt: skip
     budget = {
-        "seats": [{"label": "read-only", "key": "read_only", "allowed": 4, "box": 6, "taken": 2},
-                  {"label": "heavy", "key": "heavy", "allowed": 2, "box": 3, "taken": 2}],
+        "seats": [{"label": "read-only", "key": "read_only", "allowed": 4, "box": 6, "taken": 2,
+                   "floored": True, "quota_cap": 3, "has_quota_cap": True},
+                  {"label": "heavy", "key": "heavy", "allowed": 2, "box": 3, "taken": 2,
+                   "floored": False, "quota_cap": None, "has_quota_cap": False}],
         "cli_cap": 10, "hold": False,
         "quota": {"ok": True, "active": "mob", "hottest_pct": 40, "eligible": 2, "eligible_raw": 3},
         "caveats": ["box probe is old"],
     }  # fmt: skip
     _res, root, _ = _render(tmp_path, health=health, budget=budget, merge_unreadable=["/a", "/b"])
     text = words(by_id(root, "ov-health"))
+    # today's page wording (INV-2): the floor, the siblings' reservation and the quota cap survive
     seats = " · ".join([
-        t("ov.h.budget_seat", label=t("ov.h.seat.read_only"), allowed=4, box=6, taken=2),
-        t("ov.h.budget_seat", label=t("ov.h.seat.heavy"), allowed=2, box=3, taken=2)])  # fmt: skip
+        "read-only seats allowed now: 4 (box 6 = the floor, 2 reserved by sibling sessions, quota 3)",
+        "heavy seats allowed now: 2 (box 3 after 2 reserved by sibling sessions)"])  # fmt: skip
     quota = t("ov.h.budget_quota", active="mob", pct=40, eligible=2, raw=3)
     for s in (
         t("ov.h.stale", view="accounts", age=t("ov.dur.min", n=2)),
@@ -907,6 +991,16 @@ def test_not_honoured_shows_only_when_the_reading_is_exactly_false(tmp_path, hon
     box = {"repos": [{"name": "r", "main": "/x/r", "dormant": 0, "agents": [agent]}]}
     _res, root, _ = _render(tmp_path, box=box)
     assert t("ov.ag.not_honoured") not in words(_row(root, "a"))
+
+
+def test_a_seat_with_nothing_reserved_names_the_box_alone(tmp_path):
+    budget = {"seats": [{"key": "heavy", "allowed": 3, "box": 3, "taken": 0, "floored": False,
+                         "has_quota_cap": False}],
+              "cli_cap": 10, "hold": False, "quota": {}, "caveats": []}  # fmt: skip
+    _res, root, _ = _render(tmp_path, budget=budget)
+    text = words(by_id(root, "ov-health"))
+    assert "heavy seats allowed now: 3 (box 3)" in text
+    assert "reserved" not in text and "quota 0" not in text
 
 
 def test_a_healthy_board_says_so_and_a_disabled_budget_renders_nothing(tmp_path):
@@ -986,8 +1080,10 @@ def test_a_bad_clock_drops_the_clock_stamps_and_the_view_still_renders(tmp_path,
         assert stamps and all("data-ts" not in s.attrs for s in stamps), sec
 
 
-def test_the_overall_owner_deadline_defaults_to_the_resolver_timeout():  # wave r3
-    assert merges.OWNER_DEADLINE_S == merges.OWNER_TIMEOUT_S == 10
+def test_the_resolver_timeout_is_ten_seconds_and_no_render_waits_on_it():  # wave r3, plan review 17
+    # the timeout bounds the BACKGROUND lookup only; a render has no deadline because it never waits
+    assert merges.OWNER_TIMEOUT_S == 10
+    assert not hasattr(merges, "OWNER_DEADLINE_S")
 
 
 def test_the_start_up_no_reading_yet_is_no_health_fault(tmp_path):  # wave r3
