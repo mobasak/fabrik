@@ -1,0 +1,26 @@
+{
+  "block_digest": "f8afbe63d6ccbec9494a4ca0063194fa6bb5b9cfb78d6a9ccf9979f74c791737",
+  "blocked_by": [],
+  "created": "2026-10-11T21:18:04.675428Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-88960882",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "4623618a8b3552b34e0d4aa43109f7e2036d066a5b58d66ecb5e07c147632ee4"
+  ],
+  "next": "",
+  "note": "finish all mails feedbacks related to fabrik-task then fabrik-scoped review then fabrik-review do not keep stopping",
+  "owner": "",
+  "priority": 2,
+  "question": "Should kaizen now run the one-pass treatment on the next queue, `/fabrik-command-improve fabrik-review-scoped` (490 rows)?",
+  "status": "done",
+  "title": "Should kaizen now run the one-pass treatment on the next queue, `/fabrik-command-improve fabrik-review-scoped` (490 rows)?"
+}

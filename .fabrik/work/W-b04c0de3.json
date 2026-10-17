@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T04:01:06.746564Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b04c0de3",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-ui-design-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 5bc1ec6a",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-ui-design-review"
+}

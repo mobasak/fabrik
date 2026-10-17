@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T01:52:20.733594Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-30916395",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-docs-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:deletion-sweep-renames-and-basenames — valid as advice, held below the edit bar: one verdict, no recurrence in 20 reasons (D-711 Opus audit 2026-10-17). Ch",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-docs-review"
+}

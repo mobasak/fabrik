@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T03:32:54.317317Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8a266518",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-catchup",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 62f2d41e",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-catchup"
+}

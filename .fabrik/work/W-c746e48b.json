@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:13:02.901730Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c746e48b",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: Already stated: PHASE 3's execution rule (D-759, D-767) — 'A sentence that describes what a script, tool or another step DOES … is executed on the scenario the",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}

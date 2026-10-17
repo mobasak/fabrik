@@ -459,3 +459,35 @@ def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() ->
         "For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each"
         " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have." in p4
     )
+
+
+ANSWERED_ROW_RULE = (
+    "A row matching an answered reject's subject counts toward those three, never as a held subject's recurrence, and"
+    " the audit below checks the answered rows too, for a case the line they cite does not carry."
+)
+REMOVED_WORDS_RULE = (
+    "A reworded sentence's removed words are grepped across `tests/`, test names and docstrings included, and the"
+    " drafted commit subject before the delta round, and each hit is reworded with it."
+)
+FRAGMENT_SCOPE_RULE = (
+    "A sentence a fragment edit adds names, in its own words, the consumers that have its subject (a review loop, a"
+    " round count) and binds no other."
+)
+TEST_PROBE_RULE = (
+    "A sentence stating how a test or gate behaves is run on that test's or gate's own real cases before PHASE 4's"
+    " first pin, as a recipe is."
+)
+
+
+def test_answered_rows_count_toward_three_and_are_audited_plus_three_phase_three_rules() -> None:
+    """Rows 1792241808 (the untagged-reject parenthetical read as a hold while answered rejects stay final until three
+    cite one line; the audit saw only the advice set), 1792243098 (recurring held
+    commit-subject-written-after-closing-round: removed words left in test names), 1792259406 (the third answered
+    reject on "must be obeyable in each": a close-chain sentence bound 37 commands with no review loop), 1792241313
+    (five answered rejects on the probe rule: test and gate sentences never met their real cases)."""
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert "target resolved and lock-checked as below. " + ANSWERED_ROW_RULE + " An Opus seat audits" in p2
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "also fails when that sentence is extended. " + REMOVED_WORDS_RULE + " A row that prescribes" in p3
+    assert "may find none of the new one. " + FRAGMENT_SCOPE_RULE in p3
+    assert "and its mail id goes in the FEEDBACK line. " + TEST_PROBE_RULE + " A rule whose" in p3

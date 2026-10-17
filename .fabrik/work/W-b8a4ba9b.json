@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T01:52:44.023071Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b8a4ba9b",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-user-test",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:layout-shift-guard-paired-with-line-length — valid as advice, held below the edit bar: one verdict, no recurrence (D-711 Opus audit 2026-10-17; user-test-r",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-user-test"
+}

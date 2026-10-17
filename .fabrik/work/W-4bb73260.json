@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T01:47:51.814028Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-4bb73260",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-doc-converge",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 40402a89",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-doc-converge"
+}

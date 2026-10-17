@@ -1,0 +1,26 @@
+{
+  "block_digest": "ff3862550c1124c921bca381b9f81d0d5533e0f27573ece3001fc03f34f36b02",
+  "blocked_by": [],
+  "created": "2026-10-14T18:04:06.791692Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-1ad56485",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1e9a51be57c8a580046807c3979ed5b97e168807f9e24d23182016989d9852db"
+  ],
+  "next": "",
+  "note": "operator re-posed the question to kaizen 2026-10-14 after the analysis; proceeding with option A (a /fabrik-task on the two CLAUDE.md contracts, fabrik-lib mailed)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I now add the lane-table default sentence to the hub CLAUDE.md and the project template as a `/fabrik-task` with the full review, and mail fabrik-lib for its copy?",
+  "status": "done",
+  "title": "Should I now add the lane-table default sentence to the hub CLAUDE.md and the project template as a `/fabrik-task` with the full review, and mail fabrik-lib for its copy?"
+}

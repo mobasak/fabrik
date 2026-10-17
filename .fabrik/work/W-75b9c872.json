@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:33:51.354107Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-75b9c872",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-flows",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 44fefe57",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-flows"
+}

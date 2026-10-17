@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T19:20:42.610855Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2af2f739",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-execute-plan",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: WEAKENS: a step blocked on box infra already has its named route — commands/_sources/fabrik-execute-plan.md:240 'every step ships in THIS run, or you halt with",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-execute-plan"
+}

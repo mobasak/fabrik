@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:34:05.295292Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f9937d63",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-after-chat",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:migration-plan-asks-which-gates-fail-per-ticket — fabrik-plan-after-chat.md:212-214 (Phase 1): 'A behavioural claim the plan rests on (a render, a state tr",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-plan-after-chat"
+}

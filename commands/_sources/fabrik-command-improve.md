@@ -186,7 +186,9 @@ mechanism words (such as a guard, both sides, a false green), since one step ask
 A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
 (it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
 answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
-target resolved and lock-checked as below. An Opus seat audits the advice set
+target resolved and lock-checked as below. A row matching an answered reject's subject counts toward those
+three, never as a held subject's recurrence, and the audit below checks the answered rows too, for a case the
+line they cite does not carry. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
 loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
@@ -234,7 +236,9 @@ binds each review the step can pick), and the --help and argument handling of an
 works around (a mode may already cover the blind spot). The tests that pin a paragraph's sentences are read before
 a sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and the new text goes where no
 pinned span runs, the gap between two sentences one pin joins included; a pin that ends at a sentence's period also
-fails when that sentence is extended. A row that prescribes how the command works — a step, an
+fails when that sentence is extended. A reworded sentence's removed words are grepped across `tests/`, test names
+and docstrings included, and the drafted commit subject before the delta round, and each hit is reworded with it.
+A row that prescribes how the command works — a step, an
 order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
 mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
 self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
@@ -281,9 +285,12 @@ synthetic file built to break it in a scratch repo (round zero's input classes i
 `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
 sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A rule whose
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A sentence stating how a test or gate behaves is run on
+that test's or gate's own real cases before PHASE 4's first pin, as a recipe is. A rule whose
 subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
-new subject, since a method that finds the old subject may find none of the new one.
+new subject, since a method that finds the old subject may find none of the new one. A sentence a
+fragment edit adds names, in its own words, the consumers that have its subject (a review loop, a round count)
+and binds no other.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:

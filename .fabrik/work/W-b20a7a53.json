@@ -1,0 +1,26 @@
+{
+  "block_digest": "56b59a92a53364428c735621a51c200d0d13f061dff621ce7ffe82955649488f",
+  "blocked_by": [],
+  "created": "2026-10-14T22:11:07.859190Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-b20a7a53",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1c378bd949135f0458f6a6a0da857af23c0d2a47360147c6400fc41c9268ca57"
+  ],
+  "next": "",
+  "note": "obey coordinator",
+  "owner": "",
+  "priority": 2,
+  "question": "Should kaizen continue into the next feedback queue now, or stay stopped after the one you named?",
+  "status": "done",
+  "title": "Should kaizen continue into the next feedback queue now, or stay stopped after the one you named?"
+}

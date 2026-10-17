@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T01:49:07.940683Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8ca73058",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-deploy-checklist",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated: commands/_sources/fabrik-deploy-checklist.md Phase 5 'Before freezing, prove each row can fail' and 'A contract with no red table is DRAFT whate",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-deploy-checklist"
+}

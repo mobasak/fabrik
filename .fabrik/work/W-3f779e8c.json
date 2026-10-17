@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T08:49:33.867336Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-3f779e8c",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated: commands/_sources/fabrik-review.md:209 'a seat that MEASURES by importing code imports the PIN (a git archive <sha> extract with the pinned file",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T05:22:11.938679Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f96be48d",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-deploy-checklist",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by cf3a2a29",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-deploy-checklist"
+}

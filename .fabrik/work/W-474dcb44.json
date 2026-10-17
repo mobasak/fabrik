@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:34:05.707395Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-474dcb44",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:breadth-check-at-pass-1-not-the-flip — fabrik-plan-review.md:95-97 puts the breadth advisory in Phase 0 'with the precondition above' (check_plan_tickets,",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-plan-review"
+}

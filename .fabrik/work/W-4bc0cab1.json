@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T05:06:09.800124Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-4bc0cab1",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-conformance-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by b41c3b19",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-conformance-review"
+}
