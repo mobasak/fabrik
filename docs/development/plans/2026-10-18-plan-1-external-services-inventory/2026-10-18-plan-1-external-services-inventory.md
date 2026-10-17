@@ -101,7 +101,11 @@ would spread that invariant across tickets that must merge together anyway.
 - T02 kept — eight rows, one module: one reader and one renderer whose fixtures share every census class.
 - T03 kept — six rows, one CLI: the generator's output and its exit paths, with the retirement that its `CSS`/`HELPERS`
   removal forces in the same commit (`scripts/dashboard_server.py:26` imports them).
-- T04 kept — the Integration ticket: it owns the indivisible live wiring, so it cannot split by construction.
+- T04 kept — the Integration ticket. Its live wiring is indivisible: the collector, the section and the board suites'
+  stub land together, or every Services render in those suites reads the live registry in between. Its route half
+  (the `303`, `EXT_SERVICES_HTML`, `QUOTA_DASH_EXT_SERVICES` and their tests) could peel into its own commit without a
+  red suite; it stays here because it shares the four board test files and the request path the same review reads,
+  and a peeled ticket would re-read both.
 
 ## Behavior Contract
 
@@ -111,40 +115,41 @@ would spread that invariant across tickets that must merge together anyway.
 - **Given** a `table()` with `align=[None, "right"]`, **When** it renders, **Then** the second column's header and cells carry data-align="right" and a positional call without align renders exactly as before (spec § Contract deltas; scripts/sysadmin/dashboard_ui/components.py:191)
 - **Given** a filter group with a cost select in token mode, **When** the operator picks free, **Then** only rows whose cost token is free stay visible and no freemium row does (spec § The design, Filter bar; scripts/sysadmin/dashboard_ui/static/app.js:460)
 - **Given** a stored filter state holding a select value, **When** the view re-initialises, **Then** the select shows the stored value, and a stored value no option offers resets the select to all and drops that key (spec § The design, Filter bar; scripts/sysadmin/dashboard_ui/static/app.js:514)
-- **Given** closed filter sections, **When** a typed term matches a row inside one, **Then** that section opens, its id is recorded under qd-filter-open:<group>, sections with no match are hidden, and the status element reads the shown and total counts (spec § The design, Filter bar)
+- **Given** closed filter sections, **When** a typed term matches a row inside one, **Then** that section opens, its id is recorded under qd-filter-open:<group>, sections with no match are hidden, the status element reads filter.shown and each group's count element reads filter.group_count with its shown and total counts (spec § The design, Filter bar)
 - **Given** one section opened by the filter and one opened by hand that also matches, **When** the filter is cleared, **Then** the filter-opened section closes, hidden sections return, the hand-opened one stays open, and qd-filter-open:<group> is emptied (spec § The design, Filter bar)
-- **Given** a filter set and a forced swap of the view, **When** the swap completes, **Then** the filter values, the qd-filter-open:<group> record and the visible filtering are unchanged, and a corrupt record (not a list of ids) is reset without touching qd-filter:<group> (spec § Validation; scripts/sysadmin/dashboard_ui/static/app.js:504)
+- **Given** a filter set, **When** the view is force-swapped and, separately, the page is reloaded, **Then** the filter values, the qd-filter-open:<group> record and the visible filtering are the same after each, and a corrupt record (not a list of ids) is reset without touching qd-filter:<group> (spec § Validation; scripts/sysadmin/dashboard_ui/static/app.js:504)
 - **Given** the new components, **When** the page-layer scans run, **Then** every new text parameter is a scanned text slot and align and options are non-text keywords (tests/test_quota_dashboard_page_layer.py:302)
 
 ### T02 — from `T02-inventory-module.md`
 
-- **Given** a fake connection answering the five queries and max(last_seen), **When** load runs with a before_query hook, **Then** it returns rows with balance, unit and credit_at in place of the credit string, synced_at as an epoch float, and the hook ran once before each query (spec § Data flow; scripts/gen_dashboard.py:56)
-- **Given** an api_keys table with no rows, **When** load runs, **Then** synced_at is None and the static data-age line reads Registry never synced (spec § The design item 1)
-- **Given** fixture rows covering every census class, **When** render runs, **Then** the section holds Needs attention with the three census entries, eighteen category tables with the Unidentified table last, the Untriaged queue as one section of list entries, and the More counts with each value equal to its formula (spec § The design items 2-5)
-- **Given** a credit 47 h old and one 49 h old, a synced_at and a classified_at each 49 h old, and six rows sharing a reason, **When** render runs, **Then** the 49 h credit, the stale registry and the stalled classifier are attention entries, the 47 h credit is not, a stalled classifier with an empty Untriaged queue is not, and the six rows collapse into one counted details listing every name (spec § The design item 3)
-- **Given** providers named www.googleapis and captcha and a category named captcha, **When** render runs, **Then** every details carries a slug id with its kind's prefix, every id is valid and unique, and a URL that link refuses renders as plain text (spec § Data flow; scripts/sysadmin/dashboard_ui/components.py:78)
+- **Given** a fake connection answering the five queries and max(last_seen), with a fetchone that returns None for an empty answer as the chain suite's fake does and, separately, (None,) as Postgres does, **When** load runs with and without a before_query hook, **Then** it returns rows with balance, unit and credit_at in place of the credit string, synced_at as an epoch float or None in both empty shapes, the hook ran once before each query, and with no hook no other SQL ran (spec § Data flow; tests/test_external_services_chain.py:1096)
+- **Given** provider URLs https://ok.example, HTTPS://UP.example, /admin, #x and http://a b, **When** render runs, **Then** only the first carries an href and every other renders as plain text (spec § Validation; scripts/sysadmin/dashboard_ui/components.py:47)
+- **Given** fixture rows covering every census class at census counts, **When** render runs, **Then** the section holds Needs attention, eighteen category tables with the Unidentified table last, the Untriaged queue as one section of 331 list entries and no table row, an unidentified row in both Needs attention and the Unidentified table, and the More counts each equal to its formula (spec § The design items 2-5; spec § Validation)
+- **Given** one row per attention rule (a 49 h credit, unattributed credentials, unidentified, retiring), a 47 h credit, a healthy row, a paid row with no credential, synced_at and classified_at each 49 h old, 47 h old and None, and five and six rows sharing a reason, **When** render runs, **Then** each rule row, both 49 h and both None source cases are entries, the 47 h, healthy and paid-without-credential rows and a stalled classifier over an empty Untriaged queue are not, five rows are listed by name and six collapse into one counted details listing all six (spec § The design item 3; spec § Validation)
+- **Given** providers named www.googleapis and captcha and a category named captcha, **When** render runs interactive, **Then** every details carries a slug id with its kind's prefix, every id is valid and unique, and every filter target carries a data-f-<name> attribute for each filter control's name (spec § Data flow; scripts/sysadmin/dashboard_ui/static/app.js:473)
 - **Given** interactive False, **When** render runs, **Then** the output holds no filter control, no clamp, no button and no data-filter-status, and project lists past three names show the rest in a native details (spec § Chosen approach)
 - **Given** a credential value string in the fixture and a provider named </script><img src=x onerror=1>, **When** render runs in both modes, **Then** the value appears nowhere and the name renders as text (spec § Validation)
 - **Given** a 5,000-row fixture, **When** render runs, **Then** it completes in under 200 ms (spec § Lifecycle)
 
 ### T03 — from `T03-static-file.md`
 
-- **Given** a fixture registry, **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only https provider hrefs, the inlined app.css, and a dated, zoned Registry synced line (spec § Validation; spec § The design item 1)
+- **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only https provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)
+- **Given** a fake connection that records close, **When** _read runs and when inventory.load raises, **Then** the connection is closed on both paths (scripts/gen_dashboard.py:121)
 - **Given** a fixture registry, **When** the static file is written, **Then** each of today's ten stat values, ten columns and the footer legend appears at the home the spec maps it to (spec § The design item 2; spec § Validation)
 - **Given** a dead registry or a render that raises, **When** main runs, **Then** it prints the one typed line, exits 1 and leaves the previous file unchanged (spec § Failure; scripts/gen_dashboard.py:308)
 - **Given** a row missing a required key, **When** main runs, **Then** it exits 1 rather than writing a file (tests/test_external_services_chain.py:1043)
-- **Given** gen_dashboard and its imports, **When** the module loads twice, **Then** scripts and scripts/sysadmin each appear on sys.path once and quota_dashboard is never imported (spec § Chosen approach; tests/test_external_services_chain.py:2059)
+- **Given** gen_dashboard and its imports, **When** the module loads twice, and separately in a fresh subprocess, **Then** scripts and scripts/sysadmin each appear on sys.path once, and the subprocess's sys.modules never holds quota_dashboard (spec § Chosen approach; tests/test_external_services_chain.py:2059)
 - **Given** the retirement, **When** the scripts and tests are searched, **Then** dashboard_server.py and its tests are gone, while the chain's step and heartbeat are unchanged (spec § Contract deltas; scripts/external_services_chain.sh:117)
 
 ### T04 — from `T04-integration.md`
 
-- **Given** the board test isolation, **When** any board test renders the Services view, **Then** the inventory collector returns its stub and no connection to the registry is opened, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:35)
+- **Given** the board test isolation, **When** any board test renders the Services view or calls registry_db.connect, **Then** the inventory collector returns the census fixture or its stated stub, every connect attempt raises and is recorded so the test fails, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:46)
 - **Given** a registry whose read never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the exception class and first line only, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
-- **Given** two concurrent requests with an empty slot, and a read abandoned at its deadline, **When** they reach the collector, **Then** one registry read runs and both serve its result, a request within 60 s reads no registry, and the abandoned read never blocks a later request (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
+- **Given** an empty slot, a read in flight, a read abandoned past its deadline, and a slot 59 s and 61 s past its read start, **When** requests reach the collector, **Then** concurrent requests share one read, every request answers within 5 s of its own arrival, a request finding only an abandoned read starts none and serves the last good slot or the error state, and the slot serves at 59 s and is re-read at 61 s (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
 - **Given** psycopg2 cannot be imported, **When** the board starts and the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and scripts appears on sys.path once (spec § Contract deltas D9)
 - **Given** a bookmark to /external-services.html, **When** it is requested, **Then** the board answers 303 to /#services with an empty body, and no link card, ext_page key or services.ext string remains (spec § Contract deltas; scripts/sysadmin/quota_dashboard.py:2833)
-- **Given** the Services view in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select and clears, **Then** the group holding the match opens, the count updates, Cost free shows no freemium row, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)
-- **Given** the inventory section with groups collapsed, **When** the browser measures it at 1280 px, **Then** it is at most 4,000 px tall, and axe reports no violation of 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2 or 4.1.3 in both themes, with an open row detail included (spec § Validation; spec § Risks the plan carries)
+- **Given** the Services view at census scale (tests/external_services_fixture.py) in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select, force-swaps and clears, **Then** the group holding the match opens, groups with no match are hidden, the count updates, Cost free shows no freemium row, the Needs-attention list is unchanged by any filter, the filter values, the qd-filter-open:<group> record and the visible filtering survive the swap, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)
+- **Given** the inventory section at census scale with groups collapsed, and the static file gen_dashboard writes from the same fixture, **When** the browser measures each at 1280 px and 375 px, **Then** the section is at most 4,000 px tall, the static file lays out without sideways scroll inside its wrapper, and axe reports no violation of 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2 or 4.1.3 in both themes, with an open row detail included (spec § Validation; spec § Risks the plan carries)
 - **Given** two renders of the Services view a minute apart with the same registry, **When** their fragments are compared, **Then** the data-stamp is unchanged (spec § Data flow; scripts/sysadmin/dashboard_ui/views/__init__.py:66)
 
 ## Global Constraints
@@ -175,9 +180,9 @@ adds for the packs the rubric matches (10-python, 12-node, 40-documentation, 45-
 |---|---|---|
 | Zero secrets in either output (I4); a credential COUNT only. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:409` | T02, T03 |
 | The chain's CLI, exit codes, atomic write and D-106 heartbeat unchanged (I5). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:410` | T03 |
-| The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`, | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:411` | T02, T03 |
+| The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`, `components` and `strings` only, never `quota_dashboard` (the panel's caveat). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:411` | T02, T03 |
 | The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:413` | T03, T04 |
-| The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:414` | T04 |
+| The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that interpreter: 2.9.11 from the user site `~/.local` when `HOME` is set, as under the board's cron and `--serve`; 2.9.9 from the system `dist-packages` otherwise) as a named exception to the parent spec's "no new dependency" rule (D9), imported lazily so the rest of the board stays stdlib. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:414` | T04 |
 | Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:418` | T01, T02, T04 |
 | BANNED: logging.FileHandler, logging.handlers.RotatingFileHandler, TimedRotatingFileHandler, loguru file sinks, any *.log file write, any in-app log rotation/retention/cleanup. | `.windsurf/rules/core/10-python.md:294` | Global Constraints XI |
 | No cosmetic assertions: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. | `.windsurf/rules/core/45-testing-strategy.md:21` | Every ticket's tests assert landmarks, roles, text and state; T04's height check is the spec's measured budget, read from the browser, not a snapshot |
@@ -213,6 +218,7 @@ adds for the packs the rubric matches (10-python, 12-node, 40-documentation, 45-
 - tests/test_quota_dashboard_app_js.py
 - tests/test_quota_dashboard_page_layer.py
 - tests/test_external_services_inventory.py
+- tests/external_services_fixture.py
 - tests/test_external_services_chain.py
 - tests/quota_dashboard_isolation.py
 - tests/test_quota_dashboard.py
@@ -224,6 +230,7 @@ adds for the packs the rubric matches (10-python, 12-node, 40-documentation, 45-
 - docs/workflows/DATA_SYNC_WORKFLOW.md
 - docs/CAPABILITIES.md
 - capabilities.json
+- llms.txt
 - docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md
 
 ## Evidence
@@ -294,8 +301,8 @@ ticket; 14 plan-shaping findings, 0 refuted; the cited lines re-printed above.
 the reader and renderer invariants → T02; the bounded read and the failure paths → T04 (live), T03 (chain); the
 contract deltas → T01 (components, app.js), T03 (the generator, the retirement), T04 (the board, the route); § Validation
 → T02 (unit), T03 (chain), T04 (browser, axe, height); § Lifecycle's 5,000-row render test → T02; § Risks the plan
-carries → T04 (axe 1.3.1 with an open detail, the static wrapper measured in T03, the height, the test sequencing,
-the retirement owner named at T04's close). No gap.
+carries → T04 (axe 1.3.1 with an open detail, the static file opened in the browser and measured, the height, the
+test sequencing, the retirement owner named at T04's close). No gap.
 
 (b) Cross-ticket signature consistency — T02 produces `load(conn, *, before_query=None)`, which T03 calls with no hook
 and T04 with its deadline hook; `render(rows, *, now, synced_at, classified_at, interactive)`, which T03 calls with
@@ -309,18 +316,18 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
 
 | Class | Verdict |
 |---|---|
-| core/35-security-auth.md | UNCHECKED |
-| core/25-data-postgres.md | UNCHECKED |
-| core/30-ops.md | UNCHECKED |
-| 12-FACTOR | UNCHECKED |
-| core/10-python.md | UNCHECKED |
-| core/12-node.md | UNCHECKED |
-| core/40-documentation.md | UNCHECKED |
-| core/45-testing-strategy.md | UNCHECKED |
-| Recurrence: fail-open vs fail-closed on every gate/guard | UNCHECKED |
-| Recurrence: cost/quota/limit accounting edges (unknown ≠ 0, per-call vs batch) | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix collisions | UNCHECKED |
-| Recurrence: behavior-without-a-test | UNCHECKED |
+| core/35-security-auth.md | CLEAN — no auth, secret or CORS surface changes; zero secrets held (T02 row 7, T03); the board's loopback bind and POST guards untouched (Global Constraints); hunted T01-T04 Touches |
+| core/25-data-postgres.md | FIXED — no schema or migration; the read is SELECT-only in one implicit transaction, bounded server-side by statement_timeout and client-side by T04's worker deadline (rules-3/4); `fetchone` shapes for an empty max() settled in T02 (rules-1) |
+| core/30-ops.md | CLEAN — no container, compose, port or deploy surface; the chain's step and heartbeat unchanged (T03, `scripts/external_services_chain.sh:117`) |
+| 12-FACTOR | CLEAN — Global Constraints list each axis as it applies; no logfile (XI), no new binary (II), granular env vars only (III, `QUOTA_DASH_EXT_SERVICES` removed in T04) |
+| core/10-python.md | FIXED — every new Python function typed in its ticket's Produces; logs stay stderr lines; Decimal-to-float at the credit_cell seam (T03) |
+| core/12-node.md | REFUTED — matched by glob on app.js only, a browser script with no Node runtime (Constraints Digest row) |
+| core/40-documentation.md | FIXED — each doc site owned by a ticket's Docs line (T03 registry doc, T04 quota-dashboard doc, DATA_SYNC wording, catalogue regenerated with llms.txt in File Scope, rules-11) |
+| core/45-testing-strategy.md | FIXED — one Behavior row per behaviour, spec § Validation rows mapped (rules-6, rules-7, context-3), census-scale fixture shared (rules-8), red-first possible for every row |
+| Recurrence: fail-open vs fail-closed on every gate/guard | FIXED — the registry guard in the board suites now fails loudly on any connect (rules-3); link() gated to ^https?:// before it is called (rules-2); a missing psycopg2 is the section's error state, never a silent empty (T04 row 4) |
+| Recurrence: cost/quota/limit accounting edges (unknown ≠ 0, per-call vs batch) | FIXED — a None synced_at or classified_at is an attention entry, never a fresh read (T02 row 4); one read alive at a time, each request's own 5 s budget (rules-4/10); the slot's 60 s counted from the read's start (rules-12) |
+| Recurrence: boundary/sentinel/prefix collisions | FIXED — slug ids with a prefix per kind against `captcha` as provider and category (T02 row 5); the five/six collapse boundary and 47/49 h boundaries pinned (T02 row 4); token mode so free never matches freemium (T01 row 3) |
+| Recurrence: behavior-without-a-test | FIXED — the static wrapper's layout (context-3), the reload of the filter record (context-7), the connection close (context-5) and every spec § Validation browser step (rules-7) now each carry a row |
 
 ```text
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -492,6 +499,7 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
 
 | Pass | seats · axes re-checked | counters | method | set md5 (start → end) |
 |-----:|---|---|---|---|
+| Pass 1 | opus×1 (slice rules: spine Interfaces, Execution Discipline, Global Constraints, roll-up, File Scope; T02, T04) + sonnet×1 (slice context: T01, T03; spine agreed, intake, breadth, digest, ledger, Evidence, Self-audit, residuals) · shape: agent-tool (D-961) | found: 20, new: 20, confirmed: 19, fixed: 19, unexecuted: 0, edits: 31 | method: re-derivation — every candidate re-executed by the lead: the one-argument `render` lambda against the keyword call (`TypeError`), `link()` over `/admin` and `#top` (both linked), a spy on `socket.socket.connect` around `psycopg2.connect` (no call seen), the chain fakes' answer keys and `fetchone` (`tests/test_external_services_chain.py:1078-1106`), `after_load` at `tests/quota_dashboard_isolation.py:46`, the filter emitter `scripts/sysadmin/dashboard_ui/views/commands.py:144`, :164; context-7b (option labels unscanned) recorded, not a defect: labels come from the catalogue | 57927e7d695b0abf43104f848437f88f → 346d93a7a99b0a7dc669734bb21d5eeb |
 
 ## Residual unknowns
 
