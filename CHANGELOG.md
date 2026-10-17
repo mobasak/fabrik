@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review receipt skeleton no longer lists half of the by-design refusals (2026-10-17)
+
+`scripts/review_receipt.py`'s skeleton said the gate refuses three by-design shapes. `check_review_coverage.py::_residual_errors` refuses six, and its `D-nnn` row check passes everything when no ledger with rows is readable. The skeleton now points at `_residual_errors` and `_ledger_ids` instead of restating them. `tests/enforcement/test_review_refusals.py` fails if the partial list returns or either function is renamed (kaizen, mail 01M53SBC2D).
+
 ### Changed — the SCOPE GROWTH messages are now pinned whole by tests (2026-10-17)
 
 Both of `command_run.py`'s scope-growth messages, the in-lane one and the ordinary-window one, tell a review to fix the window's open defects, re-verify the fixed set alone, and close on a quiet round. `tests/test_command_run.py` now pins both messages whole, by equality, and `tests/test_command_run_lane_v2.py` pins that `round` prints the in-lane one with nothing after it. So a dropped, reordered, negated or added instruction fails. Before this, only each message's headline was pinned, so the wording that once let a run close with confirmed defects still open could return green (kaizen, mail 01M53S190T; W-49f3515f).
