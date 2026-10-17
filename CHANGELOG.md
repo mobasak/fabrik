@@ -31,6 +31,10 @@ so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling wa
 filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
 (W-9f436e18).
 
+### Fixed — the Stop hook no longer orders a commit of the file a running review is still reviewing (2026-10-17)
+
+`.claude/hooks/final_gate_stop.py`'s uncommitted cause no longer counts a file that the fresh, running review-family record names in its `--surface`. Before this, a session was told to commit mid-review, the reverse of the lane's order. The fifth cause now blocks that turn instead, telling the session to run the review to its terminal condition. The exemption holds only on a stop the fifth cause actually blocks (`_review_exempts_commit`): with the run's seats in flight, on its warn-through stop, or once the record closes, the commit is ordered again, so no stop leaves the file ordered by neither cause. The exemption is gated on the same fresh record the fifth cause blocks on, so the `COMMAND_RUN_STALE_H=0` opt-out cannot turn an abandoned record into a permanent exemption. The urgent-90 checkpoint still orders the commit (D-306). Both callers now share one predicate, `_own_uncommitted`. A stand-down lands in the kaizen stream as `stop_block` `stood_down` (W-5ce56208).
+
 ### Added — `command_run.py capture`, and `--commit` takes a comma list (2026-10-17)
 
 `python3 scripts/command_run.py capture --msg <file> --out <file>` replaces `/fabrik-task` phase 5's chained capture shell line with one plain command, which a worktree session's guard accepts. It finds the commit by its message file's subject, never `HEAD`, checks that the subject matches exactly, and appends the sha. It exits 1 on any miss. `done`/`blocked`/`handoff --commit a,b` now close exactly like `--commit a b`; before this, the comma form was refused as "not this run's commit". Both answer feedback rows routed by kaizen (mail 01M55GGMS5).

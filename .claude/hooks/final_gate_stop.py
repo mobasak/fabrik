@@ -1351,12 +1351,9 @@ def _urgent_checkpoint(
     owed: list[str] = []
     stood: list[tuple[str, dict]] = []
     arm = _arm_order(sid, str(root))
-    dirty = _dirty_paths(root)
-    mine = sorted(
-        rel
-        for rel, edit_ts in authored_map.items()
-        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
-    )
+    # No running-review exemption here (`_review_exempts_commit` is never asked): D-306's urgent
+    # tier orders the checkpoint commit before the wall — losing the work outranks the review order
+    mine = sorted(_own_uncommitted(root, authored_map))
     if mine:
         more = f" (+{len(mine) - 8} more)" if len(mine) > 8 else ""
         items.append(
@@ -1592,6 +1589,42 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
 
 
 _SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
+
+
+def _own_uncommitted(root: Path, authored: dict[str, int]) -> set[str]:
+    """The session-authored paths that are dirty and whose last edit is newer than their last
+    commit (an older edit's dirt is a pipeline's or a sibling's) — the uncommitted cause's set and
+    the urgent checkpoint's (ONE predicate, two callers; W-5ce56208)."""
+    dirty = _dirty_paths(root)
+    return {
+        rel
+        for rel, edit_ts in authored.items()
+        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
+    }
+
+
+def _review_exempts_commit(sid: str, transcript_p: str) -> dict | None:
+    """The FRESH running record whose `--surface` the uncommitted cause stands down for, or None.
+
+    W-5ce56208: the session is never ordered to commit what its own running review is still
+    reviewing — but ONLY on a stop the fifth cause will block instead, so a file is never ordered
+    by neither cause. Hence None when:
+    - the record is not fresh (`_run_record`, never `_run_record_raw`: under the operator's
+      `COMMAND_RUN_STALE_H<=0` opt-out the fifth cause cannot block, and `_surface_reviewed` skips
+      its own staleness test, so a raw record would exempt the file for ever — critique C1/F1);
+    - the run's seats are in flight (the fifth cause stands down then, W-4c7edc74);
+    - this stop is the fifth cause's warn-through (its counter at the cap) — the commit order
+      comes back instead of a silent allow (review A-1).
+    The urgent-90 tier never asks: D-306's checkpoint commit outranks the review order.
+
+    Cobra (D-253): the cheapest way past it is to name the file in a running review's surface and
+    never close the review; the fifth cause then blocks to its cap, and at the warn-through stop
+    the commit cause fires again."""
+    run = _run_record(sid)
+    if not run or run.get("state") != "running" or _seats_in_flight(run, transcript_p):
+        return None
+    run_attempts = _read_counters(_counter_path(sid))[4]
+    return run if decide_stall(True, run_attempts)[0] == "block_stall" else None
 
 
 def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
@@ -5010,16 +5043,21 @@ def main(argv: list[str]) -> int:
         authored: dict[str, int] = authored_map
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            dirty = _dirty_paths(root)
-            for rel, edit_ts in authored.items():
-                if rel not in dirty:
-                    continue
-                # The session's last edit already COMMITTED → today's dirt on the
-                # same file belongs to someone else (pipeline/sibling), not this
-                # session. Only an edit NEWER than the file's last commit counts.
-                if edit_ts and _last_commit_ts(root, rel) >= edit_ts:
-                    continue
-                own_uncommitted.add(rel)
+            # `_own_uncommitted` is the set; a file the running review names is that review's to
+            # finish first, on the stops its fifth cause blocks (W-5ce56208, `_review_exempts_commit`).
+            everything = _own_uncommitted(root, authored)
+            exempting = _review_exempts_commit(sid, transcript)
+            own_uncommitted = (
+                everything - _surface_reviewed(exempting, authored, sid) if exempting else everything
+            )
+            if everything - own_uncommitted:
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="uncommitted",
+                    outcome="stood_down",
+                    files=len(everything - own_uncommitted),
+                )
 
         # Attribute NEW gate failures by CITED PATH, not just check name: on shared
         # master a sibling's staged/dirty files flip a check red mid-session, and
