@@ -286,22 +286,32 @@ def test_every_action_work_py_emits_is_classified_for_amber():
     import ast
 
     tree = ast.parse((_TREE / "scripts" / "work.py").read_text(encoding="utf-8"))
-    # Every `action` value work.py builds, whatever the spelling: a dict-literal key (either quote),
-    # `dict(action=…)`, or `x["action"] = …`. The whole file, never a slice by function position —
-    # a rung defined outside a slice was invisible (review S-1).
-    values: list[tuple[ast.AST, bool]] = []  # (value, is an item comment's record)
+    # The `action` values work.py builds, over the WHOLE file (a slice by function position missed a
+    # rung outside it — review S-1), in these spellings: a dict-literal key in either quote style, any
+    # call's `action=` keyword (`dict(…)`, `.update(…)`) but argparse's `add_argument`, a
+    # `.setdefault("action", …)` / `.update({"action": …})` argument, and `x["action"] = …`.
+    # NOT seen, by design (none occurs in work.py): a comprehension, an augmented or annotated assign,
+    # a key held in a variable, and anything another module builds.
+    values: list[tuple[ast.AST, bool]] = []  # (value, is the item comment's record)
     for node in ast.walk(tree):
         if isinstance(node, ast.Dict):
             keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
             for k, v in zip(node.keys, node.values, strict=True):
                 if isinstance(k, ast.Constant) and k.value == "action":
-                    values.append((v, {"via", "by"} <= keys))
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "dict"
-        ):
-            values += [(kw.value, False) for kw in node.keywords if kw.arg == "action"]
+                    # the item comment: a `by`/`via` record whose action is the verdict variable
+                    comment = {"via", "by"} <= keys and isinstance(v, ast.Name) and v.id == "action"
+                    values.append((v, comment))
+        elif isinstance(node, ast.Call):
+            attr = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if attr != "add_argument":
+                values += [(kw.value, False) for kw in node.keywords if kw.arg == "action"]
+            if (
+                attr == "setdefault"
+                and len(node.args) == 2
+                and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == "action"
+            ):
+                values.append((node.args[1], False))
         elif isinstance(node, ast.Assign):
             for t in node.targets:
                 if (
@@ -310,7 +320,7 @@ def test_every_action_work_py_emits_is_classified_for_amber():
                     and t.slice.value == "action"
                 ):
                     values.append((node.value, False))
-    # ONE exception, named by its shape: an item comment `{"by": …, "via": …, "action": action}`
+    # ONE exception, by shape AND value: the item comment `{"by": …, "via": …, "action": action}`
     # (`cmd_verdict`, W-e1f1a1bd) records the operator's verdict, never a stop action.
     comments = [v for v, is_comment in values if is_comment]
     assert len(comments) == 1, (
@@ -324,10 +334,14 @@ def test_every_action_work_py_emits_is_classified_for_amber():
         if not (isinstance(v, ast.Constant) and (v.value is None or isinstance(v.value, str)))
     ]
     assert not unread, (
-        f"a stop action built from a non-literal escapes the classification: {unread}"
+        f"an `action` built from a non-literal escapes the classification: {unread} — a stop action "
+        "must be a literal name; a record that is not a stop action needs its own named exception"
     )
     emitted = {v.value for v in stop if isinstance(v, ast.Constant) and isinstance(v.value, str)}
-    assert emitted == set(_STARTS) | set(_FINISHES), emitted ^ (set(_STARTS) | set(_FINISHES))
+    assert emitted == set(_STARTS) | set(_FINISHES), (
+        f"unclassified `action` names {emitted ^ (set(_STARTS) | set(_FINISHES))}: a new stop action "
+        "goes in _STARTS or _FINISHES; a record that is not a stop action needs its own named exception"
+    )
     assert frozenset(_STARTS) == hook._COORD_AMBER_STARTS
 
 
