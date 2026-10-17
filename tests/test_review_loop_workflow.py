@@ -2400,3 +2400,28 @@ def test_each_review_command_carries_the_run_scratch_clause() -> None:
         body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
         flat = " ".join(body.split())
         assert flat.count(RUN_SCRATCH_CLAUSE) == 1, name
+
+
+SCRATCH_HOME_CLAUSE = (
+    "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, are the run's `SCRATCH:` folder"
+)
+
+
+def test_each_review_command_names_the_durable_home_of_pins_and_pass_files() -> None:
+    """Mail 01M4ZR1B2C (row 1791906916): the four commands named `scratch_dir` but left `pins_dir` and
+    `<scratch>/pass-<n>.json` homeless, so a lead put them under /tmp and a WSL shutdown lost the pass.
+    Each now names the run's durable `SCRATCH:` folder (D-836), once."""
+    for name in ("fabrik-review", "fabrik-review-scoped", "fabrik-plan-review", "fabrik-spec-review"):
+        body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        assert flat.count(SCRATCH_HOME_CLAUSE) == 1, name
+
+
+def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -> None:
+    """Mail 01M50FD9YE (D-911): three agents asked for a fresh whole re-read in one week because the
+    fragment stated D-335 without its reason; the reason now sits at the rule."""
+    body = " ".join((ROOT / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8").split())
+    assert (
+        "never a fresh whole-artifact reader, because a fresh whole reader re-scopes every pass and the fix "
+        "between rounds seeds the next round (D-335, D-911;" in body
+    )
