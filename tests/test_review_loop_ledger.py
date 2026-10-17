@@ -136,6 +136,13 @@ def test_read_writes_the_pass_ledger_to_a_file_with_every_seat_timed(tmp_path: P
         and seats["refute:A"]["read_no_file"] is False
     )
     assert [x.get("read_no_file", False) for x in doc["ledger_status"]] == [False, True]
+    # kaizen 01M55F55HE: a resumed review rebuilds its close-out from the pass file, so each seat's coverage
+    # statement and MACHINERY block (its `notes`) and what it read survive the read, per seat
+    assert seats["find:A:sonnet"]["notes"] == ["n"]
+    assert seats["find:A:sonnet"]["files_read"] == ["a.py"]
+    assert seats["find:B:haiku"]["notes"] == ["No, I have not stopped."]
+    assert seats["find:B:haiku"]["files_read"] == []
+    assert seats["find:B:sonnet"]["notes"] == [] and seats["find:B:sonnet"]["files_read"] == []
     assert (
         "find:B:haiku" in r.stdout
         and "READ 0 FILES" in r.stdout
@@ -175,6 +182,44 @@ def _journal(tmp: Path, rows: list, stamps: dict | None = None) -> Path:
             "".join(json.dumps({"timestamp": t}) + "\n" for t in ts)
         )
     return d
+
+
+def test_a_seat_that_returns_more_than_once_keeps_one_clean_report_list(tmp_path: Path) -> None:
+    """kaizen 01M55F55HE, review pass 1: `files_read` is the union of every result's string entries, trimmed,
+    deduplicated and in first-seen order — a blank, a non-string or a non-list never reads as a file, the same rule
+    `read_no_file` applies — and `notes` keeps each non-blank string note, so an off-schema result adds nothing."""
+    d = _journal(
+        tmp_path,
+        [
+            {"type": "started", "agentId": "a1", "label": "find:A:sonnet"},
+            {
+                "type": "result",
+                "agentId": "a1",
+                "result": {
+                    "files_read": ["a.py", "", None, 3, {"p": "q"}, " b.py "],
+                    "notes": "first",
+                },
+            },
+            {
+                "type": "result",
+                "agentId": "a1",
+                "result": {"files_read": ["b.py", "a.py", "c.py"], "notes": "   "},
+            },
+            {"type": "result", "agentId": "a1", "result": {"files_read": "a.py", "notes": ["x"]}},
+            {"type": "started", "agentId": "a2", "label": "find:A:haiku"},
+            {"type": "result", "agentId": "a2", "result": {"files_read": ["", None], "notes": "n"}},
+        ],
+    )
+    out = tmp_path / "p.json"
+    r = _tool("read", str(d), "--out", str(out))
+    assert r.returncode == 0, r.stderr
+    seats = {s["label"]: s for s in json.loads(out.read_text())["seats"]}
+    assert seats["find:A:sonnet"]["duplicate_results"] == 3
+    assert seats["find:A:sonnet"]["files_read"] == ["a.py", "b.py", "c.py"]
+    assert seats["find:A:sonnet"]["notes"] == ["first"]
+    assert (
+        seats["find:A:haiku"]["files_read"] == [] and seats["find:A:haiku"]["read_no_file"] is True
+    )
 
 
 def _cand2(cid: str, line: int) -> dict:
