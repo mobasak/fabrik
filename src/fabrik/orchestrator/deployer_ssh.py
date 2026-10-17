@@ -814,8 +814,9 @@ class SSHDeployer:
             path = source.path or f"/opt/{name}"
 
         # source.path is spec-supplied and reaches a root shell on the VPS: every command below
-        # quotes it, as the /opt probe and the .env read do (shlex.quote, :390 and _read_env_file).
-        compose_file = shlex.quote(f"{path}/compose.yaml")
+        # quotes it (_shell_path), keeping a leading ~/ for the shell to expand, as the .env
+        # writer does (_write_file_to_vps_path leaves a tilde app dir unquoted).
+        compose_file = _shell_path(f"{path}/compose.yaml")
 
         # Verify compose exists at the path
         try:
@@ -847,7 +848,7 @@ class SSHDeployer:
         existing = existing or {"name": name, "path": path}
         env = self._build_env(ctx, name, existing, app_path=path)
         _write_env_files(path, env, _write_file_to_vps_path)
-        _ssh(f"cd {shlex.quote(path)} && sudo docker compose up -d --wait", timeout=120)
+        _ssh(f"cd {_shell_path(path)} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -946,6 +947,17 @@ def claude_cli_mount_lines(container_home: str) -> list[str]:
         f"{VPS_CLAUDE_HOME}:{home}/.claude:ro",
         f"{VPS_CLAUDE_HOME}.json:{home}/.claude.json:ro",
     ]
+
+
+def _shell_path(path: str) -> str:
+    """``path`` as ONE shell word for a remote command, a leading ``~/`` (or a bare ``~``) left
+    outside the quotes so the remote shell still expands it to the ssh user's home; anything else
+    — ``;``, spaces, ``$`` — stays inside ``shlex.quote``. ``~user/…`` is quoted whole (literal)."""
+    if path == "~":
+        return "~"
+    if path.startswith("~/"):
+        return "~/" + shlex.quote(path[2:])
+    return shlex.quote(path)
 
 
 def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:

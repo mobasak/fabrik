@@ -1132,6 +1132,23 @@ class TestDeployLocal:
         assert cmds[1] == f"sudo cat {quoted_file}", cmds[1]
         assert cmds[-1].startswith("cd '/srv/a;echo INJECTED' && "), cmds[-1]
 
+    def test_a_tilde_source_path_stays_expandable_in_every_command(self):
+        """A leading ~/ is left for the remote shell (as the .env writer leaves it), while the
+        rest of the path is still one quoted word — quoting the tilde would refuse every
+        ~-rooted local source with "no compose.yaml found"."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "~/apps/my app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        assert cmds[0] == "test -f ~/'apps/my app/compose.yaml' && echo exists", cmds[0]
+        assert cmds[1] == "sudo cat ~/'apps/my app/compose.yaml'", cmds[1]
+        assert cmds[-1].startswith("cd ~/'apps/my app' && "), cmds[-1]
+
     def test_compose_read_oserror_aborts_before_writing(self):
         """An OSError from the ssh driver (no ssh binary) refuses like any failed read."""
         ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
