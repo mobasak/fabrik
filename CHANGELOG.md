@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review_loop_ledger.py next carries every open claim the --ids leave out (2026-10-17)
+
+- W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's
+  `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). It now carries every open claim (a
+  confirmed or unverified candidate, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch
+  ledger) and prints `CARRIED <id>` / `OPEN NOT CARRIED <id>` on stderr; `--drop <id>` closes one the lead
+  settled outside the pass file. Graders in `tests/test_review_loop_ledger.py`, seen red first.
+
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 
 - W-7f545f4a re-ran the release kit's network checks (W-e2af3303, D-905) now that npm answers. `pnpm install`,

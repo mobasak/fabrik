@@ -16,7 +16,7 @@ file, not its scrollback. So:
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED.
-    review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS]
+    review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS] [--drop ID,ID]
         The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
         every claim listed. With --args (mail 01M4PHYNXJ) — the run's `workflows/<runId>.json`, or a bare args
@@ -24,6 +24,12 @@ file, not its scrollback. So:
         ledger replaced), so stdout is the next launch's `slices`; a run file resolves each id against its
         `result` union candidates, the ids the verdicts carry (`A-S1#2`), never a numbering of its own. stderr
         names the launch slices not carried and the `DISPATCH:` stamp (finders + one refuter per slice).
+        Every OPEN claim the --ids leave out is CARRIED too (W-b1f67743, /fabrik-spec-review row 1790195711): a
+        candidate whose verdict is confirmed or unverified — the run file's own normalised verdicts with --args,
+        else the pass file's, normalised by the workflow's rule (`_verdict_of`) — and a DEFECT_PRESENT/NEW
+        ledger_status id no candidate carries, resolved from the launch ledger. stderr says `CARRIED <id>`, or
+        `OPEN NOT CARRIED <id>` when nothing resolves it; `--drop ID[,ID]` closes an open claim the lead settled
+        outside the pass file (`DROPPED <id>`), and a --drop id that is not open is refused.
     review_loop_ledger.py pin --pins-dir DIR [--from REF] [--base SHA] [--replace] FILE…
         Run from the repo root before a pass (kaizen 01M4CGJZAX): writes each FILE to DIR/<FILE> — from the
         working tree, or with --from from that commit (a committed range) — and makes every pin AND directory
@@ -67,6 +73,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -318,6 +325,133 @@ def read_run(run: Path, box: float | None) -> dict:
 # A legacy label reads as its successor, so a run that mixes the two vocabularies compares like with like
 # (W-729416b3: STILL_TRUE / NOW_FALSE named the claim's truth, and a Haiku seat read a re-verified claim as true)
 _LEGACY_STATUS = {"STILL_TRUE": "DEFECT_PRESENT", "NOW_FALSE": "DEFECT_ABSENT"}
+
+# the workflow's PLACEHOLDER (.claude/workflows/fabrik-review-loop.js `evidence`): a command that names nothing ran
+_PLACEHOLDER = re.compile(r"^(?:n/?a|none|null|nil|-+|—|\.+|tbd|skipped|not run)$", re.IGNORECASE)
+_VERDICTS = frozenset({"confirmed", "refuted", "recorded", "unverified"})
+
+
+def _fold(x: object) -> str:
+    """The workflow's `foldId`: an id compared case- and space-blind, as a seat may echo it."""
+    return "".join(str(x).split()).upper()
+
+
+def _verdict_of(rows: list) -> str:
+    """One id's verdict from the pass file's RAW refuter rows, by the workflow's own rule (`verdictFor`): no row,
+    rows that disagree, or a `refuted` with no real command and no output is `unverified` — only a refutation that
+    carries its counter-evidence closes a claim (finding 36)."""
+    rows = [r for r in rows if isinstance(r, dict)]
+    kinds = {str(r.get("verdict")) for r in rows}
+    if len(kinds) != 1:
+        return "unverified"
+    v = kinds.pop()
+    if v not in _VERDICTS:
+        return "unverified"
+
+    def evidenced(r: dict) -> bool:
+        cmd = str(r.get("command") or "").strip()
+        return (
+            bool(cmd) and not _PLACEHOLDER.match(cmd) and bool(str(r.get("output") or "").strip())
+        )
+
+    if v == "refuted" and not any(evidenced(r) for r in rows):
+        return "unverified"
+    return v
+
+
+def open_claims(
+    doc: dict, result: dict | None, launch: dict | None
+) -> tuple[list[tuple[str, str, dict, str]], list[str]]:
+    """The claims a pass leaves OPEN: `(id, slice, ledger row, why)` each, and the ids nothing can carry.
+
+    Open is a candidate whose verdict is confirmed or unverified — the run file's normalised verdicts when its
+    `result` carries them, else the pass file's raw rows through `_verdict_of` — and a DEFECT_PRESENT/NEW
+    ledger_status id that no candidate carries, whose row comes from the launch ledger (never a `recorded: true`
+    one). A pass file with no `verdicts` list (a fixture, a round with no refuter) opens no candidate: the
+    advisory fails toward today's behaviour, never toward an invented claim.
+
+    COBRA (D-253): the cheapest way to keep a pass small is to `--drop` every carried id; each drop is printed
+    beside its id, so the lead's receipt shows what it closed and why the refuter did not."""
+    opened: list[tuple[str, str, dict, str]] = []
+    seen: set[str] = set()
+    fold_seen: set[str] = set()
+
+    def row(c: dict, cid: str) -> dict:
+        return {"id": cid, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
+
+    union = result.get("slices") if isinstance(result, dict) else None
+    if isinstance(union, list) and any(
+        isinstance(s, dict) and isinstance(s.get("verdicts"), list) for s in union
+    ):
+        for s in union:
+            if not isinstance(s, dict):
+                continue
+            cands = s.get("candidates") if isinstance(s.get("candidates"), list) else []
+            for c in cands + (s.get("recorded") if isinstance(s.get("recorded"), list) else []):
+                if isinstance(c, dict):
+                    fold_seen.add(_fold(c.get("id")))
+            verds = s.get("verdicts")
+            if not isinstance(verds, list):
+                continue
+            for c, v in zip(cands, verds, strict=False):
+                cid = c.get("id") if isinstance(c, dict) else None
+                verdict = v.get("verdict") if isinstance(v, dict) else None
+                if (
+                    isinstance(cid, str)
+                    and verdict in ("confirmed", "unverified")
+                    and cid not in seen
+                ):
+                    seen.add(cid)
+                    opened.append((cid, str(s.get("name")), row(c, cid), str(verdict)))
+    elif isinstance(doc.get("verdicts"), list):
+        by_id: dict[str, list] = {}
+        for v in doc["verdicts"]:
+            if isinstance(v, dict):
+                by_id.setdefault(str(v.get("id")), []).append(v)
+        claims: dict[str, list[dict]] = {}
+        for c in doc.get("candidates") or []:
+            if isinstance(c, dict) and isinstance(c.get("id"), str):
+                fold_seen.add(_fold(c["id"]))
+                rows = claims.setdefault(c["id"], [])
+                if all(
+                    (r.get("file"), r.get("line"), r.get("claim"))
+                    != (c.get("file"), c.get("line"), c.get("claim"))
+                    for r in rows
+                ):
+                    rows.append(c)
+        for cid, rows in claims.items():
+            verdict = _verdict_of(by_id.get(cid, []))
+            if verdict in ("confirmed", "unverified") and len(rows) == 1:
+                seen.add(cid)
+                opened.append((cid, _slice_of(rows[0], cid), row(rows[0], cid), verdict))
+    else:
+        for c in doc.get("candidates") or []:
+            if isinstance(c, dict):
+                fold_seen.add(_fold(c.get("id")))
+    ledger: dict[str, tuple[str, dict]] = {}
+    for s in (launch or {}).get("slices") or []:
+        if isinstance(s, dict) and isinstance(s.get("ledger"), list):
+            for e in s["ledger"]:
+                if isinstance(e, dict) and isinstance(e.get("id"), str):
+                    ledger.setdefault(_fold(e["id"]), (str(s.get("name")), e))
+    stuck: list[str] = []
+    for r in doc.get("ledger_status") if isinstance(doc.get("ledger_status"), list) else []:
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str):
+            continue
+        status = _LEGACY_STATUS.get(str(r.get("status")), str(r.get("status")))
+        sid = r["id"]
+        if status not in ("DEFECT_PRESENT", "NEW") or _fold(sid) in fold_seen or sid in seen:
+            continue
+        seen.add(sid)
+        hit = ledger.get(_fold(sid))
+        if hit is None:
+            stuck.append(sid)
+        elif not hit[1].get("recorded"):
+            e = hit[1]
+            opened.append(
+                (e["id"], hit[0], {k: e.get(k) for k in ("id", "file", "line", "claim")}, status)
+            )
+    return opened, stuck
 
 
 def ledger_flags(doc: dict) -> list[dict]:
@@ -572,7 +706,11 @@ def _from_pass(doc: dict, ids: list[str]) -> dict[str, list]:
 
 
 def next_ledger(
-    doc: dict, ids: list[str], args: dict | None = None, result: dict | None = None
+    doc: dict,
+    ids: list[str],
+    args: dict | None = None,
+    result: dict | None = None,
+    carry: list[tuple[str, dict]] | None = None,
 ) -> list[dict]:
     """The next launch's slices. With `args` every slice carries its launch fields and a REPLACED ledger; with a
     run `result` the ids resolve against the union candidates.
@@ -587,6 +725,8 @@ def next_ledger(
         if result and isinstance(result.get("slices"), list)
         else _from_pass(doc, ids)
     )
+    for name, row in carry or []:  # the open claims the --ids left out (`open_claims`)
+        slices.setdefault(name, []).append(row)
     if args is None:
         return [{"name": n, "ledger": rows} for n, rows in slices.items()]
     named = [s.get("name") for s in args["slices"] if isinstance(s, dict)]
@@ -1149,6 +1289,11 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("ledger", type=Path)
     n.add_argument("--ids", required=True, help="comma-separated confirmed candidate ids")
     n.add_argument(
+        "--drop",
+        default="",
+        help="comma-separated OPEN ids the lead closed outside the pass file — never carried",
+    )
+    n.add_argument(
         "--args",
         dest="launch",
         type=Path,
@@ -1265,9 +1410,30 @@ def main(argv: list[str] | None = None) -> int:
                     "ended, then build the next pass"
                 )
             launch, result = load_args(a.launch) if a.launch else (None, None)
-            out = next_ledger(
-                doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result
-            )
+            ids = [i.strip() for i in a.ids.split(",") if i.strip()]
+            drop = [i.strip() for i in a.drop.split(",") if i.strip()]
+            opened, stuck = open_claims(doc, result, launch)
+            named = {_fold(i) for i in ids}
+            open_ids = {_fold(o[0]) for o in opened} | {_fold(s) for s in stuck}
+            bad = [d for d in drop if _fold(d) not in open_ids or _fold(d) in named]
+            if bad:
+                raise LedgerError(
+                    f"--drop {', '.join(bad)}: not an open claim this pass leaves out of --ids — nothing to drop"
+                )
+            gone = {_fold(d) for d in drop}
+            carry = [o for o in opened if _fold(o[0]) not in named and _fold(o[0]) not in gone]
+            out = next_ledger(doc, ids, launch, result, [(o[1], o[2]) for o in carry])
+            for cid, _name, _row, why in carry:
+                print(f"CARRIED {cid} — {why}, not in --ids", file=sys.stderr)
+            for sid in stuck:
+                if _fold(sid) not in named and _fold(sid) not in gone:
+                    print(
+                        f"OPEN NOT CARRIED {sid} — reported open, but no candidate this pass and no launch ledger "
+                        "row carries it: re-run next with --args <the run file>, or --drop it",
+                        file=sys.stderr,
+                    )
+            for d in drop:
+                print(f"DROPPED {d}", file=sys.stderr)
             for note in carry_notes(launch, out) if launch else []:
                 print(note, file=sys.stderr)
             print(json.dumps(out, ensure_ascii=False))
