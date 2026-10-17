@@ -262,10 +262,7 @@ def test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_pla
     cdl = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cdl)
     ledger = cdl.REPO / "docs" / "DECISIONS.md"
-    moved = "docs/development/plans/2026-01-01-plan-0-moved-away.md"
-    assert ledger in cdl._tracked_md_sources(), "the link check reads the ledger"
-    row = f"| D-1 | 2026-01-01 | infra | executed | measured | `{moved}` |"
-    assert moved in [target for target, _kind in cdl._iter_refs(row)], "a ledger row's plan path is extracted"
-    assert not cdl._resolves(moved, ledger), (
-        "a ledger row citing a moved plan no longer breaks the gate — the stay-in-place clause is unneeded"
-    )
+    # W-e9c8a4df: the link check no longer reads the ledger (an immutable row's cite can never be repaired), so
+    # the stay-in-place rule rests on D-484 alone and the step must not claim a link-check reason for it
+    assert ledger not in cdl._tracked_md_sources(), "the link check does not read the ledger"
+    assert "The link check reads `DECISIONS.md`" not in text, "step 6 names no link-check ground for the rule"
