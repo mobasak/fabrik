@@ -3901,7 +3901,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _capture_commit(msg: Path, out: Path) -> int:
     """Phase 5's capture as ONE plain command (kaizen 01M55GGMS5, feedback row 1792254064): find
-    the commit by its own SUBJECT — the first line of the message file it was made with — never by
+    the commit by its own SUBJECT — the message file's first paragraph, as git reads it — never by
     `HEAD`, which a sibling's commit landing during the post-commit hook would move; check the found
     commit's subject is that line exactly; append its sha to the capture file. A worktree session's
     guard refuses the chained shell recipe this replaces. Runs in the cwd's repo, touches no run
@@ -3915,20 +3915,33 @@ def _capture_commit(msg: Path, out: Path) -> int:
     commit is the author's part, and the close's own binding check refuses a sha that is not this
     run's."""
     try:
-        subj = msg.read_text(encoding="utf-8").split("\n", 1)[0].strip()
-    except OSError as e:
+        text = msg.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:  # a decode error is a ValueError, not an OSError
         sys.stderr.write(f"REFUSED — capture: cannot read --msg {msg}: {e}\n")
         return 1
+    # git's subject (`%s`) is the whole FIRST PARAGRAPH, its lines joined by single spaces — a
+    # first line alone would refuse a legitimate commit whose subject wraps (review A-sonnet)
+    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n\n", 1)[0].split("\n")]
+    lines = [ln for ln in lines if ln]
+    subj = " ".join(lines)
+    # `--grep` matches ONE line of the raw message, so it searches by the first line; the joined
+    # paragraph exists only in `%s`, where the equality check below reads it
+    needle = lines[0] if lines else ""
     if not subj:
         sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty first line\n")
         return 1
-    found = subprocess.run(
-        ["git", "log", "-1", "--format=%H%x00%s", "-F", "--grep", subj],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    try:
+        found = subprocess.run(
+            ["git", "log", "-1", "--format=%H%x00%s", "-F", "--grep", needle],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",  # a non-UTF-8 subject in the log must not raise into main()'s rc 0
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as e:  # no git on PATH, or a 30 s timeout
+        sys.stderr.write(f"REFUSED — capture: git log failed: {e}\n")
+        return 1
     sha, _, got = found.stdout.strip().partition("\x00")
     if found.returncode != 0 or not sha or got != subj:
         sys.stderr.write(f"REFUSED — capture: no commit has the subject {subj!r}\n")
