@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T10:35:55.228935Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-6399d1a3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "found by the W-b1f67743 review (C-H3, executed): next --ids <an id raised by a retry seat> emits slice 'A:sonnet'; _slice_of (scripts/review_loop_ledger.py) splits off only the last ':<model>' — strip a trailing ':retry' first; grade it in tests/test_review_loop_ledger.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review_loop_ledger.py _slice_of: a retry seat label find:<slice>:<model>:retry yields a phantom slice '<slice>:<model>'"
+}

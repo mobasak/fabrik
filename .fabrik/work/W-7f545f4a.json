@@ -3,7 +3,7 @@
   "created": "2026-10-15T17:29:59.151970Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fe6624dcf6bd3a6c60f2f2b8e835df9230ab511f",
   "id": "W-7f545f4a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "the shipped kit's build has never been executed end to end; one session; blocked on the DNS fix",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

@@ -16,6 +16,18 @@ All notable changes to this project will be documented in this file.
   round. It recurs on the held subject `size-read-set-first`. The graders are in
   `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
 
+### Changed — review_loop_ledger.py next carries every open claim the --ids leave out (2026-10-17)
+
+- W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's
+  `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). With the run file it now carries
+  every open claim — a union candidate whose verdict (the workflow's own, never re-derived) is confirmed or
+  unverified, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch ledger — printing `CARRIED
+  <id>` / `OPEN NOT CARRIED <id>` on stderr (a union id the run file repeats is named, never carried); a
+  candidate nobody judged — no run file, or a slice with no verdicts — is counted in `NOT CHECKED <n>
+  candidate(s)` with advice that fits what was given; `--drop <id>` closes one the lead settled outside the pass
+  file. Graders in `tests/test_review_loop_ledger.py`, seen red first; 16 single-guard mutants each killed by a
+  named test.
+
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 
 - W-7f545f4a re-ran the release kit's network checks (W-e2af3303, D-905) now that npm answers. `pnpm install`,
