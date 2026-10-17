@@ -1,6 +1,6 @@
 # The external-services inventory, brought into the command centre (W-3e9e2f4c)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: full (the shared inventory renderer and the attention rules have no code behind them today)
 
 Owner: infra · Work item: W-3e9e2f4c (P2, high impact / high effort — the one major project in flight, D-954) ·

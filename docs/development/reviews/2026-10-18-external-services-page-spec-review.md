@@ -4,7 +4,7 @@
 **Spec:** `docs/superpowers/specs/2026-10-18-external-services-page-design.md` (DRAFT at 159b3bac2)
 **Research ledger:** `docs/reference/research/2026-10-18-external-services-page-ledger.md`
 **Shape:** agent-tool (D-961: the Workflow tool is never called)
-**Status:** IN REVIEW
+**Status:** CONVERGED
 
 ## Pass Ledger
 
@@ -19,6 +19,8 @@
 | Pass 7 | opus×1 + sonnet×1 (round-1 owners) · delta over the panel fold (panel.diff, 242 lines) + one hop | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0, edits: 18 | method: re-derivation — 24 panel claims re-executed (11 hold); new candidates re-executed by the lead: `classify_services.py:503-504` returns before the record write, the `_id()` census (12 names fail, not 17; `captcha` is provider and category), `/usr/bin/python3` psycopg2 `2.9.9`, the spliced Failure sentence, `freshness()` text `strings.py:53` | ac364d012acb84e13023e6b22aa88d92 → 0eacbc6247bb04c36819dd4439d05f98 |
 | Pass 8 | opus×1 + sonnet×1 (round-1 owners) · the pass-7 fixed set only (scope-growth remainder round) | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 5 | method: re-derivation — 13 of 15 pass-7 ids re-executed FIXED; the data-age line (FIX_WRONG twice) and the opened-by-filter rule were REWRITTEN, not patched: the section's age is the board's standard `card(age=freshness(…))` stamp, the filter records the ids it opened; psycopg2 re-executed both ways (`-I` → 2.9.9 `dist-packages`, plain → 2.9.11 `~/.local`); `ls scripts/*.py` → 77 | 0eacbc6247bb04c36819dd4439d05f98 → a00bc0900dca971097bcdbd6d99dbdc5 |
 | Pass 9 | opus×1 + sonnet×1 (round-1 owners) · the pass-8 rewrites only (scope-growth remainder round) | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-derivation — the data-age rewrite re-executed FIXED (`card()` `components.py:168-188`, `fresh.*` `strings.py:53-58`, `tickFreshness` on every `initView`); new: the filter record inside `qd-filter:<group>` fails `validFilterState` `app.js:492-497` and resets the store `:503` (both seats, one defect), the static empty-registry text | a00bc0900dca971097bcdbd6d99dbdc5 → 536dd9a1aefba9637ddcacd59c6ae05d |
+| Pass 10 | opus×1 + sonnet×1 (round-1 owners) · the pass-9 fixed set only (scope-growth remainder round) | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0, edits: 3 | method: re-derivation — R9-1, R9-2 and rules-p7-6 re-executed FIXED (`grep -n qd-filter app.js` → only `qd-filter:<name>` at :501, :526, :536); new: two `app.js` citations off (`validFilterState` is :492-498, the reset :504) and the "same `try`" wording (`load()`/`save()` each wrap their own, :27-28) | 536dd9a1aefba9637ddcacd59c6ae05d → 9e1c800f16f3b1bca3c1830f872e2693 |
+| Pass 11 | opus×1 + sonnet×1 (round-1 owners) · the pass-10 fixed set only (scope-growth remainder round); slices research and panel standing clean | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — rules-p10-1 and the wording point re-executed DEFECT_ABSENT (`sed -n 490,506p app.js`, `sed -n 27,34p`); every class swept clean; flip gate `check_spec_convergence.py` on the CONVERGED spec | 9e1c800f16f3b1bca3c1830f872e2693 → 0c163da4764296f37aa3fd9c62cd633f |
 
 ## Findings
 
@@ -98,5 +100,6 @@
 | R8-2 | 8 | psycopg2 2.9.9 vs 2.9.11 | FIXED r8 (both stated: 2.9.11 user site with `HOME`, 2.9.9 system site) |
 | R8-3 | 8 | "80-odd" script names | FIXED r8 (77) |
 | R9-2 | 9 | Opened-by-filter record inside `qd-filter:<group>` resets the store | FIXED r9 (its own key `qd-filter-open:<group>`; a filter → swap → clear smoke step) — same as rules-p7-6c |
+| rules-p10-1 | 10 | `app.js:489-495` / `:499-506` citations off | FIXED r10 (`:492-498`, the reset at `:504`; the helper wording) |
 | R9-1 | 9 | Static file has no text for `synced_at = None` | FIXED r9 ("Registry never synced") |
 | panel-7 | 6 | Plan risks (both seats) | FIXED r6 (§ Risks the plan carries; stable disclosure ids, `freshness()` age, cache lock written into § Data flow / § Failure) |
