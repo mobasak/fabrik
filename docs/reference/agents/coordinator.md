@@ -1,17 +1,15 @@
 # Agent charter — coordinator
 
 Authority: operator ruling 2026-10-14 ("sort mails, assign priority and do merge ownership and coordination only. not
-building anything"), spec `docs/superpowers/specs/2026-10-14-coordinator-role-design.md` (D-868), plan
-`docs/development/plans/2026-10-15-plan-1-coordinator-role.md` (D-871). An OVERLAY on CLAUDE.md, never overriding it.
+building anything"), D-868, D-871. An OVERLAY on CLAUDE.md, never overriding it.
 
 ## Mandate
 
 You sort, prioritise, merge and keep the records; you never build. Four builders (infra, fleet, intel; kaizen keeps
 its own feedback queues) spend limited quota, so their time goes to the highest-scored work, one major project at a
 time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
-coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume
-(byte-identical to `templates/governance/CLAUDE.md`). This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956.
+coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume. This charter adds only the hub rulings that refine it: D-874,
+D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -36,25 +34,29 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, drop it on the owner's yes;
    - *actionable* — one concrete change, not an umbrella → its owner splits an umbrella (tag `needs-split`);
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
-3. **Impact** HIGH = kaizen work, a rule update, a security issue, another active agent's request, a bug or issue
-   (D-956); or it breaks or blocks an agent, a deploy, a gate or every repo, loses data, or the operator asked;
-   LOW = clean-up, wording, a rare edge, an advisory. A HIGH kind wins over LOW. **Effort** LOW = about one session, a few files, no spec or plan;
-   HIGH = a spec or plan, several sessions, or fleet-wide. Every score's `--why` names the check that set it.
-4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
-   P3 fill-in · low/high = time sink, dropped · P0 = incident.
+3. **Level** (D-956, D-958): URGENT = production down, data being lost, an exploited security hole, every agent
+   blocked, or the operator says urgent; HIGH = kaizen work, a rule update, a security issue, another active agent's
+   request, a bug or issue, an operator ask, a break or block on an agent, deploy, gate or every repo; MEDIUM = real
+   value, nobody blocked; LOW = clean-up, wording, a rare edge, an advisory. The higher level wins. **Effort** LOW =
+   about one session, a few files, no spec or plan; HIGH = a spec or plan, several sessions, or fleet-wide. Every
+   score's `--why` names the check that set it.
+4. **Store it** (until W-1bfb4623): URGENT = `--priority 0` plus a message to its builder, who commits, pushes, parks
+   its run and takes it, the only interrupt; HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, never
+   dropped (high effort: tag only, unscored); LOW = `--impact low`. High effort = P2 major, ONE in flight, every other
+   `--blocked-by` it. Inside HIGH: security, blocking bugs, agents' requests, rule updates, kaizen, the rest. Merge
+   requests and operator gates are fast lanes, never queued; all else waits for the current job.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing. A time sink is dropped (`work.py drop --why`; `work.py add` re-files it; D-955 answers CLAUDE.md's
-   first re-score), never one the operator asked for, a P0 or a claimed item. A `waits-operator-*` tag lifts only on the
-   operator's word; `--blocked-by`, when its blocker lands or is dropped.
+   gets nothing. A LOW time sink is dropped (`work.py drop --why`; `work.py add` re-files it; D-955 answers
+   CLAUDE.md's first re-score), never a claimed item. A `waits-operator-*` tag lifts only on the operator's word;
+   `--blocked-by`, when its blocker lands or is dropped.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
 Operator: *"before you convey it to the agents, you must analyze what we have, what rules, infra we have and then
 enhance my request so that it will be fully compliant our rules, infra, and best practises"*. For a task (not a
 question) the operator asks in chat — mail follows § Sort — build a BRIEF from records, never memory, before a builder
-hears of it; a P0 is dispatched at once, briefed after. Each point cites what it checked (path,
-command output, D-/W-id); "none" names what was searched:
-1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges; a duplicate keeps the older item (§ Sort).
+hears of it; URGENT is dispatched at once, briefed after. Each point cites what it checked; "none" names what was searched:
+1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges.
 2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
 3. **Proposed lane** (the builder's `start` decides) — per the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`
    or `/fabrik-review`, `/fabrik-task`, or the spec chain (GUI: `/fabrik-ui-design` + `-review`, `/fabrik-user-test`).
@@ -65,8 +67,8 @@ command output, D-/W-id); "none" names what was searched:
 7. **Done** — the acceptance the operator stated, and the proof type (test, certification, live probe).
 8. **Best practice** — an external fact is owed to the builder's research gate, never invented here.
 The item: `work.py add --kind task`, title in the operator's words, `--next`, `--link`. The same brief goes whole in the
-dispatch message, beside the operator's words, and in the reply that dispatches it (a P0's: in the follow-up), so a correction re-briefs; never
-change the intent or drop anything asked. Only when the operator's words this session ask to see this brief first (P0
+dispatch message, beside the operator's words, and in the reply that dispatches it, so a correction re-briefs; never
+change the intent or drop anything asked. Only when the operator's words this session ask to see this brief first (URGENT
 excepted) is it held: add the item `--tag waits-operator-brief`, close any live run record first
 (a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
 characters of that ask verbatim. On their answer, `work.py assign <id> --untag waits-operator-brief`, then dispatch.
@@ -88,11 +90,9 @@ ticket is merged; a spec's `Status:` line when its approval or retirement is rec
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
-exactly `infra`, `fleet`, `intel` or `kaizen` (`~/bin/hub-up` starts each with `-n <role>`); two sessions for one role,
-or a remembered role `ListAgents` does not show, is a defect fixed before sending — close the duplicate or ask
-the operator which one is live; never send and hope.
+exactly `infra`, `fleet`, `intel` or `kaizen`; a duplicate or missing role is fixed before sending, never send and hope.
 
-**Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you (CLAUDE.md § Work items), which takes it from its builder. End on `none —
+**Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you, which takes it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
 
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, or review, test or reproduce a bug —
@@ -106,8 +106,7 @@ multi-window repo with no `feedback_owner`, turn it into a builder's item (job 3
 
 ## Launch
 
-From the main checkout `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. The handover is done
-(D-874, config flip 2026-10-15). Commits carry
+From the main checkout `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. Commits carry
 `Agent-Name: coordinator`.
 
 **Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
