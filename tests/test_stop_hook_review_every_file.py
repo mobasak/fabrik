@@ -241,6 +241,102 @@ def test_a_running_reviews_surface_exempts_a_committed_file(tmp_path: Path, monk
     ]
 
 
+def _dirty_authored(tmp_path: Path) -> tuple[Path, dict[str, int]]:
+    repo = _repo(tmp_path)
+    now = int(time.time())
+    _commit_at(repo, "scripts/sync.py", now - 600)
+    (repo / "scripts" / "sync.py").write_text("changed\n")  # an edit newer than its commit
+    return repo, {"scripts/sync.py": now}
+
+
+def _write_run(tmp_path: Path, monkeypatch, sid: str, surface: str, state: str = "running") -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir(exist_ok=True)
+    now = time.time()
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": state,
+        "started_epoch": now - 60,
+        "updated_ts": now,
+        "surface": surface,
+    }
+    (runs / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
+
+
+def _exempted(repo: Path, authored: dict[str, int], sid: str = "s") -> set[str]:
+    """main()'s uncommitted set, built the way main() builds it."""
+    everything = fgs._own_uncommitted(repo, authored)
+    rec = fgs._review_exempts_commit(sid, "")
+    return everything - fgs._surface_reviewed(rec, authored, sid) if rec else everything
+
+
+def _no_seats_counter(tmp_path: Path, monkeypatch, run_attempts: int = 0) -> None:
+    counter = tmp_path / "attempts"
+    counter.write_text(f"0,0,0,0,{run_attempts},0,0")
+    monkeypatch.setattr(fgs, "_counter_path", lambda sid: counter)
+    monkeypatch.setattr(fgs, "_seats_in_flight", lambda rec, tp: False)
+
+
+def test_own_uncommitted_stands_down_for_a_running_reviews_surface(tmp_path: Path, monkeypatch):
+    """W-5ce56208: a file the FRESH running review names in --surface is not ordered committed —
+    the review comes first; every other shape is still reported (today's behaviour)."""
+    monkeypatch.delenv("COMMAND_RUN_STALE_H", raising=False)
+    _no_seats_counter(tmp_path, monkeypatch)
+    repo, authored = _dirty_authored(tmp_path)
+    assert _exempted(repo, authored) == {"scripts/sync.py"}  # no record at all
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py — the change under review")
+    assert _exempted(repo, authored) == set()
+    _write_run(tmp_path, monkeypatch, "s", "something else")
+    assert _exempted(repo, authored) == {"scripts/sync.py"}
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py", state="done")
+    assert _exempted(repo, authored) == {"scripts/sync.py"}
+
+
+def test_own_uncommitted_never_exempts_under_the_stale_opt_out(tmp_path: Path, monkeypatch):
+    """`COMMAND_RUN_STALE_H=0` turns the fifth cause off (`_run_record` is None), so the exemption
+    must go with it — or an abandoned record exempts the file for ever (critique C1/F1). The raw
+    record is still there, which is what a `_run_record_raw` predicate would wrongly read."""
+    _no_seats_counter(tmp_path, monkeypatch)
+    repo, authored = _dirty_authored(tmp_path)
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py")
+    monkeypatch.setenv("COMMAND_RUN_STALE_H", "0")
+    assert fgs._run_record_raw("s")  # the abandoned record exists
+    assert fgs._review_exempts_commit("s", "") is None
+    assert _exempted(repo, authored) == {"scripts/sync.py"}
+
+
+def test_the_exemption_ends_where_the_fifth_cause_stops_blocking(tmp_path: Path, monkeypatch):
+    """Review A-1: the exemption holds only on a stop the fifth cause BLOCKS. At its warn-through
+    (counter at the cap) or with the run's seats in flight it stands down, so the file is never
+    ordered by neither cause and the commit order comes back."""
+    monkeypatch.delenv("COMMAND_RUN_STALE_H", raising=False)
+    repo, authored = _dirty_authored(tmp_path)
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py")
+    _no_seats_counter(tmp_path, monkeypatch, run_attempts=fgs.CAP - 1)
+    assert _exempted(repo, authored) == set()  # the fifth cause's last block
+    _no_seats_counter(tmp_path, monkeypatch, run_attempts=fgs.CAP)
+    assert _exempted(repo, authored) == {"scripts/sync.py"}  # its warn-through stop
+    _no_seats_counter(tmp_path, monkeypatch)
+    monkeypatch.setattr(fgs, "_seats_in_flight", lambda rec, tp: True)
+    assert _exempted(repo, authored) == {"scripts/sync.py"}  # seats out: nothing blocks
+
+
+def test_the_urgent_checkpoint_still_orders_the_commit_during_a_review(tmp_path: Path, monkeypatch):
+    """D-306: at urgent-90 the checkpoint commit outranks the review order, so the urgent tier never
+    takes the exemption (critique C2/F5)."""
+    monkeypatch.delenv("COMMAND_RUN_STALE_H", raising=False)
+    repo, authored = _dirty_authored(tmp_path)
+    _write_run(tmp_path, monkeypatch, "s", "scripts/sync.py")
+    monkeypatch.setattr(fgs, "_ahead_of_upstream", lambda *a, **k: 0)
+    monkeypatch.setattr(fgs, "_seats_in_flight", lambda rec, tp: False)
+    monkeypatch.setattr(fgs, "_unreviewed_spontaneous_files", lambda *a, **k: [])
+    monkeypatch.setattr(fgs, "_merge_owner_duty", lambda root, sid: None)
+    monkeypatch.setattr(fgs, "_urgent_sidecar", lambda sid: tmp_path / "side.urgent")
+    out = fgs._urgent_checkpoint(repo, "s", "s", authored, [], None, "")
+    assert out is not None and "COMMIT your own work — scripts/sync.py" in out, out
+
+
 def test_an_ignored_file_is_not_shipped_work(tmp_path: Path):
     repo = _repo(tmp_path)
     (repo / ".gitignore").write_text(".env\nscratch/\n")

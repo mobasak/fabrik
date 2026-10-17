@@ -33,6 +33,15 @@ All notable changes to this project will be documented in this file.
 - tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
   doc so they keep testing the patterns.
 
+### Changed — seat home-directory reads: a named file, Bash-bounded and size-checked; writes stay banned (2026-10-18)
+
+The seat rule for `$HOME` paths no longer bans every `.claude*` read on a stall that does not reproduce (replayed on Claude
+Code 2.1.302: Read, grep and python open all returned at once). A seat now reads a home file only when its brief itself names
+that file by path, through Bash under `timeout 120`, `stat -L -c %s` first and in ranges of at most 64 KiB when larger, never
+the Read tool; every write under the home directory stays banned. Changed in `commands/_agents/fabrik-reviewer.md`,
+`.windsurf/rules/core/62-using-subagents.md` (fleet-synced) and `commands/_fragments/design-critique.md`; pinned by
+`tests/test_seat_home_read_rule.py`. Decision D-962; work item W-51eee9fd.
+
 ### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
 
 `commands/_fragments/review-probe-catalogue.md` § Graders: "a prose grader asserts the whole generated sentence, not a
@@ -59,6 +68,10 @@ An `--args` run file with no `result` key (bare launch args, or a run that never
 so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling was carried; both the guard and the
 filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
 (W-9f436e18).
+
+### Fixed — the Stop hook no longer orders a commit of the file a running review is still reviewing (2026-10-17)
+
+`.claude/hooks/final_gate_stop.py`'s uncommitted cause no longer counts a file that the fresh, running review-family record names in its `--surface`. Before this, a session was told to commit mid-review, the reverse of the lane's order. The fifth cause now blocks that turn instead, telling the session to run the review to its terminal condition. The exemption holds only on a stop the fifth cause actually blocks (`_review_exempts_commit`): with the run's seats in flight, on its warn-through stop, or once the record closes, the commit is ordered again, so no stop leaves the file ordered by neither cause. The exemption is gated on the same fresh record the fifth cause blocks on, so the `COMMAND_RUN_STALE_H=0` opt-out cannot turn an abandoned record into a permanent exemption. The urgent-90 checkpoint still orders the commit (D-306). Both callers now share one predicate, `_own_uncommitted`. A stand-down lands in the kaizen stream as `stop_block` `stood_down` (W-5ce56208).
 
 ### Added — `command_run.py capture`, and `--commit` takes a comma list (2026-10-17)
 
