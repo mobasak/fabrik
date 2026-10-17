@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review loop merges one defect cited by its pin path and by its repo path (2026-10-17)
+
+`.claude/workflows/fabrik-review-loop.js` now takes each candidate's `file` through the same root strip `readsFile`
+applies to `files_read` (D-625), before the cross-seat twin lookup: a seat citing `<pins_dir>/a.py` or
+`<scratch_dir>/<seat>/arch/a.py` and a seat citing `a.py` raise one candidate, so `overlap`, the Chapman estimate and
+the refuter's work count it once (W-177082fc). A live-checkout or `base_pin_dir` path stays as cited; a value that
+strips to nothing keeps its original. Measured over 73,236 union candidates in 14,496 run files on the box: 0 such
+pairs had been split, so this closes a class by construction rather than a frequent miss.
+
 ### Fixed — a merge-owner row is read only from the exact label, bold allowed (2026-10-17)
 
 `scripts/decisions.py`, `scripts/docs_updater.py` and the fleet-synced `.claude/hooks/session_orient.py` now read a

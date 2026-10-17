@@ -294,7 +294,10 @@ const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // become the literal `^undefined/`, an empty one `^/` (which would strip every absolute path), and `<dir>/` must
 // not demand a double slash
 const rootDir = (d) => (typeof d === 'string' ? d.replace(/\/+$/, '') : '')
-function readsFile(entry, f) {
+// The ROOT rule alone, shared by `readsFile` and a candidate's `file` (W-177082fc): a seat citing a defect by its pin
+// or arch copy and a seat citing the repo path name one file. Never `base_pin_dir` (the base's bytes, a different
+// version) and never the lead-and-delimiter tolerance below — 78 real route paths carry `(`/`[` (measured).
+function slicePath(entry) {
   let n = String(entry ?? '').trim().replace(/`/g, '').replace(/^file:\/\//, '').replace(/^\.\//, '')
   const pins = rootDir(args.pins_dir)
   const scratch = rootDir(args.scratch_dir)
@@ -303,6 +306,10 @@ function readsFile(entry, f) {
     ...(scratch ? [new RegExp(`^${escRe(scratch)}/[^/]+/arch/`)] : []),
   ]
   for (const root of roots) if (root.test(n)) { n = n.replace(root, ''); break }
+  return n
+}
+function readsFile(entry, f) {
+  const n = slicePath(entry)
   return n === f || (n.startsWith(f) && /^[\s:#(\[,—]/.test(n.slice(f.length)))
 }
 
@@ -310,7 +317,9 @@ function unionSlice(r) {
   const candidates = []
   let overlap = 0
   for (const seat of r.seats) {
-    for (const c of seat.candidates || []) {
+    for (let c of seat.candidates || []) {
+      // one spelling BEFORE the twin lookup; a value that strips to nothing (the pins dir itself) keeps its own
+      if (typeof c?.file === 'string') c = { ...c, file: slicePath(c.file) || c.file }
       // a candidate absorbs one twin per OTHER seat, so a defect three finders raise is one candidate (chunk 6 review)
       const twin = candidates.find((k) => k.seat !== seat.model && !(k.also_seats || []).includes(seat.model) && sameDefect(k, c))
       if (twin) {
