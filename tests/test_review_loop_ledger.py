@@ -1716,3 +1716,29 @@ def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) 
     # the ids the lead NAMES are matched folded too: a fold-equal repeat is refused, never resolved to one spelling
     named = _tool("next", str(_pass_with(tmp_path)), "--ids", "A-S1,alpha-S1", "--args", str(run))
     assert named.returncode == 2 and "more than once" in named.stderr, named.stderr
+
+
+def test_next_emits_one_row_for_fold_equal_spellings_of_one_claim_in_ids(tmp_path: Path) -> None:
+    """W-9f436e18 closing pass, N-1: once `--ids` resolve folded, two spellings of ONE (unrepeated) claim hit the same
+    union candidate — the dedup must be folded too, or the next ledger carries the row twice."""
+    run = _judged_run(
+        tmp_path,
+        [
+            {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
+            {
+                "name": "alpha",
+                "candidates": _cands("alpha-S1"),
+                "verdicts": [_ev("alpha-S1", "confirmed")],
+            },
+        ],
+    )
+    r = _tool(
+        "next",
+        str(_pass_with(tmp_path)),
+        "--ids",
+        "A-S1,alpha-S1,ALPHA-s1 ,A-s1",
+        "--args",
+        str(run),
+    )
+    assert r.returncode == 0, r.stderr
+    assert _ledger_of(r.stdout) == {"A": ["A-S1"], "alpha": ["alpha-S1"]}, r.stdout

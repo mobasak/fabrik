@@ -694,7 +694,10 @@ def next_ledger(
     verdict; the menu names `--args`, the cheaper exact path. The cheapest way past `not carried` (`carry_notes`)
     is to ignore stderr and drop an unverified slice; the closing round's `round --slices` re-statement is the
     counter."""
-    ids = list(dict.fromkeys(ids))  # a repeated --ids entry is one claim (review round 1, A-S3)
+    # a repeated --ids entry is one claim (review round 1, A-S3) — compared folded, as `_from_union` resolves it, so
+    # `alpha-S1,ALPHA-s1` is one row, never two (W-9f436e18); the first spelling is kept
+    seen: set[str] = set()
+    ids = [i for i in ids if not (_fold(i) in seen or seen.add(_fold(i)))]
     slices = (
         _from_union(result, ids)
         if result and isinstance(result.get("slices"), list)
