@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `review_loop_ledger.py next` keeps a retried finder's candidate in its own slice (2026-10-17)
+
+A finder retry runs under the label `find:<slice>:<model>:retry`, and `_slice_of` split off only the last `:` field,
+so the next pass carried that candidate under a phantom slice `<slice>:<model>` no round-1 seat owns. The `:retry`
+suffix is now stripped before the model is split off (W-6399d1a3).
+
 ### Fixed — `docs_updater.py --adopt` refuses `undeclared` as the merge owner (2026-10-17)
 
 `--adopt undeclared` passed the agent-name grammar and wrote `MERGE OWNER: undeclared`, which every reader takes as

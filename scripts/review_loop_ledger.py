@@ -556,9 +556,10 @@ class LedgerError(Exception):
 
 
 def _slice_of(c: dict, cid: str) -> str:
-    """The slice that raised a candidate: its finder's label (`find:<slice>:<model>`), else the id before its last
-    `-` — a section slice named `rule-grammar` raises `rule-grammar-O1` (review of chunk 6, A-S1)."""
-    seat = str(c.get("seat") or "")
+    """The slice that raised a candidate: its finder's label (`find:<slice>:<model>`, or `…:retry` for the seat's one
+    retry — W-6399d1a3), else the id before its last `-` — a section slice named `rule-grammar` raises
+    `rule-grammar-O1` (review of chunk 6, A-S1)."""
+    seat = str(c.get("seat") or "").removesuffix(":retry")
     if seat.startswith("find:") and seat.count(":") >= 2:
         return seat[len("find:") :].rsplit(":", 1)[0]
     return cid.rsplit("-", 1)[0]
