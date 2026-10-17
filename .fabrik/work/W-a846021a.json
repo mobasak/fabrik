@@ -13,7 +13,7 @@
   },
   "next": "in scripts/enforcement/check_doc_sync.py:510-531 gate the warning on Path('docs/RESILIENCE.md').exists(); add a regression test; found by plan 2026-10-17-plan-1 T01 (dashboard_ui components.py region_state retry)",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
   "status": "open",
   "tags": [
