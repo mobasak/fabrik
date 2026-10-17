@@ -14,6 +14,15 @@ All notable changes to this project will be documented in this file.
 - tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
   doc so they keep testing the patterns.
 
+### Changed — seat home-directory reads: a named file, Bash-bounded and size-checked; writes stay banned (2026-10-18)
+
+The seat rule for `$HOME` paths no longer bans every `.claude*` read on a stall that does not reproduce (replayed on Claude
+Code 2.1.302: Read, grep and python open all returned at once). A seat now reads a home file only when its brief itself names
+that file by path, through Bash under `timeout 120`, `stat -L -c %s` first and in ranges of at most 64 KiB when larger, never
+the Read tool; every write under the home directory stays banned. Changed in `commands/_agents/fabrik-reviewer.md`,
+`.windsurf/rules/core/62-using-subagents.md` (fleet-synced) and `commands/_fragments/design-critique.md`; pinned by
+`tests/test_seat_home_read_rule.py`. Decision D-962; work item W-51eee9fd.
+
 ### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
 
 `commands/_fragments/review-probe-catalogue.md` § Graders: "a prose grader asserts the whole generated sentence, not a
