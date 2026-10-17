@@ -54,17 +54,21 @@ HUB_LEDGER = Path(__file__).resolve().parent.parent / "docs" / "DECISIONS.md"
 # un-adoption row is TOKEN-exact (`undeclared-team` is an owner, `UNDECLARED.` is prose).
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
-# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
-# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
-# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+# D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
+# clause and the UNDECLARED token stay `re.I`), with one optional `**` on each side of its colon, so
+# `**MERGE OWNER:** x` and `**MERGE OWNER**: x` declare while `Merge owner: rotated weekly` is prose;
+# the first token after the label is the owner, whatever follows it.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"
 MERGE_OWNER_RE = re.compile(
-    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    re.I,
 )
 _UNDECLARED_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
     re.I,
 )
 

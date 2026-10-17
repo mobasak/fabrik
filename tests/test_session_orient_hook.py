@@ -719,7 +719,8 @@ def test_a_declared_owner_still_warns_even_with_one_session(tmp_path: Path) -> N
 def test_an_undeclared_row_is_not_an_owner(tmp_path: Path) -> None:
     # `--adopt` cannot mint the name (its own ^[a-z0-9-]{1,32}$ refuses it), but a HUMAN writes
     # `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary row. Without the lookahead the
-    # hook announces `UNDECLARED` as the merge owner. Case-insensitive: the phrase match is.
+    # hook announces `UNDECLARED` as the merge owner. The UNDECLARED token stays case-insensitive;
+    # the `MERGE OWNER:` label itself is upper-case-exact (D-934).
     for name in ("UNDECLARED", "undeclared", "Undeclared"):
         proj = _adopted_repo(tmp_path / name, f"{name} — we un-adopted, no single writer")
         rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
@@ -893,14 +894,15 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     bs = chr(92)
     capture = "([A-Za-z0-9][A-Za-z0-9_.@-]*)"
     # the optional supersedes prefix a changed owner's NEW row opens with
-    prefix = r'_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"'
-    phrase = "MERGE OWNER:" + bs + "s*"
+    prefix = r'_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"'
+    # the label is upper-case-exact on every row, one optional `**` on each side of its colon (D-934)
+    phrase = r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*"
     # the formatter wraps a long `re.compile(...)` over lines, so the USE is matched with all
     # whitespace removed; the pattern literals themselves hold no spaces to lose
     flat = {n: "".join(src.split()) for n, src in (("hook", hook), ("du", du), ("dec", dec))}
     for name, src in (("hook", hook), ("docs_updater", du), ("decisions.py", dec)):
         assert prefix in src, f"{name}'s supersedes prefix drifted"
-    uses = r'MERGE_OWNER_RE=re.compile(r"^\**\s*"+_SUPERSEDES_PREFIX+r"MERGEOWNER:'
+    uses = r'MERGE_OWNER_RE=re.compile(r"^\**\s*"+_SUPERSEDES_PREFIX+r"(?-i:MERGEOWNER)'
     for name, src in flat.items():
         assert uses in src, f"{name}'s owner regex does not use the prefix"
     assert phrase + capture in du, "docs_updater's MERGE_OWNER_RE drifted"
@@ -909,7 +911,7 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     # is punctuation (`UNDECLARED.` is an un-adoption row), a dot before a name character is not
     token = "UNDECLARED(?![A-Za-z0-9_@-]|" + bs + ".[A-Za-z0-9_@-])"
     undeclared = '_UNDECLARED_RE = re.compile(r"^' + bs + "**" + bs + 's*" + _SUPERSEDES_PREFIX'
-    undeclared += ' + r"MERGE OWNER:' + bs + "s*" + token + '", re.I'
+    undeclared += ' + r"' + phrase + token + '", re.I'
     undeclared = "".join(undeclared.split())
     for name, src in flat.items():
         assert undeclared in src, f"{name}'s un-adoption token regex drifted"
@@ -1263,6 +1265,10 @@ _SUPERSEDES_SPELLINGS = [
     "**Supersedes D-001 (2) and (5).** MERGE OWNER: beta",
     "**Supersedes D-000, D-001 and D-003:** MERGE OWNER: beta",
     "supersedes D-001: **MERGE OWNER: beta**",
+    # a changed owner's row with a bold label, its colon inside or outside the bold (D-934)
+    "supersedes D-001: **MERGE OWNER:** beta",
+    "**Supersedes D-001.** **MERGE OWNER:** beta",
+    "supersedes D-001: **MERGE OWNER**: beta",
 ]
 
 _BIG_OWNER = _A1 + _BIG_FILL + _row2("MERGE OWNER: beta", "D-9000") + _BIG_FILL
@@ -1298,8 +1304,29 @@ _OWNER_CASES = [
         "beta",
     ),
     ("uppercase-supersedes-full-stop", _row2("SUPERSEDES D-001. MERGE OWNER: beta") + _A1, "beta"),
-    # a bare row keeps its case-insensitivity: nothing that parsed before stops parsing
-    ("bare-row-lowercase-phrase", _row2("merge owner: beta") + _A1, "beta"),
+    # the label is upper-case-exact on a bare row too (D-934): a lower-case opener is prose
+    ("bare-row-lowercase-phrase", _row2("merge owner: beta") + _A1, "alpha"),
+    # A2 — a prose sentence opening with the words in another case is no declaration; five spellings
+    *[
+        (f"prose-opener-{i}", _row2(f"{s} rotated weekly") + _A1, "alpha")
+        for i, s in enumerate(
+            ("Merge owner:", "merge owner:", "Merge Owner:", "MERGE owner:", "**Merge owner:**")
+        )
+    ],
+    # A1, A1b — a bold label reads, its colon inside or outside the bold
+    ("bold-label-colon-inside", _row2("**MERGE OWNER:** beta") + _A1, "beta"),
+    ("bold-label-colon-outside", _row2("**MERGE OWNER**: beta") + _A1, "beta"),
+    # A3 — a bold un-adoption is an un-adoption
+    ("bold-undeclared", _row2("**MERGE OWNER:** UNDECLARED — un-adopted") + _A1, ""),
+    # A3b — a mixed-case un-adoption is prose like any other mixed-case opener, so the older owner
+    # stands: a KNOWN COST (spec § Lifecycle Failure) — its author meant "nobody", the readers say alpha
+    ("mixed-case-undeclared-is-prose", _row2("Merge owner: UNDECLARED") + _A1, "alpha"),
+    # A5 — the bold allowance is at most one `**` on each side of the colon, never a run
+    ("italic-name", _row2("MERGE OWNER:*beta*") + _A1, "alpha"),
+    ("triple-star", _row2("MERGE OWNER:***beta") + _A1, "alpha"),
+    ("colon-outside-italic", _row2("**MERGE OWNER**:*beta*") + _A1, "alpha"),
+    # A9 — the first token after an upper-case label is the owner, whatever follows (spec § Goal)
+    ("first-token-limit", _row2("**MERGE OWNER:** rotated weekly") + _A1, "rotated"),
     # a >128 KB ledger whose winning row sits in the MIDDLE, outside any 64 KB head/tail window
     ("big-ledger-mid-owner", _BIG_OWNER, "beta"),
     ("big-ledger-mid-undeclared", _BIG_UNDECLARED, ""),

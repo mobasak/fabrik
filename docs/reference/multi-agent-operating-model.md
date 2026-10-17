@@ -121,7 +121,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
   appends the `MERGE OWNER: <first name>` ledger row (the
   row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
-  `supersedes D-NNN:` prefix (then the phrase must be exact uppercase), wins wherever it sits in the file, and a winning `MERGE OWNER:
+  `supersedes D-NNN:` prefix — the label always the exact upper-case `MERGE OWNER:`, bold allowed (`**MERGE OWNER:**` or
+  `**MERGE OWNER**:`; read by the hub's own readers at once, by a project's synced copies after its next sync; D-934) —
+  wins wherever it sits in the file, and a winning `MERGE OWNER:
   UNDECLARED` row means nobody owns the repo — `python3 scripts/decisions.py --merge-owner .` reads
   it; a changed owner is a NEW row opening `supersedes D-NNN: MERGE OWNER: <name>`), and delegates the epic half to
   `epic_order.py --assign` where that hub-only script is present. The PLANS block's second header line

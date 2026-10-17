@@ -1,6 +1,6 @@
 # Plan — merge-owner row grammar: the exact label, bold allowed (W-5d3ed438)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 0cbf8d780 at authoring; `scripts/decisions.py:55-69`, `scripts/docs_updater.py:1220-1240`, `.claude/hooks/session_orient.py:205-244` (the six patterns and their comment blocks); `tests/test_session_orient_hook.py` (71 test functions, `_OWNER_CASES` at `:1271-1306`, the literal pins at `:879-920`)
@@ -433,6 +433,50 @@ $ timeout 300 prlimit --as=8589934592 -- .venv/bin/python -m pytest tests/test_s
 - **R3 — open, by design.** Between merge and the next governance sync, a project's synced `docs_updater.py` and
   `session_orient.py` keep the old grammar while the hub-absolute readers use the new one; spec § Lifecycle names the
   window and the census shows it holds no row today.
+
+## Execution notes
+
+Executed 2026-10-17 by `/fabrik-execute-plan` on worktree-intel, base `fafc2db2d` (the step-8 baseline; lean gate
+`success`, nothing red at start).
+
+**Phase A.**
+- Step 1 — the graders written first and watched red against today's grammar, exactly the planned set:
+
+```text
+$ timeout 300 prlimit --as=8589934592 -- .venv/bin/python -m pytest tests/test_session_orient_hook.py -q --timeout=120 -p no:cacheprovider -k "owner_readers or grammar_tracks"
+14 failed, 27 passed, 76 deselected in 4.82s
+```
+
+  (A6 the parity pins, A4, A2 ×4, A1, A1b, A3, A3b, A9, A8 ×3; A2's `**Merge owner:**` and A5 ×3 green today.)
+- Step 2 — the six patterns and the supersedes lookahead edited; `ruff format` run on `scripts/decisions.py` and
+  `scripts/docs_updater.py` only. **Deviation:** `.claude/hooks/session_orient.py` was already not
+  `ruff format`-clean at HEAD (`ruff format --check` rc 1 before any edit), and formatting it re-wrapped untouched
+  code in `main()` and `_mcp_line()`, so the hook's edit is the three pattern lines alone, unformatted — the
+  pre-existing format debt is the hook's, not this change's.
+- The mutants, run after step 2 in a throwaway worktree at HEAD with the edited test file and three sources copied
+  in, each turn their named case red, and the restored tree is green:
+
+```text
+$ python3 -B mutants.py <probe>
+no-case-group: files changed 3, failed 8, named case red: True
+star-run: files changed 3, failed 4, named case red: True
+guard-first: files changed 1, failed 1, named case red: True
+restored: 41 passed, 76 deselected in 5.32s
+```
+
+- Step 4 — the readers' suites, one file at a time: `tests/test_session_orient_hook.py` 117 passed,
+  `tests/test_decisions_helper.py` 38 passed, `tests/test_docs_updater_adopt.py` 147 passed,
+  `tests/test_stop_hook_merge_requests.py` 30 passed; `ruff check` clean on the four files, `ruff format --check`
+  clean on the three that were clean before.
+- Step 6 — `python3 scripts/decisions.py --merge-owner .` prints `coordinator` (rc 0), and the driver:
+
+```text
+$ python3 owners_diff.py base_decisions.py scripts/decisions.py
+control: base 'alpha rc=0', edited 'beta rc=0'
+ledgers 52: base tallies {'rc=0': 9, 'rc=3': 43}
+diff: none
+PASS
+```
 
 ## Pass Ledger
 
