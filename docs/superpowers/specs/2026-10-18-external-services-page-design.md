@@ -16,7 +16,7 @@ dispositioned, `scripts/check_research_ledger.py` 0 refused).
 | The board's collector | `quota_dashboard.py --serve` (cron `--ensure`, crontab lines 93-94, `/usr/bin/python3`) | A guarded registry read on the Services view's request | Reads the registry; a failed read degrades the one section (§ The design, Failure) |
 | The daily chain | `scripts/external_services_chain.sh`, step `gen_dashboard` (`:117`), heartbeat stamped after every step (D-106) | `gen_dashboard.py <out>` keeps writing one self-contained file atomically | None new — its contract is unchanged |
 | Registry writers | `scripts/registry_sync.py`, `scripts/classify_services.py`, `gather_envs.py` | Nothing: they feed the registry the page reads | None new |
-| Test suite | `tests/test_external_services_chain.py` (59 tests; it loads `gen_dashboard` and, in 14 places, `dashboard_server`), `scripts/tests/test_registry_sync.py` (50; `:393` calls `gen_dashboard.load()`), the board tests that pin the link card (`tests/test_quota_dashboard.py:1859`, `tests/test_quota_dashboard_views_misc.py:327`, `:450`, `tests/test_quota_dashboard_page_layer.py:784`) and those that build the ext page (`tests/test_quota_dashboard.py:1850`, `:2244`) | Stable output landmarks | infra, in the change that removes what a test pins: the `dashboard_server` tests are deleted with the server; the markup-pinning generator tests and the link-card and ext-page board tests are rewritten against the new section; `test_registry_sync.py:393` keeps passing because `gen_dashboard` re-exports `load` (§ Data flow) |
+| Test suite | `tests/test_external_services_chain.py` (59 tests; it loads `gen_dashboard`, and names `dashboard_server` on 14 lines, about 10 of them loads), `scripts/tests/test_registry_sync.py` (50; `:393` calls `gen_dashboard.load()`), the board tests that reference the route, `ext_page`, `EXT_SERVICES_HTML`, `QUOTA_DASH_EXT_SERVICES` or the `services.ext.*` keys (`tests/test_quota_dashboard.py:1850`, `:1859`, `:1866`, `:2244-2275`; `tests/test_quota_dashboard_server.py:454`; `tests/test_quota_dashboard_views_misc.py:175`, `:327-343`, `:450`; `tests/test_quota_dashboard_page_layer.py:469`, `:662`, `:784`) | Stable output landmarks | infra, in the change that removes what a test pins: the `dashboard_server` tests are deleted with the server; the markup-pinning generator tests and every board test listed is rewritten against the new section or, for the route, against its `303`; `test_registry_sync.py:393` keeps passing because `gen_dashboard` re-exports `load` (§ Data flow) |
 
 **The primary loop, counted (the STEP BUDGET).** The operator wants to know whether a service is funded and
 in use, or what needs fixing. A step is one decision-bearing action — opening, reading, choosing — never a
@@ -69,10 +69,12 @@ the console (the separation), standard components (the accessibility defects).
   `/opt/fabrik/external-services-dashboard.html`, 124,655 bytes, the file the chain wrote 2026-10-17 15:00):
   `rows 466 · category values 19 (17 real categories, plus ? 331 and unidentified 20) · cost ? 351 / paid 49 /
   freemium 34 / free 19 / self-host 13 · status ? 331 / active 113 / unidentified 20 / retired 1 /
-  retiring 1 · with credit 1 (stale 0) · keys>0 97 (92 categorised, 5 untriaged) · unattributed 0 ·
+  retiring 1 · with credit 1 (stale 0) · keys>0 97 (88 in the 115 real-category rows, 4
+  unidentified, 5 untriaged) · unattributed 0 ·
   renewals 0 · account set 0 · distinct projects 36`. The registry's `account` comes only from
-  `api_keys.account_email`, which no row carries today. 25 categorised rows have a URL that fails the
-  `https?` gate and render as plain text, as they do today.
+  `api_keys.account_email`, which no row carries today. 5 of the 115 real-category rows have a URL that
+  fails the `https?` gate (and all 20 unidentified rows, whose URL is `?`); they render as plain text, as
+  they do today.
 - **Timing** (executed against the live registry): `rows 466 load_s 0.081 render_s 0.002 bytes 124637`;
   a second load `0.018 s`.
 - **The board's interpreter reads the registry**: `/usr/bin/python3` with a minimal env (HOME, PATH, USER,
@@ -107,11 +109,15 @@ no page shell. Two callers:
    at all**, no external request. The chain's file and its D-106 contract are unchanged.
 
 **Why the static file carries no script.** `app.js` cannot run outside the board's shell: it reads the
-`#qd-strings` catalogue (`app.js:10`), initialises filters only through `route()` on a `<main id="view">`
+`#qd-strings` catalogue (`app.js:11`), initialises filters only through `route()` on a `<main id="view">`
 (`:36`, `:716`), and on `visibilitychange` calls `refresh()`, which fetches `/v/<view>` (`:708-709`) — from
 disk a failed request, on the board a live fragment replacing the snapshot. Its filter code is not separable
 from that IIFE. So the static file is a read-only snapshot: its groups are native `<details>` the reader
-opens, and filtering is the live view's job (D7).
+opens, and filtering is the live view's job (D7). With `interactive=False` the renderer emits **no component
+that needs `app.js`**: no filter bar. Neither output uses `clamp()`: its "show all" button
+(`components.py:368-376`) works only through `app.js`, and in the live view `initClamps` hides it for a
+clamp inside a closed group (`app.js:587`), so long lists are cut as plain text with the full list in a
+native `<details>` instead.
 
 `scripts/dashboard_server.py` is retired: the live view replaces it.
 
@@ -151,7 +157,12 @@ The inventory is the **first section** of the Services view, above its pool and 
    with credentials, unattributed keys. Today's ten cards map one to one (§ Validation, every-fact check):
    services → Total · paid / freemium → Paid or freemium · free / self-host → Free or self-host · need triage
    → Untriaged · categories, projects, credit tracked, credit stale, renewals set, unattributed keys → More
-   counts.
+   counts. Each count is a formula over the rows, its census value in brackets: Total = rows (466) · Paid or
+   freemium (83) · Free or self-host (32) · Untriaged = category `?` (331) · Needs attention (21) ·
+   categories = the number of category tables (18: 17 real plus Unidentified; today's card counted 19
+   because it included `?`, which is now the Untriaged queue) · projects = distinct names (36) · credit
+   tracked (1) · credit stale (0) · renewals set (0) · with credentials = keys > 0 (97 = 92 in the tables +
+   5 untriaged; the group summaries' credential counts sum to 92) · unattributed keys = their sum (0).
 3. **Needs attention** — one compact list, empty-state text when there is nothing: a row per provider whose
    state asks for action, with the reason as text (never colour alone, a11y-3). The rules, from fields the
    registry has today:
@@ -163,21 +174,24 @@ The inventory is the **first section** of the Services view, above its pool and 
    — paid or freemium with no credential — is **not** adopted: it matches 16 rows today (anthropic, amazon,
    algolia, …), most of them funded by a web login the registry cannot see (`account` is set on 0 of 466
    rows), so it would be a list of false alarms (D4).
-   A row in this list also appears in its category table, except an `unidentified` row, whose pseudo-category
-   has no group: it appears here only.
-4. **The inventory** — the categorised providers (115 today: 135 with a category minus the 20
-   `unidentified`), **one table per category** (17 tables, ux-3), each a `disclosure()` whose summary shows
+   A row in this list also appears in its table (the retiring row in its category, the 20 unidentified rows
+   in the Unidentified table); the list itself carries no `data-f-*`, so the filter counts each provider
+   once.
+4. **The inventory** — the 135 providers with a category, **one table per category** (ux-3): 17 real
+   categories (115 rows) and a last **Unidentified** table (20 rows), each a `disclosure()` whose summary shows
    the category, its provider count and its paid and credential counts. Groups are collapsed by default; in
    the live view a filter match opens its group. Columns, six (ux-11): **Provider** (link when its URL
    passes today's `https?` gate) · **Cost** · **Status** · **Keys** (right-aligned, tabular, ux-13) ·
-   **Funding** (credit, else renewal and price) · **Used by** (clamped, ux-15). Each row's **detail**
+   **Funding** (credit, else renewal and price) · **Used by** (the first three names and "+{n} more",
+   ux-15 — plain text, no `clamp()`, so it reads the same with or without script). Each row's **detail**
    (ux-16) is a `disclosure()` in the Provider cell holding the account, price, renewal date, the full
    project list and the unattributed count.
 5. **Untriaged (331)** — one collapsed section, not 331 table rows: the count, how a row leaves the queue (it
    gets a category from `scripts/classify_services.py`; ux-10), and the providers as a compact list (`<ul>`),
    each entry carrying every field an untriaged row has: provider (a link under the same `https?` gate), key
-   count and projects (clamped). Its entries carry the same `data-f-*` attributes as the table rows, so the
-   filter reaches them.
+   count and projects (the first three and a native `<details>` holding the full list when there are
+   more — up to 25 today). Its entries carry the same `data-f-*` attributes as the table rows, so the
+   filter reaches them. The filter's total is every provider once: 135 table rows + 331 entries = 466.
 
 **Filter bar** above the inventory, **live view only** (`interactive=True`): a search box (provider, project,
 account), a cost and a status select, labelled (a11y-8), and a `role="status"` count, "*{n} of {total}
@@ -205,7 +219,8 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   its `kind`-tolerant column check and its guards (NaN, Infinity and negative balances and prices refused).
   Each row gains `credit_at` (the snapshot's `fetched_at`) beside the balance, so the 48 h rule is judged at
   render time against the renderer's `now` instead of inside `load()`; `synced_at` is `max(api_keys.last_seen)`
-  or `None`. `gen_dashboard.py` keeps a `load()` that connects and delegates, so its callers
+  or `None`. `gen_dashboard.py` keeps a `load()` that connects, delegates and returns the rows list alone — the shape
+  it has today — so its callers
   (`scripts/tests/test_registry_sync.py:393`) are unchanged.
 - One renderer: `inventory.render()` takes rows and returns `Safe` markup; it reads no file, database or
   environment.
@@ -223,9 +238,16 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - Registry unreachable in the live view: the inventory section shows `region_state("error", …)` with the
   cause; the rest of Services renders (the parent spec's guarded-collector rule). The read is bounded in
   time, because `_guarded` (`quota_dashboard.py:2218-2223`) catches exceptions but has no timeout and
-  `registry_db.connect()` sets none: the collector's connection is opened with `connect_timeout=3` and runs
-  `SET statement_timeout = 3000`, so a stalled Postgres becomes that section's error state, never a hung
-  `/v/services`.
+  `registry_db.connect()` (`registry_db.py:35-37`) takes no arguments and sets none. `registry_db.connect()`
+  gains optional keyword arguments passed to `psycopg2.connect` (the chain's call, with none, is unchanged);
+  the collector passes `connect_timeout=2` and `options="-c statement_timeout=2000"`, and runs `load()`'s
+  queries in one transaction under `SET LOCAL statement_timeout` re-armed to the deadline left, so the whole
+  read — connect plus every query — ends within 5 s. A stalled Postgres becomes that section's error state,
+  never a hung `/v/services`. (On the default unix-socket DSN a connect does not stall on the network; the
+  statement bound is what holds there.) The board re-requests `/v/services` on its refresh cadence, so the
+  collector keeps its last good read in memory for 60 s (the registry changes once a day; the only cache the
+  board has today is the credits file's 300 s, `quota_dashboard.py:161`), and an open tab queries the registry
+  at most once a minute.
 - Registry unreachable in the chain: `gen_dashboard.py` prints its one typed line and exits 1, the previous
   file stands — unchanged (`main()` today).
 - An empty registry: the summary shows zeros and each section its empty state, never a blank page.
@@ -233,9 +255,11 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 ### Contract deltas
 
 - `GET /external-services.html` (the board, `quota_dashboard.py:2844`) and the `ext_page` freshness entry
-  (`:2400`): **removed** with the link card (`views/services.py:183-193`) and the `services.ext.age` string
-  (`strings.py:470`). The live section replaces the only in-board way to the file; off-board readers read the
-  file on disk, never the board route (D8).
+  (`:2400`), `EXT_SERVICES_HTML` and its `QUOTA_DASH_EXT_SERVICES` setting (`:842`): **removed** with the
+  link card (`views/services.py:183-193`) and the four strings only it uses — `services.ext.title`,
+  `.missing`, `.age`, `.open` (`strings.py:468-471`). The route itself answers `303` to `/#services` for a bookmark, following the
+  `/repos.html` precedent (`docs/workstation/quota-dashboard.md:249`, through `_LEGACY_TOKEN_UNTIL`), and
+  `404` after that date (D8).
 - `gen_dashboard.py <out>`: same CLI, same exit codes, same atomic write; the output's markup changes.
 - `scripts/dashboard_server.py` (binds `0.0.0.0` by default — its retirement also closes that exposure) and
   its `:8770` port: **removed**. `PORTS.md` has no `8770` row, so nothing there changes.
@@ -254,7 +278,8 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   untriaged row, its provider link, key count and projects.
 - **Attention rules:** one test per rule (stale credit judged against a fixed `now`, unattributed,
   unidentified, retiring) plus a healthy row and a paid row with no credential that both stay out; an
-  `unidentified` row appears in Needs attention and in no category table.
+  `unidentified` row appears in Needs attention and in the Unidentified table; each More-counts value equals
+  its formula on the fixture.
 - **Untriaged queue:** 331 uncategorised fixture rows render as one section with its count, never as table rows.
 - **Bounded read:** the live collector against a connection that never answers returns the section's error
   state within the timeout, and the rest of the Services view renders.
@@ -278,11 +303,13 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   run writes the new static file.
 - **Growth:** at today's 466 providers a full render is 2 ms and a warm load 18 ms (load excluding the
   connect; the cold connect is the 81 ms measured above). **Trigger:** when the categorised set passes 1,000
-  rows (the census count above, re-run by anyone from the static file), or a test rendering a 5,000-row
+  rows (each group summary prints its provider count, and `select count(*) from services where category is
+  not null and category not in ('?', 'unidentified')` re-counts it — the static file no longer embeds the JSON the census
+  above parsed), or a test rendering a 5,000-row
   fixture through `inventory.render()` passes 200 ms (a test the build adds), the inventory moves to its own
   view with server-side filtering. The untriaged queue shrinks once W-7e467f2d restores classification (I8);
   the attention list is expected to stay short.
-- **Degradation:** a dead or stalled registry degrades one section within 3 s (live) or keeps yesterday's file
+- **Degradation:** a dead or stalled registry degrades one section within 5 s (live) or keeps yesterday's file
   (static).
 - **Retirement:** the static file stays while the chain writes it for off-board readers;
   retiring it is a separate decision, not this spec's, and would follow A's path (§ Rejected alternatives).
@@ -298,7 +325,7 @@ on are in § Chosen approach and the research ledger.
 | Capability | Verdict | Module / why |
 |---|---|---|
 | Inventory rendering | BUILD | Hub-only console markup on the board's own page layer; no fabrik-lib module renders HTML for an operator console, and the parent spec built the layer itself (D-925). Not a fabrik-lib candidate: it is specific to this registry and this console |
-| Registry read | REUSE in-repo (not a fabrik-lib module) | `scripts/registry_db.py` already, unchanged |
+| Registry read | REUSE in-repo (not a fabrik-lib module) | `scripts/registry_db.py`; `connect()` gains optional keyword arguments for the live read's timeouts, its no-argument call unchanged |
 
 ## Shape / infra implications
 
@@ -344,7 +371,7 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
   57; it has 59, and the change moves it again).
 - `docs/CAPABILITIES.md` (`:124`) and `capabilities.json` (`:1400-1403`) — the `dashboard_server.py` entry
   removed by regenerating the catalogue, never by hand.
-- `scripts/sysadmin/dashboard_ui/strings.py` — `services.ext.age` (`:470`) removed, the `services.inv.*`
+- `scripts/sysadmin/dashboard_ui/strings.py` — the four `services.ext.*` keys (`:468-471`) removed, the `services.inv.*`
   keys added.
 - No `PORTS.md` change: it carries no `8770` row.
 - `CHANGELOG.md` — one entry per landing change.
