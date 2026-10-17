@@ -42,7 +42,7 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    LOW = clean-up, wording, a rare edge, an advisory. **Effort** LOW = about one session, a few files, no spec or plan;
    HIGH = a spec or plan, several sessions, or fleet-wide. Every score's `--why` names the check that set it.
 4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
-   P3 fill-in · low/high = time sink, proposed for a drop · P0 = incident.
+   P3 fill-in · low/high = time sink, dropped (step 5) · P0 = incident.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
    gets nothing. A time sink is dropped on scoring, with its reason (D-955). Release a hold only on the
    operator's word.
