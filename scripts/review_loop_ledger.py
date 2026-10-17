@@ -334,9 +334,9 @@ def _fold(x: object) -> str:
 
 def open_claims(
     doc: dict, result: dict | None, launch: dict | None
-) -> tuple[list[tuple[str, str, dict, str]], list[str], set[str]]:
+) -> tuple[list[tuple[str, str, dict, str]], list[str], list[str]]:
     """The claims a pass leaves OPEN: `(id, slice, ledger row, why)` each; the ids reported open that nothing can
-    carry; and the folded ids of the candidates left unjudged because no run file was given.
+    carry (no row resolves it, or the run file repeats it); and one folded id per candidate left unjudged (no run file, or a slice with no verdicts list).
 
     Verdicts are read only from a run file's `result` (`--args <workflows/<runId>.json>`), never re-derived: there
     the workflow has already normalised each verdict (`verdictFor` — a refutation without counter-evidence, a
@@ -358,7 +358,9 @@ def open_claims(
         return {"id": cid, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
 
     union = result.get("slices") if isinstance(result, dict) else None
-    unchecked: set[str] = set()
+    unchecked: list[str] = []
+    union_ids: set[str] = set()
+    repeated: set[str] = set()
     if isinstance(union, list):
         for s in union:
             if not isinstance(s, dict) or not isinstance(s.get("name"), str):
@@ -371,10 +373,15 @@ def open_claims(
             for n, c in enumerate(cands):
                 if not isinstance(c, dict) or not isinstance(c.get("id"), str):
                     continue
+                if c["id"] in union_ids:
+                    # the workflow makes union ids unique (`A-S1#2`), as `_from_union` relies on: a repeat names no single
+                    # claim, so it is never carried — named instead (review round 2, A-H2)
+                    repeated.add(c["id"])
+                union_ids.add(c["id"])
                 claimed.add(_fold(c["id"]))
                 # a slice nobody judged (no refuter, an older run file): said, not guessed
                 if not isinstance(verds, list):
-                    unchecked.add(_fold(c["id"]))
+                    unchecked.append(_fold(c["id"]))
                     continue
                 v = verds[n] if n < len(verds) and isinstance(verds[n], dict) else {}
                 verdict = str(v.get("verdict") or "unverified")
@@ -384,7 +391,7 @@ def open_claims(
         for c in doc.get("candidates") or []:
             if isinstance(c, dict) and c.get("id") is not None:
                 claimed.add(_fold(c.get("id")))
-                unchecked.add(_fold(c.get("id")))
+                unchecked.append(_fold(c.get("id")))
     ledger: dict[str, tuple[str, dict]] = {}
     for s in (launch or {}).get("slices") or []:
         if isinstance(s, dict) and isinstance(s.get("ledger"), list):
@@ -409,6 +416,9 @@ def open_claims(
             opened.append(
                 (e["id"], hit[0], {k: e.get(k) for k in ("id", "file", "line", "claim")}, status)
             )
+    # a repeated union id is open but names no single claim: it is reported, never carried
+    stuck += sorted(i for i in repeated if i not in stuck)
+    opened = [o for o in opened if o[0] not in repeated]
     return opened, stuck, unchecked
 
 
@@ -1383,20 +1393,27 @@ def main(argv: list[str] | None = None) -> int:
             out = next_ledger(doc, ids, launch, result, [(o[1], o[2]) for o in carry])
             for cid, _name, _row, why in carry:
                 print(f"CARRIED {cid} — {why}, not in --ids", file=sys.stderr)
-            for sid in stuck:
-                if _fold(sid) not in named and _fold(sid) not in gone:
+            for sid in stuck:  # a stuck id is never a candidate, so never in --ids
+                if _fold(sid) not in gone:
+                    how = (
+                        "carry it by hand as {id, file, line, claim}, or --drop it"
+                        if launch is not None
+                        else "re-run next with --args <the run file>, or --drop it"
+                    )
                     print(
-                        f"OPEN NOT CARRIED {sid} — reported open, but no candidate this pass and no launch ledger "
-                        "row carries it: re-run next with --args <the run file>, or --drop it",
+                        f"OPEN NOT CARRIED {sid} — reported open, but no single candidate this pass and no launch "
+                        f"ledger row carries it: {how}",
                         file=sys.stderr,
                     )
-            left = len(unchecked - named - gone)
+            left = sum(1 for k in unchecked if k not in named)
             if left:
-                print(
-                    f"NOT CHECKED {left} candidate(s) outside --ids — next reads verdicts only from a run file: "
-                    "pass --args <workflows/<runId>.json> to carry the open ones",
-                    file=sys.stderr,
+                why = (
+                    "their slice carries no verdicts (no refuter answered): re-verify them by hand"
+                    if isinstance(result, dict)
+                    else "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
+                    "the open ones"
                 )
+                print(f"NOT CHECKED {left} candidate(s) outside --ids — {why}", file=sys.stderr)
             for d in drop:
                 print(f"DROPPED {d}", file=sys.stderr)
             for note in carry_notes(launch, out) if launch else []:

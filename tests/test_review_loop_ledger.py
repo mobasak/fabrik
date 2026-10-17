@@ -1510,7 +1510,8 @@ def test_next_without_a_run_file_says_what_it_did_not_check(tmp_path: Path) -> N
     r = _tool("next", str(p), "--ids", "A-S1")
     assert r.returncode == 0, r.stderr
     assert _ledger_of(r.stdout) == {"A": ["A-S1"]}, "without a run file no verdict is judged"
-    assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
+    # three candidate rows, one named: two left — rows, not ids (review round 2, NEW-1)
+    assert "NOT CHECKED 2 candidate(s) outside --ids" in r.stderr and "--args" in r.stderr, r.stderr
     quiet = _tool("next", str(p), "--ids", "A-S1,B-S2")
     assert quiet.returncode == 2, (
         "B-S2 names two claims: the existing ambiguity refusal still answers"
@@ -1592,3 +1593,38 @@ def test_next_drop_excludes_an_open_claim(tmp_path: Path) -> None:
     for bad in ("A-S1", "A-S3", "NOPE"):  # named in --ids · refuted · never raised
         refused = _tool("next", str(p), "--ids", "A-S1", "--args", str(run), "--drop", bad)
         assert refused.returncode == 2 and bad in refused.stderr, (bad, refused.stderr)
+
+
+def test_next_names_what_the_run_file_could_not_settle(tmp_path: Path) -> None:
+    """Review round 2 (B-S10, A-H2, B-S9, N1): a slice the refuter never judged is said with advice that fits a run
+    file already given; a union id the run file repeats is named, never carried twice; one stuck id reported by two
+    seats is named once."""
+    run = _judged_run(
+        tmp_path,
+        [
+            {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
+            {"name": "B", "candidates": _cands("B-S1", "B-S2")},  # no verdicts list: never judged
+            {
+                "name": "C",
+                "candidates": _cands("C-S1", "C-S1"),
+                "verdicts": [_ev("C-S1", "confirmed"), _ev("C-S1", "confirmed")],
+            },
+        ],
+    )
+    rows = [{"id": "Z-S1", "status": "DEFECT_PRESENT"}, {"id": "z-s1 ", "status": "NEW"}]
+    r = _tool("next", str(_pass_with(tmp_path, rows)), "--ids", "A-S1", "--args", str(run))
+    assert r.returncode == 0, r.stderr
+    assert _ledger_of(r.stdout) == {"A": ["A-S1"]}, r.stdout
+    assert (
+        "NOT CHECKED 2 candidate(s) outside --ids — their slice carries no verdicts" in r.stderr
+    ), r.stderr
+    assert "pass --args" not in r.stderr, "a run file was given: that advice would be wrong"
+    lines = r.stderr.splitlines()
+    assert not any(ln.startswith("CARRIED C-S1") for ln in lines), r.stderr
+    assert sum(ln.startswith("OPEN NOT CARRIED C-S1") for ln in lines) == 1, r.stderr
+    assert sum(ln.lower().startswith("open not carried z-s1") for ln in lines) == 1, (
+        "one stuck claim, echoed by two seats, is named once"
+    )
+    assert "re-run next with --args" not in r.stderr, (
+        "--args was given: the advice names the hand route"
+    )
