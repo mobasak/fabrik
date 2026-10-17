@@ -111,8 +111,8 @@ a declaration, and the census shows the label is always written upper case when 
 lower-case words "Merge owner:" are exactly what prose would open with. adr-tools takes the same exact-match stance;
 the ledger's own supersedes clause already requires it (`(?=(?-i:MERGE OWNER:))`, `scripts/decisions.py:60`). A makes
 that one rule apply to every row. The bold allowance is exactly one optional `**` on each side of the colon
-(`(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*`), so both bold spellings this ledger uses read — the colon inside the bold (7 hub rows' labels) and outside it
-(1, `docs/DECISIONS.md:81`) — and no run of asterisks does: `\**` would also newly accept `MERGE OWNER:*a*` and `MERGE OWNER:***a` (found by the plan's reader census,
+(`(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*`), so both ways this ledger bolds a label read — the colon inside the bold (7 of the hub
+ledger's bold labels) and outside it (1, `**Repos**:` at `docs/DECISIONS.md:81`; no merge-owner row is bold today) — and no run of asterisks does: `\**` would also newly accept `MERGE OWNER:*a*` and `MERGE OWNER:***a` (found by the plan's reader census,
 executed in `bold_probe.py`). It accepts `**MERGE OWNER:**x` too, which CommonMark does not render as bold — harmless:
 the reader reads text, not rendering, and the name is still the next token.
 
@@ -136,7 +136,8 @@ trigger for D.
   as a name. The reader hides that order: `_owner_in` tests `_UNDECLARED_RE` first (`.claude/hooks/session_orient.py:327`),
   so only the literal parity pin can see a misplaced guard. Touchpoints `scripts/decisions.py:62`, `:67`,
   `scripts/docs_updater.py:1233`, `:1238`, `.claude/hooks/session_orient.py:231`, `:242`.
-- **D2 — exact label on every row.** Wrap the phrase in each of those six patterns as `(?-i:MERGE OWNER:)`, so the
+- **D2 — exact label on every row.** Wrap the words in each of those six patterns as `(?-i:MERGE OWNER)`, the
+  optional `**` and the colon outside the group (D1's token), so the
   phrase is upper-case-exact whether or not a supersedes clause precedes it; the clause itself and the `UNDECLARED`
   token keep `re.I`. `_SUPERSEDES_PREFIX`'s lookahead drops its colon — `(?=(?-i:MERGE OWNER))` — so a supersedes
   clause can precede the colon-outside bold label; the phrase that follows still demands the colon. The un-adoption row
