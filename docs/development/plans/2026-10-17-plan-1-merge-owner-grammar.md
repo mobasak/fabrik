@@ -95,7 +95,7 @@ Intake: 6 items — 6 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | No cosmetic assertions | `.windsurf/rules/core/45-testing-strategy.md:21` |
 | Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry. | `.windsurf/rules/core/40-documentation.md:134` |
 
-## Phase A — the grammar
+## Phase A — the grammar — ✅ EXECUTED 2026-10-17 (3ae906f45)
 
 Appetite: 75
 
