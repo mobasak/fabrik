@@ -17,7 +17,7 @@
   "note": "migrated-digest:7747a3720447",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: blocks an agent entirely; fix is carry/guard in worktree setup — no commit for the id; blocks every prompt in a worktree lacking synced hooks (.worktreeinclude carry)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — missing hooks block every prompt in a worktree",
   "status": "open",
   "title": "**A linked worktree whose `.claude/hooks/*.py` are missing blocks EVERY prompt** (\"UserPromptSubmit operation blocked by hook: can't open file …\") — in a project the hooks are gitignored synced cop..."
 }

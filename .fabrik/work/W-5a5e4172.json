@@ -17,7 +17,7 @@
   "note": "migrated-digest:54b0577f1e03",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: wording in denominator rule — CLAUDE.md and templates/governance/CLAUDE.md have no 'mutants' mention (command grep)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — denominator rule wording on mutants dir; minor",
   "status": "open",
   "title": "CLAUDE.md's denominator rule names `.claude/worktrees/` but not `mutants/`, and a repo-root recursive count descends both (2026-09-15, plan-2 Finish round 3, raised by a reviewer seat's MACHINERY n..."
 }

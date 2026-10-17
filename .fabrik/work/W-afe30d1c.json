@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: dashboard timeout on half-dead uplink; one function — claude_rotate.py:1232 comment: slow-but-answering shape 'is W-afe30d1c's'; latch D-942 (0d04b15be) covers only dead link",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — dashboard timeout on half-dead uplink",
   "status": "open",
   "tags": [
     "infra"

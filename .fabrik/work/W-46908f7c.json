@@ -17,7 +17,10 @@
   "note": "migrated-digest:1a173e48d285",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: robustness on corrupt record fields, rare edge in one file — command_run.py:2120-2128 surface/adds still read via rec.get; claim not reproduced; no commit with id",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — robustness on corrupt record fields",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "`command_run.py`'s `start` silently discards every parked frame on a non-running record, and its own readers still die on a corrupt field"
 }

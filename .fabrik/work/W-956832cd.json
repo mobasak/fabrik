@@ -17,7 +17,7 @@
   "note": "migrated-digest:10767a5a97c7",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: test grades live hub; clean-up; same class as W-67cfdd24 — tests/test_sync_trigger_coverage.py:52,58,64,69 etc. hard-code Path('/opt/fabrik')",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — test grades live hub, clean-up",
   "status": "open",
   "title": "`tests/test_sync_trigger_coverage.py` grades the LIVE hub, not the tree under test (2026-09-24)"
 }

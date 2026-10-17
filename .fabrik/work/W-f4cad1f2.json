@@ -17,7 +17,10 @@
   "note": "migrated-digest:78a609052980",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: workaround documentation, advisory — harness behavior (Bash tool persists large output to a $HOME .claude path); fix is to document sed-offset workaround in subagent brief fragment or raise with harness; no commit by id",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — workaround documentation",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**The Bash tool persists large output to a `$HOME`-rooted `.claude*` path and instructs the agent to read it — which every subagent brief on this box forbids (2026-09-18)** — hit by two review seat..."
 }

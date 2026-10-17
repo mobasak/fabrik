@@ -17,7 +17,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: test-grader hardening, one test file — test_review_loop_workflow.py asserts PYTEST_PINS clauses by substring (lines ~1365-1368, 1542); no whole-sentence assert seen; 3c84aed9e is a different pin fix",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — grader hardening",
   "status": "open",
   "tags": [
     "handoff-2026-10-06"

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: blocks merges (merge_request dirty-tree refusal), one script — git status at start shows docs/reference/agents/kaizen-log-fleet.md and kaizen-log-infra.md dirty in main checkout; writer is scripts/sysadmin/kaizen_collect_v2.py; blocks merge_request on every worktree merge",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen collect dirties main and blocks every worktree merge",
   "status": "open",
   "title": "kaizen_collect_v2.py leaves docs/reference/agents/kaizen-log-*.md dirty in the main checkout and relabels an agent-committed week row's date (2026-10-05 -> 2026-10-11), so merge_request.py refuses every worktree merge carrying those logs (fleet 01M4PX76WP, 2026-10-12)"
 }

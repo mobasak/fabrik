@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: residual empty-field check in the writer; advisory — decisions.py writer escapes pipes (decisions.py:155-171, 6af5ca228) so the bare-pipe half is largely settled; the 'field with no word' write-time refusal not found; 71478cc73 changed the ratchet only",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — writer shape check residual",
   "status": "open",
   "title": "decisions.py --append writes a row without checking its shape: a field with a bare pipe (outside a code span) or with no word at all goes in, and the ratchet sees it only at the next gate — refuse both at write time (intel 01M4405E SYSTEMIC; the writer exists, it validates only newlines)"
 }

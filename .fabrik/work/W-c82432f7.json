@@ -17,7 +17,7 @@
   "note": "migrated-digest:f91e72d3d7c7",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: gate coverage gap, advisory, measure first — no commit for the id; check_doc_links extension needs fire-rate measurement first",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory link-check coverage",
   "status": "open",
   "title": "**check_doc_links blind spots** (youtube `01M15AYX5` #2): cannot see cross-refs inside `docs/development/` or `docs/superpowers/`, and omits `CHANGELOG.md` from root sources — a Doc-Sync-mandated l..."
 }

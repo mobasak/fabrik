@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: hold lifts on cached reading could release quota wall; small predicate change, owner infra (box mesh rotation) — claude_rotate.py:6550 _row_has_reading ignores row['source'] (docstring: ANY non-None utilization); only commit 0d04b15be is the parent W-5a1b8961",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — battery-hold lift misreads cached row; quota wall release bug",
   "status": "open",
   "tags": [
     "infra"

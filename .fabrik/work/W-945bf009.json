@@ -17,7 +17,7 @@
   "note": "migrated-digest:13988de6989f",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: quota hold refuses read-only git -C/mail send, blocks agents at the wall; single hook file but security-sensitive — quota_stop.py:88 _ALLOWED_BASH start-anchored regex still present (match at :621)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — quota hold refuses read-only commands, blocks agents at the wall",
   "status": "open",
   "title": "The fleet-quota hold refuses read-only `git -C`, a piped `mail.py send`, and a `cd`-prefixed close — and the obvious fix opens a force-push bypass"
 }

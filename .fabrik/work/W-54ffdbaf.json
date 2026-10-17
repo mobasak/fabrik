@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-54ffdbaf",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "infra: read mail 01M4YNHVH2GAJBZ3W7XBCBJM9A, claim it, act on it",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook blames idle window; false block, mail from agents",
   "status": "open",
   "tags": [
     "mail-01m4ynhvh2gajbz3w7xbcbjm9a",

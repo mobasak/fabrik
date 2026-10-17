@@ -17,7 +17,7 @@
   "note": "migrated-digest:9347fcd83e05",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: coverage gap in a WARN-only gate; small extension — render_doc_script_links.py and check_script_headers.py both document/select scripts/**/*.py only (check_script_headers.py:11)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — coupling gap in WARN-only gate",
   "status": "open",
   "title": "Doc↔script coupling reads `.py` headers only — a shell script's `# AFTER-EDIT:` is decorative (2026-09-23)"
 }

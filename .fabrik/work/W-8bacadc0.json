@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: one parity check, but legal pages not yet built — command grep 'set ' in templates/scaffold/scripts/verify_prod_parity.py found nothing; depends on legal-pages build (spec only, no plan)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — legal pages not built yet",
   "status": "open",
   "title": "Deploy-time guard: no '[set LEGAL_…]' marker ships on /terms, /privacy, /refund or /cookies"
 }

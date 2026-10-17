@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare edge, one script — command_run.py start has no repo_root-differs stacking refusal (grep repo_root shows none at start)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare stacking edge in one script",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

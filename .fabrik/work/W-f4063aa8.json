@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "routed residue of infra's W-573fae88 spec review (scope-growth stop, D-355); wording only, settled at /fabrik-plan-after-chat of the same project",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — spec residue wording",
   "status": "open",
   "tags": [
     "dashboard"

@@ -17,7 +17,7 @@
   "note": "migrated-digest:1e57fe1e70aa",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare race on shared tree — narrowed not closed per item; no commit",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare race, narrowed already",
   "status": "open",
   "title": "The lint ratchet's version relief lets a SIBLING's uncommitted re-seed set the floor, inside the mismatch window (2026-09-15, plan-2 Finish round 6, narrowed not closed)"
 }

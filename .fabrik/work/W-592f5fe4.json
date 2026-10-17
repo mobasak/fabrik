@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-592f5fe4",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "records check 2026-10-17: add --all flag — no commit with id; check_rule_grounding advisory budget hides findings",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — plan-review pass-1 hides findings: command wording/feedback verdict",
   "status": "open",
   "tags": [
     "mail-01m47t06vv"

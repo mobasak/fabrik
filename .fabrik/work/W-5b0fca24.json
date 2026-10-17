@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-10-13T04:22:59.413340Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-5b0fca24",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -16,6 +20,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — 14 feedback verdicts on execute-plan needing code",
   "status": "open",
   "title": "/fabrik-execute-plan feedback queue — 14 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
 }

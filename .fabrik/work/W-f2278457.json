@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: worktree-only docs_updater edge — no commit found for empty-dir INDEX rows (1ded2e290 covered ignored rows only per item)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — INDEX rows dropped in worktree",
   "status": "open",
   "tags": [
-    "mail-01m48vevsg"
+    "mail-01m48vevsg",
+    "medium"
   ],
   "title": "docs_updater.py --sync in a linked worktree drops INDEX.md STRUCTURE rows for EMPTY untracked directories that exist only in the main checkout (mail 01M48VEVSG, follow-up to 1ded2e290 which covered ignored rows only)"
 }

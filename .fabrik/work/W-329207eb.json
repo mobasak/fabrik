@@ -17,7 +17,7 @@
   "note": "migrated-digest:d8ff5759d46e",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: doc retire/rewrite — docs/orchestrator/orchestrator-cockpit-{decisions,feature-set,requirements}.md still present; no retirement commit",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — docs of never-built cockpit",
   "status": "open",
   "title": "**The never-built orchestrator cockpit docs** (`docs/orchestrator/orchestrator-cockpit-{decisions,feature-set,requirements}.md`, spine I13) still describe the retired chains in live tense — exclude..."
 }

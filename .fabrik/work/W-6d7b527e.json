@@ -17,7 +17,10 @@
   "note": "migrated-digest:b21db298d139",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: consistency wording plus a small grader — templates/governance/CLAUDE.md mixes 'hub D-NNN' (lines 25, 26, 612) with bare ids (e.g. D-356 at ~line 37); no grader found",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — template cites bare D-ids, no rule; fleet template wording",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`templates/governance/CLAUDE.md` cites hub decision ids bare in places (`:37`, `:70`, `:444`, `:471` at 537f359ab) with no written rule for the `hub D-NNN` prefix (2026-09-24)** — found by the T0..."
 }

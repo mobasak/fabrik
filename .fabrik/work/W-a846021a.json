@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: advisory warning false positive; owner moved to infra per beat-owners scripts/** — check_doc_sync.py:510-531 RESILIENCE warning not gated on docs/RESILIENCE.md existing (read the code)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory false positive",
   "status": "open",
   "tags": [
     "enforcement"

@@ -17,7 +17,7 @@
   "note": "migrated-digest:488745e7aafe",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare long-title edge — scripts/thread_anchor.py:819-836 cmd_line emits a['text'] unclipped (no 300-char cap)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare long-title edge",
   "status": "open",
   "title": "`thread_anchor.py cmd_line` anchor lines can exceed the 300-char cap (2026-09-24)"
 }

@@ -17,10 +17,11 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — money-guard under-estimate for multi-worker endpoint; spend cap risk",
   "status": "open",
   "tags": [
     "gpu",
+    "medium",
     "money-guard"
   ],
   "title": "gpu_rent: the serverless cost estimate ignores workers_max, so a multi-worker endpoint is under-estimated against max_cost_usd and the daily cap"

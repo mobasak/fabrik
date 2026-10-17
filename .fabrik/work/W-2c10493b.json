@@ -17,7 +17,7 @@
   "note": "migrated-digest:88d318d55285",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: harmless at today's ledger size; measured perf only — command_feedback_report.py:1403 _task_series_nested still compared pairwise (:1523); no fix commit",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — harmless at today's ledger size",
   "status": "open",
   "title": "**`_task_series_nested` is O(|review-scoped| x |others|) over the fleet-wide append-only ledger (2026-09-18)** — measured on synthetic ledgers: 500 rows 0.04 s, 5,000 rows 0.25 s, 20,000 rows 3.89 ..."
 }

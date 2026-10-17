@@ -17,7 +17,7 @@
   "note": "migrated-digest:7482e3a9a6be",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare edge, wrapper-pattern fix — scripts/sysadmin/selfwatch_arm.sh exists; in-place edit hazard unfixed",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare in-place edit hazard",
   "status": "open",
   "title": "Long-running hub shell scripts execute whatever an in-place edit leaves at their byte offset (2026-09-23)"
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:03898b7aa8e0",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Telegram fallback Markdown escaping in one lib",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — Telegram fallback Markdown escaping",
   "status": "open",
   "title": "`libs/alerting` Telegram fallback sends legacy Markdown without escaping (2026-09-02, owner: infra)"
 }

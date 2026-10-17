@@ -17,9 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Removes a false triage nudge every coordinator turn while a worker is paused",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — false triage nudge each coordinator turn",
   "status": "open",
   "tags": [
+    "medium",
     "queued",
     "work-store"
   ],

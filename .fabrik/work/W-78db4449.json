@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T18:04:43.834956Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-78db4449",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "read the phase-count and NEXT-map code; render from master only",
   "note": "",
   "owner": "infra",
-  "priority": 3,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command corpus warn + NEXT entry from kaizen mail",
   "status": "open",
   "tags": [
     "needs-split"

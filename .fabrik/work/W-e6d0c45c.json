@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare edge, one file — review_receipt.py:388 `stem = a.scope if _DATED.match... else f\"{date}-{a.scope}\"` uses scope raw (cite :281 drifted)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare scope value edge",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

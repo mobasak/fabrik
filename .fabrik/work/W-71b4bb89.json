@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: honest-close verb — no commit with id; command_run close verb change",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — honest close verb for scope-growth stop, feedback request",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "command_run: an honest close for the scope-growth stop (third verb or done --reason) (plan-review verdict 1789480698.3052342, kaizen 01M4EG5F6D)"
 }

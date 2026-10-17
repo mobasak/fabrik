@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: template cleanup with a test — templates/mobile-app/src/translations has ar.json,en.json; static/i18n is emitted from the kit at scaffold.py:7399; still unified? not verified",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — template cleanup",
   "status": "open",
   "tags": [
     "rules"

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "D-890: wording of one refusal message (an advisory), a one-line change in command_run.py",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — one refusal message",
   "status": "open",
   "tags": [
     "mail-01m4zk45cd4ez4xj1rcstn5rwk"

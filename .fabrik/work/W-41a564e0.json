@@ -17,9 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: test-hygiene guard, one conftest — scripts/**/test_*.py conftest guard not extended; no commit grep hit; measure-first item",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing live-fleet guard for tests",
   "status": "open",
   "tags": [
+    "medium",
     "tests"
   ],
   "title": "scripts/**/test_*.py (25 files) run with no live-fleet guard: tests/conftest.py's Popen guard + PATH shim only load for tests/ (review G-S3/G-O7, W-56f180f7)"

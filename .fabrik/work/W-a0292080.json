@@ -4,10 +4,10 @@
   ],
   "created": "2026-10-06T19:18:13.540610Z",
   "creator": "intel",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-a0292080",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,11 +18,12 @@
   "next": "name the pause (marker or unreadable state) as the hold reason in the advisory text when _validated_pick finds a sibling; one test per cause",
   "note": "",
   "owner": "infra",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'wrong'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — broadcast states wrong cause",
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "medium"
   ],
   "title": "claude_rotate's urgent fleet broadcast says every sibling is walled even when the hold is the operator's pause marker or an unreadable pause state and a healthy sibling exists (_fleet_active_wall_advisory, :7077) — the stall is real, the stated cause is wrong"
 }

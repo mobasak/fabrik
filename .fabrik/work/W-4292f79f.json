@@ -17,7 +17,7 @@
   "note": "migrated-digest:09c22fb6216e",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: test-strength gap in one grader; advisory — git log --grep=W-4292f79f empty; test named still in tests/test_command_run_fabrik_task.py; no landing commit found",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — test-strength gap in one grader",
   "status": "open",
   "title": "**The ambient-`GIT_DIR` grader covers only the REFUSAL direction of the launder (2026-09-18)** — `tests/test_command_run_fabrik_task.py::test_an_ambient_git_dir_cannot_relocate_the_measurement` red..."
 }

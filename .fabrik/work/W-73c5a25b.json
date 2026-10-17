@@ -19,7 +19,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "records check 2026-10-17: tenant-isolation security on every emitted saas project; spec required — needs /fabrik-spec; schema.sql RLS/current_tenant_id concerns for every saas scaffold",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — tenant isolation RLS on every emitted saas project, needs spec",
   "status": "open",
   "title": "saas-skeleton tenant schema: one current_tenant_id() (vendored IdP rls/native.sql), RLS on tenants, cascade-delete blast radius, tenants.deleted_at, jobs exception"
 }

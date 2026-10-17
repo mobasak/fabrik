@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: tool reports CONNECTED while key rejected; assigned MCPs silently broken; one script — scripts/sysadmin/mcp_health.py has no authenticated probe (grep unauthor/probe: only handshake probe)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — mcp_health false green on rejected keys",
   "status": "open",
   "title": "exa and firecrawl connect but reject their keys while mcp_health reports CONNECTED (mail 01M49YT4T5): add an authenticated no-op probe to scripts/sysadmin/mcp_health.py and a 'connected but unauthorized' roster row; the key re-provision itself is the operator's (credentials gate)"
 }

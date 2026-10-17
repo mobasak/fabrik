@@ -17,7 +17,7 @@
   "note": "migrated-digest:56859b0a6d88",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: unbounded dict, rare edge — fabrik-lib/alerting/ exists; no fix commit; libs/alerting maps to infra in beat-owners.json",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — unbounded dict, rare",
   "status": "open",
   "title": "`fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module"
 }

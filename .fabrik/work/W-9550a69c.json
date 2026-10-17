@@ -1,6 +1,7 @@
 {
   "blocked_by": [
-    "W-ab566484"
+    "W-ab566484",
+    "W-3e9e2f4c"
   ],
   "created": "2026-10-13T22:01:52.772212Z",
   "creator": "fleet",
@@ -19,7 +20,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — deploy env path resolves wrong dir",
   "status": "open",
   "tags": [
     "fleet"

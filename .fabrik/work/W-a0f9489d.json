@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: advisory guard, measurement first — 608e867f7 only filed it; D-935 caps test runs; item is measure-then-decide, 14-day count",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — measure guard first",
   "status": "open",
   "tags": [
     "infra"

@@ -17,7 +17,10 @@
   "note": "full-tag:[infra/T16 decision]; migrated-digest:6c2e4b67e19c",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: decision item: register or retire an unwired fleet-synced check; either is small — grep -c check_traycer_chain: scripts/final_gate.py 0, .pre-commit-config.yaml 0 (claim still true)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — unwired fleet-synced check; register or retire",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**Nothing runs `scripts/enforcement/check_traycer_chain.py`** — 0 of ~40 `run_optional_check` registrations in final_gate.py, not in pre-commit; fleet-synced to ~46 repos where nothing invokes it, ..."
 }

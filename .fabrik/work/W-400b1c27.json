@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-10-12T18:04:40.076292Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-400b1c27",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +18,8 @@
   "next": "measure each against final_gate_stop.py's sixth and second causes; heavy surface, full review",
   "note": "",
   "owner": "infra",
-  "priority": 3,
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false blocks across several causes; needs split",
   "status": "open",
   "tags": [
     "needs-split"

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: wording drop after build — blocked on saas legal-pages build (spec 2026-09-29, no plan or build); mail to infra owed",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on legal-pages build",
   "status": "open",
   "title": "saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships"
 }

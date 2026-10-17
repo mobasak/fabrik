@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-c4e9e205",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,11 @@
   "next": "find the WSL layer (localhost port tracker, networkingMode=nat) that registers ephemeral binds late; until fixed, a test server fixture can poll-connect before use",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'refuses'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — WSL port-0 race in tests; poll-connect workaround known",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "WSL box: an IPv4 loopback listener bound to port 0 refuses connections for ~10-50 ms after listen() (explicit ports and ::1 are immediate), so ThreadingHTTPServer(('127.0.0.1',0)) tests race (wef 01M4RPGF7N)"
 }

@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-6ce7828d",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "",
   "note": "",
   "owner": "kaizen",
-  "priority": 3,
-  "score_reason": "records check 2026-10-17: command wording — wording lives in commands/_fragments/design-gate-panel.md (D-613 text 'answers the design-approval gate in the operator's place'); item asks RECOMMENDS wording; not verified whether the classifier denial still occurs",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording fix from feedback mail",
   "status": "open",
   "tags": [
     "mail-01m492801e"

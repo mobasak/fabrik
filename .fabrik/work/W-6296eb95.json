@@ -17,7 +17,7 @@
   "note": "migrated-digest:b5bf3e765bdb",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: alerting body with stray _ or * garbles a message; rare, advisory — libs/alerting/telegram.py:89 still sends parse_mode Markdown with no escaping",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare Markdown garble in alerting",
   "status": "open",
   "title": "**Telegram legacy-Markdown parity at the alerting boundary** (external-services review pass 33, CW4): `libs/alerting/telegram.py` sends `*{title}*\\n{body}` with `parse_mode: Markdown` and escapes n..."
 }

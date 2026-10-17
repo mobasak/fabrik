@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: single dependency bump with codemod — templates/mobile-app/package.json:120 @testing-library/react-native ^13.3.3 still pinned",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — testing-library major bump with codemod",
   "status": "open",
   "tags": [
     "rules"

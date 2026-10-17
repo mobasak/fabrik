@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: grader hardening, advisory — hunt follow-up to W-ea06749b (ec3bfc77e, D-556); no later commit; open-ended mutant hunt",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — grader hardening follow-up",
   "status": "open",
   "title": "Grader-power sweep of the Stop hook's commit attribution (_session_authorship/_commit_files)"
 }

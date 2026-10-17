@@ -17,7 +17,7 @@
   "note": "migrated-digest:f71ccd8e62d4",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare path-with-comma edge — scripts/command_run.py:5021 still ',' .join(paths[:3]) in oversized_mini record",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — comma path ambiguity",
   "status": "open",
   "title": "**`oversized_mini`'s `paths=` sample is comma-joined with no escaping (2026-09-18)** — `scripts/command_run.py:3036` renders `\",\".join(paths[:3])`, so a path containing a comma is ambiguous to any ..."
 }

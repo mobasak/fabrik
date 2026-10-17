@@ -17,9 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: sweep widening with fp measurement — scripts/sysadmin/rules_render_versions.py _LOOSE:36 has no React Native/Expo/NDK shapes (command grep)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — sweep reports false 0 on a pack; rules tooling",
   "status": "open",
   "tags": [
+    "medium",
     "rules"
   ],
   "title": "rules_render_versions.py _LOOSE sweep sees only Python/SQLAlchemy/FastAPI/TypeScript/pydantic/Node/Debian/Postgres/Redis shapes: it reported 0 on 80-mobile while the pack carried React Native, Expo SDK, NDK, CMake, JDK and library-major literals"

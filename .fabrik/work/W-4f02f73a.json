@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: retire two scripts + derive list — fabrik_synced_manifest.py:93-94 still lists sync_cascade_backup.sh and sync_extensions.sh; watcher still hand-lists CLAUDE.md (:35)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — retire two scripts",
   "status": "open",
   "title": "Drop the two retired Windsurf/Cascade helpers from RUN_SCRIPTS and make watch_enforcement_changes.sh derive its list from fabrik_synced_manifest.py"
 }

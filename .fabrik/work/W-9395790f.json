@@ -17,7 +17,10 @@
   "note": "migrated-digest:e65e42ce9b56",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: hardening sweep, rare decode crash — scripts/enforcement/*.py: 98 text=True lines without errors= of 113 subprocess.run (command grep, tool noted)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — decode crash sweep in enforcement",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "`subprocess.run(text=True)` with no `errors=` — 85 of 88 call sites in `scripts/enforcement/` carry the crash just fixed in one of them (wef3 01M2X0ZQX8YMZX022R9TC1E3M6, routed 2026-09-19)"
 }

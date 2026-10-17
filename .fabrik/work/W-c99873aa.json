@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: convenience print; one file — no md5 print in command_run start (command grep md5 command_run.py -> 0)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — md5 print",
   "status": "open",
   "title": "command_run start: print the command file's md5 so a re-invocation shows the text changed since last read (fabrik-spec verdict 1790917301.6574302, kaizen 01M4EJQEEG)"
 }

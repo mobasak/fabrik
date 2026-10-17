@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-2a2c5a08",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "HEARTBEAT_FILE = Path(os.environ.get('HEARTBEAT_FILE', '/app/.tmp/worker_heartbeat')) and set it in the Makefile dev target (or default to a repo-local .tmp when /app is absent); grader: scaffold a file-worker into tmp and run python -m worker.main with deps stubbed until it passes line 26",
   "note": "",
   "owner": "fleet",
-  "priority": 3,
-  "score_reason": "fleet checked 2026-10-15: not fixed — file-worker template mkdirs /app/.tmp at import (main.py:26-27); template tidy-up",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — template crash on host make dev",
   "status": "open",
   "tags": [
     "queued",

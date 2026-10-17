@@ -17,7 +17,7 @@
   "note": "migrated-digest:f753f99f3afc",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: feature flag in one driver per existing module contract — scripts/rivals_run.py has no seed option (grep seed empty; argparse at :1073); module side shipped per item",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — seed-rival flag in one driver",
   "status": "open",
   "title": "**/fabrik-rivals driver: `--seed-rival` flag** (fabrik-lib `01M15DM2G`, module SHIPPED bebc57b→6cf6a74, 515 tests green): `competitor_intel.run` now accepts seeds; the driver half is `scripts/rival..."
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:a2a5a311745b",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare latency under flock, one file — command_run.py _task_git at :4230 still used by close re-measure; no commit mentions id",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — flock held across git calls; rare",
   "status": "open",
   "title": "**The `/fabrik-task` close holds the record flock across up to five 10s git subprocesses (2026-09-18)** — `scripts/command_run.py`'s phase-5 re-measure runs `cat-file`, two `log`s, `rev-parse` and ..."
 }

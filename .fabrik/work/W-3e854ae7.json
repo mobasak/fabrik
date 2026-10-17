@@ -17,7 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: remaining half: add dev requirements — pytest pythonpath config emitted via W-1c722f35 (D-605) but _SAAS_SERVER_REQUIREMENTS (scaffold.py:2203) has no pytest",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — saas-skeleton server tests cannot run unmodified",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "saas-skeleton server/ cannot run its own tests: no pytest config (pythonpath=src) and no pytest in its requirements, so server/tests/test_auth.py and test_glitchtip_no_secret_leak.py need PYTHONPATH set by hand (found by the W-dc4f5470 review)"
 }

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: spoke watchdog provisions on wrong host; wrap in one ctx helper with a grader — command grep _target_vps_env in src/fabrik/drivers/watchdog.py returns nothing; WatchdogDriver ssh calls at :511,:687 use hub host",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — spoke watchdog targets wrong host",
   "status": "open",
   "tags": [
     "watchdog"

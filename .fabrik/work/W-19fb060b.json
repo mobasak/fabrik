@@ -17,7 +17,10 @@
   "note": "migrated-digest:25b75fafdaf7",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: gate attribution annoyance, needs a decided semantics then a small edit — check_test_proposal.py has _new_plans/_baseline_ref but no staged-vs-HEAD handling found; semantics question undecided",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gate attribution false red un-attributable, needs decided semantics",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**Gate behavior question: a STAGED plan with no HEAD commit reds every session's diff-scoped gate un-attributably** (fleet `01M16Q0KQ`, two live occurrences): should `check_test_proposal`/the gate ..."
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:e42d52fbb635",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: remaining part is small tooling friction — PARTLY DONE: .serena/ ignore landed in 3fe7b15bd (synced manifest :236); remaining items (single-language auto-create) unverified",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — tooling friction, partly done",
   "status": "open",
   "title": "serena auto-creates a single-language project, and `.serena/` is missing from the fleet-synced gitignore block (wef3 01M2WR8Y0XBT6C0TASWHKYT8F9, routed 2026-09-19)"
 }

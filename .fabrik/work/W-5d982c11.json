@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-09-24T23:27:47.747689Z",
   "creator": "infra",
   "evidence": "",
@@ -17,6 +19,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "medium",
     "needs-split"
   ],
   "title": "Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself"

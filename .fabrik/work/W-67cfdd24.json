@@ -17,7 +17,7 @@
   "note": "migrated-digest:9dc6e00ca5e2",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: tests grading live tree, clean-up in two test files; related to W-956832cd (same class, different file) — tests/test_command_run_fabrik_task.py:26 _HUB_CONFIG = Path('/opt/fabrik/.pre-commit-config.yaml') still hard-pinned",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — tests reaching live tree clean-up",
   "status": "open",
   "title": "Two test suites reach back into the live tree from a scratch probe (routed from T04a, D-297)"
 }

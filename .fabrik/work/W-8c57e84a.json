@@ -17,7 +17,7 @@
   "note": "migrated-digest:c32efdfa7663",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: fleet-wide distribution of uncommitted bytes; fix is one guard in a few files — sync_enforcement_to_projects.py still has _head_source/_shipped_hash (:1759,:1858) and gitignore_block_text at :159; gitignore-block path not re-verified end to end",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — gitignore sync ships uncommitted bytes to 46 repos",
   "status": "open",
   "title": "The gitignore block bypasses the T12.17 \"never ship the working tree\" guard — 46 repos patched from uncommitted bytes (found reviewing the serena ignore, routed 2026-09-19)"
 }

@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-cf9ec0cf",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "Do the remaining work: Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught.",
   "note": "",
   "owner": "kaizen",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — exit-row examples in command sources ungraded; command wording/kaizen",
   "status": "open",
   "title": "Reopened from W-2b944b8e (closed in error by triage wave 1, overturned by the third check): Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught."
 }

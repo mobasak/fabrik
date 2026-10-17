@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "/fabrik-spec: decide the Tailwind major in a ledger row, measure the v4 upgrade on an emitted saas-skeleton, and settle port-vs-drop for the i18n semantic levels",
-  "note": "",
+  "note": "D-955/D-958 re-score 2026-10-18: LOW impact, high effort (time sink) — scaffold UI modernization, nobody waiting",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "needs-split"
   ],

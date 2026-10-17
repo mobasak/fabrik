@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "redeploy/restart run compose up without the _validate_compose check W-807287f1 added to the first deploy, so a bad compose still reaches the VPS on every later deploy; same one-call fix",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — redeploy/restart bypass compose validation invariants",
   "status": "open",
   "title": "SSHDeployer.redeploy() and restart() run docker compose up for every source type with no _validate_compose (deployer_ssh.py ~:510-553), a second door around the compose invariants the apply paths enforce; found by the W-807287f1 Fable critique"
 }

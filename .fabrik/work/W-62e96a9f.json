@@ -17,7 +17,7 @@
   "note": "migrated-digest:4a338adff940",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: ~46 repos told a stale contract (fleet-wide wrong text), fix is a table edit in one template — templates/governance/CLAUDE.md has 1 'Agent-Name' mention; item says table drifted from hub; not re-diffed in full",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — stale governance trailer table told to ~46 repos",
   "status": "open",
   "title": "The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract"
 }

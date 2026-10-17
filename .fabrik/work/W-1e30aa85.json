@@ -17,7 +17,7 @@
   "note": "migrated-digest:9d2a2da48b2d",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: four spawners, advisory hooks — grep FABRIK_HEADLESS finds no hit in scripts/sysadmin/claude_rotate.py, sysadmin/bot.py, aro-wake/main.py, aro-wake/claude_rotate.py (tests/test_hooks_headless*.py covers only hooks)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — spawners adopting advisory contract",
   "status": "open",
   "title": "Four `claude -p` spawners have not adopted the FABRIK_HEADLESS contract"
 }

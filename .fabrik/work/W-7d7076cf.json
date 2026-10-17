@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "defence in depth behind capped_run.sh + memguard; fire rate unmeasured (CLAUDE.md fix directive 5)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — guard unmeasured, defence in depth",
   "status": "open",
   "title": "PreToolUse hook denying a bare pytest launch that bypasses scripts/capped_run.sh (residual of P0 W-162398ef) — measure its fire rate on the box's transcripts first; build only if it would have caught real launches"
 }

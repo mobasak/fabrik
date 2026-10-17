@@ -17,7 +17,7 @@
   "note": "migrated-digest:d81bce34fdd1",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: dead names in a regex; harmless clean-up, one line — .pre-commit-config.yaml:164 filter still names kilo_code_review|kilo_docs_enforcer|update_agents_toc; all three exist only in scripts/archived/",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — dead names in regex",
   "status": "open",
   "title": "Three governance-sync filter names point at scripts that moved to scripts/archived/ (2026-09-24)"
 }

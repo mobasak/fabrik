@@ -17,7 +17,7 @@
   "note": "migrated-digest:280c2632054a",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: grader hardening and a comment; self-labelled low — scripts/fabrik_synced_manifest.py:243-256 SERENA_GITIGNORE_GROUP guard still present; grader/comment work only",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — latent residuals, rare",
   "status": "open",
   "title": "Two latent residuals in the ignore-only guard (routed 2026-09-19)"
 }

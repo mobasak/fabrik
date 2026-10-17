@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T04:22:56.453558Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-e0e03c39",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — feedback-verdict work from kaizen triage",
   "status": "open",
   "title": "/fabrik-service-test feedback — arm the merge loop when fixes are routed to siblings (kaizen D-711 triage)"
 }

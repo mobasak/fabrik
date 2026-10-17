@@ -19,7 +19,7 @@
   "note": "migrated-digest:fad095862f85",
   "owner": "infra",
   "priority": 2,
-  "score_reason": "Hub gate pytest leg is off, so a red committed test gates green; needs diff-scoped runner",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — hub gate pytest off, red committed test gates green (false green)",
   "status": "open",
   "title": "**Hub diff-scoped pytest leg** — the hub's gate pytest leg is OFF (5,913 tests), so a commit that reds a COMMITTED test still gates green: 741eebbf swept half of fleet's D-201 change and HEAD was r..."
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:10c058299127",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare GFM-invisible table shapes; one file but sync path needs full review — check_governance_tables.py:121 indent still space-only; :128 delimiter gate `_DELIM.match(nxt)` unchanged; no commit grep hit",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare table shapes",
   "status": "open",
   "title": "check_governance_tables.py is blind to two GFM-invisible table shapes (routed from T04a, D-297)"
 }

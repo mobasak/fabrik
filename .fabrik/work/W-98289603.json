@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — gate advisory env seam",
   "status": "open",
   "title": "final_gate advisory checks read live state outside PROJECT_ROOT: check_vendored_drift.py:44 iterates OPT=Path('/opt'), check_trigger_routing.py:45 reads ~/.claude/skills — no env seam, so a byte-compare of two gate runs (tests/test_kaizen_sensor_emitters.py) can race a sibling's edit to another repo"
 }

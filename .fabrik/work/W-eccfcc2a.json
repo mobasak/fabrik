@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-eccfcc2a",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,11 @@
   "next": "build the venv + ExecStart + docs change as a /fabrik-task, keeping the 22.7 pin",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "impact HIGH: names 'breaks'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — pip break-system-packages on spokes works today",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "python-telegram-bot on the spokes still installs with pip --break-system-packages (deferred from W-1c322b9e): move it to a venv in ONE change with the bot unit's ExecStart (scripts/bootstrap/templates/vps-sysadmin-bot.service.template:12, ops/vps-sysadmin-bot.service:12) and the docs, or the bot breaks"
 }

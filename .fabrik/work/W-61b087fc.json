@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: migration junk items; shape-fix with tests — scripts/work.py:2229 _TEMPLATE_PLACEHOLDER_LINES still pins one template version by exact text",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — migrate-backlog turns template lines into open items",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "work.py migrate-backlog turns older-variant STRATEGIC_BACKLOG template lines into OPEN items: _TEMPLATE_PLACEHOLDER_LINES (scripts/work.py:2116) pins one template version by exact text, so a 'Specific Trigger' / 'System Overhaul' row, '**Focus window opens**:' (colon) and section headings (Now/Later/Context/Activation) became items in whatsapp-agent (W-88fb5b30, W-b0c6dffe, W-a1ab03cc, W-d6d4bb47, W-c2a06924, W-ad13b930); /fabrik-catchup probe 7 misses them because migrate strips the '#' — whatsapp-agent mail 01M4RJRXWF"
 }

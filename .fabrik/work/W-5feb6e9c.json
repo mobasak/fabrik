@@ -17,7 +17,7 @@
   "note": "migrated-digest:293d59a28302",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "records check 2026-10-17: gate in ~46 repos silently degrades on a missing symbol; fix is a few lines in one file — check_synced_unmodified.py:45-53,72-80 still `except ImportError: return set()/()` silently degrading",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — gate silently degrades in 46 repos on missing symbol",
   "status": "open",
   "title": "`check_synced_unmodified.py` swallows a missing manifest symbol and degrades 46 gates silently (routed 2026-09-19)"
 }

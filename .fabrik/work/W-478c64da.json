@@ -17,9 +17,10 @@
   "note": "migrated-digest:306fa0f2fa6b",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: small ops deploy of cron line — no commit; cron template updated, live deploy path for existing hosts pending",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — live cron deploy path pending, hosts patched by hand",
   "status": "open",
   "tags": [
+    "medium",
     "waits-cron-template-change"
   ],
   "title": "**Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sy..."

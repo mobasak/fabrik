@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — gate-path rule edge cases",
   "status": "open",
   "title": "check_plan_tickets Gate-path rule: a directory Touches entry names no file under it (own and ancestor arms), and a 'python -m scripts.x' Gate dodges the path regex — decide directory coverage via _covered_by and resolve dotted modules (W-b60b65a1 critiques)"
 }

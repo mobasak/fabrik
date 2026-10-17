@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-09-30T10:55:09.248492Z",
   "creator": "intel",
   "evidence": "",
@@ -17,6 +19,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "medium",
     "needs-split",
     "rules"
   ],

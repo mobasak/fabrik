@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: diagnostic message improvement in one script, advisory — dispatch_headroom.py still prints SEATS: 0 paths (:172, :775 comment shows reason lines added for one case); item asks which input pinned it; body empty",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — diagnostic message improvement",
   "status": "open",
   "title": "dispatch_headroom: say WHICH input pinned SEATS to 0 and whether it decays (plan-review verdict 1789474793.1369457, kaizen 01M4EG5F6D)"
 }

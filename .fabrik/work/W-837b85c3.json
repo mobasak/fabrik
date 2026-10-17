@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: latent defect that matters only if pool re-enabled; tag waits-pool-reenable — check_subagent_flywheel.py:257 _POOL_POLICY_ON = False, so the pool defect is latent; item parked waiting pool re-enable",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — latent defect, pool suspended",
   "status": "open",
   "tags": [
     "waits-pool-reenable"

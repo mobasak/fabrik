@@ -17,7 +17,7 @@
   "note": "migrated-digest:4f84779502fe",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: coupling convenience; advisory — no landing commit found; opt-in symmetric coupling not shipped",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — opt-in symmetric coupling advisory",
   "status": "open",
   "title": "`# AFTER-EDIT:` needs a SYMMETRIC coupling it can opt into — blanket symmetry was measured and rejected"
 }

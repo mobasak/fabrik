@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: test guard residue, record-only — body says act only if a real call site hits it (0 today); commits 741271c40/6f9d5dc33 recorded residue",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — record-only test-guard residue, 0 call sites",
   "status": "open",
   "tags": [
     "tests"

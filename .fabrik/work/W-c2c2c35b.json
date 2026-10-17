@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-c2c2c35b",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "decide per file: unpublish by name in _DOCUSAURUS_UNPUBLISHED_DOCS, or strip the hub-specific lines from the docusaurus seed; Phase B closing pass 3 (Opus), outside the D-481/D-482 subtree fix",
   "note": "",
   "owner": "fleet",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — data exposure of hub hosts in published docs",
   "status": "open",
   "tags": [
     "fleet"

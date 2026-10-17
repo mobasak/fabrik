@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: measure then add set to manifest; a fleet-synced edit but small; missing nested env files is a convenience gap — fabrik_synced_manifest.py:132 only root .worktreeinclude template; no nested-env measurement landed",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — nested env files missing from worktreeinclude",
   "status": "open",
   "tags": [
-    "mail-01m48s5gp1"
+    "mail-01m48s5gp1",
+    "medium"
   ],
   "title": ".worktreeinclude omits nested env files such as web/.env.local (mail 01M48S5GP1) — measure the fleet's nested .env.local/.env files, then add the set to fabrik_synced_manifest.py's worktreeinclude"
 }

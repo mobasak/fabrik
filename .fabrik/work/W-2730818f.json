@@ -17,7 +17,10 @@
   "note": "migrated-digest:9c563d78d4bd",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: missing test only — grader for _tick_telegram in claude_rotate (rotation script), infra beat per beat-owners scripts/**",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing grader near rotation path",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "`_tick_telegram`'s torn-above and symlinked-artifact verdicts are asserted by wording only — an executed grader is owed (2026-09-13, owner: fleet)"
 }

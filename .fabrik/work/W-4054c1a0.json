@@ -17,9 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: small decision or rule wording — decision item: Alembic baseline vs core/25 wording; none landed",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — rule vs scaffold mismatch on Alembic; wording or baseline decision",
   "status": "open",
   "tags": [
+    "medium",
     "rules"
   ],
   "title": "core/25-data-postgres mandates Alembic, but an emitted saas-skeleton ships no Alembic baseline (server/db/schema.sql is its only DDL path)"

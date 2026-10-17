@@ -17,7 +17,7 @@
   "note": "migrated-digest:e61d13c9e7ec",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: doc/comment correction — claims refuted in docs/comments; no commit with id; not re-verified line by line",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — doc/comment corrections",
   "status": "open",
   "title": "Three claims about the close-time exclusion that the code refutes, in artifacts a fix may not edit (routed from the /fabrik-task docs review, 2026-09-19)"
 }

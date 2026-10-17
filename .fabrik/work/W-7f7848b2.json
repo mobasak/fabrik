@@ -17,7 +17,7 @@
   "note": "migrated-digest:9f33ad2af3e7",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: doc/corpus staleness link, advisory — dispatch_headroom.py lines cited exist; no commit linking the retired lesson to the corpus",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — doc/corpus staleness link",
   "status": "open",
   "title": "A lesson RETIRED at its root keeps rendering from the corpus, and nothing links the two"
 }

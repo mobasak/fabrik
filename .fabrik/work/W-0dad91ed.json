@@ -17,7 +17,7 @@
   "note": "migrated-digest:cb15f03b745b",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: stale-citation clean-up, advisory — scripts/enforcement/check_plan_lock_release.py:123 still cites final_gate.py:2133 output[:500]; clip_output is at final_gate.py:246",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — stale line-citation cleanup",
   "status": "open",
   "title": "~40 `final_gate.py:N` line citations outside the CLAUDE.md GATE row have no grader (2026-09-24)"
 }

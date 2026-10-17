@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: ledger hygiene check; one file — decisions.py has no path-exists check or column-count vs header validation (grep); item itself says measure first",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — ledger hygiene check",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "decisions.py --check: flag a row whose enforcement path no longer exists (1791230749) and validate column count against the header (1789485954) — kaizen mail 01M4PHYRB6"
 }

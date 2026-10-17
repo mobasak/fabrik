@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: wording of gate messages plus graders — no commit for the id; two message-text edits in check_feature_coverage.py and check_convergence.py",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — gate message wording",
   "status": "open",
   "title": "check_feature_coverage.py finding text says 'cite a prefix before the first , ; or ·' when a token fails after a split (1790948096); check_convergence.py's failure quotes the expected heading regex or an example (1788816207) — kaizen mail 01M4PHYRB6"
 }

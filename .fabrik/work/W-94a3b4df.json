@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort HIGH: names 'migrate' (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory scan",
   "status": "open",
   "tags": [
     "app-role-check"

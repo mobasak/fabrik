@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — orders carried into headless child",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Other carriers of orders into a headless claude -p child: session_orient's self-watch arm and claim prose, _merge_owner_duty, the DECISION harvest, a stood_down print-mode kaizen event, _is_headless's inherited-entrypoint blind spot (OUT of the print-mode task, critiques 2026-10-13)"
 }

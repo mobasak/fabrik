@@ -17,7 +17,7 @@
   "note": "migrated-digest:0c2d02443c4d",
   "owner": "intel",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: dormant while pool is off — service_catalog classifier is scripts/ (infra by beat-owners) but tagged waits-pool-policy; pool OFF D-181; owner kept intel per tag",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — dormant while pool off",
   "status": "open",
   "tags": [
     "handoff-2026-10-06",

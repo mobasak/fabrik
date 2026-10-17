@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: advisory stamp — command_run.py has nested-record handling (~614, 1979) but no 'awaiting nested review' stamp (grep empty)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — step label polish from verdict",
   "status": "open",
   "title": "command_run: stamp the caller step 'awaiting nested review' when a nested record opens (fabrik-spec verdict 1788918240.827229, kaizen 01M4EJQEEG)"
 }

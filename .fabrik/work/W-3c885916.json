@@ -17,9 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rule activation false-positive; one set + test — scripts/rules_match.py _EXCLUDE (:40-69) lacks .kilo; only .tmp excluded of worktree dirs",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — rule activation false positive from worktree copies",
   "status": "open",
   "tags": [
+    "medium",
     "rules"
   ],
   "title": "select_rules/rules_match count paths inside .kilo/worktrees copies: trade-intelligence activates saas/87 only through .kilo/worktrees/berry-oatmeal/web/app/api/auth/signup"

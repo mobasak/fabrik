@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — fabrik-lib coordinator-role contradiction; settle facts",
   "status": "open",
   "tags": [
-    "mail-01m4ynbherg5svfgkpxfecnqah"
+    "mail-01m4ynbherg5svfgkpxfecnqah",
+    "medium"
   ],
   "title": "fabrik-lib says the coordinator role is NOT carried there yet — two fabrik-lib facts contradict it; settle with them first (mail 01M4YNBHERG5SVFGKPXFECNQAH)"
 }

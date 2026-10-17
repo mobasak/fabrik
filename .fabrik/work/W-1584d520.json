@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: rare edge: parked active account with no reading; decision plus small change — claude_rotate.py:6409 still returns 'no quota reading, no flip decision possible' before any cap/park check; 93c933ef1 added parking but not this",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare parked-account edge",
   "status": "open",
   "title": "Parked ACTIVE account with no quota reading at all is not flipped away"
 }

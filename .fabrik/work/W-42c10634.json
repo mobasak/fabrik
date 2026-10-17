@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-42c10634",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "if a later edit to ai/25-3d-generation.md trips or slips a guard, replace that guard's substring/prefix match with a parsed structure (table cells, bullet labels) rather than another spelling; the battery at the review receipt lists the 31 regressions and 9 rewordings already proven",
   "note": "",
   "owner": "kaizen",
-  "priority": 3,
-  "score_reason": "re-scored 2026-10-17 on the item's own next: it acts only 'if a later edit … trips or slips a guard' — no failure observed today, so preventive (the 2026-10-15 pass scored HIGH on the word 'fail' alone)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen rules-pack graders weak; wording-guard work",
   "status": "open",
   "tags": [
     "rules",

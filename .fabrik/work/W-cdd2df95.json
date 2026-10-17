@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: seat convenience helper; one script — no probe runner helper under scripts/ (ls scripts | grep -i probe -> only `probes` dir); W-f7bf9a54 is its duplicate",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — probe runner for seat briefs",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

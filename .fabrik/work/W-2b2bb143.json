@@ -17,7 +17,10 @@
   "note": "migrated-digest:54980001eb4d",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: gate cobra gap, one file, sync path needs full review — command_run.py:5154 _task_measure diffs sha~1..sha (line 44 of fn); declared sha at :4711 never read; design choice a/b open",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — declared.sha never read, cobra gap in gate",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "`declared.sha` is written at `start` and never read — nothing binds `--commit` to the run's own work (whole-plan review, `command_run.py`)"
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:d3b3d3ca1311",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: settings tweak, workaround exists — playwright roots vs scratchpad; no commit",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — workaround exists",
   "status": "open",
   "title": "**Playwright-MCP roots vs scratchpad directive contradiction** (brand-identiy `01M15PMZ3` #3): the MCP refuses the system-prompt scratchpad (`outside allowed roots`); agents work around via gitigno..."
 }

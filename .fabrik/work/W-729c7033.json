@@ -17,7 +17,7 @@
   "note": "migrated-digest:880b70f9dd04",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: exemption keying refinement in one checker, measured already per item — check_convergence.py:729-733,1092-1094 still drop READ budget findings by text, no git-derived MERGED key; no commit with id",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — exemption keying refinement, measured already",
   "status": "open",
   "title": "The READ-budget exemption for MERGED tickets is EARNED by measurement — and the right key is git-derived, not the ✅ row"
 }

@@ -17,7 +17,7 @@
   "note": "migrated-digest:c4135ab0251b",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: advisory WARN, measurement only — measure-first ask; no detector in tree; mail 01M2ZDAYX1 asks 2-3 landed D-335/D-339/D-341",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory WARN measurement",
   "status": "open",
   "title": "A review's fix diff can add new counts and citations with no grader — measure a WARN before building it (2026-09-23)"
 }

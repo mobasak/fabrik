@@ -17,7 +17,7 @@
   "note": "migrated-digest:baa99820a211",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: unreproduced harness limit; doc/workaround only — no commit/D-row; item says NOT independently reproduced",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — unreproduced harness limit",
   "status": "open",
   "title": "A background Bash task inside a subagent is killed at ~1h with no signal to the caller"
 }

@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: advisory prompt — command_run.py has _own_fix counters but no first-round --own-fix prompt found; item from kaizen verdict",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — prompt nicety from verdict",
   "status": "open",
   "title": "command_run round: prompt for --own-fix on the first round that has one (fabrik-spec-review verdict 1790713088.2418838, kaizen 01M4EKAZZF)"
 }

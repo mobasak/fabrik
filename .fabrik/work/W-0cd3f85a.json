@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T04:22:57.508916Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-0cd3f85a",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — guard false-refuses plain heredoc write; every worktree review seat blocked",
   "status": "open",
   "title": "worktree-isolation guard: a plain heredoc file write and a multi-root `git archive` are refused as \"too complex\" — every review seat in a worktree pays for it"
 }

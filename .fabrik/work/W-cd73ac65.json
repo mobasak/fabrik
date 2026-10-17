@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: measurement of two readers; kaizen telemetry, advisory — scripts/sysadmin/kaizen_collect_v2.py and kaizen_coroner.py both exist; 4fc3958ad only logs it; no resolution",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — measurement disagreement",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "kaizen hole_count disagrees with the coroner: the collector counted 105 holes for 2026-10-11 (mail 01M4PDSS36) while kaizen_coroner.py's runs at 2026-10-11 00:53 and 2026-10-12 00:53 read holes_today 0; the WSL outage (D-773/D-774) was 2026-10-12 14:47-16:10, so it does not explain the 10-11 count"
 }

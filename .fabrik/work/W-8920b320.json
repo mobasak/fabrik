@@ -17,7 +17,7 @@
   "note": "migrated-digest:5ba64af8cd8f",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: doc coupling gap for .sh — scripts/render_doc_script_links.py _listed uses .py suffix only (:127-153)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — doc coupling .sh blind spot",
   "status": "open",
   "title": "doc↔script coupling is blind to every shell script (2026-09-20)"
 }

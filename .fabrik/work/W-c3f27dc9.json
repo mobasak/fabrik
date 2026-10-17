@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "records check 2026-10-17: dashboard page size, one view; measure then paginate — view code at scripts/sysadmin/dashboard_ui/views/work.py; item created today, plan only archived (4635bfbbc) - defect is new and not a plan-state staleness",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — 7.5MB dashboard page",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "The command centre's GET /v/work returns 7.5 MB of HTML on this box (live request 2026-10-17): every repo's open items rendered at once"
 }

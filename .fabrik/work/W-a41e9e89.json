@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-a41e9e89",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "fleet: read mail 01M4Z7Y23QDN1K1HM7C0BTR3P7, claim it, act on it",
   "note": "",
   "owner": "fleet",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-run deciding test result to act on",
   "status": "open",
   "tags": [
     "mail-01m4z7y23qdn1k1hm7c0btr3p7"
