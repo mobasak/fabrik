@@ -2035,6 +2035,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "-r requirements.txt\n"
         "pytest>=8.3.0\n"
         "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"  # the pyproject sets timeout = 120 (W-046828fb)
         "ruff\n"
         "mypy\n"
         "bandit\n"
@@ -2219,6 +2220,16 @@ _SAAS_SERVER_REQUIREMENTS = (
     "redis>=5.0\n"  # jti denylist / instant revocation, and pause_state.py's client
     # --- vendored app-audit-log (libs/audit_log) — the scheduled jobs' sync connection ---
     "psycopg[binary]>=3.1\n"
+)
+
+# server/requirements-dev.txt — test deps only; never in the image (W-046828fb).
+_SAAS_SERVER_DEV_REQUIREMENTS = (
+    "# Backend test dependencies (the Dockerfile installs requirements.txt only). From server/:\n"
+    "#   pip install -r requirements-dev.txt && pytest tests\n"
+    "-r requirements.txt\n"
+    "pytest>=8.3.0\n"
+    "pytest-asyncio>=0.24.0\n"  # pyproject sets asyncio_mode = "auto"
+    "pytest-timeout>=2.3.0\n"  # pyproject sets timeout = 120
 )
 
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
@@ -3522,6 +3533,9 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
         return text.replace("__PKG__", package_name).replace("__NAME__", name)
 
     (server_dir / "requirements.txt").write_text(_SAAS_SERVER_REQUIREMENTS)
+    # Test-only deps stay out of the image (the Dockerfile installs requirements.txt). The
+    # copied [tool.pytest.ini_options] sets asyncio_mode and timeout, which need these plugins.
+    (server_dir / "requirements-dev.txt").write_text(_SAAS_SERVER_DEV_REQUIREMENTS)
 
     # server/Dockerfile — mirror the python Dockerfile, entrypoint at <pkg>.main:app.
     # The saas backend serves /api/health (not /health), so retarget the image
@@ -4993,6 +5007,19 @@ supabase>=2.9.0
 pypdf>=4.3.0
 redis>=5.0
 """
+    )
+    # requirements-dev.txt — what the Makefile's setup-dev installs and its lint/gate targets run
+    # (W-046828fb: the file was referenced but never emitted). Mirrors python-api's dev list.
+    (project_dir / "requirements-dev.txt").write_text(
+        "-r requirements.txt\n"
+        "pytest>=8.3.0\n"
+        "pytest-timeout>=2.3.0\n"  # the pyproject sets timeout = 120
+        "ruff\n"
+        "mypy\n"
+        "bandit\n"
+        "semgrep\n"
+        "sqlfluff\n"
+        "vulture\n"
     )
 
     # f) Overwrite .env.example with worker-specific vars
@@ -6496,9 +6523,19 @@ ephemeral — never register in a bare global).
         f"    )\n"
     )
 
-    # requirements.txt (at root, for server)
+    # requirements.txt (at root, for server). It is also the image's install list and already carries
+    # pytest, so pytest-timeout joins it here (W-046828fb; splitting the test deps out is its own item).
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\nstructlog>=24.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\npytest-timeout>=2.3.0\nstructlog>=24.0.0\n"
+    )
+    # pytest.ini — the config pytest reads for the ROOT tests/ (server/pyproject.toml is never read
+    # for a root run): the same hang guard the template's [tool.pytest.ini_options] sets (W-046828fb).
+    (project_dir / "pytest.ini").write_text(
+        "[pytest]\n"
+        "testpaths = tests\n"
+        "pythonpath = server/src\n"
+        "timeout = 120\n"
+        "faulthandler_timeout = 120\n"
     )
 
     # tests/test_health.py

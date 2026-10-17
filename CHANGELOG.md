@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every scaffolded Python test run has a 120 s per-test hang guard (2026-10-17)
+
+No scaffolded project gave a test a time limit. The python template's `[tool.pytest.ini_options]`, which every
+type copies, now sets `timeout = 120` (pytest-timeout) and `faulthandler_timeout = 120` (built in, a stack dump
+even without the plugin); every dependency file that names pytest also names pytest-timeout; file-worker emits
+the `requirements-dev.txt` its Makefile installs, the saas-family server a `server/requirements-dev.txt` of test
+deps, and chrome-extension a root `pytest.ini`, because pytest never reads its `server/pyproject.toml` for the
+root `tests/`. A hang guard only — the capped runner stays the memory guard (D-935, W-046828fb).
+
 ### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
 
 `CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):
