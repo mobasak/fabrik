@@ -204,6 +204,10 @@ _PS_KEYS = ("Service", "State", "Health", "ExitCode")
 # (UnicodeDecodeError is a ValueError) and the timeout. probe_app RETURNS these, never raises.
 _SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
 
+# Printed by the remote shell when a compose filename does not exist (_read_compose_from_vps), so
+# "absent, try the next name" is told apart from "exists but the read failed, refuse".
+_NO_COMPOSE_FILE = "__FABRIK_NO_COMPOSE_FILE__"
+
 
 def _parse_compose_ps(text: str) -> list[dict[str, str]]:
     """Parse ``docker compose ps --format json`` into rows of Service/State/Health/ExitCode.
@@ -546,7 +550,9 @@ class SSHDeployer:
             # W-51d6c153: the pulled compose is checked BEFORE the GIT_SHA write, the build and
             # the up; a violation or a failed read resets the checkout to old_sha, so the running
             # containers and the code on disk stay on the last commit that passed (left on the
-            # pulled commit, the next redeploy would capture it as its rollback point).
+            # pulled commit, the next redeploy would capture it as its rollback point). When there
+            # is no valid old_sha, or the reset itself fails, the pulled commit DOES stay on disk —
+            # the raised error says so; the containers are untouched either way.
             try:
                 _assert_deployed_compose_valid(name)
             except (DeployError, *_SSH_FAILURES) as err:
@@ -1485,23 +1491,33 @@ def _read_compose_from_vps(name: str) -> str:
     """Read the deployed compose file back from ``/opt/<name>`` on the VPS (D1).
 
     Git-sourced deploys clone the compose onto the VPS rather than rendering it locally, so
-    validation must fetch it. Tries the four Compose-recognised filenames; raises if none exist.
+    validation must fetch it. Tries the four Compose-recognised filenames in compose's own
+    precedence (docker compose 2.40.3 picks docker-compose.yml over .yaml); raises if none exist.
+
+    The FIRST file that exists is the one ``docker compose up`` runs, so it is returned as read —
+    empty or not — and a file that exists but cannot be read REFUSES: falling through to the next
+    name would validate a stale legacy file while ``up`` ran the unchecked one (W-51d6c153
+    review). Absence is told from a failed read by a sentinel the remote shell prints. Read with
+    sudo: the template path writes the rendered compose root:root 0600.
     """
     from fabrik.drivers.ssh import ssh as _ssh
 
     for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+        path = shlex.quote(f"/opt/{name}/{filename}")
+        probe = f"if [ -e {path} ]; then cat {path}; else printf {_NO_COMPOSE_FILE}; fi"
         try:
-            out = _ssh(f"sudo cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
-        except RuntimeError:
-            continue
+            out = _ssh(f"sudo sh -c {shlex.quote(probe)}", timeout=15)
+        except _SSH_FAILURES as err:
+            raise DeployError(f"Cannot read /opt/{name}/{filename}: {err}") from err
         # The ssh driver returns str; anything else (a test's unconfigured mock) is refused here,
         # before a YAML parser can stream from it without end (see _validate_compose).
         if not isinstance(out, str):
             raise DeployError(
                 f"Reading /opt/{name}/{filename} returned {type(out).__name__}, not text"
             )
-        if out.strip():
-            return out
+        if out == _NO_COMPOSE_FILE:
+            continue
+        return out
     raise DeployError(
         f"No compose file found in /opt/{name} "
         "(looked for compose.yaml, compose.yml, docker-compose.yml, docker-compose.yaml)"

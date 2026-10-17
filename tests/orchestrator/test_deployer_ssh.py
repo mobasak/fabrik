@@ -16,6 +16,7 @@ import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import (
+    _NO_COMPOSE_FILE,
     SSHDeployer,
     _assert_claude_cli_mounts,
     _format_env,
@@ -123,11 +124,45 @@ class TestReadComposeFromVps:
             _read_compose_from_vps("my-app")
 
     def test_text_is_returned(self):
-        """Read with sudo: the template path writes the rendered compose root:root 0600, which
-        a plain `cat` by the non-root ssh user cannot open (W-51d6c153 critiques)."""
+        """Read with sudo (the template path writes the rendered compose root:root 0600) through a
+        shell probe that prints a sentinel for an absent file (W-51d6c153 critiques + review)."""
         with patch("fabrik.drivers.ssh.ssh", return_value="services: {}\n") as mock_ssh:
             assert _read_compose_from_vps("my-app") == "services: {}\n"
-        assert mock_ssh.call_args.args[0].startswith("sudo cat /opt/my-app/compose.yaml")
+        cmd = mock_ssh.call_args.args[0]
+        assert cmd.startswith("sudo sh -c ") and "cat /opt/my-app/compose.yaml" in cmd, cmd
+
+    def test_an_absent_file_moves_to_the_next_name(self):
+        with patch(
+            "fabrik.drivers.ssh.ssh", side_effect=[_NO_COMPOSE_FILE, "services: {}\n"]
+        ) as mock_ssh:
+            assert _read_compose_from_vps("my-app") == "services: {}\n"
+        assert "compose.yml" in mock_ssh.call_args_list[1].args[0]
+
+    @pytest.mark.parametrize(
+        "failure",
+        [RuntimeError("Permission denied"), subprocess.TimeoutExpired(["ssh"], 15), OSError("ssh")],
+    )
+    def test_an_unreadable_existing_file_refuses_and_never_falls_through(self, failure):
+        """A failed read of compose.yaml must not fall through to a stale docker-compose.yml —
+        `up` would run the unchecked compose.yaml (review pass 1, executed by a seat)."""
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=[failure, "services: {}\n"]) as mock_ssh,
+            pytest.raises(DeployError, match="Cannot read /opt/my-app/compose.yaml"),
+        ):
+            _read_compose_from_vps("my-app")
+        assert mock_ssh.call_count == 1
+
+    def test_restart_turns_a_read_timeout_into_a_deploy_error(self):
+        """The real reader under restart(): a timed-out read is a DeployError, never a raw
+        TimeoutExpired, and nothing is started."""
+        with (
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=[subprocess.TimeoutExpired(["ssh"], 15)]
+            ) as mock_ssh,
+            pytest.raises(DeployError, match="Cannot read"),
+        ):
+            SSHDeployer().restart("my-app")
+        assert mock_ssh.call_count == 1
 
 
 # ======================================================================
@@ -693,7 +728,9 @@ class TestSSHDeployerRedeploy:
         with (
             self._compose(self._VIOLATING),
             patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh,
-            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+            pytest.raises(
+                DeployError, match=r"(?s)Compose validation failed for my-app.*limits.memory"
+            ),
         ):
             SSHDeployer().redeploy("my-app", source_type="template")
         assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
@@ -704,7 +741,9 @@ class TestSSHDeployerRedeploy:
             self._compose(self._VIOLATING),
             patch("fabrik.drivers.ssh.ssh", side_effect=[old + "\n", "", ""]) as mock_ssh,
             patch("fabrik.orchestrator.deployer_ssh._persist_git_sha") as persist,
-            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+            pytest.raises(
+                DeployError, match=r"(?s)Compose validation failed for my-app.*limits.memory"
+            ),
         ):
             SSHDeployer().redeploy("my-app", source_type="git")
         cmds = [c.args[0] for c in mock_ssh.call_args_list]
@@ -755,7 +794,9 @@ class TestSSHDeployerRedeploy:
         with (
             self._compose(self._VIOLATING),
             patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh,
-            pytest.raises(DeployError, match="Compose validation failed for my-app"),
+            pytest.raises(
+                DeployError, match=r"(?s)Compose validation failed for my-app.*limits.memory"
+            ),
         ):
             SSHDeployer().restart("my-app")
         mock_ssh.assert_not_called()
