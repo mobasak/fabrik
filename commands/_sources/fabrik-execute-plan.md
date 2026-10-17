@@ -1296,7 +1296,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    cites a file of the plan by its pre-archive path decides WHO archives** — `BASE` here is the branch
    your work finally merges into. Never repoint that row: the ledger merge refuses any conflict where
    EITHER side edits an existing line, so an edited row turns every open branch's row insertion beside it
-   into a hand merge (LESSONS 2026-10-01). So the plan is then not archived (D-484): it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says
+   into a hand merge (LESSONS 2026-10-01). So the plan is then not archived (D-484 — a pre-`BASE` row cites its pre-archive path and must not be repointed): it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says
    the archive is owed, and the hand-over names it — the merge request from an agent window, the OWED
    report, or, from the main checkout, a work item or mail addressed to the repo's merge owner. The
    archive is the merge owner's, with
