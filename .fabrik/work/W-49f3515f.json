@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already fixed by infra's 96e80067c (2026-10-08), older than the item, so done refuses it; kaizen verified 2026-10-17; the missing order-guard test is mailed to infra (01M53S190T)",
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "corpus"
   ],

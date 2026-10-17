@@ -293,6 +293,9 @@ The core of Fabrik. A spec at `specs/services/<id>.yaml` declares what a service
 ### The 9 Registrars
 
 Each registrar fires only when the spec's `shape:` block activates it. `infra: <registrar>: false` overrides to disable.
+The shape flags are the spec's own merged over its template's `templates/<template>/defaults.yaml` `shape:` block (the
+spec wins) — `fabrik apply`, `fabrik plan`, audit and destroy all resolve the same set; apply takes only the template's
+`shape:` keys, never its `env:`, so no template default reaches a deployed app's `.env` (W-989653a7, D-908).
 
 | Registrar | Fires when | What it provisions |
 |-----------|-----------|-------------------|

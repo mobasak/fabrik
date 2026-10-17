@@ -21,6 +21,7 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
+from fabrik.spec_loader import merge_template_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ class SpecValidator:
             spec_path: Path to YAML spec file
 
         Returns:
-            Parsed spec dictionary
+            Parsed spec dictionary, with the template's ``shape:`` defaults merged under it
 
         Raises:
             ValidationError: If file cannot be loaded
@@ -204,7 +205,17 @@ class SpecValidator:
         if not isinstance(spec, dict):
             raise ValidationError("Spec must be a YAML mapping", field="type")
 
-        return spec
+        # The template's shape: block only — never env/resources/health, which the
+        # deployer would write into the app's .env (D-908). Plan merges every key; the
+        # registrar decision reads only shape, so plan and apply resolve the same
+        # registrars (W-989653a7).
+        try:
+            return merge_template_defaults(spec, self.templates_dir, keys=("shape",))
+        except (OSError, ValueError, yaml.YAMLError) as e:
+            raise ValidationError(
+                f"Invalid template defaults for {spec.get('template')!r}: {type(e).__name__}",
+                field="template",
+            ) from e
 
     def validate(self, spec: dict[str, Any]) -> list[str]:
         """Validate a spec dictionary.

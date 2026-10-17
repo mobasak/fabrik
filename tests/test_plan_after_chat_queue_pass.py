@@ -129,10 +129,86 @@ def test_a_behaviour_change_censuses_its_readers_in_both_plan_commands() -> None
         r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
     )
     assert (
-        "**Reader census (the mirror of the consumer audit)** — for every existing function or value whose"
+        "**Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose"
         " behaviour the plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census"
     ) in review
     assert (
         "A seat re-runs that census; a reader it finds that the plan does not name is a defect."
         in review
     )
+
+
+def test_a_spec_fed_plan_executes_the_specs_claims_about_this_repo() -> None:
+    """Row 1792013569, the third verdict on one subject (held as rerun-spec-derivations and
+    execute-spec-residual-populations): Phase 0.5 narrowed a spec-fed Phase 1 to the module's API and source
+    freshness, so a spec's claim that a test pins a rule rode into three grounder briefs and the pin did not exist.
+    Mutants: drop clause (c), its verify-by-running clause, or its definition of a pin."""
+    flat = _flat()
+    phase = flat[flat.index("## Phase 0.5") : flat.index("Only when there is **no** spec")]
+    assert (
+        "(c) execute each claim the spec makes about the repo this plan builds in before the plan or a grounder"
+        " brief relies on it" in phase
+    )
+    assert "verify a stated derivation, count or population by running it" in phase
+    assert (
+        "hold a claimed pin to a test named by `path:line` that goes red when the rule is neutered in a throwaway"
+        " worktree (`CLAUDE.md` § Shared repo, its mutate-restore rule); a claim not executed is prose, never"
+        " carried as fact" in phase
+    )
+
+
+def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> None:
+    """Row 1792092835: the author command said "the pasted OUTPUT of review_rubric.py" and its digest rule asks for
+    rows "relevant to this scope", while /fabrik-plan-review's Phase 1 grades a VERBATIM paste (only the promote tail
+    elided) and a digest naming EVERY matched pack — a plan written to this text failed that review. Phase 4 now
+    names both, pointing at the reviewer's own steps. Mutants: drop either clause; the reviewer's text moves."""
+    flat = _flat()
+    assert (
+        "the rubric output is pasted verbatim, where only the `# promote-to-check_*` tail may be elided"
+        " (declared where it would sit — its step 1)" in flat
+    )
+    assert (
+        "the plan's `## Constraints Digest` names every MATCHED pack that output lists (its step 3)"
+        in flat
+    )
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in review, (
+        "plan-review's step 1 moved"
+    )
+    assert "every MATCHED pack must be named in the digest" in review, "plan-review's step 3 moved"
+    # the pointer names "its Phase 1 … step 1 … step 3": each rule sits in the step of that number
+    raw = (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    phase1 = raw[raw.index("## Phase 1 — Grounding passes") : raw.index("\n## Phase 2")]
+    starts = {m.group(1): m.start() for m in re.finditer(r"(?m)^(\d+)\. \*\*", phase1)}
+    bounds = sorted(starts.values()) + [len(phase1)]
+
+    def step(n: str) -> str:
+        begin = starts[n]
+        return re.sub(r"\s+", " ", phase1[begin : bounds[bounds.index(begin) + 1]])
+
+    assert step("1").startswith("1. **Rubric.**")
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in step("1")
+    assert step("3").startswith("3. **Constraints-Digest audit")
+    assert "every MATCHED pack must be named in the digest" in step("3")
+
+
+def test_the_reader_census_names_a_build_script() -> None:
+    """Row 1792194136, a recurrence of held enumerate-all-callers-with-count: a plan that changed a build script
+    missed the Dockerfile, the container gate and the generator that run it, because the census named only a
+    function or value. A grep of the script's name finds none of them (an alias, a `docker build` gate and a
+    generator sit one hop away), so the census follows callers transitively, before the shape decision."""
+    flat = _flat()
+    i = flat.index("## Phase 1 — Ground every claim BEFORE writing")
+    phase1 = flat[i : flat.index("## Phase 2", i)]
+    assert (
+        "For each function, value or build script (a `package.json` script or Makefile target, e.g. a `build:prod`"
+        " read by a Dockerfile, a container gate and a generator) whose BEHAVIOUR the plan changes, census its"
+        " production readers before any step that changes it"
+    ) in phase1
+    assert (
+        "A build script's census follows each caller transitively (an alias script, a Makefile target, a"
+        " Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a"
+        " reader) and runs before the Phase 2 shape decision."
+    ) in phase1

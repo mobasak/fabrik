@@ -21,7 +21,8 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
 (the reader itself). ``--json`` prints the full data. ``--json --all`` is the BOX view instead
 (``collect_box``, W-7159f8e2 — the dashboard's Agents block): every repo under ``--opt`` (default
 FABRIK_OPT_DIR, else /opt) with a work store or an agent, its agents being the open windows (/proc),
-the run records of that repo in the last 7 days and the claim holders. ``--session-start`` is the
+the run records of that repo in the last 7 days and the claim holders, plus each agent's pause
+(work.py ``_paused``) and whether the repo's own work.py carries the ``pause`` verb. ``--session-start`` is the
 coordinator's SessionStart hook (``.claude/settings.json``, its own entry, so its own 10,000-character
 output budget): it prints only for the distributor, never in a ``claude -p`` child, one line when the
 identity is unknown, one line on any error, and always exits 0. The three modules are the hub's own,
@@ -40,6 +41,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -53,6 +55,7 @@ ROLE_CUT = 1400  # characters of one role's block before "… N more"
 TOTAL_CUT = 7000  # whole text output — inside the 10,000-character hook cap with the header
 MERGES_SHOWN = 3
 NEXT_SHOWN = 3
+WORK_PY_MAX = 4 * 1024 * 1024  # bytes of a repo's work.py read for its pause verb (the hub's is ~0.3 MB)
 # the Stop hook's DEFAULT stale bound (final_gate_stop.py _STALE_H_DEFAULT): older = likely a dead session.
 # Its COMMAND_RUN_STALE_H override is not read: 0 there means "never trap me", which here would mark all stale.
 STALE_H = 12
@@ -292,6 +295,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
     main_agent = str(at_main[-1]["agent"]) if at_main else ""
     windows: dict[str, str] = {}  # agent -> how the window was named
     counts: dict[str, int] = {}  # agent -> open windows (two windows in one main checkout read as 2)
+    win_trees: dict[str, set[str]] = {}  # agent -> the worktree names its windows sit in ("" = main)
     for w in wins:
         if w["agent"]:
             who, how = w["agent"], "env"
@@ -303,6 +307,9 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             who, how = "(unnamed)", "none"
         windows.setdefault(who, how)
         counts[who] = counts.get(who, 0) + 1
+        # a main-checkout window counts as "" — no marker name can match it, so a tree pause over the
+        # agent's other windows reads `partial` (work.py's `_is_paused` never stops that window by tree)
+        win_trees.setdefault(who, set()).add(w["tree"] or "")
     recent = {str(r["agent"]) for r in recent_recs}
     items: dict[str, dict] = {}
     claims: dict[str, dict] = {}
@@ -317,6 +324,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
     seen = {str(r["agent"]) for r in mine} | bound
     trees = {n: (main / ".claude" / "worktrees" / n) for n in names}
     trees = {n: (t.resolve() if t.is_dir() else main) for n, t in trees.items()}
+    paused, has_config, honoured = _pause_support(work, main)
     queues = work._worker_queues(main, trees) if store and names else {}
     done: dict[str, dict] = {}
     if names:
@@ -357,9 +365,53 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             # the last 7 days, in any state (the same agent a nameless main window is named after) —
             # never every agent that once ran a command there
             "merge_owner": bool(main_agent) and n == main_agent,
+            "paused": _pause_of(paused, n, win_trees.get(n, set())),
+            "can_pause": has_config and bool(_NAME_RE.fullmatch(n)),
+            "pause_honoured": honoured,
         })
     return {"name": name, "main": str(main), "store": store, "agents": agents,
             "dormant": len(seen - set(names))}
+
+
+def _pause_of(paused: dict[str, dict], name: str, trees: set[str]) -> dict | None:
+    """The pause covering an agent — its own name, else every paused tree its windows sit in — with
+    the marker NAMES a resume must lift (W-7159f8e2 part 3). work.py's `_is_paused` is per WINDOW, so
+    `partial` says when only some of the agent's windows are stopped, and `names` carries every
+    marker that stops one: a resume lifting only the first would leave a window paused under a row
+    that no longer reads paused."""
+    keys = [name] if name in paused else sorted(t for t in trees if t in paused)
+    if not keys:
+        return None
+    rec = paused[keys[0]]
+    return {"name": keys[0], "names": keys, "partial": name not in paused and len(keys) < len(trees),
+            "by": str(rec.get("by") or "?"), "at": rec.get("at") or None, "why": str(rec.get("why") or "")}
+
+
+def _pause_support(work: ModuleType, main: Path) -> tuple[dict[str, dict], bool, bool]:
+    """(pauses, has_config, honoured) for one repo; never raises. ``has_config`` is work.py's own store
+    test (a config.json), which `pause` requires; ``honoured`` is whether the repo's OWN synced
+    work.py carries the verb — before its next governance sync a pause written there is ignored."""
+    reader = getattr(work, "_paused", None)
+    try:
+        pauses = reader(main) if reader else {}
+    except Exception:  # noqa: BLE001 — no pause information is today's behaviour, never a crash
+        pauses = {}
+    try:
+        has_config = bool(work._has_store(main))
+    except Exception:  # noqa: BLE001
+        has_config = False
+    # only a REGULAR file, read bounded (a FIFO would hang the whole box view — work.py's own
+    # `_paused` guards its markers the same way), and the verb as a top-level def, never a comment
+    honoured = False
+    src = main / "scripts" / "work.py"
+    try:
+        if stat.S_ISREG(src.stat().st_mode):
+            with src.open("rb") as fh:
+                text = fh.read(WORK_PY_MAX).decode("utf-8", "replace")
+            honoured = re.search(r"^def cmd_pause\(", text, re.M) is not None
+    except OSError:
+        honoured = False
+    return pauses, has_config, honoured
 
 
 def collect_box(opt: Path) -> dict[str, Any]:

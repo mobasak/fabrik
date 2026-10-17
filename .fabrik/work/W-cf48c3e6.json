@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.681075Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "9083e9e5851fd579c3ddb545935d9ccae798c784",
   "id": "W-cf48c3e6",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,7 @@
   "note": "migrated-digest:a5be27b40d57",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "resolved_by": "W-d7847226",
+  "status": "done",
   "title": "`runtime.md` is MANDATED by /fabrik-user-test and REJECTED at three enforcement sites — SPEC candidate"
 }

@@ -385,6 +385,85 @@ def test_box_edges_are_named_honestly(tmp_path: Path) -> None:
     assert list(old_agents) == ["(unnamed)"] and repos["old"]["dormant"] == 1
 
 
+def test_box_reports_each_agents_pause(tmp_path: Path) -> None:
+    """Each agent carries its pause — by its own name or the tree its window sits in, with the
+    marker's NAME (the one a resume must lift) — `can_pause` only for an agent name in a repo whose
+    store has config.json, and `pause_honoured` from that repo's own work.py (W-7159f8e2 part 3)."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef2"))
+    bare = opt / "bare"
+    (bare / ".fabrik" / "work").mkdir(parents=True)  # a work dir with no config.json
+    _git(bare, env, "init", "-q")
+    proc = tmp_path / "proc"
+    _window(proc, 101, shop / ".claude" / "worktrees" / "wef1", agent="lead")  # named unlike its tree
+    _window(proc, 102, shop / ".claude" / "worktrees" / "wef2")
+    _window(proc, 103, shop)  # a main window with no record: "(unnamed)"
+    _window(proc, 104, bare / ".fabrik")
+    _record(env, "b1", agent="bob", state="done", command="fabrik-task", repo_root=str(bare))
+    marker = shop / ".git" / "fabrik-work" / "paused"
+    marker.mkdir(parents=True)
+    (marker / "wef1.json").write_text(json.dumps({"by": "operator", "actor": "", "at": time.time()}))
+    (shop / "scripts").mkdir()
+    (shop / "scripts" / "work.py").write_text("def cmd_pause(repo, args):\n    pass\n", encoding="utf-8")
+    repos = _box(opt, env)
+    shop_agents = _agents(repos["shop"])
+    assert shop_agents["lead"]["paused"]["name"] == "wef1"  # caught by its window's tree
+    assert shop_agents["lead"]["paused"]["by"] == "operator"
+    assert shop_agents["wef2"]["paused"] is None
+    assert shop_agents["lead"]["can_pause"] and shop_agents["wef2"]["can_pause"]
+    assert shop_agents["(unnamed)"]["can_pause"] is False
+    assert shop_agents["lead"]["pause_honoured"] is True
+    bob = _agents(repos["bare"])["bob"]
+    assert bob["can_pause"] is False and bob["pause_honoured"] is False  # no config.json, no verb
+
+
+def test_box_pause_edges(tmp_path: Path) -> None:
+    """The review's findings, each pinned: a pause under the agent's own name; work.py pauses per
+    WINDOW, so the row carries every marker stopping one of the agent's windows (Resume lifts them all)
+    and reads `partial` while another window — a worktree or the main checkout — still runs; a marker
+    with no time shows no age; a FIFO work.py never hangs the box view; the verb in a comment is not
+    the verb."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef2", "wef3", "wef4", "wef5", "wef6"))
+    fifo = _box_repo(opt, env, "fifo")
+    cmt = _box_repo(opt, env, "cmt")
+    proc = tmp_path / "proc"
+    wt = shop / ".claude" / "worktrees"
+    _window(proc, 101, wt / "wef1", agent="lead")  # lead's two windows: wef1 (paused) and wef2 (not)
+    _window(proc, 102, wt / "wef2", agent="lead")
+    _window(proc, 103, wt / "wef3", agent="cara")  # paused by her own name
+    _window(proc, 104, wt / "wef4", agent="duo")  # duo's two windows: both trees paused
+    _window(proc, 105, wt / "wef5", agent="duo")
+    _window(proc, 106, wt / "wef6", agent="mo")  # mo: a paused tree and a main-checkout window
+    _window(proc, 107, shop, agent="mo")
+    _record(env, "f", agent="fay", state="done", command="fabrik-task", repo_root=str(fifo))
+    _record(env, "c", agent="cid", state="done", command="fabrik-task", repo_root=str(cmt))
+    marker = shop / ".git" / "fabrik-work" / "paused"
+    marker.mkdir(parents=True)
+    for tree in ("wef1", "wef4", "wef5", "wef6"):
+        (marker / f"{tree}.json").write_text(json.dumps({"by": "operator", "at": time.time()}))
+    (marker / "cara.json").write_text(json.dumps({"by": "operator"}))  # no time
+    (fifo / "scripts").mkdir()
+    os.mkfifo(fifo / "scripts" / "work.py")
+    (cmt / "scripts").mkdir()
+    (cmt / "scripts" / "work.py").write_text("# TODO: def cmd_pause(repo, args)\n", encoding="utf-8")
+    repos = _box(opt, env)  # a FIFO read would block here until the test's timeout
+    shop_agents = _agents(repos["shop"])
+    assert shop_agents["cara"]["paused"]["names"] == ["cara"]
+    assert shop_agents["cara"]["paused"]["at"] is None and shop_agents["cara"]["paused"]["partial"] is False
+    lead = shop_agents["lead"]["paused"]
+    assert lead["names"] == ["wef1"] and lead["partial"] is True  # its wef2 window still runs
+    duo = shop_agents["duo"]["paused"]
+    assert duo["names"] == ["wef4", "wef5"] and duo["partial"] is False  # Resume must lift both
+    assert shop_agents["mo"]["paused"]["partial"] is True  # its main-checkout window still runs
+    assert _agents(repos["fifo"])["fay"]["pause_honoured"] is False
+    assert _agents(repos["cmt"])["cid"]["pause_honoured"] is False
+
+
 def test_box_now_is_keyed_by_repo(tmp_path: Path) -> None:
     """The same agent name in two repos never crosses: each repo's NOW is its own running record."""
     env = _env(tmp_path)

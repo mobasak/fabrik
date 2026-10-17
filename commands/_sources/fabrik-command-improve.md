@@ -181,8 +181,12 @@ it renders from. Before rejecting, search earlier reject reasons for the subject
 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
 still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
 its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
-audit seat's scratch, never the seat. A subject already held is a recurrence and
-is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
+audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
+mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
+A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
+(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
+answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
+target resolved and lock-checked as below. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
 loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
@@ -268,9 +272,13 @@ tells the agent to run one of its verbs is executed on the scenario the sentence
 quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites
 — a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
 handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
-synthetic file; a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
+synthetic file built to break it in a scratch repo (round zero's input classes in
+`commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
+sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A rule whose
+subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
+new subject, since a method that finds the old subject may find none of the new one.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:

@@ -619,6 +619,27 @@ def test_nested_close_marks_its_own_folder(tmp_path: Path) -> None:
     assert _owner(parent_folder)["state"] == "running"
 
 
+def test_a_nested_start_keeps_the_parents_run_folder(tmp_path: Path) -> None:
+    """W-9f3f097c (kaizen's proposed grader): a parent writes into its run folder, a nested run
+    starts, and the session's own run-folder sweep runs — the parent's file survives. The parked
+    parent's marker stays `running` and the sweep keeps a running folder; the loss kaizen measured was a
+    CLOSED run's folder written into after its close (tests/test_scratch_sweep_run_folders.py)."""
+    repo, harness, run_dir, parent = _minted(tmp_path)
+    (parent / "ep-audit.md").write_text("brief", encoding="utf-8")
+    child = _start_cmd(run_dir, harness, repo, "fabrik-probe-child")
+    assert child.returncode == 0, child.stdout + child.stderr
+    sweep = subprocess.run(
+        ["python3", str(SWEEP_LIB / "scratch_sweep.py"), "--run-folders", "--session", "s1",
+         "--cwd", str(repo), "--apply"],
+        env={"PATH": "/usr/bin:/bin", "SCRATCH_SWEEP_ROOT": str(harness), "HOME": str(tmp_path / "home")},
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+    assert sweep.returncode == 0, sweep.stdout + sweep.stderr
+    assert parent.name in sweep.stdout, sweep.stdout  # the sweep judged it — not a vacuous pass
+    assert (parent / "ep-audit.md").exists(), sweep.stdout
+    assert _owner(parent)["state"] == "running"
+
+
 def test_close_without_run_scratch_is_unchanged(tmp_path: Path) -> None:
     """A4: a record carrying no `run_scratch` closes exactly as before (no marker, no error)."""
     rec: dict = {"command": "fabrik-probe", "state": "running"}

@@ -20,7 +20,8 @@
   "score_reason": "impact HIGH: names 'deploy'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "queued"
   ],
   "title": "fabrik apply's local deploy path (deployer_ssh._deploy_local) never calls _validate_compose, so a compose with no memory limit, no container_name or the coolify network deploys unchecked while git/template/docker refuse it"
 }

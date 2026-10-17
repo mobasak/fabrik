@@ -4,6 +4,202 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
+
+- Round zero lives in both `commands/_fragments/term-coverage.md` and `term-edit.md`. Its pre-pin input list now
+  includes a guard the fix ADDS, run over the fix's own hunks as well. Feedback row 1792201902 (infra) reported
+  two late findings that were a new guard missing the fix's own code. It is the fourth answered reject on round
+  zero's live-population clause, which makes that line one the loops do not follow. The grader is in
+  `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-review says a by-design D-owner is a ledger row, and points at the gate for the refusals (2026-10-17)
+
+- `/fabrik-review` Phase 2's by-design bullet now says a `D-nnn` owner is a row of the checkout's
+  `docs/DECISIONS.md`, which infra's 66ed34d47 (D-876) made the coverage gate check. § Reporting no longer lists
+  some of the gate's refusals. It points at `check_review_coverage.py::_residual_errors`, whose messages are the
+  full list (W-91ef9165, mail 01M4YS0EZV). The grader is in `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
+
+- PHASE 3's synthetic file for a recipe is now built to break it, in a scratch repo. It uses round zero's input
+  classes from `commands/_fragments/term-coverage.md` and, for a recipe, a regex metacharacter or backtick in a
+  commit subject and a sibling commit inside the window the recipe scans. A rule whose subject the edit widens is run
+  before PHASE 4's first pin, through the rule's own search methods, on a sample of the new subject. This answers
+  feedback rows 1792200478 and 1792189926. The grader is in `tests/test_command_improve_queue_pass.py`.
+
+### Changed — a plan's reader census covers a build script it changes (2026-10-17)
+
+- In `/fabrik-plan-after-chat` Phase 1, the reader census covered only a function or value. It now also covers a
+  build script (a `package.json` script or Makefile target). The census follows each caller of the script
+  transitively: an alias script, a Makefile target, a Dockerfile, a generator that writes one, and a gate that
+  builds or runs the image. It runs before the Phase 2 shape decision. The mirror bullet in `/fabrik-plan-review`
+  names the same scope. This answers feedback row 1792194136; the grader is in
+  `tests/test_plan_after_chat_queue_pass.py`.
+
+### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
+
+`tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` was red
+on master: fabrik-lib's 8bedcaa4 re-documented `load_env`'s return value (`True` means a file parsed to at least one
+key; `False` in four named cases) and the hub's copy was one commit behind (W-6eaa8533, kaizen mail 01M53NBWPX).
+Both vendored files are re-copied from that commit under their 3-line header; the change is docstring-only, no code
+path moves.
+
+### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)
+
+`fabrik apply` loaded specs through `SpecValidator.load_spec`, which read the raw YAML, while `fabrik plan`, audit and
+destroy merged the template's `defaults.yaml` under the spec — so 15 of the 69 specs provisioned fewer registrars on
+apply than plan showed (W-989653a7). Both loaders now share `spec_loader.merge_template_defaults`; apply merges only the
+template's `shape:` block (D-908), because the deployer writes `spec["env"]` into each app's `.env` and a template
+`env:` default must never reach a deployed app. The app-role cutover's shared-database scan reads sibling specs the
+same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
+fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
+next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
+
+- PHASE 2's recurrence search now greps the earlier reject reasons for the subject, for what the row
+  asks the author to DO, and for its mechanism words. An answered reject stays final. When three or
+  more answered rejects on one subject cite the same line, that line is a line not followed, and it
+  becomes a candidate group for the run's ONE edit. `--reject` warns only on an identical `HELD:` tag.
+  The kaizen charter points at this rule. This answers feedback rows 1792198197, 1792194121 and
+  1792193148. The grader is in `tests/test_command_improve_queue_pass.py`.
+
+### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
+
+- `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
+  every passage elsewhere in the artifact that cites, depends on or restates what the edits changed,
+  the edited paragraph's own section included. That covers a renumbered list's cross-references and
+  the section that owns a promised behaviour, which must state it. It renders into the 17 commands that
+  include the fragment, among them the panel delta round of `/fabrik-spec-review` (feedback row 1792191130).
+  The grader is in `tests/test_spec_review_queue_pass.py`.
+
+### Changed — the review loops say where pins and pass files live, and term-edit says why D-335's closing seat is never a fresh whole reader (2026-10-17)
+
+- `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-plan-review` and `/fabrik-spec-review` now say that `pins_dir`
+  and `<scratch>` in their `review_loop_ledger.py` calls go under the run's durable `SCRATCH:` folder (D-836). The
+  fallback is the session scratchpad when `start` printed no `SCRATCH:` line, and only the seats' copies go under
+  `scratch_dir`. `/fabrik-review-scoped`'s pin step names the folder where the first pin is made (mail 01M4ZR1B2C).
+- `commands/_fragments/term-edit.md` gives D-335's reason at the rule, quoted from
+  `docs/reference/command-loop-performance.md` § 4.7 (D-911, mail 01M50FD9YE).
+- Graders in `tests/test_review_loop_workflow.py`. Receipt:
+  `docs/development/reviews/2026-10-17-command-scratch-home-and-d335-reason-review.md`.
+
+### Fixed — a hub builder whose turn died on a network error resumes on its own once the API answers (2026-10-16)
+
+On 2026-10-15 infra, fleet and kaizen sat dead ~40 min after `EAI_AGAIN` until the operator poked them
+(D-897). StopFailure had fired, but the stop decider recognised only five mid-stream death texts; "Can't
+reach the API server" was not one of them, so a pending background task or subagent ruled each death
+"busy" and its death record was cleared. The box-local decider (`~/.claude/bin/claude-stop-decider.py`)
+now treats an `isApiErrorMessage` tail whose `error` is `server_error` as a death — the CLI's class for
+every transient server/network failure, 11 of whose 13 texts the list missed — while quota, auth and
+invalid-request errors and two configuration walls stay as they were; the record keeps its `server_error`
+class. The self-watch wakes only after three consecutive API answers and keeps the record fresh during a
+long outage. Graders: the decider's `--self-test` and `claude-mesh-test.sh`, red first. W-5279e834.
+
+### Fixed — a closed run folder still being written into is no longer swept after 30 minutes (2026-10-16)
+
+Kaizen lost an audit brief and a pin folder mid-run (mail 01M4ZVBX96). Its transcript shows the
+folder belonged to a run it had closed 41 minutes earlier and kept writing into: a `start | head -1`
+hid the new run's RUN-SCRATCH line. The sweep gave the closed folder the 30-minute fast grace, because
+only a seat transcript written after a close counted as use. Now `scratch_sweep.py` also reads the
+folder's own mtime: an entry created or removed in it more than 5 s after the close keeps it for the
+36 h grace, counted from that change, and the removal step re-checks it. A stacked parent's folder was
+never at risk (its marker stays `running`); a grader now pins that too. W-9f3f097c.
+
+### Added — Accept / Reject / comment per work item and a tag filter on the dashboard's Repos tab (2026-10-15)
+
+Operator 2026-10-15: "i want a way to accept or reject them manually also add a comment next to them".
+`work.py verdict [--text] [--by] -- <id> accept|reject|comment` is the operator's verb (no agent name and
+no Claude session id): every call lands in the item's new `comments` list; accept answers a waiting
+decision or lifts the `waits-operator-review` hold (tag `operator-accepted`), reject answers a decision or
+drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `POST /item-verdict` (the
+Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
+refresh waits while a comment is being typed. W-e1f1a1bd.
+
+### Changed — round zero scripts step references and mutant predictions, and re-runs a count when its subject moves (2026-10-17)
+
+Rule (1) of the round-zero probe, in both homes (`commands/_fragments/term-edit.md` for the text-review loops,
+`commands/_fragments/term-coverage.md` for the code-review loops), now names a step reference and a mutant prediction
+beside counts, enumerations, line anchors and negatives. Each is executed at round 1, or before the pin that first
+carries it, and re-run when the claim or what it measures changes (a fix that changes what a quoted advisory
+counts, such as a plan's Touches). Answers /fabrik-plan-review rows 1792092814 (the sixth verdict on the subject,
+earlier answered as already stated) and 1792194120. Pinned by `tests/test_plan_review_queue_pass.py`.
+
+### Changed — /fabrik-spec: a build-tool setting is settled by a build or the tool's source (2026-10-17)
+
+`commands/_sources/fabrik-spec.md` § 1a: a build-tool setting the design relies on (any bundler, compiler,
+test-runner, package-manager or CI option, a config file's default included) is settled by a build the author runs
+or by the tool's own source read through `gh`; its docs page only locates the setting; else it is a named BLOCKING
+unknown. Answers row 1792191153, a recurrence of held execute-pack-config-before-relying; the queue's other 2 rows
+were rejected with reasons. Pinned by `tests/test_spec_queue_pass.py`.
+
+### Changed — /fabrik-review-scoped: a guard's accepts-or-covers sentence is written from its executed inputs (2026-10-17)
+
+`commands/_fragments/review-probe-catalogue.md`'s Claims row extends its matcher clause to a guard. A sentence (a
+comment, a docstring, a doc line) describing a matcher, regex or guard is written from its input space executed on
+both sides, the lead's escape variants and every one the seats returned included, never from its subject's own
+docstring. Answers rows 1792088209 (a recurrence of held guard-false-positives-negatives-against) and 1792086831; the
+queue's other 4 rows were rejected with reasons. Pinned by `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — /fabrik-review: recurring brief and fix lessons land in their homes (2026-10-17)
+
+The fourth pass over `/fabrik-review`'s feedback queue (21 rows: 13 edited, 7 already stated or held, 1 refused as
+weakening). `commands/_sources/fabrik-review.md`:
+- a receipt over committed work is re-made at the close after the last fix commit (a new `--scope`, or `--out` for a
+  plan), with its rows carried over and the superseded receipt deleted;
+- the verbatim finder-brief lessons name the commit beside every count, and say a probe reads the port a served build
+  really bound, or serves it with no port;
+- a seat's scratch dir is made with `mkdir -p` before its first write;
+- Phase 3 names two recurring fix forms (one classifier for paired predicates; an allowlist, never a bracket range);
+- the test-quality checklist adds a self-comparison and a softened matcher.
+
+`commands/_fragments/review-probe-catalogue.md` traces a doc sentence through every branch it summarises, names the
+readers of each field a fix writes, and sweeps outcome lines by verb and removed name across the whole file, in the
+round the fix lands. Pinned by `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-task: input tables, hook-output cap, exact-subject commit capture (2026-10-17)
+
+`commands/_sources/fabrik-task.md`, from the fourth pass over its feedback queue (24 rows: 9 edited, 3 routed to
+infra, 5 held, 6 already stated, 1 refused as weakening the review). Phase 2 tabulates every input the design branches on in a `design.md` table
+outside the Behaviours list (each value a state can hold, the unit another tool's rule is evaluated per, every path
+through a guard), and a parser it adds fails closed on input outside its grammar, which the critique brief now
+probes. MEASURE sizes each hook output the change grows against Claude Code's 10,000-character cap.
+`--terminal-amend` is stated to ride on the `--design` call or before it. Phase 3 rewrites a test drafted before
+the critiques folded. Phase 5 captures the commit by its exact subject and fails closed, where a `HEAD` read could
+capture a sibling's commit landing during the post-commit hook. Pinned by
+`tests/test_fabrik_task_queue_pass.py` and `tests/test_command_run_lane_v2.py`; the size cap moves 20904 → 21739.
+
+### Changed — /fabrik-plan-after-chat: Phase 4 names what /fabrik-plan-review grades in the rubric paste and the digest (2026-10-17)
+
+`commands/_sources/fabrik-plan-after-chat.md` Phase 4 now says what `/fabrik-plan-review` Phase 1 grades in the
+plan this command writes: the rubric output pasted verbatim, with only the `# promote-to-check_*` tail elided and
+the elision declared (its step 1), and the plan's `## Constraints Digest` naming every MATCHED pack that output
+lists (its step 3). Answers row 1792092835 (a plan written to this text failed that review);
+`tests/test_plan_after_chat_queue_pass.py` pins the sentence and the reviewer's step numbering.
+
+### Changed — /fabrik-plan-after-chat: a spec-fed plan executes the spec's claims about its own repo (2026-10-15)
+
+`commands/_sources/fabrik-plan-after-chat.md` Phase 0.5 adds (c) to a spec-fed plan's verification: each claim
+the spec makes about the repo the plan builds in — a derivation, count or population, a claimed pin — is run
+before the plan or a grounder brief relies on it, and a pin counts only as a test named by `path:line` that goes
+red when the rule is neutered in a throwaway worktree. Answers row 1792013569, the third verdict on the subject
+(three grounder briefs relied on a pin that did not exist); pinned by `tests/test_plan_after_chat_queue_pass.py`.
+
+### Changed — /fabrik-conformance-review: the ledger lists its Per-phase verdicts section (2026-10-15)
+
+`commands/_sources/fabrik-conformance-review.md`: the ledger's contents list (now FOUR things from the start) and
+OUTPUT's ledger line name a `## Per-phase verdicts` section with one `### Phase <n> — <title>` heading per phase —
+a ledger written to the old list had no Phase/Step heading, and `check_convergence.py` fails a finished-claiming
+review without one ("no per-phase verdict"). Answers row 1792066693; pinned by
+`tests/test_conformance_review_queue_pass.py`, which runs the gate's own `PHASE` pattern on the heading the source
+prescribes.
+
+### Added — dashboard: Pause and Resume buttons per agent (2026-10-15)
+
+- Every agent row the board can act on (an agent name, in a repo with a work store) has **Pause**, or **Resume** with "paused by X, N ago" (W-7159f8e2 part 3, operator 2026-10-15).
+- The button confirms first, then calls `POST /agent-pause`. That runs the hub's `work.py pause/resume` against the row's repo as the operator: the child gets an allowlisted environment, because the live server was measured carrying an agent identity, and `GIT_DIR` would redirect `--repo`.
+- The endpoint takes only pairs the board rendered, behind the same custom-header guard as `/switch`.
+- A repo whose own `work.py` has not synced the verb yet is marked "not honoured here".
+
 ### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
 
 `commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its

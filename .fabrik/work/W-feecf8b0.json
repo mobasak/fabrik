@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T20:57:57.503312Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-feecf8b0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M51SJSN07WAEQAY4Q4MYHFMD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: hosting route for bhdtrade.com go-live, settled. The static site goes to Cloudflare Pages (D-106). services/quote-forms stays a vps1 container behind its own hostname, forms.bhdtrade.com (D-475, wef2, abbd8e38). wef3 owns the wiring and is executing it now, in this order:"
+}

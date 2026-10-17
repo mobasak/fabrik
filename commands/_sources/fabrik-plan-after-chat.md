@@ -100,8 +100,12 @@ the fabrik-lib **vendor→enhance→build verdict** and the **cited external fac
 Carry those **straight into the Context Ledger** as-is. Phase 1's job then narrows to **verification, not
 re-derivation**: (a) confirm the chosen module's *real API* at `path:line` (the spec grounded *which* module
 to vendor/enhance, not its exact signatures — that still needs grounding); (b) re-check each cited external
-source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date).
-Only when there is **no** spec do you run the full intake below from scratch.
+source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date);
+(c) execute each claim the spec makes about the repo this plan builds in before the plan or a grounder brief relies
+on it — verify a stated derivation, count or population by running it, and hold a claimed pin to a test named by
+`path:line` that goes red when the rule is neutered in a throwaway worktree (`CLAUDE.md` § Shared repo, its
+mutate-restore rule); a claim not executed is prose, never carried as fact. Only when there is **no** spec do you
+run the full intake below from scratch.
 
 {{include:delegated-reads}}
 
@@ -182,11 +186,15 @@ Treat every intended step as unproven until verified against the real code/schem
   real `path:line`. A path that looks right is not grounding; a column name is not its values (read them).
   For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch it; each
   lands in that ticket's File Scope, since a test pinning the old shape is fallout the anchors never show.
-  For each function or value whose BEHAVIOUR the plan changes, census its production readers before any step that
-  changes it: the call sites (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path
-  for the path-injected and string readers, with the count, each marked when its file is fleet-synced (the hub's
-  `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its command and output cited in the
-  plan's Evidence; its readers and the tests that pin the old behaviour in File Scope or named as untouched.
+  For each function, value or build script (a `package.json` script or Makefile target, e.g. a `build:prod` read by a
+  Dockerfile, a container gate and a generator) whose BEHAVIOUR the plan changes, census its production
+  readers before any step that changes it: the call sites (`find_referencing_symbols`) plus a grep of its name,
+  its file's basename and its path for the path-injected and string readers, with the count, each marked when its
+  file is fleet-synced (the hub's `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its
+  command and output cited in the plan's Evidence; its readers and the tests that pin the old behaviour in File
+  Scope or named as untouched. A build script's census follows each caller transitively (an alias script, a
+  Makefile target, a Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted
+  as a reader) and runs before the Phase 2 shape decision.
   **Symbol-level questions go through the `serena` MCP first** — `find_symbol` (the definition body
   without reading the whole file), `find_referencing_symbols` (every real call-site, where a grep of a
   common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file
@@ -679,7 +687,10 @@ which the flip gate cannot tell from a real rubric — re-run it, never paste th
 `RUBRIC_RUN` enforce the section and the pasted header (not the packs) mechanically (both live in
 `check_review_coverage.py` and are imported by `check_convergence.py`'s flip gate — grep the
 symbols, never a line anchor).
-`/fabrik-plan-review` asserts the same two before its flip.
+`/fabrik-plan-review` asserts the same two before its flip, and its Phase 1 grades two more things the plan
+carries: the rubric output is pasted verbatim, where only the `# promote-to-check_*` tail may be elided
+(declared where it would sit — its step 1), and the plan's `## Constraints Digest` names every MATCHED pack that
+output lists (its step 3).
 
 Append, so the downstream converge/execute commands have what they need:
 

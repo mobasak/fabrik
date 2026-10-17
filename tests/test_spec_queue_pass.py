@@ -104,3 +104,14 @@ def test_local_claim_output_describes_key_material_never_pastes_it() -> None:
         " kind, length and a non-secret prefix, never pasted, its BEGIN line included: the `detect-private-key`"
         " commit hook refuses a private-key PEM header)"
     ) in text
+
+
+def test_a_build_tool_setting_is_probed_by_a_build_or_its_source() -> None:
+    """Row 1792191153, a recurrence of held execute-pack-config-before-relying: a design relied on a build-tool
+    option its docs page described, and the build behaved otherwise."""
+    phase = _section("### 1a — External facts", "### 1b — Internal capability")
+    assert (
+        "A build-tool setting the design relies on (any bundler, compiler, test-runner, package-manager or CI option, a"
+        " config file's default included) is settled by a build you run or by the tool's own source read through `gh`"
+        " — its docs page locates the setting but never settles it — else it is a named BLOCKING unknown."
+    ) in phase
