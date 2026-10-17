@@ -16,7 +16,7 @@ D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958.
 Operator: *"you must always be aware what they are doing, what they have finished, what will they do next … even though
 you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, its `updated_at` shows staleness) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
-queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
+queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. The one-command view: `python3 scripts/agent_status.py`
 (D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
@@ -41,7 +41,7 @@ eligibility, assign priority and assign an agent"*. Every turn something new arr
    about one session, a few files, no spec or plan; HIGH = a spec or plan, several sessions, or fleet-wide. Every
    score's `--why` names the check that set it.
 4. **Store it** (until W-1bfb4623): `--impact` with `--effort` (high-effort MEDIUM excepted), then any `--priority 0` last (a re-score clears it).
-   HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, which you assign first by hand;
+   HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, assigned first by hand (backlog: `--tag queued`);
    LOW = `--impact low`, batched.
    High effort = P2 major, ONE in flight, every other major `--blocked-by` it; a high-effort MEDIUM cannot be scored
    (tag only) and is held `--blocked-by` it too. URGENT = P0 plus a message to its builder (its charter says to commit,
