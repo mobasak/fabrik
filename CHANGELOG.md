@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the researcher follows WebFetch redirects and pages long pages before an absence verdict (2026-10-18)
+
+- `commands/_agents/fabrik-researcher.md` gains a sixth fetch-path shape: `WebFetch` returns a cross-host
+  redirect unfollowed, so the seat fetches the named target, and it reads a long page in windows, so the
+  seat pages on with `offset` before claiming something is absent (both measured 2026-10-18, W-eb9db7c0).
+- Rule 3 no longer says exa always refuses JSON: it has also fetched JSON raw, so JSON stays routed to
+  `WebFetch` first. Graded in `tests/test_agent_definitions.py`.
+
 ### Fixed — `check_doc_links.py` no longer reads the decision ledger as a link source (2026-10-18)
 
 - A `docs/DECISIONS.md` row minted with a DRAFT plan cites files that do not exist yet, and rows are immutable, so a

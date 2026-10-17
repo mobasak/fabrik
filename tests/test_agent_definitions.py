@@ -165,3 +165,13 @@ def test_the_mail_triage_agent_sentences_are_present_once():
     researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
     assert reviewer.count("with `git -C <repo>` when the repo is not your cwd") == 1
     assert researcher.count("silently DROPS TABLES") == 1
+
+
+def test_the_researcher_follows_redirects_and_pages_before_an_absence():
+    """W-eb9db7c0: WebFetch returns a cross-host redirect unfollowed and reads a long page in
+    windows, so the researcher re-fetches the redirect target and pages on with `offset` before
+    an ABSENCE verdict."""
+    researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    assert "six measured failure shapes" in researcher
+    assert researcher.count("`REDIRECT DETECTED`") == 1
+    assert "call again with that `offset` until the note is gone" in researcher
