@@ -411,3 +411,25 @@ def test_a_recurrence_is_searched_by_its_step_and_answered_rejects_flag_a_line()
         " lock-checked as below."
     ) in phase2
     assert "(it warns only on an identical `HELD:` tag)" in phase2
+
+
+def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pin() -> None:
+    """Rows 1792200478, 1792189926: the line four answered rejects cite was not followed; a widened census
+    subject was never run through its own search methods (they found 0 of 3 readers), and a recipe was
+    run only on friendly inputs."""
+    phase3 = re.sub(r"\s+", " ", SRC.read_text())
+    phase3 = phase3[phase3.index("## PHASE 3") : phase3.index("## PHASE 4")]
+    assert (
+        "A rule whose subject the edit widens is run before PHASE 4's first pin, through the rule's own search"
+        " methods, on a sample of the new subject, since a method that finds the old subject may find none of"
+        " the new one."
+    ) in phase3
+    assert (
+        "as well as a synthetic file built to break it in a scratch repo (round zero's input classes in"
+        " `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
+        " and a sibling commit inside the window the recipe scans, when it scans one)"
+    ) in phase3
+    # the pointer resolves: round zero there lists the input classes this clause leans on
+    coverage = ROOT / "commands" / "_fragments" / "term-coverage.md"
+    classes = "boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs"
+    assert classes in re.sub(r"\s+", " ", coverage.read_text())

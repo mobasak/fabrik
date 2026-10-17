@@ -272,9 +272,13 @@ tells the agent to run one of its verbs is executed on the scenario the sentence
 quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites
 — a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
 handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
-synthetic file; a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
+synthetic file built to break it in a scratch repo (round zero's input classes in
+`commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
+sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A rule whose
+subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
+new subject, since a method that finds the old subject may find none of the new one.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
