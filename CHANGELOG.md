@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `--status --json` no longer overruns the dashboard's 60 s probe cap on a dead uplink (2026-10-17)
+
+`claude_rotate.py`'s `_oauth_get` keeps a per-process transport-dead latch (W-5a1b8961, D-942), in both vendored copies. When one call fails on every host and attempt with a transport error (an OSError) and nothing else, later calls inside 60 s return None at once instead of each spending its own hosts × attempts × timeout budget. Before this, a dead link made the fleet loop spend N accounts × ~33 s, and the board showed a probe failure instead of its cached rows.
+
+Two limits on the latch:
+- **Marks only on positive evidence.** A ValueError from a token holding a newline, a malformed body, or a bug never marks.
+- **Any contact clears it.** That means an HTTP status, a success, or a TLS certificate refusal from a captive portal. A call still in flight when another call made contact never marks afterwards.
+
+`tests/conftest.py` resets the latch on every loaded copy before each test. `tests/test_oauth_transport_latch.py` covers both copies. Every mutant of the guards turns a test red, except one equivalent mutant recorded in the review receipt.
+
 ### Added — Command-centre dashboard views: Overview, Work, Accounts, Usage, Commands, Services (2026-10-17)
 
 Plan 2026-10-17-plan-1, T03–T06, built in parallel and merged as one wave. `dashboard_ui/views/overview.py` is the "Needs you" page: a summary strip, decisions waiting grouped by repo (hub first, gates first, the five oldest per group past 100 decisions) with Accept/Reject/Comment carrying the snapshot token, read-only blocked merges across every repo (`dashboard_ui/merges.py`: newest record per branch by ULID, refused or catchup-refused; the merge owner resolved through `decisions.py --merge-owner` in parallel under one deadline, single-flight per repo), every agent with Pause/Resume, and the quota and health strips, which move above the decisions on RED, WALL or a failed probe. `views/work.py` renders each repo's queue with the repo picker, owner chips (reversible, whitespace-free tokens), a tag filter and token-guarded verdicts. `views/accounts.py` renders the rotation queue, meters, governor, warnings and a per-account Edit disclosure (switch, disable, cap, rotate-at), every control confirmed and posting today's bodies. `views/usage.py`, `views/commands.py` and `views/services.py` carry the tier spend tables and monthly calendar, the searchable command catalogue with its service-matrix tab, and the pool credits and search-API quotas with the external-services link in its own tab. New components: `link` (only `#frag`, a same-site path or an http(s) URL), `section`, and an optional `group(label=)`. `fmt.read_ts` guards every freshness stamp, so one bad timestamp blanks its own stamp instead of failing the view. Tests: `tests/test_quota_dashboard_{overview,work,accounts,views_misc}.py`; the eleven dashboard files run 730 tests. Wave review: `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md`.
