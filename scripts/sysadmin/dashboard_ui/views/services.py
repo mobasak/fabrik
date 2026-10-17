@@ -41,15 +41,16 @@ def _count(x: object) -> str | None:
     return f"{v:,.0f}" if v == int(v) else f"{v:,.2f}"
 
 
-def _warn_usd() -> float:
+def _warn_usd(given: object = None) -> float:
+    """The server's ``CREDITS_WARN_USD`` (``data["warn_usd"]``); today's env read only when absent."""
     try:
-        v = float(os.getenv("POOL_CREDITS_WARN_USD", "5"))
-    except ValueError:
+        v = float(given if given is not None else os.getenv("POOL_CREDITS_WARN_USD", "5"))
+    except (ValueError, TypeError, OverflowError):
         return 5.0
     return v if math.isfinite(v) else 5.0
 
 
-def _pool(pool: object):
+def _pool(pool: object, warn_usd: object = None):
     if isinstance(pool, dict) and "error" in pool:
         return region_state(
             "error", t("services.pool.error", error=pool["error"]), retry=True
@@ -63,7 +64,7 @@ def _pool(pool: object):
     if remaining is None:  # unknown is not zero: never a false EXHAUSTED
         return region_state("error", t("services.pool.unknown")), stamp
     granted = _real(pool.get("granted")) or 0.0
-    warn = _warn_usd()
+    warn = _warn_usd(warn_usd)
     if remaining <= 0:
         sev, note = "critical", t("services.pool.exhausted")
     elif remaining <= warn:
@@ -194,7 +195,7 @@ def _external(ext: object, now: float):
 
 def render(data: dict, ctx: ViewContext) -> ViewResult:
     now = ctx.now
-    pool_body, pool_age = _pool(data.get("pool"))
+    pool_body, pool_age = _pool(data.get("pool"), data.get("warn_usd"))
     apis_body, apis_age = _apis(data.get("apis"), now)
     return ViewResult(
         fragment(

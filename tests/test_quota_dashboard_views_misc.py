@@ -763,3 +763,26 @@ def test_two_huge_finite_unclassified_counts_never_fail_usage():  # wave r3 (N-2
     # each term is finite, but 1e308 + 1e308 is inf and int(inf) raised OverflowError
     _h, dom = _render("usage", _spend(unweighted={"a": 1e308, "b": 1e308}))
     assert "NOT in any total" not in dom.all_text()
+
+
+# ------------------------------------------------------------------------------------ whole-plan review r1 (item 20)
+def test_item20_matrix_root_comes_from_the_server_value(monkeypatch):
+    monkeypatch.setenv("QUOTA_DASH_RENDERED_COMMANDS", "/env/root")
+    given = {**_commands_data(), "rendered_root": "/server/root"}
+    assert "under /server/root)" in _render("commands", given)[1].all_text()
+    fallback = _render("commands", _commands_data())[
+        1
+    ].all_text()  # key absent: today's computation
+    assert "under /env/root)" in fallback
+
+
+def test_item20_pool_warn_threshold_comes_from_the_server_value(monkeypatch):
+    monkeypatch.setenv("POOL_CREDITS_WARN_USD", "1")
+    pool = {"granted": 99.0, "remaining": 20.0}
+    served = _render("services", {**_services_data(pool=pool), "warn_usd": 50.0})[1].all_text()
+    assert "under $50" in served  # the server's 50 beats the env's 1
+    assert (
+        "under $" not in _render("services", _services_data(pool=pool))[1].all_text()
+    )  # fallback: env 1
+    low = {**_services_data(pool={"granted": 9.0, "remaining": 3.0}), "warn_usd": "nan"}
+    assert "under $5" in _render("services", low)[1].all_text()  # non-finite server value: default

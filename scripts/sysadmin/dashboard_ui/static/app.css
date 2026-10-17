@@ -362,8 +362,12 @@ textarea.input {
   border: var(--line) solid var(--sev-neutral);
   border-radius: var(--radius);
   font-size: var(--text-sm);
-  white-space: nowrap;
+  /* a badge carries data too (a collector's error, a path): it wraps, never pushes the page sideways */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
+
+.badge-text { min-width: 0; }
 
 .badge-icon {
   color: var(--sev-neutral);

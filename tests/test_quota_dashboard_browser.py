@@ -176,6 +176,29 @@ def test_no_view_scrolls_the_page_sideways(browser, board, viewport):
         context.close()
 
 
+LONG_ERROR = (
+    "CalledProcessError: Command '/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/"
+    "dispatch_headroom.py --units 1 --json' returned non-zero exit status 1 after reading "
+    "/home/someone/.claude/state/command-runs/0123456789abcdef0123456789abcdef.json"
+)
+
+
+@pytest.mark.parametrize("viewport", [PHONE, ZOOMED], ids=["390", "1440-at-200pct"])
+def test_a_long_data_badge_wraps_instead_of_scrolling_the_page(
+    browser, board, monkeypatch, viewport
+):
+    """A badge carries DATA as well as labels — a collector's error, a path — and a long one on one
+    line pushed the Overview sideways at 390 px. It wraps; the page never scrolls sideways."""
+    monkeypatch.setattr(board.qd, "_budget_data", lambda: {"error": LONG_ERROR})
+    context, page = _open(browser, board, viewport)
+    try:
+        assert LONG_ERROR[:40] in page.locator("#ov-health").inner_text()
+        over = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+        assert over <= 0, over
+    finally:
+        context.close()
+
+
 # ---------------------------------------------------------------- the keyboard
 def test_from_the_skip_link_tab_reaches_the_first_action_of_the_first_card(browser, board):
     context, page = _open(browser, board, DESKTOP)
@@ -316,6 +339,61 @@ def test_a_half_typed_comment_and_an_open_dialog_survive_a_refresh_tick(browser,
         assert page.locator("dialog[open]").count() == 1 and _stamp(page) == held
         page.keyboard.press("Escape")
         assert page.evaluate("(el) => el === document.activeElement", accept.element_handle())
+    finally:
+        context.close()
+
+
+def test_a_view_that_lands_while_a_dialog_is_open_waits_for_it_to_close(browser, board):
+    """INV-5, the race the skip cannot see: a refresh fetch already in flight when the operator opens
+    a dialog must not swap the view under it — the dialog's invoker and the text being typed live in
+    that markup. The response waits; the view refreshes once the dialog closes."""
+    context, page = _open(browser, board, DESKTOP)
+    held: list = []
+    try:
+        before = _stamp(page)
+        page.route("**/v/overview", lambda route: held.append(route))
+        token = board.qd._snapshot.token(board.item("fabrik", board.items["second"]))
+        assert (
+            board.qd.item_verdict("fabrik", board.items["second"], "comment", "moved", token=token)[
+                0
+            ]
+            == 200
+        )
+        page.evaluate("() => window.qdRefresh(false)")  # the tick's fetch goes out ...
+        for _ in range(100):
+            if held:
+                break
+            page.wait_for_timeout(20)
+        assert held, "the refresh fetch was not issued"
+        _first_card(page).get_by_role("button", name=t("ov.dec.accept")).focus()
+        page.keyboard.press("Enter")  # ... the operator opens a dialog ...
+        assert page.locator("dialog[open]").count() == 1
+        held[0].continue_()  # ... and the response lands now
+        page.unroute("**/v/overview")
+        page.wait_for_timeout(400)
+        assert page.locator("dialog[open]").count() == 1 and _stamp(page) == before
+        page.keyboard.press("Escape")
+        page.wait_for_function(
+            "(s) => document.querySelector('[data-view-root]').getAttribute('data-stamp') !== s",
+            arg=before,
+        )
+    finally:
+        context.close()
+
+
+def test_a_hash_naming_an_object_prototype_member_is_not_a_view(browser, board):
+    """`known[view]` read `Object.prototype`: `#constructor` fetched `/v/constructor`."""
+    context = browser.new_context(viewport=DESKTOP)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda r: fetched.append(r.url) if "/v/" in r.url else None)
+    try:
+        page.goto(board.url + "/#constructor")
+        page.wait_for_selector('[data-view-root="overview"]')
+        for name in ("toString", "__proto__", "hasOwnProperty"):
+            page.evaluate("(h) => { location.hash = h; }", name)
+            page.wait_for_timeout(150)
+        assert all(u.endswith("/v/overview") for u in fetched), fetched
     finally:
         context.close()
 

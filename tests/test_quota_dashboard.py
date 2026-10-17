@@ -34,19 +34,93 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 
 
+_HOME_ENV = ("BRAVE_API_KEY", "FIRECRAWL_API_KEY", "EXA_API_KEY", "OPENROUTER_API_KEY")
+
+
 def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
-    """Import a FRESH module instance whose env-derived module constants point at tmp_path."""
+    """Import a FRESH module instance whose env-derived module constants point at tmp_path — and
+    whose HOME is an empty directory under it, with no provider key in the environment and no MCP
+    config to read one from, so no test can find a real key and reach a real provider (a run once
+    printed "brave quota probe failed (HTTPError)": a live call to the Brave API)."""
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    monkeypatch.setenv("HOME", str(home))
+    for var in _HOME_ENV:
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     # never the box's REAL pointer: a test render says "mob" while the box may point elsewhere,
     # and the pointer-moved regeneration would then fire on every view
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    if "QUOTA_DASH_CREDITS_KEY_FILE" not in os.environ:
+        monkeypatch.setenv("QUOTA_DASH_CREDITS_KEY_FILE", str(tmp_path / "no-key.env"))
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     spec = importlib.util.spec_from_file_location(f"qd_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "_MCP_CONFIGS", ())  # the repo's own .mcp.json may carry a real key
     return mod
+
+
+_NET_DENIED: list[str] = []
+
+
+def _loopback(address: object) -> bool:
+    if not isinstance(address, tuple):  # an AF_UNIX path: never the network
+        return True
+    host = str(address[0])
+    return host in ("localhost", "::1") or host.startswith("127.")
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """Every test in this file runs with the network cut at the socket: a connect to anything but
+    loopback is refused AND recorded, and a test that tried one fails at teardown — even when the
+    code under test caught the refusal (every provider probe here fails soft, which is how a live
+    call once went unnoticed)."""
+    import socket
+
+    real = socket.socket.connect
+
+    def guarded(self, address, *a, **k):
+        if not _loopback(address):
+            _NET_DENIED.append(repr(address))
+            raise OSError(f"test network guard: no connect to {address!r}")
+        return real(self, address, *a, **k)
+
+    real_lookup = socket.getaddrinfo
+
+    def lookup(host, *a, **k):  # a name lookup is network traffic too (and names the provider)
+        if host is not None and not _loopback((host, 0)):
+            _NET_DENIED.append(f"lookup {host!r}")
+            raise OSError(f"test network guard: no lookup of {host!r}")
+        return real_lookup(host, *a, **k)
+
+    monkeypatch.setattr(socket.socket, "connect", guarded)
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+    del _NET_DENIED[:]
+    yield
+    denied, _NET_DENIED[:] = list(_NET_DENIED), []
+    assert denied == [], f"the test opened a non-loopback socket: {denied}"
+
+
+def test_the_network_guard_refuses_and_records_a_non_loopback_connect():
+    """The guard itself: a connect or a lookup off loopback raises AND is recorded (the teardown
+    assertion fails the test that tried); loopback passes."""
+    import socket
+
+    for target in (("192.0.2.1", 9), ("api.search.brave.com", 443)):
+        with pytest.raises(OSError, match="test network guard"):
+            socket.create_connection(target, timeout=1)
+    assert any("192.0.2.1" in d for d in _NET_DENIED) and any("brave" in d for d in _NET_DENIED)
+    del _NET_DENIED[:]  # this test's own refusals were the point
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    socket.create_connection(srv.getsockname(), timeout=1).close()
+    srv.close()
+    assert _NET_DENIED == []
 
 
 def _payload(session: float = 40.0, weekly: float = 72.0) -> dict:
@@ -739,13 +813,16 @@ def test_a_pointer_change_regenerates_before_the_floor(tmp_path, monkeypatch):
     pointer.unlink()
     pointer.symlink_to(tmp_path / "can")
     state["active"] = "can"
-    assert _acct_row(_accounts(qd), "can", "active"), "a moved pointer must not wait for the floor"
-    assert _acct_row(_accounts(qd), "can", "active")  # and the second view costs no second probe
+    _accounts(qd)  # the view is served at once and starts the regeneration in the background
+    _join_regen(qd)
+    assert _acct_row(_accounts(qd), "can", "active"), "the next view shows it, not the floor's"
+    _join_regen(qd)
+    assert _acct_row(_accounts(qd), "can", "active")  # and the later views cost no second probe
     assert len(calls) == 2
 
 
 def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monkeypatch):
-    """After a flip the board regenerates synchronously ONCE. If that probe FAILS, the fallback
+    """After a flip the board regenerates ONCE (in the background). If that probe FAILS, the fallback
     payload must carry the live pointer so the next views serve instantly instead of each
     paying the probe timeout until the probe recovers (review finding on the pointer-moved path)."""
     pointer = tmp_path / "active"
@@ -763,9 +840,11 @@ def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monk
         raise TimeoutError("probe hung")
 
     monkeypatch.setattr(qd, "_probe", _hang)
-    _accounts(qd)  # the one synchronous attempt after the flip — it fails
+    _accounts(qd)  # the one background attempt after the flip — it fails
+    _join_regen(qd)
     _accounts(qd)
     _accounts(qd)
+    _join_regen(qd)
     assert len(calls) == 1, f"every view re-ran the failed probe: {len(calls)} probes for 3 views"
     assert _acct_row(_accounts(qd), "can", "active"), (
         "the pointer is a local fact — shown even when the probe is down"
@@ -3098,7 +3177,9 @@ def test_the_box_budget_shows_the_maximum_and_fails_soft(tmp_path, monkeypatch):
     assert (seats["heavy"]["allowed"], seats["heavy"]["box"]) == (12, 12)
     assert r["cli_cap"] == 17
     strip = _health_strip(qd, monkeypatch)
-    assert "read-only seats allowed now: 17 (box 23, 0 reserved by sibling sessions)" in strip
+    assert (
+        "read-only seats allowed now: 17 (box 23)" in strip
+    )  # nothing reserved: no reservation clause
     assert "heavy seats allowed now: 12 (box 12" in strip
     assert "CLI cap 17" in strip and "CLI cap 20" not in strip
     # ONE probe per refresh — the fleet round-trip inside it is the thing the module bounds
@@ -4846,6 +4927,62 @@ def test_quota_json_is_served_at_once_and_an_old_one_starts_one_background_probe
         httpd.shutdown()
 
 
+def test_quota_json_is_behind_the_cross_site_guard(tmp_path, monkeypatch):
+    """`/quota.json` can start a regeneration — the same reason a view GET is guarded: a page on
+    another site marked `Sec-Fetch-Site: cross-site` gets 403 and starts nothing."""
+    qd = _load(tmp_path, monkeypatch)
+    started: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: started.append(1))
+    httpd, base = _serve(qd)
+    try:
+        status, _h, body = _get(base, "/quota.json", headers={"Sec-Fetch-Site": "cross-site"})
+        assert status == 403 and b"cross-site" in body and started == []
+        status, _h, _b = _get(base, "/quota.json", headers={"Sec-Fetch-Site": "same-origin"})
+        assert status == 200 and started == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_quota_json_starts_a_regeneration_when_the_pointer_moved_even_if_fresh(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()  # fresh on disk
+    started: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: started.append(1))
+    httpd, base = _serve(qd)
+    try:
+        assert (
+            _get(base, "/quota.json")[0] == 200 and started == []
+        )  # fresh, pointer still: nothing
+        monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+        status, _h, body = _get(base, "/quota.json")
+        assert status == 200 and json.loads(body)["active"] == "mob" and started == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_a_regeneration_that_raises_ends_its_thread_cleanly(tmp_path, monkeypatch):
+    """The background worker records the failure (as `_generate_held` does) and ends; nothing
+    escapes into the thread machinery, and the next regeneration can start."""
+    qd = _load(tmp_path, monkeypatch)
+    escaped: list[object] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: escaped.append(args.exc_type))
+
+    def boom():
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(qd, "_generate_locked", boom)
+    worker = qd._regen_async()
+    assert worker is not None
+    worker.join(10)
+    assert escaped == [] and qd._LAST_PROBE_FAILURE[0][1] == "RuntimeError"
+    again = qd._regen_async()
+    assert again is not None, "the lock was released"
+    again.join(10)
+
+
 def test_once_probes_writes_quota_json_and_prints_its_path(tmp_path, monkeypatch, capsys):
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", _payload)
@@ -4894,3 +5031,84 @@ def test_after_a_restart_a_verdict_and_a_pause_post_find_targets_the_views_show(
         httpd.shutdown()
     assert _item(shop, item)["comments"][-1]["text"] == "after restart"
     assert _paused_marker(shop, "wef1").exists()
+    # the reason typed in the Pause dialog rides the POST's `why` into the marker
+    assert json.loads(_paused_marker(shop, "wef1").read_text())["why"] == "hold"
+
+
+def test_a_moved_pointer_never_probes_on_the_request_thread(tmp_path, monkeypatch):
+    """`_view_data` promises "never a probe": a moved pointer starts ONE background regeneration and
+    the view is served at once — the next refresh shows the new account. A slow probe on the HTTP
+    thread would hold the view for the whole probe (the 2026-08-18 hang)."""
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    ran_on: list[str] = []
+    gate = threading.Event()
+
+    def slow():
+        ran_on.append(threading.current_thread().name)
+        gate.wait(10)
+        return _payload()
+
+    monkeypatch.setattr(qd, "_probe", slow)
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+    httpd, base = _serve(qd)
+    try:
+        for name in ("accounts", "overview"):
+            t0 = time.time()
+            status, _h, _b = _get(base, f"/v/{name}")
+            assert status == 200 and time.time() - t0 < 2.0, (name, time.time() - t0)
+    finally:
+        gate.set()
+        httpd.shutdown()
+    _join_regen(qd)
+    assert ran_on and all(n == "quota-regen" for n in ran_on), ran_on
+
+
+def test_the_health_strip_and_the_stale_banner_agree_on_when_a_reading_is_stale(
+    tmp_path, monkeypatch
+):
+    """One threshold for both: a reading is stale after one probe interval plus one probe timeout
+    plus a minute (a healthy slow probe reaches interval + timeout before it lands). At 100 s the
+    Health strip used to call it stale (2 x 20 s) while the banner did not (140 s)."""
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui.views import ViewContext
+
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    bound = qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S + 60
+    for age, stale in ((100.0, False), (bound - 5, False), (bound + 5, True)):
+        now = time.time()
+        qd._set_last_status(now - age, _payload())
+        health = qd._view_data("overview", ViewContext(_opt(), qd._FABRIK_ROOT, now))["health"]
+        assert bool(health["stale"]) is stale, (age, health)
+        assert qd._status_stale(now) is stale, age
+        assert ('id="render-failed"' in _accounts(qd)) is stale, age
+
+
+def test_a_card_the_overview_shows_is_found_when_its_work_pane_faults(tmp_path, monkeypatch):
+    """INV-1: the rebuild-on-miss of a verdict reads the Work view first; when that repo's Work pane
+    faults (its own error state, no targets), the Overview still shows the decision card — so the
+    rebuild falls through to the Overview before answering "not on the board"."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    item = _store_item(shop, "a decision")
+    path = shop / ".fabrik" / "work" / f"{item}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "status": "awaiting-operator",
+                                "kind": "decision", "question": "Ship?"}))  # fmt: skip
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    from dashboard_ui.views import work as work_view
+
+    def broken(*_a, **_k):
+        raise RuntimeError("pane broke")
+
+    monkeypatch.setattr(work_view, "_pane", broken)
+    _view(qd, "work")
+    assert ("shop", item) not in qd._ITEM_TARGETS  # the faulted pane publishes no target
+    qd._ITEM_TARGETS = {}
+    for kind in ("item", "pause"):
+        qd._TARGET_SLICES[kind].clear()
+    token = qd._snapshot.token(_item(shop, item))
+    status, out = qd.item_verdict("shop", item, "comment", "seen on the overview", token=token)
+    assert status == 200, out
+    assert _item(shop, item)["comments"][-1]["text"] == "seen on the overview"

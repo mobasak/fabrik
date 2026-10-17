@@ -121,7 +121,7 @@ rule with the flip threshold and the probe interval.
 | `idle` in a window cell | the account is NOT the active pointer and its cached reading is older than the window (or the reading's own reset has passed): its window is empty by construction. On a capped account it adds "browser use is not visible here" |
 | `unknown` in a window cell | the ACTIVE account with a reading older than its window — it CAN be burning quota, so no number is shown |
 | Fable column | Fable-5's separate weekly limit, read from the usage payload's `limits` array (`scope.model.display_name == "Fable"`); `no reading` until the tick re-probes an idle account |
-| `0.60%/m, wall in ~48m` on the active row | the rotation tick's smoothed burn and whichever of the wall or the reset comes first, READ from `~/.claude/state/quota-posture.json` — the same file the `QUOTA:` prompt line reads (D-273). A standby row carries none, deliberately |
+| `0.60%/m, wall in ~48m` on the active row | the rotation tick's smoothed burn and whichever of the wall or the reset comes first, RELAYED from the `posture` key of `claude_rotate.py --status --json` (the tick's own reading, the one the `QUOTA:` prompt line shows — D-273); the board re-derives nothing. A standby row carries none, deliberately |
 
 **Row order = rotation order** (`_queue`, the read-only mirror of the tick's `_pick_flip_target`):
 eligible standbys perishable-first (soonest weekly reset, then lower weekly, then lower session), then
@@ -165,6 +165,12 @@ obtained says why), and the **external-services page** (`external-services-dashb
 daily by `scripts/gen_dashboard.py` under the 06:00 chain) with its age, linked and opened in its own
 tab — no iframe.
 
+**The pool drain advisory.** When the balance falls to `POOL_CREDITS_WARN_USD` or below, the board sends
+ONE mesh-notify (the rotation tick's notify path) for the drain episode, latched by
+`<OUT_DIR>/pool-credits-drained`; the latch is cleared — re-armed — the moment the balance recovers
+above the line. An unknown balance (no key, an unreachable endpoint with nothing cached) is silence,
+never a false alarm.
+
 Both balances are fetched OFF the render path, on the probe loop's cadence behind their TTLs, and cached
 beside `quota.json`; a view reads the cache only (`fetch=False`), so a third-party endpoint is never on a
 page load's critical path. Keys come from the MCP configs and the pool's key file and are never
@@ -200,10 +206,12 @@ waits for an open dialog. The work stores and the agents are read through one ca
 **The quota views (Overview, Accounts) carry the stale banner** when the reading is old: the probe
 failed after the last good reading (it names when and the error class — never the message, which can
 carry paths), or no probe has finished for one interval plus one timeout plus a minute (140 s by
-default — what a hung probe or a restarted process looks like). A moved fleet pointer costs ONE bounded
-synchronous regeneration per `QUOTA_DASH_PROBE_TIMEOUT_S` (none while one is already running), so the
-next view shows the new account; a reading older than `QUOTA_DASH_MAX_AGE_S` starts one background
-regeneration.
+default — what a hung probe or a restarted process looks like). That one bound (`_stale_after_s`) is
+also when the Overview's Health strip lists the reading as stale, so the strip and the banner never
+disagree. **No request ever waits on a probe:** a moved fleet pointer starts ONE background
+regeneration (at most once per `QUOTA_DASH_PROBE_TIMEOUT_S`, none while one is already running) and the
+NEXT refresh shows the new account; a reading older than `QUOTA_DASH_MAX_AGE_S` starts one too. A
+regeneration that raises records its error class (the banner names it) and its thread ends cleanly.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window
 is at/over its flip line (`thresholds.json`'s entry, else `ROTATE_THRESHOLD`, default 99 — pinned equal
@@ -225,7 +233,8 @@ Every request first passes the **Host allowlist** (INV-6): the server answers on
 `localhost:<port>`, `[::1]:<port>` and the configured `QUOTA_DASH_HOST` at the bound port; anything else
 (a DNS-rebinding page reaching the socket under its own name) is `421` before anything runs. A POST — or
 a `GET /v/<view>`, which re-reads the stores and republishes targets — whose `Sec-Fetch-Site` is
-`cross-site` is `403` before its body is read. Every POST also needs the custom `X-Quota-Dash` header
+`cross-site` is `403` before its body is read — and so is a cross-site `GET /quota.json`, which can start a
+regeneration too. Every POST also needs the custom `X-Quota-Dash` header
 (a cross-origin page cannot add one without a preflight this server never answers), a body of at most
 4,096 bytes, and a target the board itself rendered.
 
@@ -234,7 +243,7 @@ a `GET /v/<view>`, which re-reads the stores and republishes targets — whose `
 | `GET /`, `/index.html` | the app shell — skip link, top bar, the six-view navigation, one `<main>` that `app.js` fills with the view the URL names (Overview by default). It carries no data, so it answers at once whatever the probe is doing |
 | `GET /v/<view>` | one view's fragment (`overview`, `work`, `accounts`, `usage`, `commands`, `services`; anything else 404). A view that fails renders its error state in words; every other view is unaffected |
 | `GET /static/app.css`, `/static/app.js` | the two static files, `Cache-Control: no-cache` with an ETag (an edit shows at once) |
-| `GET /quota.json` | the last `--status --json` payload on disk, served at once (`{}` before the first probe); an old one starts one background regeneration |
+| `GET /quota.json` | the last `--status --json` payload on disk, served at once; a payload older than `QUOTA_DASH_MAX_AGE_S`, or a fleet pointer that has moved since it was written, starts ONE background regeneration. A first call with nothing on disk returns `{}` and starts one background probe — a deliberate delta from the old page, which probed inline and made that caller wait |
 | `GET /health` | `ok` — liveness for the keepalive |
 | `GET /external-services.html` | the static external-services page, byte-for-byte — a regular `.html` file only, else 404 |
 | `GET /repos.html` | the old Repos page's bookmark: `303` to `/#work` through `_LEGACY_TOKEN_UNTIL` (2026-10-31), `404` after it. A work item removes the redirect and the token's legacy branch on that date |
@@ -244,9 +253,14 @@ a `GET /v/<view>`, which re-reads the stores and republishes targets — whose `
 | `POST /park` | `{account: <email>, park: true\|false}` → `--park\|--unpark <email>` — the same contract |
 | `POST /cap`, `POST /threshold` | `{account, cap}` (0–100, null clears, 0 parks) · `{account, threshold}` (50–100, null = the fleet default) → `~/.claude-fleet/caps.json` · `thresholds.json`, read-modify-write under a `<file>.lock` flock with an atomic replace; a file that does not parse is never rewritten (502) |
 
+**Refusals, before anything runs:** `421` a foreign `Host`; `403` a cross-site request, or a POST without
+the `X-Quota-Dash` header; `404` an unknown path; `400` a `Content-Length` outside 0–4,096 or a body that
+is not JSON. `GET /static/<file>` answers `304` to an `If-None-Match` that carries its current ETag.
+
 A POST for a target the board does not hold — a restarted server, or a frame older than the last render
 — rebuilds once through the view that shows it (`_rebuild_targets`: the Overview for a pause, the Work
-view for an item), so "not on the board" is never the answer for something the operator can see. Every
+view for an item, then the Overview when the item's Work pane faulted and published nothing), so "not on
+the board" is never the answer for something the operator can see. Every
 POST outcome is one line in the log.
 
 ## Lifecycle
@@ -266,6 +280,8 @@ Modes: `--serve` (the foreground server) · `--ensure` (start it if it is down) 
 fleet once, write `quota.json`, print its path and exit — a scripted refresh without a server).
 
 ## Configuration (all env, all defaulted)
+
+The board's own knobs, and the box and rotation knobs it reads; nothing is set in a file.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -297,6 +313,30 @@ fleet once, write `quota.json`, print its path and exit — a scripted refresh w
 | `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED corpus the service matrix reads |
 | `QUOTA_DASH_EXT_SERVICES` | `<repo>/external-services-dashboard.html` | the external-services page served on `/external-services.html` |
 | `CLAUDE_P_COST` | `scripts/kilo-benchmarks/claude_p_cost.json` | the spend sidecar the Usage view reads |
+| `FABRIK_OPT_DIR` | `/opt` | the root the Overview and Work views scan for `*/.fabrik/work` stores and merge records |
+| `CLAUDE_FLEET_ROOT` | `~/.claude-fleet` | where `caps.json` and `thresholds.json` live (unless their own `QUOTA_DASH_*_FILE` is set) |
+| `QUOTA_RESERVE_PCT` | `80` | the quota governor's reserve: routine work sheds to the pool at or over it |
+| `ROTATE_THRESHOLD` | `99` | the flip line the rotation trigger keys on (an account's `thresholds.json` entry wins) — the tick's own knob |
+| `ROTATE_URGENT_DRAIN_PCT` | `90` | the urgent-drain tier of the trigger |
+| `ROTATE_DRAIN_THRESHOLD` | `85` | the drain line: the blind-probe tier and the relief tier |
+| `ROTATE_TARGET_SESSION_MAX_PCT` | the drain line | the picker's session bar, which the queue's eligibility mirrors |
+| `BRAVE_API_KEY`, `FIRECRAWL_API_KEY`, `EXA_API_KEY` | — | a provider key in the environment wins over the MCP configs (`~/.claude.json`, the repo's `.mcp.json`); never rendered, logged or cached |
+
+## Testing
+
+Thirteen test files, none of which reaches the network, the fleet or the real home (`_load` points HOME at
+an empty directory; `tests/test_quota_dashboard.py` cuts every non-loopback connect and lookup and fails
+the test that tried one):
+
+```bash
+.venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py \
+  tests/test_quota_dashboard_posture.py tests/test_quota_dashboard_banner.py tests/test_quota_dashboard_page_layer.py \
+  tests/test_quota_dashboard_browser.py tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py \
+  tests/test_quota_dashboard_server.py tests/test_quota_dashboard_overview.py tests/test_quota_dashboard_work.py \
+  tests/test_quota_dashboard_accounts.py tests/test_quota_dashboard_views_misc.py -q
+```
+
+The two browser files launch chromium through playwright (in the `.venv`; skipped where it is missing).
 
 ## Boundaries
 

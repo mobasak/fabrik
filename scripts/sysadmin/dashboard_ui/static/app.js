@@ -62,7 +62,7 @@
     var arg = parts.length > 1 ? decode(parts.slice(1).join("/")) : "";
     if (view === null || arg === null) { return { view: defaultView, arg: "" }; } // malformed: the default
     if (!view) { view = defaultView; }
-    if (!known[view]) { return null; }
+    if (!has(known, view)) { return null; } // own names only: "#constructor" is no view
     return { view: view, arg: arg };
   }
   function markNav(view) {
@@ -130,6 +130,11 @@
       .then(function (text) {
         if (my !== seq) { return; }
         clearTimers(); loading = null;
+        if (document.querySelector("dialog[open]")) {
+          // the operator opened a dialog while this fetch was out: never swap under it (INV-5) —
+          // drop the response and refresh, forced, once the dialog closes
+          pendingForce = true; schedule(); return;
+        }
         try {
           swap(text, force || navigating);
           var anchor = landAt ? document.getElementById(landAt) : null;
@@ -642,7 +647,7 @@
     if ((hit = el.closest("[data-nav]"))) { setMenu(false); return; }
     if ((hit = el.closest("[data-dialog-cancel]"))) { closeDialog(hit.closest("dialog")); return; }
     if ((hit = el.closest("[data-dialog-confirm]"))) { confirmDialog(hit.closest("dialog")); return; }
-    if ((hit = el.closest("[data-retry], [data-reload]"))) { fetchView({ navigate: true }); return; }
+    if ((hit = el.closest("[data-retry]"))) { fetchView({ navigate: true }); return; }
     if ((hit = el.closest("[data-clamp-toggle]"))) { toggleClamp(hit); return; }
     if ((hit = el.closest('[role="tab"]'))) { selectTab(hit, true); return; }
     if ((hit = el.closest("[data-pick-to]"))) {

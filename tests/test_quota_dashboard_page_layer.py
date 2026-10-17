@@ -37,9 +37,6 @@ sys.path.insert(0, str(_PKG.parent))
 from dashboard_ui import strings as cat  # noqa: E402
 from dashboard_ui.views import VIEWS  # noqa: E402
 
-NOW = time.time()
-
-
 # ---------------------------------------------------------------- INV-4: the tag scan
 _TAG = re.compile(r"<[a-zA-Z/!]")
 _TEMPLATE_TAG = re.compile(r"<(?:%[-0-9.]*[sdrfi]|\{[^}]*\})")  # "<%s>" % tag, "<{}>".format(tag)
@@ -85,6 +82,32 @@ def _markup_literals(src: str) -> list[tuple[int, str]]:
     for node in ast.walk(tree):
         if id(node) in skip:
             continue
+        if isinstance(node, ast.Constant) and isinstance(node.value, bytes) and b"<" in node.value:
+            out.append((node.lineno, repr(node.value[:80])))  # b"<b>".decode() builds markup too
+            continue
+        if (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "id", "") == "chr"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == 60
+        ):
+            out.append((node.lineno, "chr(60)"))  # "<" spelled as a code point
+            continue
+        if (isinstance(node, ast.Attribute) and node.attr == "Template"
+                and getattr(node.value, "id", "") == "string") or (
+            isinstance(node, ast.ImportFrom) and node.module == "string"
+            and any(a.name == "Template" for a in node.names)
+        ):  # fmt: skip
+            out.append((node.lineno, "string.Template"))  # "<$tag>" templates escape no value
+            continue
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value.strip() in ("<", "</")
+        ):
+            out.append((node.lineno, node.value))  # "<" + tag + ">": a tag from pieces
+            continue
         if isinstance(node, ast.JoinedStr):
             skip |= {id(v) for v in node.values}
             text = "".join(v.value if isinstance(v, ast.Constant) else "x" for v in node.values)
@@ -95,6 +118,66 @@ def _markup_literals(src: str) -> list[tuple[int, str]]:
         if _TAG.search(text) or _TEMPLATE_TAG.search(text):
             out.append((node.lineno, text[:80]))
     return out
+
+
+def _safe_calls(src: str) -> list[int]:
+    """Lines that construct `Safe` — directly, through a module (`ui.Safe`), under an import alias
+    or a name bound to it. `Safe` marks component output; wrapping caller text in it at the call
+    site is the cheapest way to defeat "every value escaped" (components.py's Cobra check)."""
+    tree = ast.parse(src)
+    names = {"Safe"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names |= {a.asname for a in node.names if a.name == "Safe" and a.asname}
+    for node in ast.walk(tree):  # `cls = Safe` / `cls = ui.Safe`, then `cls(...)`
+        if isinstance(node, ast.Assign) and (
+            getattr(node.value, "id", None) in names or getattr(node.value, "attr", None) == "Safe"
+        ):
+            names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if (isinstance(f, ast.Name) and f.id in names) or (
+                isinstance(f, ast.Attribute) and (f.attr == "Safe" or (
+                    f.attr == "__new__" and getattr(f.value, "id", None) in names | {"str"}
+                    and node.args and getattr(node.args[0], "id", None) in names))
+            ):  # fmt: skip
+                out.append(node.lineno)
+    return out
+
+
+def test_nothing_outside_the_components_constructs_safe():
+    """components.py promises this scan: `Safe(...)` appears only there (views/__init__.py may
+    import the name for its type annotation — an import is no construction)."""
+    found = {
+        str(f.relative_to(_ROOT)): lines
+        for f in _scanned()
+        if (lines := _safe_calls(f.read_text(encoding="utf-8")))
+    }
+    assert found == {}
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        "from .components import Safe\nx = Safe(text)\n",
+        "from .. import components as ui\nx = ui.Safe(text)\n",
+        "import dashboard_ui.components\nx = dashboard_ui.components.Safe(text)\n",
+        "from ..components import Safe as S\nx = S(text)\n",
+        "from ..components import Safe\ncls = Safe\nx = cls(text)\n",
+        "from ..components import Safe\nx = str.__new__(Safe, text)\n",
+    ],
+)
+def test_the_safe_scan_catches_every_way_to_construct_it(mutant):
+    assert _safe_calls(mutant) != []
+
+
+def test_the_safe_scan_allows_an_annotation_import():
+    assert (
+        _safe_calls("from ..components import Safe\n\ndef f(x: Safe) -> Safe:\n    return x\n")
+        == []
+    )
 
 
 def _scanned() -> list[Path]:
@@ -123,6 +206,12 @@ def test_no_string_holding_an_html_tag_is_built_outside_the_components():
         "def f(tag):\n    return '<{}>'.format(tag)\n",
         "def f():\n    return '<!doctype html>'\n",
         "X = '</div>'\n",
+        "def f(tag):\n    return '<' + tag + '>'\n",
+        "def f(tag):\n    return '</' + tag + '>'\n",
+        "def f():\n    return chr(60) + 'b>'\n",
+        "def f():\n    return b'<b>'.decode()\n",
+        "import string\nT = string.Template('$x')\n",
+        "from string import Template\nT = Template('$x')\n",
     ],
 )
 def test_the_tag_scan_catches_every_way_to_build_markup(mutant):
@@ -168,31 +257,69 @@ def _component_name(func: ast.expr) -> str | None:
     return None
 
 
-def _worded(node: ast.AST) -> list[str]:
+_STR_METHODS = {"format", "upper", "lower", "title", "capitalize", "strip", "casefold", "swapcase"}
+
+
+def _worded(node: ast.AST, bound: dict[str, list[ast.AST]] | None = None) -> list[str]:
     """Literals with a letter in them that ``node`` puts in the slot: the node itself, or a list, a
-    tuple, a concatenation, a conditional or an f-string of them. A call is not descended — `t(...)`
-    is the catalogue, a component call is scanned on its own, and a helper's arguments are not text."""
+    tuple, a concatenation, a conditional or an f-string of them; a string method on a literal
+    (`"x {}".format(n)`, `"x".upper()`), `str("x")`, a `join` (its separator and its list); and a
+    name the module binds to such a literal. Any other call is not descended — `t(...)` is the
+    catalogue, a component call is scanned on its own, a helper's arguments are not text."""
+    bound = bound or {}
+
+    def again(n: ast.AST) -> list[str]:
+        return _worded(n, bound)
+
+    if isinstance(node, ast.Name):
+        return [w for v in bound.get(node.id, []) for w in again(v)]
+    if isinstance(node, ast.Call):
+        f = node.func
+        if isinstance(f, ast.Attribute) and f.attr in _STR_METHODS:
+            return again(f.value) + [w for a in node.args for w in again(a)]
+        if isinstance(f, ast.Attribute) and f.attr == "join":
+            return again(f.value) + [w for a in node.args for w in again(a)]
+        if isinstance(f, ast.Name) and f.id in ("str", "format"):
+            return [w for a in node.args for w in again(a)]
+        return []
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return [node.value] if re.search("[A-Za-z]", node.value) else []
     if isinstance(node, ast.JoinedStr):
         text = "".join(v.value if isinstance(v, ast.Constant) else "" for v in node.values)
         return [text] if re.search("[A-Za-z]", text) else []
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return [w for e in node.elts for w in _worded(e)]
+        return [w for e in node.elts for w in again(e)]
     if isinstance(node, ast.BinOp):
-        return _worded(node.left) + _worded(node.right)
+        return again(node.left) + again(node.right)
     if isinstance(node, ast.IfExp):
-        return _worded(node.body) + _worded(node.orelse)
+        return again(node.body) + again(node.orelse)
     if isinstance(node, ast.BoolOp):
-        return [w for v in node.values for w in _worded(v)]
+        return [w for v in node.values for w in again(v)]
     return []
+
+
+def _literal_bindings(tree: ast.AST) -> dict[str, list[ast.AST]]:
+    """Every `name = <string literal>` (or f-string) in the module, any scope: the values a name
+    passed to a text slot may carry."""
+    out: dict[str, list[ast.AST]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(
+            node.value, (ast.Constant, ast.JoinedStr)
+        ):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for t_ in targets:
+                if isinstance(t_, ast.Name):
+                    out.setdefault(t_.id, []).append(node.value)
+    return out
 
 
 def _view_literals(src: str) -> list[str]:
     """Every word-bearing literal a view module hands a component's text slot directly (in a list,
     a tuple, a concatenation or an f-string included) instead of through `strings.t`."""
     bad: list[str] = []
-    for node in ast.walk(ast.parse(src)):
+    tree = ast.parse(src)
+    bound = _literal_bindings(tree)
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         name = _component_name(node.func)
@@ -206,14 +333,14 @@ def _view_literals(src: str) -> list[str]:
         ):
             # a tab is (id, title, body): the id is a name, the title and body are text
             items = [e for e in node.args[1].elts if isinstance(e, ast.Tuple) and len(e.elts) == 3]
-            bad += [w for e in items for w in _worded(e.elts[1]) + _worded(e.elts[2])]
+            bad += [w for e in items for w in _worded(e.elts[1], bound) + _worded(e.elts[2], bound)]
             pos = pos - {1}
         for i, arg in enumerate(node.args):
             if i in pos:
-                bad += _worded(arg)
+                bad += _worded(arg, bound)
         for kw in node.keywords:
             if kw.arg in kws:
-                bad += _worded(kw.value)
+                bad += _worded(kw.value, bound)
     return bad
 
 
@@ -233,6 +360,12 @@ def test_no_view_module_hands_a_component_a_literal_word():
         "ui.card(title='Quota', body=b)\n",
         "ui.fragment(t('a'), ' and more')\n",
         "region_state('error', 'failed: ' + e)\n",
+        "ui.button('Accept {}'.format(n))\n",
+        "ui.badge('ok', 'accept'.upper())\n",
+        "ui.button(str('Accept'))\n",
+        "ui.fragment(' '.join(['Accept', x]))\n",
+        "label = 'Accept'\nui.button(label)\n",
+        "def f():\n    word: str = 'Reject'\n    return ui.button(word)\n",
     ],
 )
 def test_the_view_literal_scan_catches_a_hard_coded_word(mutant):
@@ -269,9 +402,10 @@ def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=UTC).isoformat()
 
 
-def work_fixture(now: float = NOW) -> list[dict]:
+def work_fixture(now: float | None = None) -> list[dict]:
     """Two repos as `_collect_work` returns them: the hub with a decision, a claimed tagged task and a
     blocked one plus a skipped file; a second repo whose store could not be read."""
+    now = time.time() if now is None else now  # read at call time: a run can take minutes
     items = [
         {"id": "W-0000000a", "kind": "decision", "status": "awaiting-operator", "title": "ship the board",
          "question": "Ship the redesigned board?", "ground": "gate", "creator": "infra",
@@ -289,8 +423,9 @@ def work_fixture(now: float = NOW) -> list[dict]:
     ]  # fmt: skip
 
 
-def box_fixture(now: float = NOW) -> dict:
+def box_fixture(now: float | None = None) -> dict:
     """Every agent state and every agents-block field today's `_agent_row` showed."""
+    now = time.time() if now is None else now  # read at call time: a run can take minutes
 
     def agent(name, state, **extra):
         a = {"name": name, "window": state != "away", "windows": 1, "named_from": "", "state": state,
@@ -327,7 +462,8 @@ def box_fixture(now: float = NOW) -> dict:
                         "idle",
                         paused={
                             "by": "operator",
-                            "at": now - 300,
+                            "at": now
+                            - 330,  # mid-minute: the render reads its own clock a moment later
                             "why": "hold for review",
                             "partial": True,
                             "name": "kaizen",
@@ -361,9 +497,10 @@ def _acct(slug: str, email: str, *, five: float, seven: float, now: float, **ext
     return a
 
 
-def payload_fixture(now: float = NOW, **over) -> dict:
+def payload_fixture(now: float | None = None, **over) -> dict:
     """An active account at its session wall (so it is first AND its own return slot), a standby, a
     parked one, a capped one, one scaffolded-but-unlogged dir, a fleet warning."""
+    now = time.time() if now is None else now  # read at call time: a run can take minutes
     p = {
         "active": "alpha",
         "pause": None,
@@ -380,7 +517,8 @@ def payload_fixture(now: float = NOW, **over) -> dict:
     return p
 
 
-def budget_fixture(now: float = NOW) -> dict:
+def budget_fixture(now: float | None = None) -> dict:
+    now = time.time() if now is None else now  # read at call time: a run can take minutes
     return {
         "seats": [
             {

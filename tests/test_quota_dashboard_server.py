@@ -170,6 +170,14 @@ def _item_file(repo: Path, item: str) -> Path:
     return repo / ".fabrik" / "work" / f"{item}.json"
 
 
+def _card_token(repo: Path, item: str) -> str:
+    """The snapshot token the item's card carries — what the page posts with a verdict (a test that
+    posts none relies on the legacy window, which closes on `_LEGACY_TOKEN_UNTIL`)."""
+    from dashboard_ui import snapshot
+
+    return snapshot.token(json.loads(_item_file(repo, item).read_text()))
+
+
 def _edit(repo: Path, item: str, **fields) -> None:
     p = _item_file(repo, item)
     p.write_text(json.dumps({**json.loads(p.read_text()), **fields}))
@@ -420,31 +428,32 @@ def test_the_view_data_carries_each_views_keys(tmp_path, monkeypatch):
     ctx = ViewContext(opt_root=_opt(), fabrik_root=_ROOT, now=time.time())
     common = {"now", "refresh_s", "probe_interval_s"}
     want = {
-        "overview": {"work", "box", "status", "budget", "health", "ag_states", "hub_agents"},
+        "overview": {"work", "box", "status", "budget", "health"},
         "work": {"work", "hub_agents", "owner_order", "repos_ttl_s", "next_cap", "next_tip_cap"},
         "accounts": {
             "status",
             "queue",
             "trigger_threshold",
             "reserve_pct",
-            "drain_band",
             "five_hour_s",
             "seven_day_s",
-            "switch_header",
             "pool_policy_on",
             "slug_re",
             "email_re",
         },
         "usage": {"spend"},
-        "commands": {"commands", "ext_services"},
-        "services": {"pool", "apis", "ext_page"},
+        "commands": {"commands", "ext_services", "rendered_root"},
+        "services": {"pool", "apis", "ext_page", "warn_usd"},
     }
     for name, keys in want.items():
         data = qd._view_data(name, ctx)
         assert set(data) == common | keys, name
     acc = qd._view_data("accounts", ctx)
     assert acc["status"]["payload"]["accounts"][0]["email"] == "mob@ocoron.com"
-    assert acc["slug_re"] == qd._SLUG_RE.pattern and acc["switch_header"] == qd.SWITCH_HEADER
+    assert acc["slug_re"] == qd._SLUG_RE.pattern
+    # the server owns these two knobs; the views read them from here, never from the environment
+    assert qd._view_data("commands", ctx)["rendered_root"] == str(qd.RENDERED_COMMANDS)
+    assert qd._view_data("services", ctx)["warn_usd"] == qd.CREDITS_WARN_USD
     assert [e["kind"] for e in acc["queue"]][0] == "active"
     # a collector that raises becomes {"error": "<Type>: <message>"} for that key only
     monkeypatch.setattr(qd, "_load_commands", lambda: (_ for _ in ()).throw(OSError("corpus gone")))
@@ -479,7 +488,6 @@ def test_a_config_value_that_raises_is_that_keys_error(tmp_path, monkeypatch):
 
     ctx = ViewContext(_opt(), _ROOT, time.time())
     for fn, view, key in (
-        ("_drain_band", "accounts", "drain_band"),
         ("_pool_policy_on", "accounts", "pool_policy_on"),
         ("_status_data", "accounts", "status"),
         ("_owner_orders", "work", "owner_order"),
@@ -873,7 +881,10 @@ def test_each_views_targets_survive_the_others_and_a_failing_view_empties_only_i
         monkeypatch.setattr(
             qd, "_rebuild_targets", lambda view: (rebuilt.append(view), real_rebuild(view))[1]
         )
-        assert qd.item_verdict("shop", item, "comment", "found")[0] == 200
+        assert (
+            qd.item_verdict("shop", item, "comment", "found", token=_card_token(shop, item))[0]
+            == 200
+        )
         assert rebuilt == [], "a Work-only target was found without a rebuild"
         # a rebuild-on-miss republishes its own view's slice and evicts no other view's
         real_rebuild("work")
@@ -959,7 +970,10 @@ def test_after_a_restart_a_verdict_and_a_pause_are_found_by_the_rebuild_on_miss(
     qd = _load(tmp_path, monkeypatch)
     # a fresh process: no view rendered, no board built, every registry empty
     assert qd._ITEM_TARGETS == {} and qd._PAUSE_TARGETS == {}
-    assert qd.item_verdict("shop", item, "comment", "after restart")[0] == 200
+    assert (
+        qd.item_verdict("shop", item, "comment", "after restart", token=_card_token(shop, item))[0]
+        == 200
+    )
     qd._ITEM_TARGETS = {}
     qd._PAUSE_TARGETS = {}
     qd._TARGET_SLICES["item"].clear()
@@ -1158,16 +1172,17 @@ def test_a_pointer_that_stays_moved_costs_one_regeneration_per_timeout_window(
     probes: list[int] = []
     monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)  # a flip the probe never confirms
-    asyncs: list[int] = []
-    monkeypatch.setattr(qd, "_regen_async", lambda: asyncs.append(1))
     _install(monkeypatch, "accounts", _fake_view("accounts"))
     httpd, port = _serve(qd)
     try:
         for _ in range(3):
             assert _req(port, "GET", "/v/accounts")[0] == 200
+            worker = qd._LAST_REGEN[0]
+            if worker is not None:
+                worker.join(10)
     finally:
         httpd.shutdown()
-    assert probes == [1] and asyncs == []
+    assert probes == [1]  # one background pass for the window, never one per view
 
 
 def test_a_payload_past_max_age_starts_one_background_regeneration(tmp_path, monkeypatch):
@@ -1193,8 +1208,10 @@ def test_a_request_never_waits_on_a_regeneration_already_running(tmp_path, monke
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     monkeypatch.setattr(qd, "_probe", lambda: _payload())
     qd.generate()
-    probes: list[int] = []
-    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    probes: list[str] = []
+    monkeypatch.setattr(
+        qd, "_probe", lambda: (probes.append(threading.current_thread().name), _payload())[1]
+    )
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
     _install(monkeypatch, "accounts", _fake_view("accounts"))
     httpd, port = _serve(qd)
@@ -1203,10 +1220,14 @@ def test_a_request_never_waits_on_a_regeneration_already_running(tmp_path, monke
         t0 = time.time()
         assert _req(port, "GET", "/v/accounts")[0] == 200
         assert time.time() - t0 < 2.0
+        assert probes == [], "the request adds no probe of its own"
     finally:
         qd._gen_lock.release()
         httpd.shutdown()
-    assert probes == [], "the loop's pass lands; the request adds no probe of its own"
+    worker = qd._LAST_REGEN[0]
+    if worker is not None:
+        worker.join(10)
+    assert probes in ([], ["quota-regen"]), probes  # at most one pass, off the request thread
 
 
 # ── the budget's data half ─────────────────────────────────────────────────────────────────────────

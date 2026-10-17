@@ -367,6 +367,26 @@ def test_a_faulting_pane_is_isolated_to_its_repo(monkeypatch):
     assert [r["name"] for r in res.item_targets] == ["fabrik"]
 
 
+def test_a_faulted_repo_is_not_counted_in_the_intro_or_the_picker(monkeypatch):
+    real = work._pane
+
+    def boom(data, r, cap, tip_cap):
+        if r["name"] == "bad":
+            raise KeyError("x")
+        return real(data, r, cap, tip_cap)
+
+    monkeypatch.setattr(work, "_pane", boom)
+    _, root = render([repo("fabrik", [item("W-1")]), repo("bad", [item("W-9"), item("W-8")])])
+    picks = {
+        b.attrs["data-pick-to"]: b.all_text().strip()
+        for b in root.walk()
+        if "data-pick-to" in b.attrs
+    }
+    assert picks == {"fabrik": "fabrik 1", "bad": "bad"}
+    intro = [n for n in root.walk() if n.tag == "span" and "remaining items" in n.all_text()][0]
+    assert intro.all_text().startswith("1 repos") and "1 remaining items" in intro.all_text()
+
+
 def test_navs_have_accessible_names():
     _, root = render([repo("fabrik", [item("W-1")])])
     navs = find(root, "nav")

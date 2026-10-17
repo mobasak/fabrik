@@ -1629,17 +1629,11 @@ def _owner_order(owners: set[str]) -> list[str]:
     return hub + rest + ([""] if "" in owners else [])
 
 
-# ── Agents block on the Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────────────────
+# ── the agents the Overview lists (operator 2026-10-15, W-7159f8e2) ─────────────────────────────────
 # "i also want to see which agents is active and working on what … for all repos". The data is
 # scripts/agent_status.py::collect_box — derived from the process table, run records and claims, never
 # stored. Loaded by path under a private name and re-imported when its mtime moves, like work.py above.
 _status_mod: tuple[float, object] | None = None
-_AG_STATES = {
-    "working": "working",
-    "idle": "idle — window open, no running command",
-    "stale": "stale — its running command is over 12 h old",
-    "away": "no window open",
-}
 
 
 def _status_module():
@@ -1864,6 +1858,11 @@ def item_verdict(
     if target is None:  # a restarted server, or a frame older than the last build: rebuild once
         _rebuild_targets("work")  # it lists every open item; the Overview, awaiting ones only
         target = _ITEM_TARGETS.get((repo, item))
+    if (
+        target is None
+    ):  # a faulted Work pane publishes nothing; the Overview's card may still show it
+        _rebuild_targets("overview")
+        target = _ITEM_TARGETS.get((repo, item))
     if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
     main, root = target
@@ -1911,19 +1910,6 @@ def generate() -> dict:
     starts one."""
     with _gen_lock:
         return _generate_held()
-
-
-def _generate_if_idle() -> bool:
-    """`generate()` only if no regeneration is running — never a wait on `_gen_lock`, which the probe
-    loop may hold for a whole probe timeout (a request would then wait it out AND probe again). False:
-    one was running, and its pass lands instead."""
-    if not _gen_lock.acquire(blocking=False):
-        return False
-    try:
-        _generate_held()
-    finally:
-        _gen_lock.release()
-    return True
 
 
 def _generate_held() -> dict:
@@ -2018,7 +2004,7 @@ def _generate_locked() -> dict:
 
 _regen_lock = threading.Lock()
 _LAST_REGEN: list[threading.Thread | None] = [None]  # the most recent background worker, joinable
-_LAST_SYNC_REGEN: list[float] = [0.0]  # when the pointer-moved path last regenerated synchronously
+_LAST_SYNC_REGEN: list[float] = [0.0]  # when the pointer-moved trigger last started a regeneration
 
 
 def _regen_async() -> threading.Thread | None:
@@ -2031,6 +2017,8 @@ def _regen_async() -> threading.Thread | None:
     def work() -> None:
         try:
             generate()
+        except Exception:  # noqa: BLE001 — `_generate_held` recorded and logged it; end cleanly
+            pass
         finally:
             _regen_lock.release()
 
@@ -2179,13 +2167,15 @@ def _quota_json() -> bytes:
     """`GET /quota.json`: the last payload on disk, served at once — never a wait on the probe (on
     2026-08-18 a hung probe held every page load for its full 60 s cap). A payload older than
     MAX_AGE_S, or none at all, starts ONE background regeneration, so a polling client keeps it
-    current; nothing on disk yet is ``{}``."""
+    current; nothing on disk yet is ``{}``. A moved fleet pointer starts one even when the file is
+    fresh: its ``active`` is then known to be stale, and serving it on until MAX_AGE_S would hide a
+    flip the board can already see."""
     try:
         age = time.time() - _JSON.stat().st_mtime
         body = _JSON.read_bytes()
     except OSError:
         age, body = math.inf, b"{}"
-    if age >= MAX_AGE_S:
+    if age >= MAX_AGE_S or _pointer_moved():
         _LAST_REGEN[0] = _regen_async()
     return body
 
@@ -2233,6 +2223,13 @@ def _status_data() -> dict:
     }
 
 
+def _stale_after_s() -> float:
+    """How old the last good reading may get before it is stale — the ONE bound the stale banner and
+    the Overview's Health strip share: one probe interval plus one probe timeout plus a minute, since
+    a healthy slow probe reaches interval + timeout before it lands (review round 1, S1)."""
+    return PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60
+
+
 def _status_stale(now: float) -> bool:
     """The stale banner's bound: the probe failed after the payload's last
     good probe, or that probe is older than one interval plus one timeout plus a minute, or its time is
@@ -2243,7 +2240,7 @@ def _status_stale(now: float) -> bool:
     ts, fail = cur[0], _LAST_PROBE_FAILURE[0]
     if ts is None or (fail is not None and fail[0] > ts):
         return True
-    return now - ts > PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60
+    return now - ts > _stale_after_s()
 
 
 def _status_banner(now: float) -> object:
@@ -2270,17 +2267,17 @@ def _status_banner(now: float) -> object:
 
 
 def _status_triggers() -> None:
-    """The two request-side triggers, on the quota views: a moved pointer costs ONE bounded
-    synchronous regeneration per PROBE_TIMEOUT_S (measured 2026-09-02: after a --switch the board
-    showed the OLD account until the next probe) — and none at all while a regeneration is already
-    running (`_generate_if_idle`: its pass lands instead of this request waiting it out); a payload
-    older than MAX_AGE_S (quota.json's mtime — every pass rewrites it) starts a background one."""
+    """The two request-side triggers, on the quota views — both BACKGROUND regenerations, so a view
+    is never held by a probe (`_view_data`: "never a probe"; the 2026-08-18 hang). A moved pointer
+    (measured 2026-09-02: after a --switch the board showed the OLD account until the next probe)
+    starts one at once, at most once per PROBE_TIMEOUT_S and none while one is already running; the
+    next refresh shows the new account. A payload older than MAX_AGE_S (quota.json's mtime — every
+    pass rewrites it) starts one too."""
     if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
-        try:
-            if _generate_if_idle():
-                _LAST_SYNC_REGEN[0] = time.time()
-        except Exception:  # noqa: BLE001 — generate recorded it; the view shows the banner
+        worker = _regen_async()
+        if worker is not None:
             _LAST_SYNC_REGEN[0] = time.time()
+            _LAST_REGEN[0] = worker
         return
     try:
         age = time.time() - _JSON.stat().st_mtime
@@ -2291,11 +2288,12 @@ def _status_triggers() -> None:
 
 
 def _health(data: dict, now: float) -> dict:
-    """The Overview's health reading: ``stale`` — a view whose data is older than twice its cadence —
+    """The Overview's health reading: ``stale`` — the quota reading past `_stale_after_s` (the stale
+    banner's own bound, so the strip and the banner never disagree) —
     and ``failed`` — every collector key holding ``error``, plus a probe failure newer than the payload."""
     stale: list[dict] = []
     cur = _LAST_STATUS[0]
-    if cur is not None and (cur[0] is None or now - cur[0] > 2 * PROBE_INTERVAL_S):
+    if cur is not None and (cur[0] is None or now - cur[0] > _stale_after_s()):
         stale.append({"view": "accounts", "age_s": None if cur[0] is None else now - cur[0]})
     failed = [
         {"key": k, "error": str(v["error"])}
@@ -2335,8 +2333,6 @@ def _view_data(name: str, ctx) -> dict:
             box=_guarded(_box_data),
             status=_guarded(_status_data),
             budget=_guarded(_budget_data),
-            ag_states=dict(_AG_STATES),
-            hub_agents=list(_HUB_AGENTS),
         )
         data["health"] = _health(data, ctx.now)
     elif name == "work":
@@ -2360,10 +2356,8 @@ def _view_data(name: str, ctx) -> dict:
             ),
             trigger_threshold=TRIGGER_THRESHOLD,
             reserve_pct=_RESERVE_PCT,
-            drain_band=_guarded(_drain_band),
             five_hour_s=_FIVE_HOUR_S,
             seven_day_s=_SEVEN_DAY_S,
-            switch_header=SWITCH_HEADER,
             pool_policy_on=_guarded(_pool_policy_on),  # anything but True is OFF to a view
             slug_re=_SLUG_RE.pattern,
             email_re=_EMAIL_RE.pattern,
@@ -2377,6 +2371,7 @@ def _view_data(name: str, ctx) -> dict:
                 {"key": k, "label": label, "title": title}
                 for k, label, title, _pat in _EXT_SERVICES
             ],
+            rendered_root=str(RENDERED_COMMANDS),  # the corpus the matrix read — the server's knob
         )
     elif name == "services":
         try:
@@ -2387,6 +2382,7 @@ def _view_data(name: str, ctx) -> dict:
             pool=_guarded(_pool_credits, fetch=False),
             apis=_guarded(_api_quotas, ctx.now, fetch=False),
             ext_page={"path": "/external-services.html", "mtime": ext_mtime},
+            warn_usd=CREDITS_WARN_USD,  # the pool's drain line, as the alert reads it
         )
     else:
         raise LookupError(f"no view named {name!r}")
@@ -2656,7 +2652,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _guard(self, method: str) -> bool:
         """Before anything else runs: 421 for a Host outside the allowlist (or more than one Host), 403
-        for a POST — or a GET of a view, which regenerates and republishes — that the browser marks
+        for a POST — or a GET of a view or of `/quota.json`, which can regenerate and republish — that the browser marks
         ``Sec-Fetch-Site: cross-site``; all before the body is read. True: carry on."""
         hosts = self.headers.get_all("Host") or []
         host = hosts[0].strip().lower() if len(hosts) == 1 else ""
@@ -2674,7 +2670,9 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return False
-        guarded = method == "POST" or self.path.split("?", 1)[0].startswith("/v/")
+        route = self.path.split("?", 1)[0]
+        # every request that can re-read the stores or start a regeneration: a POST, a view, quota.json
+        guarded = method == "POST" or route.startswith("/v/") or route == "/quota.json"
         if guarded and self._cross_site():
             sys.stderr.write(f"quota_dashboard: {method} {self.path[:80]!r} refused — cross-site\n")
             self._json(403, {"ok": False, "error": "cross-site request refused"}, close=True)

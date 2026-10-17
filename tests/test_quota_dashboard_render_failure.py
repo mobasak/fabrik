@@ -116,13 +116,15 @@ def test_a_good_regeneration_in_the_same_process_clears_the_banner(tmp_path, mon
     assert _MARKER not in _view(qd)
 
 
-def test_a_failing_synchronous_regeneration_still_serves_the_last_reading(tmp_path, monkeypatch):
-    """The pointer-moved branch regenerates inline; a raise there must not fail the request."""
+def test_a_failing_pointer_moved_regeneration_still_serves_the_last_reading(tmp_path, monkeypatch):
+    """The pointer-moved branch regenerates in the background; a raise there must not fail the
+    request, and the next view names it."""
     qd = _load(tmp_path, monkeypatch, max_age="100000")
     _good_board(qd, monkeypatch)
     _break_pass(qd, monkeypatch, ValueError("render exploded"))
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
-    served = qd._render_view("accounts")  # must not raise
+    _view(qd)  # must not raise; it starts the regeneration and waits it out
+    served = qd._render_view("accounts")
     assert _MARKER in served and "ValueError" in served
     assert "mob@ocoron.com" in served and 'data-view-root="accounts"' in served
 
@@ -151,7 +153,7 @@ def test_a_reading_older_than_a_probe_cycle_says_so_without_any_failure(tmp_path
     assert _MARKER in served and "no probe has finished since" in served
 
 
-def test_an_oserror_on_the_synchronous_path_probes_once_and_serves_the_stale_reading(
+def test_an_oserror_on_the_pointer_moved_path_probes_once_and_serves_the_stale_reading(
     tmp_path, monkeypatch
 ):
     """Critique (Opus, design round): an OSError from the inline regeneration used to fall into an
@@ -166,7 +168,8 @@ def test_an_oserror_on_the_synchronous_path_probes_once_and_serves_the_stale_rea
 
     monkeypatch.setattr(qd, "_generate_locked", failing_locked)
     monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
-    served = qd._render_view("accounts")
+    _view(qd)
+    served = _view(qd)
     assert len(calls) == 1, f"one view, one probe; got {len(calls)}"
     assert _MARKER in served and "OSError" in served
 

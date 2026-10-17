@@ -310,21 +310,6 @@ def render(data: dict, ctx: ViewContext) -> ViewResult:
         return ViewResult(ui.group(ui.fragment(stamp, body), data=root), item_targets=[])
     cap = int(data.get("next_cap") or 160)
     tip_cap = int(data.get("next_tip_cap") or 600)
-    total = sum(len(r.get("items") or []) for r in repos)
-    picks = ui.group(
-        ui.fragment(
-            *[
-                ui.button(
-                    ui.fragment(r["name"], " ", len(r.get("items") or [])),
-                    data={"pick-to": str(r["name"])},
-                )
-                for r in repos
-            ]
-        ),
-        tag="nav",
-        data={"picker": "repo"},
-        label=t("work.repo_picker"),
-    )
     tag_box = ui.field(
         t("work.tag_label"),
         name="tag",
@@ -334,11 +319,28 @@ def render(data: dict, ctx: ViewContext) -> ViewResult:
         data={"filter": "tag", "filter-mode": "token"},
     )
     built = [_safe_pane(data, r, cap, tip_cap) for r in repos]
-    repos = [
-        r for r, (_, ok) in zip(repos, built, strict=True) if ok
-    ]  # a faulted pane is no target
+    ok = [good for _, good in built]
+    shown = [r for r, good in zip(repos, ok, strict=True) if good]  # a faulted pane is no target
+    total = sum(len(r.get("items") or []) for r in shown)
+    picks = ui.group(
+        ui.fragment(
+            *[
+                ui.button(
+                    # a faulted repo is not counted: its pane shows the error instead of a queue
+                    ui.fragment(r["name"], " ", len(r.get("items") or []))
+                    if good
+                    else ui.fragment(r["name"]),
+                    data={"pick-to": str(r["name"])},
+                )
+                for r, good in zip(repos, ok, strict=True)
+            ]
+        ),
+        tag="nav",
+        data={"picker": "repo"},
+        label=t("work.repo_picker"),
+    )
     panes = ui.group(ui.fragment(picks, *[pane for pane, _ in built]), data={"pick-group": "repo"})
-    intro = ui.group(t("work.intro", repos=len(repos), total=total), tag="span")
+    intro = ui.group(t("work.intro", repos=len(shown), total=total), tag="span")
     body = ui.group(
         ui.fragment(stamp, intro, tag_box, panes), data={"filter-group": "work", **root}
     )
@@ -352,6 +354,6 @@ def render(data: dict, ctx: ViewContext) -> ViewResult:
                 if isinstance(i, dict) and isinstance(i.get("id"), str) and i["id"]
             ],
         }
-        for r in repos
+        for r in shown
     ]
     return ViewResult(body, item_targets=targets)
