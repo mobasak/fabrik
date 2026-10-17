@@ -17,7 +17,7 @@ Operator: *"you must always be aware what they are doing, what they have finishe
 you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, its `updated_at` shows staleness) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
 queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
-(also shown at every session start, D-894).
+(shown at session start, D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
@@ -36,12 +36,13 @@ eligibility, assign priority and assign an agent"*. Every turn something new arr
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
 3. **Level** (D-956, D-958): URGENT = production down, data being lost, an exploited security hole, every agent
    blocked, or the operator says urgent; HIGH = kaizen work, a rule update, a security issue, another active agent's
-   request, a bug or issue, an operator ask, a break or block on an agent, a deploy, a check or every repo; MEDIUM = real
+   request, a bug or issue, an operator ask, a break or block on an agent, a deploy, a gate or every repo; MEDIUM = real
    value, nobody blocked; LOW = clean-up, wording, a rare edge, an advisory. The higher level wins. **Effort** LOW =
    about one session, a few files, no spec or plan; HIGH = a spec or plan, several sessions, or fleet-wide. Every
    score's `--why` names the check that set it.
-4. **Store it** (until W-1bfb4623): set BOTH fields, then any `--priority 0` last (a re-score clears it). HIGH =
-   `--impact high`; MEDIUM = `--impact low --tag medium`, queued before plain P3; LOW = `--impact low`, batched.
+4. **Store it** (until W-1bfb4623): `--impact` with `--effort` always, then any `--priority 0` last (a re-score clears it).
+   HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, placed first by hand (`--tag queued`);
+   LOW = `--impact low`, batched.
    High effort = P2 major, ONE in flight, every other major `--blocked-by` it; a high-effort MEDIUM cannot be scored
    (tag only) and is held `--blocked-by` it too. URGENT = P0 plus a message to its builder (its charter says to commit,
    push, park and take it), the only interrupt. Inside HIGH: security, blocking bugs, agents' requests, rule updates,
