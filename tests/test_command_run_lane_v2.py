@@ -387,18 +387,25 @@ def test_capture_appends_the_sha_found_by_subject_never_head(run_dir: Path, tmp_
 
 
 def test_capture_refuses_with_rc_1_and_appends_nothing(run_dir: Path, tmp_path: Path) -> None:
-    """A subject no commit carries, a missing message file and an empty first line each exit 1 —
+    """A subject no commit carries, a missing message file and a blank subject each exit 1 —
     never the CLI's fail-soft 0 — and leave the capture file untouched."""
     repo = _repo(tmp_path, lane=None)
     cap = tmp_path / "commit.sha"
     unseen = tmp_path / "unseen.txt"
     unseen.write_text("fix: never committed\n", encoding="utf-8")
     empty = tmp_path / "empty.txt"
-    empty.write_text("\nbody\n", encoding="utf-8")
-    for msg in (unseen, tmp_path / "missing.txt", empty):
+    # an all-blank message: git drops leading blank lines, so `\\nbody` is the subject "body" and
+    # would refuse for a different reason (review B-haiku NEW-1)
+    empty.write_text("  \n\n \n", encoding="utf-8")
+    cases = (
+        (unseen, "no commit has"),
+        (tmp_path / "missing.txt", "cannot read"),
+        (empty, "empty subject"),
+    )
+    for msg, why in cases:  # each refusal for ITS reason, not merely refused
         r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
         assert r.returncode == 1, (msg, r.stdout + r.stderr)
-        assert "REFUSED — capture" in r.stderr
+        assert "REFUSED — capture" in r.stderr and why in r.stderr, (msg, r.stderr)
     assert not cap.exists()
 
 
@@ -429,6 +436,22 @@ def test_capture_exits_1_never_the_fail_soft_0_on_a_bad_message_or_no_git(
     )
     assert r.returncode == 1 and "git log failed" in r.stderr, r.stdout + r.stderr
     assert not cap.exists()
+
+
+def test_capture_skips_leading_blank_lines_as_git_does(run_dir: Path, tmp_path: Path) -> None:
+    """git drops a message's leading blank lines, so its subject is the first non-blank paragraph;
+    capture read the blank lines as an empty subject (review round 2)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "lead.txt"
+    msg.write_text("  \n\nfix: after blank lines\n\nbody\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 6\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
 
 
 def test_capture_ends_the_subject_at_a_whitespace_only_line(run_dir: Path, tmp_path: Path) -> None:

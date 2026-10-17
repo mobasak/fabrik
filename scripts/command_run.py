@@ -3922,7 +3922,9 @@ def _capture_commit(msg: Path, out: Path) -> int:
     # git's subject (`%s`) is the whole FIRST PARAGRAPH, its lines joined by single spaces — a
     # first line alone would refuse a legitimate commit whose subject wraps (review A-sonnet)
     # a whitespace-only line ends the paragraph too, as git's subject does (review A-haiku N-1)
-    first = re.split(r"\n[ \t]*\n", text.replace("\r\n", "\n"), maxsplit=1)[0]
+    # git drops leading blank lines, so the subject is the first NON-blank paragraph
+    body = re.sub(r"\A(?:[ \t]*\n)+", "", text.replace("\r\n", "\n"))
+    first = re.split(r"\n[ \t]*\n", body, maxsplit=1)[0]
     lines = [ln.strip() for ln in first.split("\n")]
     lines = [ln for ln in lines if ln]
     subj = " ".join(lines)
@@ -3930,7 +3932,7 @@ def _capture_commit(msg: Path, out: Path) -> int:
     # paragraph exists only in `%s`, where the equality check below reads it
     needle = lines[0] if lines else ""
     if not subj:
-        sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty first line\n")
+        sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty subject (a blank message)\n")
         return 1
     try:
         found = subprocess.run(
