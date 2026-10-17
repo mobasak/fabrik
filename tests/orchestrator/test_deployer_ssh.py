@@ -131,6 +131,38 @@ class TestReadComposeFromVps:
         cmd = mock_ssh.call_args.args[0]
         assert cmd.startswith("sudo sh -c ") and "cat /opt/my-app/compose.yaml" in cmd, cmd
 
+    @pytest.mark.parametrize(
+        ("files", "expected"),
+        [
+            ({"compose.yml": "b: 1\n"}, "b: 1"),  # compose.yaml absent -> the next name
+            ({"compose.yaml": "", "compose.yml": "b: 1\n"}, ""),  # first EXISTING file, even empty
+            ({"docker-compose.yml": "c: 1\n", "docker-compose.yaml": "d: 1\n"}, "c: 1"),
+        ],
+    )
+    def test_the_real_shell_probe_finds_the_first_existing_file(self, tmp_path, files, expected):
+        """The probe's own shell text is graded, not a mocked sentinel: the command runs through a
+        local `sh` with /opt/my-app mapped to a tmp dir (a bare `cat` revert stays red here)."""
+        app = tmp_path / "my-app"
+        app.mkdir()
+        for name, body in files.items():
+            (app / name).write_text(body)
+
+        def local_ssh(cmd, timeout=10):
+            assert cmd.startswith("sudo "), cmd
+            run = subprocess.run(
+                ["sh", "-c", cmd[len("sudo ") :].replace("/opt/my-app", str(app))],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            if run.returncode != 0:
+                raise RuntimeError(run.stderr)
+            return run.stdout.strip()  # the real driver strips stdout
+
+        with patch("fabrik.drivers.ssh.ssh", side_effect=local_ssh):
+            assert _read_compose_from_vps("my-app") == expected
+
     def test_an_absent_file_moves_to_the_next_name(self):
         with patch(
             "fabrik.drivers.ssh.ssh", side_effect=[_NO_COMPOSE_FILE, "services: {}\n"]
