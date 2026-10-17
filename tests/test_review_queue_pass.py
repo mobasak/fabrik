@@ -665,3 +665,12 @@ def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate(
     ) in text
     gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
     assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"
+
+
+def test_round_zero_runs_a_guard_the_fix_adds_over_the_fix_itself() -> None:
+    """Row 1792201902 (infra), the fourth answered row on the round-zero live-population clause (reasons 1792090895,
+    1791195745, 1791156134): both late findings were a new guard missing the fix's own code. Both round-zero homes
+    now name the fix's own hunks among the guard's inputs."""
+    for name in ("term-coverage", "term-edit"):
+        text = " ".join((ROOT / "commands" / "_fragments" / f"{name}.md").read_text().split())
+        assert "a guard the fix ADDS run over the fix's own hunks too," in text, name
