@@ -1,6 +1,6 @@
 # Plan review — merge-owner row grammar (W-5d3ed438)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Command:** /fabrik-plan-review · joint loop over a `Size: small` spec (spec § The delta D10)
 **Artifacts:** `docs/development/plans/2026-10-17-plan-1-merge-owner-grammar.md` and
 `docs/superpowers/specs/2026-10-17-merge-owner-grammar-design.md`, both DRAFT at 0bccb9f98.
@@ -33,6 +33,7 @@ Built from the spec's own § Intake Inventory (4 items: 4 IN).
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-2 fix hunks; shape: agent-tool | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — the 6 pass-2 rows re-executed (step 6's two loops run against a base copy and an edited copy: 52 lines, 9 `rc=0`, 43 `rc=3`, diff empty); 2 confirmed, both own-fix of pass 2 (the fix script corrupted the text around step 6; `<base SHA>` undefined); scope-growth stop fired (own-fix 3/3 → 2/2) | 90129f68… → 04726964… (plan); spec 8a4602fa… → 8a4602fa… |
 | Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the pass-3 fixed set (the scope-growth stop's remainder round); standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the fixed set re-derived from the pin (steps 1–7 consecutive, one step 6, the Phase A heading, eight `- **Given**` rows A1–A7 with A3b; the pin diffed against d908e2058: exactly the four intended hunks; `<base SHA>` defined); load-bearing claims re-derived (the six touchpoint lines, `rule_cases.py` 11/0, 52 ledgers, intake 6/6 and 4/4, V1–V5 mapping) | 5470f1f7… → 5470f1f7… ✓ (plan); spec 8a4602fa… → 8a4602fa… ✓ |
 | Pass 5 | opus×1 + sonnet×1 (round-1 owners) · the design panel's delta round over its 8 accepted changes; shape: agent-tool | found: 8, new: 8, confirmed: 6, fixed: 6, unexecuted: 0, edits: 7 | method: re-derivation — every A1–A9 case and the 9 existing supersedes spellings run against today's and the edited grammar (26 cases, 0 wrong); step 6's embedded driver extracted and run (PASS today-vs-edited, FAIL today-vs-today and against a broken-prefix mutant); the updated parity pins true on edited copies, false today; 7 of 8 accepted changes made, 6 defects confirmed in the fold (own-fix: the panel fold) | 826f27e6… → 4e976958… (plan); spec 918e920a… → c56d97d6… |
+| Pass 6 | opus×1 + sonnet×1 (round-1 owners) · the pass-5 fixed set (the scope-growth stop's remainder round); standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the fixed set re-derived from the pin (step 1's red/green lists against every case, the three named mutants on edited copies, D2's wording, the A5 wording, the D-738 citation, the Self-audit ids against 11 `- **Given**` rows) | e0482c47… → e0482c47… ✓ (plan); spec c56d97d6… → c56d97d6… ✓ |
 
 ### Pass 1 candidates
 

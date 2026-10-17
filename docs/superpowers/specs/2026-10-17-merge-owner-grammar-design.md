@@ -1,6 +1,6 @@
 # Merge-owner row grammar — the exact label, bold allowed (design)
 
-Status: DRAFT
+Status: CONVERGED
 Size: small (≈30 code lines across `scripts/decisions.py`, `scripts/docs_updater.py` and `.claude/hooks/session_orient.py`, 3 code files)
 Profile: delta
 Work item: W-5d3ed438 · found by the wave-1 review of plan `2026-09-30-plan-1-merge-request-loop`, pass 3 · `/fabrik-task` refused it on `consumers=external` (refusal LR-9f99841a: the fleet-synced hook reads every repo's own ledger)
