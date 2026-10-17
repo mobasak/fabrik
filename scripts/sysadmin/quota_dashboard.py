@@ -561,9 +561,14 @@ def _credits_async() -> threading.Thread | None:
 
 
 def _pointer_slug() -> str | None:
+    """The account the fleet pointer names, by the rotation CLI's own rule — the FINAL target's name
+    (`resolve(strict=True).name`), so a pointer through a second symlink is not read as a flip. None
+    for a pointer that is no symlink or dangles."""
+    if not os.path.islink(_POINTER):
+        return None
     try:
-        return os.path.basename(os.readlink(_POINTER)) or None
-    except OSError:
+        return Path(_POINTER).resolve(strict=True).name or None
+    except (OSError, RuntimeError):  # RuntimeError: a symlink loop
         return None
 
 
@@ -1858,10 +1863,9 @@ def item_verdict(
     if target is None:  # a restarted server, or a frame older than the last build: rebuild once
         _rebuild_targets("work")  # it lists every open item; the Overview, awaiting ones only
         target = _ITEM_TARGETS.get((repo, item))
-    if (
-        target is None
-    ):  # a faulted Work pane publishes nothing; the Overview's card may still show it
-        _rebuild_targets("overview")
+    if target is None:  # a faulted Work pane publishes nothing; the Overview's card may show it
+        # through the cache the Work rebuild just filled: one store collection per miss, never two
+        _render_view("overview", triggers=False)
         target = _ITEM_TARGETS.get((repo, item))
     if target is None:
         return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
@@ -2023,7 +2027,12 @@ def _regen_async() -> threading.Thread | None:
             _regen_lock.release()
 
     t = threading.Thread(target=work, daemon=True, name="quota-regen")
-    t.start()
+    try:
+        t.start()
+    except Exception as exc:  # noqa: BLE001 — no thread: free the lock, or no regeneration runs again
+        _regen_lock.release()
+        sys.stderr.write(f"quota_dashboard: regeneration could not start ({type(exc).__name__})\n")
+        return None
     return t
 
 
@@ -2175,8 +2184,15 @@ def _quota_json() -> bytes:
         body = _JSON.read_bytes()
     except OSError:
         age, body = math.inf, b"{}"
-    if age >= MAX_AGE_S or _pointer_moved():
+    if age >= MAX_AGE_S:
         _LAST_REGEN[0] = _regen_async()
+    elif _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
+        # the quota views' window (`_status_triggers`): a mismatch that never clears costs one probe
+        # per PROBE_TIMEOUT_S, never one per poll
+        worker = _regen_async()
+        if worker is not None:
+            _LAST_SYNC_REGEN[0] = time.time()
+            _LAST_REGEN[0] = worker
     return body
 
 

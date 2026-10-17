@@ -34,19 +34,19 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 
 
-_HOME_ENV = ("BRAVE_API_KEY", "FIRECRAWL_API_KEY", "EXA_API_KEY", "OPENROUTER_API_KEY")
+from tests.quota_dashboard_isolation import NET_DENIED as _NET_DENIED  # noqa: E402
+from tests.quota_dashboard_isolation import (  # noqa: E402
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse: the network guard
+)
 
 
 def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
-    """Import a FRESH module instance whose env-derived module constants point at tmp_path — and
-    whose HOME is an empty directory under it, with no provider key in the environment and no MCP
-    config to read one from, so no test can find a real key and reach a real provider (a run once
-    printed "brave quota probe failed (HTTPError)": a live call to the Brave API)."""
-    home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
-    monkeypatch.setenv("HOME", str(home))
-    for var in _HOME_ENV:
-        monkeypatch.delenv(var, raising=False)
+    """Import a FRESH module instance whose env-derived module constants point at tmp_path, under
+    the shared isolation (`tests/quota_dashboard_isolation.py`: an empty HOME, no provider key, no
+    proxy, no MCP config) — a run once printed "brave quota probe failed (HTTPError)": a live call."""
+    isolate(tmp_path, monkeypatch)
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     # never the box's REAL pointer: a test render says "mob" while the box may point elsewhere,
     # and the pointer-moved regeneration would then fire on every view
@@ -59,50 +59,40 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
-    monkeypatch.setattr(mod, "_MCP_CONFIGS", ())  # the repo's own .mcp.json may carry a real key
+    after_load(mod, monkeypatch)
     return mod
 
 
-_NET_DENIED: list[str] = []
-
-
-def _loopback(address: object) -> bool:
-    if not isinstance(address, tuple):  # an AF_UNIX path: never the network
-        return True
-    host = str(address[0])
-    return host in ("localhost", "::1") or host.startswith("127.")
-
-
-@pytest.fixture(autouse=True)
-def _no_network(monkeypatch):
-    """Every test in this file runs with the network cut at the socket: a connect to anything but
-    loopback is refused AND recorded, and a test that tried one fails at teardown — even when the
-    code under test caught the refusal (every provider probe here fails soft, which is how a live
-    call once went unnoticed)."""
+def test_a_loopback_proxy_cannot_carry_a_provider_call(tmp_path, monkeypatch):
+    """urllib connects to a configured proxy — on 127.0.0.1 the guard would let it through and the
+    proxy would resolve the provider. The isolation drops every proxy variable, so the call goes
+    direct and the guard refuses it."""
     import socket
+    import urllib.request
 
-    real = socket.socket.connect
-
-    def guarded(self, address, *a, **k):
-        if not _loopback(address):
-            _NET_DENIED.append(repr(address))
-            raise OSError(f"test network guard: no connect to {address!r}")
-        return real(self, address, *a, **k)
-
-    real_lookup = socket.getaddrinfo
-
-    def lookup(host, *a, **k):  # a name lookup is network traffic too (and names the provider)
-        if host is not None and not _loopback((host, 0)):
-            _NET_DENIED.append(f"lookup {host!r}")
-            raise OSError(f"test network guard: no lookup of {host!r}")
-        return real_lookup(host, *a, **k)
-
-    monkeypatch.setattr(socket.socket, "connect", guarded)
-    monkeypatch.setattr(socket, "getaddrinfo", lookup)
-    del _NET_DENIED[:]
-    yield
-    denied, _NET_DENIED[:] = list(_NET_DENIED), []
-    assert denied == [], f"the test opened a non-loopback socket: {denied}"
+    proxy = socket.socket()
+    proxy.bind(("127.0.0.1", 0))
+    proxy.listen(1)
+    proxy.settimeout(0.5)
+    url = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    for var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy"):
+        monkeypatch.setenv(var, url)
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    _load(tmp_path, monkeypatch)  # the isolation every test file's loader applies
+    try:
+        with pytest.raises(OSError):
+            urllib.request.urlopen("https://api.search.brave.com/res/v1/web/search?q=x", timeout=2)
+        try:
+            proxy.accept()[0].close()
+            reached = True
+        except TimeoutError:
+            reached = False
+    finally:
+        proxy.close()
+    assert not reached, "the provider call went through the loopback proxy"
+    assert any("brave" in d for d in _NET_DENIED), _NET_DENIED
+    del _NET_DENIED[:]  # this test's own refusal was the point
 
 
 def test_the_network_guard_refuses_and_records_a_non_loopback_connect():
@@ -806,6 +796,8 @@ def test_a_pointer_change_regenerates_before_the_floor(tmp_path, monkeypatch):
     state = {"active": "mob"}
     calls: list[int] = []
     monkeypatch.setattr(qd, "_probe", lambda: (calls.append(1), _two_accounts(state["active"]))[1])
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
     qd.generate()
     assert _acct_row(_accounts(qd), "mob", "active")
@@ -829,6 +821,8 @@ def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monk
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     monkeypatch.setattr(qd, "_probe", lambda: _two_accounts("mob"))
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
     qd.generate()
     pointer.unlink()
@@ -4983,6 +4977,40 @@ def test_a_regeneration_that_raises_ends_its_thread_cleanly(tmp_path, monkeypatc
     again.join(10)
 
 
+def test_a_pointer_through_a_second_symlink_is_not_read_as_moved(tmp_path, monkeypatch):
+    """The board names the pointer the way the rotation CLI does — the final target's name
+    (`realpath`), not the first link's: `active -> current -> mob` is `mob`, so a payload whose
+    `active` is `mob` has not moved."""
+    pointer = tmp_path / "active"
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()  # quota.json says active "mob"
+    (tmp_path / "mob").mkdir()
+    (tmp_path / "current").symlink_to(tmp_path / "mob")
+    pointer.symlink_to(tmp_path / "current")
+    assert qd._pointer_slug() == "mob" and qd._pointer_moved() is False
+    (tmp_path / "can").mkdir()
+    (tmp_path / "current").unlink()
+    (tmp_path / "current").symlink_to(tmp_path / "can")
+    assert qd._pointer_slug() == "can" and qd._pointer_moved() is True
+
+
+def test_quota_json_with_a_mismatch_that_never_clears_probes_once_per_window(tmp_path, monkeypatch):
+    """A pointer that disagrees with every reading (a probe that never confirms the flip) must not
+    turn every poll into a probe: the pointer-moved branch shares `_status_triggers`' window."""
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    probes: list[int] = []
+    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+    for _ in range(5):
+        qd._quota_json()
+        _join_regen(qd)
+    assert probes == [1], probes
+
+
 def test_once_probes_writes_quota_json_and_prints_its_path(tmp_path, monkeypatch, capsys):
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", _payload)
@@ -5083,6 +5111,44 @@ def test_the_health_strip_and_the_stale_banner_agree_on_when_a_reading_is_stale(
         assert bool(health["stale"]) is stale, (age, health)
         assert qd._status_stale(now) is stale, age
         assert ('id="render-failed"' in _accounts(qd)) is stale, age
+
+
+def test_a_refused_verdict_collects_the_stores_once(tmp_path, monkeypatch):
+    """The rebuild-on-miss re-reads the stores ONCE: the Work rebuild fills the cache and the
+    Overview fallback reads through it — never a second collection on the POST thread."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    _store_repo("shop")
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    real = qd._collect_work
+    calls: list[int] = []
+    monkeypatch.setattr(qd, "_collect_work", lambda opt: (calls.append(1), real(opt))[1])
+    status, out = qd.item_verdict("shop", "W-0000dead", "comment", "ghost", token="t")
+    assert status == 400 and "not on the board" in out["error"]
+    assert calls == [1], calls
+
+
+def test_a_regeneration_whose_thread_cannot_start_releases_its_lock(tmp_path, monkeypatch, capsys):
+    """`Thread.start()` can raise (no threads left). The lock was taken first, so a failed start
+    used to drop every later regeneration forever; it is released and the failure logged."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    real_start = threading.Thread.start
+    state = {"fail": True}
+
+    def start(self):
+        if state["fail"]:
+            state["fail"] = False
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    assert qd._regen_async() is None
+    assert "regeneration could not start (RuntimeError)" in capsys.readouterr().err
+    worker = qd._regen_async()
+    assert worker is not None, "the lock was released: the next call regenerates"
+    worker.join(10)
+    assert qd._JSON.is_file()
 
 
 def test_a_card_the_overview_shows_is_found_when_its_work_pane_faults(tmp_path, monkeypatch):

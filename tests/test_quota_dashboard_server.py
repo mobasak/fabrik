@@ -27,6 +27,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "scripts" / "sysadmin" / "quota_dashboard.py"
 _HUB_WORK = _ROOT / "scripts" / "work.py"
@@ -42,10 +48,12 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     for k, v in env.items():
         monkeypatch.setenv(k, v)
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_srv_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
 
 
@@ -1137,6 +1145,8 @@ def test_a_moved_pointer_triggers_exactly_one_bounded_regeneration(tmp_path, mon
     pointer = tmp_path / "active"
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     monkeypatch.setattr(qd, "_probe", lambda: _payload())
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
     qd.generate()
     pointer.unlink()
@@ -1439,3 +1449,21 @@ def test_the_import_scan_sees_every_form():
     ):
         assert _imports_dashboard(src), src
     assert not _imports_dashboard('"""never imports quota_dashboard"""\nimport json')
+
+
+def test_this_files_tests_cannot_open_a_non_loopback_socket():
+    """The shared network guard covers this file too: a connect off loopback is refused at once."""
+    import socket
+
+    from tests.quota_dashboard_isolation import NET_DENIED
+
+    with pytest.raises(OSError, match="test network guard"):
+        socket.create_connection(("192.0.2.1", 9), timeout=1)
+    assert NET_DENIED and "192.0.2.1" in NET_DENIED[0]
+    del NET_DENIED[:]  # this test's own refusal was the point
+
+
+def test_this_files_loader_reads_no_real_home_and_no_mcp_config(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    assert Path.home() == tmp_path / "home" and qd._MCP_CONFIGS == ()
+    assert qd._mcp_key("brave-search", "BRAVE_API_KEY") is None

@@ -26,6 +26,12 @@ os.environ.setdefault("QUOTA_DASH_BUDGET", "0")  # only ever turned on inside a 
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 
 # the five keys `_budget_probe` reads off the `dispatch_headroom.py --json` payload — a minimal
@@ -43,10 +49,12 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Import a FRESH module instance (same recipe as tests/test_quota_dashboard.py::_load)."""
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_banner_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
 
 

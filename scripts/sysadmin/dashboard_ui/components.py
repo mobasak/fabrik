@@ -51,6 +51,8 @@ RESERVED_DATA_KEYS = frozenset(
         "kind", "severity", "state", "expanded", "lines", "clamp", "clamp-toggle", "retry", "value-of",
         "dialog-note", "dialog-error", "dialog-confirm", "dialog-cancel", "tabs", "theme-toggle", "menu",
         "nav", "live", "still", "inline-error", "open",
+        # written by app.js (data-stale on a stamp, data-view on <main>) or by `freshness` itself
+        "stale", "ts", "cadence", "view", "wrap",
     }
 )  # fmt: skip
 
@@ -125,14 +127,23 @@ def fragment(*parts: object) -> Safe:
     return Safe("".join(_esc(p) for p in parts if p is not None))
 
 
+BADGE_WRAP_AT = 40  # characters: a badge text this long may wrap; a shorter one stays on one line
+
+
 def badge(severity: str, text: object) -> Safe:
-    """A status badge: icon, the severity in words (for assistive tech) and the text — never colour alone."""
+    """A status badge: icon, the severity in words (for assistive tech) and the text — never colour
+    alone. A text of `BADGE_WRAP_AT` characters or more (data: a collector's error, a path) is marked
+    ``data-wrap`` so the stylesheet lets it wrap; a shorter one never wraps, so a table or a flex row
+    cannot squeeze it to a letter a line."""
     _choice(severity, SEVERITIES, "severity")
+    body = _esc(text)
+    visible = html.unescape(re.sub(r"<[^>]*>", "", body))
+    wrap = " data-wrap" if len(visible.strip()) >= BADGE_WRAP_AT else ""
     return Safe(
-        f'<span class="badge"{_attr("data-severity", severity)}>'
+        f'<span class="badge"{wrap}{_attr("data-severity", severity)}>'
         f'<span class="badge-icon" aria-hidden="true">{SEVERITY_ICONS[severity]}</span>'
         f'<span class="sr-only">{_esc(t("sev." + severity))}: </span>'
-        f'<span class="badge-text">{_esc(text)}</span></span>'
+        f'<span class="badge-text">{body}</span></span>'
     )
 
 

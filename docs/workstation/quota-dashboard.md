@@ -324,9 +324,10 @@ The board's own knobs, and the box and rotation knobs it reads; nothing is set i
 
 ## Testing
 
-Thirteen test files, none of which reaches the network, the fleet or the real home (`_load` points HOME at
-an empty directory; `tests/test_quota_dashboard.py` cuts every non-loopback connect and lookup and fails
-the test that tried one):
+Thirteen test files, none of which reaches the network, the fleet or the real home. They share one
+isolation module, `tests/quota_dashboard_isolation.py`: every loader points HOME at an empty directory and
+drops the provider keys, every proxy variable and the MCP configs, and an autouse guard each file imports
+cuts every non-loopback connect and lookup and fails the test that tried one:
 
 ```bash
 .venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py \

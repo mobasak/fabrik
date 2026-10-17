@@ -29,6 +29,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "scripts" / "sysadmin" / "quota_dashboard.py"
 _PKG = _ROOT / "scripts" / "sysadmin" / "dashboard_ui"
@@ -111,6 +117,20 @@ def _markup_literals(src: str) -> list[tuple[int, str]]:
         if isinstance(node, ast.JoinedStr):
             skip |= {id(v) for v in node.values}
             text = "".join(v.value if isinstance(v, ast.Constant) else "x" for v in node.values)
+            # `f'{lt}b>'` / `f'{lt}{tag}>'`: a tag's text and its `>` right after a value — the `<`
+            # arrived as a variable. Text right after a value that runs to a `>` with no `<` of its own
+            after_value = [
+                v.value
+                for prev, v in zip(node.values, node.values[1:], strict=False)
+                if isinstance(prev, ast.FormattedValue) and isinstance(v, ast.Constant)
+            ]
+            ends_tag = isinstance(node.values[-1], ast.FormattedValue) is False and any(
+                re.fullmatch(r"[A-Za-z/!][^<\s]*>.*", v, re.S) or re.fullmatch(r">.*", v, re.S)
+                for v in after_value
+            )
+            if ends_tag:
+                out.append((node.lineno, text[:80]))
+                continue
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             text = node.value
         else:
@@ -121,30 +141,50 @@ def _markup_literals(src: str) -> list[tuple[int, str]]:
 
 
 def _safe_calls(src: str) -> list[int]:
-    """Lines that construct `Safe` — directly, through a module (`ui.Safe`), under an import alias
-    or a name bound to it. `Safe` marks component output; wrapping caller text in it at the call
-    site is the cheapest way to defeat "every value escaped" (components.py's Cobra check)."""
+    """Lines that reach `Safe` other than to annotate with it: ANY reference to the name (`Safe`,
+    `ui.Safe`, an import alias) outside an annotation — a call, a subclass, a bound name, a
+    `str.__new__(ui.Safe, …)` — plus `getattr(…, "Safe")` and `type(<a component call>)`, which hand
+    back the class without naming it. `Safe` marks component output; wrapping caller text in it at
+    the call site is the cheapest way to defeat "every value escaped" (components.py's Cobra check)."""
     tree = ast.parse(src)
     names = {"Safe"}
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             names |= {a.asname for a in node.names if a.name == "Safe" and a.asname}
-    for node in ast.walk(tree):  # `cls = Safe` / `cls = ui.Safe`, then `cls(...)`
-        if isinstance(node, ast.Assign) and (
-            getattr(node.value, "id", None) in names or getattr(node.value, "attr", None) == "Safe"
-        ):
-            names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+    annotation: set[int] = set()
+    for node in ast.walk(tree):
+        parts: list[ast.AST | None] = []
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            parts.append(node.returns)
+            a = node.args
+            parts += [x.annotation for x in a.posonlyargs + a.args + a.kwonlyargs]
+            parts += [x.annotation for x in (a.vararg, a.kwarg) if x is not None]
+        elif isinstance(node, ast.AnnAssign):
+            parts.append(node.annotation)
+        for part in parts:
+            if part is not None:
+                annotation |= {id(n) for n in ast.walk(part)}
     out = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            f = node.func
-            if (isinstance(f, ast.Name) and f.id in names) or (
-                isinstance(f, ast.Attribute) and (f.attr == "Safe" or (
-                    f.attr == "__new__" and getattr(f.value, "id", None) in names | {"str"}
-                    and node.args and getattr(node.args[0], "id", None) in names))
-            ):  # fmt: skip
-                out.append(node.lineno)
-    return out
+        if id(node) in annotation:
+            continue
+        named = (isinstance(node, ast.Name) and node.id in names) or (
+            isinstance(node, ast.Attribute) and node.attr == "Safe"
+        )
+        fetched = isinstance(node, ast.Call) and (
+            (
+                getattr(node.func, "id", "") == "getattr"
+                and any(isinstance(a, ast.Constant) and a.value == "Safe" for a in node.args[1:2])
+            )
+            or (
+                getattr(node.func, "id", "") == "type"
+                and len(node.args) == 1
+                and isinstance(node.args[0], ast.Call)
+            )
+        )
+        if named or fetched:
+            out.append(node.lineno)
+    return sorted(set(out))
 
 
 def test_nothing_outside_the_components_constructs_safe():
@@ -167,6 +207,11 @@ def test_nothing_outside_the_components_constructs_safe():
         "from ..components import Safe as S\nx = S(text)\n",
         "from ..components import Safe\ncls = Safe\nx = cls(text)\n",
         "from ..components import Safe\nx = str.__new__(Safe, text)\n",
+        "from .. import components as ui\nx = str.__new__(ui.Safe, text)\n",
+        "from .. import components as ui\nx = getattr(ui, 'Safe')(text)\n",
+        "from .. import components as ui\nclass M(ui.Safe):\n    pass\nx = M(text)\n",
+        "from .. import components as ui\nx = type(ui.fragment())(text)\n",
+        "from ..components import Safe\nmarked = [Safe]\n",
     ],
 )
 def test_the_safe_scan_catches_every_way_to_construct_it(mutant):
@@ -178,6 +223,7 @@ def test_the_safe_scan_allows_an_annotation_import():
         _safe_calls("from ..components import Safe\n\ndef f(x: Safe) -> Safe:\n    return x\n")
         == []
     )
+    assert _safe_calls("from ..components import Safe\nclass R:\n    html: Safe\n") == []
 
 
 def _scanned() -> list[Path]:
@@ -212,6 +258,8 @@ def test_no_string_holding_an_html_tag_is_built_outside_the_components():
         "def f():\n    return b'<b>'.decode()\n",
         "import string\nT = string.Template('$x')\n",
         "from string import Template\nT = Template('$x')\n",
+        "def f(lt, t):\n    return f'{lt}{t}>'\n",
+        "def f(lt):\n    return f'{lt}b>x'\n",
     ],
 )
 def test_the_tag_scan_catches_every_way_to_build_markup(mutant):
@@ -249,12 +297,30 @@ _TEXT_SLOTS = {
 }
 
 
-def _component_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name) and func.id in _TEXT_SLOTS:
-        return func.id
+# keyword parameters that carry no words; any OTHER keyword — a misspelt `heading=`, a new one —
+# is read as text, so a literal cannot hide behind a name the scan does not know
+_NON_TEXT_KWS = {"id", "kind", "data", "tag", "new_tab", "note", "open", "lines", "retry", "name",
+                 "min", "max", "row_data", "href", "label_id", "active", "severity"}  # fmt: skip
+
+
+def _component_name(func: ast.expr, aliases: dict[str, str] | None = None) -> str | None:
+    if isinstance(func, ast.Name):
+        name = (aliases or {}).get(func.id, func.id)
+        return name if name in _TEXT_SLOTS else None
     if isinstance(func, ast.Attribute) and func.attr in _TEXT_SLOTS:
         return func.attr
     return None
+
+
+def _component_aliases(tree: ast.AST) -> dict[str, str]:
+    """`from ..components import button as b` → {"b": "button"}."""
+    return {
+        a.asname: a.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for a in node.names
+        if a.asname and a.name in _TEXT_SLOTS
+    }
 
 
 _STR_METHODS = {"format", "upper", "lower", "title", "capitalize", "strip", "casefold", "swapcase"}
@@ -289,6 +355,12 @@ def _worded(node: ast.AST, bound: dict[str, list[ast.AST]] | None = None) -> lis
         return [text] if re.search("[A-Za-z]", text) else []
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return [w for e in node.elts for w in again(e)]
+    if isinstance(node, ast.Dict):  # a cell or a row that is a mapping: its values are text
+        return [w for v in node.values if v is not None for w in again(v)]
+    if isinstance(node, ast.Starred):
+        return again(node.value)
+    if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        return again(node.elt)
     if isinstance(node, ast.BinOp):
         return again(node.left) + again(node.right)
     if isinstance(node, ast.IfExp):
@@ -304,7 +376,7 @@ def _literal_bindings(tree: ast.AST) -> dict[str, list[ast.AST]]:
     out: dict[str, list[ast.AST]] = {}
     for node in ast.walk(tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(
-            node.value, (ast.Constant, ast.JoinedStr)
+            node.value, (ast.Constant, ast.JoinedStr, ast.List, ast.Tuple, ast.Dict)
         ):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for t_ in targets:
@@ -319,10 +391,11 @@ def _view_literals(src: str) -> list[str]:
     bad: list[str] = []
     tree = ast.parse(src)
     bound = _literal_bindings(tree)
+    aliases = _component_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        name = _component_name(node.func)
+        name = _component_name(node.func, aliases)
         if name is None:
             continue
         pos, kws = _TEXT_SLOTS[name]
@@ -336,10 +409,10 @@ def _view_literals(src: str) -> list[str]:
             bad += [w for e in items for w in _worded(e.elts[1], bound) + _worded(e.elts[2], bound)]
             pos = pos - {1}
         for i, arg in enumerate(node.args):
-            if i in pos:
+            if i in pos or isinstance(arg, ast.Starred):  # a splat lands in some slot: read it
                 bad += _worded(arg, bound)
         for kw in node.keywords:
-            if kw.arg in kws:
+            if kw.arg in kws or (kw.arg is not None and kw.arg not in _NON_TEXT_KWS):
                 bad += _worded(kw.value, bound)
     return bad
 
@@ -366,6 +439,12 @@ def test_no_view_module_hands_a_component_a_literal_word():
         "ui.fragment(' '.join(['Accept', x]))\n",
         "label = 'Accept'\nui.button(label)\n",
         "def f():\n    word: str = 'Reject'\n    return ui.button(word)\n",
+        "ui.table('x', t('a'), [t('h')], [[{'label': 'Accept'}]])\n",
+        "ui.card(heading='Quota', body=b)\n",
+        "ui.button(*['Accept'])\n",
+        "from ..components import button as b\nb('Accept')\n",
+        "ui.table('x', t('a'), [t('h')], [['Accept' for _ in xs]])\n",
+        "rows = [['Accept', 1], ['Reject', 2]]\nui.table('x', t('a'), [t('h')], rows)\n",
     ],
 )
 def test_the_view_literal_scan_catches_a_hard_coded_word(mutant):
@@ -389,10 +468,12 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     monkeypatch.setenv("QUOTA_DASH_EXT_SERVICES", str(tmp_path / "external-services.html"))
     monkeypatch.setenv("QUOTA_DASH_RENDERED_COMMANDS", str(tmp_path / "rendered"))
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_layer_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
 
 

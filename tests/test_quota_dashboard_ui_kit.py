@@ -15,6 +15,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _ROOT = Path(__file__).resolve().parents[1]
 _PKG = _ROOT / "scripts" / "sysadmin" / "dashboard_ui"
 sys.path.insert(0, str(_PKG.parent))
@@ -309,6 +315,20 @@ def test_bool_and_tuple_data_values_are_json():
 def test_a_data_key_owned_by_a_component_is_refused(key):
     with pytest.raises(ValueError):
         ui.button("b", data={key: "x"})
+
+
+@pytest.mark.parametrize("key", ["stale", "ts", "cadence", "view"])
+def test_a_data_key_app_js_or_a_component_writes_itself_is_refused(key):
+    """`app.js` writes data-stale on a freshness stamp and data-view on <main>; `freshness` writes
+    data-ts and data-cadence: a caller's value would be overwritten or misread."""
+    with pytest.raises(ValueError):
+        ui.group("b", data={key: "1"})
+
+
+@pytest.mark.parametrize("key", ["refresh-s", "stamp", "filter", "filter-mode", "pick", "pick-to"])
+def test_the_keys_views_declare_for_app_js_stay_allowed(key):
+    """These are the views' and the server's own declarations to `app.js` — passed through `data=`."""
+    assert f'data-{key}="1"' in ui.group("b", data={key: "1"})
 
 
 def test_a_subclass_of_safe_is_escaped():
@@ -1155,3 +1175,12 @@ def test_slug_survives_a_surrogate_escaped_name(text):
     sid = ui.slug(text)
     assert re.fullmatch(r"[A-Za-z][\w:-]*", sid, re.ASCII)
     assert ui.slug(text) == sid and ui.slug(text) != ui.slug("")
+
+
+def test_only_a_long_badge_is_marked_to_wrap():
+    """`data-wrap` from `BADGE_WRAP_AT` visible characters on — escaped text counts as the reader
+    sees it, so `&lt;` is one character, not four."""
+    assert "data-wrap" not in ui.badge("info", "1-design")
+    assert "data-wrap" not in ui.badge("warning", "<" * (ui.BADGE_WRAP_AT - 1))
+    assert "data-wrap" in ui.badge("critical", "x" * ui.BADGE_WRAP_AT)
+    assert "data-wrap" in ui.badge("critical", ui.fragment("budget failed: ", "y" * 40))

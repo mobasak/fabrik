@@ -18,6 +18,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 sys.path.insert(0, str(_SRC.parent))
 
@@ -47,10 +53,12 @@ def _board(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: dict):
     """The dashboard with ``payload`` as its last reading, rendering the real Accounts view."""
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_posture_{tmp_path.name}", _SRC)
     qd = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(qd)
+    after_load(qd, monkeypatch)
     monkeypatch.setattr(qd, "_status_triggers", lambda: None)  # never a probe
     qd._set_last_status(time.time(), payload)
     return qd

@@ -16,6 +16,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 _MARKER = 'id="render-failed"'
 
@@ -26,10 +32,12 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, max_age: str = "0"):
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
     monkeypatch.setenv("QUOTA_DASH_MAX_AGE_S", max_age)
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_rf_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
 
 

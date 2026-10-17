@@ -23,6 +23,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 sync_api = pytest.importorskip("playwright.sync_api")
 
 from tests import test_quota_dashboard as base  # noqa: E402 — the stores, the loader, the payload
@@ -195,6 +201,32 @@ def test_a_long_data_badge_wraps_instead_of_scrolling_the_page(
         assert LONG_ERROR[:40] in page.locator("#ov-health").inner_text()
         over = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
         assert over <= 0, over
+    finally:
+        context.close()
+
+
+_SQUEEZED = """() => Array.from(document.querySelectorAll('.badge-text')).filter((el) => {
+  const text = (el.textContent || '').trim();
+  if (!text || text.length >= 40 || el.getClientRects().length === 0) { return false; }
+  const cs = getComputedStyle(el);
+  const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+  return el.getBoundingClientRect().height > line * 1.5;
+}).map((el) => el.textContent.trim())"""
+
+
+@pytest.mark.parametrize("viewport", [PHONE, ZOOMED, DESKTOP], ids=["390", "720", "1440"])
+def test_a_short_badge_stays_on_one_line_in_every_view(browser, board, viewport):
+    """Letting a badge wrap must not let a table or a flex row squeeze a SHORT one to a letter a
+    line ("Warning: awaiting-operator" at 44 x 338 px): every badge under 40 characters is one line
+    high, in every view, at every width."""
+    context, page = _open(browser, board, viewport)
+    try:
+        for view in board.qd._views.VIEWS:
+            page.goto(board.url + "/#" + view)
+            page.wait_for_selector(f'[data-view-root="{view}"]')
+            for d in page.locator("details").all():  # the closed sections' badges count too
+                page.evaluate("(el) => { el.open = true; }", d.element_handle())
+            assert page.evaluate(_SQUEEZED) == [], view
     finally:
         context.close()
 

@@ -18,6 +18,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 sync_api = pytest.importorskip("playwright.sync_api")
 
 _PKG = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "dashboard_ui"
