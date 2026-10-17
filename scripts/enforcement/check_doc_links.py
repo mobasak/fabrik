@@ -127,8 +127,11 @@ def _tracked_md_sources() -> list[Path]:
     # Scope = the live KNOWLEDGE tree. Excluded as sources: all archives (frozen
     # history), the plan/epic/review/spec pipeline artifacts (they cite future
     # deliverables and pre-migration paths by design), LESSONS_LEARNT.md (a dated
-    # ledger — entries cite files as they were on the entry date), and scaffold
-    # TEMPLATES (intentional placeholder refs — see _is_template_source).
+    # ledger — entries cite files as they were on the entry date), DECISIONS.md (an
+    # immutable ledger — a row minted with a DRAFT plan cites files not yet made, and a
+    # row whose cite later breaks can never be edited, so it redded every session's
+    # gate: W-e9c8a4df; it stays a link TARGET), and scaffold TEMPLATES (intentional
+    # placeholder refs — see _is_template_source).
     skip_prefixes = (
         "docs/archive/",
         "docs/infrastructure/archive/",
@@ -139,7 +142,7 @@ def _tracked_md_sources() -> list[Path]:
         p
         for p in out
         if not p.startswith(skip_prefixes)
-        and p != "docs/LESSONS_LEARNT.md"
+        and p not in ("docs/LESSONS_LEARNT.md", "docs/DECISIONS.md")
         and not _is_template_source(p)
     ]
     srcs += [p for p in ROOT_SOURCES if (REPO / p).exists()]

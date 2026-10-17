@@ -1296,8 +1296,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    cites a file of the plan by its pre-archive path decides WHO archives** — `BASE` here is the branch
    your work finally merges into. Never repoint that row: the ledger merge refuses any conflict where
    EITHER side edits an existing line, so an edited row turns every open branch's row insertion beside it
-   into a hand merge (LESSONS 2026-10-01). The link check reads `DECISIONS.md`, so the plan is then not
-   archived: it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says
+   into a hand merge (LESSONS 2026-10-01). So the plan is then not archived (D-484 — a pre-`BASE` row cites its pre-archive path and must not be repointed): it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says
    the archive is owed, and the hand-over names it — the merge request from an agent window, the OWED
    report, or, from the main checkout, a work item or mail addressed to the repo's merge owner. The
    archive is the merge owner's, with
@@ -1314,7 +1313,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the block's
    only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a delivered one
    closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than editing the row.
-   Doc Link Integrity DOES catch a missed one — but at the last gate before the commit, after the move,
+   Doc Link Integrity DOES catch a missed one outside `docs/DECISIONS.md` (the ledger is no link source,
+   W-e9c8a4df) — but at the last gate before the commit, after the move,
    so it costs a full gate re-run and lands the repair in a commit whose message was already written
    (`01M2GCTCP5F8`). **The grep also lists the review receipts under
    `docs/development/reviews/` — never repoint those, nor any verbatim captured output:** a receipt is a

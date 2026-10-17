@@ -3,7 +3,7 @@
   "created": "2026-10-07T06:03:16.117836Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3e3f462e39b79f5aa95c2fc337cbc995afa9f52d",
   "id": "W-592f5fe4",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — plan-review pass-1 hides findings: command wording/feedback verdict",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m47t06vv",
     "queued"
