@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a test pins the scratch sweep's rule that a held session folder is not dead for its run folders (2026-10-18)
+
+- `tests/test_scratch_sweep_run_folders.py::test_a_held_session_dir_is_not_dead_for_its_run_folders`: a fake /proc in
+  which a process holds a file in the session's scratchpad, outside its stale `running` run folder, together with a
+  gone-pid sessions record. `--dead --apply` must keep the folder. With `_session_dead_for_runs`'s held check removed,
+  both sweep suites were green (258 passed) and the folder was consumed under its holder; the new test fails on that
+  mutant at `assert folder.exists()` (W-d8592740). Measured beside it: `_classify_sid`'s live-holder branch was
+  already pinned by `test_a_process_under_the_dir_is_liveness`, which fails when that branch is removed.
+
 ### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
 
 - The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be

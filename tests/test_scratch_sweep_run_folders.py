@@ -584,6 +584,31 @@ def test_the_dead_rule_consumes_a_stale_running_folder_the_own_session_keeps(
     assert sdir.exists(), out  # the run pass alone removed it
 
 
+def test_a_held_session_dir_is_not_dead_for_its_run_folders(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W-d8592740: the mirror above with one difference — a live process holds a file in the
+    session's scratchpad, outside the run folder. `_session_dead_for_runs` must read that holder as
+    a live signal, so the dead rule keeps the stale `running` folder; without the check the gone
+    pid alone makes the session dead and its folder is consumed under the holder."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+    notes = sdir / "scratchpad" / "notes.txt"
+    notes.write_text("open in a live pane", encoding="utf-8")
+    _age_tree(sdir, HOUR)
+    proc_root = _one_pid_proc(tmp_path)
+    os.symlink(str(notes.resolve()), proc_root / "1" / "fd" / "3")
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc_root))
+    _dead_record(tmp_path, SID_A)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert folder.exists(), out
+    assert sdir.exists(), out
+
+
 def test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace(
     harness: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
