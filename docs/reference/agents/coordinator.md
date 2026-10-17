@@ -34,7 +34,7 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    - *done* — a merged fix commit or a D-row settles it. A mere mention is NOT proof: ask the owner, close only on its
      yes (`work.py done --evidence <sha>`);
    - *duplicate* — another open item covers the same mail, file or symptom → keep the older, drop the other with the reason;
-   - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, ask the owner as for *done*;
+   - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, drop it on the owner's yes;
    - *actionable* — one concrete change, not an umbrella → its owner splits an umbrella (tag `needs-split`);
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
 3. **Impact** HIGH = breaks or blocks an agent, a deploy, a gate or every repo, loses data, or the operator asked;
@@ -45,7 +45,7 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
    gets nothing. A time sink is dropped (`work.py drop --why`; `work.py add` re-files it; D-955 answers CLAUDE.md's
    first re-score), never one the operator asked for, a P0 or a claimed item. A `waits-operator-*` tag lifts only on the
-   operator's word; `--blocked-by`, when its blocker lands.
+   operator's word; `--blocked-by`, when its blocker lands or is dropped.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
