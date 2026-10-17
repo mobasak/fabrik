@@ -341,17 +341,11 @@ def test_an_identical_repeat_is_one_claim_and_an_orphan_seat_cannot_pass_for_a_r
     _tool("read", str(d), "--out", str(out))
     r = _tool("next", str(out), "--ids", "A-S1")
     assert r.returncode == 0, r.stderr
-    # A-S1 once despite the repeated row; A-S7 has no refuter verdict, so it is open and carried (W-b1f67743)
     assert json.loads(r.stdout) == [
-        {
-            "name": "A",
-            "ledger": [
-                {"id": "A-S1", "file": "a.py", "line": 1, "claim": "c1"},
-                {"id": "A-S7", "file": "a.py", "line": 7, "claim": "c7"},
-            ],
-        }
+        {"name": "A", "ledger": [{"id": "A-S1", "file": "a.py", "line": 1, "claim": "c1"}]}
     ]
-    assert "CARRIED A-S7" in r.stderr, r.stderr
+    # A-S7 is outside --ids and no run file was given, so its verdict is not judged — and that is said (W-b1f67743)
+    assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
     labels = [s["label"] for s in json.loads(out.read_text())["seats"]]
     assert labels == ["a9", "orphan:a9"], labels
 
@@ -1423,20 +1417,37 @@ def test_pin_stdout_is_the_fragment_alone(tmp_path: Path) -> None:
 
 
 # W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's --ids
-# left out ("review_loop_ledger.py next dropped B-S2, which I re-added by hand"). It now CARRIES every open claim,
-# says so on stderr, and `--drop` is the lead's way to close one outside the pass file.
+# left out ("review_loop_ledger.py next dropped B-S2, which I re-added by hand"). It now CARRIES every open claim it
+# can see from a run file, says so on stderr, names what it cannot check, and `--drop` is the lead's way out.
 
 
-def _open_pass(tmp: Path, verdicts: list, ledger_status: list | None = None) -> Path:
-    p = tmp / "open.json"
+def _ev(cid: str, verdict: str) -> dict:
+    return {"id": cid, "verdict": verdict, "command": "pytest -q x", "output": "1 failed"}
+
+
+def _judged_run(tmp: Path, slices: list, launch: list | None = None) -> Path:
+    """A run file whose `result` holds the workflow's OWN normalised verdicts, index-aligned with candidates."""
+    f = tmp / "run.json"
+    args = {"slices": launch or [{"name": s["name"], "files": ["a.py"]} for s in slices]}
+    f.write_text(json.dumps({"runId": "wf_y", "args": args, "result": {"slices": slices}}))
+    return f
+
+
+def _cands(*ids: str) -> list:
+    return [_union(i, n + 1, f"claim {i}") for n, i in enumerate(ids)]
+
+
+def _ledger_of(stdout: str) -> dict:
+    return {s["name"]: [r["id"] for r in s["ledger"]] for s in json.loads(stdout)}
+
+
+def _pass_with(tmp: Path, ledger_status: list | None = None) -> Path:
+    p = tmp / "pass.json"
     p.write_text(
         json.dumps(
             {
-                "candidates": [
-                    {**_union("A-S1", 3, "off by one"), "seat": "find:A:sonnet"},
-                    {**_union("B-S2", 9, "fails open"), "seat": "find:B:sonnet"},
-                ],
-                "verdicts": verdicts,
+                "candidates": [{**_union("A-S1", 1, "a"), "seat": "find:A:sonnet"}],
+                "verdicts": [],
                 "ledger_status": ledger_status or [],
             }
         )
@@ -1444,128 +1455,140 @@ def _open_pass(tmp: Path, verdicts: list, ledger_status: list | None = None) -> 
     return p
 
 
-def _ev(cid: str, verdict: str, command: str = "pytest -q x", output: str = "1 failed") -> dict:
-    return {"id": cid, "verdict": verdict, "command": command, "output": output, "seat": "refute"}
-
-
-def _ledger_of(stdout: str) -> dict:
-    return {s["name"]: [r["id"] for r in s["ledger"]] for s in json.loads(stdout)}
-
-
-@pytest.mark.parametrize(
-    "b_verdicts", [[], [{"id": "B-S2", "verdict": "unverified"}], [_ev("B-S2", "confirmed")]]
-)
-def test_next_carries_an_open_claim_the_ids_leave_out(tmp_path: Path, b_verdicts: list) -> None:
-    p = _open_pass(tmp_path, [_ev("A-S1", "confirmed"), *b_verdicts])
-    r = _tool("next", str(p), "--ids", "A-S1")
+def test_next_carries_an_open_claim_from_the_runs_own_verdicts(tmp_path: Path) -> None:
+    run = _judged_run(
+        tmp_path,
+        [
+            {
+                "name": "A",
+                "candidates": _cands("A-S1", "A-S2", "A-S3", "A-S4", "A-S5", "A-S6"),
+                # A-S6 has no verdict at its index: a short list reads unverified — re-verified, never dropped
+                "verdicts": [
+                    _ev("A-S1", "confirmed"),
+                    _ev("A-S2", "confirmed"),
+                    _ev("A-S3", "unverified"),
+                    _ev("A-S4", "refuted"),
+                    _ev("A-S5", "recorded"),
+                ],
+                "recorded": [_union("A-REC", 9, "report only")],
+            },
+            {"name": "B", "candidates": _cands("B-S1"), "verdicts": [_ev("B-S1", "refuted")]},
+        ],
+    )
+    # A-REC's seat re-reports it present, and the launch ledger still lists it: recorded stays closed
+    p = _pass_with(tmp_path, [{"id": "A-REC", "status": "DEFECT_PRESENT"}])
+    args = json.loads(run.read_text())
+    args["args"]["slices"][0]["ledger"] = [
+        {"id": "A-REC", "file": "a.py", "line": 9, "claim": "report only"}
+    ]
+    run.write_text(json.dumps(args))
+    r = _tool("next", str(p), "--ids", "A-S1", "--args", str(run))
     assert r.returncode == 0, r.stderr
-    assert _ledger_of(r.stdout) == {"A": ["A-S1"], "B": ["B-S2"]}, r.stdout
-    assert "CARRIED B-S2" in r.stderr, r.stderr
-    assert "CARRIED A-S1" not in r.stderr, "an id the lead named is never re-announced"
+    assert _ledger_of(r.stdout) == {"A": ["A-S1", "A-S2", "A-S3", "A-S6"]}, r.stdout
+    for cid in ("A-S2", "A-S3", "A-S6"):
+        assert f"CARRIED {cid}" in r.stderr, r.stderr
+    for cid in ("A-S1", "A-S4", "A-S5", "A-REC", "B-S1"):
+        assert f"CARRIED {cid}" not in r.stderr, (cid, r.stderr)
+    assert "NOT CHECKED" not in r.stderr, "a run file's verdicts were read"
 
 
-@pytest.mark.parametrize(
-    ("b_verdicts", "carried"),
-    [
-        ([_ev("B-S2", "refuted")], False),
-        ([_ev("B-S2", "recorded")], False),
-        ([_ev("B-S2", "refuted", command="n/a")], True),
-        ([_ev("B-S2", "refuted", output="")], True),
-        ([_ev("B-S2", "refuted"), _ev("B-S2", "confirmed")], True),
-    ],
-)
-def test_next_closes_only_an_evidenced_refutation(
-    tmp_path: Path, b_verdicts: list, carried: bool
-) -> None:
-    p = _open_pass(tmp_path, [_ev("A-S1", "confirmed"), *b_verdicts])
-    r = _tool("next", str(p), "--ids", "A-S1")
-    assert r.returncode == 0, r.stderr
-    assert ("B" in _ledger_of(r.stdout)) is carried, (b_verdicts, r.stdout, r.stderr)
-    assert ("CARRIED B-S2" in r.stderr) is carried, r.stderr
-
-
-def _launch(tmp: Path) -> Path:
-    args = tmp / "args.json"
-    args.write_text(
+def test_next_without_a_run_file_says_what_it_did_not_check(tmp_path: Path) -> None:
+    p = tmp_path / "p.json"
+    p.write_text(
         json.dumps(
             {
-                "slices": [
-                    {"name": "A", "files": ["a.py"], "ledger": []},
-                    {"name": "B", "files": ["b.py"], "ledger": []},
-                    {
-                        "name": "C",
-                        "files": ["c.py"],
-                        "ledger": [
-                            {"id": "C-S7", "file": "c.py", "line": 4, "claim": "leaks"},
-                            {
-                                "id": "C-S8",
-                                "file": "c.py",
-                                "line": 8,
-                                "claim": "noted",
-                                "recorded": True,
-                            },
-                        ],
-                    },
-                ]
+                "candidates": [
+                    {**_union("A-S1", 1, "a"), "seat": "find:A:sonnet"},
+                    {**_union("B-S2", 9, "b"), "seat": "find:B:sonnet"},
+                    {**_union("B-S2", 12, "b2"), "seat": "find:B:haiku"},
+                ],
+                "verdicts": [_ev("A-S1", "confirmed"), _ev("B-S2", "confirmed")],
+                "ledger_status": [],
             }
         )
     )
-    return args
+    r = _tool("next", str(p), "--ids", "A-S1")
+    assert r.returncode == 0, r.stderr
+    assert _ledger_of(r.stdout) == {"A": ["A-S1"]}, "without a run file no verdict is judged"
+    assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
+    quiet = _tool("next", str(p), "--ids", "A-S1,B-S2")
+    assert quiet.returncode == 2, (
+        "B-S2 names two claims: the existing ambiguity refusal still answers"
+    )
 
 
 @pytest.mark.parametrize("status", ["DEFECT_PRESENT", "NEW", "STILL_TRUE"])
 def test_next_carries_a_present_claim_from_the_launch_ledger(tmp_path: Path, status: str) -> None:
-    p = _open_pass(
+    launch = [
+        {
+            "name": "C",
+            "files": ["c.py"],
+            "ledger": [
+                {"id": "C-S7", "file": "c.py", "line": 4, "claim": "leaks"},
+                {"id": "C-S8", "file": "c.py", "line": 8, "claim": "noted", "recorded": True},
+                {"id": "C-S9", "file": "c.py", "line": 9, "claim": "closed"},
+            ],
+        },
+        {"name": "A", "files": ["a.py"]},
+    ]
+    rows = [
+        {
+            "id": " c-s7 ",
+            "status": status,
+        },  # a seat's echo: trimmed and lower-cased, still the ledger's C-S7
+        {"id": "C-S8", "status": status},
+        {"id": "C-S9", "status": "DEFECT_ABSENT"},
+        {"id": "C-X1", "status": status},
+        {"id": "A-S2", "status": status},  # a candidate carries it: the candidate's verdict decides
+    ]
+    launch[1]["ledger"] = [{"id": "A-S2", "file": "a.py", "line": 2, "claim": "old"}]
+    run = _judged_run(
         tmp_path,
-        [_ev("A-S1", "confirmed"), _ev("B-S2", "refuted")],
-        [{"id": "C-S7", "status": status, "seat": "find:C:sonnet"}],
+        [
+            {
+                "name": "A",
+                "candidates": _cands("A-S1", "A-S2"),
+                "verdicts": [_ev("A-S1", "confirmed"), _ev("A-S2", "refuted")],
+            },
+            {"name": "C"},
+        ],
+        launch,
     )
-    bare = _tool("next", str(p), "--ids", "A-S1")
-    assert bare.returncode == 0, bare.stderr
-    assert "OPEN NOT CARRIED C-S7" in bare.stderr and "--args" in bare.stderr, bare.stderr
-    args = _launch(tmp_path)
-    r = _tool("next", str(p), "--ids", "A-S1", "--args", str(args))
+    r = _tool("next", str(_pass_with(tmp_path, rows)), "--ids", "A-S1", "--args", str(run))
     assert r.returncode == 0, r.stderr
     got = {s["name"]: s["ledger"] for s in json.loads(r.stdout)}
     assert got["C"] == [{"id": "C-S7", "file": "c.py", "line": 4, "claim": "leaks"}], got
-    assert "CARRIED C-S7" in r.stderr and "B" not in got, r.stderr
-    rec = _open_pass(
-        tmp_path,
-        [_ev("A-S1", "confirmed"), _ev("B-S2", "refuted")],
-        [{"id": "C-S8", "status": status, "seat": "find:C:sonnet"}],
+    assert "CARRIED C-S7" in r.stderr, r.stderr
+    assert "C-S8" not in r.stderr and "C-S9" not in r.stderr, (
+        "recorded and absent claims stay closed"
     )
-    r2 = _tool("next", str(rec), "--ids", "A-S1", "--args", str(args))
-    assert r2.returncode == 0, r2.stderr
-    assert "C" not in _ledger_of(r2.stdout) and "C-S8" not in r2.stderr, (
-        "a recorded launch claim is never carried"
+    assert "OPEN NOT CARRIED C-X1" in r.stderr, "an open id nothing resolves is named"
+    assert "A-S2" not in r.stdout + r.stderr, (
+        "a refuted candidate is never reopened by its ledger row"
     )
-
-
-def test_next_reads_the_runs_own_verdicts(tmp_path: Path) -> None:
-    run = json.loads(_run_file(tmp_path).read_text())
-    for s in run["result"]["slices"]:
-        s["verdicts"] = [_ev(c["id"], "refuted") for c in s.get("candidates", [])]
-    a = run["result"]["slices"][0]
-    a["verdicts"][-1] = {
-        **a["verdicts"][-1],
-        "verdict": "unverified",
-    }  # the workflow's own normalised verdict
-    a["recorded"] = [{**_union("A-REC", 99, "report only"), "seat": "sonnet"}]
-    f = tmp_path / "run-v.json"
-    f.write_text(json.dumps(run))
-    last = a["candidates"][-1]["id"]
-    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(f))
-    assert r.returncode == 0, r.stderr
-    assert f"CARRIED {last}" in r.stderr and "A-REC" not in r.stdout + r.stderr, r.stderr
-    assert last in _ledger_of(r.stdout)["A"], r.stdout
 
 
 def test_next_drop_excludes_an_open_claim(tmp_path: Path) -> None:
-    p = _open_pass(tmp_path, [_ev("A-S1", "confirmed"), {"id": "B-S2", "verdict": "unverified"}])
-    r = _tool("next", str(p), "--ids", "A-S1", "--drop", "B-S2")
-    assert r.returncode == 0, r.stderr
-    assert _ledger_of(r.stdout) == {"A": ["A-S1"]} and "DROPPED B-S2" in r.stderr, r.stderr
-    bad = _tool("next", str(p), "--ids", "A-S1", "--drop", "A-S1")
-    assert bad.returncode == 2 and "A-S1" in bad.stderr, (
-        "an id that is not an open, uncarried claim is refused"
+    run = _judged_run(
+        tmp_path,
+        [
+            {
+                "name": "A",
+                "candidates": _cands("A-S1", "A-S2", "A-S3"),
+                "verdicts": [
+                    _ev("A-S1", "confirmed"),
+                    _ev("A-S2", "unverified"),
+                    _ev("A-S3", "refuted"),
+                ],
+            }
+        ],
     )
+    p = _pass_with(tmp_path, [{"id": "Z-S1", "status": "DEFECT_PRESENT"}])
+    r = _tool("next", str(p), "--ids", "A-S1", "--args", str(run), "--drop", "A-S2,A-S2,Z-S1")
+    assert r.returncode == 0, r.stderr
+    assert _ledger_of(r.stdout) == {"A": ["A-S1"]}, r.stdout
+    assert r.stderr.count("DROPPED A-S2") == 1 and "DROPPED Z-S1" in r.stderr, r.stderr
+    assert "OPEN NOT CARRIED Z-S1" not in r.stderr, "a dropped open id is not also reported open"
+    for bad in ("A-S1", "A-S3", "NOPE"):  # named in --ids · refuted · never raised
+        refused = _tool("next", str(p), "--ids", "A-S1", "--args", str(run), "--drop", bad)
+        assert refused.returncode == 2 and bad in refused.stderr, (bad, refused.stderr)

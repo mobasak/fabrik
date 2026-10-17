@@ -85,10 +85,11 @@ ids> --args <a scratch copy of the run file>` as its `slices` — with `--args` 
 scope, priority and agent from the launch, its ledger replaced), each id resolves against the run's union
 candidates (the ids the verdicts carry, `A-S1#2` included), and stderr names the launch slices `not carried` and the
 `DISPATCH:` stamp for `command_run.py dispatch --seats`; without `--args` an id two raw claims share is refused with
-every claim listed (mail 01M4PHYNXJ). `next` also CARRIES every open claim the `--ids` leave out — a confirmed or
-unverified candidate (a refutation closes one only with a real command and output), and a DEFECT_PRESENT/NEW id no
-candidate carries, from the launch ledger — printing `CARRIED <id>` (or `OPEN NOT CARRIED <id>` when nothing
-resolves it); `--drop <id>` closes one the lead settled outside the pass file (W-b1f67743) — and restate every round-1 slice in that pass's `round --slices`, a verified one at its last `<verified>/<claims>`. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
+every claim listed (mail 01M4PHYNXJ) — and restate every round-1 slice in that pass's `round --slices`, a verified one at its last `<verified>/<claims>`. `next` also CARRIES every open claim the `--ids` leave out
+(W-b1f67743): with the run file, a union candidate whose verdict — the workflow's own — is confirmed or unverified,
+and a DEFECT_PRESENT/NEW id no candidate carries, from the launch ledger, each printed `CARRIED <id>` (`OPEN NOT
+CARRIED <id>` when nothing resolves it); without a run file it judges no verdict and prints `NOT CHECKED <n>
+candidate(s)`; `--drop ID[,ID]` closes an open claim the lead settled outside the pass file. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
 a target, never a cap (D-355; D-339: `done` refuses a failing or vanished slice). `dispatch_headroom.py` refuses
 while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts every seat on one model (D-357).
 

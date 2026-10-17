@@ -7,10 +7,12 @@ All notable changes to this project will be documented in this file.
 ### Changed — review_loop_ledger.py next carries every open claim the --ids leave out (2026-10-17)
 
 - W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's
-  `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). It now carries every open claim (a
-  confirmed or unverified candidate, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch
-  ledger) and prints `CARRIED <id>` / `OPEN NOT CARRIED <id>` on stderr; `--drop <id>` closes one the lead
-  settled outside the pass file. Graders in `tests/test_review_loop_ledger.py`, seen red first.
+  `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). With the run file it now carries
+  every open claim — a union candidate whose verdict (the workflow's own, never re-derived) is confirmed or
+  unverified, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch ledger — printing `CARRIED
+  <id>` / `OPEN NOT CARRIED <id>` on stderr; without one it judges nothing and prints `NOT CHECKED <n>
+  candidate(s)`; `--drop <id>` closes one the lead settled outside the pass file. Graders in
+  `tests/test_review_loop_ledger.py`, seen red first; 11 single-guard mutants each killed by a named test.
 
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 
