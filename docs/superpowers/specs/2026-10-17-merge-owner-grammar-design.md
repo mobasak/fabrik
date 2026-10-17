@@ -108,8 +108,10 @@ signal and every line in that position IS a field. Here it is not: a what-cell i
 a declaration, and the census shows the label is always written upper case when it declares (10 of 10) while the
 lower-case words "Merge owner:" are exactly what prose would open with. adr-tools takes the same exact-match stance;
 the ledger's own supersedes clause already requires it (`(?=(?-i:MERGE OWNER:))`, `scripts/decisions.py:60`). A makes
-that one rule apply to every row. The bold allowance accepts `**MERGE OWNER:**x` too, which CommonMark does not
-render as bold — harmless: the reader reads text, not rendering, and the name is still the next token.
+that one rule apply to every row. The bold allowance is exactly one optional `**` (`(?:\*\*)?`), not any run of
+asterisks: `\**` would also newly accept `MERGE OWNER:*a*` and `MERGE OWNER:***a` (found by the plan's reader census,
+executed in `bold_probe.py`). It accepts `**MERGE OWNER:**x` too, which CommonMark does not render as bold — harmless:
+the reader reads text, not rendering, and the name is still the next token.
 
 The panel (three Sonnet judges, approaches in alphabetical order with no recommendation; brief `panel-brief.md` in the
 run folder) ranked A first 3 of 3: A > C > B > D, A > D > B > C, and A first with B, C, D unordered. Judge 3's named
@@ -125,9 +127,11 @@ trigger for D.
 
 ## The delta
 
-- **D1 — bold label.** After the phrase, allow the closing `**` of a bold label before the name: `MERGE OWNER:\**\s*`
-  in `MERGE_OWNER_RE`, `_UNDECLARED_RE` and the hook's `_MERGE_OWNER_RE`. Touchpoints `scripts/decisions.py:62`,
-  `:67`, `scripts/docs_updater.py:1233`, `:1238`, `.claude/hooks/session_orient.py:231`, `:242`.
+- **D1 — bold label.** After the phrase, allow the closing `**` of a bold label before the name, exactly once:
+  `MERGE OWNER:(?:\*\*)?\s*` in `MERGE_OWNER_RE`, `_UNDECLARED_RE` and the hook's `_MERGE_OWNER_RE` — in the hook the
+  `(?!UNDECLARED…)` guard stays AFTER the new token, or `MERGE OWNER:** UNDECLARED` reads as an owner named
+  `UNDECLARED`. Touchpoints `scripts/decisions.py:62`, `:67`, `scripts/docs_updater.py:1233`, `:1238`,
+  `.claude/hooks/session_orient.py:231`, `:242`.
 - **D2 — exact label on every row.** Wrap the phrase in each of those six patterns as `(?-i:MERGE OWNER:)`, so the
   phrase is upper-case-exact whether or not a supersedes clause precedes it; the clause itself and the `UNDECLARED`
   token keep `re.I`. `_SUPERSEDES_PREFIX` is unchanged (its lookahead already says the same).
@@ -135,7 +139,8 @@ trigger for D.
   new rows cover a bare `Merge owner: rotated weekly` (→ `alpha`), `**MERGE OWNER:** beta` (→ `beta`) and
   `**MERGE OWNER:** UNDECLARED` (→ undeclared). The literal parity pins at `tests/test_session_orient_hook.py:896-918`
   are updated to the new phrase. The three comment blocks above the patterns say the rule once each.
-- **D4 — doc.** `docs/reference/multi-agent-operating-model.md:122-126` states the rule: the label is always the exact
+- **D4 — docs.** `docs/reference/multi-agent-operating-model.md:122-126` and `docs/workstation/hooks-index.md:16` (the
+  two prose statements of the rule, census of 63 lines in the plan's Evidence) state it: the label is always the exact
   `MERGE OWNER:`, bold allowed.
 
 ## Contract deltas
@@ -144,7 +149,12 @@ None. No data contract or UI design; the ledger format is unchanged and every ex
 
 ## Lifecycle
 
-- **Adoption:** ships with the next governance sync of the hook; the two scripts are hub-side. No repo has to act.
+- **Adoption:** `decisions.py` is hub-side, and three fleet-synced readers call it by its hub-absolute path
+  (`scripts/work.py`, `scripts/merge_request.py`, `.claude/hooks/final_gate_stop.py`), so they switch at merge;
+  `docs_updater.py` and `session_orient.py` are fleet-synced and switch at the next governance sync. Between the two,
+  a project's PLANS header and session-start line could name a different owner than `merge_request.py` — only for a
+  bold or mixed-case declaring row, and the census holds none (0 of 52), so the window is empty in practice. No repo
+  has to act.
 - **Growth:** the grammar reads one cell per row; a ledger of any size costs the same per row. The trigger to revisit
   is a row opening with the label in another case appearing in the census (re-run `owner_census.py`; today 0 of 52
   ledgers): one such row revives approach D, the warning, because that row is an author who meant to declare and was
