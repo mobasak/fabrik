@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review: a seat runs the plan-set check on its pinned copy (2026-10-18)
+
+The convergence-precondition bullet now says a seat that runs `check_plan_tickets` grades its pinned copy, never the
+live set the orchestrator is editing: `--plan-dir <the copy, keeping the dated directory name, outside any
+docs/development/plans/ directory> --allow-external`, run from the repo root (intel 01M55ZHTWQ, fabrik-lib 01M41A605P
+finding 3).
+Pinned by `tests/test_plan_review_queue_pass.py`.
+
 ### Changed — /fabrik-execute-plan: a backlog referrer is repointed through the work store (2026-10-18)
 
 Finish step 6 told the finisher to repoint rows in `docs/STRATEGIC_BACKLOG.md` by hand, but a row in its

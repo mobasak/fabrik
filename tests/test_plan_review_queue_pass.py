@@ -97,10 +97,12 @@ def test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt() -> Non
     the skeleton clause; move the sentence out of Phase 1."""
     src = ROOT / "commands" / "_sources" / "fabrik-plan-review.md"
     text = " ".join(src.read_text().split())
-    phase1 = text[text.index("## Phase 1 — Grounding passes") : text.index("## Phase 2 — Make every step executable")]
-    sentence = (
-        "The plan and its review receipt both carry the Pass Ledger and its Residual. At the flip `check_convergence.py` grades the PLAN's own rows, a spine's or a monolith's — a `method: re-derivation` Pass row (`_check_plan`) and a last counter row reading `confirmed: 0` (`_check_plan` for a monolith, `_check_spine_set` for a spine) — beside the plan's adjudicated Coverage Checklist (step 2). The review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`, whose first 10 lines carry the line `**Command:** /fabrik-plan-review`, carries the same ledger plus the panel table and the ask↔spec table: once it claims a finished review, the gate grades it by its ledger only under that label and with no `## Coverage Checklist` heading of its own (`_is_design_receipt`), and demands a code review's gate embed otherwise — `review_receipt.py --init` writes receipts for the two code-review commands only and always emits that heading."
-    )
+    phase1 = text[
+        text.index("## Phase 1 — Grounding passes") : text.index(
+            "## Phase 2 — Make every step executable"
+        )
+    ]
+    sentence = "The plan and its review receipt both carry the Pass Ledger and its Residual. At the flip `check_convergence.py` grades the PLAN's own rows, a spine's or a monolith's — a `method: re-derivation` Pass row (`_check_plan`) and a last counter row reading `confirmed: 0` (`_check_plan` for a monolith, `_check_spine_set` for a spine) — beside the plan's adjudicated Coverage Checklist (step 2). The review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`, whose first 10 lines carry the line `**Command:** /fabrik-plan-review`, carries the same ledger plus the panel table and the ask↔spec table: once it claims a finished review, the gate grades it by its ledger only under that label and with no `## Coverage Checklist` heading of its own (`_is_design_receipt`), and demands a code review's gate embed otherwise — `review_receipt.py --init` writes receipts for the two code-review commands only and always emits that heading."
     assert phase1.count(sentence) == 1, "the ledger-home sentence is stated once, in Phase 1"
     assert "Pass Ledger lives in the review receipt" not in text, "the receipt-only claim is gone"
     # the two homes are named exactly once each in Phase 1 — a second statement is a restatement that drifts
@@ -134,3 +136,17 @@ def test_round_zero_scripts_step_references_and_mutant_predictions() -> None:
         text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
         assert clause in text, name
         assert rerun in text, name
+
+
+def test_a_seat_grades_its_pinned_plan_set_copy() -> None:
+    """Intel 01M55ZHTWQ (fabrik-lib 01M41A605P finding 3): a seat ran check_plan_tickets on the live set while the
+    orchestrator edited it. The sentence is asserted whole, between the clause before it and the bullet after it."""
+    text = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert (
+        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the "
+        "orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, "
+        "outside any docs/development/plans/ directory> --allow-external`, run from the repo root. - **Breadth "
+        "advisory (mechanical, at the same moment):**"
+    ) in text
