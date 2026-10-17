@@ -95,7 +95,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-928 (kaizen, 2026-10-17): 20904 -> 21753 — phase 2 tabulates every input the design branches on and a new
 # parser fails closed; MEASURE sizes a grown hook output against the 10,000-character cap; phase 3 rewrites a
 # pre-fold test; phase 5 captures the commit by its exact subject, failing closed (9 rows).
-SIZE_CAP = 21753
+# D-936 (kaizen, 2026-10-17): 21753 -> 22044 — MEASURE greps every config and env value a changed format can
+# sit in; phase 2 tries a rule another component applies as a read of its output before copying it (2 rows).
+SIZE_CAP = 22044
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

@@ -201,3 +201,19 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
         "with each hook output it grows sized against Claude Code's 10,000-character cap"
         " (https://code.claude.com/docs/en/hooks)"
     ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_measure_greps_config_and_env_values_and_design_reads_a_copied_rule_first() -> None:
+    """Row 1792233945 (a `${` format change missed the spec env values that carry it), recurring held
+    measure-the-env-writers-not-only-the-spec; row 1792240470 (a rule copied from another component could have
+    been read from its output), recurring the untagged reject 1791965012 (every other place the rule lives) and
+    held gate-legs-before-a-new-leg (reuse what already runs before drafting a duplicate)."""
+    assert (
+        "every host it runs on, every config and env value a changed format can sit in (grep them for its shape,"
+        " e.g. `${`), and the n behind"
+    ) in _section("## Phase 1", "## Phase 2")
+    assert (
+        "D-rows settled. Before such a copy, a rule another component already applies is tried as a read of its"
+        " output (stdout, a record, an exported function); when the copy stays, DECISION says why the read cannot"
+        " serve. Each input"
+    ) in _section("## Phase 2", "## Phase 3")

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE greps config and env values for a changed format; a copied rule is first tried as a read (2026-10-17)
+
+`commands/_sources/fabrik-task.md`:
+- MEASURE's population names every config and env value a changed format can sit in, grepped for its shape
+  (e.g. `${`).
+- Phase 2, before a copied mechanism, tries a rule another component already applies as a read of its output;
+  when the copy stays, DECISION says why.
+
+Answers rows 1792233945 and 1792240470, both recurring held subjects (D-936; SIZE_CAP 21753 -> 22044). The
+queue's other 3 rows are held (2) or routed to infra (1) with reasons. Pinned by `tests/test_fabrik_task_queue_pass.py` and
+`tests/test_fabrik_task_source.py`.
+
 ### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
 
 `commands/_sources/fabrik-command-improve.md` makes three changes:
