@@ -54,6 +54,10 @@
 | [2026-10-14-coordinator-role-design.md](docs/superpowers/specs/2026-10-14-coordinator-role-design.md) | CONVERGED spec (approved D-868): the coordinator role — one agent per multi-window repo that sorts mail, derives priority from impact x effort under the quota budget, assigns, merges and keeps the records' status correct, and never builds |
 | [2026-10-15-apply-template-defaults-parity-design.md](docs/superpowers/specs/2026-10-15-apply-template-defaults-parity-design.md) | DRAFT spec, Size: small (W-989653a7, D-733, D-907): `fabrik apply` loads specs through the same template-defaults merge as `fabrik plan` via one shared helper, with explicit pins so translator, longephedia-vault, fabrik-citation-verifier and fabrik-claim-validator gain no Gatus or Prometheus check |
 | **docs/reference/research/2026-10-15-apply-template-defaults-ledger.md** | Every fact the three research seats of the apply/plan template-defaults `/fabrik-spec` (W-989653a7) returned (Prometheus `up` and scrape-status semantics, Terraform plan/apply and Helm values merging, pinning before a default change), each dispositioned |
+| **docs/reference/research/2026-10-16-command-centre-dashboard-ledger.md** | Every fact the six research seats and the lead's own probes returned for the dashboard redesign (Baseline web features, WCAG 2.2 and APG, htmx and Jinja2, command-centre IA, confirm-vs-undo, responsive tables), one row each with its disposition |
+| [2026-10-16-command-centre-dashboard-design.md](docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md) | CONVERGED spec (W-573fae88, approved D-925): the quota board at :5051 rebuilt as the operator's command-and-control centre — an Overview that answers what needs the operator now, six views, one stdlib page layer with vanilla JS |
+| [2026-10-17-plan-1-command-centre-dashboard.md](docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/2026-10-17-plan-1-command-centre-dashboard.md) | CONVERGED plan set (W-573fae88, /fabrik-plan-review 5 passes): the command-centre dashboard built in seven tickets — the UI kit, the server wiring, the Overview, Work, Accounts and other views, then the integration that retires the old page layer |
+| [2026-10-17-command-centre-dashboard-plan-review.md](docs/development/reviews/2026-10-17-command-centre-dashboard-plan-review.md) | /fabrik-plan-review receipt for the command-centre plan set: five passes, confirmed 36 → 13 → 6 → 1 → 0, CONVERGED |
 | [2026-10-14-coordinator-role-spec-review.md](docs/development/reviews/2026-10-14-coordinator-role-spec-review.md) | /fabrik-spec-review receipt for the coordinator role spec: 6-pass Pass Ledger, the Opus + Fable panel's accepted changes, the plan-time inputs the planner must settle |
 | **docs/reference/research/2026-09-24-audit-log-everywhere-ledger.md** | Every fact the three research seats of the audit-log-everywhere spec returned (PostgreSQL ownership and default privileges, append-only field practice, live DSN role migration), one row each with its disposition — backs `docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` and D-385 |
 | **docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md** | Every fact the five research seats of the `saas/88-saas-launch-checklist.md` currency turn returned (Paddle seller and refund policy, CCPA thresholds and opt-out link, Planet49 and EDPB fingerprinting, FingerprintJS licence, KVKK VERBIS exemption, KVKK Art. 11 vs GDPR, KDV Geçici 20 and export, hreflang and sitemaps, PgBouncer, Cloudflare caching, dispute thresholds, SOC 2), each dispositioned |
@@ -432,6 +436,15 @@ docs/
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
+│   │   ├── 2026-10-17-plan-1-command-centre-dashboard
+│   │   │   ├── 2026-10-17-plan-1-command-centre-dashboard.md
+│   │   │   ├── T01-ui-kit.md
+│   │   │   ├── T02-server-wiring.md
+│   │   │   ├── T03-overview-view.md
+│   │   │   ├── T04-work-view.md
+│   │   │   ├── T05-accounts-view.md
+│   │   │   ├── T06-usage-commands-services.md
+│   │   │   └── T07-integration.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1413,6 +1426,7 @@ docs/
 │   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
 │   │   ├── 2026-10-14-coordinator-role-ledger.md
 │   │   ├── 2026-10-14-one-door-lane-ledger.md
+│   │   ├── 2026-10-16-command-centre-dashboard-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1523,6 +1537,7 @@ docs/
 │       ├── 2026-10-14-one-door-lane-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
 │       ├── 2026-10-17-merge-owner-grammar-design.md
+│       ├── 2026-10-16-command-centre-dashboard-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -2068,9 +2083,38 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_kaizen_shrink_audit.py](tests/test_kaizen_shrink_audit.py) | 43 tests — the kaizen shrink audit's collectors on fixture roots; since round 66 also the registry surface census's needle and container rules (a blank `cron_match`, a list top level, a string element never kill the census). |
 | [test_liveness_audit.py](tests/test_liveness_audit.py) | 73 tests — the liveness auditor's three proofs on fake boxes, its own heartbeat (one `LOG_STAMP`-shaped stderr line, flushed after the report so the cron's merged streams keep it on its own line; only a stamped marker line is evidence) and the dead-output paths (`\| head`, `2>&1 \| head`: exit 0; a full disk: exit 1, never a raise; `>&-`: exit 1; `2>&-`: the stamp is skipped and the report stays pure JSON) |
 | [test_quota_stop_hook.py](tests/test_quota_stop_hook.py) | 15 tests — the fleet-wide graceful stop (`.claude/hooks/quota_stop.py`, PreToolUse on the tick's fleet-exhausted stamp): never freezes the fleet on its own defect (no stamp, unreadable state, a stale flag → allow); while the stamp stands it holds work tools and lets a session checkpoint and end |
+| [test_oauth_transport_latch.py](tests/test_oauth_transport_latch.py) | D-942: claude_rotate's `_oauth_get` transport-dead latch, both copies — a dead link fails fast inside the TTL, any contact clears it, a non-transport error never latches, and the conftest reset keeps it out of other tests |
 | [test_quota_dashboard.py](tests/test_quota_dashboard.py) | 60 tests — the box-local quota dashboard (`scripts/sysadmin/quota_dashboard.py`), its three load-bearing risks: the regeneration floor bounds probe volume, a failed probe never blanks the board, the board shows REMAINING (an inversion would read as plenty when there is none) |
 | [test_capped_run.py](tests/test_capped_run.py) | D-935: the test caps — capped_run.sh's ceiling, time limit, bound checks and shared slice, the three capped launchers, and the hub suite's memguard and per-test timeout |
 | [memguard.py](tests/memguard.py) | D-935: the hub suite's in-process memory guard — a watchdog process that kills a pytest tree past `FABRIK_TEST_RSS_MAX` and prints its traceback (started by tests/conftest.py, or `-p memguard`) |
+| [test_quota_dashboard_ui_kit.py](tests/test_quota_dashboard_ui_kit.py) | UI-kit tests for the command-centre dashboard: escaping, catalogue, colour tokens, computed contrast, shell |
+| [test_quota_dashboard_app_js.py](tests/test_quota_dashboard_app_js.py) | app.js behaviour tests for the command-centre dashboard: playwright over a fixture page |
+| `scripts/sysadmin/dashboard_ui/__init__.py` | Dashboard page-layer package marker; `STATIC_DIR` |
+| `scripts/sysadmin/dashboard_ui/components.py` | Escaped HTML components — the only place the dashboard writes markup (INV-4) |
+| `scripts/sysadmin/dashboard_ui/strings.py` | The dashboard's string catalogue: `t`, `use`, `CATALOGUE` (D-926) |
+| `scripts/sysadmin/dashboard_ui/static/app.css` | The dashboard's one stylesheet: palette, theme mappings, layout, components (INV-3) |
+| `scripts/sysadmin/dashboard_ui/static/app.js` | The dashboard's one script: every client behaviour the views declare by attribute |
+| [2026-10-17-plan-1-command-centre-dashboard-T01-review.md](docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T01-review.md) | /fabrik-review wave receipt for T01 (UI kit): five passes, confirmed 35 → 11 → 1 → 1 → 0 |
+| [test_quota_dashboard_server.py](tests/test_quota_dashboard_server.py) | Server tests for the command-centre dashboard: request guard, static files, view endpoint, snapshot tokens, data caches |
+| `scripts/sysadmin/dashboard_ui/fmt.py` | The dashboard's formatting helpers: times, ages, counts, percentages |
+| `scripts/sysadmin/dashboard_ui/snapshot.py` | Snapshot tokens: the hash a card carries so a verdict on a changed item is refused |
+| `scripts/sysadmin/dashboard_ui/views/__init__.py` | The view protocol: `VIEWS`, `ViewContext`, `ViewResult`, `load`, `stamp` |
+| [2026-10-17-plan-1-command-centre-dashboard-T02-review.md](docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T02-review.md) | /fabrik-review wave receipt for T02 (server wiring): three passes, confirmed 21 → 7 → 0 |
+| [test_quota_dashboard_overview.py](tests/test_quota_dashboard_overview.py) | Overview view and blocked-merge reader tests (T03) |
+| [test_quota_dashboard_work.py](tests/test_quota_dashboard_work.py) | Work view tests (T04) |
+| [test_quota_dashboard_accounts.py](tests/test_quota_dashboard_accounts.py) | Accounts view tests (T05) |
+| [test_quota_dashboard_views_misc.py](tests/test_quota_dashboard_views_misc.py) | Usage, Commands and Services view tests (T06) |
+| [test_quota_dashboard_page_layer.py](tests/test_quota_dashboard_page_layer.py) | Page-layer guards for the command-centre dashboard (T07): no markup, English literal or `Safe` outside components.py, each scanner with its mutant spellings |
+| [test_quota_dashboard_browser.py](tests/test_quota_dashboard_browser.py) | Browser smoke tests for the command-centre dashboard (T07): every view at 390/720/1440 px, no sideways scroll, one-line short badges, a held swap while a dialog is open |
+| [quota_dashboard_isolation.py](tests/quota_dashboard_isolation.py) | Shared test helper: the network guard (connect and connect_ex) and the HOME / provider-key / MCP-config isolation every quota-dashboard test file imports |
+| `scripts/sysadmin/dashboard_ui/merges.py` | The fleet-wide blocked-merge reader: newest record per branch, merge owner per repo |
+| `scripts/sysadmin/dashboard_ui/views/overview.py` | Overview view: summary, decisions waiting, blocked merges, agents, quota, health |
+| `scripts/sysadmin/dashboard_ui/views/work.py` | Work view: repo queues, owner chips, tag filter, verdict controls |
+| `scripts/sysadmin/dashboard_ui/views/accounts.py` | Accounts view: rotation queue, meters, governor, per-account controls |
+| `scripts/sysadmin/dashboard_ui/views/usage.py` | Usage view: tier spend tables and the monthly calendar |
+| `scripts/sysadmin/dashboard_ui/views/commands.py` | Commands view: the command catalogue and its service-matrix tab |
+| `scripts/sysadmin/dashboard_ui/views/services.py` | Services view: pool credits, search-API quotas, the external-services link |
+| [2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md](docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md) | /fabrik-review wave receipt for T03–T06 (the views) |
 | [test_check_command_corpus.py](tests/test_check_command_corpus.py) | 124 tests — the command-corpus gate's eight predicates on fixtures, plus `--selftest` run as a subprocess — its canaries are the predicates' only grader and nothing else on the box ran them |
 | [test_assemble_orch_retired.py](tests/test_assemble_orch_retired.py) | 5 tests — T07a: the three mega sources render with every fragment resolved and no fab-* wrapper; the retired orchestrator names/tokens are gone; the banner-guarded prune removes an installed (symlinked) fab-* skill with its tracked target intact; every composed skill description (all 36) fits the 1024 cap via the real render (plan 2026-09-03-plan-1-multi-agent-per-repo, T07a) |
 | [test_vision_reads_work_stores.py](tests/test_vision_reads_work_stores.py) | 6 tests — T05: `/fabrik-vision` EXISTING reads PLANS.md + STRATEGIC_BACKLOG.md and seeds epics with the owner tag; `/fabrik-epics-review` Step 1.5 mints the merge-owner row; the corpus renders clean (plan 2026-09-06-plan-2) |

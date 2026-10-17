@@ -417,6 +417,22 @@ def test_same_second_starts_get_distinct_keys() -> None:
     assert all(k.startswith("fabrik-probe-2026-10-15T01-00-00-0300-") for k in keys), keys
 
 
+def test_a_command_that_sanitises_to_nothing_still_mints_a_classifiable_key() -> None:
+    """F12 (W-c0a1d324): a `--command` whose every character falls outside `[0-9A-Za-z_-]` (or
+    is empty) left the mint's command segment empty, and `scratch_sweep.RUN_KEY_RE` needs one, so a
+    live run's folder read as an ordinary entry and could be removed by age. Every such key falls
+    back to `run` and is a run entry."""
+    spec = importlib.util.spec_from_file_location(
+        "scratch_sweep_f12", SCRIPT.parent / "scratch_sweep.py"
+    )
+    ss = importlib.util.module_from_spec(spec)
+    sys.modules["scratch_sweep_f12"] = ss
+    spec.loader.exec_module(ss)
+    for command in ("", "/", "!!", "日本", "é", "-", "fabrik-probe"):
+        key = cr._run_scratch_key(command, "2026-10-15T01:00:00+0300")
+        assert ss.RUN_KEY_RE.match(f"run-{key}"), (command, key)
+
+
 def test_mint_fails_open_without_a_session_dir(tmp_path: Path) -> None:
     """A3: no harness session directory → nothing minted, one `none` line, the start succeeds."""
     repo = _repo(tmp_path, gitignore=".tmp/\n")
@@ -629,10 +645,25 @@ def test_a_nested_start_keeps_the_parents_run_folder(tmp_path: Path) -> None:
     child = _start_cmd(run_dir, harness, repo, "fabrik-probe-child")
     assert child.returncode == 0, child.stdout + child.stderr
     sweep = subprocess.run(
-        ["python3", str(SWEEP_LIB / "scratch_sweep.py"), "--run-folders", "--session", "s1",
-         "--cwd", str(repo), "--apply"],
-        env={"PATH": "/usr/bin:/bin", "SCRATCH_SWEEP_ROOT": str(harness), "HOME": str(tmp_path / "home")},
-        capture_output=True, text=True, timeout=60, check=False,
+        [
+            "python3",
+            str(SWEEP_LIB / "scratch_sweep.py"),
+            "--run-folders",
+            "--session",
+            "s1",
+            "--cwd",
+            str(repo),
+            "--apply",
+        ],
+        env={
+            "PATH": "/usr/bin:/bin",
+            "SCRATCH_SWEEP_ROOT": str(harness),
+            "HOME": str(tmp_path / "home"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert sweep.returncode == 0, sweep.stdout + sweep.stderr
     assert parent.name in sweep.stdout, sweep.stdout  # the sweep judged it — not a vacuous pass
@@ -1138,6 +1169,27 @@ def test_round_reports_large_seat_folders(tmp_path: Path, case: str) -> None:
         assert lines == [], out.stdout
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert len(rec["rounds"]) == 1, rec["rounds"]
+
+
+def test_each_seat_folder_gets_its_own_du_deadline(tmp_path: Path, monkeypatch) -> None:
+    """F8 (W-c0a1d324): spec D5 gives EACH seat folder its own `du` deadline. One deadline shared
+    across the seats left a later seat whatever a slow earlier one did not spend — down to zero,
+    so one large copy made every later seat read "size unmeasured"."""
+    for n in (1, 2, 3):
+        (tmp_path / f"seat-{n}").mkdir()
+    clock = {"t": 0.0}
+    timeouts: list[float] = []
+
+    def fake_run(cmd, **kw):
+        timeouts.append(kw["timeout"])
+        clock["t"] += 10.0  # each du spends 10 s of a 15 s deadline
+        return subprocess.CompletedProcess(cmd, 0, stdout="5\t" + cmd[-1] + "\n", stderr="")
+
+    monkeypatch.setattr(cr.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    lines = cr._seat_size_lines(str(tmp_path), threshold=1024, deadline_s=15.0)
+    assert timeouts == [15.0, 15.0, 15.0], timeouts
+    assert lines == [], lines
 
 
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────

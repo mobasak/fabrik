@@ -544,6 +544,20 @@ def _stamp_tier(stamp: Path) -> str:
     return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
 
 
+def _stamp_is_battery(stamp: Path) -> bool:
+    """The battery hold's stamp (W-83a8ee68, D-898): line 2 is `battery`. `_stamp_tier` folds it
+    into `walled` — an unknown tier holds — so the DECISION never changes on it; this read only
+    picks the message. The same raw read as `_stamp_tier` (`is_file()` first, `newline=""`)."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == "battery"
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -572,6 +586,7 @@ def decide(
     now: float | None = None,
     sid: str | None = None,
     tier: str = _STAMP_TIER_WALLED,
+    battery: bool = False,
 ) -> tuple[str, str]:
     """Pure decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}."""
     if not stamp_exists:
@@ -606,10 +621,10 @@ def decide(
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""
-        return "deny", _reason("Bash", sid)
+        return "deny", _reason("Bash", sid, battery)
     if tool in _READ_TOOLS or _READ_MCP.match(tool):
         return "allow", ""
-    return "deny", _reason(tool or "tool", sid)
+    return "deny", _reason(tool or "tool", sid, battery)
 
 
 def _nudge() -> str:
@@ -631,7 +646,7 @@ def _nudge() -> str:
     )
 
 
-def _reason(tool: str, sid: str | None = None) -> str:
+def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
     """The one message every held session reads. It carries the LITERAL session id in the arm
     order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
     exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
@@ -642,12 +657,23 @@ def _reason(tool: str, sid: str | None = None) -> str:
         and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid)
         else "<your sid>"
     )
+    head = (
+        "BATTERY HOLD — the laptop is on battery at or below the hold line, and your context may "
+        "be lost when it dies."
+        if battery
+        else "FLEET QUOTA EXHAUSTED — no account left to rotate to."
+    )
+    lift = (
+        "The hold lifts when mains power is back"
+        if battery
+        else "The hold lifts when the tick sees relief"
+    )
     return (
-        f"FLEET QUOTA EXHAUSTED — no account left to rotate to. {tool} is held. STOP GRACEFULLY NOW: "
+        f"{head} {tool} is held. STOP GRACEFULLY NOW: "
         "commit your own work with explicit pathspecs "
         "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
-        "thread_anchor.py, the self-watch arm and TaskStop stay allowed. The hold lifts when the tick sees relief, "
+        f"thread_anchor.py, the self-watch arm and TaskStop stay allowed. {lift}, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "
         "off) — an unarmed session stays idle until the operator restarts it, so ARM the self-watch NOW "
         'if it is not: Bash(run_in_background: true, command: "bash '
@@ -685,6 +711,7 @@ def main() -> int:
         tick_age_s=age,
         sid=(payload.get("session_id") if isinstance(payload, dict) else None),
         tier=tier,
+        battery=exists and _stamp_is_battery(_stamp()),
     )
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy
