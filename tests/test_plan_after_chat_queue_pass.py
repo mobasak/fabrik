@@ -129,7 +129,7 @@ def test_a_behaviour_change_censuses_its_readers_in_both_plan_commands() -> None
         r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
     )
     assert (
-        "**Reader census (the mirror of the consumer audit)** — for every existing function or value whose"
+        "**Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose"
         " behaviour the plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census"
     ) in review
     assert (
@@ -192,3 +192,17 @@ def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> 
     assert "ONLY the `# promote-to-check_*` tail may be elided" in step("1")
     assert step("3").startswith("3. **Constraints-Digest audit")
     assert "every MATCHED pack must be named in the digest" in step("3")
+
+
+def test_the_reader_census_names_a_build_script() -> None:
+    """Row 1792194136, a recurrence of held enumerate-all-callers-with-count: a plan that changed a build script
+    missed the Dockerfile, the container gate and the generator that run it, because the census named only a
+    function or value."""
+    flat = _flat()
+    i = flat.index("## Phase 1 — Ground every claim BEFORE writing")
+    phase1 = flat[i : flat.index("## Phase 2", i)]
+    assert (
+        "For each function, value or build script (a `package.json` script or Makefile target, whose readers"
+        " include a Dockerfile, a container gate and a generator that run it) whose BEHAVIOUR the plan changes,"
+        " census its production readers before any step that changes it"
+    ) in phase1

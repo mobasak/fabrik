@@ -186,8 +186,9 @@ Treat every intended step as unproven until verified against the real code/schem
   real `path:line`. A path that looks right is not grounding; a column name is not its values (read them).
   For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch it; each
   lands in that ticket's File Scope, since a test pinning the old shape is fallout the anchors never show.
-  For each function or value whose BEHAVIOUR the plan changes, census its production readers before any step that
-  changes it: the call sites (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path
+  For each function, value or build script (a `package.json` script or Makefile target, whose readers include a
+  Dockerfile, a container gate and a generator that run it) whose BEHAVIOUR the plan changes, census its production
+  readers before any step that changes it: the call sites (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path
   for the path-injected and string readers, with the count, each marked when its file is fleet-synced (the hub's
   `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its command and output cited in the
   plan's Evidence; its readers and the tests that pin the old behaviour in File Scope or named as untouched.

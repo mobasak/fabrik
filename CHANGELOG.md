@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a plan's reader census covers a build script it changes (2026-10-17)
+
+- In `/fabrik-plan-after-chat` Phase 1, the reader census covered only a function or value. It now also covers a
+  build script (a `package.json` script or Makefile target), whose readers include a Dockerfile, a container gate
+  and a generator that run it. The mirror bullet in `/fabrik-plan-review` names the same scope. This answers
+  feedback row 1792194136; the grader is in `tests/test_plan_after_chat_queue_pass.py`.
+
 ### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
 
 `tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` was red
