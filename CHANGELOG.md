@@ -6,10 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
 
-- PHASE 3's synthetic file for a recipe is now built to break it, for example a regex metacharacter or a backtick
-  in a subject, or a sibling commit inside the range. A rule whose subject the edit widens is also run, through the
-  rule's own search methods, on a sample of the new subject. This answers feedback rows 1792200478 and
-  1792189926. The grader is in `tests/test_command_improve_queue_pass.py`.
+- PHASE 3's synthetic file for a recipe is now built to break it, in a scratch repo. It uses round zero's input
+  classes from `commands/_fragments/term-coverage.md`, for example a regex metacharacter or backtick in a commit
+  subject, and a sibling commit inside the window the recipe scans. A rule whose subject the edit widens is run
+  before PHASE 4's first pin, through the rule's own search methods, on a sample of the new subject. This answers
+  feedback rows 1792200478 and 1792189926. The grader is in `tests/test_command_improve_queue_pass.py`.
 
 ### Changed — a plan's reader census covers a build script it changes (2026-10-17)
 
