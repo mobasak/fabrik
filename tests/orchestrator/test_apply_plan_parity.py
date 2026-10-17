@@ -2,8 +2,9 @@
 
 Input domain: every spec in ``specs/services/`` (69 at 2026-10-17) and every ``templates/*/defaults.yaml``,
 read from THIS checkout (``REPO`` is derived from the test file, so a worktree grades its own tree; the plan loader's
-default templates root, ``spec_loader.FABRIK_ROOT``, is pinned to ``REPO`` for the same reason — otherwise it follows
-the cwd and the grader would compare two template trees, not two loaders). Apply loads a spec through
+default templates root, ``spec_loader.FABRIK_ROOT``, is pinned to ``REPO`` for the same reason — otherwise it is
+``$FABRIK_ROOT``, or the cwd's linked hub worktree, or else the hub ``/opt/fabrik`` (``fabrik.config``), so an extract
+or a clone elsewhere would compare two template trees, not two loaders). Apply loads a spec through
 ``SpecValidator.load_spec`` (only the template's ``shape:`` block merged under the spec, D-908); plan loads it through
 ``spec_loader.load_spec`` (every template key merged) and ``destroyer._spec_to_dict``. The registrar decision also
 reads the spec's own ``domain``, ``infra``, ``watchdog`` and ``depends``; the parity grader asserts the two loaders
