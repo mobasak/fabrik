@@ -46,6 +46,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-timeout>=2.3.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
@@ -146,6 +147,10 @@ testpaths = ["tests"]
 pythonpath = ["src"]  # Make src-layout packages importable without `pip install -e .`
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+# A hung test fails at 120 s (pytest-timeout). The ini key, not `--timeout` in addopts: without the
+# plugin installed the key only warns, the flag refuses every run. Memory is capped by the box's
+# runner, /opt/fabrik/scripts/capped_run.sh, which the completion gate's pytest leg uses.
+timeout = 120
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]

@@ -445,6 +445,27 @@ runner reports partial results and still exits 0.
 weekly signal can never block or starve the box. Wired invoker: the Sunday 05:00 cron (see
 crontab), ahead of Monday's fleet doc audit.
 
+### Test caps — `FABRIK_TEST_MEM_MAX` / `FABRIK_TEST_SLICE_MAX` / `FABRIK_TEST_TIMEOUT` / `FABRIK_TEST_RSS_MAX` (WSL box, D-935)
+
+Read from the process environment, never from a project `.env`. They bound a test run so that a
+runaway is a named failure, never a host outage. `docs/reference/long-command-monitoring.md`
+§ Test runs covers the runner and its exit codes.
+
+- `FABRIK_TEST_MEM_MAX`: the memory ceiling for one run of `scripts/capped_run.sh` (default `4G`, no
+  swap). The completion gate's pytest leg, `merge_request.py` and `kaizen_outcomes.py` launch tests
+  through it.
+- `FABRIK_TEST_SLICE_MAX`: the total for every capped run on the box together, set on
+  `fabrik-tests.slice` at runtime on each launch (default `12G`).
+- `FABRIK_TEST_TIMEOUT`: one run's time limit in seconds (default `1800`). The gate passes its own
+  900 s.
+- `FABRIK_TEST_RSS_MAX`: the hub suite's in-process guard (`tests/memguard.py`, started by
+  `tests/conftest.py`). It kills a pytest process tree past this size and prints the traceback
+  (default `4G`).
+
+Sizes are `<digits><K|M|G>`, at least 1M. The runner refuses a bad value with exit 2; the guard falls
+back to its default and says so. `FABRIK_TEST_SLICE` (the slice name) and `FABRIK_CAPPED_RUN` (the
+runner's path, default `/opt/fabrik/scripts/capped_run.sh`) exist for tests and moved installs only.
+
 ---
 
 ## Architecture Context

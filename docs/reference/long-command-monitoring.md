@@ -45,6 +45,44 @@ scripts/runk $(scripts/runlast)
 
 ---
 
+## Test runs: `capped_run.sh` (a memory ceiling, not just a timeout)
+
+A test run is bounded by MEMORY as well as time, because a runaway test outruns any timeout. On
+2026-10-17 one test process grew at about 300 MB/s to 32 GB and took the WSL box, and every session
+on it, down twice (D-935). The hub's runner, `/opt/fabrik/scripts/capped_run.sh`, works from every
+repo on this box by that absolute path. It is not synced.
+
+```bash
+/opt/fabrik/scripts/capped_run.sh -- python -m pytest -x -q                 # foreground
+scripts/rund --name tests -- /opt/fabrik/scripts/capped_run.sh -- pytest -x  # backgrounded
+/opt/fabrik/scripts/capped_run.sh --mem 8G --timeout 3600 -- pytest          # a suite that needs more
+```
+
+What it does on every launch:
+
+- **One total for the box.** It re-asserts a runtime-only ceiling on the shared `fabrik-tests.slice`
+  (`FABRIK_TEST_SLICE_MAX`, default 12G). Every capped run on the box shares that total, nested or
+  concurrent.
+- **A ceiling and a time limit per run.** It runs the command in its own scope in that slice, with a
+  memory ceiling (`--mem` or `FABRIK_TEST_MEM_MAX`, default 4G, no swap) and a time limit (`--timeout`
+  or `FABRIK_TEST_TIMEOUT`, default 1800 s).
+- **Exit codes:**
+  - `137`, with `capped_run: killed at the memory ceiling`, when the ceiling killed the run;
+  - `124`, with `stopped at the …s time limit`, when the time limit stopped it;
+  - `2` for a malformed or zero bound;
+  - otherwise the command's own exit code.
+- **No user systemd manager:** the command runs UNCAPPED with a stderr `WARNING`. It never falls back
+  to `ulimit -v`, because RLIMIT_AS kills chromium at launch.
+
+Three launchers already use it: the completion gate's pytest leg (`final_gate.py`, whose red row then
+says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s
+sweep. The hub's own suite also guards itself from inside (`tests/memguard.py`, a watchdog that kills
+the tree past `FABRIK_TEST_RSS_MAX`, default 4G, and prints the traceback) and has a per-test limit
+(`timeout = 600` in the hub, where tests run the real gate; `timeout = 120` in the python scaffold
+template; pytest-timeout).
+
+---
+
 ## Detailed usage
 
 ### `rund` — exec mode (argv-safe)

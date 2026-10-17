@@ -10,6 +10,24 @@ from pathlib import Path
 
 from hypothesis import Phase, settings
 
+
+def _load_memguard():
+    """tests/memguard.py by file path: tests/ is not on sys.path here, and adding it for every test
+    would let a tests/ helper shadow an installed module."""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "memguard", Path(__file__).with_name("memguard.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["memguard"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+memguard = _load_memguard()
+
 # The session's own Claude Code subagent knobs (kaizen 01M4TBA449): dispatch_headroom reads the cap at import
 # and the model force per call, so either one set in the operator's shell turned 17-38 tests red. Stripped at
 # this module's top — before any later conftest statement, hook or collected module can import the reader;
@@ -107,6 +125,9 @@ def pytest_configure(config):
     for key in [k for k in os.environ if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))]:
         os.environ.pop(key, None)
     _install_fleet_guard()
+    # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
+    # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
+    memguard.start(config)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -531,6 +552,7 @@ def _remove_fleet_guard() -> None:
 
 def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
     _remove_fleet_guard()
+    memguard.stop()
 
 
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001 - pytest hook signature

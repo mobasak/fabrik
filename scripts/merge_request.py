@@ -146,6 +146,17 @@ def _run(
         raise RefusedError(f"cannot run {argv[0]}: {exc}") from exc
 
 
+_CAPPED_RUN = Path(__file__).resolve().parent / "capped_run.sh"
+
+
+def _capped(argv: list[str], timeout: int) -> list[str]:
+    """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so a
+    runaway owner test is a red, never a host outage (W-162398ef). No runner → ``argv`` as is."""
+    if os.access(_CAPPED_RUN, os.X_OK):
+        return [str(_CAPPED_RUN), "--timeout", str(int(timeout)), "--", *argv]
+    return list(argv)
+
+
 def _git(*args: str, cwd: Path | None = None, timeout: int = GIT_TIMEOUT_S) -> str:
     res = _run(["git", *args], timeout, cwd=cwd)
     if res.returncode != 0:
@@ -1182,7 +1193,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         )
         env = {**os.environ, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
-        run = _run(argv, TEST_TIMEOUT_S, cwd=wt, env=env)
+        # the outer bound only catches a runner that itself hangs; the runner stops the tests first
+        run = _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env)
     else:
         touched = [
             p
@@ -1200,7 +1212,12 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
             Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
             env = _fallback_env(wt, Path(shim))
-            run = _run([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S, cwd=wt, env=env)
+            run = _run(
+                _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
+                TEST_TIMEOUT_S + 60,
+                cwd=wt,
+                env=env,
+            )
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""

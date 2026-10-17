@@ -572,6 +572,19 @@ CHECK_UNREAPABLE = "timeout (unreapable)"
 REAP_TIMEOUT_S = 5.0
 
 
+_CAPPED_RUN = Path(__file__).resolve().parents[1] / "capped_run.sh"
+
+
+def _capped(argv: list[str], timeout: float) -> list[str]:
+    """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so one
+    project's runaway suite is a failed check, never a host outage (W-162398ef). The runner's own
+    limit sits 30 s past the budget, so this sweep's own overrun path (the honest dash and the group
+    kill) fires first; the scope's RuntimeMaxSec is the backstop for a tree that escapes the group."""
+    if os.access(_CAPPED_RUN, os.X_OK):
+        return [str(_CAPPED_RUN), "--timeout", str(max(1, int(timeout))), "--", *argv]
+    return list(argv)
+
+
 def _run_check(cmd: list[str], timeout: float, cwd: Path | None = None) -> int | str:
     """Run one install-less check in its OWN process group. Returns the rc, or a
     timeout marker string on budget overrun — in which case the WHOLE group
@@ -689,8 +702,9 @@ def sweep_one(name: str, root: Path, timeout_s: int) -> SweepResult:
         elif not venv_py.is_file():
             checks["pytest"] = f"{DASH} (no venv)"
         else:
+            budget = deadline - time.monotonic()
             rc = _run_check(
-                [str(venv_py), "-m", "pytest", "-q"], deadline - time.monotonic(), cwd=clone
+                _capped([str(venv_py), "-m", "pytest", "-q"], budget + 30), budget, cwd=clone
             )
             if isinstance(rc, str):
                 checks["pytest"] = f"{DASH} ({rc})"
