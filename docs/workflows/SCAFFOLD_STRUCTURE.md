@@ -241,13 +241,15 @@ The `fabrik scaffold` command runs the same checks after `create_project()` retu
 6. the repo's `.mcp.json` is emitted (the MCP split, D-028/D-029)
 7. `generate_and_save_spec()` for `SPEC_ENABLED_TYPES` (skipped with `--no-spec`)
 
-Step 2's venv and pip install, the local dev database a `--db` Python type creates, step 5, step 6 and a step-7
-spec in the hub's `specs/services/` run only when provisioning is opted in: `fabrik scaffold` calls
+Step 2's venv and pip install, the local dev database a `--db` scaffold creates (python-api, python-api-gpu,
+chrome-extension), step 5, step 6 and a step-7 spec in the hub's `specs/services/` run only when provisioning is
+opted in: `fabrik scaffold` calls
 `create_project(provision=True)`; any other caller (a script, a probe, a review seat, a test) gets the files only, its
 spec under its own base (inside the project when that base is the hub's scan root), and the skipped venv and
 database steps print the command to run instead (W-e2f0b6e5). Code that needs the
-real steps outside the CLI wraps them in `scaffold.provisioning()`; `FABRIK_SCAFFOLD_OFFLINE` still turns them off
-inside an opt-in.
+real steps outside the CLI wraps them in `scaffold.provisioning()` (a thread it starts is not opted in unless it
+copies the context); `FABRIK_SCAFFOLD_OFFLINE` still turns off the venv, database, sync and `.mcp.json` steps inside
+an opt-in, while the hub spec follows the opt-in alone.
 
 The `fabrik scaffold` command then prints the `validate-deploy` warnings and, for build-context types with `gh` authenticated, creates and wires a private GitHub repo at `mobasak/<name>` (`--github-create` forces it, `--no-github` skips it).
 

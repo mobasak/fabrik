@@ -11,7 +11,7 @@ venv, the dev database, the hub registry sync, the `.mcp.json` emit and a hub de
 had not set `FABRIK_SCAFFOLD_OFFLINE` — and only the test suite set it. They now run only inside an explicit opt-in:
 `create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()`. Every other caller —
 a probe, a seat, `scripts/retype_project.py`, the `pack_layout_audit` gate check, a scaffold step called directly,
-a thread — gets the files only, its spec under its own base (inside the project when the base is /opt), and the
+a thread that does not copy the caller's context — gets the files only, its spec under its own base (inside the project when the base is /opt), and the
 skipped venv and database steps print the command to run instead (W-e2f0b6e5; the two databases were dropped under D-949).
 
 ### Fixed — every scaffolded Python test run has a 120 s per-test hang guard (2026-10-17)

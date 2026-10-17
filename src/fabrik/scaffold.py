@@ -1928,7 +1928,8 @@ def metrics_app():
 # Provisioning — the venv + pip install, the local dev database, the hub registry sync, the
 # ``.mcp.json`` emit and a deploy spec in the hub's tracked specs/services/ — happens only inside an
 # explicit opt-in: ``create_project(provision=True)`` (the ``fabrik scaffold`` CLI) or this context
-# manager. The default is False for every caller and every thread, so a probe, a review seat or a
+# manager. The default is False for every caller, and for every thread that does not copy the
+# caller's context (threading.Thread, a ThreadPoolExecutor worker), so a probe, a review seat or a
 # script that calls create_project or a scaffold step directly gets files only (W-e2f0b6e5: a seat's
 # direct call left two real databases on the WSL dev cluster).
 _PROVISION: contextvars.ContextVar[bool] = contextvars.ContextVar("_PROVISION", default=False)
@@ -7807,7 +7808,10 @@ def _emit_mcp_config(project_dir: Path) -> None:
     Crash-safe by contract: a failed emission never breaks a scaffold — the repo is
     covered by the next hub-wide emission run instead. The emitter derives the set
     from the repo's ``project.yaml`` type + the roster-ruled overlay tables, so this
-    call must come AFTER the type patch."""
+    call must come AFTER the type patch. Offline (no opt-in, or FABRIK_SCAFFOLD_OFFLINE) it does
+    nothing: the emitter copies hub credentials into the repo (W-e2f0b6e5)."""
+    if _scaffold_offline():  # offline: the next hub-wide emission run covers it
+        return
     emitter = FABRIK_ROOT / "scripts/sysadmin/emit_mcp_project_config.py"
     try:
         r = subprocess.run(
@@ -7996,10 +8000,11 @@ def create_project(
 
     ``provision=True`` (the ``fabrik scaffold`` CLI) runs it inside ``provisioning()``: the venv,
     the local dev database, the hub registry sync, the ``.mcp.json`` emit and a hub deploy spec for
-    an /opt project. Any other caller gets the files only (W-e2f0b6e5).
+    an /opt project. Any other caller gets the files only, unless it already runs inside
+    ``provisioning()`` — ``provision=False`` is not an opt-out (W-e2f0b6e5).
     """
     args = (name, description, base, project_type, preset, generate_spec, preplan, use_database)
-    if bool(provision):
+    if provision is True:  # a truthy string such as "no" is not an opt-in
         with provisioning():
             return _create_project(*args)
     return _create_project(*args)
@@ -8110,8 +8115,7 @@ def _create_project(
 
     # MCP split (plan-3, D-028/D-029): emit the repo's ruled .mcp.json (gitignored)
     # so the FIRST Claude window opens with the correct per-type/overlay server set.
-    if not _scaffold_offline():  # offline: the next hub-wide emission run covers it
-        _emit_mcp_config(project_dir)
+    _emit_mcp_config(project_dir)  # offline (no opt-in): skipped inside
 
     # Auto-generate deployment spec for supported types.
     # ``use_database`` propagates the CLI ``--db`` flag through so the emitted

@@ -83,6 +83,8 @@ def test_direct_helper_call_provisions_nothing(tmp_path, spawned) -> None:
     project.mkdir()
     scaffold._scaffold_shared(project, "direct", "d", "2026-10-18", 8099)
     scaffold._scaffold_python_api(project, "direct", "d", use_database=True)
+    scaffold._emit_mcp_config(project)
+    scaffold._post_scaffold_sync(Path("/opt") / "never-created-provision-probe")
     assert set(spawned) <= {"git"}, spawned
 
 
@@ -130,8 +132,8 @@ def test_opt_in_is_scoped(tmp_path, spawned, monkeypatch) -> None:
 
     spawned.clear()
     monkeypatch.setitem(scaffold._TYPE_SCAFFOLDERS, "python-api", real)
-    for falsy in (0, None, ""):
-        _scaffold(tmp_path / f"f{falsy!r}", "python-api", provision=falsy)
+    for not_true in (0, None, "", "no", 1):
+        _scaffold(tmp_path / f"f{not_true!r}", "python-api", provision=not_true)
     assert set(spawned) <= {"git"}, spawned
 
 
