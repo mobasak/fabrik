@@ -181,8 +181,12 @@ it renders from. Before rejecting, search earlier reject reasons for the subject
 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
 still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
 its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
-audit seat's scratch, never the seat. A subject already held is a recurrence and
-is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
+audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
+mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
+A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
+(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
+answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
+target resolved and lock-checked as below. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
 loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the

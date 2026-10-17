@@ -22,6 +22,15 @@ template's `shape:` block (D-908), because the deployer writes `spec["env"]` int
 same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
 fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
 next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+### Changed — /fabrik-command-improve matches a recurrence on the step a row asks for, and counts answered rejects (2026-10-17)
+
+- PHASE 2's recurrence search now greps the earlier reject reasons for the subject, for what the row
+  asks the author to DO, and for its mechanism words. An answered reject stays final. When three or
+  more answered rejects on one subject cite the same line, that line is a line not followed, and it
+  becomes a candidate group for the run's ONE edit. `--reject` warns only on an identical `HELD:` tag.
+  The kaizen charter points at this rule. This answers feedback rows 1792198197, 1792194121 and
+  1792193148. The grader is in `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
 
 - `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
