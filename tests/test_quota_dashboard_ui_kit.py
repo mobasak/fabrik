@@ -89,10 +89,8 @@ def find_all(root: _Node, tag: str | None = None, **attrs: str) -> list[_Node]:
 
 
 # ---------------------------------------------------------------- every component, every argument
-def _calls(x):
-    """Every component called with the payload in ONE argument position at a time.
-
-    Returns (name, thunk) pairs; numeric / enumerated arguments are covered by `_refusals`."""
+def _escapes(x):
+    """(component.param, thunk): the payload in ONE argument position at a time, expected ESCAPED."""
     sev = "warning"
     return [
         ("badge.text", lambda: ui.badge(sev, x)),
@@ -101,87 +99,148 @@ def _calls(x):
         ("card.badge", lambda: ui.card("t", "b", badge=x)),
         ("card.age", lambda: ui.card("t", "b", age=x)),
         ("card.actions", lambda: ui.card("t", "b", actions=x)),
-        ("card.id", lambda: ui.card("t", "b", id=x)),
-        ("table.label_id", lambda: ui.table(x, "L", ["h"], [["c"]])),
         ("table.label", lambda: ui.table("l", x, ["h"], [["c"]])),
-        ("table.header", lambda: ui.table("l", "L", [x], [["c"]])),
-        ("table.cell0", lambda: ui.table("l", "L", ["h", "i"], [[x, "c"]])),
-        ("table.cell1", lambda: ui.table("l", "L", ["h", "i"], [["c", x]])),
+        ("table.headers", lambda: ui.table("l", "L", [x], [["c"]])),
+        ("table.rows", lambda: ui.table("l", "L", ["h", "i"], [[x, "c"]])),
+        ("table.rows#td", lambda: ui.table("l", "L", ["h", "i"], [["c", x]])),
         ("table.row_data", lambda: ui.table("l", "L", ["h"], [["c"]], row_data=[{"k": x}])),
         ("button.label", lambda: ui.button(x)),
         ("button.data", lambda: ui.button("b", data={"body": x})),
         ("field.label", lambda: ui.field(x, name="n", id="i")),
         ("field.name", lambda: ui.field("l", name=x, id="i")),
-        ("field.id", lambda: ui.field("l", name="n", id=x)),
         ("field.value", lambda: ui.field("l", name="n", id="i", value=x)),
-        ("field.textarea.value", lambda: ui.field("l", name="n", id="i", kind="textarea", value=x)),
+        ("field.value#textarea", lambda: ui.field("l", name="n", id="i", kind="textarea", value=x)),
         ("field.min", lambda: ui.field("l", name="n", id="i", kind="number", min=x)),
         ("field.max", lambda: ui.field("l", name="n", id="i", kind="number", max=x)),
         ("field.placeholder", lambda: ui.field("l", name="n", id="i", placeholder=x)),
         ("field.data", lambda: ui.field("l", name="n", id="i", data={"filter": x})),
         ("group.body", lambda: ui.group(x)),
         ("group.data", lambda: ui.group("b", data={"pick": x})),
-        ("group.id", lambda: ui.group("b", id=x)),
-        ("value_of", lambda: ui.value_of(x)),
-        ("dialog.id", lambda: ui.dialog(x, "T", "B", "Go", "Stop")),
         ("dialog.title", lambda: ui.dialog("d", x, "B", "Go", "Stop")),
         ("dialog.body", lambda: ui.dialog("d", "T", x, "Go", "Stop")),
-        ("dialog.confirm", lambda: ui.dialog("d", "T", "B", x, "Stop")),
-        ("dialog.cancel", lambda: ui.dialog("d", "T", "B", "Go", x)),
+        ("dialog.confirm_label", lambda: ui.dialog("d", "T", "B", x, "Stop")),
+        ("dialog.cancel_label", lambda: ui.dialog("d", "T", "B", "Go", x)),
         ("disclosure.summary", lambda: ui.disclosure(x, "b")),
         ("disclosure.body", lambda: ui.disclosure("s", x)),
         ("disclosure.data", lambda: ui.disclosure("s", "b", data={"k": x})),
         ("tabs.label", lambda: ui.tabs(x, [("a", "A", "a")])),
-        ("tabs.id", lambda: ui.tabs("L", [(x, "A", "a")])),
-        ("tabs.title", lambda: ui.tabs("L", [("a", x, "a")])),
-        ("tabs.body", lambda: ui.tabs("L", [("a", "A", x)])),
+        ("tabs.items", lambda: ui.tabs("L", [("a", x, "a")])),
+        ("tabs.items#body", lambda: ui.tabs("L", [("a", "A", x)])),
         ("clamp.text", lambda: ui.clamp(x)),
         ("region_state.message", lambda: ui.region_state("error", x, retry=True)),
-        ("stale_banner.age", lambda: ui.stale_banner(x, "c")),
+        ("stale_banner.age_text", lambda: ui.stale_banner(x, "c")),
         ("stale_banner.cause", lambda: ui.stale_banner("1 min", x)),
-        ("shell.view_id", lambda: ui.shell([(x, "V")], x)),
-        ("shell.view_title", lambda: ui.shell([("v", x)], "v")),
-        ("fragment", lambda: ui.fragment(x)),
+        ("shell.views", lambda: ui.shell([("v", x)], "v")),
+        ("shell.body", lambda: ui.shell([("v", "V")], "v", body=x)),
+        ("fragment.parts", lambda: ui.fragment(x)),
     ]
 
 
-@pytest.mark.parametrize("name,call", _calls(PAYLOAD), ids=[n for n, _ in _calls(PAYLOAD)])
-def test_every_component_escapes_every_argument(name, call):
+def _refusals(x):
+    """(component.param, thunk): the payload in an id, enum, number or flag position, expected REFUSED."""
+    return [
+        ("badge.severity", lambda: ui.badge(x, "t")),
+        ("card.id", lambda: ui.card("t", "b", id=x)),
+        ("table.label_id", lambda: ui.table(x, "L", ["h"], [["c"]])),
+        ("button.kind", lambda: ui.button("b", kind=x)),
+        ("field.kind", lambda: ui.field("l", name="n", id="i", kind=x)),
+        ("field.id", lambda: ui.field("l", name="n", id=x)),
+        ("group.tag", lambda: ui.group("b", tag=x)),
+        ("group.id", lambda: ui.group("b", id=x)),
+        ("value_of.input_id", lambda: ui.value_of(x)),
+        ("dialog.id", lambda: ui.dialog(x, "T", "B", "Go", "Stop")),
+        ("dialog.note", lambda: ui.dialog("d", "T", "B", "Go", "Stop", note=x)),
+        ("disclosure.open", lambda: ui.disclosure("s", "b", open=x)),
+        ("disclosure.id", lambda: ui.disclosure("s", "b", id=x)),
+        ("tabs.items#id", lambda: ui.tabs("L", [(x, "A", "a")])),
+        ("clamp.lines", lambda: ui.clamp("t", lines=x)),
+        ("region_state.kind", lambda: ui.region_state(x, "m")),
+        ("region_state.retry", lambda: ui.region_state("error", "m", retry=x)),
+        ("freshness.read_ts", lambda: ui.freshness(x, 20)),
+        ("freshness.cadence_s", lambda: ui.freshness(1.0, x)),
+        ("shell.views#id", lambda: ui.shell([(x, "V")], "v")),
+        ("shell.active", lambda: ui.shell([("v", "V")], x)),
+    ]
+
+
+@pytest.mark.parametrize("name,call", _escapes(PAYLOAD), ids=[n for n, _ in _escapes(PAYLOAD)])
+def test_every_component_escapes_every_text_argument(name, call):
     out = call()
-    assert isinstance(out, ui.Safe), name
+    assert type(out) is ui.Safe, name
     assert PAYLOAD not in out, name
     assert "<script>alert" not in out, name
     assert ESCAPED in out, name
 
 
-def test_the_escape_matrix_covers_every_component():
-    """A component added without an escape case is a hole; the matrix names every public builder."""
-    covered = {n.split(".")[0] for n, _ in _calls("x")}
-    builders = {
-        n
-        for n, f in inspect.getmembers(ui, inspect.isfunction)
-        if f.__module__ == ui.__name__ and not n.startswith("_")
-    }
-    assert builders - covered - {"live_region", "freshness"} == set()
+@pytest.mark.parametrize("name,call", _refusals(PAYLOAD), ids=[n for n, _ in _refusals(PAYLOAD)])
+def test_every_id_enum_number_and_flag_argument_refuses_anything_else(name, call):
+    with pytest.raises((ValueError, TypeError)):
+        call()
+
+
+def test_the_matrix_covers_every_parameter_of_every_component():
+    """A component or a parameter added without a matrix row is a hole: read the signatures."""
+    covered = {n.split("#")[0] for n, _ in _escapes("x") + _refusals("x")}
+    wanted = set()
+    for name, fn in inspect.getmembers(ui, inspect.isfunction):
+        if fn.__module__ != ui.__name__ or name.startswith("_"):
+            continue
+        for param in inspect.signature(fn).parameters:
+            wanted.add(f"{name}.{param}")
+    assert wanted - covered == set()
+    assert "live_region" in {n for n, f in inspect.getmembers(ui, inspect.isfunction)}
+
+
+@pytest.mark.parametrize("bad", ["", "1a", "a b", 'a"b', "a<b", "-a", "a/b"])
+def test_an_id_outside_the_html_id_alphabet_is_refused(bad):
+    for call in (
+        lambda: ui.card("t", "b", id=bad),
+        lambda: ui.field("l", name="n", id=bad),
+        lambda: ui.dialog(bad, "T", "B", "Go", "Stop"),
+        lambda: ui.tabs("L", [(bad, "A", "a")]),
+        lambda: ui.value_of(bad),
+    ):
+        with pytest.raises(ValueError):
+            call()
+    assert 'id="ok:a_1-b"' in ui.card("t", "b", id="ok:a_1-b")
+
+
+def test_tabs_refuse_duplicate_ids():
+    with pytest.raises(ValueError):
+        ui.tabs("L", [("a", "A", "1"), ("a", "B", "2")])
+
+
+def test_none_renders_as_nothing_and_a_none_data_value_is_skipped():
+    for out in (
+        ui.badge("ok", None),
+        ui.card("t", "b", actions=None),
+        ui.field("l", name="n", id="i", value=None, placeholder=None),
+        ui.button("b", data={"post": None}),
+        ui.fragment(None, "x"),
+    ):
+        assert "None" not in out
+    assert "data-post" not in ui.button("b", data={"post": None})
+    assert "placeholder" not in ui.field("l", name="n", id="i", placeholder=None)
+
+
+def test_bool_and_tuple_data_values_are_json():
+    btn = find_all(parse(ui.button("b", data={"flag": True, "pair": (1, "a")})), "button")[0]
+    assert btn.attrs["data-flag"] == "true" and btn.attrs["data-pair"] == '[1,"a"]'
 
 
 @pytest.mark.parametrize(
-    "call",
-    [
-        lambda: ui.badge(PAYLOAD, "t"),
-        lambda: ui.button("b", kind=PAYLOAD),
-        lambda: ui.field("l", name="n", id="i", kind=PAYLOAD),
-        lambda: ui.group("b", tag=PAYLOAD),
-        lambda: ui.dialog("d", "T", "B", "Go", "Stop", note=PAYLOAD),
-        lambda: ui.region_state(PAYLOAD, "m"),
-        lambda: ui.clamp("t", lines=PAYLOAD),
-        lambda: ui.freshness(PAYLOAD, 20),
-        lambda: ui.freshness(1.0, PAYLOAD),
-    ],
+    "key", ["kind", "severity", "state", "expanded", "lines", "clamp", "retry", "value-of"]
 )
-def test_enumerated_and_numeric_arguments_refuse_anything_else(call):
-    with pytest.raises((ValueError, TypeError)):
-        call()
+def test_a_data_key_owned_by_a_component_is_refused(key):
+    with pytest.raises(ValueError):
+        ui.button("b", data={key: "x"})
+
+
+def test_a_subclass_of_safe_is_escaped():
+    class Sneaky(ui.Safe):
+        pass
+
+    assert "&lt;b&gt;" in ui.card("t", Sneaky("<b>x</b>"))
 
 
 @pytest.mark.parametrize(
@@ -255,6 +314,13 @@ def test_the_dialog_is_native_has_a_verb_confirm_and_no_default_yes():
     assert all("autofocus" not in b.attrs for b in find_all(root, "button"))
     assert not find_all(root, "textarea")
     assert "It authorises the deploy." in dlg[0].all_text()
+    forms = find_all(dlg[0], "form")
+    assert len(forms) == 1 and forms[0].attrs.get("method") == "dialog"
+
+
+def test_value_of_names_its_input_in_data_value_of():
+    span = find_all(parse(ui.value_of("cap-a")), "span")[0]
+    assert span.attrs["data-value-of"] == "cap-a"
 
 
 @pytest.mark.parametrize("note", ["optional", "required"])
@@ -328,6 +394,7 @@ def test_region_state_freshness_live_region_and_banner():
     ] == "status"
     t = find_all(parse(ui.freshness(0.0, 20)), "time")[0]
     assert t.attrs["datetime"] == "1970-01-01T00:00:00+00:00" and t.attrs["data-cadence"] == "20"
+    assert t.attrs["data-ts"] == "0"
     never_stale = find_all(parse(ui.freshness(0.0, None)), "time")[0]
     assert never_stale.attrs["data-cadence"] == ""
     live = [n for n in parse(ui.live_region()).walk() if n.attrs.get("aria-live") == "polite"]
@@ -350,6 +417,37 @@ def _shell() -> str:
     return ui.shell([("overview", "Overview"), ("work", "Work")], "work")
 
 
+@pytest.mark.parametrize(
+    "kind,retry", [("error", False), ("loading", True), ("empty", True), ("loading", False)]
+)
+def test_retry_shows_only_on_an_error_that_asks_for_it(kind, retry):
+    root = parse(ui.region_state(kind, "m", retry=retry))
+    assert [b for b in find_all(root, "button") if "data-retry" in b.attrs] == []
+    assert cat.t("state.retry") not in root.all_text()
+
+
+@pytest.mark.parametrize(
+    "read_ts,cadence",
+    [
+        (float("nan"), 20),
+        (float("inf"), 20),
+        (-1.0, 20),
+        (True, 20),
+        ("12", 20),
+        (1e300, 20),
+        (1.0, 0),
+        (1.0, -5),
+        (1.0, float("nan")),
+        (1.0, float("inf")),
+        (1.0, True),
+        (1.0, "20"),
+    ],
+)
+def test_freshness_refuses_a_timestamp_or_cadence_that_is_not_a_real_number(read_ts, cadence):
+    with pytest.raises(ValueError):
+        ui.freshness(read_ts, cadence)
+
+
 def test_the_skip_link_is_the_first_focusable_element():
     root = parse(_shell())
     body = find_all(root, "body")[0]
@@ -366,6 +464,7 @@ def test_the_skip_link_is_the_first_focusable_element():
     main = find_all(root, "main")
     assert len(main) == 1 and main[0].attrs["id"] == "view" and main[0].attrs["data-view"] == "work"
     assert len(find_all(root, "h1")) == 1
+    assert find_all(root, "html")[0].attrs["lang"] == cat.t("app.lang")
 
 
 def test_the_theme_script_runs_in_head_before_the_stylesheet_inside_try():
@@ -427,6 +526,41 @@ def test_an_unknown_key_raises():
         cat.t("sev.ok")
 
 
+def test_a_template_with_slots_called_without_fields_raises():
+    with pytest.raises(KeyError):
+        cat.t("act.failed")
+
+
+def test_use_is_isolated_per_thread_when_blocks_interleave():
+    import threading
+
+    a, b = {**cat.CATALOGUE, "sev.ok": "A"}, {**cat.CATALOGUE, "sev.ok": "B"}
+    seen: dict[str, str] = {}
+    a_in, b_in, a_out = threading.Event(), threading.Event(), threading.Event()
+
+    def run_a():
+        with cat.use(a):
+            a_in.set()
+            b_in.wait(5)
+            seen["a"] = cat.t("sev.ok")
+        a_out.set()
+
+    def run_b():
+        a_in.wait(5)
+        with cat.use(b):
+            b_in.set()
+            a_out.wait(5)
+            seen["b"] = cat.t("sev.ok")
+
+    ts = [threading.Thread(target=run_a), threading.Thread(target=run_b)]
+    for th in ts:
+        th.start()
+    for th in ts:
+        th.join(10)
+    assert seen == {"a": "A", "b": "B"}
+    assert cat.t("sev.ok") == cat.CATALOGUE["sev.ok"]
+
+
 def test_t_formats_fields():
     assert cat.t("act.failed", error="boom") == cat.CATALOGUE["act.failed"].format(error="boom")
     assert "boom" in cat.t("act.failed", error="boom")
@@ -471,11 +605,96 @@ def test_under_a_stand_in_catalogue_no_built_in_english_remains():
         assert "§" + k in out, k
 
 
+_NAME = re.compile(r"[a-z0-9_.:# \\\x00-]*")
+_ATTR_FRAGMENT = re.compile(r'(\s+[a-z-]+(="[^"<>]*")?)+\s*')
+_LABEL_ATTRS = ("aria-label", "title", "alt", "placeholder", "aria-description")
+_ALLOWED = {"%H:%M:%S"}  # a strftime format, not words
+
+
+def _visible_words(src: str) -> list[str]:
+    """Every string literal in ``src`` that would put WORDS on the page: text between tags, or a
+    labelling attribute's value. Literals inside t() calls, raise statements and docstrings, and
+    literals that are names (attribute names, keys, enum values), are not words."""
+    import ast
+
+    tree = ast.parse(src)
+    skip: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "t":
+            skip |= {id(n) for n in ast.walk(node)}
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") in (
+            "compile",
+            "fullmatch",
+            "match",
+        ):
+            skip |= {id(n) for n in ast.walk(node)}
+        if isinstance(node, ast.Raise):
+            skip |= {id(n) for n in ast.walk(node)}
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                skip.add(id(first.value))
+        if isinstance(node, ast.Assign) and any(
+            getattr(t, "id", "") == "_THEME_SCRIPT" for t in node.targets
+        ):
+            skip |= {id(n) for n in ast.walk(node)}
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_attr"
+            and len(node.args) == 2
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value in _LABEL_ATTRS
+            and isinstance(node.args[1], ast.Constant)
+            and re.search("[A-Za-z]", str(node.args[1].value))
+        ):
+            return [str(node.args[1].value)]
+    texts = []
+    for node in ast.walk(tree):
+        if id(node) in skip:
+            continue
+        if isinstance(node, ast.JoinedStr):
+            skip |= {id(v) for v in node.values}
+            texts.append(
+                "".join(v.value if isinstance(v, ast.Constant) else "\0" for v in node.values)
+            )
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            texts.append(node.value)
+    bad = []
+    for text in texts:
+        if text in _ALLOWED or ("<" not in text and ">" not in text and _NAME.fullmatch(text)):
+            continue
+        for attr in _LABEL_ATTRS:
+            for value in re.findall(attr + r'="([^"\0]*)"', text):
+                if re.search("[A-Za-z]", value):
+                    bad.append(value)
+        if "<" not in text and ">" not in text and _ATTR_FRAGMENT.fullmatch(text):
+            continue
+        stripped = re.sub(r"<[^<>]*>", "", text)
+        stripped = re.sub(r"^[^<]*>", "", stripped) if ">" in stripped.split("<")[0] else stripped
+        stripped = re.sub(r"<[^>]*$", "", stripped)
+        if re.search("[A-Za-z]", stripped):
+            bad.append(text)
+    return bad
+
+
 def test_no_user_visible_literal_in_components_outside_the_catalogue():
-    """Every >-delimited text run in components.py source is markup only — words come from strings.t."""
-    src = (_PKG / "components.py").read_text(encoding="utf-8")
-    runs = re.findall(r">([A-Za-z][A-Za-z ,.'!?-]{2,})<", src)
-    assert runs == []
+    """Words come from strings.t: no literal in components.py puts English on the page."""
+    assert _visible_words((_PKG / "components.py").read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        "def f():\n    return Safe('<p>Close:</p>')\n",
+        "def f(x):\n    return Safe(f'<p class=\"a\">{x} more</p>')\n",
+        "def f():\n    return Safe('<button aria-label=\"Close\">x</button>')\n",
+        "def f():\n    return _attr('aria-label', 'close')\n",
+        "def f():\n    return 'Close'\n",
+    ],
+)
+def test_the_literal_guard_catches_hard_coded_words(mutant):
+    assert _visible_words(mutant) != []
 
 
 # ---------------------------------------------------------------- app.css: tokens and contrast
@@ -531,6 +750,51 @@ def _palette_and_mappings():
     return _decls(palette[0]), _decls(light[0]), _decls(dark[0]), _decls(system[0])
 
 
+_NAMED = frozenset(
+    re.findall(
+        r"[a-z]+",
+        "aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown "
+        "burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan "
+        "darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred "
+        "darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink "
+        "deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold "
+        "goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush "
+        "lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey "
+        "lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime "
+        "limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen "
+        "mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin "
+        "navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise "
+        "palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue "
+        "saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow "
+        "springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen "
+        "canvas canvastext linktext visitedtext activetext buttonface buttontext buttonborder field fieldtext "
+        "highlight highlighttext mark marktext graytext accentcolor accentcolortext",
+    )
+)
+_COLOUR_FN = re.compile(
+    r"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|[a-z-]*gradient)\(", re.I
+)
+
+
+def _colour_leaks(css: str) -> list[str]:
+    """Every colour that is not a palette reference, outside the one palette block."""
+    blocks = _blocks(css)
+    out = []
+    for sel, body in blocks:
+        decls = _decls(body)
+        if sel == ":root" and decls and all(k.startswith("--c-") for k in decls):
+            continue
+        for prop, value in decls.items():
+            v = re.sub(r"var\(--[a-z0-9-]+(,[^)]*)?\)", "", value)
+            if _COLOUR.search(v) or _COLOUR_FN.search(v):
+                out.append(f"{sel} {prop}: {value}")
+                continue
+            words = re.findall(r"(?<![-\w])[a-zA-Z]+(?![-\w(])", v)
+            if prop != "font-family" and any(w.lower() in _NAMED for w in words):
+                out.append(f"{sel} {prop}: {value}")
+    return out
+
+
 def test_no_colour_literal_outside_the_one_palette_block():
     css = _css()
     pal = [
@@ -539,14 +803,26 @@ def test_no_colour_literal_outside_the_one_palette_block():
         if s == ":root" and all(k.startswith("--c-") for k in _decls(b)) and _decls(b)
     ]
     assert len(pal) == 1
-    rest = css.replace(pal[0], "")
-    assert _COLOUR.findall(rest) == []
-    assert all(
-        _COLOUR.fullmatch(v) or re.fullmatch(r"#[0-9a-fA-F]{6}", v) for v in _decls(pal[0]).values()
-    )
+    assert all(re.fullmatch(r"#[0-9a-f]{6}", v) for v in _decls(pal[0]).values())
+    assert _colour_leaks(css) == []
     src = (_PKG / "components.py").read_text(encoding="utf-8")
-    assert _COLOUR.findall(src) == []
+    assert _COLOUR.findall(src) == [] and not _COLOUR_FN.search(src)
     assert "style=" not in src and "<iframe" not in src
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        ".x { color: white; }",
+        ".x { background: color-mix(in srgb, var(--surface) 50%, var(--text)); }",
+        ".x { background: linear-gradient(black, hotpink); }",
+        ".x { border: 1px solid #000; }",
+        ".x { box-shadow: 0 0 0 1px rgb(0 0 0); }",
+        ".x { color: oklch(50% 0.1 30); }",
+    ],
+)
+def test_the_colour_guard_catches_every_colour_shape(mutant):
+    assert _colour_leaks(_css() + mutant) != []
 
 
 def _lum(hexv: str) -> float:
@@ -567,19 +843,48 @@ def test_the_luminance_formula_is_the_wcag_one():
 
 
 SURFACES = ("--surface", "--surface-1", "--surface-2")
-TEXT = ("--text", "--text-muted")
-MARKS = ("--border", "--focus", "--accent", "--danger") + tuple(f"--sev-{s}" for s in ui.SEVERITIES)
+# every token app.css paints TEXT with: the body text, muted text, links (accent), the inline error
+# and stale stamp (severities), and the danger colour
+TEXT = ("--text", "--text-muted", "--accent", "--danger") + tuple(
+    f"--sev-{s}" for s in ui.SEVERITIES
+)
+MARKS = ("--border", "--focus")
 ON = (("--on-accent", "--accent"), ("--on-danger", "--danger"))
+
+
+def _text_tokens_used_in_css() -> set[str]:
+    out = set()
+    for _sel, body in _blocks(_css()):
+        for prop, value in _decls(body).items():
+            if prop == "color":
+                out |= set(re.findall(r"var\((--[a-z0-9-]+)\)", value))
+    return out
+
+
+def test_every_token_used_as_text_is_graded_as_text():
+    assert _text_tokens_used_in_css() - set(TEXT) - {"--on-accent", "--on-danger"} == set()
 
 
 def test_every_mapping_is_palette_references_only_and_the_two_dark_ones_match():
     palette, light, dark, system = _palette_and_mappings()
     for mapping in (light, dark, system):
         for k, v in mapping.items():
+            if k == "color-scheme":
+                continue
             m = re.fullmatch(r"var\((--c-[a-z0-9-]+)\)", v)
             assert m and m.group(1) in palette, (k, v)
     assert dark == system
     assert set(light) == set(dark) >= set(SURFACES + TEXT + MARKS + tuple(a for a, _ in ON))
+
+
+def test_color_scheme_follows_the_theme():
+    _palette, light, dark, system = _palette_and_mappings()
+    assert (
+        light["color-scheme"] == "light"
+        and dark["color-scheme"] == "dark" == system["color-scheme"]
+    )
+    forced_light = [b for s, b in _blocks(_css()) if s == '[data-theme="light"]']
+    assert forced_light and _decls(forced_light[0])["color-scheme"] == "light"
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
@@ -604,17 +909,68 @@ def test_contrast_is_computed_for_every_pair_in_both_themes(theme):
     assert len(low) == 3 * (len(TEXT) + len(MARKS)) + len(ON)
 
 
+def _rule(selector: str) -> dict[str, str]:
+    hits = [_decls(b) for s, b in _blocks(_css()) if s == selector]
+    assert hits, selector
+    merged: dict[str, str] = {}
+    for h in hits:
+        merged.update(h)
+    return merged
+
+
+_OUTLINE_OFF = re.compile(r"outline\s*:\s*(none|0)\b|outline-(width|style)\s*:\s*(0|none)\b")
+
+
 def test_layout_rules_mobile_first_motion_and_focus():
     css = _css()
-    assert "max-width:" not in re.sub(
-        r"\s", "", " ".join(s for s, _ in _blocks(css) if s.startswith("@media"))
-    )
+    media = [s for s, _ in _blocks(css) if s.startswith("@media")]
+    assert not any("max-width" in m for m in media)
     widths = set(re.findall(r"@media[^{]*min-width:\s*(\d+)px", css))
-    assert widths <= {"640", "768", "1024", "1280", "1536"} and "1024" in widths
-    reduced = [b for s, b in _blocks(css) if "prefers-reduced-motion: reduce" in s]
-    assert reduced and any(
-        "transition-duration: 0ms" in b or "transition: none" in b for b in reduced
-    )
-    assert any("pointer: coarse" in s for s, _ in _blocks(css))
-    assert "outline: none" not in css and "outline:none" not in css
-    assert "scroll-padding-top" in css
+    assert widths == {"640", "768", "1024", "1280", "1536"}
+    reduced = [_decls(b) for s, b in _blocks(css) if "prefers-reduced-motion: reduce" in s]
+    assert reduced and reduced[0]["transition-duration"].startswith("0ms")
+    assert reduced[0]["animation-duration"].startswith("0ms")
+    html = _rule("html")
+    assert html["--target"] == "24px" and html["--ring"] == "2px"
+    coarse = [_decls(b) for s, b in _blocks(css) if "pointer: coarse" in s]
+    assert coarse and coarse[0]["--target"] == "44px"
+    focus = _rule(":focus-visible")
+    assert "var(--ring)" in focus["outline"] and "var(--focus)" in focus["outline"]
+    assert _OUTLINE_OFF.findall(css) == []
+    assert "scroll-padding-top" in html
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        ".x { outline: none; }",
+        ".x { outline: 0; }",
+        ".x { outline-width: 0; }",
+        ".x { outline-style: none; }",
+    ],
+)
+def test_the_focus_guard_catches_every_way_to_remove_the_ring(mutant):
+    assert _OUTLINE_OFF.findall(mutant)
+
+
+def test_scroll_containers_leave_room_for_the_focus_ring():
+    for sel in (".table-wrap", ".sidebar"):
+        rule = _rule(sel)
+        assert "padding" in rule and "scroll-padding" in rule, sel
+
+
+def test_the_topbar_height_is_fixed_and_the_brand_ellipsises():
+    bar = _rule(".topbar")
+    assert bar.get("height") == "var(--topbar-h)" and "min-height" not in bar
+    brand = _rule(".brand")
+    assert brand.get("text-overflow") == "ellipsis" and brand.get("white-space") == "nowrap"
+
+
+def test_the_table_region_has_a_max_height_so_its_header_sticks():
+    assert _rule(".table-wrap").get("max-height") == "70vh"
+
+
+def test_a_disabled_button_is_muted_and_dashed_not_faded():
+    rule = _rule(".btn:disabled")
+    assert "opacity" not in rule and rule.get("color") == "var(--text-muted)"
+    assert rule.get("border-style") == "dashed"

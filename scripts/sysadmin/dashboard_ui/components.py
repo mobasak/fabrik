@@ -4,8 +4,9 @@ Every function returns `Safe`, a `str` subclass that marks markup a component bu
 that is not `Safe` is escaped with `html.escape(str(x), quote=True)` before it reaches the markup, and
 `fragment` is the one sanctioned way to join parts: a plain `"".join` or `+` yields a plain `str`,
 which the next component escapes again — double-escaped text is visible and loud, never an injection.
-Every `data=` / `row_data` mapping becomes `data-<key>` attributes; a key outside `[a-z0-9-]+` raises
-`ValueError`, because an attribute NAME cannot be escaped into safety. Every word a component writes
+Every `data=` / `row_data` mapping becomes `data-<key>` attributes; a key outside `[a-z0-9-]+`, or one
+a component writes itself (`RESERVED_DATA_KEYS`), raises `ValueError`, because an attribute NAME cannot
+be escaped into safety. Every element id must match `[A-Za-z][A-Za-z0-9_:-]*`. ``None`` renders as nothing. Every word a component writes
 itself comes from `strings.t`; colour lives only in `static/app.css` (INV-3) — components name
 severities and states as attributes, never as colours.
 
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -39,6 +41,15 @@ STATES = ("loading", "empty", "error")
 CLAMP_LINES = range(1, 7)
 
 _DATA_KEY = re.compile(r"[a-z0-9-]+")
+_ID = re.compile(r"[A-Za-z][\w:-]*", re.ASCII)
+# data-* names a component writes itself; a caller's data= may not shadow them
+RESERVED_DATA_KEYS = frozenset(
+    {
+        "kind", "severity", "state", "expanded", "lines", "clamp", "clamp-toggle", "retry", "value-of",
+        "dialog-note", "dialog-error", "dialog-confirm", "dialog-cancel", "tabs", "theme-toggle", "menu",
+        "nav", "live", "still", "inline-error", "open",
+    }
+)  # fmt: skip
 
 
 class Safe(str):
@@ -48,7 +59,21 @@ class Safe(str):
 
 
 def _esc(x: object) -> str:
-    return x if isinstance(x, Safe) else html.escape(str(x), quote=True)
+    if type(x) is Safe:  # exactly Safe: a subclass is not this module's output
+        return x
+    return "" if x is None else html.escape(str(x), quote=True)
+
+
+def _id(value: object, what: str = "id") -> str:
+    if not isinstance(value, str) or not _ID.fullmatch(value):
+        raise ValueError(f"{what} {value!r} is outside [A-Za-z][A-Za-z0-9_:-]*")
+    return value
+
+
+def _flag(value: object, what: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{what} must be True or False, not {value!r}")
+    return value
 
 
 def _attr(name: str, value: object) -> str:
@@ -62,9 +87,11 @@ def _data(data: Mapping[str, object] | None) -> str:
     for key, value in data.items():
         if not isinstance(key, str) or not _DATA_KEY.fullmatch(key):
             raise ValueError(f"data attribute name {key!r} is outside [a-z0-9-]+")
+        if key in RESERVED_DATA_KEYS:
+            raise ValueError(f"data attribute name {key!r} is written by the component itself")
         if value is None:
             continue
-        if isinstance(value, (dict, list)):
+        if isinstance(value, (dict, list, tuple, bool)):
             value = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
         out.append(_attr(f"data-{key}", value))
     return "".join(out)
@@ -106,7 +133,7 @@ def card(
         head = fragment(head, Safe('<span class="card-age">'), age, Safe("</span>"))
     acts = _esc(actions)
     return Safe(
-        f'<article class="card"{_attr("id", id) if id is not None else ""}>'
+        f'<article class="card"{_attr("id", _id(id)) if id is not None else ""}>'
         f'<header class="card-head">{head}</header>'
         f'<div class="card-body">{_esc(body)}</div>'
         + (f'<div class="card-actions">{acts}</div>' if acts else "")
@@ -123,6 +150,7 @@ def table(
     row_data: Sequence[Mapping[str, object] | None] | None = None,
 ) -> Safe:
     """A real table inside a labelled, focusable scroll region; the first cell of a row is its header."""
+    label_id = _id(label_id, "table label id")
     head = "".join(f'<th scope="col">{_esc(h)}</th>' for h in headers)
     body = []
     for i, row in enumerate(rows):
@@ -163,8 +191,9 @@ def field(
 ) -> Safe:
     """A form field with a visible `<label for>`."""
     _choice(kind, FIELD_KINDS, "field kind")
-    common = f"{_attr('id', id)}{_attr('name', name)}"
-    if placeholder != "":
+    id = _id(id, "field id")  # noqa: A001
+    common = f"{_attr('id', id)}{_attr('name', '' if name is None else name)}"
+    if placeholder not in ("", None):
         common += _attr("placeholder", placeholder)
     common += _data(data)
     if kind == "textarea":
@@ -175,7 +204,7 @@ def field(
             extra += ' inputmode="decimal" step="any"'
             extra += _attr("min", min) if min is not None else ""
             extra += _attr("max", max) if max is not None else ""
-        ctrl = f'<input class="input"{_attr("type", kind)}{common}{_attr("value", value)}{extra}>'
+        ctrl = f'<input class="input"{_attr("type", kind)}{common}{_attr("value", "" if value is None else value)}{extra}>'
     return Safe(f'<div class="field"><label{_attr("for", id)}>{_esc(label)}</label>{ctrl}</div>')
 
 
@@ -184,13 +213,15 @@ def group(
 ) -> Safe:
     """A container carrying attributes — a filter group, a pick group, a pane, a filterable section."""
     _choice(tag, GROUP_TAGS, "group tag")
-    ident = _attr("id", id) if id is not None else ""
+    ident = _attr("id", _id(id)) if id is not None else ""
     return Safe(f"<{tag}{ident}{_data(data)}>{_esc(body)}</{tag}>")
 
 
 def value_of(input_id: object) -> Safe:
     """The span a dialog body embeds; `app.js` fills it with that field's value when the dialog opens."""
-    return Safe(f'<span class="value-of"{_attr("data-value-of", input_id)}></span>')
+    return Safe(
+        f'<span class="value-of"{_attr("data-value-of", _id(input_id, "input id"))}></span>'
+    )
 
 
 def dialog(
@@ -204,6 +235,7 @@ def dialog(
 ) -> Safe:
     """A native confirm dialog: the body states the request and its consequence; no default yes."""
     _choice(note, NOTES, "note")
+    id = _id(id, "dialog id")  # noqa: A001
     title_id = f"{id}-title"
     note_html = ""
     if note is not None:
@@ -235,7 +267,8 @@ def disclosure(
     id: object = None,
 ) -> Safe:
     """A `<details>` disclosure; ``id`` lets `app.js` keep it open across a refresh."""
-    ident = _attr("id", id) if id is not None else ""
+    _flag(open, "disclosure open")
+    ident = _attr("id", _id(id)) if id is not None else ""
     return Safe(
         f'<details class="disclosure"{ident}{" open" if open else ""}{_data(data)}>'
         f"<summary>{_esc(summary)}</summary>"
@@ -246,7 +279,12 @@ def disclosure(
 def tabs(label: object, items: Sequence[tuple[object, object, object]]) -> Safe:
     """WAI-ARIA APG tabs: one tablist, one panel per tab, the first selected."""
     btns, panels = [], []
+    seen: set[str] = set()
     for i, (ident, title, body) in enumerate(items):
+        _id(ident, "tab id")
+        if ident in seen:
+            raise ValueError(f"tab id {ident!r} appears twice")
+        seen.add(ident)
         tab_id, panel_id = f"tab-{ident}", f"panel-{ident}"
         sel = i == 0
         btns.append(
@@ -277,10 +315,11 @@ def clamp(text: object, lines: int = 3) -> Safe:
 def region_state(kind: str, message: object, *, retry: bool = False) -> Safe:
     """A region's loading, empty or error state, in words; an error may offer Retry."""
     _choice(kind, STATES, "state")
+    _flag(retry, "retry")
     role = "alert" if kind == "error" else "status"
     again = (
         f'<button type="button" class="btn" data-kind="secondary" data-retry>{_esc(t("state.retry"))}</button>'
-        if retry
+        if retry and kind == "error"
         else ""
     )
     icon = (
@@ -297,24 +336,41 @@ def region_state(kind: str, message: object, *, retry: bool = False) -> Safe:
 def freshness(read_ts: float | None, cadence_s: float | None) -> Safe:
     """A `<time>` stamp of the last read; `app.js` ticks it relative and marks it stale after two
     missed ``cadence_s`` intervals. ``cadence_s=None`` never goes stale; ``read_ts=None`` is "not read"."""
-    cadence = "" if cadence_s is None else _num(cadence_s)
+    if cadence_s is None:
+        cadence = ""
+    else:
+        if _real(cadence_s, "cadence") <= 0:
+            raise ValueError(f"cadence {cadence_s!r} must be above 0")
+        cadence = _num(cadence_s)
     if read_ts is None:
         return Safe(
             f'<time class="freshness"{_attr("data-cadence", cadence)}>{_esc(t("fresh.never"))}</time>'
         )
-    ts = float(read_ts)
-    when = datetime.fromtimestamp(ts, tz=UTC)
-    local = datetime.fromtimestamp(ts).astimezone().strftime("%H:%M:%S")
+    ts = _real(read_ts, "read time")
+    if ts < 0:
+        raise ValueError(f"read time {read_ts!r} is before 1970")
+    try:
+        when = datetime.fromtimestamp(ts, tz=UTC)
+        local = datetime.fromtimestamp(ts).astimezone().strftime("%H:%M:%S")
+    except (OverflowError, OSError) as exc:
+        raise ValueError(f"read time {read_ts!r} is out of range") from exc
     return Safe(
         f'<time class="freshness"{_attr("datetime", when.isoformat())}{_attr("data-ts", _num(ts))}'
         f"{_attr('data-cadence', cadence)}>{_esc(t('fresh.read_at', time=local))}</time>"
     )
 
 
+def _real(x: object, what: str) -> float:
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        raise ValueError(f"{what} {x!r} is not a number")
+    v = float(x)
+    if not math.isfinite(v):
+        raise ValueError(f"{what} {x!r} is not finite")
+    return v
+
+
 def _num(x: object) -> str:
-    if isinstance(x, bool):
-        raise TypeError("a number, not a bool")
-    v = float(x)  # raises ValueError / TypeError on anything else
+    v = _real(x, "number")
     return str(int(v)) if v.is_integer() else repr(v)
 
 
@@ -352,6 +408,8 @@ def shell(
 
     ``views`` is ``[(id, title), …]``; ``active`` the id first shown. `app.js` fetches the view
     fragment into ``<main>`` unless ``body`` is given."""
+    views = [(_id(vid, "view id"), title) for vid, title in views]
+    _id(active, "active view id")
     links = "".join(
         f"<li><a{_attr('href', '#' + str(vid))}{_attr('data-nav', vid)}"
         f"{_attr('aria-current', 'page') if vid == active else ''}>{_esc(title)}</a></li>"
@@ -381,5 +439,6 @@ def shell(
         f'<template id="qd-state-loading">{region_state("loading", t("state.loading"))}</template>'
         f'<template id="qd-state-error">{region_state("error", t("state.too_long"), retry=True)}</template>'
         f'<template id="qd-state-failed">{region_state("error", t("state.failed"), retry=True)}</template>'
+        f'<template id="qd-state-broken">{region_state("error", t("state.broken"), retry=True)}</template>'
         "</body></html>"
     )

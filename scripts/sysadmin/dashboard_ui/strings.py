@@ -17,7 +17,7 @@ catalogue-owned English survives; caller-supplied text is the caller's catalogue
 from __future__ import annotations
 
 import contextlib
-import threading
+import contextvars
 from collections.abc import Iterator, Mapping
 
 CATALOGUE: dict[str, str] = {
@@ -42,6 +42,7 @@ CATALOGUE: dict[str, str] = {
     "state.still_loading": "Still loading…",
     "state.too_long": "This is taking too long. Please try again.",
     "state.failed": "This view could not be loaded.",
+    "state.broken": "This view loaded but could not be shown. Reload the page; if it happens again, the view has a fault.",
     "state.retry": "Retry",
     "fresh.read_at": "Read at {time}",
     "fresh.never": "Not read yet",
@@ -63,31 +64,34 @@ CATALOGUE: dict[str, str] = {
     "act.refuse.range_or_empty": "Enter a number from {min} to {max}, or leave it empty.",
     "act.refuse.whole": "Enter a whole number from {min} to {max}.",
     "act.refuse.whole_or_empty": "Enter a whole number from {min} to {max}, or leave it empty.",
+    "act.refuse.confirm": "This action needs a confirmation step the page does not have. Nothing was sent.",
+    "act.refuse.no_reason": "This action needs a reason, but the page has no place to give one. Nothing was sent.",
+    "act.refuse.no_field": "The field this action reads is missing from the page. Nothing was sent.",
+    "act.refuse.path": "This button has no valid action. Nothing was sent.",
 }
 
-_lock = threading.Lock()
-_active: list[Mapping[str, str]] = [CATALOGUE]
+# per thread / per task: a `use` block in one request never leaks into another's render
+_active: contextvars.ContextVar[Mapping[str, str]] = contextvars.ContextVar(
+    "catalogue", default=CATALOGUE
+)
 
 
 def t(key: str, **fields: object) -> str:
-    """The active catalogue's text for ``key``, its ``{field}`` slots filled; ``KeyError`` if unknown."""
-    text = _active[0][key]
-    return text.format(**fields) if fields else text
+    """The active catalogue's text for ``key``, its ``{field}`` slots filled; ``KeyError`` if the key
+    is unknown or a slot is left unfilled (a raw ``{error}`` never reaches the page)."""
+    return _active.get()[key].format(**fields)
 
 
 def active() -> Mapping[str, str]:
     """The catalogue in force — what the shell hands to the script."""
-    return _active[0]
+    return _active.get()
 
 
 @contextlib.contextmanager
 def use(mapping: Mapping[str, str]) -> Iterator[None]:
     """Make ``mapping`` the active catalogue inside the block, restoring the previous one after."""
-    with _lock:
-        previous = _active[0]
-        _active[0] = mapping
+    token = _active.set(mapping)
     try:
         yield
     finally:
-        with _lock:
-            _active[0] = previous
+        _active.reset(token)

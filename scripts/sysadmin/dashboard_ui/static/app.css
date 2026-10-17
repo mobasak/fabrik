@@ -22,13 +22,14 @@
   --c-red-300: #fca5a5;
   --c-red-700: #b91c1c;
   --c-amber-300: #fcd34d;
-  --c-amber-700: #a16207;
+  --c-amber-800: #854d0e;
   --c-green-300: #86efac;
   --c-green-700: #15803d;
 }
 
 /* light mapping */
 :root {
+  color-scheme: light;
   --surface: var(--c-white);
   --surface-1: var(--c-slate-50);
   --surface-2: var(--c-slate-100);
@@ -41,14 +42,19 @@
   --danger: var(--c-red-700);
   --on-danger: var(--c-white);
   --sev-critical: var(--c-red-700);
-  --sev-warning: var(--c-amber-700);
+  --sev-warning: var(--c-amber-800);
   --sev-ok: var(--c-green-700);
   --sev-info: var(--c-blue-700);
   --sev-neutral: var(--c-slate-600);
 }
 
+[data-theme="light"] {
+  color-scheme: light;
+}
+
 /* dark mapping (chosen) */
 [data-theme="dark"] {
+  color-scheme: dark;
   --surface: var(--c-slate-900);
   --surface-1: var(--c-slate-800);
   --surface-2: var(--c-slate-700);
@@ -70,6 +76,7 @@
 /* dark mapping (system) — identical to the block above */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --surface: var(--c-slate-900);
     --surface-1: var(--c-slate-800);
     --surface-2: var(--c-slate-700);
@@ -109,7 +116,6 @@ html {
   --sidebar-w: 14rem;
   --line: 1px;
   --ring: 2px;
-  color-scheme: light dark;
   scroll-padding-top: calc(var(--topbar-h) + var(--space-md));
 }
 
@@ -177,16 +183,20 @@ a {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  min-height: var(--topbar-h);
-  padding: var(--space-sm) var(--space-md);
+  height: var(--topbar-h);
+  padding: 0 var(--space-md);
   background: var(--surface-1);
   border-bottom: var(--line) solid var(--border);
 }
 
 .brand {
   flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: var(--text-lg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .layout {
@@ -195,6 +205,8 @@ a {
 
 .sidebar {
   display: none;
+  padding: var(--space-xs);
+  scroll-padding: var(--space-sm);
   background: var(--surface-1);
   border-bottom: var(--line) solid var(--border);
 }
@@ -280,7 +292,8 @@ a {
 
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  color: var(--text-muted);
+  border-style: dashed;
 }
 
 .btn[aria-pressed="true"] {
@@ -407,7 +420,10 @@ textarea.input {
 /* table: the region scrolls, the page never does */
 .table-wrap {
   max-width: 100%;
+  max-height: 70vh;
   overflow: auto;
+  padding: var(--space-xs);
+  scroll-padding: var(--space-sm);
   margin: 0 0 var(--space-md);
   border: var(--line) solid var(--border);
   border-radius: var(--radius);

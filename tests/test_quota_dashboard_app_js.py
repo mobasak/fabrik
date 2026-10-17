@@ -9,8 +9,10 @@ bodies — never a class string or a pixel (`.windsurf/rules/core/45-testing-str
 from __future__ import annotations
 
 import json
+import re
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -33,7 +35,10 @@ class _State:
         self.fragments: dict[str, str] = {}
         self.gets: list[str] = []
         self.posts: list[tuple[str, dict, dict]] = []
+        self.get_headers: list[tuple[str, dict]] = []
         self.post_status = 200
+        self.post_delay = 0.0
+        self.post_error = "boom"
 
     def views_requested(self, path: str) -> int:
         with self.lock:
@@ -57,8 +62,16 @@ def _handler(state: _State):
             path = self.path.split("?", 1)[0]
             with state.lock:
                 state.gets.append(path)
+                state.get_headers.append((path, dict(self.headers)))
             if path == "/":
                 self._send(200, ui.shell(VIEWS, "overview").encode(), "text/html; charset=utf-8")
+            elif path == "/nostrings":
+                page = re.sub(
+                    r'<script type="application/json" id="qd-strings">.*?</script>',
+                    "",
+                    ui.shell(VIEWS, "overview"),
+                )
+                self._send(200, page.encode(), "text/html; charset=utf-8")
             elif path in ("/static/app.css", "/static/app.js"):
                 ctype = "text/css" if path.endswith(".css") else "text/javascript"
                 self._send(200, (_PKG / path.lstrip("/")).read_bytes(), ctype + "; charset=utf-8")
@@ -72,9 +85,11 @@ def _handler(state: _State):
             body = json.loads(self.rfile.read(n) or b"{}")
             with state.lock:
                 state.posts.append((self.path, body, dict(self.headers)))
-                code = state.post_status
+                code, delay, error = state.post_status, state.post_delay, state.post_error
+            if delay:
+                time.sleep(delay)
             self._send(
-                code, json.dumps({"ok": code == 200, "error": "boom"}).encode(), "application/json"
+                code, json.dumps({"ok": code == 200, "error": error}).encode(), "application/json"
             )
 
     return H
@@ -106,7 +121,10 @@ def board(server, browser):
         state.fragments.clear()
         state.gets.clear()
         state.posts.clear()
+        state.get_headers.clear()
         state.post_status = 200
+        state.post_delay = 0.0
+        state.post_error = "boom"
     ctx = browser.new_context(viewport={"width": 1280, "height": 900})
     page = ctx.new_page()
     page.clock.install()
@@ -638,3 +656,499 @@ def test_the_theme_cycles_system_light_dark_and_persists_without_a_flash(board):
     page.get_by_role("button", name=cat.t("shell.theme.dark")).click()
     assert page.evaluate("document.documentElement.getAttribute('data-theme')") is None
     assert page.evaluate("localStorage.getItem('qd-theme')") is None
+
+
+# ---------------------------------------------------------------- review round 1 regressions
+def _alert_texts(page) -> list[str]:
+    return page.eval_on_selector_all(
+        '[role="alert"]:not([hidden])', "es => es.map(e => e.textContent)"
+    )
+
+
+def test_a_view_fetch_carries_the_guard_header(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view("x")})
+    settle(page)
+    heads = [h for p, h in state.get_headers if p == "/v/overview"]
+    assert heads and heads[0].get("X-Quota-Dash") == "1"
+
+
+@pytest.mark.parametrize("confirm", ["dlg-missing", "not-a-dialog", ""])
+def test_a_confirm_that_resolves_to_no_dialog_refuses_and_never_posts(board, confirm):
+    state, page, open_ = board
+    frag = view(
+        ui.group("plain", id="not-a-dialog"),
+        ui.button(
+            "Accept", data={"post": "/item-verdict", "body": {"item": "W-1"}, "confirm": confirm}
+        ),
+    )
+    open_("#overview", {"overview": frag})
+    page.get_by_role("button", name="Accept").click()
+    settle(page)
+    assert posts(state) == []
+    assert cat.t("act.refuse.confirm") in _alert_texts(page)
+    assert page.locator("#live").inner_text() == cat.t("act.refuse.confirm")
+
+
+def test_a_required_note_without_a_dialog_refuses(board):
+    state, page, open_ = board
+    frag = view(ui.button("Reject", data={"post": "/item-verdict", "body": {}, "note": "required"}))
+    open_("#overview", {"overview": frag})
+    page.get_by_role("button", name="Reject").click()
+    settle(page)
+    assert posts(state) == [] and cat.t("act.refuse.no_reason") in _alert_texts(page)
+
+
+def test_a_number_input_whose_field_is_missing_refuses(board):
+    state, page, open_ = board
+    frag = view(
+        ui.button(
+            "Set cap", data={"post": "/cap", "body": {}, "input": "cap:int:0:100:nullable:gone"}
+        )
+    )
+    open_("#overview", {"overview": frag})
+    page.get_by_role("button", name="Set cap").click()
+    settle(page)
+    assert posts(state) == [] and cat.t("act.refuse.no_field") in _alert_texts(page)
+
+
+@pytest.mark.parametrize("raw", ["1e2", "0x40", "6e1", "60.", "+60", "6 0"])
+def test_a_number_is_parsed_strictly(board, raw):
+    """Each value is inside 50-100 by Number(); only the strict grammar refuses it."""
+    state, page, open_ = board
+    open_("#overview", {"overview": _number_view()})
+    page.get_by_label("Rotate at").wait_for()
+    settle(page)
+    page.evaluate(
+        f"(() => {{ const f = document.getElementById('thr-a'); f.type = 'text'; f.value = {raw!r}; }})()"
+    )
+    assert page.get_by_label("Rotate at").input_value() == raw
+    page.get_by_role("button", name="Set rotate-at").click()
+    settle(page)
+    assert posts(state) == []
+
+
+def test_a_required_number_refuses_empty(board):
+    state, page, open_ = board
+    frag = view(
+        ui.field("Cap", name="cap-r", kind="number", id="cap-r"),
+        ui.button(
+            "Set", data={"post": "/cap", "body": {}, "input": "cap:int:0:100:required:cap-r"}
+        ),
+    )
+    open_("#overview", {"overview": frag})
+    page.get_by_role("button", name="Set").click()
+    settle(page)
+    assert posts(state) == [] and cat.t("act.refuse.whole", min="0", max="100") in _alert_texts(
+        page
+    )
+
+
+@pytest.mark.parametrize("raw", ["49", "101"])
+def test_the_float_field_refuses_out_of_range_and_says_so(board, raw):
+    state, page, open_ = board
+    open_("#overview", {"overview": _number_view()})
+    page.get_by_label("Rotate at").fill(raw)
+    page.get_by_role("button", name="Set rotate-at").click()
+    settle(page)
+    assert posts(state) == []
+    assert cat.t("act.refuse.range_or_empty", min="50", max="100") in _alert_texts(page)
+
+
+def _slow_post_view(stamp="s1"):
+    return view(
+        ui.button("Resume", data={"post": "/agent-resume", "body": {"agent": "infra"}}), stamp=stamp
+    )
+
+
+def test_a_double_click_posts_once(board):
+    state, page, open_ = board
+    state.post_delay = 0.5
+    open_("#overview", {"overview": _slow_post_view()})
+    page.get_by_role("button", name="Resume").dblclick()
+    page.wait_for_timeout(800)
+    assert len(posts(state)) == 1
+
+
+def test_a_tick_during_a_post_is_skipped_and_a_swap_keeps_the_control_disabled(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _slow_post_view()})
+    settle(page)
+    n = state.views_requested("/v/overview")
+    state.post_delay = 1.0
+    page.get_by_role("button", name="Resume").click()
+    page.clock.run_for(20_000)
+    page.wait_for_timeout(100)
+    assert state.views_requested("/v/overview") == n  # the tick waited for the post
+    state.fragments["overview"] = _slow_post_view(stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    page.wait_for_timeout(150)
+    assert page.get_by_role("button", name="Resume").is_disabled()
+    page.get_by_role("button", name="Resume").click(force=True)
+    page.wait_for_timeout(1200)
+    assert len(posts(state)) == 1
+
+
+def test_a_forced_refresh_waits_for_an_open_dialog(board):
+    state, page, open_ = board
+    frag = view(
+        ui.button("Pause", data={"post": "/agent-pause", "body": {}, "confirm": "dlg"}),
+        ui.dialog("dlg", "Pause?", "It stops.", "Pause", "Keep"),
+    )
+    open_("#overview", {"overview": frag})
+    settle(page)
+    n = state.views_requested("/v/overview")
+    page.get_by_role("button", name="Pause").click()
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert state.views_requested("/v/overview") == n
+    page.get_by_role("button", name="Keep").click()
+    settle(page)
+    assert state.views_requested("/v/overview") == n + 1
+
+
+@pytest.mark.parametrize("declared,ticks_at", [("7", 7_000), ("1", 20_000), ("soon", 20_000)])
+def test_data_refresh_s_is_read_from_the_new_view_and_clamped(board, declared, ticks_at):
+    state, page, open_ = board
+    frag = ui.group(ui.fragment("x"), data={"stamp": "s1", "refresh-s": declared})
+    open_("#overview", {"overview": frag})
+    settle(page)
+    n = state.views_requested("/v/overview")
+    page.clock.run_for(ticks_at - 500)
+    settle(page)
+    assert state.views_requested("/v/overview") == n
+    page.clock.run_for(1_000)
+    settle(page)
+    assert state.views_requested("/v/overview") == n + 1
+
+
+def test_a_view_without_cadence_gets_its_declared_refresh_after_the_load(board):
+    state, page, open_ = board
+    frag = ui.group(ui.fragment("u"), data={"stamp": "s1", "refresh-s": "8"})
+    open_("#usage", {"usage": frag})
+    settle(page)
+    n = state.views_requested("/v/usage")
+    page.clock.run_for(8_100)
+    settle(page)
+    assert state.views_requested("/v/usage") == n + 1
+
+
+def test_typed_text_is_carried_by_field_id_not_shared_name(board):
+    state, page, open_ = board
+
+    def two(stamp):
+        return view(
+            ui.field("Comment A", name="comment", id="c-a"),
+            ui.field("Comment B", name="comment", id="c-b"),
+            stamp=stamp,
+        )
+
+    open_("#overview", {"overview": two("s1")})
+    page.get_by_label("Comment A").fill("for A only")
+    page.get_by_label("Comment A").blur()
+    state.fragments["overview"] = two("s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.get_by_label("Comment A").input_value() == "for A only"
+    assert page.get_by_label("Comment B").input_value() == ""
+
+
+@pytest.mark.parametrize("bad", ["#%E0%A4%A", "#work/100%"])
+def test_a_malformed_hash_falls_back_to_the_default_view_and_still_ticks(board, bad):
+    state, page, open_ = board
+    open_(bad, {"overview": view("home"), "work": view("w")})
+    settle(page)
+    assert page.locator("main").inner_text() == "home"
+    n = state.views_requested("/v/overview")
+    page.clock.run_for(20_000)
+    settle(page)
+    assert state.views_requested("/v/overview") == n + 1
+
+
+@pytest.mark.parametrize(
+    "stored", ['{"tag":{"v":5}}', "[1,2]", '{"tag":{"v":"api","mode":"evil"}}', "null-ish"]
+)
+def test_a_corrupt_stored_filter_resets(board, stored):
+    state, page, open_ = board
+    page.add_init_script(
+        f"try {{ localStorage.setItem('qd-filter:items', {stored!r}); }} catch (e) {{}}"
+    )
+    open_("#overview", {"overview": _filter_view()})
+    settle(page)
+    assert _visible_rows(page) == ["api", "api-v2", "ops"]
+    if stored != "null-ish":
+        assert page.evaluate("localStorage.getItem('qd-filter:items')") == "{}"
+
+
+def test_a_fault_while_showing_a_view_is_not_reported_as_a_network_failure(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view(ui.disclosure("Edit", "x", id="ed"), stamp="s1")})
+    settle(page)
+    page.get_by_text("Edit").click()
+    errors = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.evaluate(
+        "Object.defineProperty(HTMLDetailsElement.prototype, 'open', {configurable: true,"
+        " get() { return this.hasAttribute('open'); }, set(v) { throw new Error('boom'); }})"
+    )
+    state.fragments["overview"] = view(ui.disclosure("Edit", "x", id="ed"), stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert cat.t("state.broken") in page.locator("main").inner_text()
+    assert cat.t("state.failed") not in page.locator("main").inner_text()
+    assert any("could not be shown" in e for e in errors)
+
+
+def test_a_tick_during_a_forced_fetch_keeps_it_forced(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view("old text", stamp="s1")})
+    settle(page)
+    held = []
+    page.route("**/v/overview", lambda route: held.append(route))
+    page.evaluate("window.qdRefresh(true)")
+    page.wait_for_timeout(100)
+    page.clock.run_for(20_000)
+    page.wait_for_timeout(100)
+    body = view("new text", stamp="s1")  # the same stamp: only a forced swap shows it
+    for r in held:
+        r.fulfill(status=200, body=body, content_type="text/html")
+    settle(page)
+    assert page.locator("main").inner_text() == "new text"
+
+
+def test_a_new_fetch_aborts_the_one_in_flight(board):
+    state, page, open_ = board
+    page.add_init_script(
+        "window._sigs = []; const f = window.fetch;"
+        " window.fetch = function (u, i) { if (String(u).indexOf('/v/') >= 0) { window._sigs.push(i && i.signal); }"
+        " return f.apply(this, arguments); };"
+    )
+    open_("#overview", {"overview": view("x")})
+    settle(page)
+    page.route("**/v/overview", lambda route: None)  # hold every later load
+    page.evaluate("window.qdRefresh(true)")
+    page.evaluate("window.qdRefresh(true)")
+    assert page.evaluate("window._sigs.length") == 3
+    assert page.evaluate("window._sigs[1].aborted") is True
+    assert page.evaluate("window._sigs[2].aborted") is False
+
+
+def test_a_clamp_in_a_hidden_tab_is_measured_when_shown_and_stays_expanded_across_a_swap(board):
+    state, page, open_ = board
+    question = "Should the deploy go ahead tonight given the open incident? " * 40
+
+    def frag(stamp):
+        return view(
+            ui.tabs("Range", [("a", "First", "short"), ("b", "Second", ui.clamp(question))]),
+            stamp=stamp,
+        )
+
+    open_("#overview", {"overview": frag("s1")})
+    settle(page)
+    page.get_by_role("tab", name="Second").click()
+    toggle = page.get_by_role("button", name=cat.t("clamp.more"))
+    assert toggle.is_visible()
+    toggle.click()
+    state.fragments["overview"] = frag("s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert (
+        page.get_by_role("button", name=cat.t("clamp.less")).get_attribute("aria-expanded")
+        == "true"
+    )
+    assert page.locator("[data-clamp]").get_attribute("data-expanded") == ""
+
+
+def test_went_stale_is_announced_once_not_on_every_swap(board):
+    state, page, open_ = board
+
+    def frag(stamp):
+        return view(ui.freshness(1.0, 20), stamp=stamp)
+
+    open_("#overview", {"overview": frag("s1")})
+    settle(page)
+    assert page.locator("#live").inner_text() == cat.t("fresh.went_stale")
+    page.evaluate("document.getElementById('live').textContent = ''")
+    state.fragments["overview"] = frag("s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.locator("#live").inner_text() == ""
+
+
+def test_a_fault_after_a_landed_write_is_not_reported_as_unreachable(board):
+    state, page, open_ = board
+    open_(
+        "#overview",
+        {"overview": view(ui.button("Resume", data={"post": "/agent-resume", "body": {}}))},
+    )
+    settle(page)
+    page.evaluate(
+        "Object.defineProperty(document.getElementById('live'), 'textContent',"
+        " {configurable: true, set(v) { throw new Error('boom'); }, get() { return ''; }})"
+    )
+    page.get_by_role("button", name="Resume").click()
+    wait_posts(page, state, 1)
+    settle(page)
+    assert cat.t("act.unreachable") not in _alert_texts(page)
+
+
+def test_a_token_filter_with_several_tokens_needs_every_one(board):
+    state, page, open_ = board
+    rows = [["ops api", "Alpha"], ["api", "Beta"], ["ops", "Gamma"]]
+    data = [{"f-tag": r[0], "f-name": r[1]} for r in rows]
+    body = ui.fragment(
+        ui.field(
+            "Tag",
+            name="tag-box",
+            kind="search",
+            id="tag-box",
+            data={"filter": "tag", "filter-mode": "token"},
+        ),
+        ui.table("t-f", "Items", ["Tag", "Name"], rows, row_data=data),
+    )
+    open_("#overview", {"overview": view(ui.group(body, data={"filter-group": "items"}))})
+    page.get_by_label("Tag").fill("api ops")
+    assert _visible_rows(page) == ["ops api"]
+
+
+def test_a_missing_catalogue_logs_and_shows_words_not_keys(board, server):
+    state, page, open_ = board
+    errors = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    state.fragments["overview"] = view("x")
+    page.goto(server[1] + "/nostrings")
+    settle(page)
+    label = page.locator("[data-theme-toggle]").inner_text()
+    assert "." not in label and label.strip() != ""
+    assert any("qd-strings" in e for e in errors)
+
+
+def test_enter_while_composing_does_not_submit(board):
+    state, page, open_ = board
+    frag = view(
+        ui.field("Comment", name="c1", id="c1"),
+        ui.button("Comment", data={"post": "/item-comment", "body": {}, "text-from": "c1"}),
+    )
+    open_("#overview", {"overview": frag})
+    page.get_by_label("Comment").fill("こんにち")
+    page.evaluate(
+        "document.getElementById('c1').dispatchEvent(new KeyboardEvent('keydown',"
+        " {key: 'Enter', isComposing: true, bubbles: true, cancelable: true}))"
+    )
+    settle(page)
+    assert posts(state) == []
+
+
+def test_a_non_object_body_posts_as_an_object(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view(ui.button("Go", data={"post": "/x", "body": [1, 2]}))})
+    page.get_by_role("button", name="Go").click()
+    wait_posts(page, state, 1)
+    assert posts(state)[0] == ("/x", {})
+
+
+@pytest.mark.parametrize("path", ["https://evil.example/x", "//evil.example/x", "x"])
+def test_a_post_path_must_be_same_origin_absolute(board, path):
+    state, page, open_ = board
+    open_("#overview", {"overview": view(ui.button("Go", data={"post": path, "body": {}}))})
+    page.get_by_role("button", name="Go").click()
+    settle(page)
+    assert posts(state) == [] and cat.t("act.refuse.path") in _alert_texts(page)
+
+
+def test_becoming_visible_refreshes(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": view("x")})
+    settle(page)
+    n = state.views_requested("/v/overview")
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    settle(page)
+    assert state.views_requested("/v/overview") == n + 1
+
+
+def test_the_theme_button_is_labelled_from_the_stored_theme_on_load(board):
+    state, page, open_ = board
+    page.add_init_script("try { localStorage.setItem('qd-theme', 'dark'); } catch (e) {}")
+    open_("#overview", {"overview": view("x")})
+    assert page.locator("[data-theme-toggle]").inner_text() == cat.t("shell.theme.dark")
+
+
+def test_scroll_is_kept_across_a_swap(board):
+    state, page, open_ = board
+    tall = ui.fragment(*(ui.card(f"Card {i}", "body " * 50) for i in range(60)))
+    open_("#overview", {"overview": view(tall, stamp="s1")})
+    settle(page)
+    page.evaluate("window.scrollTo(0, 1500)")
+    state.fragments["overview"] = view(tall, stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.evaluate("window.scrollY") == 1500
+
+
+def test_it_works_when_local_storage_throws(board):
+    state, page, open_ = board
+    page.add_init_script(
+        "for (const m of ['getItem', 'setItem', 'removeItem']) {"
+        " Storage.prototype[m] = function () { throw new Error('denied'); }; }"
+    )
+    open_("#overview", {"overview": _filter_view()})
+    settle(page)
+    page.get_by_role("button", name="api", exact=True).click()
+    assert _visible_rows(page) == ["api"]
+    page.get_by_role("button", name=cat.t("shell.theme.system")).click()
+    assert page.evaluate("document.documentElement.getAttribute('data-theme')") == "light"
+
+
+def test_arrow_right_wraps_from_the_last_tab(board):
+    state, page, open_ = board
+    open_(
+        "#overview", {"overview": view(ui.tabs("Range", [("d", "Day", "1"), ("w", "Week", "2")]))}
+    )
+    page.get_by_role("tab", name="Week").click()
+    page.keyboard.press("ArrowRight")
+    assert page.get_by_role("tab", name="Day").get_attribute("aria-selected") == "true"
+    assert page.evaluate("document.activeElement.textContent") == "Day"
+
+
+def test_a_pick_value_with_reserved_characters_round_trips_through_the_hash(board):
+    state, page, open_ = board
+    odd = 'a%/b"c'
+    panes = ui.fragment(
+        ui.button("odd", data={"pick-to": odd}),
+        ui.group("pane plain", data={"pick": "plain"}),
+        ui.group("pane odd", data={"pick": odd}),
+    )
+    open_("#work", {"work": view(ui.group(panes, data={"pick-group": "repos"}))})
+    settle(page)
+    page.get_by_role("button", name="odd").click()
+    settle(page)
+    assert page.evaluate("location.hash") == "#work/a%25%2Fb%22c"
+    assert (
+        page.get_by_text("pane odd").is_visible()
+        and not page.get_by_text("pane plain").is_visible()
+    )
+
+
+def test_a_server_error_is_shown_as_text_not_markup(board):
+    state, page, open_ = board
+    state.post_status = 500
+    state.post_error = "<b>bold</b>"
+    open_("#overview", {"overview": view(ui.button("Go", data={"post": "/x", "body": {}}))})
+    page.get_by_role("button", name="Go").click()
+    wait_posts(page, state, 1)
+    settle(page)
+    assert cat.t("act.failed", error="<b>bold</b>") in _alert_texts(page)
+    assert page.locator("main b").count() == 0
+
+
+def test_an_ordinary_tick_keeps_the_filters(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _filter_view()})
+    settle(page)
+    page.get_by_role("button", name="api", exact=True).click()
+    state.fragments["overview"] = _filter_view(stamp="s9")
+    page.get_by_role("button", name="api", exact=True).blur()
+    page.clock.run_for(20_000)
+    settle(page)
+    assert page.locator("[data-stamp]").get_attribute("data-stamp") == "s9"
+    assert _visible_rows(page) == ["api"]
