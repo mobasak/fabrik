@@ -5638,6 +5638,9 @@ export default defineConfig({
         "description": f"{description} - Browser Extension (WXT + Preact)",
         "type": "module",
         "private": True,
+        # W-70d9c609: the pnpm this scaffold is proven on; pnpm 11 is what the allowBuilds block
+        # below needs. Bump it with the box's pnpm, proven by the needs_network build test.
+        "packageManager": "pnpm@11.24.0",
         "scripts": {
             "dev": "wxt",
             "build": "wxt build",
@@ -5678,7 +5681,8 @@ export default defineConfig({
             "@tailwindcss/vite": "^4.3.2",
             "tailwindcss": "^4.3.2",
             "eslint": "^9.39.2",
-            "@antfu/eslint-config": "^7.2.0",
+            # 7.x is closed at 7.7.3, the version this scaffold lints clean on (W-70d9c609)
+            "@antfu/eslint-config": "~7.7.3",
         },
     }
     (ext / "package.json").write_text(json.dumps(ext_package, indent=2) + "\n")
