@@ -465,27 +465,35 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
     assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out
 
 
-def test_next_attributes_a_retry_finders_candidate_to_its_own_slice() -> None:
+@pytest.mark.parametrize(
+    ("seat", "slice_name"),
+    [
+        ("find:A:sonnet:retry", "A"),
+        ("find:A:opus:retry", "A"),
+        ("find:rule-grammar:haiku:retry", "rule-grammar"),
+        ("find:x-y:sonnet:retry", "x-y"),
+        ("find:a:b:sonnet:retry", "a:b"),
+    ],
+)
+def test_next_attributes_a_retry_finders_candidate_to_its_own_slice(
+    seat: str, slice_name: str
+) -> None:
     """W-6399d1a3: a finder retry runs under `find:<slice>:<model>:retry` (fabrik-review-loop.js finder label), and
     splitting off only the last `:` field named a phantom slice `<slice>:<model>`, so the next pass carried that
-    candidate's claim under a slice no round-1 seat owns."""
+    candidate's claim under a slice no round-1 seat owns. Five spellings — models, a hyphenated and a colon-bearing
+    slice name — beside a first-attempt seat of another slice."""
     sys.path.insert(0, str(ROOT / "scripts"))
     import review_loop_ledger as rl
 
+    cid = f"{slice_name}-S1"
     doc = {
         "candidates": [
-            {"id": "A-S1", "file": "a.py", "line": 3, "claim": "x", "seat": "find:A:sonnet:retry"},
-            {
-                "id": "rule-grammar-H1",
-                "file": "s.md",
-                "line": 9,
-                "claim": "y",
-                "seat": "find:rule-grammar:haiku",
-            },
+            {"id": cid, "file": "a.py", "line": 3, "claim": "x", "seat": seat},
+            {"id": "other-H1", "file": "s.md", "line": 9, "claim": "y", "seat": "find:other:haiku"},
         ]
     }
-    out = rl.next_ledger(doc, ["A-S1", "rule-grammar-H1"])
-    assert sorted(s["name"] for s in out) == ["A", "rule-grammar"], out
+    out = rl.next_ledger(doc, [cid, "other-H1"])
+    assert sorted(s["name"] for s in out) == sorted([slice_name, "other"]), out
 
 
 # --- next --args: the verdicts' own ids and whole slices (mail 01M4PHYNXJ) -----------------------------------
