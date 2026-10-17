@@ -6,9 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added — `check_rule_grounding.py --all` prints every finding in full (2026-10-18)
 
-- The check's output is budgeted so it fits the gate's advisory row: 500 characters and 10 lines including the
-  census, the remedy and the "N more finding(s) suppressed …" marker (an UNGRADED line, when one prints, comes on
-  top), with each finding line truncated to 200.
+- The check's output is budgeted so it fits the gate's advisory row (the module constants
+  `ADVISORY_BUDGET`, `MAX_LINES` and `MAX_LINE`, applied in `main()`, set how many finding lines print and how
+  long each one is), and the findings past the budget
+  read "N more finding(s) suppressed by the advisory budget".
 - A reviewer who ran the check at a plan review's pass 1 saw only that budgeted few. `/fabrik-plan-review` names
   the check only at the flip (`commands/_sources/fabrik-plan-review.md:146`), so a finding suppressed at pass 1
   surfaced only at the flip. In web-ecommerce-factory that cost two extra review passes (mail 01M47T06VV,
