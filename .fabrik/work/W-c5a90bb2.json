@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T18:10:18.181961Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c5a90bb2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55GGMS5MF8T096GAG0HWSS8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback asking for command_run.py code: three rows routed to infra (capture verb, comma --commit, target branch)"
+}

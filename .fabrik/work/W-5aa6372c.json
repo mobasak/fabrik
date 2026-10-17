@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-5aa6372c",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "infra: read mail 01M4XB7GJF7HNS3BQGQXY4M1SW, claim it, act on it",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — code changes asked by /fabrik-review feedback rows",
   "status": "open",
   "tags": [
     "mail-01m4xb7gjf7hns3bqgqxy4m1sw"

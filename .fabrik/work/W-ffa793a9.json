@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:58.963942Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-ffa793a9",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook timeout can be exceeded",
   "status": "open",
   "title": "final_gate_stop.py: worst-case subprocess time can exceed the Stop hook's 120 s timeout (pre-existing, also in the hub)"
 }

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "Decide whether the hub image needs a readiness probe at all (W-2191a0f4 parks the hub image's fate) and, if so, which dependency /health should assert",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "proposed-drop",

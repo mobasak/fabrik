@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:32.399026Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-008b06d6",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare stacking edge in one script",
   "status": "open",
   "tags": [
     "kaizen-01m4n1k909"

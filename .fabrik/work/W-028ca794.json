@@ -17,11 +17,12 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — intel request for a seat guard; nobody blocked",
   "status": "open",
   "tags": [
     "hooks",
-    "infra"
+    "infra",
+    "medium"
   ],
   "title": "PreToolUse seat guard (intel request, pending mail): refuse pkill -f / killall and mutating git inside a registered main checkout for review seats — .claude/hooks, infra beat"
 }

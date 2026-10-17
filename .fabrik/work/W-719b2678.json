@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "the watchdog overlay staged at a predictable /tmp path carries DB credentials (WATCHDOG_PG_DSN) on the VPS — a security exposure; same mktemp fix as W-8dd25072 across 4 drivers, one session; owner: deploy drivers = fleet",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — credentials staged at predictable /tmp paths",
   "status": "open",
   "tags": [
     "fleet",

@@ -17,7 +17,7 @@
   "note": "migrated-digest:63d9ae94a8c5",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Corpus prose residues from pass 3 reviews",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — corpus prose residues",
   "status": "open",
   "title": "**Corpus prose residues RECORDED by pass 3's reviews (2026-09-12, owner: infra)** — the assembler's POOL-OFF banner prints a round recipe without `--confirmed` (11 of 36 sources); the empty-slot re..."
 }

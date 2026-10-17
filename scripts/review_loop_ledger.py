@@ -17,7 +17,7 @@ file, not its scrollback. So:
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED.
     review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS] [--drop ID,ID]
-        The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
+        The next pass's `slices[].ledger` for those confirmed ids (and, with --args, the open claims carried below), as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
         every claim listed. With --args (mail 01M4PHYNXJ) — the run's `workflows/<runId>.json`, or a bare args
         object — each slice is emitted whole (files, models, scope, priority, agent copied from the launch, its
@@ -359,8 +359,8 @@ def open_claims(
 
     union = result.get("slices") if isinstance(result, dict) else None
     unchecked: list[str] = []
-    union_ids: set[str] = set()
-    repeated: set[str] = set()
+    union_ids: dict[str, str] = {}  # folded id -> the first spelling the run carried
+    repeated: set[str] = set()  # folded ids carried more than once
     if isinstance(union, list):
         for s in union:
             if not isinstance(s, dict) or not isinstance(s.get("name"), str):
@@ -373,11 +373,12 @@ def open_claims(
             for n, c in enumerate(cands):
                 if not isinstance(c, dict) or not isinstance(c.get("id"), str):
                     continue
-                if c["id"] in union_ids:
+                if _fold(c["id"]) in union_ids:
                     # the workflow makes union ids unique (`A-S1#2`), as `_from_union` relies on: a repeat names no single
-                    # claim, so it is never carried — named instead (review round 2, A-H2)
-                    repeated.add(c["id"])
-                union_ids.add(c["id"])
+                    # claim, so it is never carried — named instead (review round 2, A-H2); compared folded, as every
+                    # other id here is, so `alpha-S1` and `alpha-s1 ` are one repeat (W-9f436e18)
+                    repeated.add(_fold(c["id"]))
+                union_ids.setdefault(_fold(c["id"]), c["id"])
                 claimed.add(_fold(c["id"]))
                 # a slice nobody judged (no refuter, an older run file): said, not guessed
                 if not isinstance(verds, list):
@@ -417,8 +418,10 @@ def open_claims(
                 (e["id"], hit[0], {k: e.get(k) for k in ("id", "file", "line", "claim")}, status)
             )
     # a repeated union id is open but names no single claim: it is reported, never carried
-    stuck += sorted(i for i in repeated if i not in stuck)
-    opened = [o for o in opened if o[0] not in repeated]
+    # one line per repeated claim, under the first spelling the run carried; every spelling is kept out of the carry
+    stuck_f = {_fold(i) for i in stuck}
+    stuck += sorted(union_ids[f] for f in repeated if f not in stuck_f)
+    opened = [o for o in opened if _fold(o[0]) not in repeated]
     return opened, stuck, unchecked
 
 
@@ -590,7 +593,10 @@ def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
     """Each id resolved against the run's union candidates — the ids the verdicts carry, suffix and all. The
     workflow makes them unique per run (slice-prefixed, `#n`-suffixed), so an id two rows carry is a malformed
     file and is refused with both claims listed, never resolved to the first (review round 1, A-S2/B-S2)."""
-    found: dict[str, list[tuple[str, dict]]] = {}
+    found: dict[
+        str, list[tuple[str, dict]]
+    ] = {}  # keyed by the FOLDED id, as `open_claims` compares (W-9f436e18)
+    want = {_fold(i) for i in ids}
     for n, s in enumerate(result["slices"]):
         if not isinstance(s, dict) or not isinstance(s.get("name"), str) or not s["name"]:
             raise LedgerError(
@@ -602,18 +608,18 @@ def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
                 f"the run file's result slice {s['name']} has candidates that are not a list"
             )
         for c in cands:
-            if isinstance(c, dict) and c.get("id") in ids:
-                found.setdefault(c["id"], []).append((s["name"], c))
-    missing = [i for i in ids if i not in found]
+            if isinstance(c, dict) and isinstance(c.get("id"), str) and _fold(c["id"]) in want:
+                found.setdefault(_fold(c["id"]), []).append((s["name"], c))
+    missing = [i for i in ids if _fold(i) not in found]
     if missing:
         raise LedgerError(f"id(s) the run's union candidates never carried: {', '.join(missing)}")
-    twice = [i for i in ids if len(found[i]) > 1]
+    twice = [i for i in ids if len(found[_fold(i)]) > 1]
     if twice:
         menu = "; ".join(
             f"{i}: "
             + " · ".join(
                 f"[slice {n}] {c.get('file')}:{c.get('line')} {str(c.get('claim'))[:80]!r}"
-                for n, c in found[i]
+                for n, c in found[_fold(i)]
             )
             for i in twice
         )
@@ -622,9 +628,9 @@ def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
         )
     slices: dict[str, list] = {}
     for i in ids:
-        name, c = found[i][0]
+        name, c = found[_fold(i)][0]
         slices.setdefault(name, []).append(
-            {"id": i, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
+            {"id": c["id"], "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
         )
     return slices
 
@@ -688,7 +694,10 @@ def next_ledger(
     verdict; the menu names `--args`, the cheaper exact path. The cheapest way past `not carried` (`carry_notes`)
     is to ignore stderr and drop an unverified slice; the closing round's `round --slices` re-statement is the
     counter."""
-    ids = list(dict.fromkeys(ids))  # a repeated --ids entry is one claim (review round 1, A-S3)
+    # a repeated --ids entry is one claim (review round 1, A-S3) — compared folded, as `_from_union` resolves it, so
+    # `alpha-S1,ALPHA-s1` is one row, never two (W-9f436e18); the first spelling is kept
+    seen: set[str] = set()
+    ids = [i for i in ids if not (_fold(i) in seen or seen.add(_fold(i)))]
     slices = (
         _from_union(result, ids)
         if result and isinstance(result.get("slices"), list)
@@ -1256,7 +1265,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     n = sub.add_parser("next")
     n.add_argument("ledger", type=Path)
-    n.add_argument("--ids", required=True, help="comma-separated confirmed candidate ids")
+    n.add_argument(
+        "--ids",
+        required=True,
+        help="comma-separated confirmed candidate ids; with --args the other open claims are carried as well — "
+        "a run file's confirmed or unverified candidates left out of --ids, and DEFECT_PRESENT/NEW ledger rows "
+        "from the launch ledger",
+    )
     n.add_argument(
         "--drop",
         default="",
@@ -1408,12 +1423,19 @@ def main(argv: list[str] | None = None) -> int:
                     )
             left = sum(1 for k in unchecked if k not in named)
             if left:
-                why = (
-                    "their slice carries no verdicts (no refuter answered): re-verify them by hand"
-                    if isinstance(result, dict)
-                    else "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
-                    "the open ones"
-                )
+                if isinstance(result, dict) and isinstance(result.get("slices"), list):
+                    why = "their slice carries no verdicts (no refuter answered): re-verify them by hand"
+                elif launch is not None:  # --args given, but no usable `result` (W-9f436e18)
+                    why = (
+                        "the --args file holds no usable `result` (bare launch args, a run that never returned, "
+                        "or a result with no `slices` list): pass the ended run's workflows/<runId>.json, or "
+                        "re-verify them by hand"
+                    )
+                else:
+                    why = (
+                        "next reads verdicts only from a run file: pass --args <workflows/<runId>.json> to carry "
+                        "the open ones"
+                    )
                 print(f"NOT CHECKED {left} candidate(s) outside --ids — {why}", file=sys.stderr)
             for d in drop:
                 print(f"DROPPED {d}", file=sys.stderr)

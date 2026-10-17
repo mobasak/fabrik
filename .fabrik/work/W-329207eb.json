@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.047486Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-329207eb",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "**[infra]** **The never-built orchestrator cockpit docs** (`docs/orchestrator/orchestrator-cockpit-{decisions,feature-set,requirements}.md`, spine I13) still describe the retired chains in live tense — excluded from the plan's sweep as a separate retirement decision; retire or rewrite. (T16)",
   "note": "migrated-digest:d8ff5759d46e",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — docs of never-built cockpit",
   "status": "open",
   "title": "**The never-built orchestrator cockpit docs** (`docs/orchestrator/orchestrator-cockpit-{decisions,feature-set,requirements}.md`, spine I13) still describe the retired chains in live tense — exclude..."
 }

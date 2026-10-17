@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-d5074ad6",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "fold the reword into the next /fabrik-command-improve fabrik-review-scoped edit of that sentence; the pin test's phrase moves with it",
   "note": "",
   "owner": "kaizen",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen command wording",
   "status": "open",
   "tags": [
     "kaizen",

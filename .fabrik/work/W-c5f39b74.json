@@ -17,7 +17,7 @@
   "note": "",
   "owner": "kaizen",
   "priority": 1,
-  "score_reason": "operator asked; agents keep ending turns on bare ids the operator cannot read; rule wording = kaizen's beat; one sentence + one mail",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-asked CLAUDE.md rule widening",
   "status": "open",
   "tags": [
     "queued"

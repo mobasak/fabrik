@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T19:43:21.909595Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-29208d49",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — summary print line",
   "status": "open",
   "title": "check_convergence: print a summary line naming how many plans it graded (plan-review verdict 1790923404.542468, kaizen 01M4EG5F6D)"
 }

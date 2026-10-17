@@ -4,7 +4,7 @@
   ],
   "created": "2026-10-08T02:32:04.905743Z",
   "creator": "kaizen",
-  "effort": "high",
+  "effort": "low",
   "evidence": "",
   "id": "W-e9588939",
   "impact": "high",
@@ -18,8 +18,8 @@
   "next": "align obligation 1's anchor recipe with review_receipt.py's _surface (kaizen wording) or have review_receipt.py print the anchor command (infra code)",
   "note": "",
   "owner": "kaizen",
-  "priority": 2,
-  "score_reason": "impact HIGH: names 'fail'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — review anchor never matches, wasted full passes",
   "status": "open",
   "tags": [
     "kaizen"

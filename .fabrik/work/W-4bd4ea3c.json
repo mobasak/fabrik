@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-4bd4ea3c",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,8 +16,8 @@
   "next": "decide whether --sweep should exit non-zero (or log loudly) when either module failed to import; weekly_catchup's test cannot tell a no-op sweep from a real one (review U-O2, 2026-10-05)",
   "note": "",
   "owner": "infra",
-  "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — false green exit 0 on failed import",
   "status": "open",
   "tags": [
     "intel"

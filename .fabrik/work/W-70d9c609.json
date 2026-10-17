@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "intel measured 2026-10-17: pnpm and eslint-config versions drift between runs, so the emitted chrome-extension build can go red with no code change; pin the scaffold toolchain; scaffolding = fleet's beat",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — fresh chrome-extension scaffold can lint red",
   "status": "open",
   "tags": [
     "scaffold"

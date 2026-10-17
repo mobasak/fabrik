@@ -17,7 +17,7 @@
   "note": "migrated-digest:10cad37e589d",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Hub FEATURES.md doc coverage gap",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — FEATURES.md coverage gap",
   "status": "open",
   "title": "Hub `docs/FEATURES.md` documents 9 of the 33 rendered commands as features (2026-09-02, owner: infra)"
 }

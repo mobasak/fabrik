@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "blocked on the operator's ruling W-5e7743d9 (Jev egress); then cp -r /opt/fabrik-lib/decision-gate/decision_gate libs/decision_gate with a VENDORED-FROM header, pyproject extend-exclude row, httpx pin check, wire final_gate_stop.py:1451-1696 in shadow",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Vendor fabrik-lib decision-gate into the hub with its first consumer (pilot 1: final_gate_stop promise/defer detection, shadow mode), per D-550 — intel mail 01M4354D3TE6MC0MRGM57DGTGA"
 }

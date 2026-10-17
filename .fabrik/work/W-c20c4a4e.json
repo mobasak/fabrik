@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-10-04T08:01:29.339289Z",
   "creator": "infra",
   "evidence": "",
@@ -17,5 +19,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "# Three-window hub (infra / fleet / intel): fleet's friction report from one full session, and what would make it flawless"
 }

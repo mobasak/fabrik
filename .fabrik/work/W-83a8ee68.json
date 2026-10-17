@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "score_reason": "operator asked 2026-10-15 ('as like quota hold … under 6% … gracefully stop without losing where they left'); a dead battery loses uncommitted work in ~46 repos; owner: hooks/box mesh = infra; effort: reuses the quota-hold stamp, hook and waker",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator asked for battery hold to avoid losing work",
   "status": "open",
   "tags": [
     "waits-merge-01m55cmct9"

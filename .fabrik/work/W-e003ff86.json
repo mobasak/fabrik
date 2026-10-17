@@ -17,7 +17,7 @@
   "note": "migrated-digest:2fb70a243b4d",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "check_plan_tickets warn for re-narrated spec sections",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — plan-ticket warn idea",
   "status": "open",
   "title": "**`check_plan_tickets.py`: a WARN when a ticket's `Scope` re-narrates a spec section instead of citing it (2026-09-11, owner: infra)** — the adoption plan's § Out of Scope (D8, the `/fabrik-plan-af..."
 }

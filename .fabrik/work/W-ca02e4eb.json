@@ -17,7 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — check_plan_tickets skip runs before ERROR: false green in gate",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "check_plan_tickets: the integration-ticket skip (:2355) runs before the gate-mask ERROR its comment says still grades; and the Board's Depends column is never cross-validated against a ticket's Depends: line (W-b60b65a1 critiques)"
 }

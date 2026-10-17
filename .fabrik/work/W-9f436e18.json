@@ -3,7 +3,7 @@
   "created": "2026-10-17T10:39:56.850106Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "dfdcef22ab640f2efa42ff05019bfa8528766945",
   "id": "W-9f436e18",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "two edge shapes recorded by the W-b1f67743 review's scope-growth stop; no live failure",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "review-loop"

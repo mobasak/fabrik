@@ -17,7 +17,10 @@
   "note": "migrated-digest:aac59fc295f0",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "command_run.py closing-round gaps",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — closing-round gaps",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`command_run.py` closing-round gaps found by the review-family adoption plan's heavy review (2026-09-10, owner: infra)** — (1) `round` has no `--unexecuted` counter, so TERMINAL prints over a clo..."
 }
