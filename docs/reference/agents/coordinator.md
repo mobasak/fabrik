@@ -44,8 +44,8 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
 4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
    P3 fill-in · low/high = time sink, proposed for a drop · P0 = incident.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing. A time sink is dropped on scoring with its reason, no operator batch (D-955, the operator's
-   answer to W-c160abfb); a drop is undone by reopening the item. Release any other hold only on the operator's word.
+   gets nothing. A time sink is dropped on scoring, with its reason (D-955). Release a hold only on the
+   operator's word.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
