@@ -625,14 +625,16 @@ def test_a_held_session_dir_is_not_dead_for_its_run_folders(
         os.symlink(str((held_dir / "scratchpad").resolve()), proc_root / "1" / "cwd")
     monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc_root))
     for sid in (SID_A, SID_B):
+        transcript = tmp_path / "tx" / SLUG / f"{sid}.jsonl"
         if death == "record":
             _dead_record(tmp_path, sid)
+            _age(transcript, 0)  # fresh on the test clock: the record is the only death signal
         else:
-            _age(tmp_path / "tx" / SLUG / f"{sid}.jsonl", 8 * DAY)
+            _age(transcript, 8 * DAY)
     rc, out = _main(capsys, "--dead", "--apply")
     assert rc == 0, out
     assert held.exists(), out
-    kept = [ln for ln in out.splitlines() if held.name in ln]
+    kept = [ln for ln in out.splitlines() if SID_A in ln and held.name in ln]
     assert any("running in a session with a live signal" in ln for ln in kept), out
     assert not bare.exists(), out
 
