@@ -72,7 +72,8 @@ never the whole suite (a red now is pre-existing); `git fetch` and the declared 
 into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
-are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
+are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on,
+every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), and
 the n behind any rate, bound or zero the design will claim; each external contract probed live
 once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
 the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
@@ -89,7 +90,9 @@ the packs it prints.
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
 `<durable>/design.md`. A mechanism copied from another script carries,
-as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled. Each
+as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled. Before
+such a copy, a rule another component already applies is tried as a read of its output (stdout, a record, an
+exported function); when the copy stays, DECISION says why the read cannot serve. Each
 input the design branches on is tabulated whole in a `design.md` table, outside the Behaviours list: every value a state it reads can hold, the unit another
 tool's rule is evaluated per (window, agent, repo), every path through a guard (a forced refresh after a write as
 well as the periodic one); a parser it adds takes a strict grammar and fails closed on the rest.
