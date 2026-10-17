@@ -270,8 +270,8 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 | R7 | RECORDED — measured (the warning says is missing when the runner exists but is not executable; raised in round 3 after the scope-growth stop; filed W-6690d693) |
 | R8 | RECORDED — measured (a SIGKILLed runner: its scope still ends at RuntimeMaxSec with no process left, but one failed unit, Result=timeout, stays until reset-failed; probed 2026-10-17, filed W-6690d693) |
 | R9 | RECORDED — measured (systemd slice names are hierarchical: the tests' fabrik-tests-probe-<id>.slice nest under fabrik-tests.slice and draw from its total, never set it) |
-| R10 | RECORDED — by design (D-935) — a hard MemoryMax kill, not a MemoryHigh throttle: a 300 MB/s runaway must end, not slow down |
-| R11 | RECORDED — by design (D-935) — the scaffold template's timeout = 120 is fleet's (W-bfe236be): the server and file-worker scaffolds copy the template's pytest table but install no plugin |
+| R10 | RECORDED — measured (a hard MemoryMax kill, not a MemoryHigh throttle: a 300 MB/s runaway must end, not slow down; recorded in this change's D-935) |
+| R11 | RECORDED — measured (the scaffold template's timeout = 120 is fleet's, filed W-bfe236be: the server and file-worker scaffolds copy the template's pytest table but install no plugin) |
 
 ## Per-phase verdicts
 
@@ -363,7 +363,7 @@ Three rounds over three disjoint slices: 10 → 2 → 0 confirmed, all 12 fixed 
     },
     {
       "check": "Feedback duty",
-      "output": "feedback duty: 28 close(s) in 14d, all carried a verdict",
+      "output": "feedback duty: 27 close(s) in 14d, all carried a verdict",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
