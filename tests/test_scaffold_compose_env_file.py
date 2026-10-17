@@ -33,6 +33,7 @@ ENV_TEXT = (
     "DATABASE_URL=postgresql://app:pw@postgres-main:5432/envfile_probe\n"
     "REDIS_URL=redis://redis-main:6379/3\n"
     "PORT=9999\n"
+    "LOG_LEVEL=DEBUG\n"
 )
 needs_docker = pytest.mark.skipif(
     shutil.which("docker") is None, reason="docker is not installed on this host"
@@ -102,7 +103,10 @@ def test_template_compose_delivers_env_keys_to_the_container(tmp_path: Path) -> 
 def test_literal_environment_value_wins_over_env_file(tmp_path: Path) -> None:
     _canonical(tmp_path, port=8000)
     (tmp_path / ".env").write_text(ENV_TEXT, encoding="utf-8")
-    assert _service_env(tmp_path)["PORT"] == "8000"
+    env = _service_env(tmp_path)
+    # Both literal entries of the canonical compose, each also set (differently) in .env.
+    assert env["PORT"] == "8000"
+    assert env["LOG_LEVEL"] == "INFO"
 
 
 @needs_docker
