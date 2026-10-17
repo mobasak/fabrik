@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review says a by-design D-owner is a ledger row, and points at the gate for the refusals (2026-10-17)
+
+- `/fabrik-review` Phase 2's by-design bullet now says a `D-nnn` owner is a row of the checkout's
+  `docs/DECISIONS.md`, which infra's 66ed34d47 (D-876) made the coverage gate check. § Reporting no longer lists
+  some of the gate's refusals. It points at `check_review_coverage.py::_residual_errors`, whose messages are the
+  full list (W-91ef9165, mail 01M4YS0EZV). The grader is in `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
 
 - PHASE 3's synthetic file for a recipe is now built to break it, in a scratch repo. It uses round zero's input

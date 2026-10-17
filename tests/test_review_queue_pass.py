@@ -650,3 +650,18 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
         " outdates);"
     ) in cat
+
+
+def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
+    """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
+    D-nnn absent from the checkout's ledger. Phase 2's bullet, where the grammar is defined, now says the D-owner
+    is a row of that ledger; the Reporting paragraph points at the gate's own messages instead of listing a subset
+    (a three-item list missed three refusals and the ledger check's fail-open)."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert "or a row of this checkout's `docs/DECISIONS.md`, which takes no round token." in text
+    assert (
+        "the gate refuses an absent owner, and the messages of `check_review_coverage.py::_residual_errors` name"
+        " every other licence it refuses (it checks a `D-nnn` only against a ledger with readable `| D-n |` rows)."
+    ) in text
+    gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
+    assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"
