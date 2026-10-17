@@ -429,6 +429,7 @@ docs/
 │   │   ├── 2026-10-14-plan-2-one-door-lane.md
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
+│   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1165,6 +1166,8 @@ docs/
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
 │       ├── 2026-10-15-scratch-lifecycle-spec-review.md
+│       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
+│       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1517,6 +1520,7 @@ docs/
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
+│       ├── 2026-10-17-merge-owner-grammar-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location

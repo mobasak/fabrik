@@ -84,6 +84,16 @@ refuse redeploy. Decision: D-937 (W-51d6c153).
   round. It recurs on the held subject `size-read-set-first`. The graders are in
   `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
 
+### Fixed — a merge-owner row is read only from the exact label, bold allowed (2026-10-17)
+
+`scripts/decisions.py`, `scripts/docs_updater.py` and the fleet-synced `.claude/hooks/session_orient.py` now read a
+`docs/DECISIONS.md` row as a merge-owner declaration only when its what-cell opens — optionally after a
+`supersedes D-NNN` clause — with the exact upper-case label `MERGE OWNER:`, one optional `**` on each side of the
+colon (W-5d3ed438, D-934, approved D-940). A bold `**MERGE OWNER:** x` or `**MERGE OWNER**: x` now declares; prose
+such as `Merge owner: rotated weekly` no longer reads `rotated` as the owner; a mixed-case un-adoption row is prose
+too. Every one of the 52 ledgers on the box resolves to the owner it did before (the plan's step-6 driver, with a
+two-row control ledger), and `decisions.py --merge-owner .` still prints `coordinator`.
+
 ### Changed — review_loop_ledger.py next carries every open claim the --ids leave out (2026-10-17)
 
 - W-b1f67743 (/fabrik-spec-review row 1790195711, mail 01M4PVPY8J): `next` dropped an open claim the lead's
