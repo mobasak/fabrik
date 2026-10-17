@@ -431,6 +431,24 @@ def test_capture_exits_1_never_the_fail_soft_0_on_a_bad_message_or_no_git(
     assert not cap.exists()
 
 
+def test_capture_finds_a_subject_git_stored_with_leading_spaces(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """git keeps a subject's leading spaces in `%s`; capture strips its own side, so an exact
+    comparison could never match such a commit (review A-haiku)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "padded.txt"
+    msg.write_text("  fix: a padded subject  \n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 7\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
 def test_capture_reads_a_wrapped_subject_as_git_does(run_dir: Path, tmp_path: Path) -> None:
     """git's `%s` joins the first paragraph's lines with spaces; a first-line-only read refused a
     legitimate commit whose subject wraps (review A-sonnet)."""

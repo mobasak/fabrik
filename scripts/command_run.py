@@ -3943,7 +3943,9 @@ def _capture_commit(msg: Path, out: Path) -> int:
         sys.stderr.write(f"REFUSED — capture: git log failed: {e}\n")
         return 1
     sha, _, got = found.stdout.strip().partition("\x00")
-    if found.returncode != 0 or not sha or got != subj:
+    # git keeps a subject's LEADING spaces, and this side strips them: compare both with runs of
+    # whitespace collapsed, so a padded subject is still its own (review A-haiku)
+    if found.returncode != 0 or not sha or " ".join(got.split()) != subj:
         sys.stderr.write(f"REFUSED — capture: no commit has the subject {subj!r}\n")
         return 1
     try:
