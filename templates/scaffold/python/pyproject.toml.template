@@ -147,8 +147,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]  # Make src-layout packages importable without `pip install -e .`
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
-# A hung test fails after 120 s (pytest-timeout) and dumps every stack first (built in) — a hang
-# guard only; a runaway that eats memory is the capped runner's to stop (D-935, W-046828fb).
+# A hung test fails after 120 s (pytest-timeout) and every stack is dumped at 120 s (built in, so the
+# dump happens even without the plugin) — a hang guard only; a runaway that eats memory is the
+# capped runner's to stop (D-935, W-046828fb).
 timeout = 120
 faulthandler_timeout = 120
 

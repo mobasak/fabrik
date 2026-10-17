@@ -2,21 +2,22 @@
 
 Input domain: every scaffold type create_project emits (wordpress is refused), scaffolded once under the offline
 seam tests/conftest.py pins (no venv, pip, pnpm or database). For each emitted directory holding ``test_*.py``,
-the grader resolves the config file pytest itself would load for that directory — its own search order, walking
-up to the project root: ``pytest.ini``, ``.pytest.ini``, ``pyproject.toml`` with a ``[tool.pytest.ini_options]``
-table, ``tox.ini`` with ``[pytest]``, ``setup.cfg`` with ``[tool:pytest]`` — so a config that exists but is
-never read (chrome-extension's ``server/pyproject.toml`` for its root ``tests/``) does not count.
+the grader asks pytest itself — ``_pytest.config.findpaths.determine_setup``, the function a real run calls — which
+config file it would load when that directory is the argument, so a config that exists but is never read
+(chrome-extension's ``server/pyproject.toml`` for its root ``tests/``) does not count. Assumed invocation: one test
+directory per run (the gate's ``pytest tests/``, ``pytest server/tests``); a bare ``pytest`` from a project root whose
+tests sit only under ``server/`` resolves no config. Trees vendored from fabrik-lib (``docs-site``) are exempt: their
+tests are the module's own, and the hub never edits a vendored copy.
 """
 
 from __future__ import annotations
 
-import configparser
 import os
 import re
-import tomllib
 from pathlib import Path
 
 import pytest
+from _pytest.config.findpaths import determine_setup
 
 import fabrik.scaffold as scaffold
 from fabrik.scaffold import SCAFFOLD_TYPES, create_project
@@ -27,6 +28,7 @@ DEP_FILES = ("requirements.txt", "requirements-dev.txt", "pyproject.toml")
 PYTEST_REQ = re.compile(r"""^\s*["']?pytest(?![\w-])""", re.M)
 TIMEOUT_REQ = re.compile(r"""^\s*["']?pytest-timeout(?![\w-])""", re.M)
 TYPES = sorted(t for t in SCAFFOLD_TYPES if t != "wordpress")
+VENDORED = ("docs-site",)
 
 pytestmark = pytest.mark.skipif(
     not Path("/opt/fabrik").exists() or os.getenv("CI") == "true",
@@ -56,35 +58,19 @@ def _skip(path: Path) -> bool:
     return any(part in {"node_modules", ".venv", ".git"} for part in path.parts)
 
 
-def _ini_section(path: Path, section: str) -> dict[str, str] | None:
-    parser = configparser.ConfigParser()
-    parser.read(path, encoding="utf-8")
-    return dict(parser[section]) if parser.has_section(section) else None
-
-
-def _resolved_config(test_dir: Path, root: Path) -> tuple[Path, dict] | None:
-    """The config file pytest would load for ``test_dir`` and its options, or None."""
-    for d in [test_dir, *test_dir.parents]:
-        for name in ("pytest.ini", ".pytest.ini"):
-            if (d / name).is_file():
-                return d / name, _ini_section(d / name, "pytest") or {}
-        pp = d / "pyproject.toml"
-        if pp.is_file():
-            table = tomllib.loads(pp.read_text(encoding="utf-8")).get("tool", {}).get("pytest", {})
-            if "ini_options" in table:
-                return pp, table["ini_options"]
-        for name, section in (("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):
-            if (d / name).is_file():
-                opts = _ini_section(d / name, section)
-                if opts is not None:
-                    return d / name, opts
-        if d == root:
-            return None
-    return None
-
-
-# Trees vendored from fabrik-lib: their tests are the module's own and the hub never edits a vendored copy.
-VENDORED = ("docs-site",)
+def _resolved_config(test_dir: Path, root: Path) -> tuple[Path, dict[str, str]] | None:
+    """The config file pytest would load with ``test_dir`` as the argument, and its options, or None
+    when it would load none inside the project."""
+    _rootdir, inipath, inicfg, _ = determine_setup(
+        inifile=None,
+        override_ini=None,
+        args=[str(test_dir)],
+        rootdir_cmd_arg=None,
+        invocation_dir=root,
+    )
+    if inipath is None or not inipath.is_relative_to(root):
+        return None
+    return inipath, {k: str(getattr(v, "value", v)) for k, v in inicfg.items()}
 
 
 def _test_dirs(root: Path) -> list[Path]:
@@ -113,13 +99,14 @@ def test_every_test_directory_resolves_a_timeout(projects: dict[str, Path], kind
         resolved = _resolved_config(test_dir, root)
         rel = test_dir.relative_to(root).as_posix()
         if resolved is None:
-            # a test dir with no config at all is a test dir nothing configures; it must still be bounded
             missing.append(f"{rel}: no pytest config resolves")
             continue
         path, opts = resolved
         for key in TIMEOUT_KEYS:
-            if key not in opts:
-                missing.append(f"{rel}: {path.relative_to(root).as_posix()} has no {key}")
+            value = opts.get(key)
+            # a missing key, and 0 (which disables the limit), both leave the test unbounded
+            if value is None or not float(value) > 0:
+                missing.append(f"{rel}: {path.relative_to(root).as_posix()} {key}={value!r}")
     assert not missing, missing
 
 
@@ -143,16 +130,17 @@ def test_every_project_with_pytest_config_installs_the_plugin(
 ) -> None:
     root = projects[kind]
     if not any(_resolved_config(d, root) for d in _test_dirs(root)):
-        pytest.skip(f"{kind} emits no Python tests")
+        pytest.skip(f"{kind}: no test directory resolves a pytest config")
     assert any(TIMEOUT_REQ.search(p.read_text(encoding="utf-8")) for p in _dep_files(root)), [
         p.relative_to(root).as_posix() for p in _dep_files(root)
     ]
 
 
 def test_file_worker_dev_file_carries_the_makefile_tools(projects: dict[str, Path]) -> None:
-    """file-worker's Makefile installs requirements-dev.txt, then runs ruff and mypy from .venv."""
+    """file-worker's Makefile installs requirements-dev.txt, then runs ruff and mypy from .venv; its copied
+    pytest config sets asyncio_mode and timeout, which need pytest-asyncio and pytest-timeout."""
     dev = projects["file-worker"] / "requirements-dev.txt"
     assert dev.is_file()
     text = dev.read_text(encoding="utf-8")
-    for tool in ("pytest", "pytest-timeout", "ruff", "mypy"):
+    for tool in ("pytest", "pytest-asyncio", "pytest-timeout", "ruff", "mypy"):
         assert re.search(rf"^{re.escape(tool)}(?![\w-])", text, re.M), tool

@@ -82,6 +82,11 @@
 └── project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
 ```
 
+Test runs carry a 120 s per-test hang guard (W-046828fb): the python template's `[tool.pytest.ini_options]` sets
+`timeout` and `faulthandler_timeout`, and every type with Python tests ships pytest-timeout beside pytest —
+file-worker in its own `requirements-dev.txt`, the saas family (saas-skeleton, static-site, office-extension) in
+`server/requirements-dev.txt`, and chrome-extension through a root `pytest.ini`, the config its root `tests/` loads.
+
 `.github/` is not emitted: CI checks are retired fleet-wide (operator directive), and `scripts/ci_local.sh` is the
 clean-room runner instead (`src/fabrik/ci_scaffold.py::ci_files` returns exactly `scripts/ci_local.sh` and
 `.fabrik/run-pytest`; `render_ci_workflow` stays there as the statement of what the checks are).

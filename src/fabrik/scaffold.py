@@ -2222,7 +2222,7 @@ _SAAS_SERVER_REQUIREMENTS = (
     "psycopg[binary]>=3.1\n"
 )
 
-# server/requirements-dev.txt — test deps only; never in the image (W-046828fb).
+# server/requirements-dev.txt — test deps only; never installed in the image (W-046828fb).
 _SAAS_SERVER_DEV_REQUIREMENTS = (
     "# Backend test dependencies (the Dockerfile installs requirements.txt only). From server/:\n"
     "#   pip install -r requirements-dev.txt && pytest tests\n"
@@ -3533,7 +3533,7 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
         return text.replace("__PKG__", package_name).replace("__NAME__", name)
 
     (server_dir / "requirements.txt").write_text(_SAAS_SERVER_REQUIREMENTS)
-    # Test-only deps stay out of the image (the Dockerfile installs requirements.txt). The
+    # Test-only deps are never installed in the image (the Dockerfile installs requirements.txt). The
     # copied [tool.pytest.ini_options] sets asyncio_mode and timeout, which need these plugins.
     (server_dir / "requirements-dev.txt").write_text(_SAAS_SERVER_DEV_REQUIREMENTS)
 
@@ -5008,12 +5008,14 @@ pypdf>=4.3.0
 redis>=5.0
 """
     )
-    # requirements-dev.txt — what the Makefile's setup-dev installs and its lint/gate targets run
-    # (W-046828fb: the file was referenced but never emitted). Mirrors python-api's dev list.
+    # requirements-dev.txt — what the Makefile's setup-dev installs (W-046828fb: the file was referenced
+    # but never emitted). python-api's dev list: its lint targets run ruff and mypy, and the copied
+    # pytest config sets asyncio_mode and timeout, which need pytest-asyncio and pytest-timeout.
     (project_dir / "requirements-dev.txt").write_text(
         "-r requirements.txt\n"
         "pytest>=8.3.0\n"
-        "pytest-timeout>=2.3.0\n"  # the pyproject sets timeout = 120
+        "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"
         "ruff\n"
         "mypy\n"
         "bandit\n"
@@ -6531,11 +6533,7 @@ ephemeral — never register in a bare global).
     # pytest.ini — the config pytest reads for the ROOT tests/ (server/pyproject.toml is never read
     # for a root run): the same hang guard the template's [tool.pytest.ini_options] sets (W-046828fb).
     (project_dir / "pytest.ini").write_text(
-        "[pytest]\n"
-        "testpaths = tests\n"
-        "pythonpath = server/src\n"
-        "timeout = 120\n"
-        "faulthandler_timeout = 120\n"
+        "[pytest]\npythonpath = server/src\ntimeout = 120\nfaulthandler_timeout = 120\n"
     )
 
     # tests/test_health.py
