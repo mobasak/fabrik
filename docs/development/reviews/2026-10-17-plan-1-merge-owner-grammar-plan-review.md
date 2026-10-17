@@ -79,3 +79,24 @@ FIXED, its absolute durable path cited.
 3/3, then 2/2; `command_run.py round` printed `SCOPE GROWTH`). Every defect open in the window is fixed above. The
 remainder round re-verifies that fixed set alone; any further own-fix defect it raises is `RECORDED — measured` onto
 work item W-5d3ed438's notes (the build reads this plan there) and does not reopen the hunt.
+
+## Design-approval panel (D-613)
+
+Both seats read the pinned spec (md5 8a4602fa073955ae2f7ba8609d35102d) and plan (md5 4223a80ec2cf8d8728ce32a2a571bae3)
+cold, at c1f8edb21.
+
+- `VERDICT: sound-with-changes — docs/development/plans/2026-10-17-plan-1-merge-owner-grammar.md + docs/superpowers/specs/2026-10-17-merge-owner-grammar-design.md` (opus)
+- `VERDICT: sound-with-changes — docs/development/plans/2026-10-17-plan-1-merge-owner-grammar.md + docs/superpowers/specs/2026-10-17-merge-owner-grammar-design.md` (fable)
+
+Every concern was executed and ACCEPTED; none was rejected or left open.
+
+| Seat · # | Concern | Evidence executed | Disposition |
+|---|---|---|---|
+| fable 1 | The grammar reads `**MERGE OWNER:** x` but not `**MERGE OWNER**: x`, the same bold label with its colon outside, which the hub ledger itself uses (1 of 8 bold labels) | `grep -c` over `docs/DECISIONS.md`: 7 colon-inside, 1 colon-outside; planned grammar on `**MERGE OWNER**: gamma` → None | ACCEPTED — option (a): one optional `**` on each side of the colon and `_SUPERSEDES_PREFIX`'s lookahead without its colon (spec D1, D2); `option_a.py`: 21 cases 0 wrong, 52 ledgers unchanged; `option_a_spellings.py`: all 9 existing supersedes spellings keep `beta`; A1b, A8 |
+| fable 2 | Step 6's "diff is empty" has no positive control: two identical readers also diff empty | the driver run with the same file twice prints `control: base 'alpha rc=0', edited 'alpha rc=0'` and `FAIL` | ACCEPTED — step 6 is a driver with a two-row control ledger (base `alpha`, edited `beta`); executed: `PASS`, 52 ledgers, 9 `rc=0`, 43 `rc=3`, `diff: none`; spec V4 |
+| fable 3 | The rollout window is argued from today's rows, but the change invites the bold rows that open it | spec § Lifecycle Adoption read | ACCEPTED — § Lifecycle and D4 say the bold label is read hub-side at once and in a project after its next sync; plan step 5 |
+| opus 1 | The bold label after a supersedes clause — the shape a changed owner's row takes — is never graded | `_SUPERSEDES_SPELLINGS` (`tests/test_session_orient_hook.py:1256-1266`) has no bold-label entry; probe: both read `beta` under the new grammar, None today | ACCEPTED — three spellings added to the list (A8), red today |
+| opus 2 | "Every other spelling is prose" overpromises: an upper-case label's first token is still the owner, and the bold allowance creates `**MERGE OWNER:** rotated weekly` → `rotated` | probe: `old=None new=rotated`; `MERGE OWNER: TBD` reads `TBD` today and after | ACCEPTED — spec § Goal and § Decisions taken state the limit; A9 pins the case |
+| opus 3 | Steps 1 and 6 may be refused by the worktree guard | this session ran step 6's old commands in this worktree in pass 2; a seat's compound shell was refused | ACCEPTED — step 6 needs no worktree (`git show` base reader + the driver); step 1 names a `git archive` probe tree should `git worktree add` be refused, keeping the graders reading their own tree |
+| opus 4 | § Lifecycle names three hub-absolute readers while the plan's Evidence lists four; the D4 range differs (`:122-126` vs `:123-124`) | read both | ACCEPTED — § Lifecycle adds `scripts/check_commit_trailers.py` (it switches at merge too); both docs cite `:122-126` |
+| opus 5 | A mixed-case un-adoption silently hands the repo back to the old owner | spec § Lifecycle Failure states it; the test row would not | ACCEPTED — A3b's test comment names the cost |

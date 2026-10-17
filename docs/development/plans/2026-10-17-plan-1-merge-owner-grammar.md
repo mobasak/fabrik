@@ -39,7 +39,8 @@ Intake: 6 items — 6 IN, 0 OUT-OF-SCOPE, 0 ASK.
 ## What we already agreed (citations, not restatement)
 
 - Goal and personas: `spec § Goal`, `spec § Personas`; today's code and the executed census: `spec § What exists today`.
-- The delta D1–D4, including the exact bold token `(?:\*\*)?` and the hook's guard order: `spec § The delta`; why A
+- The delta D1–D4, including the exact bold tokens (one optional `**` on each side of the colon) and the hook's guard
+  order: `spec § The delta`; why A
   against the field research, and the panel: `spec § Chosen approach`; rejected B, C, D and a structured field:
   `spec § Rejected alternatives`; validation V1–V5: `spec § Validation`; the rollout window and the D trigger:
   `spec § Lifecycle`. The approval row is minted by `/fabrik-plan-review` at its gate (a `Size: small` spec is approved
@@ -52,8 +53,10 @@ Intake: 6 items — 6 IN, 0 OUT-OF-SCOPE, 0 ASK.
   from the edited one, run back to back (Phase A step 6).
 - **Three copies, one grammar.** The hook cannot import the scripts; the same pattern text goes into all three files,
   and the parity test pins it. The hook's one deliberate divergence — the `(?!UNDECLARED…)` guard inside its owner
-  regex — stays, AFTER `(?:\*\*)?\s*`.
-- **Unchanged:** `_SUPERSEDES_PREFIX`, the capture group `([A-Za-z0-9][A-Za-z0-9_.@-]*)`, the `UNDECLARED` token, `re.I`
+  regex — stays, AFTER `(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*`.
+- **Changed beyond the phrase:** `_SUPERSEDES_PREFIX`'s lookahead only, `(?=(?-i:MERGE OWNER:))` →
+  `(?=(?-i:MERGE OWNER))` (spec D2), so a supersedes clause can precede the colon-outside bold label.
+- **Unchanged:** the rest of `_SUPERSEDES_PREFIX`, the capture group `([A-Za-z0-9][A-Za-z0-9_.@-]*)`, the `UNDECLARED` token, `re.I`
   on the compile (the supersedes clause and the token stay case-insensitive), `_ADOPT_NAME_RE`, every reader function.
 - **No new dependency** (`core/10-python.md:30`); `re` only.
 - **Tests:** one per behaviour, watched-fail-first (`core/45-testing-strategy.md:22`), through the existing three-reader
@@ -98,16 +101,16 @@ Appetite: 75
 
 **Interfaces — Produces** (consumed by the readers that already call these symbols; no signature changes):
 - `scripts/decisions.py::MERGE_OWNER_RE` (`:61-63`) and `::_UNDECLARED_RE` (`:64-69`) — the phrase becomes
-  `(?-i:MERGE OWNER:)(?:\*\*)?\s*`; read by `_merge_owner` (`:666`, `:669`), whose only caller is `main` (`:731-732`).
+  `(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*`, and `_SUPERSEDES_PREFIX` (`:60`) the lookahead above; read by `_merge_owner` (`:666`, `:669`), whose only caller is `main` (`:731-732`).
 - `scripts/docs_updater.py::MERGE_OWNER_RE` (`:1232-1234`) and `::_UNDECLARED_RE` (`:1235-1240`) — the same; read by
   `read_merge_owner` (`:1592`, `:1595`), called at `:1609` (the PLANS header), `:2266` (the adoption status) and `:2535`
   (the `--adopt` row gate).
 - `.claude/hooks/session_orient.py::_MERGE_OWNER_RE` (`:228-233`) and `::_UNDECLARED_RE` (`:239-244`) — the same, the
-  owner regex reading `(?-i:MERGE OWNER:)(?:\*\*)?\s*(?!UNDECLARED…)(capture)`; read by `_owner_in` (`:327`, `:330`).
+  owner regex reading `(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*(?!UNDECLARED…)(capture)`; read by `_owner_in` (`:327`, `:330`).
 - The three comment blocks (`scripts/decisions.py:49-59`, `scripts/docs_updater.py:1220-1230`,
   `.claude/hooks/session_orient.py:205-226`) — the sentence "A bare row with no prefix keeps the case-insensitive
   phrase it always had." is replaced by the one rule: the label is upper-case-exact on every row, one optional `**`
-  after its colon; and the hook's `:211` ("Case-insensitive because the phrase match is, so `undeclared` cannot sneak
+  on each side of its colon, and the first token after it is the owner; and the hook's `:211` ("Case-insensitive because the phrase match is, so `undeclared` cannot sneak
   past it.") becomes: the `UNDECLARED` token stays case-insensitive, the label does not.
 
 **Consumes:** nothing from another phase.
@@ -115,11 +118,15 @@ Appetite: 75
 **Steps** (sequential):
 1. Write the Phase A graders (Behaviour Contract below) in `tests/test_session_orient_hook.py` — the new
    `_OWNER_CASES` rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file;
-   see A1, A3, A3b, A4, A6 and four of A2's five spellings red against today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/rule_cases.py` ran
+   see A1, A1b, A3, A3b, A4, A6 and A8's two new supersedes spellings, and four of A2's five spellings, red against
+   today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/rule_cases.py` ran
    every case). Two are green today: A2's `**Merge owner:**` spelling (today its closing `**` blocks the capture) and
    A5 (`\s*` already refuses an asterisk after the colon). Their red is proven on mutants in a throwaway worktree:
    with the bold token in place but the `(?-i:…)` removed, `**Merge owner:** rotated` reads `rotated` and that case
-   fails; with `\**` written for `(?:\*\*)?` in all three files, A5 fails.
+   fails; with `\**` written for each `(?:\*\*)?` in all three files, A5 fails. The throwaway tree is
+   `git worktree add --detach <scratch>/probe HEAD`; should the session's guard refuse that, `git archive HEAD | tar -x
+   -C <scratch>/probe` gives the same tree with no shared metadata — the graders resolve paths from the tree they sit
+   in (`tests/test_session_orient_hook.py:17`), so a copied single file would grade the live checkout instead.
 2. Edit the six patterns (D1, D2), keeping the hook's guard after the bold token; run `ruff format` on the three
    files (the edited single-line compiles pass 100 characters and re-wrap).
 3. Edit the three comment blocks and the hook's `:211`, and the stale comments in the test file
@@ -127,36 +134,77 @@ Appetite: 75
 4. Run `tests/test_session_orient_hook.py` green, then — one file at a time — `tests/test_decisions_helper.py`,
    `tests/test_docs_updater_adopt.py` and `tests/test_stop_hook_merge_requests.py` (the readers' own suites, no fixture
    change expected per the census in Evidence); `ruff check` and `ruff format --check` on the four files.
-5. The two doc sentences (D4): `docs/reference/multi-agent-operating-model.md:123-124` and
-   `docs/workstation/hooks-index.md:16`.
-6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`. Then run the base reader and the edited
-   reader back to back over every ledger on the box, so no session's append can fall between them — the base from a
-   throwaway worktree at the base SHA (`<base SHA>` is the commit Phase A starts from: `git rev-parse HEAD` before
-   step 1), the edited from this tree — and diff them; each command is one line:
+5. The two doc sentences (D4): `docs/reference/multi-agent-operating-model.md:122-126` and
+   `docs/workstation/hooks-index.md:16`, each saying the bold label is read by the hub's readers at once and by a
+   project's synced copies after its next sync.
+6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`. Then compare the base reader with the
+   edited one, back to back over every ledger on the box, with a two-row control ledger that the base must read as
+   `alpha` and the edit as `beta` — two identical readers fail the control, so an empty diff cannot pass by accident.
+   `<base SHA>` is the commit Phase A starts from (`git rev-parse HEAD` before step 1). Write the driver below to
+   `<scratch>/owners_diff.py`, then run, one command per line:
 
    ```bash
-   git worktree add --detach <scratch>/base <base SHA>
-   for r in /opt/*/; do [ -f "$r/docs/DECISIONS.md" ] && printf '%s %s rc=%s\n' "$r" "$(python3 <scratch>/base/scripts/decisions.py --merge-owner "$r" 2>/dev/null)" "$?"; done > <scratch>/owners-before.txt
-   for r in /opt/*/; do [ -f "$r/docs/DECISIONS.md" ] && printf '%s %s rc=%s\n' "$r" "$(python3 scripts/decisions.py --merge-owner "$r" 2>/dev/null)" "$?"; done > <scratch>/owners-after.txt
-   diff <scratch>/owners-before.txt <scratch>/owners-after.txt
-   git worktree remove --force <scratch>/base
+   git show <base SHA>:scripts/decisions.py > <scratch>/base_decisions.py
+   python3 <scratch>/owners_diff.py <scratch>/base_decisions.py scripts/decisions.py
    ```
 
-   The diff is empty, and the before-file is a real reading, not a run of usage errors: its line count and its `rc=`
-   tallies are pasted beside it (52 lines, 9 `rc=0`, 43 `rc=3` at authoring; an `rc=2` or `rc=127` line means the
-   command did not run). Paste both results in Evidence.
+   It prints the control, the base tallies (52 ledgers, 9 `rc=0`, 43 `rc=3` at authoring), `diff: none` and `PASS`,
+   exit 0; `--merge-owner` needs no other file than `decisions.py` (`scripts/decisions.py:651-680`). Paste its output
+   in Evidence.
+
+   ```python
+   """usage: owners_diff.py <base decisions.py> <edited decisions.py>
+   Run both readers' --merge-owner over every /opt/*/docs/DECISIONS.md back to back, and over a two-row control ledger.
+   Exit 0 only when the control separates them (base alpha, edited beta) and every real ledger reads the same in both."""
+   import subprocess
+   import sys
+   import tempfile
+   from collections import Counter
+   from pathlib import Path
+
+
+   def owner(reader, repo):
+       p = subprocess.run([sys.executable, reader, "--merge-owner", str(repo)], capture_output=True, text=True)
+       return f"{p.stdout.strip()} rc={p.returncode}"
+
+
+   base, edited = sys.argv[1], sys.argv[2]
+   with tempfile.TemporaryDirectory() as d:
+       (Path(d) / "docs").mkdir()
+       (Path(d) / "docs/DECISIONS.md").write_text(
+           "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+           "| D-001 | x | op | MERGE OWNER: alpha | y | z |\n| D-002 | x | op | **MERGE OWNER:** beta | y | z |\n",
+           encoding="utf-8",
+       )
+       control = (owner(base, d), owner(edited, d))
+   print(f"control: base {control[0]!r}, edited {control[1]!r}")
+   repos = sorted(p.parent.parent for p in Path("/opt").glob("*/docs/DECISIONS.md"))
+   before = {r: owner(base, r) for r in repos}
+   after = {r: owner(edited, r) for r in repos}
+   tally = Counter(v.rsplit(" ", 1)[1] for v in before.values())
+   print(f"ledgers {len(repos)}: base tallies {dict(sorted(tally.items()))}")
+   diffs = [f"{r}: {before[r]} -> {after[r]}" for r in repos if before[r] != after[r]]
+   print("\n".join(diffs) if diffs else "diff: none")
+   ok = control == ("alpha rc=0", "beta rc=0") and not diffs and set(tally) <= {"rc=0", "rc=3"}
+   print("PASS" if ok else "FAIL")
+   sys.exit(0 if ok else 1)
+   ```
+
 7. `/fabrik-review-scoped` on Phase A's surface; fix what it finds.
 
 **Behavior Contract (Phase A):**
 
 - **Given** a ledger whose D-002 is `**MERGE OWNER:** beta` above `MERGE OWNER: alpha`, **When** the three readers resolve the owner, **Then** each returns `beta` (A1, spec V1)
+- **Given** a higher-id row `**MERGE OWNER**: beta` — the bold closing before the colon — **When** the three readers resolve, **Then** each returns `beta` (A1b, spec V1)
 - **Given** a higher-id row opening `Merge owner: rotated weekly` — and the same with `merge owner:`, `Merge Owner:`, `MERGE owner:`, `**Merge owner:**` — **When** the three readers resolve, **Then** each returns `alpha` (A2, spec V2; five spellings)
 - **Given** a higher-id row `**MERGE OWNER:** UNDECLARED — un-adopted`, **When** the three readers resolve, **Then** each reports undeclared (A3, spec V3)
-- **Given** a higher-id row `Merge owner: UNDECLARED` above `MERGE OWNER: alpha`, **When** the three readers resolve, **Then** each returns `alpha` — the un-adoption row obeys the same case rule (A3b, spec D2)
+- **Given** a higher-id row `Merge owner: UNDECLARED` above `MERGE OWNER: alpha`, **When** the three readers resolve, **Then** each returns `alpha` — the un-adoption row obeys the same case rule, and its test comment names the cost spec § Lifecycle Failure states (A3b, spec D2)
 - **Given** the existing case `bare-row-lowercase-phrase` (`merge owner: beta`), **When** the three readers resolve, **Then** each returns `alpha`, the row now prose (A4)
-- **Given** `MERGE OWNER:*beta*` and `MERGE OWNER:***beta` as the higher-id row, **When** the three readers resolve, **Then** each returns `alpha` — the bold allowance is exactly one `**` (A5)
-- **Given** the three source files, **When** the parity test reads their pattern text, **Then** each holds `(?-i:MERGE OWNER:)(?:\*\*)?\s*` in its owner and un-adoption regex, and the hook's guard follows it — the `phrase` (`:897`), `uses` (`:903`) and `undeclared` (`:912`) literals updated, `prefix` (`:896`) unchanged; red today, and red on a mutant that moves the hook's guard before the bold token, which no reader output shows (A6)
+- **Given** `MERGE OWNER:*beta*`, `MERGE OWNER:***beta` and `**MERGE OWNER**:*beta*` as the higher-id row, **When** the three readers resolve, **Then** each returns `alpha` — the bold allowance is exactly one `**` (A5)
+- **Given** the three source files, **When** the parity test reads their pattern text, **Then** each holds `(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*` in its owner and un-adoption regex and `(?=(?-i:MERGE OWNER))` in `_SUPERSEDES_PREFIX`, and the hook's guard follows the phrase — the `prefix` (`:896`), `phrase` (`:897`), `uses` (`:903`) and `undeclared` (`:912`) literals updated; red today, and red on a mutant that moves the hook's guard before the bold token, which no reader output shows (A6)
 - **Given** every other existing `_OWNER_CASES` row, **When** the three readers resolve, **Then** each keeps its answer (A7, spec V5)
+- **Given** `supersedes D-001: **MERGE OWNER:** beta`, `**Supersedes D-001.** **MERGE OWNER:** beta` and `supersedes D-001: **MERGE OWNER**: beta`, added to `_SUPERSEDES_SPELLINGS` (`tests/test_session_orient_hook.py:1256-1266`), **When** the three readers resolve, **Then** each returns `beta` (A8, spec V1)
+- **Given** a higher-id row `**MERGE OWNER:** rotated weekly`, **When** the three readers resolve, **Then** each returns `rotated` — the documented first-token limit (A9, spec § Goal)
 - **Mocked:** nothing — the three-reader test runs the real hook, the real `docs_updater.read_merge_owner` and a real `decisions.py --merge-owner` subprocess over a synthetic ledger in `tmp_path`.
 
 ## Phase B — Finish
@@ -196,10 +244,10 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | FLOOR core/10-python | no deps-file edit; stdlib `re` only | CLEAN — no dependency file in § File Scope; hunted: Global Constraints |
 | FLOOR 12-FACTOR | no config, no env, no service | CLEAN — the change is a regex in hub scripts and a hook; hunted: Phase A Interfaces |
 | MATCHED core/40-documentation | one CHANGELOG entry; the two doc sentences; D-934 with the spec | CLEAN — Phase B step 2, Phase A step 5, the spec commit 0cbf8d780 |
-| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red; the case rule graded on five spellings | CLEAN — A1–A7 map spec § Validation (Self-audit); A2's bold spelling and A5 red on a mutant, A6 also on a guard-order mutant |
+| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red; the case rule graded on five spellings | CLEAN — A1–A9 (with A1b, A3b) map spec § Validation and § Goal (Self-audit); A2's bold spelling and A5 red on a mutant, A6 also on a guard-order mutant |
 | RECURRENCE fail-open vs fail-closed | a row the grammar no longer reads falls back to the next declaration, never to an invented owner | CLEAN — A2, A4; spec § Lifecycle Failure |
 | RECURRENCE cost/quota/limit accounting | none | CLEAN — no seat, quota or limit touched |
-| RECURRENCE boundary/sentinel/prefix collisions | `**` vs `*` vs `***`; `**` before `UNDECLARED` vs the hook's guard; the supersedes prefix's own `[\s*]*` | CLEAN — A3, A5, A6; Evidence `bold_probe.py` |
+| RECURRENCE boundary/sentinel/prefix collisions | `**` vs `*` vs `***`; `**` before or after the colon; `**` before `UNDECLARED` vs the hook's guard; the supersedes prefix's own `[\s*]*` and its colon-less lookahead | CLEAN — A1b, A3, A5, A6, A8; `option_a.py` and `option_a_spellings.py` (the review's run folder `probes/`): 21 cases and 13 spellings, 0 wrong, 52 ledgers unchanged |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row | CLEAN — Self-audit mapping |
 
 Rubric invocation (verbatim output; the File Scope is the changed-path set):
@@ -363,8 +411,9 @@ $ timeout 300 prlimit --as=8589934592 -- .venv/bin/python -m pytest tests/test_s
 
 ## Self-audit
 
-- Every behaviour in `spec § Validation` maps to a row: V1 → A1, V2 → A2, V3 → A3, V4 → Phase A step 6, V5 → A7; A3b (a mixed-case un-adoption, spec D2), A4
-  (the flipped pin), A5 (the bold token's tightness) and A6 (the parity pin) come from the grounding seats.
+- Every behaviour in `spec § Validation` maps to a row: V1 → A1, A1b, A8, V2 → A2, V3 → A3, V4 → Phase A step 6, V5 →
+  A7; A3b (a mixed-case un-adoption, spec D2), A4 (the flipped pin), A5 (the bold token's tightness) and A6 (the parity
+  pin) come from the grounding seats; A1b, A8 and A9 (the first-token limit, spec § Goal) from the design panel.
 - Every item in What we already agreed maps to Phase A (D1–D4) or Phase B (review, CHANGELOG, backlog row, merge
   request).
 - Diff estimate ≈30 code lines in 3 code files (tests excluded): inside `Profile: small` (≤ ~400, ≤ 5).
@@ -373,7 +422,8 @@ $ timeout 300 prlimit --as=8589934592 -- .venv/bin/python -m pytest tests/test_s
 
 ## Residual unknowns
 
-- **R1 — resolved.** The bold token's width: `(?:\*\*)?`, not `\**` (Evidence).
+- **R1 — resolved.** The bold token's width: one optional `(?:\*\*)?` on each side of the colon, not `\**` (Evidence;
+  the design panel's colon-outside spelling).
 - **R2 — resolved.** No reader beyond the three files parses the label; the four subprocess callers take the winning
   row only (Evidence).
 - **R3 — open, by design.** Between merge and the next governance sync, a project's synced `docs_updater.py` and
