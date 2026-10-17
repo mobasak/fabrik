@@ -17,10 +17,11 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — run scratch unwritable from worktree, seats fall back",
   "status": "open",
   "tags": [
-    "mail-01m4y3n9gw8n6hz5d1qtfzphwf"
+    "mail-01m4y3n9gw8n6hz5d1qtfzphwf",
+    "medium"
   ],
   "title": "Scratch gap: run scratch is unwritable from a worktree session (Write tool refused), so seats fall back to the shared scratchpad (mail 01M4Y3N9GW8N6HZ5D1QTFZPHWF)"
 }

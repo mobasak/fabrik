@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — URL_RE trailing punctuation in advisory floor check",
   "status": "open",
   "title": "check_spec_convergence URL_RE keeps trailing sentence punctuation, so one source cited twice ('...a,' and '...a.') counts as two distinct URLs and clears the APPROACH-FLOOR"
 }

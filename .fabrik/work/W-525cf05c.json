@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "pre-existing, inputs are mostly mesh-written epochs; low risk; mechanical",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — glob admits non-ASCII digits, low risk",
   "status": "open",
   "tags": [
     "waits-quota"

@@ -405,6 +405,64 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
     )
 
 
+def _two_seat_union(sonnet_file: str) -> tuple[dict, dict]:
+    """The sonnet seat — taken in FIRST, so its candidate is the one kept — cites the defect at line 3 as
+    `sonnet_file`; the haiku seat cites the same defect at line 4 as `a.py`."""
+    out, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "n",
+                "candidates": [{**_cand("S-S1", 3), "file": sonnet_file}],
+            },
+            "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-H1", 4)]},
+        },
+    )
+    return out["slices"][0], prompts
+
+
+@pytest.mark.parametrize(
+    "shape", ["/p/a.py", "/s/seat-p1-0-S-haiku/arch/a.py", "`/p/a.py`"], ids=["pin", "arch", "wrapped"]
+)
+def test_a_pin_or_scratch_copy_citation_merges_with_the_repo_path_citation(shape: str) -> None:
+    """W-177082fc: `sameDefect` compared `file` verbatim, so one defect cited by its pin or scratch-copy path and by
+    its repo path stayed two candidates (overlap undercounted, the estimate inflated, the refuter ran it twice). The
+    candidate's `file` now goes through readsFile's root strip (D-625) as it is taken in."""
+    s, prompts = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1"], s["candidates"]
+    assert s["overlap"] == 1 and s["candidates"][0]["also"] == "S-H1", s
+    assert s["candidates"][0]["file"] == "a.py"
+    assert "CANDIDATE S-S1 · a.py:3" in prompts["refute:S"], "the refuter is handed the repo path"
+
+
+@pytest.mark.parametrize(
+    ("shape", "stored"),
+    [
+        ("/opt/x/a.py", "/opt/x/a.py"),
+        ("/p/other/a.py", "other/a.py"),
+        ("/pX/a.py", "/pX/a.py"),
+        ("/q/p/a.py", "/q/p/a.py"),
+    ],
+    ids=["live", "other-file-in-the-pins-dir", "near-root", "embedded-root"],
+)
+def test_a_live_or_different_path_is_never_merged_with_the_repo_path(shape: str, stored: str) -> None:
+    """D-625: only the pins root or a seat's scratch arch root is stripped, and only as a prefix — a live-checkout
+    path and a look-alike or embedded root are kept as cited, and a different file under the pins dir becomes its own
+    repo path (`other/a.py`), so none of them is merged with `a.py`."""
+    s, _ = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1", "S-H1"], s["candidates"]
+    assert s["overlap"] == 0
+    assert s["candidates"][0]["file"] == stored
+
+
+def test_a_file_that_is_only_a_root_keeps_its_original() -> None:
+    """A `file` that strips to the empty string (the pins dir itself) keeps the seat's original value rather than
+    reading as no file at all."""
+    s, _ = _two_seat_union("/p/")
+    assert s["candidates"][0]["file"] == "/p/", s["candidates"]
+
+
 def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed() -> None:
     ledger, log = _run_ledger(
         _ARGS,

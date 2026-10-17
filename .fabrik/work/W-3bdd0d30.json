@@ -17,7 +17,10 @@
   "note": "migrated-digest:eae736d3159e",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Quota dashboard subprocess cap under network degradation",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — dashboard cap under degraded network",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "`claude_rotate.py --status --json` can exceed `quota_dashboard.py`'s 60s subprocess cap under partial network degradation (2026-09-05, owner: infra)"
 }

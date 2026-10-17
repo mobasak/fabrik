@@ -17,7 +17,10 @@
   "note": "migrated-digest:58f6bc34132d",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "command_run.py line silent on a lapsed round",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — line prints nothing on lapsed round; misleads",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**`command_run.py line` says nothing when the last round LAPSED** (2026-09-09, owner: infra) — an adopted record's round omitting `--confirmed` prints its lapse only on that round's streams; the pi..."
 }

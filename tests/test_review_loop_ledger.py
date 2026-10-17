@@ -465,6 +465,37 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
     assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out
 
 
+@pytest.mark.parametrize(
+    ("seat", "slice_name"),
+    [
+        ("find:A:sonnet:retry", "A"),
+        ("find:A:opus:retry", "A"),
+        ("find:rule-grammar:haiku:retry", "rule-grammar"),
+        ("find:x-y:sonnet:retry", "x-y"),
+        ("find:a:b:sonnet:retry", "a:b"),
+    ],
+)
+def test_next_attributes_a_retry_finders_candidate_to_its_own_slice(
+    seat: str, slice_name: str
+) -> None:
+    """W-6399d1a3: a finder retry runs under `find:<slice>:<model>:retry` (fabrik-review-loop.js finder label), and
+    splitting off only the last `:` field named a phantom slice `<slice>:<model>`, so the next pass carried that
+    candidate's claim under a slice no round-1 seat owns. Five spellings — models, a hyphenated and a colon-bearing
+    slice name — beside a first-attempt seat of another slice."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import review_loop_ledger as rl
+
+    cid = f"{slice_name}-S1"
+    doc = {
+        "candidates": [
+            {"id": cid, "file": "a.py", "line": 3, "claim": "x", "seat": seat},
+            {"id": "other-H1", "file": "s.md", "line": 9, "claim": "y", "seat": "find:other:haiku"},
+        ]
+    }
+    out = rl.next_ledger(doc, [cid, "other-H1"])
+    assert sorted(s["name"] for s in out) == sorted([slice_name, "other"]), out
+
+
 # --- next --args: the verdicts' own ids and whole slices (mail 01M4PHYNXJ) -----------------------------------
 
 
@@ -1628,3 +1659,86 @@ def test_next_names_what_the_run_file_could_not_settle(tmp_path: Path) -> None:
     assert "re-run next with --args" not in r.stderr, (
         "--args was given: the advice names the hand route"
     )
+
+
+def test_next_advice_for_an_args_file_with_no_result_never_asks_for_args(tmp_path: Path) -> None:
+    """W-9f436e18 (1): a run file whose run never returned (no `result` key) is still an `--args` file, so the
+    NOT CHECKED advice must not tell the lead to pass `--args <run file>` — it names the missing result instead."""
+    run = tmp_path / "run.json"
+    run.write_text(
+        json.dumps({"runId": "wf_n", "args": {"slices": [{"name": "A", "files": ["a.py"]}]}})
+    )
+    p = tmp_path / "pass.json"
+    p.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {**_union("A-S1", 1, "a"), "seat": "find:A:sonnet"},
+                    {**_union("A-S2", 2, "b"), "seat": "find:A:sonnet"},
+                ],
+                "verdicts": [],
+                "ledger_status": [],
+            }
+        )
+    )
+    r = _tool("next", str(p), "--ids", "A-S1", "--args", str(run))
+    assert r.returncode == 0, r.stderr
+    assert "NOT CHECKED 1 candidate(s) outside --ids" in r.stderr, r.stderr
+    assert "pass --args" not in r.stderr, r.stderr
+    assert "no usable `result`" in r.stderr, r.stderr
+
+
+def test_next_treats_fold_equal_union_ids_as_one_repeated_claim(tmp_path: Path) -> None:
+    """W-9f436e18 (2): the repeat guard compared raw ids, so `alpha-S1` and `alpha-s1 ` (fold-equal under the
+    workflow's `foldId`) escaped it and both were carried; a fold-equal repeat names no single claim either."""
+    run = _judged_run(
+        tmp_path,
+        [
+            {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
+            {
+                "name": "alpha",
+                "candidates": _cands("alpha-S1", "alpha-s1 ", "ALPHA-s1"),
+                "verdicts": [
+                    _ev("alpha-S1", "refuted"),
+                    _ev("alpha-s1 ", "confirmed"),
+                    _ev("ALPHA-s1", "confirmed"),
+                ],
+            },
+        ],
+    )
+    r = _tool("next", str(_pass_with(tmp_path)), "--ids", "A-S1", "--args", str(run))
+    assert r.returncode == 0, r.stderr
+    lines = r.stderr.splitlines()
+    assert not any(ln.lower().startswith("carried alpha-s1") for ln in lines), r.stderr
+    assert sum(ln.lower().startswith("open not carried alpha-s1") for ln in lines) == 1, (
+        "three spellings of one repeated claim are named once"
+    )
+    # the ids the lead NAMES are matched folded too: a fold-equal repeat is refused, never resolved to one spelling
+    named = _tool("next", str(_pass_with(tmp_path)), "--ids", "A-S1,alpha-S1", "--args", str(run))
+    assert named.returncode == 2 and "more than once" in named.stderr, named.stderr
+
+
+def test_next_emits_one_row_for_fold_equal_spellings_of_one_claim_in_ids(tmp_path: Path) -> None:
+    """W-9f436e18 closing pass, N-1: once `--ids` resolve folded, two spellings of ONE (unrepeated) claim hit the same
+    union candidate — the dedup must be folded too, or the next ledger carries the row twice."""
+    run = _judged_run(
+        tmp_path,
+        [
+            {"name": "A", "candidates": _cands("A-S1"), "verdicts": [_ev("A-S1", "confirmed")]},
+            {
+                "name": "alpha",
+                "candidates": _cands("alpha-S1"),
+                "verdicts": [_ev("alpha-S1", "confirmed")],
+            },
+        ],
+    )
+    r = _tool(
+        "next",
+        str(_pass_with(tmp_path)),
+        "--ids",
+        "A-S1,alpha-S1,ALPHA-s1 ,A-s1",
+        "--args",
+        str(run),
+    )
+    assert r.returncode == 0, r.stderr
+    assert _ledger_of(r.stdout) == {"A": ["A-S1"], "alpha": ["alpha-S1"]}, r.stdout

@@ -23,6 +23,120 @@ the `requirements-dev.txt` its Makefile installs, the saas-family server a `serv
 deps, and chrome-extension a root `pytest.ini`, because pytest never reads its `server/pyproject.toml` for the
 root `tests/`. Vendored fabrik-lib trees (`docs-site`) are left as vendored. A hang guard only — the capped
 runner stays the memory guard (D-935, W-046828fb).
+### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
+
+- The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
+  tracked (`_is_tracked`), so the hub — which has no RESILIENCE or OPERATIONS doc — is no longer told to update one
+  after a `retry` diff or a compose change (W-a846021a). PORTS.md (D-380), INDEX.md, FEATURES and QUICKSTART keep their
+  rows. Treating a UI "Retry" word as not-retry was rejected after measuring: the incident matched the identifier
+  `retry: bool`, and no diff-text rule tells it from `retry=3` (0 UI-label hits in 8,027 fleet .py commits).
+- tests/test_check_doc_sync.py: three new grader cases, red on base; the two existing RESILIENCE tests now commit the
+  doc so they keep testing the patterns.
+
+### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
+
+`commands/_fragments/review-probe-catalogue.md` § Graders: "a prose grader asserts the whole generated sentence, not a
+substring" becomes "a grader of fixed prose or of a deterministic message asserts the whole sentence, bullet or
+message it pins by equality (`==` against all of it, every line of a message, never `in`, a prefix, a suffix or a
+regex over part of it), so an added clause or a leaked value fails it, and a grader of that text's position, of its
+absence or of a property across its examples sits beside that equality grader, never in place of it". Answers
+/fabrik-review-scoped rows 1792259629 and 1792258433, which recur the held subject `test-message-content-mutants`.
+Rows 1792257781 and 1792255641 are answered as already stated, and 1792265532 is held.
+Pinned by `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — `review_loop_ledger.py next --ids` help says the other open claims are carried (2026-10-17)
+
+The help read "comma-separated confirmed candidate ids" and the docstring "exactly those confirmed ids", although with
+`--args` `next` also carries the other open claims: a run file's confirmed or unverified candidates left out of
+`--ids`, and DEFECT_PRESENT/NEW ledger rows from the launch ledger. Both now say so — the remaining half of
+/fabrik-spec-review row 1790195711 (W-b1f67743); the four review recipes already pair `--ids <the confirmed ids>` with
+`--args`.
+
+### Fixed — `review_loop_ledger.py next`: right advice for a result-less `--args` file; fold-equal repeated ids (2026-10-17)
+
+An `--args` run file with no `result` key (bare launch args, or a run that never returned) got the advice to pass
+`--args <run file>` though one was passed; it now names the missing `result`. A repeated union id was compared raw,
+so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling was carried; both the guard and the
+filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
+(W-9f436e18).
+
+### Fixed — the Stop hook no longer orders a commit of the file a running review is still reviewing (2026-10-17)
+
+`.claude/hooks/final_gate_stop.py`'s uncommitted cause no longer counts a file that the fresh, running review-family record names in its `--surface`. Before this, a session was told to commit mid-review, the reverse of the lane's order. The fifth cause now blocks that turn instead, telling the session to run the review to its terminal condition. The exemption holds only on a stop the fifth cause actually blocks (`_review_exempts_commit`): with the run's seats in flight, on its warn-through stop, or once the record closes, the commit is ordered again, so no stop leaves the file ordered by neither cause. The exemption is gated on the same fresh record the fifth cause blocks on, so the `COMMAND_RUN_STALE_H=0` opt-out cannot turn an abandoned record into a permanent exemption. The urgent-90 checkpoint still orders the commit (D-306). Both callers now share one predicate, `_own_uncommitted`. A stand-down lands in the kaizen stream as `stop_block` `stood_down` (W-5ce56208).
+
+### Added — `command_run.py capture`, and `--commit` takes a comma list (2026-10-17)
+
+`python3 scripts/command_run.py capture --msg <file> --out <file>` replaces `/fabrik-task` phase 5's chained capture shell line with one plain command, which a worktree session's guard accepts. It finds the commit by its message file's subject, never `HEAD`, checks that the subject matches exactly, and appends the sha. It exits 1 on any miss. `done`/`blocked`/`handoff --commit a,b` now close exactly like `--commit a b`; before this, the comma form was refused as "not this run's commit". Both answer feedback rows routed by kaizen (mail 01M55GGMS5).
+
+### Changed — /fabrik-command-improve: test-and-gate, fragment-scope and removed-word rules (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md`:
+- PHASE 3: a sentence stating how a test or gate behaves is run on its own real cases before the review; a
+  sentence a `_fragments/` edit adds names the consumers that have its subject and binds no other.
+- PHASE 4: a sentence a round rewords has its removed words grepped across `tests/` and the drafted commit subject.
+
+Answers rows 1792241313, 1792259406 and 1792243098, each recurring an earlier reject after an Opus audit. Rows
+1792241808 and 1792261612 are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
+### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
+
+The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
+
+### Changed — /fabrik-task: MEASURE reads a new env var's transport on the started process (2026-10-17)
+
+`commands/_sources/fabrik-task.md` Phase 1: the population a change measures now names the transport handing a new
+env var to the process (compose `environment:`, `env_file`, a build arg, another launcher), read on the started
+process (e.g. `docker compose run --rm <svc> env`) with its keys recorded, never its values. Answers row 1792258556,
+the third verdict on held measure-the-env-writers-not-only-the-spec (D-951; SIZE_CAP 22044 -> 22272). The queue's
+other 6 rows are already stated or routed to infra. Pinned by `tests/test_fabrik_task_queue_pass.py`.
+
+### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
+
+`/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and
+names opening with `-`, which the readers do not read back as that owner — the same hole `docs_updater.py --adopt`
+closed in W-2118e9c9. `--assign` now runs the same round-trip through `decisions.py`'s `MERGE_OWNER_RE` and
+`_UNDECLARED_RE` and refuses (exit 2, before any write); a later name in the list is an epic owner only and is not
+checked (W-390556a1).
+
+### Fixed — `review_loop_ledger.py next` keeps a retried finder's candidate in its own slice (2026-10-17)
+
+A finder retry runs under the label `find:<slice>:<model>:retry`, and `_slice_of` split off only the last `:` field,
+so the next pass carried that candidate under a phantom slice `<slice>:<model>` no round-1 seat owns. The `:retry`
+suffix is now stripped before the model is split off (W-6399d1a3).
+
+### Changed — Review loop: briefs kept durable, untouched slices said, guards as round-trips, counts after the closing pass (2026-10-17)
+
+- `commands/_sources/fabrik-review.md`: the briefs and fix lists the lead writes for each pass go under the run's
+  durable `SCRATCH:` folder with the pins and pass files. When the fix diff leaves a slice's files untouched, the
+  closing-pass brief says so, naming each file's md5 in both passes' pin manifests.
+- `commands/_fragments/term-coverage.md` and `term-edit.md` (round zero): a guard added because one bad input reached a reader is
+  written as the readers' round-trip, never as a check for that one input.
+- `commands/_fragments/close-chain.md`: in a command that runs a review loop, a mutant or test count reaches the
+  D-row or CHANGELOG only after the closing pass.
+
+Answers rows 1792252856, 1792251120, 1792255300 and 1792247279, each recurring an earlier held or routed reject. The queue's
+other 7 rows are held or rejected with reasons. Pinned by `tests/test_review_queue_pass.py`.
+
+### Changed — Review commands: `next` recipes pass the run file and read stderr (2026-10-17)
+
+The corpus catches up with D-933's `review_loop_ledger.py next`, which now carries open claims from the run file:
+- `commands/_fragments/term-coverage.md`: `next` reads no diff. It carries the `--ids` and, with `--args <the run
+  file>`, the claims the run left open, never a row for this pass's fix hunk, so the lead still adds that slice.
+- `fabrik-review`, `fabrik-review-scoped`, `fabrik-spec-review`, `fabrik-plan-review`: each `next` recipe adds
+  `--args <a scratch copy of the run file>` whenever that file exists and reads its stderr either way, pointing at
+  `docs/reference/review-loop-workflow.md`. The scoped recipe trims the emitted `models`.
+
+Answers intel mail 01M54XR3QS (D-948). Pinned by `tests/test_review_command_text_defects.py`.
+
+### Fixed — `docs_updater.py --adopt` refuses `undeclared` as the merge owner (2026-10-17)
+
+`--adopt undeclared` passed the agent-name grammar and wrote `MERGE OWNER: undeclared`, which every reader takes as
+the un-adoption row (the UNDECLARED token is case-insensitive): the owner read None, `decisions.py --merge-owner`
+exited 3, and every later `--adopt` appended another row. A name opening with `-` (`-x`) had the same effect, since
+the readers' capture needs a letter or digit first. `run_adopt` now builds the owner row it would write and refuses
+(exit 2, before any write) a first name that the readers' own `MERGE_OWNER_RE`/`_UNDECLARED_RE` do not read back as
+that owner; `undeclared-team` stays a valid owner (W-2118e9c9). The hook comment that claimed `--adopt` could not
+mint that name is now true and says why.
 
 ### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
 
@@ -114,6 +228,15 @@ refuse redeploy. Decision: D-937 (W-51d6c153).
   1792192158 (infra) reported four tickets that paraphrased the spec instead, which drove most of a review's first
   round. It recurs on the held subject `size-read-set-first`. The graders are in
   `tests/test_plan_after_chat_queue_pass.py`, one of which runs the gate's two parsers on both shapes.
+
+### Fixed — the review loop merges one defect cited by its pin path and by its repo path (2026-10-17)
+
+`.claude/workflows/fabrik-review-loop.js` now takes each candidate's `file` through the same root strip `readsFile`
+applies to `files_read` (D-625), before the cross-seat twin lookup: a seat citing `<pins_dir>/a.py` or
+`<scratch_dir>/<seat>/arch/a.py` and a seat citing `a.py` raise one candidate, so `overlap`, the Chapman estimate and
+the refuter's work count it once (W-177082fc). A live-checkout or `base_pin_dir` path stays as cited; a value that
+strips to nothing keeps its original. Measured over 73,236 union candidates in 14,496 run files on the box: 0 such
+pairs had been split, so this closes a class by construction rather than a frequent miss.
 
 ### Fixed — a merge-owner row is read only from the exact label, bold allowed (2026-10-17)
 
@@ -251,6 +374,70 @@ strings included, and keeps template `shape:` keys inside a nine-key allow-list.
   `docs/reference/command-loop-performance.md` § 4.7 (D-911, mail 01M50FD9YE).
 - Graders in `tests/test_review_loop_workflow.py`. Receipt:
   `docs/development/reviews/2026-10-17-command-scratch-home-and-d335-reason-review.md`.
+
+### Fixed — the review receipt skeleton no longer lists half of the by-design refusals (2026-10-17)
+
+`scripts/review_receipt.py`'s skeleton said the gate refuses three by-design shapes. `check_review_coverage.py::_residual_errors` refuses six, and its `D-nnn` row check passes everything when no ledger with rows is readable. The skeleton now points at `_residual_errors` and `_ledger_ids` instead of restating them. `tests/enforcement/test_review_refusals.py` fails if the partial list returns or either function is renamed (kaizen, mail 01M53SBC2D).
+
+### Changed — the SCOPE GROWTH messages are now pinned whole by tests (2026-10-17)
+
+Both of `command_run.py`'s scope-growth messages, the in-lane one and the ordinary-window one, tell a review to fix the window's open defects, re-verify the fixed set alone, and close on a quiet round. `tests/test_command_run.py` now pins both messages whole, by equality, and `tests/test_command_run_lane_v2.py` pins that `round` prints the in-lane one with nothing after it. So a dropped, reordered, negated or added instruction fails. Before this, only each message's headline was pinned, so the wording that once let a run close with confirmed defects still open could return green (kaizen, mail 01M53S190T; W-49f3515f).
+
+### Fixed — the scratch-sweep run-folder tests no longer read the box's live /proc (2026-10-17)
+
+`tests/test_scratch_sweep_run_folders.py`'s `harness` now points `FABRIK_PROC_ROOT` at a fake one-pid /proc. On the live one, a same-user process the sweep could not read, started after a test folder was made, kept that folder. `test_the_write_after_close_signal_stays_bounded` then failed 2 of 40 runs on master. The three cases whose holder or liveness is a real process opt back in with `_live_proc`. An autouse teardown check fails any harness test that ends on the live /proc without opting in, whatever spelling put it there. `test_the_harness_reads_a_one_pid_fake_proc` pins the fake and the opt-in set.
+
+### Fixed — `--status --json` no longer overruns the dashboard's 60 s probe cap on a dead uplink (2026-10-17)
+
+`claude_rotate.py`'s `_oauth_get` keeps a per-process transport-dead latch (W-5a1b8961, D-942), in both vendored copies. When one call fails on every host and attempt with a transport error (an OSError) and nothing else, later calls inside 60 s return None at once instead of each spending its own hosts × attempts × timeout budget. Before this, a dead link made the fleet loop spend N accounts × ~33 s, and the board showed a probe failure instead of its cached rows.
+
+Two limits on the latch:
+- **Marks only on positive evidence.** A ValueError from a token holding a newline, a malformed body, or a bug never marks.
+- **Any contact clears it.** That means an HTTP status, a success, or a TLS certificate refusal from a captive portal. A call still in flight when another call made contact never marks afterwards.
+
+`tests/conftest.py` resets the latch on every loaded copy before each test. `tests/test_oauth_transport_latch.py` covers both copies. Every mutant of the guards turns a test red, except one equivalent mutant recorded in the review receipt.
+
+### Changed — Command-centre dashboard goes live; the old five-tab page is removed (2026-10-17)
+
+The quota dashboard's `GET /` now serves the app shell, with the Overview as the default view (plan 2026-10-17-plan-1, T07; W-573fae88). `/repos.html` redirects (303) to `/#work` through 2026-10-31 and returns 404 after that. 2026-10-31 is also the last day `/item-verdict` accepts a verdict without a snapshot token: `_LEGACY_TOKEN_UNTIL` sets both. When a pause or verdict POST names a target the server does not hold (after a restart, say), the server re-renders the view that shows it to find the target: the Overview for a pause, the Work view for a verdict. `generate()` now only probes: it writes `quota.json` and `_LAST_STATUS` and no longer writes `index.html`. `/quota.json` answers immediately and starts one background re-probe when the file is stale. `--once` now probes once, writes `quota.json` and prints its path. Every old HTML builder is deleted, which takes `quota_dashboard.py` from 215,566 to 142,997 bytes. Other changes in the page layer:
+
+- `fmt.py` now takes all its words from the catalogue.
+- `app.js` keeps Tab inside an open dialog.
+- Reloading on an in-view anchor such as `#ov-merges` now opens the Overview, scrolls to the anchor and keeps refreshing.
+
+New tests: `tests/test_quota_dashboard_page_layer.py` covers INV-4 (no HTML strings outside the components module), the catalogue scans and the INV-2 inventory of what the old tabs showed. `tests/test_quota_dashboard_browser.py` has 12 playwright tests over the real handler, using fixture work stores. The tests that matched HTML substrings of the old page were rewritten against the new views' landmarks. `docs/workstation/quota-dashboard.md` was rewritten to match.
+
+### Added — Command-centre dashboard views: Overview, Work, Accounts, Usage, Commands, Services (2026-10-17)
+
+Plan 2026-10-17-plan-1, T03–T06, built in parallel and merged as one wave. `dashboard_ui/views/overview.py` is the "Needs you" page: a summary strip, decisions waiting grouped by repo (hub first, gates first, the five oldest per group past 100 decisions) with Accept/Reject/Comment carrying the snapshot token, read-only blocked merges across every repo (`dashboard_ui/merges.py`: newest record per branch by ULID, refused or catchup-refused; the merge owner resolved through `decisions.py --merge-owner` in parallel under one deadline, single-flight per repo), every agent with Pause/Resume, and the quota and health strips, which move above the decisions on RED, WALL or a failed probe. `views/work.py` renders each repo's queue with the repo picker, owner chips (reversible, whitespace-free tokens), a tag filter and token-guarded verdicts. `views/accounts.py` renders the rotation queue, meters, governor, warnings and a per-account Edit disclosure (switch, disable, cap, rotate-at), every control confirmed and posting today's bodies. `views/usage.py`, `views/commands.py` and `views/services.py` carry the tier spend tables and monthly calendar, the searchable command catalogue with its service-matrix tab, and the pool credits and search-API quotas with the external-services link in its own tab. New components: `link` (only `#frag`, a same-site path or an http(s) URL), `section`, and an optional `group(label=)`. `fmt.read_ts` guards every freshness stamp, so one bad timestamp blanks its own stamp instead of failing the view. Tests: `tests/test_quota_dashboard_{overview,work,accounts,views_misc}.py`; the eleven dashboard files run 730 tests. Wave review: `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md`.
+
+### Added — Command-centre dashboard server wiring: request guard, view endpoint, snapshot tokens (2026-10-17)
+
+Plan 2026-10-17-plan-1, T02. `scripts/sysadmin/quota_dashboard.py` gains a request guard (a Host allowlist of the loopback names and the configured `QUOTA_DASH_HOST` on the bound port, exactly one Host header, wildcards never admitted, cross-site requests refused on every POST and on `GET /v/*`), `/static/` with ETag and 304, and `GET /v/<view>`, which renders a view module from `scripts/sysadmin/dashboard_ui/views/` and turns any fault into the error state with the stale banner kept, never a traceback or a dropped connection. The data layer: `_view_data` hands views their config as data, `_LAST_STATUS` is seeded once and never overwritten by a slower seed, collectors are cached with their failures, a request never waits on a probe, and target slices publish newest-first under one lock. A verdict carries the card's snapshot token (`dashboard_ui/snapshot.py`, sha256 of the item JSON): a changed item is refused 409 `changed`, and an item whose board checkout and main disagree is refused 409 `diverged` (catalogue `act.diverged`), which the page shows inline instead of reloading. A wildcard `QUOTA_DASH_HOST` keeps passing its own health check. New: `dashboard_ui/fmt.py` (nine formatting helpers), `dashboard_ui/views/__init__.py` (the view protocol). Every POST endpoint and collector keeps today's output (INV-1). Tests: `tests/test_quota_dashboard_server.py`; 498 across the seven dashboard files. Wave review: `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T02-review.md`.
+
+### Added — Command-centre UI kit: escaped components, string catalogue, one stylesheet and one script (2026-10-17)
+
+New package `scripts/sysadmin/dashboard_ui/` (plan 2026-10-17-plan-1, T01). `components.py` holds every HTML builder, plus `slug()` for ids built from data: each returns `Safe` and escapes every argument that is not exactly `Safe`. Builders refuse ids outside `[A-Za-z][\w:-]*`, data keys outside `[a-z0-9-]` or owned by a component, and non-finite times; None renders as nothing. `strings.py` is the catalogue (`t`, `use` on a ContextVar; an unknown key or an unfilled slot raises `KeyError`). `static/app.css` has one palette block plus light, dark and system-dark mappings, with WCAG contrast computed by a test for every text and mark token. `static/app.js` gives the views their behaviour: theme cycle, hash routing, a per-view refresh that skips while the operator is busy (INV-5) and while a post of this view is in flight, posts that fail closed (confirm dialogs, reasons, strict number inputs, same-origin paths, a 60 s timeout), filters, the repo picker, tabs, the clamp toggle, the menu button, loading timers and freshness stamps. Tests: `tests/test_quota_dashboard_ui_kit.py` and `tests/test_quota_dashboard_app_js.py` (265). Baseline for the 500 ms trigger: `generate()` 1619 ms and `_repos_page(fresh=True)` 1505 ms (medians of five). Wave review: `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-T01-review.md`.
+
+### Fixed — a certification board's mandated runtime.md is no longer a BAD TICKET or doc sprawl (2026-10-16)
+
+`/fabrik-user-test` and `/fabrik-service-test` order the agent to write `<board>/runtime.md` before any round, but `scripts/enforcement/check_certification_coverage.py` exempted only the spine and `ledger.md`, and `scripts/enforcement/check_doc_sprawl.py`'s `CERT_BOARD_RE` did not admit it either, so every compliant board printed `BAD TICKET: runtime.md …` and a new board's recipe counted as sprawl (web-ecommerce-factory 01M513RJ; W-d7847226, also W-cf48c3e6). Both graders now admit the exact name `runtime.md` and still refuse look-alikes; the board contract fragment, `docs/reference/certification-denominator.md` and the CLAUDE.md allowlist row (hub and template) name it.
+
+### Fixed — a whoami-bound window gets its role charter from the hook payload's session id (2026-10-16)
+
+`.claude/hooks/agent_role.py` fell back to the session's `whoami_agent.py --as` binding (D-654) only through `CLAUDE_CODE_SESSION_ID`, which a hook's environment need not carry — the hook never read its stdin payload, where Claude Code names the session. A VS Code tab (browser tunnel or desktop) bound as `coordinator` with no `CLAUDE_AGENT` therefore got no charter, and the only workaround, a machine-wide `claudeCode.environmentVariables` entry, would mislabel every Claude tab on the box. The hook now reads the payload's `session_id` and resolves the binding with it, the payload winning over an inherited env id as in `session_orient.py` (W-629fe67a).
+
+### Fixed — cloud-dispatch children run as headless, and the headless-guard test is green again (2026-10-16)
+
+`scripts/cloud_dispatch.py` (D-857) starts `claude -p` for its routine fires, refresh probes and log reads without `FABRIK_HEADLESS`, so `tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears` was red on master. `_account_env` now sets `FABRIK_HEADLESS=1` beside its mesh flags, and the file is a declared spawner, so the env-dict grader keeps it honest (W-a4272e57). The behaviour change is near nil: the children run from a scratch dir outside every repo, where no project hook loads, and `CLAUDE_MESH_HEADLESS` already stood down the orient wake and the arm nag.
+
+### Fixed — seven scratch-lifecycle partials: walks, deadlines, `--strict-proc`, a degenerate key and two graders (2026-10-16)
+
+The intel conformance ledger's open rows (W-c0a1d324). F9: the nightly dead-session idleness walk no longer descends into run folders (spec D4) — it reads each one's own mtime and `.owner` heartbeat, so a live run still marks its session alive. F8: `round`'s seat-size check gives each seat its own `du` deadline (spec D5). F5: `--strict-proc` now holds a `consumed` run folder back in session mode and in `--dead`. F12: a `--command` that sanitises to nothing mints a `run-…` key the sweep still classifies. F2: the `.git` pointer scan is bounded by `SCRATCH_SWEEP_GIT_SCAN_BUDGET` and keeps a folder it could not finish. F1 and F3: two graders that could never fail now fail on their mutants.
+
+### Added — the battery hold: on battery at 7% or below every agent stops like at the quota wall, and mains power resumes them (2026-10-16)
+
+The operator's D-898 ("as like quota hold, if the laptop battery goes under 6% percent all agents inside repos should gracefully stop without losing where they left"). `scripts/sysadmin/claude_rotate.py` writes the quota hold's own `fleet-exhausted` stamp with a third tier, `battery`, while the box is on battery (power per `_power_state` — the battery's own status when it is definite (`Discharging` = battery; `Charging`/`Full`/`Not charging` = mains, whatever `AC1/online` says), else `AC1/online` (`1` mains, `0` battery, unreadable unknown, which neither arms nor lifts)) at or below `CLAUDE_BATTERY_HOLD_PCT` (7): every tier reader already reads an unknown tier as `walled`, so `quota_stop.py` holds world-changing tools, the Stop hook yields and dispatch stops with no reader change. A new `--battery-tick` (a `*/1` cron line, pending the operator's crontab edit) will arm it within a minute, also over the quota's softer `urgent-90` stamp; until then the `*/5` tick arms it, in a `finally` and lifts it on mains by the same classifier, so a reading can never arm and lift the hold in one tick, waking every armed self-watch with a "battery hold LIFTED" RESUME line — never while the quota is hot or unread that tick. A wall reached during a battery hold still mails once. The quota leg's relief and dwell clears keep a battery stamp, and hand a quota stamp to the battery while it is low. `quota_stop.py` names the battery in its message. Tests: `tests/test_battery_hold.py`, `tests/test_quota_stop_hook.py::test_battery_stamp_message`, mesh fixture W10e.
 
 ### Fixed — a hub builder whose turn died on a network error resumes on its own once the API answers (2026-10-16)
 

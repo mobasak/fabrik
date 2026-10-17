@@ -48,12 +48,13 @@ anything wrapping a vendored platform, **that platform's own registry**.
 in `RETIRED_TYPES` as a **crash guard** — a sibling check that iterated the frozenset and let that
 exception escape turned a `warn_only` row into a blocking red across ~46 repos.
 
-## Two artifacts, one directory
+## Two artifacts and a recipe, one directory
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/
   YYYY-MM-DD-cert-<surface>.md   ← spine, carrying `## Test Board`
   ledger.md                      ← source: · registry_total: · ids_enumerated:
+  runtime.md                     ← hand-written: how the target was started, recorded before any round
   TC01-<slug>.md …               ← one ticket per touchpoint GROUP
 ```
 

@@ -4,24 +4,30 @@ The per-window cell's sub-line already reads "N% used · resets <when>". Where t
 reading it gains the tick's own burn rate and whichever of the wall or the reset comes FIRST — the
 same two facts, from the same file, as the `QUOTA:` line every agent sees. The board does not
 re-derive them: two derivations of one number are two things to drift.
+
+Since the page layer moved (plan 2026-10-17-plan-1, T02/T07) the sub-line is `dashboard_ui.fmt.posture_sub`
+and the row that carries it is the Accounts view's; both are graded here as they are served.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import sys
+import time
 from pathlib import Path
 
 import pytest
 
+from tests.quota_dashboard_isolation import (  # noqa: E402, F401
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse network guard
+)
+
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
+sys.path.insert(0, str(_SRC.parent))
 
-
-def _load():
-    spec = importlib.util.spec_from_file_location("quota_dashboard_posture_probe", _SRC)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
-    return mod
+from dashboard_ui.fmt import posture_sub  # noqa: E402
 
 
 def _posture(*, burn=0.6, verdict="wall_first", mtw=48.0, mtr=130.0, util=71.0):
@@ -43,12 +49,26 @@ def _posture(*, burn=0.6, verdict="wall_first", mtw=48.0, mtr=130.0, util=71.0):
     }
 
 
+def _board(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: dict):
+    """The dashboard with ``payload`` as its last reading, rendering the real Accounts view."""
+    monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
+    spec = importlib.util.spec_from_file_location(f"qd_posture_{tmp_path.name}", _SRC)
+    qd = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(qd)
+    after_load(qd, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)  # never a probe
+    qd._set_last_status(time.time(), payload)
+    return qd
+
+
 def test_the_board_renders_burn_and_wall_vs_reset_from_the_posture():
     """C13 — the burn and the nearer of wall-or-reset, taken from the posture, not re-derived."""
-    mod = _load()
-    sub = mod._posture_sub(_posture(), "five_hour")
+    sub = posture_sub(_posture(), "five_hour")
     assert sub == " · 0.60%/m, wall in ~48m", sub
-    sub = mod._posture_sub(_posture(verdict="reset_first"), "five_hour")
+    sub = posture_sub(_posture(verdict="reset_first"), "five_hour")
     assert sub == " · 0.60%/m, reset in ~130m", sub
 
 
@@ -69,37 +89,40 @@ def test_the_board_says_nothing_it_cannot_derive(kwargs, expected):
     `True` is in this list because `isinstance(True, int)` is True in Python, so a bool would
     otherwise render as a burn rate of 1.00%/m.
     """
-    mod = _load()
-    assert mod._posture_sub(_posture(**kwargs), "five_hour") == expected
+    assert posture_sub(_posture(**kwargs), "five_hour") == expected
 
 
 def test_a_missing_or_malformed_posture_renders_nothing():
     """C13c — the board predates the posture and must render without one, forever."""
-    mod = _load()
     for bad in (None, {}, [], "posture", {"active": None}, {"active": {"windows": None}}):
-        assert mod._posture_sub(bad, "five_hour") == "", bad
-    assert mod._posture_sub(_posture(), "fable") == "", "a window with no entry says nothing"
+        assert posture_sub(bad, "five_hour") == "", bad
+    assert posture_sub(_posture(), "fable") == "", "a window with no entry says nothing"
 
 
-def test_only_the_active_account_gets_a_forecast():
+def test_only_the_active_account_gets_a_forecast(tmp_path, monkeypatch):
     """C13d — a standby is not burning fleet quota, so a forecast for it is a number with nothing
     behind it.
 
-    Graded through the RENDERED ROW, not by grepping the source: an assertion on source text passes
-    whenever the string is present and says nothing about whether the branch is reached.
+    Graded through the RENDERED Accounts view, not by grepping the source: an assertion on source
+    text passes whenever the string is present and says nothing about whether the branch is reached.
     """
-    mod = _load()
-    acct = {
-        "email": "mob@ocoron.com",
-        "slugs": ["mob"],
-        "source": "live",
-        "five_hour": {"utilization": 71.0, "resets_at_epoch": 9_999_999_999.0},
-        "seven_day": {"utilization": 44.0, "resets_at_epoch": 9_999_999_999.0},
-    }
-    active_row = mod._row(acct, "mob", None, _posture())
-    standby_row = mod._row(acct, "someone-else", None, _posture())
-    assert "0.60%/m" in active_row, active_row
-    assert "wall in ~48m" in active_row
-    assert "0.60%/m" not in standby_row, "a standby must carry no forecast"
+
+    def acct(slug: str) -> dict:
+        return {
+            "email": f"{slug}@ocoron.com",
+            "slugs": [slug],
+            "source": "live",
+            "five_hour": {"utilization": 71.0, "resets_at_epoch": 9_999_999_999.0},
+            "seven_day": {"utilization": 44.0, "resets_at_epoch": 9_999_999_999.0},
+        }
+
+    def row(html: str, slug: str) -> str:
+        return html.split(f'data-acct="{slug}"', 1)[1].split("</tr>", 1)[0]
+
+    payload = {"active": "mob", "accounts": [acct("mob"), acct("other")], "posture": _posture()}
+    html = _board(tmp_path, monkeypatch, payload)._render_view("accounts")
+    assert "0.60%/m" in row(html, "mob") and "wall in ~48m" in row(html, "mob"), html
+    assert "0.60%/m" not in row(html, "other"), "a standby must carry no forecast"
     # and the row renders identically with no posture at all — the board predates it
-    assert "0.60%/m" not in mod._row(acct, "mob", None, None)
+    bare = _board(tmp_path / "bare", monkeypatch, {**payload, "posture": None})
+    assert "0.60%/m" not in bare._render_view("accounts")

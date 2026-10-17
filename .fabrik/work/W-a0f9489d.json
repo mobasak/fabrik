@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T13:03:50.232870Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a0f9489d",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-935",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "count bare pytest/python -m pytest Bash launches per day across /opt transcripts for 14 days; if a guard is warranted, add it to seat_guard.py's tokeniser and allowlist Bash(/opt/fabrik/scripts/capped_run.sh:*) in .claude/settings.json in the same reviewed commit",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — measure guard first",
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Measure, then decide, a PreToolUse guard for bare pytest launches (D-935 residual)"
+}

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T02:35:22.881645Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-8678e174",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — false read of cited spec as 0 URLs in a gate",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "check_spec_convergence APPROACH-FLOOR reads a ledger-cited spec as \"0 cited URLs\""
 }

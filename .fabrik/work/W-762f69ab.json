@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "measure which synced .py files the gate's format leg never sees; decide whether the sync or the gate should format-check the synced set",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra",
     "proposed-drop",

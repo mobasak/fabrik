@@ -17,7 +17,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
-  "score_reason": "intel's own receipt; a record update after infra closed the seven partials",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — record status flip",
   "status": "open",
   "tags": [
     "waits-quota"

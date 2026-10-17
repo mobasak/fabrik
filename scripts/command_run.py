@@ -1561,10 +1561,15 @@ _SWEEP_MODULES: dict[str, Any] = {}
 
 def _run_scratch_key(command: str, started_at: str) -> str:
     """`<command>-<started_at>-<6 hex>` — the record key has one-second resolution and a resumed run
-    reuses its origin key, so the folder key carries its own suffix (plan P4)."""
+    reuses its origin key, so the folder key carries its own suffix (plan P4).
+
+    A command that sanitises to nothing (``""``, ``"/"``, ``"日本"``) would leave the key with no
+    command segment, and `scratch_sweep.RUN_KEY_RE` needs one — the live run's folder would read as
+    an ordinary entry and could be removed by age (W-c0a1d324 F12). It falls back to ``run``."""
     import secrets  # noqa: PLC0415 — only a start mints
 
-    return f"{_scratch_name(command, started_at)}-{secrets.token_hex(3)}"
+    segment = re.sub(r"[^0-9A-Za-z_-]+", "-", command).strip("-") or "run"
+    return f"{_scratch_name(segment, started_at)}-{secrets.token_hex(3)}"
 
 
 def _sweep_module() -> Any:
@@ -1807,18 +1812,20 @@ def _adopt_run_scratch(
 def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> list[str]:
     """D5: one advisory line per `seat-*` folder of the run larger than `threshold` apparent bytes
     — a seat that copied a whole tree instead of an archive or a clone. Runs AFTER the record lock
-    drops; a `du` past the shared deadline says so. Never changes the exit code or the record."""
+    drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
+    a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
+    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the seat count
+    times `deadline_s`. Never changes the exit code or the record."""
     lines: list[str] = []
-    end = time.monotonic() + deadline_s
     for seat in sorted(Path(run_scratch).glob("seat-*")):
         if seat.is_symlink() or not seat.is_dir():
             continue
-        try:  # a spent deadline (timeout <= 0) raises TimeoutExpired at once — the same line
+        try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
             out = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
                 capture_output=True,
                 text=True,
-                timeout=end - time.monotonic(),
+                timeout=deadline_s,
             ).stdout
             size = int(out.split()[0])
         except subprocess.TimeoutExpired:
@@ -3880,9 +3887,80 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
+    p = sub.add_parser(
+        "capture",
+        help="append the sha of the commit whose subject is --msg's first line to --out (phase 5)",
+        parents=[common],
+    )
+    p.add_argument("--msg", required=True, help="the commit message file the commit used (-F)")
+    p.add_argument("--out", required=True, help="the capture file; one sha is appended per call")
     p = sub.add_parser("status", help="print the record", parents=[common])
     p.add_argument("--json", action="store_true", default=True)
     return ap
+
+
+def _capture_commit(msg: Path, out: Path) -> int:
+    """Phase 5's capture as ONE plain command (kaizen 01M55GGMS5, feedback row 1792254064): find
+    the commit by its own SUBJECT — the message file's first paragraph, as git reads it — never by
+    `HEAD`, which a sibling's commit landing during the post-commit hook would move; check the found
+    commit's subject is that line exactly; append its sha to the capture file. A worktree session's
+    guard refuses the chained shell recipe this replaces. Runs in the cwd's repo, touches no run
+    record, and returns 1 (never main's fail-soft 0) on any miss.
+
+    `--grep` reads the whole message, so a NEWER commit merely quoting the subject in its body is
+    the match found, and its own subject differs: that refuses, never captures the wrong sha.
+
+    Cobra (D-253): the cheapest way past it is a subject another commit also carries — `-F --grep`
+    takes the NEWEST match, so two commits with one subject capture the later; a unique subject per
+    commit is the author's part, and the close's own binding check refuses a sha that is not this
+    run's."""
+    try:
+        text = msg.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:  # a decode error is a ValueError, not an OSError
+        sys.stderr.write(f"REFUSED — capture: cannot read --msg {msg}: {e}\n")
+        return 1
+    # git's subject (`%s`) is the whole FIRST PARAGRAPH, its lines joined by single spaces — a
+    # first line alone would refuse a legitimate commit whose subject wraps (review A-sonnet)
+    # a whitespace-only line ends the paragraph too, as git's subject does (review A-haiku N-1)
+    # git drops leading blank lines, so the subject is the first NON-blank paragraph
+    body = re.sub(r"\A(?:[ \t]*\n)+", "", text.replace("\r\n", "\n"))
+    first = re.split(r"\n[ \t]*\n", body, maxsplit=1)[0]
+    lines = [ln.strip() for ln in first.split("\n")]
+    lines = [ln for ln in lines if ln]
+    subj = " ".join(" ".join(lines).split())  # runs collapsed, as on git's side below
+    # `--grep` matches ONE line of the raw message, so it searches by the first line; the joined
+    # paragraph exists only in `%s`, where the equality check below reads it
+    needle = lines[0] if lines else ""
+    if not subj:
+        sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty subject (a blank message)\n")
+        return 1
+    try:
+        found = subprocess.run(
+            ["git", "log", "-1", "--format=%H%x00%s", "-F", "--grep", needle],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",  # a non-UTF-8 subject in the log must not raise into main()'s rc 0
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as e:  # no git on PATH, or a 30 s timeout
+        sys.stderr.write(f"REFUSED — capture: git log failed: {e}\n")
+        return 1
+    sha, _, got = found.stdout.strip().partition("\x00")
+    # git keeps a subject's LEADING spaces, and this side strips them: compare both with runs of
+    # whitespace collapsed, so a padded subject is still its own (review A-haiku)
+    if found.returncode != 0 or not sha or " ".join(got.split()) != subj:
+        sys.stderr.write(f"REFUSED — capture: no commit has the subject {subj!r}\n")
+        return 1
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("a", encoding="utf-8") as fh:
+            fh.write(sha + "\n")
+    except OSError as e:
+        sys.stderr.write(f"REFUSED — capture: cannot append to --out {out}: {e}\n")
+        return 1
+    print(sha)
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -3891,6 +3969,8 @@ def main(argv: list[str]) -> int:
     except SystemExit as e:  # argparse's own exit — keep it, it is a usage error
         return int(e.code or 0)
     try:
+        if args.cmd == "capture":
+            return _capture_commit(Path(args.msg), Path(args.out))
         sid = _session_id(args.session)
 
         # Readers run lock-free: `line` is invoked on EVERY reply, so it must stay
@@ -4717,7 +4797,8 @@ def _task_size_gate(
 
 _TASK_COMMIT_HELP = (
     "the SHA of this run's commit, from phase 5's capture file — at lane v2 every commit of the "
-    "run, in order. `fabrik-task` ONLY: REQUIRED on `done` there, optional on `blocked`/`handoff` "
+    "run, in order, space- or comma-separated. `fabrik-task` ONLY: REQUIRED on `done` there, optional "
+    "on `blocked`/`handoff` "
     "(which may close before any commit exists), and REFUSED on every other command"
 )
 
@@ -5499,6 +5580,16 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
             return _refuse("REFUSED — --review belongs to --command fabrik-task"), {}
         return 0, {}
 
+    # A sha never holds a comma, so `--commit a,b` is unambiguous: split it into the
+    # space-separated form both closes read (kaizen 01M55GGMS5, feedback row 1792251777). A value
+    # with no comma passes through whole, so `--commit ""` and a whitespace value keep their own
+    # refusals; empty pieces of a comma list (`a,`) are dropped.
+    if commits is not None:
+        commits = [
+            part
+            for c in commits
+            for part in ([c] if "," not in c else [p for p in c.split(",") if p.strip()] or [""])
+        ]
     declared = rec.get("declared")
     if isinstance(declared, dict) and declared.get("gate") == 2:
         return _task_close_v2(rec, args, commits, review)

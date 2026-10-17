@@ -37,16 +37,76 @@ def test_the_closing_pass_confirms_zero_defects_present_not_claims_executed_true
         assert "ledgers executed true" not in t
 
 
-def test_a_fix_touched_slice_with_no_candidate_is_added_by_hand() -> None:
-    """Row 1791235921: `next` builds slices only from the ids passed, so a slice whose file a fix edited but
-    which raised nothing gets no ledger unless the lead adds it."""
+def test_a_fix_touched_slice_with_no_candidate_is_added_by_hand(tmp_path: Path) -> None:
+    """Row 1791235921, then intel mail 01M54XR3QS (D-933): `next` reads no diff — it carries the ids passed and,
+    with the run file, the claims the run left open, but never makes a row for this pass's fix hunk, so a slice
+    whose file a fix edited but which raised nothing is added by the lead (with `--args`, printed `not carried`)."""
+    import json
+
     tc = _norm(FRAG / "term-coverage.md")
     assert (
         "a slice a fix hunk touched holds one even when it raised no candidate, and "
-        "`review_loop_ledger.py next` builds slices only from the `--ids` passed, so add that slice's ledger "
-        'by hand, one row per hunk — `{id: "<slice>-X<n>", file, line, claim: "the fix hunk at <file:line> '
-        'introduced a defect"}`), or any claim'
+        "`review_loop_ledger.py next` reads no diff: it carries the `--ids` passed and, with `--args <the workflow's "
+        "run file>`, the claims the run's verdicts or launch-ledger rows leave open, but never a row for a hunk "
+        "this pass's fix added, so add that slice's ledger by hand (under `--args`, copy the slice's whole "
+        "launch entry from the run file's `args.slices`, which stderr then names `not carried`), one row per "
+        "hunk — "
+        '`{id: "<slice>-X<n>", file, line, claim: "the fix hunk at <file:line> introduced a defect"}`), or any '
+        "claim"
     ) in tc
+    assert "builds slices only from the `--ids` passed" not in tc
+    pass_file = tmp_path / "pass.json"
+    pass_file.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {"id": "A-S1", "file": "a.py", "line": 1, "claim": "a", "seat": "find:A:sonnet"},
+                    {"id": "A-S2", "file": "a.py", "line": 2, "claim": "b", "seat": "find:A:sonnet"},
+                ],
+                "verdicts": [],
+                "ledger_status": [],
+            }
+        )
+    )
+    run = tmp_path / "run.json"
+    cand = {"file": "a.py", "failure_class": "logic", "seat": "sonnet"}
+    run.write_text(
+        json.dumps(
+            {
+                "runId": "wf_t",
+                "args": {"slices": [{"name": "A", "files": ["a.py"]}, {"name": "B", "files": ["b.py"]}]},
+                "result": {
+                    "slices": [
+                        {
+                            "name": "A",
+                            "candidates": [
+                                {**cand, "id": "A-S1", "line": 1, "claim": "a"},
+                                {**cand, "id": "A-S2", "line": 2, "claim": "b"},
+                            ],
+                            "verdicts": [
+                                {"id": "A-S1", "verdict": "confirmed", "command": "c", "output": "o"},
+                                {"id": "A-S2", "verdict": "unverified", "command": "c", "output": "o"},
+                            ],
+                        },
+                        {"name": "B"},
+                    ]
+                },
+            }
+        )
+    )
+    tool = REPO / "scripts" / "review_loop_ledger.py"
+    r = subprocess.run(
+        [sys.executable, str(tool), "next", str(pass_file), "--ids", "A-S1", "--args", str(run)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    got = {sl["name"]: [row["id"] for row in sl["ledger"]] for sl in json.loads(r.stdout)}
+    assert got == {"A": ["A-S1", "A-S2"]}, got
+    assert "CARRIED A-S2" in r.stderr, r.stderr
+    assert "not carried: B" in r.stderr, "a fix-touched slice with nothing to carry is left to the lead"
     sys.path.insert(0, str(REPO / "scripts"))
     try:
         import review_loop_ledger as rl
@@ -262,3 +322,27 @@ def test_the_subagents_pack_closing_pass_confirms_zero_defects_present() -> None
     assert "confirming every claim executed true" not in t
     perf = _norm(REPO / "docs" / "reference" / "command-loop-performance.md")
     assert "slice's ledger of claims is re-executed with zero defects confirmed present" in perf
+
+
+def test_each_next_recipe_points_at_args_and_the_scripts_doc() -> None:
+    """Intel mail 01M54XR3QS (D-933): each review recipe that runs `next … --ids <the confirmed ids>` adds
+    `--args <a scratch copy of the run file>` whenever the run file exists and has the lead read its stderr,
+    pointing at the script's doc, inside the same recipe sentence; the scoped one also trims `models`."""
+    srcs = REPO / "commands" / "_sources"
+    pointer = "`/opt/fabrik/docs/reference/review-loop-workflow.md`"
+    for name in ("fabrik-review", "fabrik-review-scoped", "fabrik-spec-review", "fabrik-plan-review"):
+        text = _norm(srcs / f"{name}.md")
+        at = text.index("--ids <the confirmed ids>`")
+        window = text[at : at + 700]
+        assert "`--args <a scratch copy of the run file>`" in window, name
+        assert "whenever that file exists" in window, name
+        assert "read its stderr either way" in window, name
+        assert pointer in window, name
+    scoped = _norm(srcs / "fabrik-review-scoped.md")
+    at = scoped.index("--ids <the confirmed ids>`")
+    assert "which you trim to those seats and stamp at the trimmed count" in scoped[at : at + 700]
+    review = _norm(srcs / "fabrik-review.md")
+    at = review.index("which keeps its `files`)")
+    assert "so its stdout, plus each `not carried` slice a fix hunk touched, is the next launch's `slices`" in (
+        review[at : at + 400]
+    )

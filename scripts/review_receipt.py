@@ -307,9 +307,11 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
 it (or a `D-nnn` with no round); each `;`-part of a by-design parenthetical is an owner, never a
-reason — the reason follows the closing parenthesis. The gate refuses an absent owner, a `D-nnn` this
-checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
-`unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
+reason — the reason follows the closing parenthesis. What the gate refuses in a by-design verdict is the
+message list of `check_review_coverage.py::_residual_errors`, read there and never restated here;
+whether a `D-nnn` is a row of the ledger is checked only where `_ledger_ids` reads a `docs/DECISIONS.md`
+with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED — unexecuted` never enter
+`confirmed:`; `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
 ## Per-phase verdicts
 

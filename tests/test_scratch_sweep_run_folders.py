@@ -234,8 +234,54 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("SCRATCH_SWEEP_SESSIONS_DIRS", str(tmp_path / "sessions"))
     monkeypatch.setenv("SCRATCH_SWEEP_JANITOR_REPO", "")
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "no-locks"))
-    monkeypatch.delenv("FABRIK_PROC_ROOT", raising=False)
+    # a quiet one-pid /proc: the live one carries transient same-uid gaps (2 of 8 probes), and a gap
+    # that starts after a folder was made keeps it — a test that wants a real holder opts back in
+    # with `_live_proc`
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(tmp_path)))
+    monkeypatch.delenv(_LIVE_OPT_IN, raising=False)  # an exported or leaked opt-in never carries in
+    monkeypatch.setenv(_HARNESS_ON, "1")  # the harness got this far: the teardown check applies
     return root
+
+
+_LIVE_OPT_IN = "SCRATCH_SWEEP_TEST_LIVE_PROC"  # set by _live_proc, cleared by the harness
+_HARNESS_ON = "SCRATCH_SWEEP_TEST_HARNESS"  # set once the harness has pointed at its fake /proc
+
+
+def _live_proc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read the real /proc — only for a case whose holder or liveness is a real process."""
+    monkeypatch.delenv("FABRIK_PROC_ROOT", raising=False)
+    monkeypatch.setenv(_LIVE_OPT_IN, "1")
+
+
+@pytest.fixture(autouse=True)
+def _no_live_proc_unless_opted_in(monkeypatch: pytest.MonkeyPatch):
+    """A box process the sweep cannot read, started after a folder was made, keeps that folder:
+    a harness on the live /proc made the write-after-close grader fail on a busy box (2 in 40
+    runs on master). So a harness test must END on a fake /proc unless it opted in with
+    `_live_proc`: the check reads, at teardown, the /proc `_proc_root` resolves to (teardown runs
+    before `monkeypatch` undoes, so the env is the test's). It catches an accidental revert — a
+    `delenv`, `setenv` to "/proc" or "", a link to /proc — and skips a test whose harness never
+    finished setup. Cobra (D-253): it is a snapshot of the end state, so the cheap ways past it are
+    deliberate ones — a live /proc only inside `monkeypatch.context()`, a directory of links to
+    /proc's entries, an explicit `proc_root=` argument, or setting the opt-in env by hand; none of
+    those is a revert, and a test written that way is visible in review."""
+    yield
+    if os.environ.get(_HARNESS_ON) != "1" or os.environ.get(_LIVE_OPT_IN) == "1":
+        return
+    root = sw._proc_root().resolve()  # a link to the live /proc is the live /proc
+    assert root != Path("/proc").resolve(), "a harness test read the live /proc without _live_proc"
+
+
+def test_the_harness_reads_a_one_pid_fake_proc(harness: Path) -> None:
+    """The default the teardown check enforces, and the opt-in set it allows."""
+    root = sw._proc_root().resolve()
+    assert root.is_relative_to(harness.parent.resolve())
+    assert sorted(os.listdir(root)) == ["1"]  # the one-pid fake, not a copy of a real /proc
+    assert {
+        "running-live",
+        "fd-inside",
+        "cwd-inside",
+    } == LIVE_PROC_CASES  # widen it on purpose only
 
 
 def _session(root: Path, sid: str = SID_A) -> Path:
@@ -311,6 +357,16 @@ def _dead_record(tmp_path: Path, sid: str) -> None:
     )
 
 
+def _live_record(tmp_path: Path, sid: str) -> None:
+    """A sessions record the sweep reads as LIVE: this test process's own pid and its real start."""
+    start = sw._proc_start_ticks(Path("/proc"), os.getpid())
+    assert start is not None, "this box exposes no /proc start for the test process"
+    (tmp_path / "sessions" / f"{sid[:4]}.json").write_text(
+        json.dumps({"pid": os.getpid(), "sessionId": sid, "procStart": str(start)}),
+        encoding="utf-8",
+    )
+
+
 def _age_tree(path: Path, seconds: float) -> None:
     for p in sorted(path.rglob("*"), reverse=True):
         if p.name != ".owner":
@@ -319,15 +375,25 @@ def _age_tree(path: Path, seconds: float) -> None:
 
 
 def _guard_run_walks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`newest_mtime` raises on any path inside a run folder — "removed with no walk"."""
+    """`newest_mtime` raises on any path inside a run folder — "removed with no walk" — and so does
+    any walk that DESCENDS into one from above: the dead-session idleness walk is handed the
+    session directory, so a guard on the path it is handed alone could never see it (W-c0a1d324 F9)."""
     real = sw.newest_mtime
+    real_walk = sw.os.walk
 
-    def _no_walk(entry: Path, budget: object) -> tuple[float, bool]:
+    def _no_walk(entry: Path, budget: object, **kw: object) -> tuple[float, bool]:
         if "/run-" in str(entry):
             raise AssertionError(f"a run folder was walked: {entry}")
-        return real(entry, budget)
+        return real(entry, budget, **kw)
+
+    def _no_descent(top, *a, **kw):
+        for dirpath, dirnames, filenames in real_walk(top, *a, **kw):
+            if "/run-" in str(dirpath) and "/run-" not in str(top):
+                raise AssertionError(f"a walk descended into a run folder: {dirpath}")
+            yield dirpath, dirnames, filenames
 
     monkeypatch.setattr(sw, "newest_mtime", _no_walk)
+    monkeypatch.setattr(sw.os, "walk", _no_descent)
 
 
 def test_consumed_folder_removed_without_a_walk(
@@ -345,7 +411,9 @@ def test_consumed_folder_removed_without_a_walk(
     rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
     assert rc == 0, out
     assert not folder.exists(), out
-    assert not (folder.parent / ".trash-big").exists(), out
+    # the rename target is `.trash-<key>` — the full key, never `.trash-big` — so the check is every
+    # `.trash-*` entry: the old literal held whether or not the removal ran (W-c0a1d324 F1)
+    assert not list(folder.parent.glob(".trash-*")), out
     assert "REMOVED" in out, out
 
 
@@ -359,6 +427,9 @@ def _fake_gap_proc(tmp_path: Path) -> Path:
     os.chmod(pid / "fd", 0o000)
     return proc_root
 
+
+# the B2 cases whose holder or liveness is a real process: the only ones on the live /proc
+LIVE_PROC_CASES = frozenset({"running-live", "fd-inside", "cwd-inside"})
 
 ACTIVE_FOLDERS = [
     "running-live",
@@ -385,10 +456,15 @@ def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.Mon
     """`(folder, children to kill, also try --dead)` for one B2 case."""
     children: list[subprocess.Popen[bytes]] = []
     if case == "running-live":
+        # the session must be PROVABLY live, and `--dead` is the mode whose dead rule reads it:
+        # `--run-folders` passes no liveness test, so this row once passed on another condition
+        # without the session's liveness ever being consulted (W-c0a1d324 F3)
+        _live_proc(monkeypatch)  # the live record names this process: liveness reads the real /proc
+        _live_record(tmp_path, SID_A)
         return (
             _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=30 * DAY),
             [],
-            False,
+            True,
         )
     if case == "running-fresh-heartbeat":
         _dead_record(tmp_path, SID_A)
@@ -409,6 +485,8 @@ def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.Mon
         _age(seat, HOUR)
         return folder, [], False
     folder = _run_folder(sdir, case)
+    if case in LIVE_PROC_CASES - {"running-live"}:
+        _live_proc(monkeypatch)  # the holder is a real child process
     if case == "fd-inside":
         code = f"import time; f = open({str(folder / 'f0')!r}); print('ok', flush=True); time.sleep(60)"
         child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE)
@@ -470,6 +548,8 @@ def test_active_condition_keeps(
     the dead-session cases, through `--dead --apply` too (spec INV-1)."""
     sdir = _session(harness)
     folder, children, dead_mode = _build_active(case, sdir, tmp_path, monkeypatch)
+    on_live = sw._proc_root().resolve() == Path("/proc").resolve()
+    assert on_live == (case in LIVE_PROC_CASES), case  # live /proc gaps keep folders by themselves
     try:
         rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
         assert rc == 0, out
@@ -575,7 +655,9 @@ def test_the_write_after_close_signal_stays_bounded(
     assert rc == 0 and not future.exists(), out  # 40 h past its close: the bounded doubt has ended
     trash = sdir / "scratchpad" / ".trash-run-gone-2026-10-15T05-40-42-0300-0a1b2c"
     trash.mkdir()
-    (trash / ".owner").write_text(json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8")
+    (trash / ".owner").write_text(
+        json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8"
+    )
     _age(trash, 10)  # an interrupted removal just unlinked entries
     rows = sw.plan_run_folders([sdir], NOW)
     assert [r.cls for r in rows if r.path == str(trash)] == ["consumed"]
@@ -703,6 +785,48 @@ def test_the_run_pass_waits_for_the_unreadable_root_refusal(
     assert consumed.exists(), out
 
 
+def test_strict_proc_holds_a_consumed_run_folder_in_every_mode(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """F5 (W-c0a1d324): `--strict-proc` turns every removable row into `probe-error` when a
+    same-uid `/proc` gap exists — a consumed run folder included. It never reached them: session
+    mode's downgrade skipped the `consumed` class, and `--dead` downgraded before the run rows were
+    planned. The same folders without the flag are removed (the control)."""
+    sdir = _session(harness)
+    past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
+    _age_tree(past, 7 * HOUR)
+    _age(past, 40 * HOUR)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
+    # a gap process that started LONG before every marker: the run-folder rule does not keep for
+    # it (it cannot own the folder), so only `--strict-proc` can hold the folder back
+    monkeypatch.setenv(
+        "FABRIK_PROC_ROOT", str(_gap_proc(tmp_path, started_ago=60 * DAY, zombie=False))
+    )
+    monkeypatch.setenv("SCRATCH_SWEEP_BTIME", str(NOW - 100 * DAY))
+    try:
+        rc, out = _main(capsys, "--session", SID_A, "--strict-proc", "--apply")
+        assert rc == 0, out
+        assert past.exists(), "--strict-proc removed a consumed run folder in session mode: " + out
+        dead = _session(harness, SID_B)
+        stuck = _run_folder(dead, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+        _dead_record(tmp_path, SID_B)
+        _age_tree(dead, 30 * DAY)
+        rc, out = _main(capsys, "--dead", "--strict-proc", "--apply")
+        assert rc == 0, out
+        assert stuck.exists(), "--strict-proc removed a consumed run folder in --dead: " + out
+        rc, out = _main(capsys, "--dead", "--apply")  # the control: without the flag it goes
+        assert rc == 0, out
+        assert not stuck.exists(), out
+        rc, out = _main(capsys, "--session", SID_A, "--apply")  # the session-mode control
+        assert rc == 0, out
+        assert not past.exists(), out
+    finally:
+        os.chmod(tmp_path / "gproc" / "4242" / "fd", 0o700)
+
+
 def test_session_mode_governs_run_folders_by_marker(
     harness: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -715,7 +839,9 @@ def test_session_mode_governs_run_folders_by_marker(
     past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
     for f in (graced, resumable, past):
         _age_tree(f, 7 * HOUR)
-    _age(past, 40 * HOUR)  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
+    _age(
+        past, 40 * HOUR
+    )  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
     monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
     rc, out = _main(capsys, "--session", SID_A, "--apply")
     assert rc == 0, out
@@ -942,9 +1068,11 @@ def test_nightly_runs_while_a_session_lock_is_held(
         rc, out = _main(capsys, "--dead", "--apply")
     assert rc == 0, out
     assert "another sweep holds the lock" not in out, out
-    # the night ran: its run pass removed the consumed folder (the held lock fd makes the session
-    # itself read `live`, which is the holder rule doing its job)
+    # the night ran: its run pass removed the consumed folder. The held lock fd is invisible on the
+    # fake /proc; the session reads `unclassified` because its run folder's `.owner` was written 40 h
+    # ago, so the run pass decides and the session dir stays
     assert not folder.exists(), out
+    assert sdir.exists(), out  # the run pass took the folder, never the whole session
 
 
 def test_vanished_folder_is_skipped(harness: Path) -> None:
@@ -1276,6 +1404,77 @@ def test_a_worktree_pointer_anywhere_in_reach_keeps_the_folder(where: str, tmp_p
     pointer_dir.mkdir(parents=True)
     (pointer_dir / ".git").write_text("gitdir: /elsewhere/.git/worktrees/x\n", encoding="utf-8")
     assert sw.git_pointer_files(folder) == [pointer_dir / ".git"]
+
+
+def test_the_idleness_walk_skips_only_marker_governed_run_folders(tmp_path: Path) -> None:
+    """F9 review (W-c0a1d324): the walk skips a run folder that is a direct child of
+    `<sid>/scratchpad/` — never a run-NAMED directory elsewhere, whose deep activity is the
+    session's sign of life. Skipping that too read a live, pidless session dead."""
+    sdir = tmp_path / "sid"
+    nested = sdir / "scratchpad" / "work" / "run-x-2026-10-15T05-40-42-0300-0a1b2c" / "deep"
+    nested.mkdir(parents=True)
+    (nested / "f").write_text("fresh", encoding="utf-8")
+    governed = sdir / "scratchpad" / "run-y-2026-10-15T05-40-42-0300-0a1b2c" / "deep"
+    governed.mkdir(parents=True)
+    (governed / "g").write_text("fresh too, but marker-governed", encoding="utf-8")
+    for p in sorted(sdir.rglob("*"), reverse=True):
+        _age(p, 30 * DAY)
+    _age(sdir, 30 * DAY)
+    _age(nested / "f", HOUR)  # the one fresh write, an hour before the seam's NOW
+    budget = sw.WalkBudget(stats=10**6, deadline_s=30.0)
+    newest, complete = sw.newest_mtime(sdir, budget, skip_run_folders=True)
+    assert complete and newest > NOW - DAY, "the nested run-named dir's fresh file was skipped"
+    _age(nested / "f", 30 * DAY)
+    _age(governed / "g", HOUR)  # the governed folder's deep file is fresh: it is NOT read
+    newest, complete = sw.newest_mtime(
+        sdir, sw.WalkBudget(stats=10**6, deadline_s=30.0), skip_run_folders=True
+    )
+    assert complete and newest < NOW - 20 * DAY, "the walk entered a marker-governed run folder"
+
+
+def test_a_scan_budget_keep_is_reported_with_its_own_remedy(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """F2 review: a consumed folder too wide to scan is kept every night, so the size report names
+    it — with the scan's reason and a remedy, never as a folder "a worktree keeps"."""
+    sdir = _session(harness)
+    wide = _run_folder(sdir, "wide", files=50)
+    _age(wide / ".owner", 40 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET", "10")
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0 and wide.exists(), out
+    report = json.loads(_report_path(tmp_path).read_text(encoding="utf-8"))
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert wide.name in flagged, flagged
+    assert "scan stopped at its budget" in flagged[wide.name]["why"], flagged
+    assert "worktree" not in flagged[wide.name]["why"].split("kept:")[0], flagged
+    assert "SCRATCH_SWEEP_GIT_SCAN_BUDGET" in flagged[wide.name]["action"], flagged
+
+
+def test_the_git_pointer_scan_is_bounded_and_keeps_past_its_budget(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F2 (W-c0a1d324): the `.git` pointer scan read every entry at depths 0-3 with no breadth
+    bound. It now stops at `SCRATCH_SWEEP_GIT_SCAN_BUDGET` and, incomplete, KEEPS the folder (an
+    unseen worktree pointer may exist) with that reason; the list form `command_run.py` reads
+    answers non-empty, so a resume never moves it. Under the default budget the same folder goes."""
+    folder = _run_folder(_session(harness), "wide", files=50)
+    _age(folder / ".owner", 40 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET", "10")
+    found, complete = sw.git_pointer_scan(folder)
+    assert found == [] and complete is False
+    assert sw.git_pointer_files(folder) == [folder / ".git-scan-incomplete"]
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() and "stopped at its budget" in out, out
+    monkeypatch.delenv("SCRATCH_SWEEP_GIT_SCAN_BUDGET")
+    assert sw.git_pointer_scan(folder) == ([], True)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
 
 
 def test_a_self_contained_clone_is_scratch(

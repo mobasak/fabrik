@@ -17,12 +17,13 @@ against 271 menus / 316 window actions / 80 wizards / 19 reports / 142 model but
 `/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what
 the product SHIPS.
 
-**Two generated artifacts, both inside the run's own board directory so they archive as a unit:**
+**Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:**
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/
   YYYY-MM-DD-cert-<surface>.md   ← the spine, carrying `## Test Board`
   ledger.md                      ← source: · registry_total: · ids_enumerated:
+  runtime.md                     ← hand-written: how the target was started, recorded before any round
   TC01-<slug>.md …               ← one ticket per touchpoint GROUP
 ```
 
@@ -43,8 +44,8 @@ surfaces are exactly what the T3 generated-smoke tier is FOR.
 **Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`):** the
 disposition column is headed **`Disposition`** (or `State`) — a `Status` column reads as UNVISITED;
 ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files
-are `TC##[a-z]?-<slug>.md` ONLY — any other `.md` beside the spine (a `runtime.md` belongs in the
-board dir but is not a ticket) flags BAD TICKET. **Evidence discipline:** the board's `evidence/`
+are `TC##[a-z]?-<slug>.md` ONLY — beside the spine, `ledger.md` and the `runtime.md` recipe are the
+two non-ticket files, and any other `.md` flags BAD TICKET. **Evidence discipline:** the board's `evidence/`
 dir is NEVER a runner's `--output` dir (runners WIPE their output root at start — passing the sweep
 dir as `--output` deletes cross-run evidence); take explicit `page.screenshot` paths and `cp` to
 `evidence/` IMMEDIATELY (attachments persist only for failing tests).

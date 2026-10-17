@@ -294,19 +294,24 @@ def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
 
 
 def test_a_range_cite_grader_checks_both_ends() -> None:
-    """Row 1791914277: a grader that checks a cited range's first line alone passes when its last line moved."""
+    """Row 1791914277: a grader that checks a cited range's first line alone passes when its last line moved. Rows
+    1792259629 and 1792258433 (recurring held test-message-content-mutants): a fixed-prose or deterministic-message
+    grader asserts by equality, so an appended clause or a leaked value fails it — as this test does."""
     text = _norm(CAT)
     bullet = _section(text, "- Grade the PROPERTY", "- Each parser-output shape").strip()
     assert bullet == (
-        "- Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is"
-        " absent (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject,"
-        " through the real production adapter and the consumer's entry point (the command's output, as the gate passes"
-        " files by name), never reads it; a premise guard asserts at the call site, not on constants; a prose grader"
-        " asserts the whole generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or"
-        " row), added in the edit that moves it, also fails when the text sits at its old position; a test-quality seat"
-        " checks docstring claims against the scan; a fix recipe handed to a coder names one input it must leave"
-        " unchanged and the test that holds it; a grader of a `path:N-M` cite asserts its first line AND its last line"
-        " still hold the text the cite backs."
+        "- Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject "
+        "is absent (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable "
+        "subject, through the real production adapter and the consumer's entry point (the command's output, as the "
+        "gate passes files by name), never reads it; a premise guard asserts at the call site, not on constants; a "
+        "grader of fixed prose or of a deterministic message asserts the whole sentence, bullet or message it pins "
+        "by equality (`==` against all of it, every line of a message, never `in`, a prefix, a suffix or a regex "
+        "over part of it), so an added clause or a leaked value fails it, and a grader of that text's position, of "
+        "its absence or of a property across its examples sits beside that equality grader, never in place of it; a"
+        " grader of MOVED text (a sentence, clause, bullet or row), added in the edit that moves it, also fails "
+        "when the text sits at its old position; a test-quality seat checks docstring claims against the scan; a "
+        "fix recipe handed to a coder names one input it must leave unchanged and the test that holds it; a grader "
+        "of a `path:N-M` cite asserts its first line AND its last line still hold the text the cite backs."
     )
 
 
@@ -389,10 +394,13 @@ def test_the_graders_section_pins_moved_texts_old_position() -> None:
     there — the last is the cheapest bypass, and a seat reading that grader owns it."""
     graders = _section(_norm(CAT), "## Graders", "## Prose and docs fixes")
     assert (
-        "a premise guard asserts at the call site, not on constants; a prose grader asserts the whole generated"
-        " sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit"
-        " that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring"
-        " claims against the scan;" in graders
+        "a premise guard asserts at the call site, not on constants; a grader of fixed prose or of a deterministic "
+        "message asserts the whole sentence, bullet or message it pins by equality (`==` against all of it, every "
+        "line of a message, never `in`, a prefix, a suffix or a regex over part of it), so an added clause or a "
+        "leaked value fails it, and a grader of that text's position, of its absence or of a property across its "
+        "examples sits beside that equality grader, never in place of it; a grader of MOVED text (a sentence, "
+        "clause, bullet or row), added in the edit that moves it, also fails when the text sits at its old "
+        "position; a test-quality seat checks docstring claims against the scan;" in graders
     )
 
 
@@ -612,4 +620,3 @@ def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_impor
             assert token in consts[name], (
                 f"{name} lost {token!r}, which the catalogue sentence names"
             )
-

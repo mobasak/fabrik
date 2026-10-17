@@ -12,10 +12,10 @@
     "spec": "docs/superpowers/specs/2026-10-02-backrest-paper-backups-design.md"
   },
   "next": "measure: list each vps1 plan's last snapshot summary; decide exporter vs a check in the hourly audit",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "waits-operator-review"

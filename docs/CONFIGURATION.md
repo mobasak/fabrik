@@ -419,6 +419,16 @@ Every sysadmin script (VPS-side) invokes Claude through `scripts/sysadmin/claude
 - `CLAUDE_BIN` — override the resolved claude binary (default: `command -v claude`, then `/usr/local/bin/claude` → `~operator/.local/bin/claude` → `/usr/bin/claude`).
 - The 3 pre-existing rotation callers (`bot.py`, `aro-wake/main.py`, `claude-keepalive-rotate.sh`) already run as ozgur through `claude_rotate` and are unchanged.
 
+### Battery hold — `CLAUDE_BATTERY_HOLD_PCT` / `CLAUDE_BATTERY_DIR` / `CLAUDE_AC_DIR` (WSL box, D-898)
+
+Read by `scripts/sysadmin/claude_rotate.py` (`--tick`, and the `*/1` `--battery-tick` cron once the operator installs it) from the process environment; none of them goes in a project `.env`. How the hold works: `docs/workstation/claude-account-rotation.md`, its **Battery hold** entry.
+
+- `CLAUDE_BATTERY_HOLD_PCT` — the hold line in percent (default `7`, the top of the operator's "6-7%"); a non-finite value falls back to the default.
+- `CLAUDE_BATTERY_DIR` — the battery's sysfs dir (default `/sys/class/power_supply/BAT1`: `status`, `capacity`). No readable `status` means no battery and no hold.
+- `CLAUDE_AC_DIR` — the mains adapter's sysfs dir (default `/sys/class/power_supply/AC1`: `online`); read only when the battery's own status is not definite (`Discharging` and `Charging`/`Full`/`Not charging` win): then `1` is mains, `0` battery, unreadable unknown.
+
+The test suite pins both dirs to empty folders (`tests/conftest.py`), so no test reads the real battery.
+
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
 The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory** — but through the gate it **never actually mutates**: `final_gate.py` deliberately strips `FABRIK_MUTMUT` before invoking this one child (a set flag would start a session-detached mutmut that the gate's 120s outer timeout then orphans on the shared box) and restores it after, so a gate run always prints the pointer and exits 0 regardless of the flag. A REAL run happens only by **direct invocation** (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the **Sunday 05:00 cron** (diff-scoped + weekly, never a per-PR blocking gate per `45-testing-strategy.md`); it mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.

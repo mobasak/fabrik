@@ -1,6 +1,6 @@
 {
   "blocked_by": [
-    "W-573fae88"
+    "W-3e9e2f4c"
   ],
   "created": "2026-10-17T09:07:02.979270Z",
   "creator": "fleet",
@@ -19,7 +19,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "UPGRADEd to the spec chain 2026-10-17: ~60 lines in 33 live specs put deliberate ${…} references in the deployed .env, so escape-all breaks them; resolve-hub-side vs escape-secrets-only is a design trade-off (Opus critique unsound); 4 readers of the format move with it — major, held behind the one in flight",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — deployed secrets silently truncated; needs spec chain",
   "status": "open",
   "title": "deployer_ssh._format_env never escapes $, and compose interpolates env_file values: a deployed value containing $ (bcrypt hash, user password) reaches the container substituted or truncated, silently (a$b -> a, compose 2.40.3; found by both W-9ead34bd design critiques)"
 }

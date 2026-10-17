@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "measure the warned_through share of stop verdicts on ~/.claude/state/events over 7 days; if it moves premature_stop_rate by more than a point, subtract warned_through from the event-level denominator only (keep it in the numerator) with a v6 bump — found by the Fable design critique of W-b0ab9675, rejected there as out of scope",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra",
     "kaizen",

@@ -12,12 +12,13 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already landed in 015059505 — owner infra confirmed 2026-10-18 (records check D-954); closed as done-by-other-work",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "mail-01m48zx502"
+    "mail-01m48zx502",
+    "proposed-done"
   ],
   "title": "claude_rotate: an account answering HTTP 403 oauth_org_not_allowed (org disabled Claude Code subscription access = a PAYMENT/plan state) must be marked walled so neither sessions nor their seats are pointed at it (mail 01M48ZX502)"
 }

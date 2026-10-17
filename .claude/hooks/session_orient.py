@@ -205,7 +205,7 @@ def _memory_line(cwd: str) -> str:
 # The grammar is single-sourced at `docs_updater.py::MERGE_OWNER_RE` and `decisions.py::MERGE_OWNER_RE` (cited by SYMBOL: a line number in a file this change itself grows is drift by construction — :940 was already wrong for :938 when it was written); this hook is
 # standalone and fleet-synced so it cannot import either — `tests/test_session_orient_hook.py`
 # pins the copy against both, the precedent `command_run.py` already set for its axis list.
-# C3: `(?!UNDECLARED)` is NOT decoration — `--adopt` cannot mint that name (`_ADOPT_NAME_RE`)
+# C3: `(?!UNDECLARED)` is NOT decoration — `--adopt` refuses that name in any case (W-2118e9c9)
 # but a HUMAN writes `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary un-adoption
 # row, and without the lookahead this hook then announces `UNDECLARED` as the owner.
 # The UNDECLARED token stays case-insensitive (`re.I`), so `undeclared` cannot sneak past it; the

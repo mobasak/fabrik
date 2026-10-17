@@ -22,7 +22,8 @@
   "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "medium"
   ],
   "title": "Scaffold fix residue recorded by the plan-1 Finish review: traycer marker removed while reports remain (needs a trimmed .droid/.gitignore — 0 of 40 on box); CRLF .gitignore gets an LF droid block (pre-existing); FABRIK_SCAFFOLD_WORKFLOW.md:766 says SCAFFOLD_TYPES has 12 entries and omits office-extension (13); preplan._extract_domain dead equality branch"
 }

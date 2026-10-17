@@ -202,7 +202,9 @@ python3 /opt/fabrik/scripts/epic_order.py --assign <alpha,beta,gamma> --epics-di
   PASS at 2a is a defect in the machinery: file it (§ Close-out feedback), never hand-edit `owner:`
   around it. A MISSING or misspelled `--epics-dir` is not a refusal at all — it is a usage error
   (`epic_order: no such dir: <path>`, exit 2, before any file is read): fix the path and re-run, file
-  nothing.
+  nothing. So is a FIRST name the merge-owner readers would not read back as the owner minted below —
+  `undeclared`, or one opening with `-` (`cannot be the merge owner`, exit 2, before any file is read):
+  put another agent first and re-run (W-390556a1).
 - `--assign` is its own action — it cannot be combined with `--check` or `--json`.
 - Re-run 2b after any route-back that recreated a file: the recreated ticket carries `owner: ""`.
 - After `--assign` succeeds, run `python3 /opt/fabrik/scripts/decisions.py --merge-owner .`; when it

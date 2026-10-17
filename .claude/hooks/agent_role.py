@@ -20,6 +20,7 @@ still injects nothing. stdout only; never writes; never reads outside
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -48,6 +49,38 @@ def _has_charter_marker(first_line: bytes) -> bool:
     return rest == b"" or rest[:1].isspace()  # delimiter: end-of-line or whitespace only
 
 
+def _payload_session_id() -> str:
+    """The hook payload's `session_id` (Claude Code hands every hook its JSON on STDIN), or "".
+    The hook's environment need not carry `CLAUDE_CODE_SESSION_ID` — `session_orient.py` and
+    `final_gate_stop.py` feed the payload's id to the same resolver for that reason; without it
+    a window bound by `whoami_agent.py --as` (a VS Code tab with no `CLAUDE_AGENT`) never got
+    its charter (W-629fe67a). A tty, an empty or a malformed payload is "".
+
+    BOUNDED: a plain `read()` waits for EOF, so a stdin held open hung the hook to its timeout
+    (review W-629fe67a). It reads with `select` against a 2 s deadline and stops at EOF, the
+    deadline or 1 MB, whichever comes first — a role hook must never block a session."""
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return ""
+        import select  # noqa: PLC0415 — only on the fallback path
+        import time  # noqa: PLC0415
+
+        fd, buf, deadline = sys.stdin.fileno(), b"", time.monotonic() + 2.0
+        while len(buf) < 1_000_000:
+            left = deadline - time.monotonic()
+            if left <= 0 or not select.select([fd], [], [], left)[0]:
+                break  # nothing more within the deadline: judge what arrived
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break  # EOF
+            buf += chunk
+        data = json.loads(buf.decode("utf-8", errors="replace") or "{}")
+    except (OSError, ValueError):
+        return ""
+    sid = data.get("session_id") if isinstance(data, dict) else None
+    return sid.strip() if isinstance(sid, str) and 0 < len(sid.strip()) <= 128 else ""
+
+
 def _bound_name(root: str) -> str:
     """The session's whoami binding (``scripts/whoami_agent.py --as <name>``) when
     ``CLAUDE_AGENT`` is unset — the route the ORIENT block offers an unnamed window, which
@@ -72,7 +105,18 @@ def _bound_name(root: str) -> str:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         resolve = getattr(mod, "resolve_agent_name", None)
-        return str(resolve() or "") if callable(resolve) else ""
+        if not callable(resolve):
+            return ""
+        # stdin is read only HERE, once a resolver exists — a project without one never reads it.
+        # The payload's id is tried first, as in session_orient.py; the inherited env id, the one
+        # the binding's writer keys on, is the fallback when the payload id binds nothing
+        env_sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+        for sid in dict.fromkeys(s for s in (_payload_session_id(), env_sid) if s):
+            os.environ["CLAUDE_CODE_SESSION_ID"] = sid  # this short-lived hook process only
+            name = str(resolve() or "")
+            if name:
+                return name
+        return ""
     except Exception:
         return ""
 

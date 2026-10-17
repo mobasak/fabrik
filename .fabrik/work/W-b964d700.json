@@ -17,7 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "wording in a generated skeleton; misleads a reader but blocks nothing",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — generated skeleton sentence",
   "status": "open",
   "tags": [
     "mail-01m53sbc2d"

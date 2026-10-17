@@ -17,7 +17,7 @@
   "note": "migrated-digest:b923919a4c42",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "release_cut stages only CHANGELOG; narrow script fix",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — narrow script fix",
   "status": "open",
   "title": "release_cut.py stages only CHANGELOG.md — a same-commit DECISIONS.md cut-row is impossible; the versioning-adoption carve-out itself has no ledger row (found by T20's verifier, 2026-08-31)"
 }

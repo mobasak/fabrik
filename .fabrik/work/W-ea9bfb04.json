@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
-  "score_reason": "fleet checked 2026-10-15: not fixed — _is_likely_secret over-flags EXPO_PUBLIC_/NEXT_PUBLIC_/VITE_ public keys; harmless false positive, small change",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — harmless false positive",
   "status": "open",
   "tags": [
     "fleet",

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T20:30:38.618885Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c99873aa",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — md5 print",
   "status": "open",
   "title": "command_run start: print the command file's md5 so a re-invocation shows the text changed since last read (fabrik-spec verdict 1790917301.6574302, kaizen 01M4EJQEEG)"
 }

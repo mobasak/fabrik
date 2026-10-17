@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "/fabrik-spec (Profile: small): brand-neutral default theme from design-system-template slots + a test that an Ocoron fill, when chosen, matches the brand pack (the D-460 shape); update tests/test_mobile_components_pack.py pins for items 3 and 5; intel finding 01M3VX3A1N items 1-5",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "proposed-drop",

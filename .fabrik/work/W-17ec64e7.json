@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "edit .windsurf/rules/ai/00-ai-model-selection.md:130 to the current DeepL entry (one-time 1M developer allowance; Growth plan) — source: support.deepl.com DeepL-API-plans, ledger tr-01/tr-02 in docs/reference/research/2026-10-02-language-currency-ledger.md; at :88 put context-taking engines (another LLM, Qwen-MT) before DeepL, citing D-505; also swap qwen-mt-turbo for the flash tier at ai/00:88,156 and AI_VENDOR_ACCESS.md:35,47, and fix the DeepL row at AI_VENDOR_ACCESS.md:50",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "proposed-drop",
     "rules",

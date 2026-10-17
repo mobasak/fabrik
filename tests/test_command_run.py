@@ -3142,6 +3142,32 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     assert "SCOPE GROWTH" in warn, warn
     assert "9/0 → 7/7 → 4/4" in warn, warn
     assert "backlog row" in warn, warn
+    # the exit is behaviour, not prose: the WHOLE message is pinned, so a negation, an added or
+    # dropped instruction anywhere in it, or a loosened step fails — kept as a literal here,
+    # never imported from the module
+    assert warn == (
+        "\n⚠️  SCOPE GROWTH — 2 of the last 3 rounds confirmed mostly defects inside text this "
+        "review itself added (confirmed/own-fix: 9/0 → 7/7 → 4/4).\n"
+        "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
+        "correcting prose regenerates the surface you are correcting.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the hunt — fix the "
+        "window's open defects, route the remaining own-fix work to /fabrik-spec or a backlog "
+        "row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355) — a review never closes on "
+        "a round that confirmed something.\n"
+        "    (Advisory only — nothing is blocked.)"
+    ), warn
+    lane_rows = [{"n": 1, "confirmed": 5, "own_fix": 0}, {"n": 2, "confirmed": 2, "own_fix": 2}]
+    assert cr.scope_growth_warning(lane_rows, lane=True) == (
+        "\n⚠️  SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside text this review "
+        "itself added (confirmed/own-fix: 2/2) under a running /fabrik-task.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the hunt — "
+        "fix the window's open defects, route the remaining own-fix work to /fabrik-spec or a "
+        "backlog row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); the receipt carries "
+        "`**Lane:** fabrik-task`.\n"
+        "    (Advisory only — nothing is blocked.)"
+    )
 
     # ONE such round is not the signal, and neither is a window that is not yet full
     assert cr.scope_growth_warning(rows[:1]) == ""

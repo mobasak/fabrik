@@ -17,7 +17,7 @@
   "note": "migrated-digest:2ebc3ae39b13",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Noise from warn_only checks on zero-finding runs",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — warn_only checks print on zero findings",
   "status": "open",
   "title": "warn_only checks that print on a ZERO-finding run — 7 of 18, fleet-wide (2026-09-01, owner: infra = me)"
 }

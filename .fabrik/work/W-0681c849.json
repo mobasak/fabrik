@@ -12,9 +12,12 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already landed in 015059505 — owner infra confirmed 2026-10-18 (records check D-954); closed as done-by-other-work",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-done"
+  ],
   "title": "rotation/dispatch: exclude an account whose org disabled Claude Code subscription access (fabrik-spec-review verdict 1791303273.2769608, kaizen 01M4EKAZZF)"
 }

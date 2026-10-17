@@ -392,6 +392,14 @@ def test_an_actually_pasted_template_placeholder_is_still_rejected(repo: Path) -
     assert r.returncode == 1, f"a ticked template placeholder must still fail: {r.stdout}"
 
 
+def _track(repo: Path, *rels: str) -> None:
+    """Commit each doc, so the repo TRACKS it (the optional-doc WARN rows fire only then)."""
+    for rel in rels:
+        _write(repo, rel, "# doc\n")
+    _stage(repo, *rels)
+    subprocess.run(["git", "commit", "-qm", "docs"], cwd=repo, check=True, timeout=15)
+
+
 def test_prose_fallback_does_not_fire_the_resilience_warning(repo):
     """2026-08-26 (web-ecommerce-factory upstream, measured 4/4 prose false-positives):
     the word "fallback" in a comment or operator-facing string is not a resilience
@@ -407,6 +415,8 @@ def test_prose_fallback_does_not_fire_the_resilience_warning(repo):
         "def classify(x):\n    # the fallback class shown to a human in the scan report\n"
         "    return 'fallback: unknown'\n",
     )
+    # tracked, so a silence below is the PATTERN's, not the guard's
+    _track(repo, "docs/RESILIENCE.md")
     _stage(repo, "CHANGELOG.md", "src/app/classify.py")
     r = _run(repo)
     assert "RESILIENCE" not in r.stdout, r.stdout
@@ -424,9 +434,38 @@ def test_retry_still_fires_the_resilience_warning(repo):
         "src/app/client.py",
         "def get(x):\n    for attempt in range(3):  # retry with backoff\n        pass\n",
     )
+    _track(repo, "docs/RESILIENCE.md")
     _stage(repo, "CHANGELOG.md", "src/app/client.py")
     r = _run(repo)
     assert "RESILIENCE" in r.stdout, r.stdout
+
+
+def test_resilience_warn_skips_a_repo_without_the_doc(repo):
+    """W-a846021a: the hub tracks no docs/RESILIENCE.md, yet a `retry` diff told it to update one
+    (plan 2026-10-17-plan-1 T01). A WARN naming a doc the repo does not have can only be ignored."""
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Added — retry button (2026-10-17)\n- x\n",
+    )
+    _write(
+        repo, "src/app/ui.py", "def region_state(kind, *, retry: bool = False):\n    return retry\n"
+    )
+    _stage(repo, "CHANGELOG.md", "src/app/ui.py")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+    assert "RESILIENCE" not in r.stdout, r.stdout
+
+
+@pytest.mark.parametrize("doc", ["docs/SERVICES.md", "docs/OPERATIONS.md"])
+def test_compose_doc_rows_follow_whether_the_doc_is_tracked(repo, doc):
+    """W-a846021a: the compose rows for SERVICES and OPERATIONS warn only where the repo tracks the doc."""
+    absent = _compose_only(repo)
+    assert doc not in absent.stdout, absent.stdout
+    subprocess.run(["git", "reset", "-q"], cwd=repo, check=True, timeout=15)
+    _track(repo, doc)
+    tracked = _compose_only(repo)
+    assert f"{doc} not updated" in tracked.stdout, tracked.stdout
 
 
 # ── the [Unreleased]-was-actually-touched rule ────────────────────────────────

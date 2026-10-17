@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T17:52:53.989321Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-153f72bf",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — record-only test-guard residue, 0 call sites",
   "status": "open",
   "tags": [
     "tests"

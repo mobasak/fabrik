@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T16:30:38.162407Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "70d17b885937ed1d12793e575c69ab2bf8fd02ab",
+  "id": "W-390556a1",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "refuse such a first name in epic_order.py --assign with the same round-trip docs_updater.run_adopt uses (MERGE_OWNER_RE capture equals the name, _UNDECLARED_RE does not match), with a red-first test",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "same refusal as W-2118e9c9 applied to epic_order.py --assign: a few files, one session; low impact — no epic has minted such a name yet (records only)",
+  "status": "done",
+  "title": "epic_order.py --assign accepts a first owner name the merge-owner readers cannot read back (undeclared, or a leading '-', both pass _OWNER_NAME_RE ^[a-z0-9-]{1,32}$, scripts/epic_order.py:816), and commands/_sources/fabrik-epics-review.md:209 tells the agent to mint 'MERGE OWNER: <first name>' from it by hand — the same unreadable owner row docs_updater.py --adopt now refuses (W-2118e9c9 review, slice A)"
+}

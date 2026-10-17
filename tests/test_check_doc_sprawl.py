@@ -216,6 +216,22 @@ def test_epics_are_allowed_per_claude_md(tmp_path):
 # ── review-round pins (2026-08-15 non-author round; each finding gets a guard) ──
 
 
+def test_cert_board_runtime_recipe_is_allowed(tmp_path):
+    """The test commands MANDATE `<board>/runtime.md`; CERT_BOARD_RE refused a NEW board's recipe
+    (W-d7847226, web-ecommerce-factory 01M513RJ). Exact name only — a look-alike stays blocked."""
+    r = _repo(tmp_path)
+    d = r / "docs" / "development" / "certifications" / "2026-10-16-cert-web"
+    d.mkdir(parents=True)
+    (d / "2026-10-16-cert-web.md").write_text("## Test Board\n")
+    (d / "ledger.md").write_text("source: registry:routes\n")
+    (d / "runtime.md").write_text("how it was started\n")
+    assert _scan(r, "--strict").returncode == 0
+    (d / "runtime-notes.md").write_text("look-alike\n")
+    out = _scan(r, "--strict")
+    assert out.returncode == 1 and "runtime-notes.md" in out.stdout, out.stdout
+    assert "cert-web/runtime.md" not in out.stdout.replace("runtime-notes", "")
+
+
 def test_f4_generic_build_dirs_are_still_adjudicated(tmp_path):
     """F4: the first vendor guard matched `build`/`dist`/`vendor` at ANY depth, silently
     exempting `docs/build/NOTES.md` — a fail-OPEN amnesty inside a default-deny policy."""

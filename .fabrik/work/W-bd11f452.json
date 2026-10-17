@@ -21,5 +21,8 @@
   "priority": 2,
   "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Per-prompt hook de-dup (fleet 01M3QJP8 amended scope): mail_notify's header list and mcp_watch's OUTDATED warning re-send identically every prompt (~2 KB together after D-583 cut the work block 29 KB -> 2.4 KB). Emit the full block on content-hash change, a one-line counter otherwise, the full block every N prompts and after every compaction; never thin the QUOTA line. Per-session state + a silent-hook failure mode to guard"
 }

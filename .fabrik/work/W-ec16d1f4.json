@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:39:59.647501Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-ec16d1f4",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — rule 35 wording stale vs auth module; security rule from fabrik-lib request",
   "status": "open",
   "title": "fabrik-lib request 01M4AGEK7Y: .windsurf/rules/core/35-security-auth.md:25 describes Pattern A (refresh-token rotation, jti denylist) in terms that no longer match the vendored auth module's contract — re-state the pattern from the module's own declaration (sync path, /fabrik-task + full review)"
 }

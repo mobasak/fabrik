@@ -637,15 +637,37 @@ def _seat_write_after_close(sid: str, closed_at: float, tx_dirs: list[Path] | No
     return False
 
 
+GIT_POINTER_SCAN_BUDGET = 200_000  # directory entries read at depths 0-3 before the scan stops
+SCAN_BUDGET_KEPT = "the .git pointer scan stopped at its budget — a worktree may be unseen"
+
+
 def git_pointer_files(folder: Path, max_depth: int = 3) -> list[Path]:
-    """Every `.git` pointer FILE at depths 0-`max_depth` under the folder (hidden directories
-    included, symlinks never followed) whose gitdir lies OUTSIDE the folder — a worktree or
-    submodule some repository elsewhere refers to. A `.git` DIRECTORY (a plain clone) and a pointer
-    into the folder itself are self-contained: nothing outside refers to them, so they are scratch.
-    An unreadable pointer counts (doubt keeps)."""
+    """The list form of :func:`git_pointer_scan`, the shape `command_run.py`'s resume adoption
+    reads (a NON-EMPTY answer refuses the move): an incomplete scan adds a sentinel path, so a
+    folder the scan could not finish is never moved (doubt keeps)."""
+    found, complete = git_pointer_scan(folder, max_depth)
+    return found if complete else [*found, folder / ".git-scan-incomplete"]
+
+
+def git_pointer_scan(
+    folder: Path, max_depth: int = 3, budget: int | None = None
+) -> tuple[list[Path], bool]:
+    """`(every .git pointer FILE found, complete?)` at depths 0-`max_depth` under the folder
+    (hidden directories included, symlinks never followed) whose gitdir lies OUTSIDE the folder —
+    a worktree or submodule some repository elsewhere refers to. A `.git` DIRECTORY (a plain clone)
+    and a pointer into the folder itself are self-contained: nothing outside refers to them, so they
+    are scratch. An unreadable pointer counts (doubt keeps).
+
+    BOUNDED (W-c0a1d324 F2): at most `budget` entries (default `SCRATCH_SWEEP_GIT_SCAN_BUDGET`, else
+    `GIT_POINTER_SCAN_BUDGET`) are read — a wide folder cost a full scan at classification. Past
+    the budget the answer is INCOMPLETE and the caller keeps the folder (doubt keeps); the budget
+    is set well above a staged tree's depth-3 breadth, so a big seat copy is still judged."""
+    if budget is None:
+        budget = _env_int("SCRATCH_SWEEP_GIT_SCAN_BUDGET", GIT_POINTER_SCAN_BUDGET)
     real = os.path.realpath(folder)
     found: list[Path] = []
     level = [folder]
+    seen = 0
     for _depth in range(max_depth + 1):
         nxt: list[Path] = []
         for d in level:
@@ -653,6 +675,9 @@ def git_pointer_files(folder: Path, max_depth: int = 3) -> list[Path]:
                 entries = list(os.scandir(d))
             except OSError:
                 continue
+            seen += len(entries)
+            if seen > budget:
+                return found, False
             for e in entries:
                 if e.name == ".git" and e.is_file(follow_symlinks=False):
                     try:
@@ -667,7 +692,7 @@ def git_pointer_files(folder: Path, max_depth: int = 3) -> list[Path]:
                 elif e.is_dir(follow_symlinks=False) and e.name != ".git":
                     nxt.append(Path(e.path))
         level = nxt
-    return found
+    return found, True
 
 
 def _worktrees_under(folder: Path, repo: str) -> tuple[list[dict], list[dict], bool]:
@@ -704,12 +729,16 @@ def _worktrees_under(folder: Path, repo: str) -> tuple[list[dict], list[dict], b
     # a pointer this repo does not list — another repo's worktree, or a repo that no longer
     # resolves (depths 0-3, hidden directories too): unjudgeable, so the folder is kept
     known = {os.path.realpath(e["worktree"]) for e in inside}
-    for pointer in git_pointer_files(folder):
+    pointers, complete = git_pointer_scan(folder)
+    for pointer in pointers:
         if os.path.realpath(pointer.parent) not in known:
             inside.append({"worktree": str(pointer.parent), "unjudgeable": "1"})
+    if not complete:  # the scan stopped at its budget: an unseen pointer may exist, so it keeps
+        inside.append({"worktree": str(folder), "unjudgeable": "3"})
     if not repo or not Path(repo).is_dir():
         for e in inside:
-            e["unjudgeable"] = "2"  # the marker's repo itself no longer resolves
+            if e.get("unjudgeable") != "3":  # an unfinished scan says so, whatever the repo
+                e["unjudgeable"] = "2"  # the marker's repo itself no longer resolves
     return inside, regs, True
 
 
@@ -719,6 +748,8 @@ def _worktree_removable(entry: dict, regs: list[dict], repo: str) -> tuple[bool,
     path = Path(entry["worktree"])
     if entry.get("unjudgeable") == "2":
         return False, "its marker's repository no longer resolves"
+    if entry.get("unjudgeable") == "3":
+        return False, SCAN_BUDGET_KEPT
     if entry.get("unjudgeable"):
         return False, "a worktree pointer the marker's repository does not list"
     if "locked" in entry:
@@ -817,7 +848,11 @@ def _in_use_since_close(folder: Path, owner: dict | None, now: float) -> bool:
     if folder.name.startswith(TRASH_PREFIX):
         return False  # the judge consumed it by name alone ("left by an interrupted removal")
     raw = (owner or {}).get("closed_at")
-    if (owner or {}).get("state") != "done" or not isinstance(raw, int | float) or isinstance(raw, bool):
+    if (
+        (owner or {}).get("state") != "done"
+        or not isinstance(raw, int | float)
+        or isinstance(raw, bool)
+    ):
         return False
     if not math.isfinite(raw):
         return False
@@ -902,7 +937,11 @@ def judge_run_folder(
         seat_write_after_close=seat,
     )
     verdict, reason = classify_run_folder(facts, now)
-    if written is not None and closed_at is not None and reason.startswith(("done, closed", "closed")):
+    if (
+        written is not None
+        and closed_at is not None
+        and reason.startswith(("done, closed", "closed"))
+    ):
         if written != closed_at:  # the grace ran from the last write: say so, never "closed"
             reason = reason.replace("closed", "last written", 1) + " (written into after its close)"
         else:
@@ -915,6 +954,8 @@ def judge_run_folder(
         for wt in inside:
             removable, why = _worktree_removable(wt, regs, str((owner or {}).get("repo") or ""))
             if not removable:
+                if wt.get("unjudgeable") == "3":  # no worktree is known — the scan did not finish
+                    return Row(p, "run", "kept", SCAN_BUDGET_KEPT, why)
                 return Row(p, "run", "kept", f"holds a registered worktree {wt['worktree']}", why)
         if inside:
             reason += f"; its {len(inside)} worktree(s) are removable and go first"
@@ -1234,12 +1275,20 @@ class WalkBudget:
         return self.exhausted
 
 
-def newest_mtime(entry: Path, budget: WalkBudget) -> tuple[float, bool]:
+def newest_mtime(
+    entry: Path, budget: WalkBudget, *, skip_run_folders: bool = False
+) -> tuple[float, bool]:
     """`(newest mtime in the entry's tree, complete?)`.
 
     NOT the directory's own mtime: a directory's mtime moves only when a direct child is added,
     removed or renamed — a file rewritten in place ten levels down never touches it, so an entry
     under active work read `stale` (measured; plan review pass 2).
+
+    ``skip_run_folders`` (the dead-session idleness walk, spec D4): a marker-governed run folder (a
+    direct child of `<entry>/scratchpad/` that passes `is_run_entry`) is never entered — only its
+    own mtime and `.owner` are read; it is classified from its marker, and walking a
+    multi-GB seat copy spent the walk's budget, so a dead session read "cut short" and was never
+    removed (W-c0a1d324 F9).
     """
     try:
         newest = entry.lstat().st_mtime
@@ -1252,7 +1301,24 @@ def newest_mtime(entry: Path, budget: WalkBudget) -> tuple[float, bool]:
         def _boom(exc: OSError) -> None:
             raise exc
 
+        scratchpad = os.path.join(entry, "scratchpad")
         for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
+            if skip_run_folders and dirpath == scratchpad:
+                # ONLY the marker-governed run folders — a direct child of `<sid>/scratchpad/` the
+                # sweep judges by its `.owner` (`is_run_entry`). A run-named directory anywhere else
+                # (a copy, an agent's own) is ordinary content whose activity is the session's
+                # sign of life, so it is walked as before (W-c0a1d324 F9 review)
+                runs = [d for d in dirnames if is_run_entry(Path(dirpath) / d)]
+                dirnames[:] = [d for d in dirnames if d not in runs]
+                # ...but a live run's heartbeat is the session's sign of life: two stats per run
+                # folder (its own mtime and its `.owner`), never a walk — skipping them blind read a
+                # live session idle and removed its scratchpad entries
+                for d in runs:
+                    for p in (os.path.join(dirpath, d), os.path.join(dirpath, d, OWNER_NAME)):
+                        try:
+                            newest = max(newest, os.lstat(p).st_mtime)
+                        except OSError:
+                            continue
             for name in list(dirnames) + list(filenames):
                 if not budget.spend():
                     return newest, False
@@ -1341,6 +1407,9 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
         for r in run_rows
         if r.cls == "kept" and r.reason.startswith("holds a registered worktree")
     }
+    # a consumed folder too wide to scan is kept every night: the operator must SEE it, with the
+    # remedy it actually needs, or its bytes leak silently (W-c0a1d324 F2 review)
+    scan_kept = {r.path for r in run_rows if r.cls == "kept" and r.reason == SCAN_BUDGET_KEPT}
     for sdir in sid_dirs:
         if not sdir.is_dir():
             continue
@@ -1396,6 +1465,19 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
                         "state": state,
                         "why": f"done past its grace, kept: {worktree_kept[str(folder)]}",
                         "action": "remove or merge that worktree; the next sweep then removes the folder",
+                    }
+                )
+            elif str(folder) in scan_kept:
+                flagged.append(
+                    {
+                        "path": str(folder),
+                        "sid": sdir.name,
+                        "state": state,
+                        "why": f"done past its grace, kept: {SCAN_BUDGET_KEPT}",
+                        "action": (
+                            f"check it holds no worktree (git worktree list), then rm -rf {folder}; "
+                            "or raise SCRATCH_SWEEP_GIT_SCAN_BUDGET"
+                        ),
                     }
                 )
         left = min(60.0, budget_end - time.monotonic())
@@ -2190,8 +2272,11 @@ def _downgrade(rows: list[Row], args: argparse.Namespace, reason: str) -> list[R
 
     Downgrading `stale` alone INVERTS the protection under `--strict-proc --include-backups`: the
     plain entries are spared while the ones carrying revert-test baselines are removed (round-3).
+    A `consumed` run folder is in that set too — `apply_run_rows` removes it by class, never
+    through `_allowed_classes`, so leaving it out made `--strict-proc` inert on run folders
+    (W-c0a1d324 F5).
     """
-    allowed = _allowed_classes(args)
+    allowed = _allowed_classes(args) | {"consumed"}
     return [
         Row(r.path, r.kind, "probe-error", reason, r.evidence) if r.cls in allowed else r
         for r in rows
@@ -2488,7 +2573,9 @@ def _classify_sid(
             p, "session", "unclassified", "no live signal and no death signal — never removed"
         )
 
-    newest, complete = newest_mtime(sid_dir, WalkBudget(stats=10**9, deadline_s=30.0))
+    newest, complete = newest_mtime(
+        sid_dir, WalkBudget(stats=10**9, deadline_s=30.0), skip_run_folders=True
+    )
     if not complete:
         # A truncated walk yields the top-level mtime, which does not move for deep in-place
         # edits — a LIVE dir would read maximally idle and be removed (review F4).
@@ -2556,8 +2643,6 @@ def run_dead_mode(args: argparse.Namespace) -> int:
         older,
         args.unowned_older_than,
     )
-    if args.strict_proc and gaps:
-        rows = _downgrade(rows, args, f"a same-uid /proc gap under --strict-proc ({len(gaps)})")
     if unreadable:
         # A root we cannot list has no enumerable sids: the LIVE signal collapses while the DEATH
         # signal survives, so the whole table degrades rather than calling a live session dead.
@@ -2597,6 +2682,12 @@ def run_dead_mode(args: argparse.Namespace) -> int:
         else:
             split.append(r)
     rows = run_rows + split
+    if args.strict_proc and gaps:
+        # AFTER the run rows are planned (F5): downgraded first, the run folders were planned
+        # after it and escaped the flag; the dead-session split is decided first on purpose — a
+        # session with an active run folder keeps its dir either way
+        rows = _downgrade(rows, args, f"a same-uid /proc gap under --strict-proc ({len(gaps)})")
+        run_rows = [r for r in rows if r.kind == "run"]
     if args.apply:
         with _Lock() as got:
             if not got:

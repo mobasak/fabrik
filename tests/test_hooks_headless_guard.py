@@ -117,6 +117,7 @@ _DECLARED_SPAWNERS = (
     "scripts/ci_fix_dispatcher.py",
     "scripts/rivals_run.py",
     "scripts/sysadmin/claude_broker.py",
+    "scripts/cloud_dispatch.py",  # D-857's cloud routines fire through `claude -p` (W-a4272e57)
 )
 
 # Known `claude -p` spawners that have NOT adopted it — recorded here so the discovery test can

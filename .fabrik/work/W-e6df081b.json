@@ -17,7 +17,10 @@
   "note": "migrated-digest:2fccb94fcbfc",
   "owner": "infra",
   "priority": 3,
-  "score_reason": "Hub and template CLAUDE.md wording divergences",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — hub vs template CLAUDE.md divergence",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**hub/template CLAUDE.md divergences outside the D-191 surface** — the doc-script-coupling bullet (hub current, template an older shorter wording) and the \"The flow:\" intro (template carries a riva..."
 }
