@@ -674,3 +674,34 @@ def test_round_zero_runs_a_guard_the_fix_adds_over_the_fix_itself() -> None:
     for name in ("term-coverage", "term-edit"):
         text = " ".join((ROOT / "commands" / "_fragments" / f"{name}.md").read_text().split())
         assert "a guard the fix ADDS run over the fix's own hunks too," in text, name
+
+
+def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_receipt() -> None:
+    """Rows 1792252856 (briefs and fix lists homeless, recurring the routed row 1791906916 and held
+    close-input-durable-folder), 1792251120 (closing seats re-proved byte identity, recurring held
+    closing-pass-unchanged-surface), 1792255300 (a guard written for the one bad input, recurring held
+    denylist-to-allowlist-convergence), 1792247279 (mid-loop counts in a D-row, recurring held
+    changelog-figure-before-close and changelog-test-count-from-pytest)."""
+    review = _norm(SRC)
+    assert (
+        "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
+        "lead writes for each pass, so a resumed review has them (the seats' candidates and verdicts are already in "
+        "the pass files there); only the seats' copies go under"
+    ) in review
+    assert (
+        "When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 "
+        "in both passes' pin manifests, so its seats open those files and re-execute their ledger without "
+        "re-proving byte identity."
+    ) in review
+    for frag in ("term-coverage", "term-edit"):
+        text = _norm(ROOT / "commands" / "_fragments" / f"{frag}.md")
+        assert (
+            "all at once, never one patch per shape; a guard added because one bad input reached a reader is "
+            "written as the readers' round-trip (a value is accepted only when every reader parses back what was "
+            "written), never as a check for that one input"
+        ) in text, frag
+    cc = _norm(ROOT / "commands" / "_fragments" / "close-chain.md")
+    assert (
+        "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
+        "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
+    ) in cc

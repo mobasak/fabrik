@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T17:37:48.971765Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-eb69f75e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53SBC2DPZ85YYBQQBV0XGJT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py skeleton: its by-design refusal sentence lists 3 of the gate's 6 refusals, and \"refuses\" overclaims the ledger check's fail-open"
+}

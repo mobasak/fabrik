@@ -12,6 +12,18 @@ so `alpha-S1` and `alpha-s1 ` escaped the repeat guard and the first spelling wa
 filter that keeps repeats out of the carried list now compare folded ids, as the rest of `open_claims` does
 (W-9f436e18).
 
+### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
+
+The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
+
+### Changed — /fabrik-task: MEASURE reads a new env var's transport on the started process (2026-10-17)
+
+`commands/_sources/fabrik-task.md` Phase 1: the population a change measures now names the transport handing a new
+env var to the process (compose `environment:`, `env_file`, a build arg, another launcher), read on the started
+process (e.g. `docker compose run --rm <svc> env`) with its keys recorded, never its values. Answers row 1792258556,
+the third verdict on held measure-the-env-writers-not-only-the-spec (D-951; SIZE_CAP 22044 -> 22272). The queue's
+other 6 rows are already stated or routed to infra. Pinned by `tests/test_fabrik_task_queue_pass.py`.
+
 ### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
 
 `/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and
@@ -25,6 +37,19 @@ checked (W-390556a1).
 A finder retry runs under the label `find:<slice>:<model>:retry`, and `_slice_of` split off only the last `:` field,
 so the next pass carried that candidate under a phantom slice `<slice>:<model>` no round-1 seat owns. The `:retry`
 suffix is now stripped before the model is split off (W-6399d1a3).
+
+### Changed — Review loop: briefs kept durable, untouched slices said, guards as round-trips, counts after the closing pass (2026-10-17)
+
+- `commands/_sources/fabrik-review.md`: the briefs and fix lists the lead writes for each pass go under the run's
+  durable `SCRATCH:` folder with the pins and pass files. When the fix diff leaves a slice's files untouched, the
+  closing-pass brief says so, naming each file's md5 in both passes' pin manifests.
+- `commands/_fragments/term-coverage.md` and `term-edit.md` (round zero): a guard added because one bad input reached a reader is
+  written as the readers' round-trip, never as a check for that one input.
+- `commands/_fragments/close-chain.md`: in a command that runs a review loop, a mutant or test count reaches the
+  D-row or CHANGELOG only after the closing pass.
+
+Answers rows 1792252856, 1792251120, 1792255300 and 1792247279, each recurring an earlier held or routed reject. The queue's
+other 7 rows are held or rejected with reasons. Pinned by `tests/test_review_queue_pass.py`.
 
 ### Changed — Review commands: `next` recipes pass the run file and read stderr (2026-10-17)
 
@@ -283,6 +308,14 @@ strings included, and keeps template `shape:` keys inside a nine-key allow-list.
   `docs/reference/command-loop-performance.md` § 4.7 (D-911, mail 01M50FD9YE).
 - Graders in `tests/test_review_loop_workflow.py`. Receipt:
   `docs/development/reviews/2026-10-17-command-scratch-home-and-d335-reason-review.md`.
+
+### Fixed — the review receipt skeleton no longer lists half of the by-design refusals (2026-10-17)
+
+`scripts/review_receipt.py`'s skeleton said the gate refuses three by-design shapes. `check_review_coverage.py::_residual_errors` refuses six, and its `D-nnn` row check passes everything when no ledger with rows is readable. The skeleton now points at `_residual_errors` and `_ledger_ids` instead of restating them. `tests/enforcement/test_review_refusals.py` fails if the partial list returns or either function is renamed (kaizen, mail 01M53SBC2D).
+
+### Changed — the SCOPE GROWTH messages are now pinned whole by tests (2026-10-17)
+
+Both of `command_run.py`'s scope-growth messages, the in-lane one and the ordinary-window one, tell a review to fix the window's open defects, re-verify the fixed set alone, and close on a quiet round. `tests/test_command_run.py` now pins both messages whole, by equality, and `tests/test_command_run_lane_v2.py` pins that `round` prints the in-lane one with nothing after it. So a dropped, reordered, negated or added instruction fails. Before this, only each message's headline was pinned, so the wording that once let a run close with confirmed defects still open could return green (kaizen, mail 01M53S190T; W-49f3515f).
 
 ### Fixed — the scratch-sweep run-folder tests no longer read the box's live /proc (2026-10-17)
 

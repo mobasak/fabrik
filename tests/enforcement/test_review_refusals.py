@@ -387,6 +387,27 @@ def test_the_header_is_exempt_and_a_second_header_shaped_row_is_a_refused_data_r
     assert _refusals(twice), "a second header-shaped row is a data row carrying the colon token"
 
 
+def test_the_receipt_skeleton_points_at_the_by_design_refusals_never_lists_them() -> None:
+    """The skeleton once listed 3 of `_residual_errors`'s 6 by-design refusals and said "refuses"
+    where the ledger check fails open (kaizen 01M53SBC2D): a hand-kept list drifts as the function
+    grows, so the skeleton names the functions, and they must exist."""
+    src = (REPO / "scripts" / "review_receipt.py").read_text(encoding="utf-8")
+    flat = " ".join(src.split())
+    # the WHOLE sentence between its neighbours, by equality: a rebuilt list or a "refuses" in new
+    # words fails, which a pair of fragment checks let through (review round 1)
+    head = "the reason follows the closing parenthesis. "
+    tail = " `RECORDED — measured` and `RECORDED — unexecuted` never enter"
+    assert flat.count(head) == 1 and flat.count(tail) == 1
+    assert flat.split(head)[1].split(tail)[0] == (
+        "What the gate refuses in a by-design verdict is the message list of `check_review_coverage.py::_residual_errors`, "
+        "read there and never restated here; whether a `D-nnn` is a row of the ledger is checked "
+        "only where `_ledger_ids` reads a `docs/DECISIONS.md` with rows, and is not checked "
+        "otherwise."
+    )
+    for name in ("_residual_errors", "_ledger_ids"):
+        assert callable(getattr(crc, name, None)), f"the skeleton names {name}, which is gone"
+
+
 def test_a_block_that_is_not_yet_a_ledger_is_never_refused() -> None:
     """`review_receipt.py --init` writes a header and a separator and nothing else."""
     init_shape = "| Pass | Finders | Counters | Method |\n|---|---|---|---|"
