@@ -679,6 +679,18 @@ def test_v2_a_review_nested_under_a_task_stops_at_its_first_own_fix_round(
     out = _review_rounds(run_dir, repo)
     assert "SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside" in out
     assert "mostly" not in out.split("SCOPE GROWTH (in-lane)")[1].split("\n")[0]
+    # `round` prints the in-lane message whole (its text is pinned in test_command_run.py) and
+    # nothing but print's newline follows it
+    assert out.rstrip("\n").endswith(
+        "\n⚠️  SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside text this review "
+        "itself added (confirmed/own-fix: 2/2) under a running /fabrik-task.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the hunt — "
+        "fix the window's open defects, route the remaining own-fix work to /fabrik-spec or a "
+        "backlog row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); the receipt carries "
+        "`**Lane:** fabrik-task`.\n"
+        "    (Advisory only — nothing is blocked.)"
+    ), out
 
     other = tmp_path / "other-state" / "command-runs"
     other.mkdir(parents=True)
