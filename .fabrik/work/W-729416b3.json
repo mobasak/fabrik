@@ -3,7 +3,7 @@
   "created": "2026-10-14T00:40:42.251994Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "31014ec5886d4798a5e7122f922e88b1cb1ad3cd",
   "id": "W-729416b3",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "Label rename in one review-loop script",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m48mq2hs"
   ],

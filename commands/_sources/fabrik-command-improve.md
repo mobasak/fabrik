@@ -181,12 +181,18 @@ it renders from. Before rejecting, search earlier reject reasons for the subject
 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
 still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
 its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
-audit seat's scratch, never the seat. A subject already held is a recurrence and
-is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
+audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
+mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
+A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
+(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
+answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
+target resolved and lock-checked as below. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
 loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
-command's current text).
+command's current text). That rendered-copy grep is the lead's: the audit seat reads the command source and the
+fragments it includes, pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks
+any wording it proposes against the phases that rely on the sentence it would change.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -225,7 +231,10 @@ rule lives), the target's own routing rules (state the overlap), its fan-out par
 whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
 contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
 binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot). A row that prescribes how the command works — a step, an
+works around (a mode may already cover the blind spot). The tests that pin a paragraph's sentences are read before
+a sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and the new text goes where no
+pinned span runs, the gap between two sentences one pin joins included; a pin that ends at a sentence's period also
+fails when that sentence is extended. A row that prescribes how the command works — a step, an
 order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
 mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
 self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
@@ -268,9 +277,13 @@ tells the agent to run one of its verbs is executed on the scenario the sentence
 quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites
 — a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
 handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
-synthetic file; a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
+synthetic file built to break it in a scratch repo (round zero's input classes in
+`commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
+sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
 in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. A rule whose
+subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
+new subject, since a method that finds the old subject may find none of the new one.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
@@ -285,7 +298,9 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 `/fabrik-review-scoped` over the changed surface, run to its exit — one round plus the delta rounds
 § Drive bounds. Sized by the surface: one source file is one unit, so `dispatch_headroom.py --units 1
 --mechanical 1` — and the seats read the EDIT
-against the verdicts it claims to answer, not merely for style. A seat that cannot find the verdict
+against the verdicts it claims to answer, not merely for style. For a `_fragments/` edit the brief names the
+consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no
+seat hunts for homes the fragment does not have. A seat that cannot find the verdict
 in the new text is the finding; for each row it finds answered, it returns the line that states the row's step.
 
 ## PHASE 5 — Commit, naming what you answered

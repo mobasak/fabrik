@@ -392,3 +392,70 @@ def test_grounding_reads_the_governing_spec_and_a_copied_recipe_names_its_form()
         " for its reader to"
         " follow, never handed over to be pasted —" in _phase("## PHASE 3", "## PHASE 4")
     )
+
+
+def test_a_recurrence_is_searched_by_its_step_and_answered_rejects_flag_a_line() -> None:
+    """Rows 1792198197, 1792193148: three sightings of one re-read step hid under three nouns, so the
+    search names the step and its mechanism words. Row 1792194121: answered rejects stay final, and
+    three or more on one subject citing one line make that line a candidate group for the ONE edit."""
+    phase2 = re.sub(r"\s+", " ", SRC.read_text())
+    phase2 = phase2[phase2.index("## PHASE 2") : phase2.index("## PHASE 3")]
+    assert (
+        "never the seat. Grep it for the subject, for what the row asks the author to DO and for its mechanism"
+        " words (such as a guard, both sides, a false green), since one step asked under three nouns is one"
+        " subject."
+    ) in phase2
+    assert (
+        "An answered reject (PHASE 1) stays final, but a line that three or more answered rejects on one subject"
+        " cite is a line not followed: it is a candidate group for this phase's ONE edit, its target resolved and"
+        " lock-checked as below."
+    ) in phase2
+    assert "(it warns only on an identical `HELD:` tag)" in phase2
+
+
+def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pin() -> None:
+    """Rows 1792200478, 1792189926: the line four answered rejects cite was not followed; a widened census
+    subject was never run through its own search methods (they found 0 of 3 readers), and a recipe was
+    run only on friendly inputs."""
+    phase3 = re.sub(r"\s+", " ", SRC.read_text())
+    phase3 = phase3[phase3.index("## PHASE 3") : phase3.index("## PHASE 4")]
+    assert (
+        "A rule whose subject the edit widens is run before PHASE 4's first pin, through the rule's own search"
+        " methods, on a sample of the new subject, since a method that finds the old subject may find none of"
+        " the new one."
+    ) in phase3
+    assert (
+        "as well as a synthetic file built to break it in a scratch repo (round zero's input classes in"
+        " `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
+        " and a sibling commit inside the window the recipe scans, when it scans one)"
+    ) in phase3
+    # the pointer resolves: round zero there lists the input classes this clause leans on
+    coverage = ROOT / "commands" / "_fragments" / "term-coverage.md"
+    classes = "boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs"
+    assert classes in re.sub(r"\s+", " ", coverage.read_text())
+
+
+
+def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() -> None:
+    """Rows 1792227360 (an audit seat told to grep the rendered ~/.claude command, which no seat may open),
+    1792199420 (recurring held multi-span-coherence: the audit seat's proposed wording was not checked against the
+    phases relying on it), 1792201686 (recurring held extend-a-pinned-sentence-as-a-new-sentence: a sentence placed
+    beside a pinned one broke its pin) and 1792208187 (recurring held fragment-consumers-from-temp-render)."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "That rendered-copy grep is the lead's: the audit seat reads the command source and the fragments it includes,"
+        " pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks any wording it"
+        " proposes against the phases that rely on the sentence it would change." in p2
+    )
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn '<a"
+        " phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two"
+        " sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is"
+        " extended." in p3
+    )
+    p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
+    assert (
+        "For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each"
+        " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have." in p4
+    )

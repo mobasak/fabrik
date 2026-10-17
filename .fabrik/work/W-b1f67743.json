@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T22:48:05.911872Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-b1f67743",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,9 +15,13 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "2026-10-17 (intel): kaizen mail 01M4PVPY8J routed THREE /fabrik-spec-review rows here (the title's five counts the D-711 triage). 1790195711 — BUILT (D-933): review_loop_ledger.py next carries every open claim from the run file's own verdicts, --drop closes one; commits 2c3b110c1 57df8e1c7 b8b61c787 1863a7b64, receipt ec83f23f3 CONVERGED (22 -> 6 -> 0). 1791029742 — REFUSED as resolved: one Workflow call already takes any number of slices and a verified slice is re-stated in round --slices. 1789260737 — REFUSED: the pin half shipped as review_loop_ledger.py pin, the convention half is D-756 text, and no later row asked for a regenerator. The rows were already closed ROUTED in the feedback index (a reject is final), so these dispositions live here and in D-933. Residue filed: W-9f436e18, W-6399d1a3.",
   "owner": "intel",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "5 /fabrik-spec-review verdicts kaizen triaged (D-711) as needing code in intel's beat; they sit unanswered until built; one session",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "/fabrik-spec-review feedback queue — 5 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
 }

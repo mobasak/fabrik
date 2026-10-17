@@ -42,7 +42,8 @@ stands.
    recurrence, and is edited instead. Find it in the reason column of `python3
    scripts/command_feedback_report.py --reasons <cmd>`, run without `--held` (an untagged reject is still a
    final hold), because the `--queue` header's `held (all time):` line lists tags only and a near-synonym
-   matches no tag; an audit seat gets that output pinned in its scratch and never runs it (D-837).
+   matches no tag; an audit seat gets that output pinned in its scratch and never runs it (D-837). What the
+   search matches on, and what answered rejects add, is `/fabrik-command-improve` PHASE 2's rule.
 2. **Group** — most queues repeat one complaint in many words. Read the whole queue for a command
    before editing anything; one edit answers every row that asked for it.
 3. **Fix with ONE reviewed edit per group** — `/fabrik-command-improve <cmd>` is the lane; it renders
@@ -81,6 +82,8 @@ carry `Agent-Name: kaizen`.
 ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
 
 ## Escalation
+
+**The operator talks only to the coordinator (D-943, operator 2026-10-17).** Never ask the operator a question, never use AskUserQuestion, and never end a turn waiting on the operator in your own pane. Every question, approval request, gate or blocker goes to the coordinator by `SendMessage`, naming the item id and what it means in plain words; the coordinator decides what it can and boards the rest. A permission prompt you hit is reported the same way (the command and why it was refused), never left for the operator to click.
 
 Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first
 (CLAUDE.md § Autonomy). Never widen a verdict into a spec: a verdict that needs a design is routed to

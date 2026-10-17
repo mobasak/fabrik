@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:27:54.290099Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "986b8ce22b3a98f2c6945b740348c3582b4b61ef",
+  "id": "W-573fae88",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design first (screens, IA, states, components) via /fabrik-spec or /fabrik-ui-design; the Opus+Fable panel approves the design; then build",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "operator asked 2026-10-16; the dashboard is the operator's control surface; several screens + a design pass = major project, the one P2 in flight",
+  "status": "done",
+  "title": "Redesign the quota dashboard (scripts/sysadmin/quota_dashboard.py, Repos tab and the rest) into the operator's command-and-control centre, built on UI best practice: one overview answering 'what needs me now' first (awaiting-operator gates with Accept/Reject inline, blocked merges, agent NOW/NEXT, quota band), clear hierarchy, consistent components, readable at a glance, keyboard- and mobile-friendly, light/dark. Operator 2026-10-16: 'dashboard, repos have a mess ui. i want it to be done in best user friendly way. best ui practises. it will be our command and control centre'"
+}

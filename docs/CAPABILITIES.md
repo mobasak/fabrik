@@ -98,6 +98,7 @@
 - [watchdog](../AGENTS.md) (owner: fleet): watchdog registrar (auto-provisioned per spec shape)
 
 ## script
+- [scripts/agent_status.py](../INDEX.md) (owner: infra): Every hub worker's NOW, DONE and NEXT — or, with --json --all, every repo's agents — read from records that already exist.
 - [scripts/aro-wake/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
 - [scripts/audit_all_projects.py](../INDEX.md) (owner: infra): Deep audit all /opt projects for Fabrik scaffold compliance (v2).
 - [scripts/audit_all_registrars.py](../INDEX.md) (owner: infra): T4-04 G-G5 — hourly drift audit across all 9 registrars × all specs.

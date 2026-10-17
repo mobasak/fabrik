@@ -401,8 +401,8 @@ def test_fourth_review_queue_pass_lines() -> None:
     text = _norm(CAT)
     for needle in (
         "a fix's identity or dedup key (byte vs text read, line endings, recycled ids such as inode reuse),",
-        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), named"
-        " before the closing round.",
+        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), and"
+        " of each field a fix writes, named before the closing round.",
         "and whether that test assumes a co-located hub tree, so a standalone run of it is a known false red;",
         "a change that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a"
         " `HOME` or `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.",
@@ -603,3 +603,105 @@ def test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding() ->
         "the finder mutates that constant on a copy under its scratch dir and the test must go red"
         in checklist
     )
+
+
+def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None:
+    """D-711 recurrences, 2026-10-17 pass: receipt re-made after a fix commit (1792137103, 1792184935), counts name
+    their commit (1792072266), a served build's real port (1792087244), two fix forms (1792119582, 1792111760),
+    branches a doc sentence summarises (1792088847), readers of a written field (1792081559), and the post-fix prose
+    sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause."""
+    src = _norm(SRC)
+    assert (
+        "a fix committed after that `--init` moves the tip, so at the close the receipt is re-made after the last fix"
+        " commit (`--init --range <base>..<that commit>` under a new `--scope`, or a new `--out` for a plan's receipt,"
+        " its rows carried over and the superseded receipt deleted — `--init` never overwrites, and `--restamp`"
+        " re-anchors only a working-tree receipt)"
+    ) in _section(src, "## Reporting", "{{include:close-chain}}")
+    # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
+    # negation-safe-assertions)
+    assert "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write" in src
+    assert (
+        "**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract"
+        " is equality, a regex widened to `.*`)"
+    ) in _section(src, "**Test-quality checklist", "## Phase 2")
+    lessons = _section(src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**")
+    assert "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count" in lessons
+    assert (
+        "a probe of a served build reads the port the server actually bound, from its own output, or serves the"
+        " files with no port at all (Playwright `page.route`), never a port the brief assumed"
+    ) in lessons
+    fixed = _section(src, "## Phase 3 — Prove & fix", "## Phase 4 — Converge")
+    assert (
+        "**Two fix forms recur:** two predicates over one input (an arm and its lift, an allow and its deny) become"
+        " ONE classifier both read, its grader sweeping every input pair; a sanitizing fix is an allowlist of"
+        " spelled-out characters, never a bracket range"
+    ) in fixed
+    assert "(with bash's `globasciiranges` off, `B` matches `[a-c]` under `en_US.UTF-8`)" in fixed
+    cat = _norm(CAT)
+    assert (
+        "trace each rationale sentence's mechanism to the code through every branch it summarises (refusals and"
+        " fallbacks, not only the happy path)"
+    ) in cat
+    assert "and of each field a fix writes, named before the closing round." in cat
+    assert (
+        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring and"
+        " `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
+        " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
+        " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
+        " outdates);"
+    ) in cat
+
+
+def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
+    """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
+    D-nnn absent from the checkout's ledger. Phase 2's bullet, where the grammar is defined, now says the D-owner
+    is a row of that ledger; the Reporting paragraph points at the gate's own messages instead of listing a subset
+    (a three-item list missed three refusals and the ledger check's fail-open)."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert "or a row of this checkout's `docs/DECISIONS.md`, which takes no round token." in text
+    assert (
+        "the gate refuses an absent owner, and the messages of `check_review_coverage.py::_residual_errors` name"
+        " every other licence it refuses (it checks a `D-nnn` only against a ledger with readable `| D-n |` rows)."
+    ) in text
+    gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
+    assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"
+
+
+def test_round_zero_runs_a_guard_the_fix_adds_over_the_fix_itself() -> None:
+    """Row 1792201902 (infra), the fourth answered row on the round-zero live-population clause (reasons 1792090895,
+    1791195745, 1791156134): both late findings were a new guard missing the fix's own code. Both round-zero homes
+    now name the fix's own hunks among the guard's inputs."""
+    for name in ("term-coverage", "term-edit"):
+        text = " ".join((ROOT / "commands" / "_fragments" / f"{name}.md").read_text().split())
+        assert "a guard the fix ADDS run over the fix's own hunks too," in text, name
+
+
+def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_receipt() -> None:
+    """Rows 1792252856 (briefs and fix lists homeless, recurring the routed row 1791906916 and held
+    close-input-durable-folder), 1792251120 (closing seats re-proved byte identity, recurring held
+    closing-pass-unchanged-surface), 1792255300 (a guard written for the one bad input, recurring held
+    denylist-to-allowlist-convergence), 1792247279 (mid-loop counts in a D-row, recurring held
+    changelog-figure-before-close and changelog-test-count-from-pytest)."""
+    review = _norm(SRC)
+    assert (
+        "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
+        "lead writes for each pass, so a resumed review has them (the seats' candidates and verdicts are already in "
+        "the pass files there); only the seats' copies go under"
+    ) in review
+    assert (
+        "When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 "
+        "in both passes' pin manifests, so its seats open those files and re-execute their ledger without "
+        "re-proving byte identity."
+    ) in review
+    for frag in ("term-coverage", "term-edit"):
+        text = _norm(ROOT / "commands" / "_fragments" / f"{frag}.md")
+        assert (
+            "all at once, never one patch per shape; a guard added because one bad input reached a reader is "
+            "written as the readers' round-trip (a value is accepted only when every reader parses back what was "
+            "written), never as a check for that one input"
+        ) in text, frag
+    cc = _norm(ROOT / "commands" / "_fragments" / "close-chain.md")
+    assert (
+        "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
+        "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
+    ) in cc

@@ -167,7 +167,10 @@ In this single turn, run grounding rounds until the closing round CONFIRMS zero
 - For each `spec § <heading>` cite in a spec-fed plan's Scope or Behavior Contract, OPEN the spec at that section and
   confirm the ticket implements it and restates nothing it already says — the cite → section correspondence is an
   anchor of this review (`/fabrik-plan-after-chat`'s emit rule); `check_citations_resolve.py --changed` grades only the
-  `path:line` form, so the `§` form is the seat's read.
+  `path:line` form, so the `§` form is the seat's read. A ticket that quotes spec rules in place of listing the spec
+  (`/fabrik-plan-after-chat` Phase 2, "Size as you draft") has those quotes checked before its other cites: each
+  quoted `<spec path>:<line>` opened and the quote verbatim (a verbatim quote is a cite, never a restatement), and no
+  rule of the spec section holding those lines that the ticket implements left unquoted.
 - For each table/field/migration, verify it exists in the real schema with the stated type/constraints.
 - For each external dependency or data source, either ground it by executing the research NOW
   (`WebSearch` / `mcp__brave-search__brave_web_search` / official-docs `WebFetch`, on a miss `mcp__exa__web_search_exa` /
@@ -256,7 +259,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   the consumer side merged three libraries with zero production callers — reproducing the exact
   stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run
   as a rescue).
-- **Reader census (the mirror of the consumer audit)** — for every existing function or value whose behaviour the
+- **Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose behaviour the
   plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census, its command and output in the
   plan's Evidence. A seat re-runs that census; a reader it finds that the plan does not name is a defect.
 
@@ -299,7 +302,7 @@ section's text read by two seats; the union IS the pass. Size and stamp it at TH
 slice's refuter counted by its model token (never dispatch past `SEATS: 0` — read its reason line for what binds,
 the box, a cap, or your own invocation, and re-run it once that clears), `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, then ONE
 `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
-surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
+surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no `SCRATCH:` line; only the seats' copies go under `scratch_dir`) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
 or the monolith], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a cited-fact
 slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): one fresh refuter per
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
@@ -307,7 +310,7 @@ with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pi
 <box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
 and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept> --classes-new <classes first seen>` (§ Subagents below carries the dispatch stamp). Under the
 partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
---ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
+--ids <the confirmed ids>` (`--args <a scratch copy of the run file>` added whenever that file exists: it then prints each slice whole and carries the open claims the `--ids` leave out; read its stderr either way, `/opt/fabrik/docs/reference/review-loop-workflow.md`) — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
 `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
 modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's

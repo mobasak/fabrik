@@ -92,7 +92,12 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # extends, and a copied mechanism carries its source's settled failures as Behaviours (rows 1791935733, 1791933860).
 # D-856 (kaizen, 2026-10-14): 20285 -> 20904 — MEASURE finds subprocess-run tests and red-proves a relied-on grader;
 # MIRROR finds vendored copies off the tracked tree; phase 3 names the live-store pin and re-runs MEASURE's slice (6 rows).
-SIZE_CAP = 20904
+# D-928 (kaizen, 2026-10-17): 20904 -> 21753 — phase 2 tabulates every input the design branches on and a new
+# parser fails closed; MEASURE sizes a grown hook output against the 10,000-character cap; phase 3 rewrites a
+# pre-fold test; phase 5 captures the commit by its exact subject, failing closed (9 rows).
+# D-936 (kaizen, 2026-10-17): 21753 -> 22044 — MEASURE greps every config and env value a changed format can
+# sit in; phase 2 tries a rule another component applies as a read of its output before copying it (2 rows).
+SIZE_CAP = 22044
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -822,7 +827,8 @@ def test_phase_two_restates_the_terminal_with_the_design() -> None:
     text = " ".join(_source_text().split())
     for phrase in (
         "If MEASURE or the critiques changed what ends the run, restate it with "
-        '`--terminal-amend "<one line>"` on any step up to that call — refused once the design is recorded, '
+        '`--terminal-amend "<one line>"` on that `--design` call or any step before it — refused once the design is'
+        " recorded, "
         "so no run moves its goal to fit the result; `terminal_amends` keeps the old one.",
         "There is no DECISION amend: the design is recorded after the critiques fold.",
     ):

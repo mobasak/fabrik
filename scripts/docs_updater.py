@@ -1225,17 +1225,21 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # TOKEN-exact, as in decisions.py.
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
-# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
-# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
-# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+# D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
+# clause and the UNDECLARED token stay `re.I`), with one optional `**` on each side of its colon, so
+# `**MERGE OWNER:** x` and `**MERGE OWNER**: x` declare while `Merge owner: rotated weekly` is prose;
+# the first token after the label is the owner, whatever follows it.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"
 MERGE_OWNER_RE = re.compile(
-    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    re.I,
 )
 _UNDECLARED_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
     re.I,
 )
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
@@ -1243,10 +1247,10 @@ _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
 # epic_order.py's own `--assign` would refuse (uppercase, `_`, `.`, `@`, or >32 chars)
 # must never get as far as markers + owner lines + the IMMUTABLE merge-owner ledger
-# row here, only to have the epic half fail afterward — a half-adopted repo. This is
-# ALSO narrower than MERGE_OWNER_RE's capture group (which stays permissive so it can
-# still READ a name minted before this tightening), so it never needs to round-trip
-# the other way.
+# row here, only to have the epic half fail afterward — a half-adopted repo. It is NOT
+# a subset of what the readers read back: a leading `-` and the `undeclared` token pass
+# it, so `run_adopt` round-trips the FIRST name through MERGE_OWNER_RE/_UNDECLARED_RE
+# before any write (W-2118e9c9).
 _ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
 # T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" is
@@ -2444,7 +2448,9 @@ def run_adopt(
     synced to projects — a repo with an epics dir but no vendored copy is skipped
     here; the hub adopts those epics separately, from /opt/fabrik, with `python3
     /opt/fabrik/scripts/epic_order.py --assign <names>`), then regenerate the PLANS
-    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, in a linked
+    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, on a first name
+    the merge-owner readers would not read back as that owner (`undeclared`, a leading `-` —
+    W-2118e9c9), in a linked
     worktree or wherever git cannot tell (W-e6acc9ac — `single_window` and `dry_run` do not lift
     it), or on a checkout only this session shares unless `single_window` overrides it.
     Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
@@ -2463,6 +2469,19 @@ def run_adopt(
         sys.stderr.write(
             f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
             f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+    # W-2118e9c9: the first name is written as `MERGE OWNER: <name> — …` (step (c)), so it must read back as that
+    # owner: the grammar admits `undeclared` (the readers' case-insensitive un-adoption token) and a leading `-`
+    # (which MERGE_OWNER_RE's capture refuses), and either would mint a row every reader skips — no owner, exit 3
+    # from `--merge-owner`, another row on every later --adopt. The readers' own regexes decide, on the row's shape.
+    row = f"MERGE OWNER: {names[0]} — " if names else ""
+    read = MERGE_OWNER_RE.match(row)
+    if names and (_UNDECLARED_RE.match(row) or not read or read.group(1) != names[0]):
+        sys.stderr.write(
+            f"docs_updater --adopt: {names[0]!r} cannot be the merge owner — the readers do not read "
+            f"`MERGE OWNER: {names[0]}` back as that name (it is the un-adoption token `undeclared`, or it opens "
+            "with `-`); name an agent that starts with a letter or digit and is not `undeclared`\n"
         )
         return 2
 
@@ -2864,8 +2883,9 @@ def main() -> None:
         help=(
             "comma-separated agent name(s): seed the PLANS ownership markers, stamp "
             "every open unowned plan unit's Owner, declare the merge owner when "
-            "undeclared, delegate the epic half to epic_order.py --assign, and print "
-            "a table of what changed"
+            "undeclared (the first name; refused when the readers would not read it "
+            "back as the owner), delegate the epic half to epic_order.py --assign, "
+            "and print a table of what changed"
         ),
     )
     parser.add_argument(

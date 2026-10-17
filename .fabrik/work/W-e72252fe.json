@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T12:52:06.047149Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e72252fe",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M54XR3QSP15B3R1GM919FBET",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "review_loop_ledger.py next now carries open claims (D-933) — two corpus sentences to refresh (W-b1f67743, your mail 01M4PVPY8J)"
+}

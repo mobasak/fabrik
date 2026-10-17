@@ -1,8 +1,9 @@
 """chrome-extension scaffold emits a WXT (not @crxjs) extension lane.
 
-Structure assertions (fast, no pnpm/build). The end-to-end build gate
-(`pnpm install` → `wxt build` → tsc → size-limit → eslint, all exit 0) is the
-integration verification run at plan-execution time — see the plan's Evidence.
+Structure assertions (fast, no pnpm/build), plus one `needs_network` build test
+(deselected by default; run with `-m needs_network`): `pnpm install` → `pnpm compile`
+(tsc) → `pnpm lint` (eslint) → keygen → `wxt build`, all exit 0. size-limit is not
+run here.
 """
 
 from __future__ import annotations
@@ -76,6 +77,17 @@ def test_package_json_is_wxt_not_crxjs(ext: Path) -> None:
     assert "@preact/preset-vite" in deps
     assert not any("crxjs" in d for d in deps), "must not depend on @crxjs"
     assert deps["webext-permission-toggle"].startswith("^6"), "pin the stable v6 line"
+
+
+def test_toolchain_is_pinned(ext: Path) -> None:
+    """W-70d9c609: the emitted extension pins the pnpm it is proven on (pnpm 11 is what the
+    allowBuilds block needs) and the lint config it lints clean on. This proves the strings are
+    written — the lint property itself is proven only by the needs_network build test below."""
+    import json
+
+    pkg = json.loads((ext / "package.json").read_text())
+    assert pkg["packageManager"] == "pnpm@11.24.0"
+    assert pkg["devDependencies"]["@antfu/eslint-config"] == "~7.7.3"
 
 
 def test_pnpm_workspace_allowbuilds_not_onlybuilt(ext: Path) -> None:
@@ -351,6 +363,14 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     dev_env = {k: v for k, v in os.environ.items() if k != "STORE_BUILD"}
     inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
+    # W-7f545f4a: the emitted project type-checks and lints clean out of the box — the release
+    # kit's scripts once tripped five e18e errors and two warnings nothing ran until the network
+    # was back. `eslint .` exits 0 on warnings, so the lint leg passes --max-warnings 0.
+    for cmd in (["pnpm", "compile"], ["pnpm", "lint", "--max-warnings", "0"]):
+        run = subprocess.run(cmd, cwd=ext, capture_output=True, text=True, timeout=300)
+        assert run.returncode == 0, (
+            f"{' '.join(cmd)} failed:\n{run.stdout[-3000:]}{run.stderr[-1000:]}"
+        )
     # A3 (W-e2af3303): the pinned key reaches the built manifest; a store build leaves it out.
     keygen = subprocess.run(["pnpm", "keygen"], cwd=ext, capture_output=True, text=True, timeout=60)
     assert keygen.returncode == 0, keygen.stderr

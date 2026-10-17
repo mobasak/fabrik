@@ -3,7 +3,7 @@
   "created": "2026-10-15T09:31:04.987145Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "43b1146e8267d899264ec6f1ad4d7e24ac87abbf",
   "id": "W-91ef9165",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4ys0ezvxdm2yhskb3vm49dh"
   ],

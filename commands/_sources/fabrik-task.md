@@ -72,7 +72,8 @@ never the whole suite (a red now is pre-existing); `git fetch` and the declared 
 into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
-are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
+are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on,
+every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), and
 the n behind any rate, bound or zero the design will claim; each external contract probed live
 once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
 the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
@@ -80,7 +81,8 @@ source read or a proxy: the tests that drive it by subprocess, the completion ga
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
 what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
 parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field; a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
+and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field, with each hook
+output it grows sized against Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
@@ -88,14 +90,19 @@ the packs it prints.
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
 `<durable>/design.md`. A mechanism copied from another script carries,
-as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled.
+as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled. Before
+such a copy, a rule another component already applies is tried as a read of its output (stdout, a record, an
+exported function); when the copy stays, DECISION says why the read cannot serve. Each
+input the design branches on is tabulated whole in a `design.md` table, outside the Behaviours list: every value a state it reads can hold, the unit another
+tool's rule is evaluated per (window, agent, repo), every path through a guard (a forced refresh after a write as
+well as the periodic one); a parser it adds takes a strict grammar and fails closed on the rest.
 
 {{include:design-critique}}
 
 Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it
 is independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what
 each stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
-semantics or shell claim against the real tool under the live guard; sweep sibling write paths and the tests
+semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep sibling write paths and the tests
 pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle; execute one claim about
 every external dependency. It pins the tree (a commit or `git archive` copy) and any live state file the design
 reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small
@@ -111,7 +118,7 @@ python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
 ```
 
 If MEASURE or the critiques changed what ends the run, restate it with
-`--terminal-amend "<one line>"` on any step up to that call — refused once the design is recorded,
+`--terminal-amend "<one line>"` on that `--design` call or any step before it — refused once the design is recorded,
 so no run moves its goal to fit the result; `terminal_amends` keeps the old one. There is no
 DECISION amend: the design is recorded after the critiques fold.
 
@@ -150,7 +157,7 @@ escape makes `check_decisions_unique.py` read a 7-cell row.
 ## Phase 3 — BUILD
 
 Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP. The change and its grader, red-first per FIX
-DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
+DIRECTIVE 4 against the recorded design (a test drafted before the critiques folded is rewritten, never made green); a shared-append file goes through § EXIT's private-index recipe, never the working file.
 One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …`
 measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout
 (`done` refuses more outside a worktree; `blocked`/`handoff` only note it). At v1 that one
@@ -183,12 +190,13 @@ capture line (v1 keeps it uncommitted), and the review is sized to the runway.
    reversible/ONE-WAY classification stay the decision-ledger rule's.
 3. `CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or an explicit `none`.
 4. `python scripts/final_gate.py --json` → `status: "success"`.
-5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** (the window never closes — a sibling landing inside is captured instead):
+5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit**, found by its own subject — a `HEAD` read would capture a sibling's commit landing while the post-commit hook runs:
 
 ```bash
 mkdir -p <durable> \
-  && <your § EXIT commit: pathspecs, trailers via -F, private-index for shared-append files> \
-  && git rev-parse -q --verify HEAD >> <durable>/commit.sha || exit 1
+  && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \
+  && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \
+  && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1
 ```
 
 6. § EXIT's push ladder (never `--force`), then close — the capture file, not a post-ladder `HEAD`
@@ -208,7 +216,7 @@ too, until `--review <a full /fabrik-review receipt>` names one — `blocked` ne
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
 --range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
-terminal it changed was restated with `--terminal-amend` before `--design`.
+terminal it changed was restated with `--terminal-amend` on or before the `--design` call.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 

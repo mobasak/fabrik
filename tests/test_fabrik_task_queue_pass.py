@@ -161,3 +161,59 @@ def test_measure_finds_exact_set_asserts_and_behaviours_carry_a_copied_scripts_s
         "A mechanism copied from another script carries, as Behaviours tested here (several may share one), the"
         " failure directions its tests and D-rows settled."
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None:
+    """Rows 1792119826, 1792097261, 1792094113 (a status file's third value, a forced refresh under a periodic
+    guard and a rule's per-window unit each went untabled), recurring held design-branches-on-several and
+    design-list-input-grammar, plus 1792019578 (a parser of another language); rows 1792057883 and 1792056989
+    (a grown hook output passed the 10,000-character cap); row 1792008185 (`--terminal-amend` read as a later
+    step); row 1792003124 (a pre-fold test made green); row 1792034245 (a HEAD read captured a sibling's commit).
+    Mutants: drop any clause, let the amend ride "up to" the call again, or restore the HEAD-read capture."""
+    design = _section("## Phase 2", "## Phase 3")
+    for needle in (
+        "Each input the design branches on is tabulated whole in a `design.md` table, outside the Behaviours list:"
+        " every value a state it reads can hold,",
+        "the unit another tool's rule is evaluated per (window, agent, repo),",
+        "every path through a guard (a forced refresh after a write as well as the periodic one);",
+        "a parser it adds takes a strict grammar and fails closed on the rest.",
+        '`--terminal-amend "<one line>"` on that `--design` call or any step before it',
+        "against the real tool under the live guard, a new parser on input outside its grammar;",
+    ):
+        assert needle in design, needle
+    assert "up to that call" not in design
+    assert "restated with `--terminal-amend` on or before the `--design` call." in _section("## Phase 5", "## UPGRADE")
+    assert (
+        "DIRECTIVE 4 against the recorded design (a test drafted before the critiques folded is rewritten, never made"
+        " green);"
+    ) in _section("## Phase 3", "## Phase 4")
+    close = _section("## Phase 5", "## UPGRADE")
+    # the subject comes from the -F message file (a pasted one would run its backticks); the grep finds a
+    # candidate; the exact %s comparison refuses a body-quoting sibling, a prefix and a miss
+    assert "trailers via -F <msg>," in close
+    assert '&& subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \\' in close
+    assert (
+        '&& [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+    ) in close
+    assert '"<your subject>"' not in close
+    assert "rev-parse -q --verify HEAD" not in close
+    assert (
+        "with each hook output it grows sized against Claude Code's 10,000-character cap"
+        " (https://code.claude.com/docs/en/hooks)"
+    ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_measure_greps_config_and_env_values_and_design_reads_a_copied_rule_first() -> None:
+    """Row 1792233945 (a `${` format change missed the spec env values that carry it), recurring held
+    measure-the-env-writers-not-only-the-spec; row 1792240470 (a rule copied from another component could have
+    been read from its output), recurring the untagged reject 1791965012 (every other place the rule lives) and
+    held gate-legs-before-a-new-leg (reuse what already runs before drafting a duplicate)."""
+    assert (
+        "every host it runs on, every config and env value a changed format can sit in (grep them for its shape,"
+        " e.g. `${`), and the n behind"
+    ) in _section("## Phase 1", "## Phase 2")
+    assert (
+        "D-rows settled. Before such a copy, a rule another component already applies is tried as a read of its"
+        " output (stdout, a record, an exported function); when the copy stays, DECISION says why the read cannot"
+        " serve. Each input"
+    ) in _section("## Phase 2", "## Phase 3")

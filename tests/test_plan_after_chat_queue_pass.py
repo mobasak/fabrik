@@ -129,7 +129,7 @@ def test_a_behaviour_change_censuses_its_readers_in_both_plan_commands() -> None
         r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
     )
     assert (
-        "**Reader census (the mirror of the consumer audit)** — for every existing function or value whose"
+        "**Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose"
         " behaviour the plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census"
     ) in review
     assert (
@@ -155,3 +155,105 @@ def test_a_spec_fed_plan_executes_the_specs_claims_about_this_repo() -> None:
         " worktree (`CLAUDE.md` § Shared repo, its mutate-restore rule); a claim not executed is prose, never"
         " carried as fact" in phase
     )
+
+
+def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> None:
+    """Row 1792092835: the author command said "the pasted OUTPUT of review_rubric.py" and its digest rule asks for
+    rows "relevant to this scope", while /fabrik-plan-review's Phase 1 grades a VERBATIM paste (only the promote tail
+    elided) and a digest naming EVERY matched pack — a plan written to this text failed that review. Phase 4 now
+    names both, pointing at the reviewer's own steps. Mutants: drop either clause; the reviewer's text moves."""
+    flat = _flat()
+    assert (
+        "the rubric output is pasted verbatim, where only the `# promote-to-check_*` tail may be elided"
+        " (declared where it would sit — its step 1)" in flat
+    )
+    assert (
+        "the plan's `## Constraints Digest` names every MATCHED pack that output lists (its step 3)"
+        in flat
+    )
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in review, (
+        "plan-review's step 1 moved"
+    )
+    assert "every MATCHED pack must be named in the digest" in review, "plan-review's step 3 moved"
+    # the pointer names "its Phase 1 … step 1 … step 3": each rule sits in the step of that number
+    raw = (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    phase1 = raw[raw.index("## Phase 1 — Grounding passes") : raw.index("\n## Phase 2")]
+    starts = {m.group(1): m.start() for m in re.finditer(r"(?m)^(\d+)\. \*\*", phase1)}
+    bounds = sorted(starts.values()) + [len(phase1)]
+
+    def step(n: str) -> str:
+        begin = starts[n]
+        return re.sub(r"\s+", " ", phase1[begin : bounds[bounds.index(begin) + 1]])
+
+    assert step("1").startswith("1. **Rubric.**")
+    assert "ONLY the `# promote-to-check_*` tail may be elided" in step("1")
+    assert step("3").startswith("3. **Constraints-Digest audit")
+    assert "every MATCHED pack must be named in the digest" in step("3")
+
+
+def test_the_reader_census_names_a_build_script() -> None:
+    """Row 1792194136, a recurrence of held enumerate-all-callers-with-count: a plan that changed a build script
+    missed the Dockerfile, the container gate and the generator that run it, because the census named only a
+    function or value. A grep of the script's name finds none of them (an alias, a `docker build` gate and a
+    generator sit one hop away), so the census follows callers transitively, before the shape decision."""
+    flat = _flat()
+    i = flat.index("## Phase 1 — Ground every claim BEFORE writing")
+    phase1 = flat[i : flat.index("## Phase 2", i)]
+    assert (
+        "For each function, value or build script (a `package.json` script or Makefile target, e.g. a `build:prod`"
+        " read by a Dockerfile, a container gate and a generator) whose BEHAVIOUR the plan changes, census its"
+        " production readers before any step that changes it"
+    ) in phase1
+    assert (
+        "A build script's census follows each caller transitively (an alias script, a Makefile target, a"
+        " Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a"
+        " reader) and runs before the Phase 2 shape decision."
+    ) in phase1
+
+
+def test_a_ticket_that_cannot_list_the_spec_quotes_it_and_review_checks_the_quotes_first() -> None:
+    """Row 1792192158 (a recurrence of HELD size-read-set-first, row 1790199174): the READ budget pushed the spec
+    out of four tickets' Context Files and they paraphrased it, while Phase 0's cite rule says restate nothing.
+    The emit rule says such a ticket quotes the spec verbatim, and /fabrik-plan-review checks those quotes first."""
+    flat = _flat()
+    i = flat.index("**Size as you draft.**")
+    assert (
+        "When the read-only file a ticket cites inline is the spec, its quoted lines are each spec rule the ticket"
+        " implements, verbatim at `<spec path>:<line>` (a cite under Phase 0's rule, never a paraphrase), in a `> `"
+        " blockquote under `## Context Files`, never a bullet (`check_plan_tickets.py` reads a bullet there as a"
+        ' listed file, and a bullet under `## Behavior Contract` holding the word "given" as a behaviour row), and'
+        " `/fabrik-plan-review` checks those quotes before the ticket's other cites."
+    ) in flat[i : flat.index("**Worked ticket skeleton**", i)]
+    assert (
+        "and restate nothing that section already says (a verbatim quote at `<spec path>:<line>` is a cite, not a"
+        ' restatement: Phase 2, "Size as you draft"); the'
+    ) in flat[: flat.index("## Phase 1")]
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert (
+        'A ticket that quotes spec rules in place of listing the spec (`/fabrik-plan-after-chat` Phase 2, "Size as'
+        ' you draft") has those quotes checked before its other cites: each quoted `<spec path>:<line>` opened and'
+        " the quote verbatim (a verbatim quote is a cite, never a restatement), and no rule of the spec section"
+        " holding those lines that the ticket implements left unquoted."
+    ) in review
+
+
+def test_the_gate_reads_a_bulleted_spec_quote_and_skips_a_blockquote() -> None:
+    """Row 1792192158: the emit rule puts spec quotes in a `> ` blockquote because check_plan_tickets.py reads a
+    bullet under Context Files as a listed file (re-adding the spec to the READ budget) and a bullet under
+    Behavior Contract holding "given" as a behaviour row. Both halves are run, not read."""
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    try:
+        import check_plan_tickets as gate
+    finally:
+        sys.path.pop(0)
+    bullet = '- `docs/specs/x.md:57`: "refresh only when a given token has expired"'
+    quote = '> `docs/specs/x.md:57`: "refresh only when a given token has expired"'
+    assert gate._list_paths(bullet) == ["docs/specs/x.md"]
+    assert gate.GIVEN_ROW_RE.findall(bullet)
+    assert gate._list_paths(quote) == []
+    assert gate.GIVEN_ROW_RE.findall(quote) == []

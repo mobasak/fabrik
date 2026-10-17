@@ -205,10 +205,11 @@ def _memory_line(cwd: str) -> str:
 # The grammar is single-sourced at `docs_updater.py::MERGE_OWNER_RE` and `decisions.py::MERGE_OWNER_RE` (cited by SYMBOL: a line number in a file this change itself grows is drift by construction — :940 was already wrong for :938 when it was written); this hook is
 # standalone and fleet-synced so it cannot import either — `tests/test_session_orient_hook.py`
 # pins the copy against both, the precedent `command_run.py` already set for its axis list.
-# C3: `(?!UNDECLARED)` is NOT decoration — `--adopt` cannot mint that name (`_ADOPT_NAME_RE`)
+# C3: `(?!UNDECLARED)` is NOT decoration — `--adopt` refuses that name in any case (W-2118e9c9)
 # but a HUMAN writes `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary un-adoption
 # row, and without the lookahead this hook then announces `UNDECLARED` as the owner.
-# Case-insensitive because the phrase match is, so `undeclared` cannot sneak past it.
+# The UNDECLARED token stays case-insensitive (`re.I`), so `undeclared` cannot sneak past it; the
+# `MERGE OWNER` label before it is upper-case-exact (D-934).
 # TOKEN-exact: `undeclared-team` is a real owner name, and `decisions.py` captures the whole token.
 # A trailing full stop is punctuation (`UNDECLARED.` is un-adoption prose); a dot before a name
 # character is not (`UNDECLARED.team` is an owner).
@@ -221,14 +222,15 @@ def _memory_line(cwd: str) -> str:
 # byte for byte with both sources.
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
-# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
-# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
-# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+# D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
+# clause and the UNDECLARED token stay `re.I`), with one optional `**` on each side of its colon, so
+# `**MERGE OWNER:** x` and `**MERGE OWNER**: x` declare while `Merge owner: rotated weekly` is prose;
+# the first token after the label is the owner, whatever follows it.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"
 _MERGE_OWNER_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*(?!UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)",
     re.I,
 )
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
@@ -239,7 +241,7 @@ _ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuat
 _UNDECLARED_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
     re.I,
 )
 

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T15:05:53.747112Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "9d044638826a988c8f3e0bc29dbda8ca1b58231f",
+  "id": "W-2118e9c9",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-934",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "refuse an UNDECLARED-token name in --adopt (case-insensitive), with a red-first test in tests/test_docs_updater_adopt.py",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "score_reason": "docs_updater.py --adopt undeclared writes a row every reader takes as an un-adoption, so adopting a repo silently records the opposite; one writer + the hook comment at session_orient.py:208",
+  "status": "done",
+  "title": "docs_updater.py --adopt accepts the name 'undeclared' (_ADOPT_NAME_RE ^[a-z0-9-]{1,32}$, docs_updater.py:1254) and writes 'MERGE OWNER: undeclared', which every reader then takes as the un-adoption row (re.I UNDECLARED token): owner reads None, --merge-owner exits 3, and each later --adopt appends another row (found by the W-5d3ed438 Finish review, slice A, pre-existing)"
+}

@@ -405,6 +405,64 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
     )
 
 
+def _two_seat_union(sonnet_file: str) -> tuple[dict, dict]:
+    """The sonnet seat — taken in FIRST, so its candidate is the one kept — cites the defect at line 3 as
+    `sonnet_file`; the haiku seat cites the same defect at line 4 as `a.py`."""
+    out, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "n",
+                "candidates": [{**_cand("S-S1", 3), "file": sonnet_file}],
+            },
+            "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-H1", 4)]},
+        },
+    )
+    return out["slices"][0], prompts
+
+
+@pytest.mark.parametrize(
+    "shape", ["/p/a.py", "/s/seat-p1-0-S-haiku/arch/a.py", "`/p/a.py`"], ids=["pin", "arch", "wrapped"]
+)
+def test_a_pin_or_scratch_copy_citation_merges_with_the_repo_path_citation(shape: str) -> None:
+    """W-177082fc: `sameDefect` compared `file` verbatim, so one defect cited by its pin or scratch-copy path and by
+    its repo path stayed two candidates (overlap undercounted, the estimate inflated, the refuter ran it twice). The
+    candidate's `file` now goes through readsFile's root strip (D-625) as it is taken in."""
+    s, prompts = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1"], s["candidates"]
+    assert s["overlap"] == 1 and s["candidates"][0]["also"] == "S-H1", s
+    assert s["candidates"][0]["file"] == "a.py"
+    assert "CANDIDATE S-S1 · a.py:3" in prompts["refute:S"], "the refuter is handed the repo path"
+
+
+@pytest.mark.parametrize(
+    ("shape", "stored"),
+    [
+        ("/opt/x/a.py", "/opt/x/a.py"),
+        ("/p/other/a.py", "other/a.py"),
+        ("/pX/a.py", "/pX/a.py"),
+        ("/q/p/a.py", "/q/p/a.py"),
+    ],
+    ids=["live", "other-file-in-the-pins-dir", "near-root", "embedded-root"],
+)
+def test_a_live_or_different_path_is_never_merged_with_the_repo_path(shape: str, stored: str) -> None:
+    """D-625: only the pins root or a seat's scratch arch root is stripped, and only as a prefix — a live-checkout
+    path and a look-alike or embedded root are kept as cited, and a different file under the pins dir becomes its own
+    repo path (`other/a.py`), so none of them is merged with `a.py`."""
+    s, _ = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1", "S-H1"], s["candidates"]
+    assert s["overlap"] == 0
+    assert s["candidates"][0]["file"] == stored
+
+
+def test_a_file_that_is_only_a_root_keeps_its_original() -> None:
+    """A `file` that strips to the empty string (the pins dir itself) keeps the seat's original value rather than
+    reading as no file at all."""
+    s, _ = _two_seat_union("/p/")
+    assert s["candidates"][0]["file"] == "/p/", s["candidates"]
+
+
 def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed() -> None:
     ledger, log = _run_ledger(
         _ARGS,
@@ -2400,3 +2458,47 @@ def test_each_review_command_carries_the_run_scratch_clause() -> None:
         body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
         flat = " ".join(body.split())
         assert flat.count(RUN_SCRATCH_CLAUSE) == 1, name
+
+
+SCRATCH_HOME_CLAUSE = (
+    "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the "
+    "run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk "
+    "across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session "
+    "scratchpad when `start` printed no `SCRATCH:` line"
+)
+REVIEW_LOOP_COMMANDS = (
+    "fabrik-review",
+    "fabrik-review-scoped",
+    "fabrik-plan-review",
+    "fabrik-spec-review",
+)
+
+
+def test_each_review_command_names_the_durable_home_of_pins_and_pass_files() -> None:
+    """Mail 01M4ZR1B2C (row 1791906916): the four commands named `scratch_dir` but left `pins_dir` and
+    `<scratch>/pass-<n>.json` homeless, so a lead put them under /tmp and a WSL shutdown lost the pass.
+    Each now names the run's durable `SCRATCH:` folder (D-836), once, and review-scoped's pin step,
+    which runs before its launch step, names it where the first pin is made."""
+    for name in REVIEW_LOOP_COMMANDS:
+        body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        assert flat.count(SCRATCH_HOME_CLAUSE) == 1, name
+    scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
+    flat = " ".join(scoped.read_text(encoding="utf-8").split())
+    assert "--pins-dir <a NEW pins_dir under the run's `SCRATCH:` folder>" in flat
+
+
+def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -> None:
+    """Mail 01M50FD9YE (D-911): three agents asked for a fresh whole re-read in one week because the
+    fragment stated D-335 without its reason; the reason now sits at the rule, quoted from § 4.7."""
+    fragment = ROOT / "commands" / "_fragments" / "term-edit.md"
+    body = " ".join(fragment.read_text(encoding="utf-8").split())
+    reason = "never a fresh whole-artifact reader, because that reader is how the loop"
+    assert body.count(reason) == 1
+    source = ROOT / "docs" / "reference" / "command-loop-performance.md"
+    quote = (
+        'one seat re-reads the whole artifact, the brief becomes "find anything", fixes are written '
+        "from recall so they seed the next round"
+    )
+    assert quote in body
+    assert quote in " ".join(source.read_text(encoding="utf-8").split())

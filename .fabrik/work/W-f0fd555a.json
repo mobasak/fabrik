@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "blocks every pnpm install box-wide and intel's W-e2af3303 finish; a recurrence; box DNS = infra's beat",
   "status": "open",
+  "tags": [
+    "waits-npm-hang-recurs"
+  ],
   "title": "WSL cannot resolve registry.npmjs.org again (~4 h, 2026-10-15): getent times out rc 124, curl 000 after 20 s, while git and the Claude API work; blocks every pnpm install and W-e2af3303's three network checks. Recurrence of W-478049bc (closed with no recorded fix); related W-a41e9e89 (process-name-keyed network drop) and W-8507598f (no registry probe)"
 }

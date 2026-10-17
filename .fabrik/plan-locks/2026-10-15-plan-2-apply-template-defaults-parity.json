@@ -1,0 +1,21 @@
+{
+  "plan": "docs/development/plans/2026-10-15-plan-2-apply-template-defaults-parity.md",
+  "owned_paths": [
+    "src/fabrik/spec_loader.py",
+    "src/fabrik/orchestrator/validator.py",
+    "src/fabrik/orchestrator/infrastructure.py",
+    "tests/orchestrator/test_validator.py",
+    "tests/orchestrator/test_shared_db_siblings.py",
+    "tests/orchestrator/test_apply_plan_parity.py",
+    "specs/services/translator.yaml",
+    "specs/services/longephedia-vault.yaml",
+    "specs/services/fabrik-citation-verifier.yaml",
+    "specs/services/fabrik-claim-validator.yaml",
+    "docs/development/reviews/2026-10-15-plan-2-apply-template-defaults-parity-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-15T19:35:17.806464+00:00",
+  "status": "released",
+  "baseline_commit": "2a6fa8358f4c9584d714ad2f83d300004cb79ba2",
+  "completed_at": "2026-10-17T15:38:20.056273+00:00"
+}

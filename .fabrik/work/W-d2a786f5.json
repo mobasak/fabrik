@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T04:42:42.767016Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d2a786f5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test: a worktree session citing a main-store awaiting item passes",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "every worktree agent citing a boarded gate is blocked three times or forced to mint a duplicate gate; measured by infra 2026-10-16 ~07:45; one lookup; hook = infra's beat",
+  "status": "open",
+  "tags": [
+    "waits-quota"
+  ],
+  "title": "Stop hook DEFERRAL cause rejects a correctly cited 'NEXT: operator decision — W-<id>' in a linked worktree: it resolves the id against the worktree's own .fabrik/work store, which receives items only at merge; resolve against the main checkout's store too (git rev-parse --git-common-dir), as merge_request.py does for claims"
+}
