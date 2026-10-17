@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T22:48:05.911872Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-b1f67743",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "intel",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "5 /fabrik-spec-review verdicts kaizen triaged (D-711) as needing code in intel's beat; they sit unanswered until built; one session",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "/fabrik-spec-review feedback queue — 5 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
 }
