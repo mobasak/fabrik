@@ -19,9 +19,8 @@ Operator: *"you must always be aware what they are doing, what they have finishe
 you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/*.json`: `agent`, `state`, `command`, `phase`,
 `surface`, `updated_at`) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
-queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Keep the work store true to it and
-commit it (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
-(`--json` for machines), also shown at every session start (D-894).
+queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
+(also shown at every session start, D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
@@ -35,17 +34,18 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    - *done* — a merged fix commit or a D-row settles it. A mere mention is NOT proof: ask the owner, close only on its
      yes (`work.py done --evidence <sha>`);
    - *duplicate* — another open item covers the same mail, file or symptom → keep the older, drop the other with the reason;
-   - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, propose a drop;
-   - *actionable* — one concrete change, not an umbrella → an umbrella is split or proposed for a drop;
+   - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, ask the owner as for *done*;
+   - *actionable* — one concrete change, not an umbrella → its owner splits an umbrella (tag `needs-split`);
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
 3. **Impact** HIGH = breaks or blocks an agent, a deploy, a gate or every repo, loses data, or the operator asked;
    LOW = clean-up, wording, a rare edge, an advisory. **Effort** LOW = about one session, a few files, no spec or plan;
    HIGH = a spec or plan, several sessions, or fleet-wide. Every score's `--why` names the check that set it.
 4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
-   P3 fill-in · low/high = time sink, dropped (step 5) · P0 = incident.
+   P3 fill-in · low/high = time sink, dropped · P0 = incident.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing. A time sink is dropped on scoring, with its reason (D-955). Release a hold only on the
-   operator's word.
+   gets nothing. A time sink is dropped (`work.py drop --why`; `work.py add` re-files it; D-955 answers CLAUDE.md's
+   first re-score), never one the operator asked for, a P0 or a claimed item. A `waits-operator-*` tag lifts only on the
+   operator's word; `--blocked-by`, when its blocker lands.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
@@ -77,7 +77,7 @@ characters of that ask verbatim. On their answer, `work.py assign <id> --untag w
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
 ruling received or relayed (id from `scripts/decisions.py --reserve-id .`). Keep it under ~9,800 characters: Claude Code
-caps hook output at 10,000 and `agent_role.py` adds a header (past the cap only a preview arrives; its own cut is 32 KB).
+caps hook output at 10,000 and `agent_role.py` adds a header (past it only a preview arrives).
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
@@ -106,8 +106,8 @@ another multi-window repo with no `feedback_owner` it is yours to turn into a bu
 
 ## Launch
 
-From the main checkout `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. The handover is done:
-infra committed the D-874 merge-owner row naming you and the config flip on 2026-10-15 (plan Phase C step 6), and you have taken merges since. Commits carry
+From the main checkout `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. The handover is done
+(D-874, config flip 2026-10-15). Commits carry
 `Agent-Name: coordinator`.
 
 **Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
