@@ -1167,6 +1167,7 @@ docs/
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
 │       ├── 2026-10-15-scratch-lifecycle-spec-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
+│       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md

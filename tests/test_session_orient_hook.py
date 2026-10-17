@@ -1318,6 +1318,8 @@ _OWNER_CASES = [
     ("bold-label-colon-outside", _row2("**MERGE OWNER**: beta") + _A1, "beta"),
     # A3 — a bold un-adoption is an un-adoption
     ("bold-undeclared", _row2("**MERGE OWNER:** UNDECLARED — un-adopted") + _A1, ""),
+    ("bold-undeclared-colon-outside", _row2("**MERGE OWNER**: UNDECLARED") + _A1, ""),
+    ("bold-prose-colon-outside", _row2("**Merge owner**: beta") + _A1, "alpha"),
     # A3b — a mixed-case un-adoption is prose like any other mixed-case opener, so the older owner
     # stands: a KNOWN COST (spec § Lifecycle Failure) — its author meant "nobody", the readers say alpha
     ("mixed-case-undeclared-is-prose", _row2("Merge owner: UNDECLARED") + _A1, "alpha"),
