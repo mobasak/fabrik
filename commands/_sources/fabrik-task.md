@@ -73,7 +73,9 @@ into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
 are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on,
-every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), and
+every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), the transport handing a new env var to
+the process (compose `environment:`, `env_file`, a build arg, another launcher) read on the started process
+(e.g. `docker compose run --rm <svc> env`, its keys recorded, never its values), and
 the n behind any rate, bound or zero the design will claim; each external contract probed live
 once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
 the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a

@@ -97,7 +97,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # pre-fold test; phase 5 captures the commit by its exact subject, failing closed (9 rows).
 # D-936 (kaizen, 2026-10-17): 21753 -> 22044 — MEASURE greps every config and env value a changed format can
 # sit in; phase 2 tries a rule another component applies as a read of its output before copying it (2 rows).
-SIZE_CAP = 22044
+# D-951 (kaizen, 2026-10-17): 22044 -> 22272 — MEASURE reads a new env var's transport on the started process,
+# keys only, row 1792258556 (a third verdict on held measure-the-env-writers).
+SIZE_CAP = 22272
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
