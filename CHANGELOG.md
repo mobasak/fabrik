@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review's Residual paragraph names the by-design ledger refusal (2026-10-17)
+
+- `/fabrik-review` § Reporting now lists all three by-design refusals the coverage gate makes: an absent owner,
+  a `D-nnn` that has no row in the checkout's `docs/DECISIONS.md` (added by infra's 66ed34d47, D-876), and a
+  round that is not below the closing `Pass N`. The wording is the receipt skeleton's own sentence (W-91ef9165,
+  mail 01M4YS0EZV). The grader is in `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-command-improve runs an edit's recipe and widened rule on inputs built to break them (2026-10-17)
 
 - PHASE 3's synthetic file for a recipe is now built to break it, in a scratch repo. It uses round zero's input

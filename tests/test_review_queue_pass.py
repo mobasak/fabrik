@@ -650,3 +650,17 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
         " outdates);"
     ) in cat
+
+
+def test_the_residual_paragraph_names_every_by_design_refusal_the_gate_makes() -> None:
+    """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
+    D-nnn absent from the checkout's ledger; the Reporting paragraph listed only the other two refusals. It now
+    carries the receipt skeleton's own sentence, and the skeleton still says it."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    refusal = (
+        "the gate refuses an absent owner, a `D-nnn` this checkout's `docs/DECISIONS.md` has no row for, and a"
+        " round that is not below the closing `Pass N`."
+    )
+    assert refusal in text
+    skeleton = re.sub(r"\s+", " ", (ROOT / "scripts" / "review_receipt.py").read_text())
+    assert refusal[0].upper() + refusal[1:] in skeleton
