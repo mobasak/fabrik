@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffolded compose files hand the deploy's .env to the container (2026-10-17)
+
+`_write_canonical_compose` and `templates/scaffold/docker/compose.yaml.template` emitted no `env_file`, so the keys
+`fabrik apply` writes to `/opt/<name>/.env` — DATABASE_URL, REDIS_URL, SENTRY_DSN, declared secrets — fed only
+`${VAR}` interpolation and never reached the container (`docker compose config` showed them absent). Both now declare
+`env_file: [{path: .env, required: false}]` on the app service; literal `environment:` values still win, and a fresh
+checkout with no `.env` still parses. New projects only: the 7 deployed projects whose committed compose lacks it
+adopt on their own, and a redeploy stays a Gate 2. `tests/test_scaffold_compose_env_file.py` proves it with
+`docker compose config`. Decision: D-931 (W-9ead34bd). Filed from the review: W-05004b41 (`_format_env` never escapes `$`,
+which compose interpolates inside env_file values) and W-6f690b90 (the audit-jobs companion and the saas services still
+use the required short form).
+
 ### Changed — round zero runs a guard the fix adds over the fix's own code (2026-10-17)
 
 - Round zero lives in both `commands/_fragments/term-coverage.md` and `term-edit.md`. Its pre-pin input list now
