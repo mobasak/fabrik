@@ -426,7 +426,7 @@ def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pi
     ) in phase3
     assert (
         "as well as a synthetic file built to break it in a scratch repo (round zero's input classes in"
-        " `commands/_fragments/term-coverage.md`, such as a regex metacharacter or backtick in a commit subject,"
+        " `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
         " and a sibling commit inside the window the recipe scans, when it scans one)"
     ) in phase3
     # the pointer resolves: round zero there lists the input classes this clause leans on
