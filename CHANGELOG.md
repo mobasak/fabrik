@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `docs_updater.py --adopt` refuses `undeclared` as the merge owner (2026-10-17)
+
+`--adopt undeclared` passed the agent-name grammar and wrote `MERGE OWNER: undeclared`, which every reader takes as
+the un-adoption row (the UNDECLARED token is case-insensitive): the owner read None, `decisions.py --merge-owner`
+exited 3, and every later `--adopt` appended another row. `run_adopt` now refuses (exit 2, before any write) a first
+name the reader's own `_UNDECLARED_RE` matches; `undeclared-team` stays a valid owner (W-2118e9c9). The hook comment
+that claimed `--adopt` could not mint that name is now true and says why.
+
 ### Fixed — the review loop merges one defect cited by its pin path and by its repo path (2026-10-17)
 
 `.claude/workflows/fabrik-review-loop.js` now takes each candidate's `file` through the same root strip `readsFile`

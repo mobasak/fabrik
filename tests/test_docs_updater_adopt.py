@@ -832,6 +832,31 @@ class TestD3bStrictNameGrammar:
         assert rc == 0
         assert idx.exists()  # step (a) ran — the name passed validation
 
+    def test_a_first_name_the_readers_take_as_an_un_adoption_is_refused(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """W-2118e9c9: `undeclared` passes the name grammar, but `MERGE OWNER: undeclared` is the un-adoption row to
+        every reader (the UNDECLARED token is case-insensitive), so --adopt would mint an owner nobody reads — the
+        owner stays None, `--merge-owner` exits 3, and every later --adopt appends another row. Refused before any
+        write; a name that only STARTS with the token (`undeclared-team`) is an owner and stays accepted."""
+        root = self._repo(tmp_path)
+        idx = root / "docs" / "development" / "PLANS.md"
+        decisions = root / "docs" / "DECISIONS.md"
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt(["undeclared", "beta"], single_window=True)
+        err = capsys.readouterr().err
+
+        assert rc == 2
+        assert "undeclared" in err
+        assert not idx.exists()
+        assert not decisions.exists()
+
+        assert du.run_adopt(["undeclared-team"], single_window=True) == 0
+        assert du.read_merge_owner() == ("undeclared-team", "D-001")
+
     def test_the_adopt_name_regex_is_byte_identical_to_epic_orders(self):
         assert du._ADOPT_NAME_RE.pattern == "^[a-z0-9-]{1,32}$"
 

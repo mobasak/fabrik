@@ -2469,6 +2469,14 @@ def run_adopt(
             f"{_ADOPT_NAME_RE.pattern!r}\n"
         )
         return 2
+    # W-2118e9c9: the first name is written as `MERGE OWNER: <name>`, so one the readers take as the un-adoption
+    # token (`undeclared` passes the grammar; the token is case-insensitive) would mint an owner nobody reads.
+    if _UNDECLARED_RE.match(f"MERGE OWNER: {names[0]}"):
+        sys.stderr.write(
+            f"docs_updater --adopt: {names[0]!r} cannot be the merge owner — `MERGE OWNER: {names[0]}` is the "
+            "un-adoption row to every reader; name an agent\n"
+        )
+        return 2
 
     # W-e6acc9ac: the owner row and the owner stamps belong to the main checkout; `--single-window`
     # disarms the session guard below, so a linked worktree is refused here, first, either way.
