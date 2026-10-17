@@ -17,7 +17,7 @@ Operator: *"you must always be aware what they are doing, what they have finishe
 you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, its `updated_at` shows staleness) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
 queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
-(shown at session start, D-894).
+(D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
