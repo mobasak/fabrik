@@ -283,16 +283,50 @@ def test_a_stand_down_is_recorded_as_a_kaizen_event(monkeypatch, tmp_path):
 
 def test_every_action_work_py_emits_is_classified_for_amber():
     """A new action must be placed deliberately: unlisted, it would block at AMBER by default."""
-    import re
+    import ast
 
-    whole = (_TREE / "scripts" / "work.py").read_text(encoding="utf-8")
-    # The stop ladder runs from `_stop_action` to the end of `cmd_queue`; elsewhere `"action":`
-    # is another record's field (an item comment's `action`, W-e1f1a1bd), never a stop action.
-    start = whole.index("\ndef _stop_action(")
-    src = whole[start : whole.index("\ndef ", whole.index("\ndef cmd_queue(") + 1)]
-    emitted = set(re.findall(r'"action": "([a-z-]+)"', src))
-    # every `"action":` value in the ladder is a literal name or None, so the regex sees them all
-    assert src.count('"action":') == len(re.findall(r'"action": (?:"[a-z-]+"|None)', src))
+    tree = ast.parse((_TREE / "scripts" / "work.py").read_text(encoding="utf-8"))
+    # Every `action` value work.py builds, whatever the spelling: a dict-literal key (either quote),
+    # `dict(action=…)`, or `x["action"] = …`. The whole file, never a slice by function position —
+    # a rung defined outside a slice was invisible (review S-1).
+    values: list[tuple[ast.AST, bool]] = []  # (value, is an item comment's record)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
+            for k, v in zip(node.keys, node.values, strict=True):
+                if isinstance(k, ast.Constant) and k.value == "action":
+                    values.append((v, {"via", "by"} <= keys))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "dict"
+        ):
+            values += [(kw.value, False) for kw in node.keywords if kw.arg == "action"]
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if (
+                    isinstance(t, ast.Subscript)
+                    and isinstance(t.slice, ast.Constant)
+                    and t.slice.value == "action"
+                ):
+                    values.append((node.value, False))
+    # ONE exception, named by its shape: an item comment `{"by": …, "via": …, "action": action}`
+    # (`cmd_verdict`, W-e1f1a1bd) records the operator's verdict, never a stop action.
+    comments = [v for v, is_comment in values if is_comment]
+    assert len(comments) == 1, (
+        f"expected exactly one item-comment `action` field, found {len(comments)}"
+    )
+    stop = [v for v, is_comment in values if not is_comment]
+    # every other `action` value is a literal name or None, so the set below sees them all
+    unread = [
+        ast.unparse(v)
+        for v in stop
+        if not (isinstance(v, ast.Constant) and (v.value is None or isinstance(v.value, str)))
+    ]
+    assert not unread, (
+        f"a stop action built from a non-literal escapes the classification: {unread}"
+    )
+    emitted = {v.value for v in stop if isinstance(v, ast.Constant) and isinstance(v.value, str)}
     assert emitted == set(_STARTS) | set(_FINISHES), emitted ^ (set(_STARTS) | set(_FINISHES))
     assert frozenset(_STARTS) == hook._COORD_AMBER_STARTS
 
