@@ -29,6 +29,13 @@ queue's other 3 rows are held (2) or routed to infra (1) with reasons. Pinned by
 Answers rows 1792227360, 1792199420, 1792201686 and 1792208187. The last three repeat held subjects. The queue's
 other 3 rows are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
 
+### Fixed — chrome-extension scaffold pins its toolchain: packageManager pnpm@11.24.0, @antfu/eslint-config ~7.7.3 (2026-10-17)
+
+A fresh chrome-extension scaffold declared `@antfu/eslint-config` `^7.2.0` and no `packageManager`, so it ran under
+whatever pnpm the box resolved, though its `allowBuilds` block needs pnpm 11. It now pins `pnpm@11.24.0` and `~7.7.3`,
+the versions its real install, compile, zero-warning lint and build pass on. Transitive plugin drift stays open as
+W-961f1958, the mobile-app template's range as W-fc58e9b7 (W-70d9c609, D-941).
+
 ### Fixed — scaffolded composes parse in a fresh checkout: saas services and the audit-jobs companion load .env as optional (2026-10-17)
 
 The three services of the saas compose (`_write_saas_compose`) and the `<name>-audit-jobs` companion
