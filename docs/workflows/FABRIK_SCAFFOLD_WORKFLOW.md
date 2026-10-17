@@ -402,7 +402,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Production Python dependencies |
-| `requirements-dev.txt` | Generated inline | Development dependencies (ruff, mypy, pytest, pytest-timeout, etc.); file-worker, mobile-app and chrome-extension emit one too (chrome-extension's carries only its test deps, kept out of the image's `requirements.txt`), and the saas family a `server/requirements-dev.txt` of test deps. The template's `[tool.pytest.ini_options]` sets `timeout = 120` and `faulthandler_timeout = 120` (W-046828fb) |
+| `requirements-dev.txt` | Generated inline | Development dependencies (ruff, mypy, pytest, pytest-timeout, etc.); file-worker and chrome-extension emit one inline and mobile-app copies its template's (chrome-extension's carries only its test deps, kept out of the image's `requirements.txt`), and the saas family a `server/requirements-dev.txt` of test deps. The template's `[tool.pytest.ini_options]` sets `timeout = 120` and `faulthandler_timeout = 120` (W-046828fb) |
 | `Dockerfile` | `docker/Dockerfile.python` | Production Docker build |
 | `compose.yaml` | `docker/compose.yaml.template` | Docker Compose config |
 | `pyproject.toml` | `python/pyproject.toml.template` | Python project config |

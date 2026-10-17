@@ -198,15 +198,24 @@ def test_chrome_extension_venv_installs_the_dev_requirements(tmp_path, monkeypat
     calls: list[tuple[list[str], object]] = []
 
     def fake_run(cmd, *_a, **kw):
-        calls.append(([str(c) for c in cmd], kw.get("cwd")))
+        argv = [str(c) for c in cmd]
+        calls.append((argv, kw.get("cwd")))
+        if argv[1:4] == ["-m", "venv", ".venv"]:  # what the real venv step leaves behind
+            (Path(kw["cwd"]) / ".venv" / "bin").mkdir(parents=True)
         return scaffold.subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(scaffold.subprocess, "run", fake_run)
     monkeypatch.setattr(scaffold, "_install_pre_commit", lambda *_a, **_k: True)
     monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
     project = _scaffold(tmp_path, "chrome-extension", provision=True)
-    pip = [(argv, cwd) for argv, cwd in calls if argv and Path(argv[0]).name.startswith("pip")]
-    assert pip == [([pip[0][0][0], "install", "-r", "requirements-dev.txt"], project)], pip
+    pip = [
+        (argv, Path(cwd)) for argv, cwd in calls if argv and Path(argv[0]).name.startswith("pip")
+    ]
+    assert len(pip) == 1, calls
+    # the project's own venv pip, from the project dir: never the system or hub pip
+    assert pip == [
+        ([str(project / ".venv" / "bin" / "pip"), "install", "-r", "requirements-dev.txt"], project)
+    ], pip
 
     _scaffold(tmp_path / "offline", "chrome-extension")
     assert "pip install -r requirements-dev.txt" in capsys.readouterr().out
