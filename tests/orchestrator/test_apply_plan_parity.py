@@ -91,11 +91,13 @@ def _validate_outcome(spec: dict[str, Any]) -> str | None:
     return None
 
 
-def _validate_mismatch(raw: dict[str, Any]) -> str | None:
-    """A report when validate's verdict on the raw spec differs from its verdict on the shape-merged one."""
-    merged = spec_loader.merge_template_defaults(
-        copy.deepcopy(raw), REPO / "templates", keys=("shape",)
-    )
+def _validate_mismatch(raw: dict[str, Any], merged: dict[str, Any] | None = None) -> str | None:
+    """A report when validate's verdict on the raw spec differs from its verdict on the shape-merged one.
+    ``merged`` is what apply loaded (``SpecValidator.load_spec``); a synthetic spec with no file merges here."""
+    if merged is None:
+        merged = spec_loader.merge_template_defaults(
+            copy.deepcopy(raw), REPO / "templates", keys=("shape",)
+        )
     before, after = _validate_outcome(raw), _validate_outcome(merged)
     return None if before == after else f"raw: {before!r} · shape-merged: {after!r}"
 
@@ -141,7 +143,7 @@ def test_apply_and_plan_resolve_the_same_registrars(path: Path) -> None:
 
 @pytest.mark.parametrize("path", SPECS, ids=lambda p: p.stem)
 def test_validate_agrees_on_raw_and_shape_merged(path: Path) -> None:
-    assert _validate_mismatch(_raw(path)) is None
+    assert _validate_mismatch(_raw(path), _validator().load_spec(path)) is None
 
 
 @pytest.mark.parametrize("name", sorted(FROZEN_RUNNING))
@@ -166,6 +168,9 @@ def test_template_shape_keys_stay_in_the_allow_list(path: Path) -> None:
     assert set(shape) <= TEMPLATE_SHAPE_ALLOW, set(shape) - TEMPLATE_SHAPE_ALLOW
     # truthiness, as resolve_applicability gates authelia — a 1 or "true" counts
     assert not shape.get("is_admin_dashboard")
+    # apply gates on raw truthiness, plan coerces through pydantic: a quoted "false" would split them
+    non_bool = {k: v for k, v in shape.items() if k != "kind" and not isinstance(v, bool)}
+    assert not non_bool, non_bool
     assert "uses_claude_cli" not in shape
 
 

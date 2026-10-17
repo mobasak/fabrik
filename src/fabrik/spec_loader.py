@@ -1063,14 +1063,18 @@ def merge_template_defaults(
     emailgateway) were written before scaffolds emitted explicit ``shape:``
     blocks; without this merge ``shape`` stays None and ``resolve_applicability``
     silently skips every registrar on them. Spec values win on conflicts
-    (deep-merge, not shallow). A missing or non-mapping defaults file returns
-    ``raw`` unchanged, and so does a template name whose defaults file resolves
-    outside ``templates_dir`` (the escape ``SpecValidator.validate`` refuses).
+    (deep-merge, not shallow). A missing or empty defaults file returns ``raw``
+    unchanged, and so does a template name whose defaults file resolves outside
+    ``templates_dir`` (the escape ``SpecValidator.validate`` refuses). A defaults
+    file that parses to something other than a mapping, or whose ``shape:`` is not
+    a mapping, raises ``ValueError``: merging nothing would silently drop every
+    registrar the template's shape turns on (W-989653a7 review).
 
     ``keys`` limits which top-level default keys merge (all when ``None``).
     ``fabrik plan`` merges everything; ``fabrik apply`` passes ``("shape",)``,
     because the deployer writes ``spec["env"]`` into each app's ``.env`` and a
-    template ``env:`` default must never reach a deployed app (D-733, D-908).
+    template ``env:`` default must never reach a deployed app (D-908, which
+    narrows D-733's full merge to the shape block).
     """
     template_name = raw.get("template")
     if not (isinstance(template_name, str) and template_name):
@@ -1087,8 +1091,13 @@ def merge_template_defaults(
         return raw
     with open(defaults_path, encoding="utf-8") as df:
         defaults = yaml.safe_load(df)
-    if not isinstance(defaults, dict):
+    if defaults is None:
         return raw
+    if not isinstance(defaults, dict):
+        raise ValueError(f"{defaults_path} is not a mapping ({type(defaults).__name__})")
+    shape = defaults.get("shape")
+    if shape is not None and not isinstance(shape, dict):
+        raise ValueError(f"{defaults_path} shape: is not a mapping ({type(shape).__name__})")
     if keys is not None:
         defaults = {k: v for k, v in defaults.items() if k in keys}
     return _deep_merge(defaults, raw)

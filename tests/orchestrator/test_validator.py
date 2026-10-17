@@ -221,6 +221,7 @@ class TestTemplateDefaultsOnApply:
         tdir.mkdir(parents=True)
         (tdir / "defaults.yaml").write_text(
             "shape:\n  exposes_metrics: true\n  kind: service\nenv:\n  LOG_LEVEL: INFO\n"
+            "resources:\n  memory: 1G\nhealth:\n  path: /from-template\n"
         )
         return tmp_path / "templates"
 
@@ -241,12 +242,15 @@ class TestTemplateDefaultsOnApply:
         validator = SpecValidator(templates_dir=self._templates(tmp_path))
         spec = validator.load_spec(self._spec(tmp_path, "shape:\n  exposes_metrics: false\n"))
         assert spec["shape"]["exposes_metrics"] is False
+        # deep merge: the template's other shape keys survive beside the spec's partial shape
+        assert spec["shape"]["kind"] == "service"
 
     def test_template_defaults_env_never_reaches_apply(self, tmp_path):
-        """Template env: defaults stay plan-only — the deployer writes spec env into the app's .env."""
+        """Template env:, resources: and health: defaults stay plan-only — only shape: merges on apply."""
         validator = SpecValidator(templates_dir=self._templates(tmp_path))
         spec = validator.load_spec(self._spec(tmp_path, ""))
         assert "LOG_LEVEL" not in (spec.get("env") or {})
+        assert "resources" not in spec and "health" not in spec
 
     def test_template_defaults_escaping_template_merges_nothing(self, tmp_path):
         """A template name that resolves outside templates_dir merges nothing."""
@@ -283,3 +287,32 @@ class TestTemplateDefaultsOnApply:
         with pytest.raises(ValidationError) as exc:
             validator.load_spec(self._spec(tmp_path, ""))
         assert exc.value.field == "template"
+
+    @pytest.mark.parametrize(
+        "content",
+        [b"shape:\n  kind: \xff\xfe\n", b"- just\n- a list\n", b"shape: [a, b]\n", b"shape: yes\n"],
+        ids=["invalid-utf8", "list-file", "list-shape", "scalar-shape"],
+    )
+    def test_template_defaults_unusable_file_is_a_validation_error(self, tmp_path, content):
+        """A defaults file apply cannot use as a mapping with a mapping shape: refuses the spec —
+        merging nothing would silently drop every registrar the template's shape turns on."""
+        templates = self._templates(tmp_path)
+        (templates / "python-api" / "defaults.yaml").write_bytes(content)
+        with pytest.raises(ValidationError) as exc:
+            SpecValidator(templates_dir=templates).load_spec(self._spec(tmp_path, ""))
+        assert exc.value.field == "template"
+
+    def test_template_defaults_empty_file_merges_nothing(self, tmp_path):
+        """An empty defaults file is a template with no defaults, not an error."""
+        templates = self._templates(tmp_path)
+        (templates / "python-api" / "defaults.yaml").write_text("")
+        spec = SpecValidator(templates_dir=templates).load_spec(self._spec(tmp_path, ""))
+        assert "shape" not in spec
+
+    @pytest.mark.parametrize("template", [5, ["python-api"], None, ""])
+    def test_template_defaults_non_string_template_merges_nothing(self, tmp_path, template):
+        """A template value that is not a non-empty string merges nothing and never raises."""
+        from fabrik.spec_loader import merge_template_defaults
+
+        raw = {"name": "app", "template": template}
+        assert merge_template_defaults(dict(raw), self._templates(tmp_path)) == raw
