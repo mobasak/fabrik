@@ -11,7 +11,10 @@ The three services of the saas compose (`_write_saas_compose`) and the `<name>-a
 required. The scaffolder writes no local `.env`, so `docker compose config` refused in a fresh checkout ("env file
 …/.env not found"). They now use the long form with `required: false`, as `_write_canonical_compose` and the
 scaffold compose template already did (W-9ead34bd); every deploy path still writes `.env` before `up`. A new test
-runs `docker compose config` on each scaffold type's committed compose in an empty directory (W-6f690b90).
+runs `docker compose config` on each scaffold type's committed compose in an empty directory. Because compose no
+longer refuses a missing `.env`, `fabrik restart` and `redeploy` now refuse when `/opt/<name>/.env` is not a file
+(a git redeploy resets to the previous commit), instead of starting a stack with no secrets that can still report
+healthy (W-6f690b90).
 
 ### Fixed — fabrik redeploy and restart validate the deployed compose; compose reads refuse non-text (2026-10-17)
 

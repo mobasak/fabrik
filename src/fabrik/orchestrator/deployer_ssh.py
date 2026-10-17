@@ -1527,11 +1527,39 @@ def _read_compose_from_vps(name: str) -> str:
 def _assert_deployed_compose_valid(name: str) -> None:
     """Refuse a deployed compose at ``/opt/<name>`` that breaks the Fabrik invariants — the same
     check and message the apply paths use (W-51d6c153: redeploy and restart were the doors
-    around it). A read failure raises from ``_read_compose_from_vps``."""
+    around it) — and refuse a missing ``.env`` beside it. A read failure raises from
+    ``_read_compose_from_vps``."""
     errors = _validate_compose(_read_compose_from_vps(name))
     if errors:
         raise DeployError(
             f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
+    _assert_deployed_env_present(name)
+
+
+def _assert_deployed_env_present(name: str) -> None:
+    """Refuse when ``/opt/<name>/.env`` is not a regular file.
+
+    The scaffold composes load ``.env`` with ``required: false`` so a fresh checkout parses
+    (W-6f690b90), which means compose no longer refuses when the file is gone. Every deploy path
+    writes it before ``up`` (``_write_env_files``); restart and redeploy write none, so without
+    this check they would start a stack with no DATABASE_URL or secrets that can still report
+    healthy. An empty ``.env`` (a deploy with no keys) is present. Anything but the exact
+    ``present`` answer refuses.
+    """
+    from fabrik.drivers.ssh import ssh as _ssh
+
+    path = shlex.quote(f"/opt/{name}/.env")
+    probe = f"if [ -f {path} ]; then printf present; else printf absent; fi"
+    try:
+        out = _ssh(f"sudo sh -c {shlex.quote(probe)}", timeout=15)
+    except _SSH_FAILURES as err:
+        raise DeployError(f"Cannot check /opt/{name}/.env: {err}") from err
+    if out != "present":
+        state = "absent" if out == "absent" else f"unconfirmed (probe answered {out!r:.60})"
+        raise DeployError(
+            f"/opt/{name}/.env is {state}; every deploy writes it before up, and restart and "
+            f"redeploy would start {name} without it. Run `fabrik apply` for {name} to rewrite it."
         )
 
 

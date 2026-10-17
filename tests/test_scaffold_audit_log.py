@@ -580,8 +580,8 @@ def test_committed_compose_passes_compose_config_in_a_fresh_checkout(
     """W-6f690b90: a fresh checkout has no .env (the scaffolder writes none; every deploy path
     writes it before `up`), so a short-form `env_file: [.env]` makes `docker compose config`
     refuse with "env file .../.env not found". The committed compose alone must parse. The
-    environment is stripped as in test_scaffold_compose_env_file.py: importing ``fabrik`` loads
-    the hub .env into os.environ, which compose interpolation would read."""
+    environment is stripped to what docker needs, so no variable exported in the caller's
+    shell can feed compose interpolation."""
     keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")
     committed = projects[kind] / "compose.yaml"
     if not committed.is_file():
