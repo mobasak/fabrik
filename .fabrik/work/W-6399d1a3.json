@@ -3,7 +3,7 @@
   "created": "2026-10-17T10:35:55.228935Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "05d70c2e592f1bc380e99afb18243109ccfadd94",
   "id": "W-6399d1a3",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "a retried seat's label yields a phantom slice in the ledger read; cosmetic in the slice table, wrong counts only on a retry",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "review-loop"
