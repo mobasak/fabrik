@@ -1,7 +1,7 @@
 # Merge-owner row grammar — the exact label, bold allowed (design)
 
 Status: DRAFT
-Size: small (≈25 code lines across `scripts/decisions.py`, `scripts/docs_updater.py` and `.claude/hooks/session_orient.py`, 3 code files)
+Size: small (≈30 code lines across `scripts/decisions.py`, `scripts/docs_updater.py` and `.claude/hooks/session_orient.py`, 3 code files)
 Profile: delta
 Work item: W-5d3ed438 · found by the wave-1 review of plan `2026-09-30-plan-1-merge-request-loop`, pass 3 · `/fabrik-task` refused it on `consumers=external` (refusal LR-9f99841a: the fleet-synced hook reads every repo's own ledger)
 
@@ -51,7 +51,7 @@ readers apply the same rule, and every ledger on the box resolves to the owner i
 - `scripts/docs_updater.py:1231-1240` — the same three, byte for byte.
 - `.claude/hooks/session_orient.py:227-244` — the same, plus a `(?!UNDECLARED…)` lookahead inside the owner regex (the
   one deliberate divergence, pinned by the parity test).
-- `tests/test_session_orient_hook.py:880-920` — the literal-pattern parity pins; `:1270-1305` — `_OWNER_CASES`, the
+- `tests/test_session_orient_hook.py:879-920` — the literal-pattern parity pins; `:1271-1306` — `_OWNER_CASES`, the
   shared fixture list run through all three readers by `test_the_three_owner_readers_pick_the_highest_id_row`. One
   case pins today's gap on purpose: `("bare-row-lowercase-phrase", _row2("merge owner: beta") + _A1, "beta")`, commented
   "a bare row keeps its case-insensitivity: nothing that parsed before stops parsing" (added by W-076ff4a9,
@@ -129,16 +129,20 @@ trigger for D.
 
 - **D1 — bold label.** After the phrase, allow the closing `**` of a bold label before the name, exactly once:
   `MERGE OWNER:(?:\*\*)?\s*` in `MERGE_OWNER_RE`, `_UNDECLARED_RE` and the hook's `_MERGE_OWNER_RE` — in the hook the
-  `(?!UNDECLARED…)` guard stays AFTER the new token, or `MERGE OWNER:** UNDECLARED` reads as an owner named
-  `UNDECLARED`. Touchpoints `scripts/decisions.py:62`, `:67`, `scripts/docs_updater.py:1233`, `:1238`,
-  `.claude/hooks/session_orient.py:231`, `:242`.
+  `(?!UNDECLARED…)` guard stays AFTER the new token, or the owner regex alone would match `MERGE OWNER:** UNDECLARED`
+  as a name. The reader hides that order: `_owner_in` tests `_UNDECLARED_RE` first (`.claude/hooks/session_orient.py:327`),
+  so only the literal parity pin can see a misplaced guard. Touchpoints `scripts/decisions.py:62`, `:67`,
+  `scripts/docs_updater.py:1233`, `:1238`, `.claude/hooks/session_orient.py:231`, `:242`.
 - **D2 — exact label on every row.** Wrap the phrase in each of those six patterns as `(?-i:MERGE OWNER:)`, so the
   phrase is upper-case-exact whether or not a supersedes clause precedes it; the clause itself and the `UNDECLARED`
-  token keep `re.I`. `_SUPERSEDES_PREFIX` is unchanged (its lookahead already says the same).
-- **D3 — graders.** In `_OWNER_CASES` the `bare-row-lowercase-phrase` case flips to the earlier owner (`alpha`), and
-  new rows cover a bare `Merge owner: rotated weekly` (→ `alpha`), `**MERGE OWNER:** beta` (→ `beta`) and
-  `**MERGE OWNER:** UNDECLARED` (→ undeclared). The literal parity pins at `tests/test_session_orient_hook.py:896-918`
-  are updated to the new phrase. The three comment blocks above the patterns say the rule once each.
+  token keep `re.I`. `_SUPERSEDES_PREFIX` is unchanged (its lookahead already says the same). The un-adoption row
+  obeys the same rule: `Merge owner: UNDECLARED` un-adopts today and becomes prose (0 such rows in 52 ledgers).
+- **D3 — graders.** In `_OWNER_CASES` (`tests/test_session_orient_hook.py:1271-1306`) the `bare-row-lowercase-phrase`
+  case flips to the earlier owner (`alpha`), and new rows cover a bare `Merge owner: rotated weekly` (→ `alpha`),
+  `**MERGE OWNER:** beta` (→ `beta`), `**MERGE OWNER:** UNDECLARED` (→ undeclared) and `Merge owner: UNDECLARED`
+  (→ `alpha`). In the literal parity test (`:879-920`) the `phrase` (`:897`), `uses` (`:903`) and `undeclared` (`:912`)
+  literals change to the new phrase; `prefix` (`:896`) does not. The three comment blocks above the patterns, and the
+  hook's `:211` ("Case-insensitive because the phrase match is"), say the rule once each.
 - **D4 — docs.** `docs/reference/multi-agent-operating-model.md:122-126` and `docs/workstation/hooks-index.md:16` (the
   two prose statements of the rule, census of 63 lines in the plan's Evidence) state it: the label is always the exact
   `MERGE OWNER:`, bold allowed.
@@ -156,24 +160,28 @@ None. No data contract or UI design; the ledger format is unchanged and every ex
   bold or mixed-case declaring row, and the census holds none (0 of 52), so the window is empty in practice. No repo
   has to act.
 - **Growth:** the grammar reads one cell per row; a ledger of any size costs the same per row. The trigger to revisit
-  is a row opening with the label in another case appearing in the census (re-run `owner_census.py`; today 0 of 52
-  ledgers): one such row revives approach D, the warning, because that row is an author who meant to declare and was
+  is a row opening with the label in another case appearing in the census (re-run
+  `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-spec-2026-10-17T16-09-32-0330/owner_census.py`;
+  today 0 of 52 ledgers): one such row revives approach D, the warning, because that row is an author who meant to declare and was
   ignored.
 - **Failure:** a row in another case now reads as prose, so the reader falls back to the next-highest declaration —
-  the same fallback a mid-prose mention already gets, which the parity test pins.
+  the same fallback a mid-prose mention already gets, which the parity test pins. For an un-adoption row that means
+  the opposite of what its author meant: `Merge owner: UNDECLARED` above `MERGE OWNER: alpha` names `alpha` again
+  instead of leaving the repo undeclared; the census holds no such row, and the § Growth trigger covers it.
 - **Retirement:** when the owner moves out of the ledger prose into a structured field, all three copies go together.
 
 ## Cost
 
-About 25 changed lines in three code files plus test rows; one `/fabrik-plan-review` small loop.
+About 30 changed lines in three code files plus test rows; one `/fabrik-plan-review` small loop.
 
 ## Validation
 
 - V1 — `**MERGE OWNER:** beta` above `MERGE OWNER: alpha` resolves to `beta` in all three readers (red today).
 - V2 — a higher-id bare `Merge owner: rotated weekly` row leaves `alpha` standing in all three readers (red today).
 - V3 — `**MERGE OWNER:** UNDECLARED` is an un-adoption in all three readers (red today).
-- V4 — `python3 scripts/decisions.py --merge-owner .` prints `coordinator`, and `owner_diff.py` reports
-  `ledgers 52: same 52, changed 0`.
+- V4 — `python3 scripts/decisions.py --merge-owner .` prints `coordinator`, and the real reader run over every
+  `/opt/*/docs/DECISIONS.md` gives the same owner and exit code for each ledger before and after the edit (52 ledgers:
+  9 owners, 43 undeclared at authoring).
 - V5 — every existing `_OWNER_CASES` row except the flipped one keeps its answer; the literal parity pins pass.
 
 ## Decisions taken
@@ -182,6 +190,8 @@ About 25 changed lines in three code files plus test rows; one `/fabrik-plan-rev
   become one rule (judge panel 3/3; D-row minted with this spec).
 - A bold label is accepted (D1), including the unrendered `**MERGE OWNER:**x`.
 - No warning for a mixed-case opener until the census finds one (D rejected, § Lifecycle trigger).
+- Other bold spellings stay prose, today and after: `***MERGE OWNER:*** x`, `__MERGE OWNER:__ x`,
+  `MERGE OWNER:\t** x` (whitespace before the `**`) and a bold name `**MERGE OWNER:** **x**`; none is used (census).
 - Cobra (D-253): the cheapest way to satisfy "the label is case-exact" without the outcome is to write prose in upper
   case; that is what a declaration is, so the measure and the outcome coincide.
 
