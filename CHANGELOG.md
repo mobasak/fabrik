@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: a fixed-prose or deterministic-message grader asserts by equality (2026-10-17)
+
+`commands/_fragments/review-probe-catalogue.md` § Graders: "a prose grader asserts the whole generated sentence, not a
+substring" becomes "a grader of fixed prose or of a deterministic message asserts the whole sentence, bullet or
+message it pins by equality (`==` against all of it, every line of a message, never `in`, a prefix, a suffix or a
+regex over part of it), so an added clause or a leaked value fails it, and a grader of that text's position, of its
+absence or of a property across its examples sits beside that equality grader, never in place of it". Answers
+/fabrik-review-scoped rows 1792259629 and 1792258433, which recur the held subject `test-message-content-mutants`.
+Rows 1792257781 and 1792255641 are answered as already stated, and 1792265532 is held.
+Pinned by `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — `review_loop_ledger.py next --ids` help says the other open claims are carried (2026-10-17)
 
 The help read "comma-separated confirmed candidate ids" and the docstring "exactly those confirmed ids", although with
