@@ -363,6 +363,9 @@
         refresh(true);
         return;
       }
+      // "diverged": the board's checkout and the repo's main disagree about the item — a reload cannot
+      // cure it, so it is said inline and the card stays; any other 409 means the item moved: re-fetch
+      if (r.status === 409 && j && j.error === "diverged") { restoreFocus = null; b.focus(); refuse(b, t("act.diverged")); return; }
       if (r.status === 409) { announce(t("act.changed")); refresh(true); return; }
       restoreFocus = null; b.focus();
       var err = (j && (j.error || j.message)) || String(r.status);

@@ -353,6 +353,38 @@ def test_a_409_re_fetches_the_view_and_announces(board):
     assert page.locator("#live").inner_text() == cat.t("act.changed")
 
 
+def test_a_409_diverged_says_so_inline_keeps_the_card_and_never_re_fetches(board):
+    """A 409 whose error is "diverged" (the board's checkout and main disagree about the item) cannot
+    be cured by a reload, so it is said inline and announced, the card stays, and no view is fetched;
+    any other 409 keeps the act.changed re-fetch above."""
+    state, page, open_ = board
+    open_(
+        "#overview",
+        {
+            "overview": view(
+                ui.card(
+                    "W-1",
+                    "q",
+                    actions=ui.button(
+                        "Accept", data={"post": "/item-verdict", "body": {"item": "W-1"}}
+                    ),
+                )
+            )
+        },
+    )
+    settle(page)
+    before = state.views_requested("/v/overview")
+    state.post_status = 409
+    state.post_error = "diverged"
+    page.get_by_role("button", name="Accept").click()
+    wait_posts(page, state, 1)
+    settle(page)
+    assert page.get_by_role("alert").inner_text() == cat.t("act.diverged")
+    assert page.locator("#live").inner_text() == cat.t("act.diverged")
+    assert page.get_by_role("heading", name="W-1").is_visible()
+    assert state.views_requested("/v/overview") == before
+
+
 def test_any_other_failure_shows_inline_and_keeps_the_card(board):
     state, page, open_ = board
     open_(

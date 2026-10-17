@@ -47,8 +47,8 @@ recorded wording in the spec and change no build step.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | UI kit | — | ⚡ | ✅ | |
-| T02 | Server wiring | T01 | ⛓️ | ⬜ | |
+| T01 | UI kit | — | ⚡ | ✅ | 01c83d1e7 |
+| T02 | Server wiring | T01 | ⛓️ | ✅ | |
 | T03 | Overview view | T02 | ⚡ | ⬜ | |
 | T04 | Work view | T02 | ⚡ | ⬜ | |
 | T05 | Accounts view | T02 | ⚡ | ⬜ | |
