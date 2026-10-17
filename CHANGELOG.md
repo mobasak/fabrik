@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: the audit seat reads the source, pinned spans are read first, briefs name a fragment's consumers (2026-10-17)
+
+`commands/_sources/fabrik-command-improve.md` makes three changes:
+- PHASE 2 says the rendered-copy grep is the lead's. The audit seat reads the command source and its fragments,
+  pinned, never `~/.claude`, and checks any wording it proposes against the phases that rely on it.
+- PHASE 3 has the tests that pin a paragraph read before a sentence is placed there. New text goes where no pinned
+  span runs, including the gap between two sentences one pin joins; a pin ending at a period fails when its sentence
+  is extended.
+- PHASE 4 has a fragment edit's brief name the consumers PHASE 3 names.
+
+Answers rows 1792227360, 1792199420, 1792201686 and 1792208187. The last three repeat held subjects. The queue's
+other 3 rows are held with reasons. Pinned by `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — a ticket that cannot list the spec quotes its rules verbatim, and plan-review checks those quotes first (2026-10-17)
 
 - `/fabrik-plan-after-chat` Phase 2's "Size as you draft" paragraph now covers a ticket whose READ budget pushes
