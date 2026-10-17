@@ -1310,7 +1310,10 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    repoint the lock's `plan` field to the
    archived path. ⚠️ **A rename is only half a change until its REFERRERS move with it — repoint every
    doc the grep named, IN THIS SAME COMMIT** — `docs/DECISIONS.md` (rows minted while the plan was in
-   flight) and `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing.
+   flight) and `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row
+   inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the block's
+   only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a delivered one
+   closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than editing the row.
    Doc Link Integrity DOES catch a missed one — but at the last gate before the commit, after the move,
    so it costs a full gate re-run and lands the repair in a commit whose message was already written
    (`01M2GCTCP5F8`). **The grep also lists the review receipts under
