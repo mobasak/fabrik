@@ -136,6 +136,13 @@ def test_read_writes_the_pass_ledger_to_a_file_with_every_seat_timed(tmp_path: P
         and seats["refute:A"]["read_no_file"] is False
     )
     assert [x.get("read_no_file", False) for x in doc["ledger_status"]] == [False, True]
+    # kaizen 01M55F55HE: a resumed review rebuilds its close-out from the pass file, so each seat's coverage
+    # statement and MACHINERY block (its `notes`) and what it read survive the read, per seat
+    assert seats["find:A:sonnet"]["notes"] == ["n"]
+    assert seats["find:A:sonnet"]["files_read"] == ["a.py"]
+    assert seats["find:B:haiku"]["notes"] == ["No, I have not stopped."]
+    assert seats["find:B:haiku"]["files_read"] == []
+    assert seats["find:B:sonnet"]["notes"] == [] and seats["find:B:sonnet"]["files_read"] == []
     assert (
         "find:B:haiku" in r.stdout
         and "READ 0 FILES" in r.stdout

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `review_loop_ledger.py read` keeps each seat's `notes` and `files_read` in the pass file (2026-10-18)
+
+- The pass file's `seats[]` entries had timing, tokens and flags, but not the seat's own report. A lead resuming a
+  review from the durable SCRATCH folder after a shutdown got the findings back, but not each seat's coverage
+  statement or MACHINERY block, which the close-out feedback is built from (kaizen mail 01M55F55HE).
+- Each seat now carries `notes`, one string per returned result, and `files_read`, the union in first-seen order. A
+  seat with no result gets `[]` for both. Graded in `tests/test_review_loop_ledger.py`, red before the fix on
+  `KeyError: 'notes'`.
+
 ### Added — a test pins the scratch sweep's rule that a held session folder is not dead for its run folders (2026-10-18)
 
 - `tests/test_scratch_sweep_run_folders.py::test_a_held_session_dir_is_not_dead_for_its_run_folders`, 12 cases
