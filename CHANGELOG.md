@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `check_env_contract.py`'s comment no longer cites a removed template line (2026-10-17)
+
+The comment explaining why YAML comments are stripped said the scaffold compose template carries a commented-out `DATABASE_URL=${DATABASE_URL}`. Fleet's W-9ead34bd removed that line. The comment now names it in the past tense, and cites the `${VAR:?}` boilerplate the stripping still guards. Comment only; no behaviour change (fleet mail 01M54KFGS1).
+
 ### Fixed — `epic_order.py --assign` refuses a first name the merge-owner readers cannot read back (2026-10-17)
 
 `/fabrik-epics-review` mints `MERGE OWNER: <first --assign name>` by hand, and `--assign` accepted `undeclared` and
