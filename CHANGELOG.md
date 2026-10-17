@@ -10,9 +10,11 @@ All notable changes to this project will be documented in this file.
   `--ids` omitted, silently ("dropped B-S2, which I re-added by hand"). With the run file it now carries
   every open claim — a union candidate whose verdict (the workflow's own, never re-derived) is confirmed or
   unverified, and a DEFECT_PRESENT/NEW id no candidate carries, from the launch ledger — printing `CARRIED
-  <id>` / `OPEN NOT CARRIED <id>` on stderr; without one it judges nothing and prints `NOT CHECKED <n>
-  candidate(s)`; `--drop <id>` closes one the lead settled outside the pass file. Graders in
-  `tests/test_review_loop_ledger.py`, seen red first; 11 single-guard mutants each killed by a named test.
+  <id>` / `OPEN NOT CARRIED <id>` on stderr (a union id the run file repeats is named, never carried); a
+  candidate nobody judged — no run file, or a slice with no verdicts — is counted in `NOT CHECKED <n>
+  candidate(s)` with advice that fits what was given; `--drop <id>` closes one the lead settled outside the pass
+  file. Graders in `tests/test_review_loop_ledger.py`, seen red first; 16 single-guard mutants each killed by a
+  named test.
 
 ### Fixed — a scaffolded chrome extension lints clean out of the box (2026-10-17)
 
