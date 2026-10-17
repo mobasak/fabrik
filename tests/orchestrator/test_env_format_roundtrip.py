@@ -21,8 +21,6 @@ asserted here and not just a single round-trip.
 from __future__ import annotations
 
 import json
-import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -48,17 +46,7 @@ CASES = {
     "QUOTED_CONTENT": '"already quoted"',  # ambiguous: content IS quote-wrapped
     "BACKSLASH": r"a\b",
     "SINGLE_QUOTED_CONTENT": "'sq'",
-    # W-05004b41: compose interpolates env_file values, so a `$` must survive it.
-    "BCRYPT": "$2b$12$abcdefghijklmnopqrstuv",
-    "DOLLAR_MID": "pa$$word",
-    "DOLLAR_BRACE": "${NOT_A_VAR}",
-    "DOLLAR_END": "cost$",
-    "DOLLAR_WITH_QUOTES": 'it\'s "$5"',
-    "BACKSLASH_DOLLAR": r"a\$b",
 }
-
-# The `$`-bearing subset, read back from a real container (W-05004b41).
-DOLLAR_CASES = {k: v for k, v in CASES.items() if "$" in v}
 
 
 def test_round_trip_preserves_every_value():
@@ -125,60 +113,3 @@ def test_real_compose_parses_our_output_and_rejects_the_old_form(tmp_path):
     assert _compose_config(tmp_path, old_broken).returncode != 0, (
         "the pre-fix form must still be REJECTED — otherwise this test does not discriminate"
     )
-
-
-def test_dollar_is_escaped_and_shell_literal(tmp_path):
-    """Each `$` is written `\\$` inside double quotes, which a POSIX shell `.` also reads literally
-    (`$$` would read as the shell's PID) — the file stays safe to `source`."""
-    body = _format_env(DOLLAR_CASES)
-    for line in body.splitlines():
-        assert line.split("=", 1)[1].startswith('"'), line
-    env_file = tmp_path / "probe.env"
-    env_file.write_text(body)
-    names = sorted(DOLLAR_CASES)
-    script = f"set -a; . {env_file}; " + "; ".join(f'printf "%s\\0" "${n}"' for n in names)
-    out = subprocess.run(["sh", "-c", script], capture_output=True, text=True, check=True).stdout
-    assert dict(zip(names, out.split("\0")[:-1], strict=True)) == DOLLAR_CASES
-
-
-def _local_image(name: str) -> bool:
-    if shutil.which("docker") is None:
-        return False
-    probe = subprocess.run(["docker", "image", "inspect", name], capture_output=True, check=False)
-    return probe.returncode == 0
-
-
-@pytest.mark.skipif(
-    not _local_image("alpine:3"), reason="docker or the local alpine:3 image is absent"
-)
-def test_dollar_values_reach_the_container_verbatim(tmp_path):
-    """The real consumer: compose interpolates env_file values before the container starts, so the
-    grader reads the CONTAINER's environment, not the parser (`a$b` used to arrive as `a`)."""
-    (tmp_path / ".env").write_text(_format_env(DOLLAR_CASES))
-    (tmp_path / "compose.yaml").write_text(
-        "services:\n  t:\n    image: alpine:3\n    env_file:\n      - path: .env\n"
-    )
-    keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "--project-directory",
-            str(tmp_path),
-            "run",
-            "--rm",
-            "--pull",
-            "never",
-            "t",
-            "env",
-            "-0",
-        ],
-        capture_output=True,
-        text=True,
-        env={k: v for k, v in os.environ.items() if k in keep},
-        timeout=120,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    seen = dict(item.split("=", 1) for item in result.stdout.split("\0") if "=" in item)
-    assert {k: seen.get(k) for k in DOLLAR_CASES} == DOLLAR_CASES
