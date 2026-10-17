@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T20:56:03.875243Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1bfb4623",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-958",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-956 rule update + D-958: the store cannot hold MEDIUM or interrupt for URGENT; a few-file work.py change",
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "work.py: add a MEDIUM impact level (D-958 four levels: URGENT/HIGH/MEDIUM/LOW) and an URGENT interrupt that tells the holding builder to commit, push, park its run and take the item; until then MEDIUM is impact low + tag medium and URGENT is P0 plus a message"
+}
