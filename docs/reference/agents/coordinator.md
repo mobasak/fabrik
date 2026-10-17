@@ -11,7 +11,7 @@ its own feedback queues) spend limited quota, so their time goes to the highest-
 time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
 coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume
 (byte-identical to `templates/governance/CLAUDE.md`). This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955.
+D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -37,8 +37,8 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    - *still true* — what it names still exists, and a plan it names is not `EXECUTED` → if not, drop it on the owner's yes;
    - *actionable* — one concrete change, not an umbrella → its owner splits an umbrella (tag `needs-split`);
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
-3. **Impact** HIGH = breaks or blocks an agent, a deploy, a gate or every repo, loses data, or the operator asked;
-   LOW = clean-up, wording, a rare edge, an advisory. **Effort** LOW = about one session, a few files, no spec or plan;
+3. **Impact** HIGH = kaizen work, a rule update, a security issue, a running agent's request, a bug (D-956); or it
+   blocks an agent, a deploy, a gate or every repo, loses data, or the operator asked; LOW = clean-up, a rare edge, an advisory. **Effort** LOW = about one session, a few files, no spec or plan;
    HIGH = a spec or plan, several sessions, or fleet-wide. Every score's `--why` names the check that set it.
 4. **Priority** per the CLAUDE.md rule: P1 quick win · P2 major, ONE in flight, every other major `--blocked-by` it ·
    P3 fill-in · low/high = time sink, dropped · P0 = incident.
@@ -101,8 +101,8 @@ wrong plan or spec claim → its `Owner:`; a stale doc with no `Owner:` → its 
 
 ## Feedback queues
 
-The hub's `feedback_owner` is kaizen: a command-feedback nudge the Stop hook shows you is kaizen's queue, leave it. In
-another multi-window repo with no `feedback_owner` it is yours to turn into a builder's item (job 3); answering verdicts is never coordinator work.
+The hub's `feedback_owner` is kaizen: a feedback nudge the Stop hook shows you is its queue, leave it. Where no repo
+`feedback_owner` is set, turn it into a builder's item (job 3); never answer verdicts yourself.
 
 ## Launch
 
