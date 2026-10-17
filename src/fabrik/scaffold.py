@@ -3281,7 +3281,8 @@ services:
       - PORT=3000
       - LOG_LEVEL=INFO
     env_file:
-      - .env
+      - path: .env
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 30s
@@ -3316,7 +3317,8 @@ services:
       - PORT=8000
       - LOG_LEVEL=INFO
     env_file:
-      - .env
+      - path: .env
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -3354,7 +3356,8 @@ services:
     environment:
       - LOG_LEVEL=INFO
     env_file:
-      - .env
+      - path: .env
+        required: false
     healthcheck:
       # python liveness (the slim image has no pgrep/procps): the worker touches
       # WORKER_HEARTBEAT each tick; fail if it is missing or older than 60s.
@@ -4193,7 +4196,8 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
     A git-sourced deploy (the scaffold default) runs this file, which ``companion_services``
     never drives, so the service the spec declares is written here too, from the same
     :func:`~fabrik.spec_generator.audit_jobs_companion`. ``env_file`` names ``.env`` AND
-    ``.env.owner`` (long syntax, ``required: false``): the owner file is what carries
+    ``.env.owner``, both long syntax with ``required: false`` (a fresh checkout has neither, and
+    ``compose config`` refuses a required one that is absent — W-6f690b90): the owner file is what carries
     ``DATABASE_URL_OWNER`` since the owner split (D-754) — compose ``environment:`` never
     holds it and the project ``.env`` no longer does. The image's
     HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler replaces it with a
@@ -4221,7 +4225,8 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
         f"    container_name: {companion.id}\n"
         f"    command: {command}\n"
         "    env_file:\n"
-        "      - .env\n"
+        "      - path: .env\n"
+        "        required: false\n"
         + (
             f"      - path: {OWNER_ENV_FILE}\n        required: false\n"
             if companion.owner_env

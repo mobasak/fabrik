@@ -19,6 +19,7 @@ import importlib.util
 import os
 import re
 import secrets
+import shutil
 import string
 import subprocess
 import sys
@@ -545,7 +546,12 @@ def test_committed_compose_carries_the_audit_jobs_companion(
     assert svc["command"] == companion.command
     # Owner split (D-754): the companion loads `.env` AND `.env.owner` (long syntax, `required: false`
     # — the registrar writes the owner file after the first `up`); the app service loads `.env` alone.
-    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # Both optional (W-6f690b90): a fresh checkout has neither file, and `compose config` refuses a
+    # required one that is absent.
+    assert svc["env_file"] == [
+        {"path": ".env", "required": False},
+        {"path": ".env.owner", "required": False},
+    ]
     # every OTHER service stays off the owner file (an app service may render no env_file key at all)
     for other, cfg in services.items():
         if other != companion.id:
@@ -563,6 +569,36 @@ def test_committed_compose_carries_the_audit_jobs_companion(
         "start_period": "10s",
     }
     assert _validate_compose(raw) == []
+
+
+@requires_fabrik_env
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs the docker compose CLI")
+@pytest.mark.parametrize("kind", [*_PY_BACKENDS, *_NODE_DB, *_NOTHING])
+def test_committed_compose_passes_compose_config_in_a_fresh_checkout(
+    projects: dict[str, Path], kind: str, tmp_path: Path
+) -> None:
+    """W-6f690b90: a fresh checkout has no .env (the scaffolder writes none; every deploy path
+    writes it before `up`), so a short-form `env_file: [.env]` makes `docker compose config`
+    refuse with "env file .../.env not found". The committed compose alone must parse. The
+    environment is stripped as in test_scaffold_compose_env_file.py: importing ``fabrik`` loads
+    the hub .env into os.environ, which compose interpolation would read."""
+    keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")
+    committed = projects[kind] / "compose.yaml"
+    if not committed.is_file():
+        pytest.skip(f"{kind} commits no compose.yaml")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / "compose.yaml").write_text(committed.read_text())
+    run = subprocess.run(
+        ["docker", "compose", "-f", "compose.yaml", "config", "-q"],
+        cwd=checkout,
+        env={k: v for k, v in os.environ.items() if k in keep},
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr
 
 
 @requires_fabrik_env
