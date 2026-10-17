@@ -4728,8 +4728,9 @@ process.on('SIGTERM', () => {
         port=3000,
         healthcheck_path="/api/health",
         # src/glitchtip_init.js reads these: the registrar's DSN and the deployer's GIT_SHA live
-        # in .env. env_file hands .env over as-is; these entries add APP_GIT_SHA (copied from
-        # GIT_SHA, which stays too) and default the rest, so an unset DSN arrives as "".
+        # in .env. env_file hands .env over; these entries set APP_GIT_SHA from GIT_SHA (which
+        # stays too; an APP_GIT_SHA in .env is overridden) and default the rest, so an unset DSN
+        # arrives as "".
         extra_env_lines=(
             "- SENTRY_DSN=${SENTRY_DSN:-}",
             "- GLITCHTIP_DSN=${GLITCHTIP_DSN:-}",
