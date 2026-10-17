@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-task feedback asking for command_run.py code: three rows routed to infra (capture verb, comma --commit, target branch)"
 }
