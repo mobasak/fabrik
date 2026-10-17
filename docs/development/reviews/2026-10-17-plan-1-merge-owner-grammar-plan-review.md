@@ -30,6 +30,7 @@ Built from the spec's own § Intake Inventory (4 items: 4 IN).
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (O: spec What exists/Chosen/Delta/Validation/Decisions + plan Global Constraints/Phase A/File Scope/Digest/Checklist/Evidence) + sonnet×1 (S: every other section of both) · all axes; shape: agent-tool | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0, edits: 20 | method: citation + re-derivation — full pass; the orchestrator executed every candidate (`pass1_verify.py`, `rule_cases.py`, the real-reader owner loop) | a72b988a… → 5c6a9983… (plan); spec fc30bdb7… → 8a4602fa… |
 | Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 fix hunks + one hop; shape: agent-tool | found: 7, new: 7, confirmed: 3, fixed: 3, unexecuted: 0, edits: 4 | method: re-derivation — the 13 pass-1 ledger rows re-executed (all CLOSED; the step-6 loop run as a python driver and against a broken-prefix mutant, `rule_cases.py` re-run, the pins probed on edited copies); 3 confirmed, all own-fix of pass 1 (the step-6 loop broke when pasted, its live-ledger window, A3b missing from step 1's red list) | 0a097a56… → 9c91b6e4… (plan); spec 8a4602fa… → 8a4602fa… |
+| Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-2 fix hunks; shape: agent-tool | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — the 6 pass-2 rows re-executed (step 6's two loops run against a base copy and an edited copy: 52 lines, 9 `rc=0`, 43 `rc=3`, diff empty); 2 confirmed, both own-fix of pass 2 (the fix script corrupted the text around step 6; `<base SHA>` undefined); scope-growth stop fired (own-fix 3/3 → 2/2) | 90129f68… → 04726964… (plan); spec 8a4602fa… → 8a4602fa… |
 
 ### Pass 1 candidates
 
@@ -63,3 +64,17 @@ FIXED, its absolute durable path cited.
 | S-N1 | File Scope omits `INDEX.md`, `CHANGELOG.md`, `docs/STRATEGIC_BACKLOG.md`, which Phase B edits | REFUTED — they are governance files, kept out of File Scope by the plan grammar (`scripts/enforcement/check_plan_tickets.py::GOVERNANCE_FILES`) |
 | S-N2 | ONE-HOP: spec § Lifecycle Adoption names only declaring rows as the old/new difference; a mixed-case un-adoption row differs too | RECORDED — measured (wording; the census holds no such row, 0 of 52; changes no behaviour) |
 | O-N3 | ONE-HOP: `probes/rule_cases.py` loads the live `decisions.py` as its old grammar, so after step 2 its "red today" column is meaningless | RECORDED — measured (the probe is run-folder evidence, run before the edit in step 1; the in-repo graders are the tests, whose red is watched in step 1) |
+
+### Pass 3 candidates
+
+| Id | Finding | Disposition |
+|---|---|---|
+| S-N3A, O-P3-1 | The pass-2 fix corrupted the text around step 6: a truncated old step 6 fused with the new one, step 7 and the `**Behavior Contract (Phase A):**` heading deleted, A1's `- **Gi` prefix cut (own-fix: round 2) | CONFIRMED (the pin's lines 132 and 147; the fix script took its slice indices before a preceding replacement shortened the text), FIXED — the plan rebuilt from d908e2058 with every pass-2 edit as an exact once-only replacement, the script asserting step 7, the heading and one step 6 present and the fragments absent (d83577563) |
+| S-N3B, O-P3-2 | `<base SHA>` undefined; an executor could pick a SHA that already holds the edit and get an empty diff that proves nothing (own-fix: round 2) | CONFIRMED, FIXED — step 6 defines it as the commit Phase A starts from (`git rev-parse HEAD` before step 1) |
+| O-P3-3 | The fenced block cannot run in a worktree-isolated session (the guard refused the `$(python3 …)` loop for a seat) | REFUTED — this session ran the block's commands in this worktree in pass 2 (`git worktree add`, both loops, `diff` → rc 0, `git worktree remove`); the refusal applies to a seat's compound shell, not to the executing session |
+| S-N1 (re-check) | The refutation's path | CLOSED — the receipt now names `scripts/enforcement/check_plan_tickets.py::GOVERNANCE_FILES` |
+
+**Scope-growth stop (pass 3).** Passes 2 and 3 confirmed only defects inside this review's own fix hunks (own-fix
+3/3, then 2/2; `command_run.py round` printed `SCOPE GROWTH`). Every defect open in the window is fixed above. The
+remainder round re-verifies that fixed set alone; any further own-fix defect it raises is `RECORDED — measured` onto
+work item W-5d3ed438's notes (the build reads this plan there) and does not reopen the hunt.
