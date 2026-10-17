@@ -1,6 +1,6 @@
 # Plan — fabrik apply loads specs the way fabrik plan does
 
-Status: CONVERGED
+Status: EXECUTED
 Profile: small
 **Owner:** fleet
 
