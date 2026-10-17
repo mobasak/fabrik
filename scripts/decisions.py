@@ -51,7 +51,8 @@ HUB_LEDGER = Path(__file__).resolve().parent.parent / "docs" / "DECISIONS.md"
 # is a NEW row whose what-cell OPENS a supersedes clause (this ledger's own law), so that prefix is
 # optional before the phrase, in every spelling the ledger's real rows use (`supersedes D-258.`,
 # `Supersedes D-446's scope:`, `SUPERSEDES D-235 ON THE MECHANISM:`, any case, `**` allowed); the
-# un-adoption row is TOKEN-exact (`undeclared-team` is an owner, `UNDECLARED.` is prose).
+# un-adoption row is TOKEN-exact (`undeclared-team` and `UNDECLARED.team` are owners; a
+# sentence-ending `UNDECLARED.` un-adopts).
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
 # D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
