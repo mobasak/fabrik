@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review loops say where pins and pass files live, and term-edit says why D-335's closing seat is never a fresh whole reader (2026-10-17)
+
+- `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-plan-review` and `/fabrik-spec-review` now say that `pins_dir`
+  and `<scratch>` in their `review_loop_ledger.py` calls go under the run's durable `SCRATCH:` folder (D-836). The
+  fallback is the session scratchpad when `start` printed no `SCRATCH:` line, and only the seats' copies go under
+  `scratch_dir`. `/fabrik-review-scoped`'s pin step names the folder where the first pin is made (mail 01M4ZR1B2C).
+- `commands/_fragments/term-edit.md` gives D-335's reason at the rule, quoted from
+  `docs/reference/command-loop-performance.md` § 4.7 (D-911, mail 01M50FD9YE).
+- Graders in `tests/test_review_loop_workflow.py`. Receipt:
+  `docs/development/reviews/2026-10-17-command-scratch-home-and-d335-reason-review.md`.
+
 ### Fixed — a hub builder whose turn died on a network error resumes on its own once the API answers (2026-10-16)
 
 On 2026-10-15 infra, fleet and kaizen sat dead ~40 min after `EAI_AGAIN` until the operator poked them
