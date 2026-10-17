@@ -129,9 +129,10 @@ Appetite: 75
    change expected per the census in Evidence); `ruff check` and `ruff format --check` on the four files.
 5. The two doc sentences (D4): `docs/reference/multi-agent-operating-model.md:123-124` and
    `docs/workstation/hooks-index.md:16`.
-6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`; then the real reader over ev6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`. Then run the base reader and the edited
+6. Execute: `python3 scripts/decisions.py --merge-owner .` prints `coordinator`. Then run the base reader and the edited
    reader back to back over every ledger on the box, so no session's append can fall between them — the base from a
-   throwaway worktree at the base SHA, the edited from this tree — and diff them; each command is one line:
+   throwaway worktree at the base SHA (`<base SHA>` is the commit Phase A starts from: `git rev-parse HEAD` before
+   step 1), the edited from this tree — and diff them; each command is one line:
 
    ```bash
    git worktree add --detach <scratch>/base <base SHA>
@@ -144,7 +145,11 @@ Appetite: 75
    The diff is empty, and the before-file is a real reading, not a run of usage errors: its line count and its `rc=`
    tallies are pasted beside it (52 lines, 9 `rc=0`, 43 `rc=3` at authoring; an `rc=2` or `rc=127` line means the
    command did not run). Paste both results in Evidence.
-ven** a ledger whose D-002 is `**MERGE OWNER:** beta` above `MERGE OWNER: alpha`, **When** the three readers resolve the owner, **Then** each returns `beta` (A1, spec V1)
+7. `/fabrik-review-scoped` on Phase A's surface; fix what it finds.
+
+**Behavior Contract (Phase A):**
+
+- **Given** a ledger whose D-002 is `**MERGE OWNER:** beta` above `MERGE OWNER: alpha`, **When** the three readers resolve the owner, **Then** each returns `beta` (A1, spec V1)
 - **Given** a higher-id row opening `Merge owner: rotated weekly` — and the same with `merge owner:`, `Merge Owner:`, `MERGE owner:`, `**Merge owner:**` — **When** the three readers resolve, **Then** each returns `alpha` (A2, spec V2; five spellings)
 - **Given** a higher-id row `**MERGE OWNER:** UNDECLARED — un-adopted`, **When** the three readers resolve, **Then** each reports undeclared (A3, spec V3)
 - **Given** a higher-id row `Merge owner: UNDECLARED` above `MERGE OWNER: alpha`, **When** the three readers resolve, **Then** each returns `alpha` — the un-adoption row obeys the same case rule (A3b, spec D2)
