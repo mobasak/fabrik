@@ -15,6 +15,16 @@ The corpus catches up with D-933's `review_loop_ledger.py next`, which now carri
 
 Answers intel mail 01M54XR3QS (D-948). Pinned by `tests/test_review_command_text_defects.py`.
 
+### Fixed — `docs_updater.py --adopt` refuses `undeclared` as the merge owner (2026-10-17)
+
+`--adopt undeclared` passed the agent-name grammar and wrote `MERGE OWNER: undeclared`, which every reader takes as
+the un-adoption row (the UNDECLARED token is case-insensitive): the owner read None, `decisions.py --merge-owner`
+exited 3, and every later `--adopt` appended another row. A name opening with `-` (`-x`) had the same effect, since
+the readers' capture needs a letter or digit first. `run_adopt` now builds the owner row it would write and refuses
+(exit 2, before any write) a first name that the readers' own `MERGE_OWNER_RE`/`_UNDECLARED_RE` do not read back as
+that owner; `undeclared-team` stays a valid owner (W-2118e9c9). The hook comment that claimed `--adopt` could not
+mint that name is now true and says why.
+
 ### Changed — Contract: every id shown to the operator carries its plain-words meaning (2026-10-17)
 
 `CLAUDE.md` and `templates/governance/CLAUDE.md` (fleet-synced on merge):
