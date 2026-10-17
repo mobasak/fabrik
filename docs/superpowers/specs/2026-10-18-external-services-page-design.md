@@ -154,7 +154,7 @@ which stay first: they are the view's only live, money-bearing facts, and a back
    line: *"{n} providers"*. `synced_at` is `max(api_keys.last_seen)` (st-2 — the data's time, never the
    render time); with no `api_keys` row the stamp reads the board's "not read" state (`read_ts=None`). The
    static file, with no script to tick the stamp, prints instead *"Registry synced {date time zone}"*
-   (`2026-10-17 14:30 +03:00`), *"snapshot written {date time zone}"*, and the legend today's footer
+   (`2026-10-17 14:30 +03:00`), or *"Registry never synced"* when `synced_at` is `None`, *"snapshot written {date time zone}"*, and the legend today's footer
    carries (*no secret values; a credential count only; ⚠ credit = older than 48 h*).
 2. **Summary line** — five plain counts (numbers, not filter controls): *Needs attention · Paid or freemium ·
    Free or self-host · Untriaged · Total*. Beneath it, a collapsed **More counts** disclosure holds the rest
@@ -221,8 +221,11 @@ shown*" (a11y-9). It uses `app.js`'s `data-filter-group` mechanism, which today 
 `data-f-*` elements and nothing else, so these behaviours are added to `app.js` (§ Contract deltas):
 - select controls drive the filter (a `change` listener; the state restore extended from `INPUT|TEXTAREA`
   to `SELECT`);
-- a match inside a closed `<details>` opens it, and its `slug()` id is recorded in the stored filter state
-  (`qd-filter:<group>`, beside the field values) as opened by the filter — recorded, never inferred from
+- a match inside a closed `<details>` opens it, and its `slug()` id is recorded under its own storage key,
+  `qd-filter-open:<group>` (a list of ids, read and written in the same `try` as the other stored state),
+  never inside `qd-filter:<group>`, whose every key `validFilterState` (`app.js:489-495`) and
+  `applyFilters` read as a field filter — a foreign key there would fail validation and reset the stored
+  filters (`app.js:499-506`); a reload test covers both keys. The id is recorded as opened by the filter — recorded, never inferred from
   open-plus-match, since a hand-opened group that also matches looks the same; the record survives a
   swap (`swap()` carries only `open`, `app.js:194`, `:211`);
 - a group with zero matches is hidden while a filter is set;
@@ -322,7 +325,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` once, at import time,
   guarded like its own directory's insert (the chain suite's
   `test_the_dashboard_modules_insert_their_directory_once` pins that class) — an append, not the
-  `insert(0)` of `:52-54`, so none of its 77 script names can shadow a module the board imports) and
+  `insert(0)` of `:52-54`, so none of its ~75 importable module names can shadow a module the board imports) and
   imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
   missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
