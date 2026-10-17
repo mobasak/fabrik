@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — in the hub, every review sends its seats through the Agent tool and never calls the Workflow tool (2026-10-18)
+
+A new note, `commands/_fragments/no-workflow-hub.md`, sits right after the frontmatter of the seven review command sources that launch the review-loop Workflow (`/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-repo-review`, `/fabrik-deploy-plan-review`, `/fabrik-execute-plan`) and above § Launch in `docs/reference/review-loop-workflow.md`. In the hub (a checkout whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under it) it replaces every Workflow launch the command names with the same seats and briefs as one `Agent` message, recorded `shape: agent-tool`, and never puts a workflow, permission or approval question to the operator. Outside the hub the commands read as before. Each Agent-tool fallback sentence cites D-961, and `subagents-core`'s lead and pin-args sentences and the probe catalogue's args and relaunch lines are gated "outside the hub". `tests/test_review_queue_pass.py` pins the note, its placement and every fallback copy (W-9d8326a4, D-961).
+
 ### Fixed — `check_doc_sync.py` warns about RESILIENCE, SERVICES and OPERATIONS only where the repo tracks the doc (2026-10-17)
 
 - The three WARN rows naming docs/RESILIENCE.md, docs/SERVICES.md and docs/OPERATIONS.md now also require the doc to be
