@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — libs/health_probe re-vendored at fabrik-lib 8bedcaa4 (2026-10-17)
+
+`tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` was red
+on master: fabrik-lib's 8bedcaa4 re-documented `load_env`'s return value (`True` means a file parsed to at least one
+key; `False` in four named cases) and the hub's copy was one commit behind (W-6eaa8533, kaizen mail 01M53NBWPX).
+Both vendored files are re-copied from that commit under their 3-line header; the change is docstring-only, no code
+path moves.
+
+### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)
+
+`fabrik apply` loaded specs through `SpecValidator.load_spec`, which read the raw YAML, while `fabrik plan`, audit and
+destroy merged the template's `defaults.yaml` under the spec — so 15 of the 69 specs provisioned fewer registrars on
+apply than plan showed (W-989653a7). Both loaders now share `spec_loader.merge_template_defaults`; apply merges only the
+template's `shape:` block (D-908), because the deployer writes `spec["env"]` into each app's `.env` and a template
+`env:` default must never reach a deployed app. The app-role cutover's shared-database scan reads sibling specs the
+same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
+fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
+next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
 ### Changed — the review loops' pre-pin re-read reaches every passage an edit touches (2026-10-17)
 
 - `commands/_fragments/term-edit.md` RESIDUE obligation (1) now re-reads, beside every edited paragraph,
