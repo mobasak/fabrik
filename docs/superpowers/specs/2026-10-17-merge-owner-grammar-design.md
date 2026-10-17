@@ -112,7 +112,7 @@ lower-case words "Merge owner:" are exactly what prose would open with. adr-tool
 the ledger's own supersedes clause already requires it (`(?=(?-i:MERGE OWNER:))`, `scripts/decisions.py:60`). A makes
 that one rule apply to every row. The bold allowance is exactly one optional `**` on each side of the colon
 (`(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*`), so both ways this ledger bolds a label read — the colon inside the bold (7 of the hub
-ledger's bold labels) and outside it (1, `**Repos**:` at `docs/DECISIONS.md:81`; no merge-owner row is bold today) — and no run of asterisks does: `\**` would also newly accept `MERGE OWNER:*a*` and `MERGE OWNER:***a` (found by the plan's reader census,
+ledger's bold labels) and outside it (1, `**Repos**:` in D-738; no merge-owner row is bold today) — and no run of asterisks does: `\**` would also newly accept `MERGE OWNER:*a*` and `MERGE OWNER:***a` (found by the plan's reader census,
 executed in `bold_probe.py`). It accepts `**MERGE OWNER:**x` too, which CommonMark does not render as bold — harmless:
 the reader reads text, not rendering, and the name is still the next token.
 

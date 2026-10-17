@@ -32,6 +32,7 @@ Built from the spec's own § Intake Inventory (4 items: 4 IN).
 | Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 fix hunks + one hop; shape: agent-tool | found: 7, new: 7, confirmed: 3, fixed: 3, unexecuted: 0, edits: 4 | method: re-derivation — the 13 pass-1 ledger rows re-executed (all CLOSED; the step-6 loop run as a python driver and against a broken-prefix mutant, `rule_cases.py` re-run, the pins probed on edited copies); 3 confirmed, all own-fix of pass 1 (the step-6 loop broke when pasted, its live-ledger window, A3b missing from step 1's red list) | 0a097a56… → 9c91b6e4… (plan); spec 8a4602fa… → 8a4602fa… |
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-2 fix hunks; shape: agent-tool | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — the 6 pass-2 rows re-executed (step 6's two loops run against a base copy and an edited copy: 52 lines, 9 `rc=0`, 43 `rc=3`, diff empty); 2 confirmed, both own-fix of pass 2 (the fix script corrupted the text around step 6; `<base SHA>` undefined); scope-growth stop fired (own-fix 3/3 → 2/2) | 90129f68… → 04726964… (plan); spec 8a4602fa… → 8a4602fa… |
 | Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the pass-3 fixed set (the scope-growth stop's remainder round); standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the fixed set re-derived from the pin (steps 1–7 consecutive, one step 6, the Phase A heading, eight `- **Given**` rows A1–A7 with A3b; the pin diffed against d908e2058: exactly the four intended hunks; `<base SHA>` defined); load-bearing claims re-derived (the six touchpoint lines, `rule_cases.py` 11/0, 52 ledgers, intake 6/6 and 4/4, V1–V5 mapping) | 5470f1f7… → 5470f1f7… ✓ (plan); spec 8a4602fa… → 8a4602fa… ✓ |
+| Pass 5 | opus×1 + sonnet×1 (round-1 owners) · the design panel's delta round over its 8 accepted changes; shape: agent-tool | found: 8, new: 8, confirmed: 6, fixed: 6, unexecuted: 0, edits: 7 | method: re-derivation — every A1–A9 case and the 9 existing supersedes spellings run against today's and the edited grammar (26 cases, 0 wrong); step 6's embedded driver extracted and run (PASS today-vs-edited, FAIL today-vs-today and against a broken-prefix mutant); the updated parity pins true on edited copies, false today; 7 of 8 accepted changes made, 6 defects confirmed in the fold (own-fix: the panel fold) | 826f27e6… → 4e976958… (plan); spec 918e920a… → c56d97d6… |
 
 ### Pass 1 candidates
 
@@ -100,3 +101,18 @@ Every concern was executed and ACCEPTED; none was rejected or left open.
 | opus 3 | Steps 1 and 6 may be refused by the worktree guard | this session ran step 6's old commands in this worktree in pass 2; a seat's compound shell was refused | ACCEPTED — step 6 needs no worktree (`git show` base reader + the driver); step 1 names a `git archive` probe tree should `git worktree add` be refused, keeping the graders reading their own tree |
 | opus 4 | § Lifecycle names three hub-absolute readers while the plan's Evidence lists four; the D4 range differs (`:122-126` vs `:123-124`) | read both | ACCEPTED — § Lifecycle adds `scripts/check_commit_trailers.py` (it switches at merge too); both docs cite `:122-126` |
 | opus 5 | A mixed-case un-adoption silently hands the repo back to the old owner | spec § Lifecycle Failure states it; the test row would not | ACCEPTED — A3b's test comment names the cost |
+
+### Pass 5 candidates (the panel's delta round)
+
+| Id | Finding | Disposition |
+|---|---|---|
+| S-N5-1, O-P5-2 | Spec D2's first sentence still wrapped `(?-i:MERGE OWNER:)`, the colon inside the case group, against D1's token (own-fix: the panel fold) | CONFIRMED, FIXED — D2 wraps the words only, the optional `**` and the colon outside (48041c814) |
+| S-N5-2 | The "7 inside, 1 outside" count read as evidence about merge-owner rows; it counts the hub ledger's bold labels in general | CONFIRMED, FIXED — labelled as bold labels; no merge-owner row is bold today; cited by D-738, not a line number |
+| O-opus4 | The accepted range fix was not made in plan § Evidence (`:123-124`) | CONFIRMED, FIXED — `:122-126` |
+| O-P5-1 | Step 1's red list said A8 adds two spellings (it adds three) and omitted A9, red today | CONFIRMED, FIXED |
+| O-P5-2 (A5) | A5 said "exactly one `**`"; the grammar accepts one on each side of the colon (`**MERGE OWNER**:** beta` → `beta`) | CONFIRMED (seat's probe), FIXED — "at most one `**` on each side of the colon, never a run" |
+| O-P5-3 | Step 1's mutants ran on a tree at HEAD, which holds neither the new graders nor the edited patterns, so they could not be run | CONFIRMED (Phase A's edits stay uncommitted until Phase B), FIXED — the mutants run after step 2 in a probe tree into which the edited test file and three sources are copied; the guard-order mutant named for A6 |
+| O-hop1 | § Evidence still called `bold_probe.py` "the planned grammar" | FIXED (one hop, cheap) — labelled as the pre-panel grammar; `option_a.py` and `option_a_spellings.py` named for today's |
+
+`command_run.py round` printed `SCOPE GROWTH` again (own-fix 2/2 → 0/0 → 6/6): every defect open in the window is fixed
+above; the remainder round re-verifies that fixed set alone.

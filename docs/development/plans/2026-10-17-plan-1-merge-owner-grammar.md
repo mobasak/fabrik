@@ -118,15 +118,17 @@ Appetite: 75
 **Steps** (sequential):
 1. Write the Phase A graders (Behaviour Contract below) in `tests/test_session_orient_hook.py` — the new
    `_OWNER_CASES` rows, the flipped `bare-row-lowercase-phrase` row, and the updated literal pins — and run the file;
-   see A1, A1b, A3, A3b, A4, A6 and A8's two new supersedes spellings, and four of A2's five spellings, red against
-   today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/rule_cases.py` ran
-   every case). Two are green today: A2's `**Merge owner:**` spelling (today its closing `**` blocks the capture) and
-   A5 (`\s*` already refuses an asterisk after the colon). Their red is proven on mutants in a throwaway worktree:
-   with the bold token in place but the `(?-i:…)` removed, `**Merge owner:** rotated` reads `rotated` and that case
-   fails; with `\**` written for each `(?:\*\*)?` in all three files, A5 fails. The throwaway tree is
-   `git worktree add --detach <scratch>/probe HEAD`; should the session's guard refuse that, `git archive HEAD | tar -x
-   -C <scratch>/probe` gives the same tree with no shared metadata — the graders resolve paths from the tree they sit
-   in (`tests/test_session_orient_hook.py:17`), so a copied single file would grade the live checkout instead.
+   see A1, A1b, A3, A3b, A4, A6, A9 and A8's three new supersedes spellings, and four of A2's five spellings, red
+   against today's grammar (`/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-plan-review-2026-10-17T16-41-08-0330/probes/option_a.py` and
+   `option_a_spellings.py` ran every case). Two are green today: A2's `**Merge owner:**` spelling (today its closing
+   `**` blocks the capture) and A5 (`\s*` already refuses an asterisk after the colon); their red is proven on mutants
+   once step 2 lands — the mutants change the EDITED grammar, so they run in a tree that holds the edit: take
+   `git worktree add --detach <scratch>/probe HEAD` (or, should the session's guard refuse it, `git archive HEAD | tar
+   -x -C <scratch>/probe`), copy the edited `tests/test_session_orient_hook.py` and the three edited sources into it,
+   then apply each mutant there and run the test file from inside it — the graders resolve paths from the tree they
+   sit in (`tests/test_session_orient_hook.py:17`), so a copied single file would grade the live checkout instead.
+   Mutants: the `(?-i:…)` removed, so `**Merge owner:** rotated` reads `rotated` and that case fails; `\**` written
+   for each `(?:\*\*)?` in all three files, so A5 fails; the hook's guard moved before the bold token, so A6 fails.
 2. Edit the six patterns (D1, D2), keeping the hook's guard after the bold token; run `ruff format` on the three
    files (the edited single-line compiles pass 100 characters and re-wrap).
 3. Edit the three comment blocks and the hook's `:211`, and the stale comments in the test file
@@ -200,7 +202,7 @@ Appetite: 75
 - **Given** a higher-id row `**MERGE OWNER:** UNDECLARED — un-adopted`, **When** the three readers resolve, **Then** each reports undeclared (A3, spec V3)
 - **Given** a higher-id row `Merge owner: UNDECLARED` above `MERGE OWNER: alpha`, **When** the three readers resolve, **Then** each returns `alpha` — the un-adoption row obeys the same case rule, and its test comment names the cost spec § Lifecycle Failure states (A3b, spec D2)
 - **Given** the existing case `bare-row-lowercase-phrase` (`merge owner: beta`), **When** the three readers resolve, **Then** each returns `alpha`, the row now prose (A4)
-- **Given** `MERGE OWNER:*beta*`, `MERGE OWNER:***beta` and `**MERGE OWNER**:*beta*` as the higher-id row, **When** the three readers resolve, **Then** each returns `alpha` — the bold allowance is exactly one `**` (A5)
+- **Given** `MERGE OWNER:*beta*`, `MERGE OWNER:***beta` and `**MERGE OWNER**:*beta*` as the higher-id row, **When** the three readers resolve, **Then** each returns `alpha` — the bold allowance is at most one `**` on each side of the colon, never a run (A5)
 - **Given** the three source files, **When** the parity test reads their pattern text, **Then** each holds `(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*` in its owner and un-adoption regex and `(?=(?-i:MERGE OWNER))` in `_SUPERSEDES_PREFIX`, and the hook's guard follows the phrase — the `prefix` (`:896`), `phrase` (`:897`), `uses` (`:903`) and `undeclared` (`:912`) literals updated; red today, and red on a mutant that moves the hook's guard before the bold token, which no reader output shows (A6)
 - **Given** every other existing `_OWNER_CASES` row, **When** the three readers resolve, **Then** each keeps its answer (A7, spec V5)
 - **Given** `supersedes D-001: **MERGE OWNER:** beta`, `**Supersedes D-001.** **MERGE OWNER:** beta` and `supersedes D-001: **MERGE OWNER**: beta`, added to `_SUPERSEDES_SPELLINGS` (`tests/test_session_orient_hook.py:1256-1266`), **When** the three readers resolve, **Then** each returns `beta` (A8, spec V1)
@@ -368,9 +370,11 @@ $ python3 -B owner_probe.py
 'merge owner: agent-1'                                   owner='agent-1'      undeclared=False
 ```
 
-- The planned grammar, with the bold token tightened to `(?:\*\*)?` after the Opus seat showed `\**` also accepts
-  `MERGE OWNER:*a*` and `MERGE OWNER:***a` (`bold_probe.py`, run folder; 7 of its 11 case rows shown), and its owner
-  diff over every ledger:
+- The grammar as planned BEFORE the design panel (one optional `**` after the colon only), with the bold token
+  tightened to `(?:\*\*)?` after the Opus seat showed `\**` also accepts `MERGE OWNER:*a*` and `MERGE OWNER:***a`
+  (`bold_probe.py`, run folder; 7 of its 11 case rows shown), and its owner diff over every ledger. The grammar as
+  planned now — one optional `**` on each side of the colon — is probed by `option_a.py` (21 cases, 0 wrong, 52
+  ledgers unchanged) and `option_a_spellings.py` (13 spellings, 0 wrong), § Coverage Checklist:
 
 ```text
 $ python3 -B bold_probe.py
@@ -396,7 +400,7 @@ ledgers 52: changed 0 []
   `tests/test_session_orient_hook.py:1302`; in the literal pins (`:879-920`) the `phrase` (`:897`), `uses` (`:903`) and `undeclared` (`:912`) literals move to the new phrase; no test fixture uses
   `**MERGE OWNER:**` with the colon inside the bold.
 - Prose (the Haiku seat): 63 lines examined outside the frozen specs and plans; two state the rule —
-  `docs/reference/multi-agent-operating-model.md:123-124`, `docs/workstation/hooks-index.md:16` — plus the backlog row
+  `docs/reference/multi-agent-operating-model.md:122-126`, `docs/workstation/hooks-index.md:16` — plus the backlog row
   `docs/STRATEGIC_BACKLOG.md:52` that names this gap.
 - Baseline of the owner tests today:
 
@@ -441,3 +445,4 @@ Written by `/fabrik-plan-review`; the candidates and their dispositions are in
 | Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 fix hunks + one hop; shape: agent-tool | found: 7, new: 7, confirmed: 3, fixed: 3, unexecuted: 0, edits: 4 | method: re-derivation — the 13 pass-1 ledger rows re-executed (all CLOSED; the step-6 loop run as a python driver and against a broken-prefix mutant, `rule_cases.py` re-run, the pins probed on edited copies); 3 confirmed, all own-fix of pass 1 (the step-6 loop broke when pasted, its live-ledger window, A3b missing from step 1's red list) | 0a097a56… → 9c91b6e4… (plan); spec 8a4602fa… → 8a4602fa… |
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-2 fix hunks; shape: agent-tool | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — the 6 pass-2 rows re-executed (step 6's two loops run against a base copy and an edited copy: 52 lines, 9 `rc=0`, 43 `rc=3`, diff empty); 2 confirmed, both own-fix of pass 2 (the fix script corrupted the text around step 6; `<base SHA>` undefined); scope-growth stop fired (own-fix 3/3 → 2/2) | 90129f68… → 04726964… (plan); spec 8a4602fa… → 8a4602fa… |
 | Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the pass-3 fixed set (the scope-growth stop's remainder round); standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the fixed set re-derived from the pin (steps 1–7 consecutive, one step 6, the Phase A heading, eight `- **Given**` rows A1–A7 with A3b; the pin diffed against d908e2058: exactly the four intended hunks; `<base SHA>` defined); load-bearing claims re-derived (the six touchpoint lines, `rule_cases.py` 11/0, 52 ledgers, intake 6/6 and 4/4, V1–V5 mapping) | 5470f1f7… → 5470f1f7… ✓ (plan); spec 8a4602fa… → 8a4602fa… ✓ |
+| Pass 5 | opus×1 + sonnet×1 (round-1 owners) · the design panel's delta round over its 8 accepted changes; shape: agent-tool | found: 8, new: 8, confirmed: 6, fixed: 6, unexecuted: 0, edits: 7 | method: re-derivation — every A1–A9 case and the 9 existing supersedes spellings run against today's and the edited grammar (26 cases, 0 wrong); step 6's embedded driver extracted and run (PASS today-vs-edited, FAIL today-vs-today and against a broken-prefix mutant); the updated parity pins true on edited copies, false today; 7 of 8 accepted changes made, 6 defects confirmed in the fold (own-fix: the panel fold) | 826f27e6… → 4e976958… (plan); spec 918e920a… → c56d97d6… |
