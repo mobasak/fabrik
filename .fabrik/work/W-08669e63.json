@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:48:09.932765Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-08669e63",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Once intel's d588cc1fe (--all) is on master: add to commands/_sources/fabrik-plan-review.md § Before Pass 1 a pass-1 reviewer run 'python3 scripts/enforcement/check_rule_grounding.py --all' (new obligation, no existing invocation to edit); check commands/_fragments/grounding-rules.md:23 too; pin it; scoped review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-plan-review Before Pass 1: add a reviewer run of check_rule_grounding.py --all (intel 01M5602897 + correction 01M560A9BM)"
+}

@@ -94,7 +94,9 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids;
   the summary is what a convergence artifact can EMBED as proof. Findings the checker raises are
   review findings: fix them in the set,
-  don't route around the gate.
+  don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the
+  orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, outside any
+  docs/development/plans/ directory> --allow-external`, run from the repo root.
 - **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
   --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`
   flip, because the plan set is still editable here and is not editable after. It exits 0 on every
