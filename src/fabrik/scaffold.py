@@ -14,6 +14,8 @@
 # strings), so three checks now consult the marker — all other gate checks still run.
 # Real runtime secrets never live here; they belong in .env.
 
+import contextlib
+import contextvars
 import fnmatch
 import json
 import logging
@@ -22,7 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import date
 from pathlib import Path
 from types import ModuleType
@@ -1923,20 +1925,52 @@ def metrics_app():
     )
 
 
-def _scaffold_offline() -> bool:
-    """``FABRIK_SCAFFOLD_OFFLINE`` set to 1/true/yes/on: ``create_project`` writes every file but
-    creates no venv, installs nothing, probes or creates no local database, skips the hub registry
-    sync and the ``.mcp.json`` emitter. The venv and database steps print the command to run
-    instead. Read at CALL time. The test suite pins it for the whole session (tests/conftest.py):
-    those steps cost ~25 s per scaffold and rewrote the hub's registry from inside tests
-    (W-b0c1b4fc). It scopes ``create_project`` only — ``fabrik scaffold``'s own registry save, sync and
-    GitHub wiring around it are separate."""
+# Provisioning — the venv + pip install, the local dev database, the hub registry sync, the
+# ``.mcp.json`` emit and a deploy spec in the hub's tracked specs/services/ — happens only inside an
+# explicit opt-in: ``create_project(provision=True)`` (the ``fabrik scaffold`` CLI) or this context
+# manager. The default is False for every caller and every thread, so a probe, a review seat or a
+# script that calls create_project or a scaffold step directly gets files only (W-e2f0b6e5: a seat's
+# direct call left two real databases on the WSL dev cluster).
+_PROVISION: contextvars.ContextVar[bool] = contextvars.ContextVar("_PROVISION", default=False)
+
+
+@contextlib.contextmanager
+def provisioning() -> Iterator[None]:
+    """Opt in to provisioning for the scaffold code run inside this block."""
+    token = _PROVISION.set(True)
+    try:
+        yield
+    finally:
+        _PROVISION.reset(token)
+
+
+def _scaffold_env_offline() -> bool:
     return os.environ.get("FABRIK_SCAFFOLD_OFFLINE", "").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+
+
+def _scaffold_offline() -> bool:
+    """True unless provisioning was opted in (``provisioning()`` / ``create_project(provision=True)``)
+    AND ``FABRIK_SCAFFOLD_OFFLINE`` is not set to 1/true/yes/on. Offline, scaffold code writes every
+    file but creates no venv, installs nothing, probes or creates no local database, skips the hub
+    registry sync and the ``.mcp.json`` emitter; the venv and database steps print the command to run
+    instead. Read at CALL time. The test suite pins the env switch for the whole session
+    (tests/conftest.py), so even an opted-in test stays offline unless it deletes the variable. It
+    scopes scaffold code only — ``fabrik scaffold``'s own registry save, sync and GitHub wiring
+    around create_project are separate."""
+    return _scaffold_env_offline() or _PROVISION.get() is not True
+
+
+def _offline_reason() -> str:
+    return (
+        "FABRIK_SCAFFOLD_OFFLINE is set"
+        if _scaffold_env_offline()
+        else "provisioning not requested"
+    )
 
 
 def _create_local_dev_database(db_name_dev: str) -> None:
@@ -1946,6 +1980,7 @@ def _create_local_dev_database(db_name_dev: str) -> None:
     if _scaffold_offline():
         click.echo(
             f"⏭  Offline scaffold: create the database with sudo -u postgres createdb {db_name_dev}"
+            f" ({_offline_reason()})"
         )
         return
     try:
@@ -2154,6 +2189,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
         click.echo(
             "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -6772,6 +6808,7 @@ EXTENSION_LATEST_SHA256=
 
         click.echo(
             "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -7952,6 +7989,31 @@ def create_project(
     generate_spec: bool = True,
     preplan: object = None,  # T3-01: a fabrik.preplan.Preplan instance or None
     use_database: bool = False,
+    *,
+    provision: bool = False,
+) -> Path:
+    """Create a new project with full structure.
+
+    ``provision=True`` (the ``fabrik scaffold`` CLI) runs it inside ``provisioning()``: the venv,
+    the local dev database, the hub registry sync, the ``.mcp.json`` emit and a hub deploy spec for
+    an /opt project. Any other caller gets the files only (W-e2f0b6e5).
+    """
+    args = (name, description, base, project_type, preset, generate_spec, preplan, use_database)
+    if bool(provision):
+        with provisioning():
+            return _create_project(*args)
+    return _create_project(*args)
+
+
+def _create_project(
+    name: str,
+    description: str,
+    base: Path,
+    project_type: str,
+    preset: str | None,
+    generate_spec: bool,
+    preplan: object,
+    use_database: bool,
 ) -> Path:
     """Create a new project with full structure.
 
@@ -8065,11 +8127,10 @@ def create_project(
             # `base`, so every full test-suite run rewrote all committed specs with whatever the
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
-            specs_dir = (
-                (FABRIK_ROOT if _in_sync_scan_root(project_dir) else Path(base))
-                / "specs"
-                / "services"
-            )
+            # A scaffold that did not opt in to provisioning (a probe, a seat, a script) is a sandbox
+            # too, even under /opt: its spec stays under its base (W-e2f0b6e5).
+            to_hub = _in_sync_scan_root(project_dir) and _PROVISION.get() is True
+            specs_dir = (FABRIK_ROOT if to_hub else Path(base)) / "specs" / "services"
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(
