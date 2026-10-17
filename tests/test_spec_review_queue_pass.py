@@ -217,3 +217,18 @@ def test_an_accepted_panel_change_is_written_as_required_behaviour() -> None:
     assert "with every slice an earlier round stated re-stated in `--slices`" in critique, (
         "the panel delta round's --slices restatement (the row's other half) is already stated there"
     )
+
+
+def test_the_residue_reread_reaches_the_sections_an_edit_touches() -> None:
+    """Row 1792191130 (the third verdict on this subject, after two held ones): a panel change's delta
+    round is a round of the same loop, so its pre-pin RESIDUE re-read covers the sections outside the
+    edited paragraph that cite, depend on or restate what the edit changed."""
+    text = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
+    start = text.index("(1) **RESIDUE, before any pin after pass 1:**")
+    residue = text[start : text.index("(2) **PIN", start)]
+    assert (
+        "re-read WHOLE on the working tree every edited paragraph and every passage elsewhere in the"
+        " {{ARTIFACT}}, its own section included, that cites, depends on or restates what the edits"
+        " changed (a renumbered list's cross-references; the section that owns a promised behaviour,"
+        " which must state it)"
+    ) in residue
