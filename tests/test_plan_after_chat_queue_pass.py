@@ -197,12 +197,18 @@ def test_phase_four_names_what_plan_review_grades_in_the_rubric_and_digest() -> 
 def test_the_reader_census_names_a_build_script() -> None:
     """Row 1792194136, a recurrence of held enumerate-all-callers-with-count: a plan that changed a build script
     missed the Dockerfile, the container gate and the generator that run it, because the census named only a
-    function or value."""
+    function or value. A grep of the script's name finds none of them (an alias, a `docker build` gate and a
+    generator sit one hop away), so the census follows callers transitively, before the shape decision."""
     flat = _flat()
     i = flat.index("## Phase 1 — Ground every claim BEFORE writing")
     phase1 = flat[i : flat.index("## Phase 2", i)]
     assert (
-        "For each function, value or build script (a `package.json` script or Makefile target, whose readers"
-        " include a Dockerfile, a container gate and a generator that run it) whose BEHAVIOUR the plan changes,"
-        " census its production readers before any step that changes it"
+        "For each function, value or build script (a `package.json` script or Makefile target, e.g. a `build:prod`"
+        " read by a Dockerfile, a container gate and a generator) whose BEHAVIOUR the plan changes, census its"
+        " production readers before any step that changes it"
+    ) in phase1
+    assert (
+        "A build script's census follows each caller transitively (an alias script, a Makefile target, a"
+        " Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a"
+        " reader) and runs before the Phase 2 shape decision."
     ) in phase1
