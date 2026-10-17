@@ -973,6 +973,24 @@ class TestDeployDocker:
 # _deploy_local — SSH-level assertions
 # ======================================================================
 
+# A compose that passes `_validate_compose` (W-807287f1: the local path now reads and validates it).
+_VALID_LOCAL_COMPOSE = (
+    "services:\n"
+    "  my-app:\n"
+    "    image: example/app:1\n"
+    "    platform: linux/amd64\n"
+    "    container_name: my-app\n"
+    "    restart: unless-stopped\n"
+    "    deploy:\n"
+    "      resources:\n"
+    "        limits:\n"
+    "          memory: 256M\n"
+    "    networks: [fabrik]\n"
+    "networks:\n"
+    "  fabrik:\n"
+    "    external: true\n"
+)
+
 
 class TestDeployLocal:
     def test_writes_env_and_up(self):
@@ -1086,6 +1104,52 @@ class TestDeployLocal:
             deployer = SSHDeployer()
             with pytest.raises(DeployError, match="does not mount BOTH"):
                 deployer._deploy_local(ctx, "seo", ctx.spec["source"], None)
+
+    # W-807287f1: the local path validates its compose like the git/template/docker paths.
+    _VIOLATING_COMPOSE = "services:\n  web:\n    image: x\n    networks: [coolify]\nnetworks:\n  coolify:\n    external: true\n"
+
+    def test_invalid_compose_aborts_before_writing_or_up(self):
+        """A compose missing the Fabrik invariants (memory limit, container_name, platform, the
+        `fabrik` network) refuses with the validator's list — no `.env` write, no `compose up`."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", self._VIOLATING_COMPOSE, "absent", ""]
+            with pytest.raises(DeployError, match="Compose validation failed for my-app") as exc:
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        assert "limits.memory" in str(exc.value)
+        mock_write.assert_not_called()
+        assert not any("compose up" in c.args[0] for c in mock_ssh.call_args_list)
+
+    def test_compose_is_read_from_the_source_path(self):
+        """The validated bytes come from `<source.path>/compose.yaml`, never `/opt/<name>`."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
+            mock_ssh.side_effect = ["exists", _VALID_LOCAL_COMPOSE, "absent", ""]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        reads = [c.args[0] for c in mock_ssh.call_args_list if " cat " in f" {c.args[0]} "]
+        assert reads and all("/srv/my-app/compose.yaml" in r for r in reads), reads
+        assert not any("/opt/my-app" in c.args[0] for c in mock_ssh.call_args_list)
+
+    def test_compose_read_failure_aborts_before_writing(self):
+        """A compose read that fails (e.g. a refused sudo) refuses; nothing is written."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", RuntimeError("sudo: a password is required")]
+            with pytest.raises(DeployError, match=r"/srv/my-app/compose\.yaml"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
 
     def test_default_path_from_name(self):
         ctx = _ctx(
