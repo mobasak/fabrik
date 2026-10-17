@@ -22,7 +22,7 @@ queued and claimed items (`work.py ready --all`, `work.py queue`). A stale recor
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
 Operator: *"you must do sorting, and assigning automatically"* · *"this is your task to validate the request
-eligibility, assign priority and assign an agent"*. Every turn anything new is in the inbox or the store, unasked:
+eligibility, assign priority and assign an agent"*. Every turn something new arrives, unasked:
 
 1. **Mail** — claim it; ack a pure notice (merge outcome, "fixed" reply); turn a request or finding into an item for its
    owner the same turn (`work.py add --kind task --tag mail-<id lowercased>`, the mail id in the title, since
@@ -36,19 +36,20 @@ eligibility, assign priority and assign an agent"*. Every turn anything new is i
    - *owner* — `.fabrik/beat-owners.json`, else the charters' beats.
 3. **Level** (D-956, D-958): URGENT = production down, data being lost, an exploited security hole, every agent
    blocked, or the operator says urgent; HIGH = kaizen work, a rule update, a security issue, another active agent's
-   request, a bug or issue, an operator ask, a break or block on an agent, deploy, gate or every repo; MEDIUM = real
+   request, a bug or issue, an operator ask, a break or block on an agent, a deploy, a check or every repo; MEDIUM = real
    value, nobody blocked; LOW = clean-up, wording, a rare edge, an advisory. The higher level wins. **Effort** LOW =
    about one session, a few files, no spec or plan; HIGH = a spec or plan, several sessions, or fleet-wide. Every
    score's `--why` names the check that set it.
-4. **Store it** (until W-1bfb4623): URGENT = `--priority 0` plus a message to its builder, who commits, pushes, parks
-   its run and takes it, the only interrupt; HIGH = `--impact high`; MEDIUM = `--impact low --tag medium`, never
-   dropped (high effort: tag only, unscored); LOW = `--impact low`. High effort = P2 major, ONE in flight, every other
-   `--blocked-by` it. Inside HIGH: security, blocking bugs, agents' requests, rule updates, kaizen, the rest. Merge
-   requests and operator gates are fast lanes, never queued; all else waits for the current job.
+4. **Store it** (until W-1bfb4623): set BOTH fields, then any `--priority 0` last (a re-score clears it). HIGH =
+   `--impact high`; MEDIUM = `--impact low --tag medium`, queued before plain P3; LOW = `--impact low`, batched.
+   High effort = P2 major, ONE in flight, every other major `--blocked-by` it; a high-effort MEDIUM cannot be scored
+   (tag only) and is held `--blocked-by` it too. URGENT = P0 plus a message to its builder (its charter says to commit,
+   push, park and take it), the only interrupt. Inside HIGH: security, blocking bugs, agents' requests, rule updates,
+   kaizen, the rest. Merges and operator approvals are fast lanes, never queued; all else waits for the current job.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing. A LOW time sink is dropped (`work.py drop --why`; `work.py add` re-files it; D-955 answers
-   CLAUDE.md's first re-score), never a claimed item. A `waits-operator-*` tag lifts only on the operator's word;
-   `--blocked-by`, when its blocker lands or is dropped.
+   gets nothing (its URGENT goes to the operator). A LOW time sink is dropped (`work.py drop --why`; `work.py add`
+   re-files it; D-955), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
+   operator's word; `--blocked-by`, when its blocker lands or is dropped.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
@@ -59,13 +60,13 @@ hears of it; URGENT is dispatched at once, briefed after. Each point cites what 
 1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges.
 2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
 3. **Proposed lane** (the builder's `start` decides) — per the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`
-   or `/fabrik-review`, `/fabrik-task`, or the spec chain (GUI: `/fabrik-ui-design` + `-review`, `/fabrik-user-test`).
+   or `/fabrik-review`, `/fabrik-task`, or the spec chain.
 4. **Rules** — `scripts/select_rules.py --changed <point 2's paths>`, a governance-sync path, the § HARD STOPS it nears.
-5. **Order** — beat owner, dependencies, the one-major limit, the band `scripts/sysadmin/claude_rotate.py --status` prints.
+5. **Order** — beat owner, dependencies, the one-major limit, the quota band (`claude_rotate.py --status`).
 6. **Gates** — any token of CLAUDE.md § FINAL OUTPUT's closed list; the builder stops at each and boards it through you
    (sending a brief approves none).
 7. **Done** — the acceptance the operator stated, and the proof type (test, certification, live probe).
-8. **Best practice** — an external fact is owed to the builder's research gate, never invented here.
+8. **Best practice** — an external fact is the builder's research gate's, never invented here.
 The item: `work.py add --kind task`, title in the operator's words, `--next`, `--link`. The same brief goes whole in the
 dispatch message, beside the operator's words, and in the reply that dispatches it, so a correction re-briefs; never
 change the intent or drop anything asked. Only when the operator's words this session ask to see this brief first (URGENT
@@ -90,7 +91,7 @@ ticket is merged; a spec's `Status:` line when its approval or retirement is rec
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
-exactly `infra`, `fleet`, `intel` or `kaizen`; a duplicate or missing role is fixed before sending, never send and hope.
+exactly `infra`, `fleet`, `intel` or `kaizen`; fix a duplicate or missing role first.
 
 **Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you, which takes it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
