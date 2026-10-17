@@ -20,6 +20,7 @@
   "score_reason": "two edge shapes recorded by the W-b1f67743 review's scope-growth stop; no live failure",
   "status": "open",
   "tags": [
+    "queued",
     "review-loop"
   ],
   "title": "review_loop_ledger.py next: two edge shapes from the W-b1f67743 review's remainder round (recorded under the scope-growth stop)"

@@ -20,6 +20,7 @@
   "score_reason": "a retried seat's label yields a phantom slice in the ledger read; cosmetic in the slice table, wrong counts only on a retry",
   "status": "open",
   "tags": [
+    "queued",
     "review-loop"
   ],
   "title": "review_loop_ledger.py _slice_of: a retry seat label find:<slice>:<model>:retry yields a phantom slice '<slice>:<model>'"
