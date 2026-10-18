@@ -477,7 +477,11 @@ def _main_only_hint(repo: Path, item_id: str) -> str:
     never raises (a refusal message must not fail on its own hint)."""
     try:
         main = _worktrees(repo)[0]
-        if main != repo.resolve() and _item_path(main, item_id).is_file():
+        if (
+            main != repo.resolve()
+            and _item_path(main, item_id).is_file()
+            and not _deleted_here(repo, main, item_id)  # a merge would only bring it back
+        ):
             return f" — the main checkout {main} holds it: merge its branch into this one first"
     except Exception:
         pass
@@ -498,18 +502,17 @@ def _require_item(repo: Path, item_id: str) -> dict:
 
 def _deleted_here(repo: Path, main: Path, item_id: str) -> bool:
     """True when this branch REMOVED the item: its file existed at the fork point (the merge base
-    of this tree's HEAD and the main checkout's) and is gone here. No merge base (a git failure)
-    reads as True — the fallback then refuses, the pre-W-98204c50 behaviour, never a resurrection."""
+    of this tree's HEAD and the main checkout's) and is gone here. ANY git failure reads as True —
+    the fallback then refuses, the pre-W-98204c50 behaviour, never a resurrection. ``ls-tree``, not
+    ``cat-file -e``: it prints nothing for an absent path and fails only on a real error, so a
+    timeout can never read as "absent at the fork point"."""
     rel = (STORE_REL / f"{item_id}.json").as_posix()
     try:
         base = _git(repo, "merge-base", "HEAD", _git(main, "rev-parse", "HEAD").strip()).strip()
+        listed = _git(repo, "ls-tree", "--name-only", base, "--", rel).strip()
     except WorkError:
         return True
-    try:
-        _git(repo, "cat-file", "-e", f"{base}:{rel}")
-    except WorkError:
-        return False  # absent at the fork point: the main checkout made it after
-    return True
+    return bool(listed)  # empty: absent at the fork point, the main checkout made it after
 
 
 def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
@@ -531,6 +534,7 @@ def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
         if _deleted_here(repo, main, item_id):  # this branch removed it: never resurrect
             raise
         return _read_item(main, item_id), main
+
 
 def _write_item(repo: Path, item: dict, *, create: bool = False) -> Path:
     """Write ``item`` to its file (caller holds the store lock); returns the path."""
