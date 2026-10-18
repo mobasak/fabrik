@@ -813,15 +813,16 @@ def test_the_emitted_app_wires_the_read_timeout_into_its_chat_client(project):
 
 
 def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
-    """The emitted test's ``_target`` and ``_require_throwaway``, run here against redis-py."""
+    """The emitted test's ``_db``, ``_server_id`` and ``_require_throwaway``, run here."""
     emitted = project / "server" / "tests" / "test_chat.py"
     tree = ast.parse(emitted.read_text())
     keep = [
         n
         for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name in ("_target", "_require_throwaway")
+        if isinstance(n, ast.FunctionDef) and n.name in ("_db", "_server_id", "_require_throwaway")
     ]
-    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url, "os": os}
+    assert len(keep) == 3, [n.name for n in keep]
+    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url}
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(emitted), "exec"), ns)  # noqa: S102
     return ns["_require_throwaway"]
 
@@ -834,18 +835,33 @@ def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
         "redis://h:6379/00",
         "redis://h:6379/1?db=0",
         "unix:///tmp/r.sock",
-        "redis://localhost:6379/3/",  # the app's own DB, spelled differently
-        "redis://127.0.0.1:6379/3",  # the same server under another name
     ],
 )
-def test_the_emitted_throwaway_guard_refuses_db_0_and_the_apps_db(project, url):
-    guard = _emitted_redis_guard(project, "redis://localhost:6379/3")
-    with pytest.raises(RuntimeError):
-        guard(url)
+def test_the_emitted_throwaway_guard_refuses_db_0(project, url):
+    with pytest.raises(RuntimeError, match="not DB 0"):
+        _emitted_redis_guard(project, "")(url)
 
 
-@pytest.mark.parametrize(
-    "url", ["redis://h:6379/1", "rediss://h:6379/1", "unix:///tmp/r.sock?db=2"]
-)
-def test_the_emitted_throwaway_guard_allows_another_db(project, url):
-    _emitted_redis_guard(project, "redis://localhost:6379/3")(url)
+def test_the_emitted_throwaway_guard_refuses_the_apps_db_under_any_name(
+    project, redis_sock, tmp_path
+):
+    """The same server and DB, reached by another name, is refused: here a hard link to the
+    socket, which no path normalisation folds. The guard asks the servers for their run_id."""
+    alias = tmp_path / "alias.sock"
+    os.link(redis_sock, alias)
+    guard = _emitted_redis_guard(project, f"unix://{redis_sock}?db=3")
+    for url in (f"unix://{redis_sock}?db=3", f"unix://{alias}?db=3"):
+        with pytest.raises(RuntimeError, match="own REDIS_URL"):
+            guard(url)
+
+
+def test_the_emitted_throwaway_guard_refuses_the_apps_db_when_the_app_is_unreachable(
+    project, redis_sock
+):
+    guard = _emitted_redis_guard(project, "unix:///nonexistent/app.sock?db=3")
+    with pytest.raises(RuntimeError, match="own REDIS_URL"):
+        guard(f"unix://{redis_sock}?db=3")
+
+
+def test_the_emitted_throwaway_guard_allows_another_db_on_the_same_server(project, redis_sock):
+    _emitted_redis_guard(project, f"unix://{redis_sock}?db=3")(f"unix://{redis_sock}?db=1")

@@ -3950,33 +3950,36 @@ _APP_REDIS_URL = os.environ.get(
 _TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "")
 
 
-def _target(url: str) -> tuple[frozenset[object], int]:
-    """The server endpoints and logical DB a URL names, as redis-py itself reads it: ``/00``, a
-    ``?db=`` query and a ``unix://`` socket URL resolve the way the client will connect, and a
-    host is resolved to its addresses, so ``localhost`` and ``127.0.0.1`` are one server."""
-    import socket
-
+def _db(url: str) -> int:
+    """The logical DB a URL names, as redis-py itself reads it (``/00``, a ``?db=`` query, a
+    ``unix://`` socket URL with no ``db`` is DB 0)."""
     from redis.connection import parse_url
 
-    kwargs = parse_url(url)
-    db = int(kwargs.get("db") or 0)
-    if kwargs.get("path"):
-        return frozenset({os.path.realpath(kwargs["path"])}), db
-    host, port = kwargs.get("host") or "localhost", int(kwargs.get("port") or 6379)
+    return int(parse_url(url).get("db") or 0)
+
+
+def _server_id(url: str) -> str | None:
+    """The ``run_id`` of the server a URL reaches, or None when it cannot be reached. Names
+    cannot prove two URLs are different servers (``localhost``, ``[::1]``, ``0.0.0.0``, a unix
+    socket); the servers can."""
+    import redis
+
+    conn = redis.Redis.from_url(url, socket_connect_timeout=2)
     try:
-        found = {info[4][:2] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
-    except OSError:
-        found = set()
-    return frozenset(found or {(host, port)}), db
+        return str(conn.info("server")["run_id"])
+    except redis.RedisError:
+        return None
+    finally:
+        conn.close()
 
 
 def _require_throwaway(url: str) -> None:
-    endpoints, db = _target(url)
+    db = _db(url)
     if db == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
-    if _APP_REDIS_URL:
-        app_endpoints, app_db = _target(_APP_REDIS_URL)
-        if db == app_db and endpoints & app_endpoints:
+    if _APP_REDIS_URL and db == _db(_APP_REDIS_URL):
+        app_id = _server_id(_APP_REDIS_URL)  # unreachable: unprovable, so refused
+        if app_id is None or app_id == _server_id(url):
             raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
 
 
