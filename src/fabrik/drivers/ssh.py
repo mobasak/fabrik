@@ -300,7 +300,7 @@ def remote_mktemp(ssh_fn: Callable[..., str], *, directory: bool = False) -> str
     path-shaped line mktemp did create (a shell that printed AFTER the path).
     """
     # str(): a None or non-text answer is refused below, never a TypeError past a caller's handler
-    answer = str(ssh_fn(f"mktemp {'-d ' if directory else ''}/tmp/fabrik-XXXXXXXXXX", timeout=10))
+    answer = str(ssh_fn(f"mktemp {'-d ' if directory else ''}/tmp/fabrik-XXXXXXXXXX", timeout=10))  # nosec B108 — the REMOTE mktemp template: a random O_EXCL name, the fix for predictable /tmp paths
     lines = answer.strip().splitlines()
     path = lines[-1].strip() if lines else ""
     if _MKTEMP_PATH_RE.fullmatch(path):
