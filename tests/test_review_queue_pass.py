@@ -765,6 +765,6 @@ def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> No
     cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     assert (
         "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
-        " `scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
+        " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
         " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet; the Pass Ledger's"
     ) in cov
