@@ -47,9 +47,10 @@ def _md5(path: Path) -> str:
 # a missing module (both raise ImportError, both with `name == "fabrik_synced_manifest"`) and ran
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
-# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names every load
-# failure that raises except a bare KeyboardInterrupt (the operator's), SystemExit and GeneratorExit
-# included, and refuses a present list of the wrong shape.
+# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names anything the
+# manifest raises while it loads except a bare KeyboardInterrupt (the operator's), SystemExit and
+# GeneratorExit included, runs none of the manifest's code after the load, and refuses a present
+# list of the wrong shape.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -69,15 +70,20 @@ def _is_file(path: Path) -> bool | None:
 
 def _path_list(path: Path, name: str, value: object, *, tuple_entries: bool) -> list[object]:
     """`value` as a list of paths, or ManifestError: a present list of the wrong shape is a guessed
-    list too (`set(None)` crashed bare; a string exploded into one-character prefixes)."""
-    if not isinstance(value, (set, frozenset, list, tuple)):  # a str is none of these
+    list too (`set(None)` crashed bare; a string exploded into one-character prefixes).
+
+    EXACT built-in types only, tested with `type()`, never `isinstance`: a subclass's `__iter__`,
+    `__str__` or `rstrip`, or a `__class__` property, is the manifest's code running after its load
+    is over, where a `sys.exit(0)` ended the check GREEN (W-3d6a6236). The message names a refused
+    entry by its type, never its `repr`, for the same reason."""
+    if type(value) not in (set, frozenset, list, tuple):  # a str is none of these
         raise ManifestError(
             f"{path}: {name} is a {type(value).__name__}, not a collection of paths"
         )
     for item in value:
-        head = item[0] if tuple_entries and isinstance(item, tuple) and item else item
-        if not isinstance(head, str):
-            raise ManifestError(f"{path}: {name} holds {item!r}, not a path")
+        head = item[0] if tuple_entries and type(item) is tuple and item else item
+        if type(head) is not str:
+            raise ManifestError(f"{path}: {name} holds a {type(item).__name__}, not a path")
     return list(value)
 
 
@@ -117,21 +123,33 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     man = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(man)
-    # Every load failure that RAISES is the hub's and is NAMED, never swallowed — SystemExit too (a
-    # manifest calling sys.exit(0) would otherwise end the check GREEN), and GeneratorExit or any
-    # other BaseException (a bare traceback named nothing; W-3d6a6236). Only a bare
-    # KeyboardInterrupt is let through: it is the operator's. A manifest that kills the process
-    # (os._exit) is not caught: nothing in-process can.
+    # Anything the manifest raises while it loads is the hub's and is NAMED, never swallowed —
+    # SystemExit too (a manifest calling sys.exit(0) would otherwise end the check GREEN), and
+    # GeneratorExit or any other BaseException (a bare traceback named nothing; W-3d6a6236). Only a
+    # bare KeyboardInterrupt is let through: it is the operator's. A manifest that kills the
+    # process (os._exit) is not caught: nothing in-process can. The exception's own `str()` is the
+    # manifest's code too and could exit 0 from inside this handler, so it gets the same guard.
     except KeyboardInterrupt:
         raise
     except BaseException as e:
-        raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
-    missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
+        try:
+            detail = str(e)
+        except KeyboardInterrupt:
+            raise
+        except BaseException:
+            detail = "<its message raised too>"
+        raise ManifestError(f"{path} failed to load: {type(e).__name__}: {detail}") from e
+    # After the load no manifest code may run: the lists are read from the module's own dict (a
+    # module `__getattr__` never answers) and `_path_list` takes only exact built-in types.
+    names = vars(man)
+    missing = [a for a in REQUIRED_MANIFEST_ATTRS if a not in names]
     if missing:
         raise ManifestError(f"{path} has no {', '.join(missing)} — renamed or removed in the hub?")
-    seeded = _path_list(path, "SEEDED_NOT_ENFORCED", man.SEEDED_NOT_ENFORCED, tuple_entries=False)
+    seeded = _path_list(
+        path, "SEEDED_NOT_ENFORCED", names["SEEDED_NOT_ENFORCED"], tuple_entries=False
+    )
     retired = _path_list(
-        path, "RETIRED_VENDORED_DIRS", man.RETIRED_VENDORED_DIRS, tuple_entries=True
+        path, "RETIRED_VENDORED_DIRS", names["RETIRED_VENDORED_DIRS"], tuple_entries=True
     )
     return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
 

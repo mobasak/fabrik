@@ -210,6 +210,57 @@ def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
     assert _PROJECT_BLAME not in out, out
 
 
+_EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        _EXIT0 + "__getattr__ = _exit0\n",
+        _EXIT0 + "class L(list):\n    __iter__ = _exit0\n"
+        'SEEDED_NOT_ENFORCED = L(["PORTS.md"])\nRETIRED_VENDORED_DIRS = []\n',
+        _EXIT0 + "class S(str):\n    __str__ = _exit0\n"
+        'SEEDED_NOT_ENFORCED = {S("PORTS.md")}\nRETIRED_VENDORED_DIRS = []\n',
+        _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [S("libs/x")]\n',
+        _EXIT0 + "class P:\n    __class__ = property(lambda s: str)\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [P()]\n",
+        _EXIT0 + "class T(tuple):\n    __getitem__ = _exit0\n"
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [T(("libs/x",))]\n',
+        _EXIT0 + "class R:\n    __repr__ = _exit0\n"
+        "SEEDED_NOT_ENFORCED = [R()]\nRETIRED_VENDORED_DIRS = []\n",
+        _EXIT0 + "class X(BaseException):\n    __str__ = _exit0\nraise X\n",
+    ],
+    ids=[
+        "module-getattr",
+        "list-iter",
+        "str-str",
+        "str-rstrip",
+        "class-property",
+        "tuple-getitem",
+        "repr",
+        "exc-str",
+    ],
+)
+def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    manifest: str,
+) -> None:
+    """W-3d6a6236 (Opus critique): the load's catch closes when `exec_module` returns, yet a
+    module `__getattr__`, a list, str or tuple subclass, a `__class__` property, an entry's `__repr__` or
+    the raised exception's own `__str__` runs the manifest's code later — each one a `sys.exit(0)`
+    that ended the check GREEN over a drifted file. The check reads the module's own dict and takes
+    only exact built-in types, so no manifest code runs after the load."""
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out, out
+    assert _PROJECT_BLAME not in out, out
+
+
 def test_a_keyboardinterrupt_while_loading_is_the_operators_never_named_the_hubs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
