@@ -2790,6 +2790,358 @@ def cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
 '''
 
+# The emitted chat route (W-ab242b11 slice 2; spec docs/superpowers/specs/2026-10-18-saas-skeleton-
+# chat-auth-design.md). Raw so the emitted source keeps its own "\n" escapes.
+_SAAS_CHAT_PY = r'''"""Chat for __NAME__ that only a signed-in, rate-limited user can spend.
+
+``POST /api/v1/chat`` streams an OpenRouter completion on the app's key. The order of checks,
+each refusing before the next costs anything:
+
+1. CSRF, in ``CsrfOriginMiddleware`` (403, before this route).
+2. Identity: ``build_current_user`` reads the bearer header, then the session cookie, then the jti
+   denylist (401; 503 when the denylist is unreachable or ``REDIS_URL`` is unset).
+3. The body: over ``CHAT_MAX_BODY_BYTES`` is 413, anything but ``{"message": <non-blank string>}``
+   is 400. Unknown keys are ignored and never forwarded.
+4. ``OPENROUTER_API_KEY`` or ``OPENROUTER_MODEL`` unset or empty (503).
+5. The limiter: one Lua script checks the app, tenant, user and IP buckets before it increments
+   any (429 with ``Retry-After``; 503 on a Redis error).
+6. The upstream stream, relayed as ``{type: text_delta|done|error}`` SSE frames.
+
+Every collaborator arrives through ``build_chat_router`` so the module carries no import-time state
+beyond its constants and counters.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import json
+import math
+from collections.abc import AsyncIterator, Callable, Mapping
+from dataclasses import dataclass
+from typing import Any
+
+import httpx
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from prometheus_client import Counter
+
+from __PKG__.logger import get_logger
+from __PKG__.metrics import REGISTRY
+
+logger = get_logger(__name__)
+
+# The server-side system prompt. Empty sends no system message; set, it is sent verbatim first.
+CHAT_SYSTEM_PROMPT = ""
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# KEYS are the bucket keys; ARGV is limit, window_ms per key, in key order. Every bucket is
+# checked before any is incremented, so a refused request spends no other bucket. A key found at
+# or above its limit without a TTL (a manual write, a restore) gets its window back, and the TTL
+# returned is that re-armed one. Reply: {0, 0} when all passed, else {index, ttl_ms}.
+RATE_LUA = """
+for i, key in ipairs(KEYS) do
+  local limit = tonumber(ARGV[2 * i - 1])
+  local window = tonumber(ARGV[2 * i])
+  local count = tonumber(redis.call('GET', key) or '0')
+  if count >= limit then
+    local ttl = redis.call('PTTL', key)
+    if ttl < 0 then
+      redis.call('PEXPIRE', key, window)
+      ttl = window
+    end
+    return {i, ttl}
+  end
+end
+for i, key in ipairs(KEYS) do
+  redis.call('INCR', key)
+  if redis.call('PTTL', key) < 0 then
+    redis.call('PEXPIRE', key, tonumber(ARGV[2 * i]))
+  end
+end
+return {0, 0}
+"""
+
+chat_requests_total = Counter(
+    "chat_requests_total", "Chat requests that reached the route, by outcome", ["outcome"],
+    registry=REGISTRY,
+)
+chat_rate_limited_total = Counter(
+    "chat_rate_limited_total", "Chat requests refused by a rate bucket", ["bucket"],
+    registry=REGISTRY,
+)
+
+
+@dataclass(frozen=True)
+class Bucket:
+    limit: int
+    window_s: int
+
+
+@dataclass(frozen=True)
+class ChatSettings:
+    api_key: str
+    model: str
+    rate_app: Bucket
+    rate_tenant: Bucket
+    rate_user: Bucket
+    rate_ip: Bucket
+    max_tokens: int
+    max_message_chars: int
+    max_body_bytes: int
+    read_timeout_s: float
+
+
+def _bucket(environ: Mapping[str, str], name: str, default: str) -> Bucket:
+    raw = (environ.get(name) or default).strip()
+    count, sep, seconds = raw.partition("/")
+    try:
+        bucket = Bucket(int(count), int(seconds)) if sep else None
+    except ValueError:
+        bucket = None
+    if bucket is None or bucket.limit < 1 or bucket.window_s < 1:
+        raise ValueError(f"{name} must be <count>/<seconds> with both at least 1, got {raw!r}")
+    return bucket
+
+
+def _positive(environ: Mapping[str, str], name: str, default: str, kind: type = int) -> Any:
+    raw = (environ.get(name) or default).strip()
+    try:
+        value = kind(raw)
+    except ValueError:
+        value = None
+    if value is None or value <= 0:
+        raise ValueError(f"{name} must be a positive number, got {raw!r}")
+    return value
+
+
+def load_chat_settings(environ: Mapping[str, str]) -> ChatSettings:
+    """Parse the chat environment once. A malformed value raises, so the app fails at start."""
+    return ChatSettings(
+        api_key=(environ.get("OPENROUTER_API_KEY") or "").strip(),
+        model=(environ.get("OPENROUTER_MODEL") or "").strip(),
+        rate_app=_bucket(environ, "CHAT_RATE_APP", "1200/3600"),
+        rate_tenant=_bucket(environ, "CHAT_RATE_TENANT", "600/3600"),
+        rate_user=_bucket(environ, "CHAT_RATE_USER", "60/3600"),
+        rate_ip=_bucket(environ, "CHAT_RATE_IP", "120/3600"),
+        max_tokens=_positive(environ, "CHAT_MAX_TOKENS", "1024"),
+        max_message_chars=_positive(environ, "CHAT_MAX_MESSAGE_CHARS", "4000"),
+        max_body_bytes=_positive(environ, "CHAT_MAX_BODY_BYTES", "65536"),
+        read_timeout_s=_positive(environ, "CHAT_UPSTREAM_READ_TIMEOUT", "60", float),
+    )
+
+
+def ip_key(raw: str) -> str | None:
+    """The IP bucket's key part: IPv4 as itself, IPv4-mapped IPv6 as its IPv4, other IPv6 as its
+    /64. An empty or unparseable value skips the IP bucket (None), never one shared bucket."""
+    try:
+        addr = ipaddress.ip_address(raw.strip())
+    except ValueError:
+        return None
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
+
+
+class _DenylistDown(HTTPException):
+    """A 503 the identity check raises when revocation cannot be checked."""
+
+    def __init__(self) -> None:
+        super().__init__(503, "Revocation check unavailable")
+
+
+class _FailClosedDenylist:
+    """Wraps the jti denylist so an outage, or an unconfigured Redis, refuses instead of passing."""
+
+    def __init__(self, inner: Any, *, unconfigured: bool) -> None:
+        self._inner = inner
+        self._unconfigured = unconfigured
+
+    async def contains(self, jti: str) -> bool:
+        if self._unconfigured:
+            raise _DenylistDown()
+        try:
+            return bool(await self._inner.contains(jti))
+        except Exception as exc:  # noqa: BLE001 — any backend failure is a refusal, never a pass
+            raise _DenylistDown() from exc
+
+
+async def _read_body(request: Request, max_bytes: int) -> bytes:
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        try:
+            too_big = int(declared) > max_bytes
+        except ValueError:
+            raise HTTPException(400, "Invalid Content-Length") from None
+        if too_big:
+            raise HTTPException(413, "Request body too large")
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(413, "Request body too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _parse_message(raw: bytes, max_chars: int) -> str:
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(400, "Body must be JSON") from None
+    message = data.get("message") if isinstance(data, dict) else None
+    if not isinstance(message, str) or not message.strip():
+        raise HTTPException(400, "Body must be {\"message\": <non-empty string>}")
+    if len(message) > max_chars:
+        raise HTTPException(400, f"message is longer than {max_chars} characters")
+    return message
+
+
+def _frame(event: dict[str, Any]) -> bytes:
+    return f"data: {json.dumps(event)}\n\n".encode()
+
+
+async def _relay(
+    http_client: httpx.AsyncClient,
+    payload: dict[str, Any],
+    api_key: str,
+    finish: Callable[[str], None],
+) -> AsyncIterator[bytes]:
+    """Stream OpenRouter's SSE into the frames SSEStream reads. Only ``data:`` lines are read:
+    comment lines (``: OPENROUTER PROCESSING``) and a usage-only chunk are skipped, ``[DONE]``
+    ends it. A client disconnect closes this generator, which closes the upstream stream."""
+    outcome = "ok"
+    try:
+        async with http_client.stream(
+            "POST", OPENROUTER_URL, json=payload, headers={"Authorization": f"Bearer {api_key}"}
+        ) as response:
+            if response.status_code >= 300:
+                outcome = "upstream_error"
+                yield _frame({"type": "error", "error": f"The model service returned {response.status_code}"})
+                return
+            async for line in response.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except ValueError:
+                    continue
+                if isinstance(chunk, dict) and chunk.get("error"):
+                    outcome = "upstream_error"
+                    yield _frame({"type": "error", "error": "The model service reported an error"})
+                    return
+                choices = chunk.get("choices") if isinstance(chunk, dict) else None
+                if not choices:
+                    continue
+                text = (choices[0].get("delta") or {}).get("content")
+                if text:
+                    yield _frame({"type": "text_delta", "text": text})
+        yield _frame({"type": "done"})
+    except httpx.TimeoutException:
+        outcome = "timeout"
+        yield _frame({"type": "error", "error": "The model took too long to respond"})
+    except httpx.HTTPError:
+        outcome = "upstream_error"
+        yield _frame({"type": "error", "error": "The model service could not be reached"})
+    finally:
+        finish(outcome)
+
+
+def build_chat_router(
+    *,
+    chat_settings: ChatSettings,
+    auth_settings: Any,
+    redis: Any,
+    denylist: Any,
+    client_ip: Callable[[Request, int], str],
+    http_client: httpx.AsyncClient,
+    build_current_user: Callable[..., Any],
+) -> APIRouter:
+    """The chat router. ``redis`` is the auth module's client (None when ``REDIS_URL`` is unset);
+    ``build_current_user`` and ``client_ip`` are the vendored fastapi-user-auth functions."""
+    current_user = build_current_user(
+        secret=auth_settings.jwt_secret,
+        denylist=_FailClosedDenylist(denylist, unconfigured=redis is None),
+        session_cookie_secure=auth_settings.session_cookie_secure,
+    )
+    router = APIRouter(prefix="/api/v1")
+
+    def _record(outcome: str, user_id: str | None) -> None:
+        chat_requests_total.labels(outcome=outcome).inc()
+        logger.info("chat_request", outcome=outcome, user_id=user_id)
+
+    @router.post("/chat")
+    async def chat(request: Request) -> StreamingResponse:
+        try:
+            # Called directly, both arguments explicit: a direct call's `authorization` default is a
+            # Header(...) object, which the vendored token reader cannot parse.
+            user = await current_user(
+                request=request, authorization=request.headers.get("authorization")
+            )
+        except HTTPException as exc:
+            _record("redis_down" if isinstance(exc, _DenylistDown) else "unauthenticated", None)
+            raise
+        try:
+            message = _parse_message(
+                await _read_body(request, chat_settings.max_body_bytes),
+                chat_settings.max_message_chars,
+            )
+        except HTTPException as exc:
+            _record("too_large" if exc.status_code == 413 else "bad_body", user.user_id)
+            raise
+        if not chat_settings.api_key or not chat_settings.model:
+            _record("no_config", user.user_id)
+            raise HTTPException(503, "Chat is not configured")
+
+        buckets: list[tuple[str, str, Bucket]] = [("app", "global:chat:app", chat_settings.rate_app)]
+        if user.tenant_id:
+            buckets.append(("tenant", f"t:{user.tenant_id}:chat:rate", chat_settings.rate_tenant))
+        buckets.append(("user", f"global:chat:user:{user.user_id}", chat_settings.rate_user))
+        ip = ip_key(client_ip(request, auth_settings.trusted_proxy_hops))
+        if ip is not None:
+            buckets.append(("ip", f"global:chat:ip:{ip}", chat_settings.rate_ip))
+        args: list[int] = []
+        for _, _, bucket in buckets:
+            args += [bucket.limit, bucket.window_s * 1000]
+        try:
+            reply = await redis.eval(RATE_LUA, len(buckets), *[key for _, key, _ in buckets], *args)
+        except Exception:  # noqa: BLE001 — a Redis error refuses, never passes
+            _record("redis_down", user.user_id)
+            raise HTTPException(503, "Rate limiter unavailable") from None
+        index, ttl_ms = int(reply[0]), int(reply[1])
+        if index:
+            name = buckets[index - 1][0]
+            chat_rate_limited_total.labels(bucket=name).inc()
+            _record(f"limited:{name}", user.user_id)
+            raise HTTPException(
+                429,
+                f"Rate limit reached ({name})",
+                headers={"Retry-After": str(max(1, math.ceil(ttl_ms / 1000)))},
+            )
+
+        messages: list[dict[str, str]] = []
+        if CHAT_SYSTEM_PROMPT:
+            messages.append({"role": "system", "content": CHAT_SYSTEM_PROMPT})
+        messages.append({"role": "user", "content": message})
+        payload = {
+            "model": chat_settings.model,
+            "messages": messages,
+            "stream": True,
+            "max_tokens": chat_settings.max_tokens,
+        }
+        return StreamingResponse(
+            _relay(http_client, payload, chat_settings.api_key, lambda o: _record(o, user.user_id)),
+            media_type="text/event-stream",
+        )
+
+    return router
+'''
+
 _SAAS_WORKER_PY = '''"""Background worker for __NAME__ — PostgreSQL queue + adaptive pool + beat.
 
 The canonical Fabrik job model (.windsurf/rules/core/75-workers-jobs.md):
@@ -3125,11 +3477,14 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi_user_auth import CsrfOriginMiddleware
+from fastapi_user_auth.dependencies import build_current_user
+from fastapi_user_auth.router import client_ip
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -3139,9 +3494,12 @@ from __PKG__.auth import (
     aclose,
     build_saas_auth_router,
     cors_origins,
+    denylist,
     get_settings,
+    redis_client,
     require_user,
 )
+from __PKG__.chat import build_chat_router, load_chat_settings
 from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 from __PKG__.metrics import metrics_app
@@ -3194,6 +3552,12 @@ async def lifespan(app: FastAPI) -> Any:  # noqa: ARG001
     logger.info("service_stopping")
     # Close the shared auth engine + Redis client (build_saas_auth_router creates them).
     await aclose()
+    await _chat_http.aclose()
+
+
+# Chat (W-ab242b11): a malformed CHAT_* value fails the app here, at start.
+_chat_settings = load_chat_settings(os.environ)
+_chat_http = httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=_chat_settings.read_timeout_s))
 
 
 app = FastAPI(title="__NAME__", lifespan=lifespan)
@@ -3309,6 +3673,17 @@ async def create_widget(
     return WidgetOut(id="00000000-0000-0000-0000-000000000000", name=body.name)
 
 
+app.include_router(
+    build_chat_router(
+        chat_settings=_chat_settings,
+        auth_settings=get_settings(),
+        redis=redis_client(),
+        denylist=denylist(),
+        client_ip=client_ip,
+        http_client=_chat_http,
+        build_current_user=build_current_user,
+    )
+)
 app.include_router(v1)
 
 
@@ -3628,6 +4003,7 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
     pkg_dir = server_dir / "src" / package_name
     (pkg_dir / "tenant.py").write_text(_sub(_SAAS_TENANT_PY))
     (pkg_dir / "auth.py").write_text(_sub(_SAAS_AUTH_PY))
+    (pkg_dir / "chat.py").write_text(_sub(_SAAS_CHAT_PY))
     (pkg_dir / "worker.py").write_text(_sub(_SAAS_WORKER_PY))
     (pkg_dir / "audit.py").write_text(_sub(_SAAS_AUDIT_PY))
     _write_audit_jobs(server_dir, Path("src", package_name, "audit_jobs.py"), name)
