@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:16:25.235864Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d537275a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many synced sources are symlinks; read the link's own 120000 entry from HEAD",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "intel"
+  ],
+  "title": "sync: symlinked hub sources bypass T12.17 — a tracked in-hub symlink pointing outside the hub returns None ('not ours') and ships the target's working bytes; an uncommitted retarget resolves before rel is computed and ships (_head_source :1789; W-ba306861 Opus critique #8)"
+}
