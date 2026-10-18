@@ -237,6 +237,13 @@ def test_a_fable_only_closing_row_names_a_seat(repo: Path) -> None:
     assert prose != done
     out.write_text(prose, encoding="utf-8")
     assert crc.check_file(out) == [], crc.check_file(out)
+    # a spelled-out version is no token, so a closing row naming only one is still refused
+    spelled = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | native Fable 5.1×1 |"
+    )
+    out.write_text(spelled, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("names no finder seat" in e for e in errs), errs
 
 
 def test_a_checklist_row_citing_a_line_is_told_the_citation_repair(repo: Path) -> None:

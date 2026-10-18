@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review checker accepts a Fable seat on a receipt's closing round (2026-10-18)
+`scripts/enforcement/check_review_coverage.py`: the V11 closing-row check refused a closing `Pass N` row whose only seat was `fable×N` as "names no finder seat", though a dispatched Fable seat re-verifies its own slice in the closing pass (`.windsurf/rules/core/62-using-subagents.md` § The orchestrator). `_MODEL_TOK` now knows `fable`; a spelled-out version (`Fable 5.1×1`) is still no token, as `opus 4×1` is not. Two red-first tests pin the token's near misses and drive `check_file` on a table, a prose and a spelled-out closing row (W-d90fe030).
+
 ### Fixed — the synced-file check's post-load manifest tests now fail when their own guard regresses (2026-10-18)
 `tests/test_check_synced_unmodified_manifest.py`: each post-load param asserts the refusal its own guard prints, so a guard that regresses to `isinstance` or `==` can no longer pass behind the wide catch's `SystemExit` message. A new `metaclass-eq-entry` param covers an `==`/`!=` entry type test, which no param caught before. The KeyboardInterrupt-subclass param asserts its full refusal line instead of the letter `K`, and an escaping subclass now fails one param instead of aborting the session. The comments say how each regressed guard actually ends. W-73044efc; a checker hole found one hop out is W-deb8eb0f.
 

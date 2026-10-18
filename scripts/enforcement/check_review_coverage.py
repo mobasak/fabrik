@@ -2442,7 +2442,8 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # patch). `fable` is a token because a dispatched Fable seat re-verifies its own slice in the closing
 # pass (core/62 § The orchestrator, W-d90fe030) — and the orchestrator is Opus or Fable, so
 # `fable×1 (the orchestrator re-read its own fix)` passes exactly as its `opus×1` twin does, same
-# counter. A spelled-out version (`Fable 5.1×1`, `opus 4×1`) is no token. The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
+# counter. A spelled-out version (`Fable 5.1×1`, `opus 4×1`) is no token.
+# The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
 # the text before its counters (0 of the 42 graded closing rows were prose across 324 receipts, measured
 # 2026-09-19 for W-b61f25cb).
 _MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku|fable)\s*[×x]\s*\d+", re.I)
