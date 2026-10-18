@@ -1,0 +1,28 @@
+{
+  "plan": "docs/development/plans/2026-10-18-plan-2-saas-chat-auth.md",
+  "owned_paths": [
+    "pyproject.toml",
+    "uv.lock",
+    "src/fabrik/scaffold.py",
+    "templates/saas-skeleton/components/chat/SSEStream.tsx",
+    "templates/saas-skeleton/components/chat/ChatUI.tsx",
+    "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md",
+    "templates/saas-skeleton/README.md",
+    "templates/saas-skeleton/.env.example",
+    "tests/test_saas_chat_limiter_lua.py",
+    "tests/test_saas_chat_backend.py",
+    "tests/test_saas_chat_client_template.py",
+    "tests/test_saas_skeleton_chat_system_prompt.py",
+    "docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-review.md",
+    "docs/development/plans/2026-10-18-plan-2-saas-chat-auth.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-18T20:20:42+00:00",
+  "status": "active",
+  "baseline_commit": "0694600fe3ec851b3089890e9575234d8356018d",
+  "baseline_gate": {
+    "tier": "lean",
+    "status": "success",
+    "red": []
+  }
+}

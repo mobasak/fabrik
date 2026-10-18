@@ -1,6 +1,6 @@
 # Plan — saas-skeleton chat that only a signed-in, rate-limited user can spend, slice 2 (W-ab242b11)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** fleet
 **Surface:** `git rev-parse HEAD` = 3974671ef at authoring (master, the CONVERGED spec merged).
