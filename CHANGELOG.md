@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The project contract states the hub-addressee exemption as `mail.py` enforces it (2026-10-18)
+`templates/governance/CLAUDE.md` said "threaded `--re` replies are exempt" from `--to-agent` on a hub send; `mail.py` exempts only `--kind reply` carrying a non-empty `--re` (`is_thread_reply`), so a `finding`, `request`, `relay` or `upstream-feedback` with `--re` is still refused unaddressed. The sentence now says "only a `--kind reply` carrying `--re` is exempt" (W-79342704, tryton-crm 01M3PJXN).
+
 ### Fixed — The external-services chain tests pass in a checkout with no `.venv` of its own (2026-10-18)
 Three helper tests in `tests/test_external_services_chain.py` linked `<root>/.venv` to the checkout's own `.venv`, so in a merge or probe worktree, which has none, `pipeline_alert.sh` found no interpreter and all three failed (the coordinator's merge refusal 01M57PN858). They now link the venv running the suite (`sys.prefix`); red with the old fixtures and green with the new in a venv-less worktree (`3 failed, 58 passed` → `61 passed`).
 
