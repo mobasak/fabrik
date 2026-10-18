@@ -12,6 +12,7 @@ seat is the ``fabrik-reviewer`` agent type on a cheap model (D-344), the script 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1308,9 +1309,59 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
             "every root module file they import",
             'os.environ["FABRIK_ROOT"]=os.getcwd()',
             "an archive is not a linked worktree",
+            # W-393ffefa (kaizen 01M54YKMF1): the sibling repo a scaffold test reads, and what it must not start
+            "`ln -s /opt/fabrik-lib SCRATCH/fabrik-lib`",
+            "never a copy of the live tree",
+            "read a `fabrik-lib/docs-site not present` skip as the missing link",
+            "fabrik-lib is another repo, never in the run's pins",
+            'os.environ["FABRIK_SCAFFOLD_OFFLINE"]="1"',
+            "never the `fabrik scaffold` CLI",
+            "`docker`, `scratch_pg` and `_real_pg`",
         ):
             assert needed in p, (label, needed)
         assert "PKG" not in p, (label, "the one-package placeholder is gone")
+
+
+_LIB_SCHEMA = Path("/opt/fabrik-lib/app-audit-log/schema.sql")
+
+
+def _audit_schema_found_under(root: Path) -> tuple[str, bool]:
+    """(APP_AUDIT_LOG_DIR, is its schema a file) as the scaffold resolves them with FABRIK_ROOT=<root>, read in a
+    FRESH interpreter: fabrik.config resolves FABRIK_ROOT once, at import, so an in-process import would see the
+    session's root."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "FABRIK_ROOT")}
+    env["FABRIK_ROOT"] = str(root)
+    prog = (
+        "import sys; sys.path.insert(0, sys.argv[1]); from fabrik import scaffold as s; "
+        "print(s.APP_AUDIT_LOG_DIR); print((s.APP_AUDIT_LOG_DIR / 'schema.sql').is_file())"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-P", "-B", "-c", prog, str(ROOT / "src")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr[-800:]
+    where, found = proc.stdout.split()
+    return where, found == "True"
+
+
+@pytest.mark.skipif(not _LIB_SCHEMA.is_file(), reason="needs the sibling repo /opt/fabrik-lib")
+def test_the_recipes_fabrik_lib_link_is_where_the_scaffold_looks(tmp_path: Path) -> None:
+    """W-393ffefa (kaizen 01M54YKMF1): with FABRIK_ROOT on an archive, the scaffold looked for fabrik-lib beside it,
+    found nothing, and seats copied the live tree. The recipe's link lands exactly where the scaffold reads. Each
+    half is asserted on its own: a scaffold that hard-codes /opt/fabrik-lib reddens the first, one that reads
+    `FABRIK_ROOT / "fabrik-lib"` reddens both — either way the recipe would be stale."""
+    arch = tmp_path / "arch"
+    arch.mkdir()
+    # importing the scaffold reads FABRIK_ROOT/scripts (its synced-manifest import at module level)
+    (arch / "scripts").symlink_to(ROOT / "scripts")
+    where, found = _audit_schema_found_under(arch)
+    assert (where, found) == (str(tmp_path / "fabrik-lib" / "app-audit-log"), False)
+    (tmp_path / "fabrik-lib").symlink_to("/opt/fabrik-lib")
+    assert _audit_schema_found_under(arch) == (where, True)
 
 
 def test_the_critique_and_seat_briefs_name_what_a_pin_cannot_hold() -> None:
