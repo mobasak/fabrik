@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
+
+Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
+near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
+plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
 ### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
 
 `commands/_sources/fabrik-review.md` Phase 2: a fix the lead routes to another seat is written in the pass's fix
