@@ -516,3 +516,27 @@ def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -
     )
     # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
     # fence, into one paragraph while its assert passed — so the rule bounds the rewrap at markers, blanks and fences
+
+
+def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass() -> None:
+    """Row 1792329659 (2026-10-18): PHASE 2's 'edited, never re-rejected' and PHASE 1's weakening refusal had no
+    order, and row 1792326723 was both; row 1792329281, recurring held size-figure-after-closing-pass and
+    commit-subject-written-after-closing-round: a CHANGELOG hunk drafted mid-review kept two refuted sentences."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "The one exception is a recurrence whose edit PHASE 1 refuses as weakening: it is routed to the operator as a"
+        " proposal, and its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's"
+        " mail id and quotes the line the edit would weaken." in p2
+    )
+    terminal = re.sub(r"\s+", " ", SRC.read_text()[SRC.read_text().index("## Terminal") :])
+    assert (
+        "`no edit this run — the surviving row routed to the operator`, naming the row and the proposal's mail id"
+        in terminal
+    )
+    chain = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "close-chain.md").read_text())
+    assert (
+        "a draft written mid-loop carries none. In such a command, what an input says about the change — the commit"
+        " message, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked sentence by sentence against"
+        " the final text, after that pass too, and again after any fix the chain's gate forces. Then: (1)"
+        in chain
+    )
