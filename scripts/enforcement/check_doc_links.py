@@ -226,9 +226,29 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
         return True
     if _PLACEHOLDER_RE.search(t):
         return True
-    # Percent-decoded in full (W-7ae1169a), the contract check_doc_index applies to the same INDEX
-    # links in the same gate run: `%20` alone left `%25`, `%23` and UTF-8 escapes "broken".
-    t = unquote(t, errors="surrogateescape")
+    # The link as WRITTEN first, then percent-decoded (W-7ae1169a) — the contract check_doc_index
+    # applies to the same INDEX links in the same gate run: `%20` alone left `%25`, `%23` and UTF-8
+    # escapes "broken", and decoding alone broke a file whose real name holds `%XX`, linked by that
+    # name. A decoded form holding a NUL names no file (`.resolve()` would raise) and is skipped.
+    decoded = pct_decode(t)
+    return any(
+        _resolves_path(c, src, extra_bases) for c in dict.fromkeys((t, decoded)) if "\x00" not in c
+    )
+
+
+def pct_decode(text: str) -> str:
+    """Percent-decode a markdown link target or text, keeping `%2F` LITERAL.
+
+    surrogateescape matches how paths are read here, so a non-UTF-8 byte (`%E9`) decodes to the
+    same string the filesystem walk yields. `%2F` stays as written because a renderer resolves an
+    escaped slash as part of ONE path segment, never as a separator: decoding it made
+    `docs%2Fsub%2Fx.md` index and resolve `docs/sub/x.md`, a link that does not reach that file.
+    check_doc_index carries the same one-liner (no enforcement check imports a sibling); a test in
+    tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
+    return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
+
+
+def _resolves_path(t: str, src: Path, extra_bases: list[str] | None) -> bool:
     norm = t.lstrip("/") if t.startswith("/") else t
     if not norm.startswith("../"):
         while norm.startswith("./"):
