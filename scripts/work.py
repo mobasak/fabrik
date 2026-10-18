@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py
+# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py, tests/test_merge_request_work_items.py
 """Work tracking — one open-work record per repo, shared by its agents (spec 2026-09-24).
 
 THE STORE. One pretty-printed, sorted-key JSON file per item under ``<repo>/.fabrik/work/``,

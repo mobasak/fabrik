@@ -77,6 +77,9 @@ def test_disjoint_keys_on_the_two_sides_merge_clean(world):  # noqa: F811
 
     assert world.run("merge") == 0, world.replies(msg_id)
     assert _merged(world) == {**SCORED, "evidence": CLOSED["evidence"], "status": "done"}
+    parents = _git(world.main, "log", "-1", "--format=%P", "master").split()
+    assert len(parents) == 2 and parents[1] == head, parents  # a real merge of the branch
+    assert msg_id in _git(world.main, "log", "-1", "--format=%B", "master")
     assert _git(world.main, "show", f"master:{ITEM}") + "\n" == _dump(_merged(world))
 
 
@@ -196,8 +199,9 @@ def test_an_appended_list_rewritten_on_one_side_still_conflicts(tmp_path):
 def test_a_links_object_added_on_both_sides_merges_per_sub_key(tmp_path):
     ours = {k: v for k, v in BASE.items() if k != "links"} | {"links": {"plan": "p.md"}}
     theirs = {k: v for k, v in BASE.items() if k != "links"} | {"links": {"spec": "s.md"}}
-    res, out = _merge_item_cli(tmp_path, _dump(BASE), _dump(ours), _dump(theirs))
+    res, _ = _merge_item_cli(tmp_path, _dump(BASE), _dump(ours), _dump(theirs))
     assert res.returncode == 3, res.stderr  # base HAS links: each side deleted two sub-keys
+    assert "links.plan" in res.stderr and "links.spec" in res.stderr, res.stderr
     base = {k: v for k, v in BASE.items() if k != "links"}
     res, out = _merge_item_cli(tmp_path, _dump(base), _dump(ours), _dump(theirs))
     assert res.returncode == 0, res.stderr
@@ -280,3 +284,18 @@ def test_a_merged_item_whose_id_is_not_its_file_name_is_never_staged(world):  # 
     assert world.run("merge") == 1
     assert "W-ffffffff" in world.replies(msg_id)["fleet"]
     assert world.base() == before
+
+
+def test_an_item_both_sides_added_merges_end_to_end(world):  # noqa: F811
+    """No stage 1: both sides added the same item with disjoint keys; it merges against `{}`."""
+    head = world.branch({ITEM: _dump({**BASE, "status": "done"})})
+    world.write(ITEM, _dump({**BASE, "owner": "kaizen"}))
+    world.commit_main("add item", ITEM)
+    world.send(head)
+
+    assert world.run("merge") == 1  # `status` and `owner` differ against an empty base
+    head = world.branch({ITEM: _dump({**BASE, "owner": "kaizen", "score_reason": "branch"})})
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert _merged(world) == {**BASE, "owner": "kaizen", "score_reason": "branch"}

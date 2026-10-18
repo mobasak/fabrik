@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, docs/reference/multi-agent-operating-model.md
+# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, docs/reference/multi-agent-operating-model.md
 """merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
 merges it through ONE data-safe path (stdlib-only).
 
@@ -982,7 +982,9 @@ def _conflict_stages(wt: Path, path: str) -> dict[str, str]:
 def _merge_work_item(wt: Path, path: str, base: str) -> None:
     """Resolve one conflicted work-item file with ``work.py merge-item`` and stage it. A key both
     sides changed to different values, or a file deleted on one side, is the REQUESTER's conflict
-    and refuses naming it; a merge-item that fails any other way is a refusal, never a guess."""
+    and refuses naming it; a merge-item that fails any other way is a refusal, never a guess —
+    including a synced repo whose ``work.py`` predates the verb (argparse exits 2), which refused
+    this conflict before as well; the two files travel on the same sync."""
     stages = _conflict_stages(wt, path)
     if "2" not in stages or "3" not in stages:
         raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
