@@ -928,6 +928,7 @@ def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
     text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text())
     assert (
         "tests run by exact node id, and a brief over changed code names the tests that load each changed module (by"
-        " import, or by path through a loader or a stub) for every seat to run by that recipe, so a new import that"
-        " breaks a stubbed loader reds in the pass."
+        " import, or by path through a loader or a stub — found by grepping `tests/` for each changed file's name) for"
+        " every seat to run by the `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new"
+        " import that breaks a stubbed loader reds in the pass."
     ) in text

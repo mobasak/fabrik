@@ -221,10 +221,12 @@ it, or name in the brief why the shape does not have it.
   ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache`
   in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id, and a
   brief over changed code names the tests that load each changed module (by import, or by path through a loader or a
-  stub) for every seat to run by that recipe, so a new import that breaks a stubbed loader reds in the pass. A script a
-  seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
-  write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
-  refuses the whole list when one path is missing, a symlink or outside the repo root).
+  stub — found by grepping `tests/` for each changed file's name) for every seat to run by the
+  `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed
+  loader reds in the pass. A script a seat runs is run from its archive copy with every path argument under scratch (a
+  script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are repo
+  files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo
+  root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
