@@ -416,6 +416,161 @@ def test_a_live_fleet_test_is_skipped_unless_a_person_opts_in(monkeypatch):
     assert opted.added == []
 
 
+class _BoxItem:
+    """A collected test as `pytest_collection_modifyitems` sees it: its markers and its function."""
+
+    def __init__(self, function, *markers):
+        self.function, self.markers, self.added = function, set(markers), []
+
+    def get_closest_marker(self, name):
+        return object() if name in self.markers else None
+
+    def add_marker(self, mark):
+        self.added.append(mark)
+
+
+def _reads_agents():
+    import commands.assemble_commands as asm
+
+    return asm.agent_drift(asm.AGENTS)
+
+
+def _reads_home_commands():
+    return Path.home() / ".claude" / "commands"
+
+
+def _mentions_only():
+    """Mentions asm.AGENTS and Path.home() / ".claude" / "agents" in prose only."""
+    out = Path("/tmp") / ".claude" / "agents"
+    text = 'Path.home() / ".claude" / "skills"'
+    return out, text
+
+
+def _tmp_render(tmp_path):
+    import commands.assemble_commands as asm
+
+    return asm.agent_drift(tmp_path)
+
+
+def _inequality_pin(monkeypatch):
+    import commands.assemble_commands as asm
+
+    monkeypatch.setattr(asm, "AGENTS", Path("/tmp/x"))
+    return Path("/tmp/x") != Path.home() / ".claude" / "state"
+
+
+def test_a_live_box_test_is_skipped_inside_a_merge_check_only(monkeypatch):
+    """W-c3177526: the merge check runs the owner tests BEFORE the merge's render reaches ~/.claude,
+    so a test comparing that installed corpus to the tree is skipped there — and only there. The
+    skip fires ahead of the live_fleet opt-in's early return, so a person's FABRIK_TEST_ALLOW_FLEET
+    inherited into the merge check does not bring the live-box test back."""
+    import pytest
+
+    from tests import conftest
+
+    monkeypatch.setenv("FABRIK_MERGE_CHECK", "1")
+    monkeypatch.setenv("FABRIK_TEST_ALLOW_FLEET", "1")
+    box, plain = _BoxItem(_reads_agents, "live_box"), _BoxItem(_reads_agents)
+    conftest.pytest_collection_modifyitems(None, [box, plain])
+    assert [m.name for m in box.added] == ["skip"] and plain.added == []
+    assert isinstance(box.added[0], pytest.MarkDecorator)
+    assert "FABRIK_MERGE_CHECK" in box.added[0].kwargs["reason"]
+
+    monkeypatch.delenv("FABRIK_MERGE_CHECK", raising=False)
+    outside = _BoxItem(_reads_home_commands, "live_box")
+    conftest.pytest_collection_modifyitems(None, [outside])
+    assert outside.added == []
+
+
+def test_an_unconfirmed_live_box_marker_does_not_skip(monkeypatch):
+    """COBRA (D-253): the cheap way past the merge check is to tag an inconvenient test `live_box`.
+    The marker alone never skips: a test whose own code reads no installed corpus still runs."""
+    from tests import conftest
+
+    monkeypatch.setenv("FABRIK_MERGE_CHECK", "1")
+    monkeypatch.delenv("FABRIK_TEST_ALLOW_FLEET", raising=False)
+    tagged = _BoxItem(_mentions_only, "live_box")
+    conftest.pytest_collection_modifyitems(None, [tagged])
+    assert tagged.added == []
+
+
+def test_the_installed_corpus_detector_counts_reads_not_mentions():
+    """The detector reads the test's CODE: an `asm.AGENTS|OUT|SKILLS` attribute read or a
+    `Path.home() / ".claude" / commands|skills|agents` chain counts; a docstring, a string
+    constant, a tmp-dir render, a monkeypatched target and another `.claude` subdir do not."""
+    from tests import conftest, test_agent_definitions, test_vision_reads_work_stores
+
+    reads = conftest._reads_installed_corpus
+    assert reads(_BoxItem(_reads_agents)) and reads(_BoxItem(_reads_home_commands))
+    assert reads(_BoxItem(test_agent_definitions.test_the_live_box_matches_the_repo_sources))
+    assert reads(
+        _BoxItem(
+            test_vision_reads_work_stores.test_assemble_commands_check_reports_no_render_error_and_only_expected_drift
+        )
+    )
+    for quiet in (_mentions_only, _tmp_render, _inequality_pin):
+        assert not reads(_BoxItem(quiet)), quiet.__name__
+
+
+def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, monkeypatch):
+    """W-c3177526 end to end: an EMPTY home is the worst drift the box can show. Inside a merge
+    check the two real live-box tests are skipped and the run is green; outside one the same run
+    is red — the refusal the coordinator hit on merge request 01M564A4W4."""
+    home = tmp_path / "home"
+    for sub in ("agents", "commands"):  # present but empty, so neither test skips for absence
+        (home / ".claude" / sub).mkdir(parents=True)
+    ids = [
+        "tests/test_agent_definitions.py::test_the_live_box_matches_the_repo_sources",
+        "tests/test_vision_reads_work_stores.py::"
+        "test_assemble_commands_check_reports_no_render_error_and_only_expected_drift",
+    ]
+    base = {
+        k: v for k, v in os.environ.items() if k not in ("PYTEST_ADDOPTS", "FABRIK_MERGE_CHECK")
+    }
+    base["HOME"] = str(home)
+
+    def run(env):
+        return subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", *ids],
+            cwd=REPO,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+
+    inside = run({**base, "FABRIK_MERGE_CHECK": "1"})
+    assert inside.returncode == 0, inside.stdout + inside.stderr
+    assert "2 skipped" in inside.stdout, inside.stdout
+    assert inside.stdout.count("FABRIK_MERGE_CHECK") >= 2, inside.stdout  # each skip names why
+    outside = run(base)
+    assert outside.returncode == 1 and "2 failed" in outside.stdout, outside.stdout + outside.stderr
+
+
+def test_no_test_opts_itself_into_a_merge_check():
+    """COBRA (D-253): a test module that set FABRIK_MERGE_CHECK would skip every live-box test in
+    EVERY run. Only merge_request.py sets it; outside the conftest and its graders, no test names it."""
+    here = Path(__file__).resolve().parent
+    exempt = {
+        here / "conftest.py",
+        Path(__file__).resolve(),
+        here / "test_merge_request_merge.py",
+    }
+    candidates = list(here.rglob("*.py")) + [
+        p
+        for p in (here.parent / "scripts").rglob("*.py")
+        if p.name.startswith("test_") or p.name == "conftest.py"
+    ]
+    hits = [
+        str(p)
+        for p in candidates
+        if p.resolve() not in exempt
+        and "FABRIK_MERGE_CHECK" in p.read_text(encoding="utf-8", errors="replace")
+    ]
+    assert hits == [], hits
+
+
 def test_the_resolvers_refuse_the_live_dirs_under_pytest_without_the_pin(tmp_path):
     """The class fix behind the 2026-10-07 phantom wakes (W-7aab61a6, ten fleet reports): the
     conftest pin above protects only a run rooted at this repo. Review seats ran the fleet suite

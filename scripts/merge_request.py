@@ -1116,13 +1116,25 @@ except ImportError:
 """
 
 
+# Both owner-test legs run BEFORE the merge lands, so before the merge owner renders the corpus into
+# ~/.claude: this tells the tests so, and the hub's tests/conftest.py skips its `live_box` tests —
+# the ones comparing that installed corpus to the tree, which cannot match yet (W-c3177526). Inert
+# in a repo whose conftest does not read it.
+_MERGE_CHECK_ENV = {"FABRIK_MERGE_CHECK": "1"}
+
+
 def _fallback_env(wt: Path, shim: Path) -> dict:
     """The fallback's env: the shim ALONE on ``PYTHONPATH`` — the caller's entries would precede the
     stdlib and could name the main checkout's own ``src``, so the import root comes from the
     throwaway, never the caller. It is the throwaway's ``src``, or its root when ``src`` is itself
     a package (imported as ``src.x``)."""
     root = wt if (wt / "src" / "__init__.py").exists() else wt / "src"
-    return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
+    return {
+        **os.environ,
+        **_MERGE_CHECK_ENV,
+        "PYTHONPATH": str(shim),
+        "FABRIK_MERGE_SRC": str(root),
+    }
 
 
 def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> str | None:
@@ -1193,7 +1205,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     whose ``src`` holds a stdlib-named package runs ``env -u PYTHONPATH …`` itself). Else pytest
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
-    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``)."""
+    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``),
+    and both run with ``FABRIK_MERGE_CHECK=1`` (``_MERGE_CHECK_ENV``)."""
     note = _copy_worktree_include(ctx, wt, old)
     if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
         ctx.notes.append(note)
@@ -1202,7 +1215,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
         )
-        env = {**os.environ, "PYTHONPATH": pythonpath}
+        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
         run = _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env)

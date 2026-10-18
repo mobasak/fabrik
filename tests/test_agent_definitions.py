@@ -20,6 +20,8 @@ import importlib.util
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("asm", REPO / "commands" / "assemble_commands.py")
 assert _spec and _spec.loader
@@ -121,6 +123,7 @@ def test_check_detects_drift_in_a_rendered_agent():
     assert any("fabrik-reviewer" in d for d in drift), drift
 
 
+@pytest.mark.live_box
 def test_the_live_box_matches_the_repo_sources():
     """The point of the whole change: what the box actually dispatches is what the repo says."""
     drift = asm.agent_drift(asm.AGENTS)
