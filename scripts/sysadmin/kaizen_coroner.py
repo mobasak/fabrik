@@ -858,12 +858,16 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | N
 def _transcripts_present(path: Path) -> bool:
     """Is there a transcripts dir to measure? Only a clean ENOENT says no. `Path.exists()`
     RAISES PermissionError under an unsearchable parent — which aborted the sweep's repairs
-    (W-6f46cebd review) — and a dangling symlink reads as absent; both are an installation the
-    sweep could not see, so both count as present."""
+    (W-6f46cebd review) — and reads a dangling symlink or a file-for-a-parent (ENOTDIR) as
+    absent; each is an installation the sweep could not see, so each counts as present. `lstat`
+    answers all of them: it succeeds on a dangling link and raises everything else."""
     try:
-        return path.exists() or path.is_symlink()
+        os.lstat(path)
+    except FileNotFoundError:
+        return False
     except OSError:
         return True
+    return True
 
 
 def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerReport:
@@ -890,9 +894,10 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
             # session_ends, so a session dying today COUNTS as today's hole (the
             # instrument alarm) even though this very sweep then closes it.
             report.holes_today = holes(src)
-            # A blind reading over a transcripts dir that EXISTS (unreadable, or holes()'s own
-            # error) is a sweep that could not see — counted, so it exits 3 (W-6f46cebd). A host
-            # with no transcripts dir at all is not an installation to measure.
+            # A blind reading over a transcripts dir that is not cleanly absent (unreadable, under
+            # an unsearchable or non-directory parent, a dangling link, or holes()'s own error) is
+            # a sweep that could not see — counted, so it exits 3 (W-6f46cebd). A host whose
+            # transcripts dir is cleanly absent (ENOENT) is not an installation to measure.
             if report.holes_today is None and _transcripts_present(src.transcripts_dir):
                 report.errors.append("holes() unmeasurable (blind)")
             _reconstruct(src, deaths, report)

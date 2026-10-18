@@ -1233,6 +1233,16 @@ def test_a_transcripts_dir_under_an_unsearchable_parent_is_blind_and_still_repai
     assert "stale-1" in report.records_expired, report
 
 
+def test_a_transcripts_dir_under_a_regular_file_is_blind_not_absent(sources, tmp_path):
+    """ENOTDIR (`~/.claude` is a file) reads absent to `Path.exists()`; it is a broken
+    installation, so the blind reading is counted (W-6f46cebd review round 2)."""
+    blocker = tmp_path / "claude-is-a-file"
+    blocker.write_text("")
+    report = kc.sweep(dataclasses.replace(sources, transcripts_dir=blocker / "projects"))
+    assert report.holes_today is None
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+
+
 def test_a_dangling_transcripts_symlink_is_blind_not_absent(sources, tmp_path):
     """A `~/.claude/projects` symlink to nothing is a broken installation, not no installation."""
     link = tmp_path / "dangling-projects"
