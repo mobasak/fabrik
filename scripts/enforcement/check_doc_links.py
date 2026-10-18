@@ -31,6 +31,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -225,7 +226,9 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
         return True
     if _PLACEHOLDER_RE.search(t):
         return True
-    t = t.replace("%20", " ")
+    # Percent-decoded in full (W-7ae1169a), the contract check_doc_index applies to the same INDEX
+    # links in the same gate run: `%20` alone left `%25`, `%23` and UTF-8 escapes "broken".
+    t = unquote(t, errors="surrogateescape")
     norm = t.lstrip("/") if t.startswith("/") else t
     if not norm.startswith("../"):
         while norm.startswith("./"):

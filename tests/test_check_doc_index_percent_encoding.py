@@ -67,6 +67,32 @@ def test_every_percent_escape_is_a_reachable_remedy(
     assert rc == 0, out
 
 
+@pytest.mark.parametrize(
+    ("name", "link"),
+    [
+        ("docs/my notes.md", "docs/my%20notes.md"),
+        ("docs/a%20b.md", "docs/a%2520b.md"),
+        ("docs/a#b.md", "docs/a%23b.md"),
+        ("docs/en–dash.md", "docs/en%e2%80%93dash.md"),
+        ("docs/R&D notes.md", "docs/R&D%20notes.md"),
+    ],
+    ids=["space", "literal-percent", "literal-hash", "utf8-lowercase", "partial"],
+)
+def test_check_doc_links_resolves_every_remedy_check_doc_index_accepts(
+    monkeypatch, tmp_path, name: str, link: str
+) -> None:
+    """check_doc_links scans INDEX.md in the SAME gate run and decoded only `%20`: every remedy
+    above would have moved from a check_doc_index red to a check_doc_links "broken ref"."""
+    import check_doc_links as cdl
+
+    (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / name).write_text("# doc\n", encoding="utf-8")
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "INDEX.md"
+    assert cdl._resolves(link, src) is True
+    assert cdl._resolves("docs/gone%20x.md", src) is False  # a missing target stays broken
+
+
 def test_a_spaced_doc_linked_raw_is_still_indexed(monkeypatch, tmp_path, capsys) -> None:
     """A CONTROL (green before and after): a bare path mention still counts as indexed."""
     rc, out = _run(monkeypatch, tmp_path, capsys, ["docs/my notes.md"], "- docs/my notes.md\n")
