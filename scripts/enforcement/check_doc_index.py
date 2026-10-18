@@ -137,7 +137,6 @@ _TITLE_CLOSE_RE = re.compile(
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
-_OPENER_RE = re.compile(r"(?<!\\)\[")
 
 
 def link_targets(text: str):
@@ -145,8 +144,16 @@ def link_targets(text: str):
     check_doc_links.link_targets (its docstring carries the why, W-dd091f0d; a test pins the two
     to one output)."""
     n = len(text)
-    first_open = _OPENER_RE.search(text)
-    opened_at = first_open.start() if first_open else n
+    opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
+    o = text.find("[")
+    while o != -1:
+        b = o
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (o - b) % 2 == 0:
+            opened_at = o
+            break
+        o = text.find("[", o + 1)
     i = text.find("](")
     while i != -1:
         # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
@@ -414,12 +421,16 @@ def main() -> int:
     # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
     # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
     # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
-    linked = {s for t in link_targets(index_text) for s in (t, _pct_decode(t))}
+    # Read LINE BY LINE, as check_doc_links reads the same file: the reader's opener rule looks
+    # for a `[` earlier in its input, and one `[` near the top must not turn a stray `](` on a
+    # later line into a link (W-dd091f0d review).
+    index_links = [t for line in index_text.splitlines() for t in link_targets(line)]
+    linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist
     # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old
     # regex truncated `docs/a(b).md` and never saw a titled or angle link to a missing doc.
-    for target in dict.fromkeys(link_targets(index_text)):
+    for target in dict.fromkeys(index_links):
         if not target.startswith("docs/"):
             continue
         # Percent-DECODED (W-7ae1169a): `%20` alone left every other escape — a literal `%`

@@ -100,7 +100,6 @@ _TITLE_CLOSE_RE = re.compile(
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
-_OPENER_RE = re.compile(r"(?<!\\)\[")
 _BARE_RE = re.compile(
     r"(?<![\w/-])((?:docs|scripts|src|specs|configs|templates|\.windsurf)/"
     r"[A-Za-z0-9_./-]+?\.(?:md|py|sh|yaml|yml|json|txt))(?![\w.-])"
@@ -191,8 +190,16 @@ def link_targets(text: str):
     carries the same function (no enforcement check imports a sibling); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
-    first_open = _OPENER_RE.search(text)
-    opened_at = first_open.start() if first_open else n
+    opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
+    o = text.find("[")
+    while o != -1:
+        b = o
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (o - b) % 2 == 0:
+            opened_at = o
+            break
+        o = text.find("[", o + 1)
     i = text.find("](")
     while i != -1:
         # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`

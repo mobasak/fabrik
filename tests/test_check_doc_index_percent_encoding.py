@@ -280,7 +280,7 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
     matched, so a link to a MISSING doc was never examined. Direction (a) of check_doc_index and
     check_doc_links must both read every shape CommonMark renders as a link, and an escaped link
     (`docs/a\\_b.md`, also percent-encoded or naming a literal `%41`) counts for direction (b)
-    exactly when it counts for (a). Every missing target holds a paren or a space, which
+    exactly when it counts for (a). Every missing target holds a paren, a space or a `#`, which
     check_doc_links' BARE-path reader cannot match, so only its link reader can report it."""
     rc, out = _run(monkeypatch, tmp_path, capsys, docs, index)
     broken = _links(monkeypatch, tmp_path, capsys)
@@ -291,6 +291,21 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
         assert rc == 1, out
         assert f"INDEX.md names missing path: {missing}" in out, out
         assert broken == [f"INDEX.md: broken ref -> {missing}"], broken
+
+
+def test_index_links_are_read_line_by_line(monkeypatch, tmp_path, capsys) -> None:
+    """check_doc_index fed the WHOLE INDEX to the reader, so one `[` near the top made a stray `](`
+    on a later line a "link" — a missing-path red check_doc_links, reading line by line, never
+    raised. Both checks read the file line by line now."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["docs/a.md"],
+        "- [A](docs/a.md)\nplain ](docs/gone.md) text\n",
+    )
+    assert rc == 0, out
+    assert "docs/gone.md" not in out, out
 
 
 def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
@@ -342,6 +357,7 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "[a](docs/a(b.md ) [n](<docs/a\nb.md>) " + r"[q](<docs/a\>b.md>) [c](docs/a\).md)",
         "plain ](docs/stray.md) " + r'\](docs/a.md "see [x](docs/gone.md)") [a] \](docs/g.md)',
         "[![i](docs/i.png)](docs/x.md)",
+        r'C:\\[a](docs/x.md) [e](docs/a\_b%20c.md) [p](docs/a\_b%41.md) [h](docs/g\#x.md "T" )',
         "",
     ]:
         assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
@@ -367,6 +383,7 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         (r"[a] \](docs/gone.md)", []),  # ... even after an opener
         (r'- \](docs/a.md "see [x](docs/gone.md)")', ["docs/gone.md"]),  # the real link survives
         ("[![i](docs/i.png)](docs/x.md)", ["docs/i.png", "docs/x.md"]),  # an image inside a link
+        (r"C:\\[a](docs/x.md)", ["docs/x.md"]),  # `\\` is an escaped backslash: the `[` opens
     ],
     ids=[
         "escaped-space",
@@ -386,6 +403,7 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "escaped-closer-after-an-opener",
         "stray-closer-before-a-real-link",
         "image-inside-a-link",
+        "opener-after-an-escaped-backslash",
     ],
 )
 def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
