@@ -54,13 +54,13 @@ $ python scripts/review_rubric.py --changed templates/governance/CLAUDE.md
 
 | Class | Status |
 |---|---|
-| Hunt: `templates/governance/CLAUDE.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `templates/governance/CLAUDE.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (templates/governance/CLAUDE.md:448-449: the exemption sentence names only `--kind reply` carrying `--re`, rewrapped; F1) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | CLEAN (scripts/mail.py:1434-1477 the addressee guard refuses every non-reply kind with --re and a reply with an empty --re — probe 7 of 7 rows as stated) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (templates/governance/CLAUDE.md:448-449 is prose with no limit, count or quota; native seats stamped and closed per round in the run record) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN (scripts/mail.py:1439 `kind == "reply" and bool(re)`: the empty-string sentinel is refused — probe row reply with empty --re REFUSED) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_mail_addressing.py:98-118 assert the kind-keyed exemption and the forged-re refusal; the template sentence is prose, no new behaviour) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (every count here carries its population: 6 kinds probed, 14 paragraph lines measured, 3 'exempt' hits per template, 520 tests run) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (scripts/mail.py guard executed by a sandboxed probe over every kind, not read; the template's 10 reading test files run, 520 passed) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -86,6 +86,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 9, new: 9, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation; shape: agent-tool (D-961); one slice, the template; the lead's sandboxed probe over every kind executed before the pin (reply SENT, five kinds REFUSED), re-run by both seats; the template's ten reading test files 520 passed; seats: A-sonnet 1/3 · A-haiku 1/6; stop: confirmed 1; fix: +2 −1 lines for 1 confirmed |
+| Pass 2 | native sonnet×1 + haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); the round-1 seats over their own slice, pinned at `21c6f066f`: the probe re-executed (1 of 6 kinds SENT, empty `--re` REFUSED), the paragraph's 14 line lengths re-measured (longest 109, the hunk's 91 and 27), parenthesis and backticks re-balanced, the CHANGELOG quote compared to the template; stop: closable |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -117,9 +119,23 @@ whether a `D-nnn` is a row of the ledger is checked only where `_ledger_ids` rea
 with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED — unexecuted` never enter
 `confirmed:`; `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+### Residual rows
+
+| Id | Verdict |
+|---|---|
+| F1 | FIXED r1 (templates/governance/CLAUDE.md:448-449 — "is exempt, no other kind" could be misread and ran to 123 characters; now "only a `--kind reply` carrying `--re` is exempt", rewrapped) |
+| R1 | REFUTED (a pin-vs-live drift: the lead's round-1 fix landed while the seat read the pin; pass 2 pinned the fix commit `21c6f066f`) |
+| R2 | REFUTED (the CHANGELOG quotes the live fix wording, which pass 2 confirmed matches the pinned template) |
+| R3 | RECORDED — measured (`docs/reference/fabrik-mail.md:268` "`reply`/`relay` are exempt" is the mail-structure advisory, a different guard at `scripts/mail.py:1159`; a reader can conflate the two — outside this hunk) |
+| R4 | REFUTED (`merge-request` absent from the template's kind list: it is the hub's own merge-request kind, never a project's) |
+| R5 | RECORDED — measured (the `switches.auto_address` map can address a non-reply send, `scripts/mail.py:1468-1476`; the template's "REFUSED" predates this change) |
+| R6 | REFUTED (the exemption does not need the `--re` to resolve — the sentence never says it does; `docs/reference/fabrik-mail.md:123,365` cover resolvability) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — the hub-addressee exemption sentence: FIXED
+
+One sentence of the fleet project contract reworded to the guard's real rule (`mail.py:1439`), executed over every kind.
 
 ## Gate
 
