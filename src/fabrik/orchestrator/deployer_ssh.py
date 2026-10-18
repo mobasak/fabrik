@@ -1244,13 +1244,9 @@ def _write_file_to_vps(name: str, filename: str, content: str) -> None:
     _write_file_to_vps_path(f"/opt/{name}", filename, content)
 
 
-# A validation pattern for the remote mktemp answer — no file is created from it.
-_MKTEMP_PATH_RE = re.compile(r"/tmp/fabrik-[A-Za-z0-9]{10}")  # nosec B108
-
-
 def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     """Write a file to ``{path}/{filename}`` via a remote ``mktemp`` file, scp into it, then ``sudo mv``."""
-    from fabrik.drivers.ssh import scp_to_vps
+    from fabrik.drivers.ssh import remote_mktemp, scp_to_vps
     from fabrik.drivers.ssh import ssh as _ssh
 
     # A rendered key is a path RELATIVE to the app dir; an absolute one or a `..` part would write
@@ -1268,19 +1264,9 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
         # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
         # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it
         # 0666 and read a DSN through the open fd in the window before the chmod (W-8dd25072). scp
-        # into the existing file keeps its owner and 0600 mode. Only the LAST line of the answer is
-        # the path — a login shell may print before it — and anything else fails closed.
-        answer = _ssh("mktemp /tmp/fabrik-XXXXXXXXXX", timeout=10).strip()
-        tmp_remote = answer.splitlines()[-1].strip() if answer else ""
-        if not _MKTEMP_PATH_RE.fullmatch(tmp_remote):
-            # A shell that printed AFTER the path still created the file: remove what looks like it.
-            for line in answer.splitlines():
-                if _MKTEMP_PATH_RE.fullmatch(line.strip()):
-                    try:
-                        _ssh(f"rm -f {shlex.quote(line.strip())}", timeout=5)
-                    except Exception:  # noqa: BLE001, S110
-                        pass
-            raise RuntimeError(f"remote mktemp returned an unexpected path: {tmp_remote!r}")
+        # into the existing file keeps its owner and 0600 mode. `remote_mktemp` fails closed on any
+        # answer that is not a mktemp path.
+        tmp_remote = remote_mktemp(_ssh)
         try:
             scp_to_vps(tmp_local, tmp_remote, timeout=30)
         except BaseException:

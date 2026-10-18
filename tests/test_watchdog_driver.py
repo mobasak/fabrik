@@ -91,6 +91,7 @@ class TestSidecarSource:
             ctx_dir.mkdir()
             rctx.build_ctx_local = ctx_dir
             ctx_dir.with_suffix(".tar.gz").mkdir()
+            rctx.remote_build_dir = "/tmp/fabrik-Ab3dEf9hIj"  # the stage remote_mktemp made
             raise WatchdogProvisionError("scp failed")
 
         spec = {"id": "demo", "watchdog": {"enabled": True}}
@@ -101,7 +102,9 @@ class TestSidecarSource:
             pytest.raises(WatchdogProvisionError, match="scp failed"),
         ):
             d.provision(_ctx(spec))
-        assert any("rm -rf" in c.args[0] for c in remote.call_args_list), "remote cleanup skipped"
+        assert any(
+            c.args[0] == "sudo rm -rf /tmp/fabrik-Ab3dEf9hIj" for c in remote.call_args_list
+        ), "remote cleanup skipped"
 
 
 class TestDryRun:
@@ -220,8 +223,8 @@ class TestDeployKey:
     def test_generates_when_absent_and_logs_pubkey(self, caplog):
         d = WatchdogDriver()
         pub = "ssh-ed25519 AAAAC3Nz...stub watchdog-demo@fabrik"
-        # probe=ABSENT, keygen='', place='', cat=pubkey, rm=''
-        side = ["ABSENT", "", "", pub, ""]
+        # probe=ABSENT, mktemp -d=stage, keygen='', place='', cat=pubkey, rm=''
+        side = ["ABSENT", "/tmp/fabrik-Ab3dEf9hIj\n", "", "", pub, ""]
         with mock.patch("fabrik.drivers.watchdog.ssh", side_effect=side) as m:
             with caplog.at_level("WARNING"):
                 d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
@@ -238,8 +241,8 @@ class TestDeployKey:
         def boom(cmd, *a, **k):
             if cmd.startswith("sudo docker exec -u 0") and "test -f" in cmd:
                 return "ABSENT"
-            if cmd.startswith("rm -f") and "ssh-keygen" in cmd:
-                return ""
+            if cmd.startswith("mktemp -d "):
+                return "/tmp/fabrik-Ab3dEf9hIj\n"
             if "docker cp" in cmd:
                 raise RuntimeError("cp failed")
             return ""
@@ -248,7 +251,7 @@ class TestDeployKey:
             with pytest.raises(RuntimeError, match="cp failed"):
                 d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
         # The cleanup rm (finally) must have run.
-        assert any(c.args[0].startswith("rm -f /tmp/") for c in m.call_args_list)
+        assert any(c.args[0] == "rm -rf /tmp/fabrik-Ab3dEf9hIj" for c in m.call_args_list)
 
 
 class TestDryRunSteps:
