@@ -139,7 +139,7 @@ class TestRequestViaSsh:
         with patch("subprocess.run", side_effect=run) as mock_run:
             with pytest.raises(RuntimeError) as info:
                 client._request_via_ssh("GET", "http://x/y")
-        assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+        assert mock_run.call_args[0][0][:5] == ["ssh", "-T", "-o", "ProxyJump=vps2", "vps"]
         msg = str(info.value)
         assert "'vps'" in msg and "via jump 'vps2'" in msg and "rc=1" in msg
         assert self.KEY not in msg and "hunter2secret" not in msg
@@ -187,7 +187,7 @@ class TestRequestViaSsh:
     )
     def test_the_remote_command_quotes_every_word(self, url, monkeypatch):
         """Review C-H1: a `'` in a domain broke out of the hand-quoted URL and the rest ran on the
-        VPS; the remote shell must see the URL, each header and the body as one word each."""
+        VPS; the remote shell must see the URL as one word."""
         import shlex
         from unittest.mock import MagicMock
 
@@ -197,23 +197,126 @@ class TestRequestViaSsh:
             mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
             client._request_via_ssh("POST", url, body={"v": "it's; $(id)"})
         words = shlex.split(mock_run.call_args[0][0][-1])
-        assert words[-1] == url
-        assert words[words.index("-d") + 1] == json.dumps({"v": "it's; $(id)"})
-        assert f"X-API-Key: {self.KEY}" in words
+        assert words[-3] == url and words[-2:] == ["-K", "-"]  # the config comes on stdin
 
-    def test_a_header_value_is_one_word_whatever_it_holds(self, monkeypatch):
-        """The API key comes from the environment; a `"` in it must not end the header word."""
-        import shlex
+    def test_no_secret_or_body_reaches_the_argv_or_a_log(self, monkeypatch, caplog):
+        """W-894fdc5f: the key and the body (registrant contact data for register_domain) rode the
+        local ssh argv — readable in ps and /proc while the call ran. They go to the remote curl
+        as a `-K -` config on stdin; nothing logs either."""
         from unittest.mock import MagicMock
 
+        client = self._client(monkeypatch)
+        body = {"contact": {"EmailAddress": "owner@example.com", "Phone": "+1.5550100"}}
+        with caplog.at_level("DEBUG"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+                client._request_via_ssh("POST", "https://h/api/domains/register", body=body)
+        argv, kw = mock_run.call_args[0][0], mock_run.call_args[1]
+        joined = " ".join(argv)
+        for secret in (self.KEY, "owner@example.com", "+1.5550100"):
+            assert secret not in joined
+            assert secret not in caplog.text
+        assert argv[:2] == ["ssh", "-T"]  # no pty: a forced RequestTTY would echo the config back
+        assert "-n" not in argv and kw.get("stdin") is None
+        assert f'header = "X-API-Key: {self.KEY}"' in kw["input"]
+        assert "data-raw = " in kw["input"] and "owner@example.com" in kw["input"]
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "plainkey123",
+            'k"; id; echo "',
+            "back\\slash\\nkey",
+            "tab\\tend\\",
+            "sp ace'and$(x)",
+            # a non-ASCII key never reaches here: DNSClient's httpx client refuses it at
+            # construction (header values are ASCII); the body carries the non-ASCII case
+        ],
+    )
+    def test_a_real_curl_receives_the_exact_key_and_body(self, key, monkeypatch):
+        """The remote command run through `sh -c` with the same stdin, by a real curl, against a
+        local server: the key and the body arrive byte-exact, hostile values included."""
+        import http.server
+        import shutil
+        import socket
+        import subprocess
+        import threading
+
+        curl = shutil.which("curl")
+        if curl is None:
+            pytest.fail("curl is required: this grader proves the -K config grammar end to end")
+        seen = {}
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get("Content-Length", 0))
+                seen["key"] = self.headers.get("X-API-Key")
+                seen["body"] = self.rfile.read(n)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"ok": true}')
+
+            def log_message(self, *_a):
+                pass
+
+        try:
+
+            class V6(http.server.HTTPServer):
+                address_family = socket.AF_INET6
+
+            server, host = V6(("::1", 0), Handler), "[::1]"
+        except OSError:  # no IPv6 loopback in this environment
+            server, host = http.server.HTTPServer(("127.0.0.1", 0), Handler), "127.0.0.1"
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        real_run = subprocess.run
+        body = {"v": 'it\'s "q" \\ $(id) é'}
+
+        def as_the_remote_shell(argv, **kw):
+            return real_run(
+                ["sh", "-c", argv[-1]],
+                input=kw["input"],
+                encoding="utf-8",
+                capture_output=True,
+                timeout=20,
+                check=False,
+            )
+
+        try:
+            monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
+            monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+            client = DNSClient(api_key=key, ssh_host="vps")
+            with patch("subprocess.run", side_effect=as_the_remote_shell):
+                out = client._request_via_ssh(
+                    "POST", f"http://{host}:{server.server_address[1]}/x", body=body
+                )
+        finally:
+            server.shutdown()
+        assert out == {"ok": True}
+        assert seen["key"].encode("latin-1") == key.encode("utf-8")  # http.server decodes latin-1
+        assert seen["body"] == json.dumps(body).encode()
+
+    @pytest.mark.parametrize("bad", ["a\nb", "a\rb", "a\x00b", "trailing\r"])
+    def test_a_key_with_a_line_break_or_nul_is_refused_before_ssh(self, bad, monkeypatch):
+        """curl truncates a header at a raw newline in a -K config, silently (measured); a CRLF
+        .env leaves `\r`. Refused — and the message never carries the value, because the
+        orchestrator's DNS fallback logs it."""
         monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
-        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
-        key = 'k"; id; echo "'
-        client = DNSClient(api_key=key, ssh_host="vps")
+        client = DNSClient(api_key="SECRETPART" + bad, ssh_host="vps")
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-            client._request_via_ssh("GET", "https://h/x")
-        assert f"X-API-Key: {key}" in shlex.split(mock_run.call_args[0][0][-1])
+            with pytest.raises(ValueError) as info:
+                client._request_via_ssh("GET", "https://h/x")
+            mock_run.assert_not_called()
+        assert "SECRETPART" not in str(info.value) and "SECRETPART" not in repr(info.value)
+        assert "X-API-Key" in str(info.value)
+
+    def test_an_empty_stderr_says_so(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        client = self._client(monkeypatch)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="")
+            with pytest.raises(RuntimeError, match=r"failed \(rc=255\): no stderr$"):
+                client._request_via_ssh("GET", "https://h/x")
 
     def test_a_non_json_reply_leaks_no_secret(self, monkeypatch):
         """Review C-H3: an error page echoing the request reached the RuntimeError uncleaned."""
@@ -242,3 +345,25 @@ class TestRequestViaSsh:
             with pytest.raises(RuntimeError) as info:
                 client._request_via_ssh("GET", "http://x/y")
         assert self.KEY[:6] not in str(info.value)
+
+
+def test_a_container_resolve_timeout_is_raised_not_swallowed(monkeypatch):
+    """W-894fdc5f (review C-H5): a dead ssh path is not a container "miss" — swallowed, it sent the
+    request on to the public URL, which this box cannot reach, and named the wrong failure."""
+    import subprocess
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    seen = {}
+
+    def run(argv, **kw):
+        seen["stdin"] = kw.get("stdin")
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout", 30))
+
+    with patch("subprocess.run", side_effect=run):
+        with pytest.raises(subprocess.TimeoutExpired) as info:
+            client._resolve_container_url()
+    assert info.value.cmd == ["ssh", "vps", "<command redacted>"]
+    assert info.value.__context__ is None
+    assert seen["stdin"] is subprocess.DEVNULL

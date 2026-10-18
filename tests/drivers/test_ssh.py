@@ -121,9 +121,7 @@ class TestScpToVps:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         scp_to_vps("/tmp/src.yml", "/opt/dst.yml")
         args = mock_run.call_args[0][0]
-        assert args[0] == "scp"
-        assert args[1] == "/tmp/src.yml"
-        assert args[2] == "vps:/opt/dst.yml"
+        assert args == ["scp", "--", "/tmp/src.yml", "vps:/opt/dst.yml"]
 
     @patch("subprocess.run")
     def test_nonzero_exit_raises_runtimeerror(self, mock_run):
@@ -150,7 +148,7 @@ class TestJump:
             ssh("true")
             assert mock_run.call_args[0][0] == ["ssh", "vps", "true"]
             scp_to_vps("/tmp/a", "/opt/b")
-            assert mock_run.call_args[0][0] == ["scp", "/tmp/a", "vps:/opt/b"]
+            assert mock_run.call_args[0][0] == ["scp", "--", "/tmp/a", "vps:/opt/b"]
 
     @patch("subprocess.run")
     def test_jump_inserted_for_its_alias_only(self, mock_run, monkeypatch):
@@ -160,7 +158,14 @@ class TestJump:
         ssh("true")
         assert mock_run.call_args[0][0] == ["ssh", "-o", "ProxyJump=vps2", "vps", "true"]
         scp_to_vps("/tmp/a", "/opt/b")
-        assert mock_run.call_args[0][0] == ["scp", "-o", "ProxyJump=vps2", "/tmp/a", "vps:/opt/b"]
+        assert mock_run.call_args[0][0] == [
+            "scp",
+            "-o",
+            "ProxyJump=vps2",
+            "--",
+            "/tmp/a",
+            "vps:/opt/b",
+        ]
         mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="boom")
         with pytest.raises(RuntimeError, match="via jump 'vps2'"):
             ssh("true")
@@ -250,7 +255,7 @@ class TestJump:
             assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
             client = DNSClient(api_key="t", ssh_host="vps")
             client._request_via_ssh("GET", "http://x/y")
-            assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+            assert mock_run.call_args[0][0][:5] == ["ssh", "-T", "-o", "ProxyJump=vps2", "vps"]
             mock_run.return_value = MagicMock(
                 returncode=0, stdout="site-provisioner-1\n", stderr=""
             )
@@ -298,7 +303,7 @@ class TestSshHostAlias:
             ssh("true")
             assert mock_run.call_args[0][0] == ["ssh", host, "true"]
             scp_to_vps("/tmp/a", "/tmp/b")
-            assert mock_run.call_args[0][0] == ["scp", "/tmp/a", f"{host}:/tmp/b"]
+            assert mock_run.call_args[0][0] == ["scp", "--", "/tmp/a", f"{host}:/tmp/b"]
 
     @pytest.mark.parametrize("host", _HOSTILE_HOSTS)
     def test_a_non_alias_never_reaches_a_subprocess(self, host, monkeypatch):
@@ -353,3 +358,25 @@ class TestSshHostAlias:
                 ssh("echo DB_PASSWORD=hunter2secret", timeout=5)
         assert info.value.cmd == ["ssh", "-o", "ProxyJump=vps2", "vps", "<command redacted>"]
         assert "hunter2secret" not in str(info.value)
+
+
+class TestEmptyStderrAndScpOptions:
+    """W-894fdc5f: scp reads a local path starting with `-` as an option without `--`; an empty
+    stderr read as a dangling `failed (rc=N): `."""
+
+    def test_scp_ends_options_before_the_local_path(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            scp_to_vps("-oProxyCommand=x", "/opt/b")
+        assert mock_run.call_args[0][0] == ["scp", "--", "-oProxyCommand=x", "vps:/opt/b"]
+
+    @pytest.mark.parametrize("call", ["ssh", "scp"])
+    def test_an_empty_stderr_says_so(self, call, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="  ")
+            with pytest.raises(RuntimeError, match=r"failed \(rc=255\): no stderr$"):
+                ssh("true") if call == "ssh" else scp_to_vps("/a", "/b")

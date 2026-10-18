@@ -21,9 +21,9 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 
 | File | Lines | Used during deploy for | Shape gate |
 |---|---:|---|---|
-| `ssh.py` | 268 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`, refused with `SshHostError` unless `is_alias()` — `[user@]host`, the jump-hop grammar without the port); `jump_args(host)` adds `-o ProxyJump=` when `FABRIK_SSH_JUMP_<ALIAS>` is set (`docs/CONFIGURATION.md` § SSH jump) | always |
+| `ssh.py` | 269 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`, refused with `SshHostError` unless `is_alias()` — `[user@]host`, the jump-hop grammar without the port); `jump_args(host)` adds `-o ProxyJump=` when `FABRIK_SSH_JUMP_<ALIAS>` is set (`docs/CONFIGURATION.md` § SSH jump) | always |
 | `locks.py` | 165 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
-| `dns.py` | 719 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
+| `dns.py` | 763 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning; its SSH proxy sends the API key and the body to the remote curl as a `-K -` config on stdin, never in an argv | always when `domain` set |
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
 | `postgres.py` | 1380 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, `create_payments_ingest_role()` (scoped NON-BYPASSRLS cross-tenant ingest role → `PAYMENTS_INGEST_DATABASE_URL`), allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` / `shape.needs_payments_ingest` |
 | `gatus.py` | 398 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
