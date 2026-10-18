@@ -4,9 +4,10 @@
 (`make dev`) on any host that is not the container died with `PermissionError: '/app'` before
 the first line of the worker ran. The heartbeat now lives in the project's own `.tmp/` next to the
 `worker/` package — `/app/.tmp/worker_heartbeat` inside the image (WORKDIR /app, COPY . .), the
-path the `templates/file-worker/*.j2` healthchecks read (rendered by `template_renderer.py`; a
-`fabrik scaffold` project ships a `pgrep` healthcheck instead) — and the directory is made when the
-first beat is written, never at import.
+path every file-worker healthcheck reads (the `templates/file-worker/*.j2` ones `template_renderer.py`
+renders and a `fabrik scaffold` project's, all `scaffold.FILE_WORKER_HEARTBEAT_CHECK` —
+tests/test_file_worker_heartbeat_healthcheck.py) — and the directory is made when the first beat is
+written, never at import.
 
 A scaffolded project's real `worker/main.py` is imported in a subprocess (dummy credentials, no
 network: the Supabase and S3 clients are only constructed at import).

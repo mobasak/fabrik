@@ -998,6 +998,18 @@ def _logger_py_content(name: str, package_name: str) -> str:
     )
 
 
+# The file-worker liveness check, the `python -c` code every file-worker healthcheck runs (this scaffold's
+# Dockerfile and compose, and the literal copy in templates/file-worker/{Dockerfile,compose.yaml}.j2 —
+# tests/test_file_worker_heartbeat_healthcheck.py holds the four equal). worker/main.py touches the heartbeat
+# every POLL_INTERVAL; healthy only when it was written in the last 120 s and not in the future. Never pgrep
+# (the slim image has no procps) and never `find -mmin` (it exits 0 on a stale file). No `$`: compose
+# interpolates it inside an exec-form `test:` list.
+FILE_WORKER_HEARTBEAT_CHECK = (
+    "import os,sys,time; p='/app/.tmp/worker_heartbeat'; "
+    "sys.exit(0 if os.path.exists(p) and 0 <= time.time() - os.path.getmtime(p) < 120 else 1)"
+)
+
+
 def _write_canonical_compose(
     project_dir: Path,
     name: str,
@@ -1008,8 +1020,7 @@ def _write_canonical_compose(
     with_traefik: bool = True,
     extra_labels: tuple[str, ...] = (),
     extra_env_lines: tuple[str, ...] = (),
-    healthcheck_kind: str = "http",  # "http" | "tcp" | "process:<pattern>"
-    process_pattern: str | None = None,
+    healthcheck_kind: str = "http",  # "http" | "tcp" | "heartbeat"
     memory: str = "512M",
     cpus: str = "0.5",
 ) -> None:
@@ -1032,7 +1043,7 @@ def _write_canonical_compose(
        label once reached Traefik verbatim, and a literal keeps the router
        port equal to the healthcheck's.
     5. Healthcheck shaped to the workload (HTTP for web services,
-       process probe for workers).
+       heartbeat age for workers).
 
     Args:
         project_dir: Project root; ``compose.yaml`` is written at the top.
@@ -1051,8 +1062,8 @@ def _write_canonical_compose(
         extra_env_lines: Additional ``- KEY=VALUE`` env entries appended
             verbatim under ``environment:``.
         healthcheck_kind: ``"http"`` (default), ``"tcp"``, or
-            ``"process"`` to use ``pgrep -f <process_pattern>``.
-        process_pattern: Pattern for the ``process`` healthcheck kind.
+            ``"heartbeat"`` to run ``FILE_WORKER_HEARTBEAT_CHECK`` (the file-worker's
+            heartbeat age). There is no pgrep kind: no image this scaffold emits has procps.
 
     Existing files are overwritten — type-specific scaffolders that
     historically wrote their own broken compose should call this last.
@@ -1063,10 +1074,8 @@ def _write_canonical_compose(
         hc_test = f'["CMD", "curl", "-f", "http://localhost:{port}{healthcheck_path}"]'
     elif healthcheck_kind == "tcp":
         hc_test = f'["CMD-SHELL", "(echo > /dev/tcp/localhost/{port}) >/dev/null 2>&1 || exit 1"]'
-    elif healthcheck_kind == "process":
-        if not process_pattern:
-            raise ValueError("process_pattern is required for healthcheck_kind='process'")
-        hc_test = f'["CMD-SHELL", "pgrep -f \\"{process_pattern}\\" || exit 1"]'
+    elif healthcheck_kind == "heartbeat":
+        hc_test = json.dumps(["CMD", "python", "-c", FILE_WORKER_HEARTBEAT_CHECK])
     else:
         raise ValueError(f"Unknown healthcheck_kind: {healthcheck_kind!r}")
 
@@ -4251,7 +4260,7 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
     ``compose config`` refuses a required one that is absent — W-6f690b90): the owner file is what carries
     ``DATABASE_URL_OWNER`` since the owner split (D-754) — compose ``environment:`` never
     holds it and the project ``.env`` no longer does. The image's
-    HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler replaces it with a
+    HEALTHCHECK probes the APP (HTTP or its worker's heartbeat), so the scheduler replaces it with a
     liveness probe (``kill -0 1``). Never ``disable: true``: ``compose up --wait`` fails a service
     whose healthcheck is disabled ("has no healthcheck configured"), measured on compose 2.40.3.
     """
@@ -4995,14 +5004,25 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             else:
                 new_lines.append(line)
         content = "".join(new_lines)
-        # Replace HEALTHCHECK to check process instead of HTTP
-        content = re.sub(
+        # The worker serves no HTTP: its HEALTHCHECK reads the heartbeat age instead (exec form, so the
+        # CMD must be a JSON list — anything else Docker runs through /bin/sh, never healthy). A callable
+        # replacement keeps re's template escapes out of the JSON; a template whose HEALTHCHECK drifted
+        # is refused, not shipped with the curl /health check a worker can never pass.
+        healthcheck = (
+            "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \\\n"
+            "    CMD " + json.dumps(["python", "-c", FILE_WORKER_HEARTBEAT_CHECK])
+        )
+        content, replaced = re.subn(
             r"HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\\n"
             r"    CMD curl -f http://localhost:\$\{PORT:-8000\}/health \|\| exit 1",
-            "HEALTHCHECK --interval=30s --timeout=5s --retries=3 \\\n"
-            '    CMD pgrep -f "python worker/main.py" || exit 1',
+            lambda _m: healthcheck,
             content,
         )
+        if replaced != 1:
+            raise ValueError(
+                f"{dockerfile_src}: expected one HTTP HEALTHCHECK to replace with the worker heartbeat "
+                f"check, found {replaced}"
+            )
         # Replace PYTHONPATH
         content = content.replace("ENV PYTHONPATH=/app/src", "ENV PYTHONPATH=/app")
         (project_dir / "Dockerfile").write_text(content)
@@ -5101,14 +5121,13 @@ SERVICE_NAME={name}
 
     # B20: Worker-style compose. file-worker has no HTTP surface, so no
     # Traefik labels — Coolify still manages the container via the
-    # ``fabrik`` network. Healthcheck probes the worker process by
-    # name (``python worker/main.py``) instead of HTTP.
+    # ``fabrik`` network. Healthcheck reads the worker's heartbeat age
+    # (FILE_WORKER_HEARTBEAT_CHECK), the same check the Dockerfile runs.
     _write_canonical_compose(
         project_dir,
         name,
         with_traefik=False,
-        healthcheck_kind="process",
-        process_pattern="python worker/main.py",
+        healthcheck_kind="heartbeat",
         port=8000,  # unused but required by signature
     )
 
