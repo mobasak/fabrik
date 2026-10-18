@@ -450,3 +450,62 @@ def test_a_commit_of_already_staged_content_is_not_served_from_the_cache(tmp_pat
 
     # and the memo still answers with the NEW HEAD
     assert mod._head_source(f)[0] == b"B\n", "served the pre-commit bytes from the cache"
+
+
+_STUB_MANIFEST = '''"""A stub hub manifest: every name the sync imports, an empty synced set."""
+AGENT_HOOK_FILES = ()
+CORE_SCRIPTS = ()
+GOVERNANCE_DIRS = ()
+GOVERNANCE_FILES = ()
+GOVERNANCE_TEMPLATES = ()
+REFERENCE_DOCS = ()
+RETIRED_CORE_SCRIPTS = ()
+RETIRED_GOVERNANCE_FILES = ()
+RUN_SCRIPTS = ()
+RUN_SCRIPTS_SRC_DIR = "scripts/run"
+SEED_IF_MISSING = ()
+VENDORED_DIRS = ()
+
+
+def iter_synced_pairs(*_a, **_k):
+    return iter(())
+
+
+def worktreeinclude_text():
+    return ""
+
+
+def gitignore_block_text():
+    return (
+        "# ==========\\n# Fabrik-synced files BLOCK-MARK\\n"
+        "# End Fabrik-synced block\\n# ==========\\n"
+    )
+'''
+
+
+def test_the_gitignore_block_ships_from_heads_manifest_not_the_working_tree(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """W-8c57e84a: the sync read files out of HEAD (T12.17) but COMPUTED the `.gitignore` block —
+    and took every synced list — from the imported WORKING-TREE manifest, so a sibling's uncommitted
+    manifest edit patched ~46 repos with no drift line. `main()` now binds the manifest from HEAD and
+    names a drifted manifest in the drift report, the contract every copied file already has."""
+    mod, hub_root, _committed, _untracked = hub
+    manifest = hub_root / "scripts" / "fabrik_synced_manifest.py"
+    manifest.write_text(_STUB_MANIFEST.replace("BLOCK-MARK", "HEAD-BLOCK"), encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "manifest"], check=True)
+    manifest.write_text(_STUB_MANIFEST.replace("BLOCK-MARK", "TREE-BLOCK"), encoding="utf-8")
+    opt = tmp_path / "opt"
+    project = opt / "proj"
+    project.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".gitignore").write_text(".env\n.venv/\n__pycache__/\n", encoding="utf-8")
+    monkeypatch.setattr(mod, "OPT_ROOT", opt)
+    monkeypatch.setattr(sys, "argv", ["sync"])
+    mod.main()
+    out = capsys.readouterr().out
+    written = (project / ".gitignore").read_text(encoding="utf-8")
+    assert "HEAD-BLOCK" in written, written
+    assert "TREE-BLOCK" not in written, written
+    assert "scripts/fabrik_synced_manifest.py" in out, out  # the drift line names the manifest

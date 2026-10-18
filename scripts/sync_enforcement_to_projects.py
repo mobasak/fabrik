@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -1855,6 +1856,49 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     return data, mode
 
 
+# Every name imported from the manifest at the top of this module, rebound from HEAD by `main()`.
+_MANIFEST_NAMES = (
+    "AGENT_HOOK_FILES",
+    "CORE_SCRIPTS",
+    "GOVERNANCE_DIRS",
+    "GOVERNANCE_FILES",
+    "GOVERNANCE_TEMPLATES",
+    "REFERENCE_DOCS",
+    "RETIRED_CORE_SCRIPTS",
+    "RETIRED_GOVERNANCE_FILES",
+    "RUN_SCRIPTS",
+    "RUN_SCRIPTS_SRC_DIR",
+    "SEED_IF_MISSING",
+    "VENDORED_DIRS",
+    "gitignore_block_text",
+    "iter_synced_pairs",
+    "worktreeinclude_text",
+)
+
+
+def _bind_manifest_from_head() -> None:
+    """Rebind every manifest name this module uses from the hub's COMMITTED manifest (W-8c57e84a).
+
+    `_head_source` keeps the files the sync COPIES to HEAD's bytes (T12.17), but what it copies —
+    every synced list — and the `.gitignore` block it COMPUTES came from the manifest imported at
+    module load, i.e. the WORKING TREE: a sibling's uncommitted manifest edit patched ~46 repos'
+    `.gitignore` with no drift line (the manifest is never itself a synced file, so no HEAD check
+    ran on it). Reading it through `_head_source` gives it the copied files' contract: HEAD's bytes
+    ship, and a drifted manifest is recorded in `_head_drift` and named in the run's report.
+
+    An untracked manifest, or a hub git cannot read, has no HEAD to bind from; the imported working
+    tree stays, as `_head_source` does for any untracked file. All fifteen names are read inside
+    functions, never at module level, so rebinding them here reaches every use.
+    """
+    path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+    head = _head_source(path)
+    if head is None:
+        return
+    committed = types.ModuleType("fabrik_synced_manifest_at_head")
+    exec(compile(head[0], str(path), "exec"), committed.__dict__)  # noqa: S102 — the hub's own file
+    globals().update({name: getattr(committed, name) for name in _MANIFEST_NAMES})
+
+
 def _shipped_hash(source: Path) -> str:
     """The hash of the bytes this sync will actually WRITE — not of the source on disk.
 
@@ -2639,6 +2683,7 @@ def main() -> int:
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
+    _bind_manifest_from_head()  # what ships and the .gitignore block come from HEAD (W-8c57e84a)
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
     # this run's final summary line.
