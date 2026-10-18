@@ -180,7 +180,7 @@ commit also carries phase 5's ledgers, so nothing is committed before phase 5. E
 and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
 by its named assertion; every guard and threshold edge the change adds is mutated. Never run a formatter by hand beyond the declared paths. The gate helpers a new call shape must satisfy are read
 first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
-comment, and a probe worktree carries the built dist a test reads at import. A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there; before phase 4, MEASURE's test slice re-runs on the built tree.
+comment, and a probe worktree carries the built dist a test reads at import. A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there; before phase 4, MEASURE's test slice re-runs on the built tree, and so does its population measurement when the change adds or widens a check or guard.
 
 ## Phase 4 — REVIEW
 

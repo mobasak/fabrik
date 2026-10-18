@@ -121,7 +121,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-1012 (kaizen, 2026-10-18): 24209 -> 24260 — supersedes D-1011's replay outcomes: a replay on a copy carrying
 # the state that does not fail as claimed is a finding, one whose copy cannot carry it is unverified; the phase-2
 # seat's claim is executed and holding (review round 2 on rows 1792348018, 1792339442).
-SIZE_CAP = 24260
+# D-1021 (kaizen, 2026-10-19): 24260 -> 24348 — BUILD re-runs MEASURE's population measurement on the built tree
+# when the change adds or widens a check or guard (row 1792352977, a recurrence of held resweep-corpus-on-widened-guard).
+SIZE_CAP = 24348
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

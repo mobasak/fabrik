@@ -354,3 +354,12 @@ def test_a_phase_2_critique_naming_an_unsettled_second_approach_is_the_upgrade_c
         "A second approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed and holding, is the § UPGRADE crossing `tradeoffs`, taken here before"
         " `--design`, never folded in as ACCEPTED."
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_build_re_runs_the_population_measurement_for_a_changed_check_or_guard() -> None:
+    """Row 1792352977 (a recurrence of held resweep-corpus-on-widened-guard): MEASURE's population was measured only
+    at design time, so a check widened by the build shipped with a fire rate nobody re-measured on what ships."""
+    assert (
+        "before phase 4, MEASURE's test slice re-runs on the built tree, and so does its population measurement when the"
+        " change adds or widens a check or guard."
+    ) in _norm(SRC)
