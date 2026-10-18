@@ -19,7 +19,7 @@ Depends: T01
 Parallel: ⛓️
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_external_services_inventory.py tests/test_quota_dashboard_page_layer.py tests/test_quota_dashboard_ui_kit.py -q -rs
-Docs: none (the subsystem docs are updated in T03 and T04)
+Docs: `CHANGELOG.md` (this ticket's `### Added|Changed|Fixed` entry atop `[Unreleased]`); `INDEX.md` (a row for `scripts/sysadmin/dashboard_ui/inventory.py` and one for `tests/external_services_fixture.py`); the subsystem docs are updated in T03 and T04
 
 ## Touches
 - scripts/sysadmin/dashboard_ui/inventory.py — NEW, PRIMARY PATH

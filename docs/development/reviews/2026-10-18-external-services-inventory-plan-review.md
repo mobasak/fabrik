@@ -72,3 +72,16 @@
 | F8-1 | 8 | T04 — argparse's exit line read as the failure's class | FIXED r8 (the stderr site deleted: every outcome is one JSON object on stdout, `--deadline` read by hand under `except BaseException`) |
 
 **Carried to /fabrik-execute-plan (T04 builder notes, recorded at pass 9, not defects):** the spawn passes the READ's deadline (the spawning request's arrival + 4.5 s) as `--deadline`; and the board may harden its fresh-read test to `rows` a list of objects and `synced_at` a number or `null` (a child keeping its contract cannot produce another shape — `inventory.load()` returns a list).
+
+## Plan approval (Opus + Fable panel, D-613/D-330)
+
+Two `fabrik-reviewer` seats, one `opus` and one `fable`, the same brief, neither shown the other's answer, over the set pinned at `6bc13faa1`. **Both: APPROVE-WITH-CHANGES.** Both named the same change; the Fable seat named one more. Both were folded and the plan is approved as amended (D-971).
+
+| # | Seat | Change | Disposition |
+|---|---|---|---|
+| P-1 | opus + fable | `CHANGELOG.md` and `INDEX.md` (spec § Documentation landing sites, `docs/superpowers/specs/2026-10-18-external-services-page-design.md:445`, :452) were owned by no ticket; `check_doc_sync.py` refuses a code commit without its CHANGELOG entry | FOLDED — every ticket's Docs line names its CHANGELOG entry and its INDEX rows; the spine's shared-tree constraint stages those two ledgers in each ticket's commit outside File Scope (the opus seat's point: `check_plan_tickets.py:532-533` keeps shared-append files out of the lock, so File Scope stays as it is) |
+| P-2 | fable | T03 row 1 said "only https provider hrefs" where the spec says `https?` (spec :354) | FOLDED — `https?` |
+
+Not changes, both seats: no design question left open (the 4,000 px measurement and the static file's retirement owner are owned by the build); the two carried builder notes stand as notes. Fable's builder note (T02's day-granularity `credit_cell` age may change the data-stamp across a day boundary, which row 8's one-minute window cannot reach) is carried with them.
+
+Set md5 after the folds: `3696940323d10f75cb4df83616c64247` (was `f771705a99c6fb7f7834a3506c629468` at the CONVERGED flip). `check_plan_tickets` 0 findings; `check_citations_resolve` 132 of 132 graded cites land across the five files.

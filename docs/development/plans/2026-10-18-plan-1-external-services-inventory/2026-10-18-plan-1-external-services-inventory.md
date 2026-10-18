@@ -135,7 +135,7 @@ would spread that invariant across tickets that must merge together anyway.
 
 ### T03 — from `T03-static-file.md`
 
-- **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only https provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)
+- **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only `https?` provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)
 - **Given** a fake connection that records close, **When** _read runs and when inventory.load raises, **Then** the connection is closed on both paths (scripts/gen_dashboard.py:121)
 - **Given** a fixture registry, **When** the static file is written, **Then** each of today's ten stat values, ten columns and the footer legend appears at the home the spec maps it to (spec § The design item 2; spec § Validation)
 - **Given** a dead registry or a render that raises, **When** main runs, **Then** it prints the one typed line, exits 1 and leaves the previous file unchanged (spec § Failure; scripts/gen_dashboard.py:308)
@@ -172,7 +172,10 @@ would spread that invariant across tickets that must merge together anyway.
   today's launcher and the generator's PID-named tmp file · VI no per-viewer session state · II no shelled-out binary is
   added · IX/XII/X/V no worker, migration, backing service or container exists here.
 - Shared tree: commit by explicit pathspec with Agent Provenance Trailers; never stage a sibling's WIP; never edit the main
-  checkout.
+  checkout. The Doc Sync ledgers a ticket's Docs line names (`CHANGELOG.md`, `INDEX.md`) are staged in that ticket's
+  commit although they sit outside File Scope: they are shared-append files no plan lock holds
+  (`scripts/enforcement/check_plan_tickets.py:532-533`), and `check_doc_sync.py` refuses a code commit without its
+  CHANGELOG entry.
 
 ## Constraints Digest
 

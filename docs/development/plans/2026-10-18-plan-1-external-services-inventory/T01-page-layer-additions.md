@@ -22,7 +22,7 @@ Depends: —
 Parallel: ⚡
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py tests/test_quota_dashboard_page_layer.py -q -rs
-Docs: none (the subsystem doc is updated once, in T04)
+Docs: `CHANGELOG.md` (this ticket's `### Added|Changed|Fixed` entry atop `[Unreleased]`); the subsystem doc is updated once, in T04
 
 ## Touches
 - scripts/sysadmin/dashboard_ui/components.py — PRIMARY PATH: `select()`, `table(align=)`, `status_text()`

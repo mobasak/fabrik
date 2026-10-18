@@ -16,7 +16,7 @@ Depends: T02
 Parallel: ⛓️
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_external_services_chain.py scripts/tests/test_registry_sync.py -q -rs
-Docs: `docs/reference/external-services-registry.md` (the chain table, the dashboard paragraph at :17, the run commands at :61, the architecture line at :67); the generated capability catalogue is regenerated in T04
+Docs: `CHANGELOG.md` (this ticket's `### Added|Changed|Fixed` entry atop `[Unreleased]`); `INDEX.md` (the `scripts/gen_dashboard.py` bullet re-worded, the `scripts/dashboard_server.py` bullet removed, the `tests/test_external_services_chain.py` row's test count re-counted from pytest's own collected total); `docs/reference/external-services-registry.md` (the chain table, the dashboard paragraph at :17, the run commands at :61, the architecture line at :67); the generated capability catalogue is regenerated in T04
 
 ## Touches
 - scripts/gen_dashboard.py — PRIMARY PATH
@@ -38,7 +38,7 @@ Docs: `docs/reference/external-services-registry.md` (the chain table, the dashb
   :2419-2420), converting the balance to `float` and the datetimes to epoch seconds before delegating to `inventory.credit_cell`; `gen_dashboard.STALE_AFTER_H` re-exported.
 
 ## Behavior Contract
-- **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only https provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)
+- **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only `https?` provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)
 - **Given** a fake connection that records close, **When** _read runs and when inventory.load raises, **Then** the connection is closed on both paths (scripts/gen_dashboard.py:121)
 - **Given** a fixture registry, **When** the static file is written, **Then** each of today's ten stat values, ten columns and the footer legend appears at the home the spec maps it to (spec § The design item 2; spec § Validation)
 - **Given** a dead registry or a render that raises, **When** main runs, **Then** it prints the one typed line, exits 1 and leaves the previous file unchanged (spec § Failure; scripts/gen_dashboard.py:308)
