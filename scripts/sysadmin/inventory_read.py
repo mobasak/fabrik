@@ -72,6 +72,9 @@ def _read(argv):
 
     conn = registry_db.connect(connect_timeout=2, options="-c statement_timeout=2000")
     try:
+        # One snapshot for `load()`'s six statements: under READ COMMITTED a read straddling
+        # registry_sync's one-transaction commit mixed pre-sync rows with the post-sync `synced_at`.
+        conn.set_session(isolation_level="REPEATABLE READ", readonly=True)
         rows, synced_at = inventory.load(conn, before_query=rearm)
     finally:
         conn.close()
