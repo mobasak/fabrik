@@ -1210,16 +1210,19 @@ def test_a_write_verb_on_a_corrupt_branch_copy_never_advises_a_merge(tmp_path):
         ["drop", "{id}", "--why", "x"],
         ["answer", "{id}", "--note", "x"],
         ["verdict", "{id}", "accept"],
+        ["drop", "{local}", "--duplicate-of", "{id}"],
     ],
 )
 def test_every_write_verb_names_the_merge_a_main_store_item_needs(tmp_path, argv):
-    """Review pass 1: only `done` was covered; each write verb's first id check carries the hint."""
+    """Review passes 1-2: only `done` was covered; each write verb's first id check carries the
+    hint — `drop --duplicate-of` too, for a KEEP id only the main store holds."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
     _commit_store(repo, env)
     wt = _worktree(repo, env)
     item = _add(repo, env)
-    r = run([a.format(id=item) for a in argv], env, wt)
+    local = _add(wt, env, "a branch item")
+    r = run([a.format(id=item, local=local) for a in argv], env, wt)
     assert r.returncode != 0, r.stderr
     assert "merge its branch into this one" in r.stderr, r.stderr
 
