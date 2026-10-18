@@ -15,7 +15,7 @@
   },
   "next": "set FABRIK_HEADLESS on the spawn (or declare it with a reason), red-first on the guard test",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on master, headless spawner unguarded",
   "status": "open",

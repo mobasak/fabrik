@@ -15,7 +15,7 @@
   },
   "next": "decide whether --sweep should exit non-zero (or log loudly) when either module failed to import; weekly_catchup's test cannot tell a no-op sweep from a real one (review U-O2, 2026-10-05)",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — false green exit 0 on failed import",
   "status": "open",
