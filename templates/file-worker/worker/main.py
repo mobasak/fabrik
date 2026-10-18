@@ -22,9 +22,18 @@ from worker.logger import get_logger
 
 log = get_logger(__name__)
 
-# Heartbeat file for Docker HEALTHCHECK
-HEARTBEAT_FILE = Path("/app/.tmp/worker_heartbeat")
-HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+# Heartbeat file for the Dockerfile.j2/compose.yaml.j2 healthchecks: the project's own .tmp/ beside the
+# worker/ package — /app/.tmp/worker_heartbeat in the image (WORKDIR /app, COPY . .), the checkout's
+# .tmp/ in dev.
+# Nothing is created at import: _beat() makes the directory on the first heartbeat.
+HEARTBEAT_FILE = Path(__file__).resolve().parent.parent / ".tmp" / "worker_heartbeat"
+
+
+def _beat() -> None:
+    """Refresh the heartbeat the Dockerfile.j2/compose.yaml.j2 healthchecks read."""
+    HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    HEARTBEAT_FILE.touch()
+
 
 # Config
 WORKER_ID = os.getenv("WORKER_ID", "worker-1")
@@ -267,7 +276,7 @@ def main():
 
         while not shutdown_requested:
             # Update heartbeat for Docker HEALTHCHECK
-            HEARTBEAT_FILE.touch()
+            _beat()
 
             # Clean up completed futures
             done = [f for f in futures if f.done()]

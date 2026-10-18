@@ -45,6 +45,14 @@ a noise rule probed against its live population, with a `(round k)` class-rewrit
 the rewrite is the foundation error. Answers /fabrik-review row 1792289039; pinned in
 `tests/test_review_queue_pass.py`.
 
+### Fixed — file-worker template runs outside a container (2026-10-18)
+
+- `templates/file-worker/worker/main.py` created `/app/.tmp` when imported, so `python -m worker.main` on a dev
+  host died with `PermissionError: '/app'` before the worker ran. The heartbeat is now the project's own `.tmp/`
+  beside `worker/` (still `/app/.tmp/worker_heartbeat` in the image the `.j2` Dockerfile builds), and `_beat()`
+  makes the directory on each heartbeat instead of at import (W-2a2c5a08). A scaffolded project's `pgrep`
+  healthcheck, which never reads the heartbeat, is a separate item (W-0bf1a37b).
+
 ### Fixed — saas-skeleton chat route no longer lets the browser set the model's system prompt (2026-10-18)
 
 - `templates/saas-skeleton/app/api/chat/route.ts` read `systemPrompt` from the request body and sent it as the
