@@ -227,3 +227,18 @@ class TestRequestViaSsh:
                 client._request_via_ssh("GET", "http://x/y")
         assert self.KEY not in str(info.value) and "hunter2secret" not in str(info.value)
         assert "non-JSON" in str(info.value)
+
+    @pytest.mark.parametrize("offset", [185, 190, 199])
+    def test_a_key_straddling_the_cut_leaks_no_prefix(self, offset, monkeypatch):
+        """Review pass 2 (C2-1): cleaning after the 200-character cut left a straddling key's
+        prefix unmasked."""
+        from unittest.mock import MagicMock
+
+        client = self._client(monkeypatch)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0, stdout="x" * offset + self.KEY + "tail", stderr=""
+            )
+            with pytest.raises(RuntimeError) as info:
+                client._request_via_ssh("GET", "http://x/y")
+        assert self.KEY[:6] not in str(info.value)

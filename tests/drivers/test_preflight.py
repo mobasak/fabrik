@@ -648,3 +648,5 @@ class TestProbeReason:
         reason = self._reason(many + "Host key verification failed.\n")[2]
         assert reason.endswith("Host key verification failed")
         assert len(reason) <= 2 * preflight._REASON_MAX + 4
+        head = reason.split("; Host key verification failed")[0]
+        assert len(head) == preflight._REASON_MAX and head.endswith("…")  # a cut is marked (B2-1)

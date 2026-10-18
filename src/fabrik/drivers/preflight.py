@@ -382,7 +382,9 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
     reason = "; ".join(body)
     if len(reason) > _REASON_MAX:
         reason = "…" + reason[-_REASON_MAX:]
-    head = "; ".join(headline)[:_REASON_MAX]  # a banner has one headline; never let it grow
+    head = "; ".join(headline)  # a banner has one headline; never let it grow, and mark a cut
+    if len(head) > _REASON_MAX:
+        head = head[: _REASON_MAX - 1] + "…"
     # Nothing kept: the last line that says anything (a noise line, as before), else the exit
     # code — saying whether stderr was empty or held only `@`/`.` (it is not "no stderr" then).
     empty = "no stderr" if not (r.stderr or "").strip() else "stderr held no text"

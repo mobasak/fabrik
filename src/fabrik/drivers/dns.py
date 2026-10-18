@@ -226,7 +226,8 @@ class DNSClient:
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            msg = f"SSH proxy returned non-JSON: {self._clean(result.stdout[:200])}"
+            # masked BEFORE the cut: a key straddling character 200 would otherwise escape it
+            msg = f"SSH proxy returned non-JSON: {self._clean(result.stdout)[:200]}"
             raise RuntimeError(msg) from exc
 
     def _clean(self, text: str) -> str:
