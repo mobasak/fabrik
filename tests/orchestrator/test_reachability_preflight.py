@@ -101,3 +101,55 @@ def test_dry_run_probes_nothing():
     ):
         orch.deploy(Path("/tmp/unused.yaml"), dry_run=True)
     run.assert_not_called()
+
+
+def test_dead_spoke_target_fails_after_the_hub_answers():
+    orch = _orchestrator(target_vps="vps2")
+    answers = [
+        MagicMock(returncode=0, stdout="", stderr=""),
+        MagicMock(returncode=255, stdout="", stderr="ssh: connect to host vps2: No route to host"),
+    ]
+    with (
+        patch("subprocess.run", side_effect=answers) as run,
+        patch.object(orch, "_load_secrets") as secrets,
+    ):
+        ctx = orch.deploy(Path("/tmp/unused.yaml"))
+    assert ctx.state == DeploymentState.FAILED
+    assert ctx.error_step == "validation"
+    assert "'vps2'" in ctx.error and "No route to host" in ctx.error
+    assert "FABRIK_SSH_JUMP_VPS2=" in ctx.error
+    assert run.call_count == 2
+    secrets.assert_not_called()
+
+
+def test_dry_run_still_refuses_a_malformed_jump(monkeypatch):
+    monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "-oProxyCommand=x")
+    orch = _orchestrator()
+    with patch("subprocess.run") as run, patch.object(orch, "_load_secrets") as secrets:
+        ctx = orch.deploy(Path("/tmp/unused.yaml"), dry_run=True)
+    assert ctx.state == DeploymentState.FAILED
+    assert ctx.error_step == "validation"
+    assert "FABRIK_SSH_JUMP_VPS" in ctx.error
+    run.assert_not_called()
+    secrets.assert_not_called()
+
+
+def test_dns_step_never_falls_back_to_cloudflare_on_a_malformed_jump():
+    """`_provision_dns` falls back to Cloudflare on ANY DNS-manager error; a bad jump is config."""
+    from fabrik.drivers.ssh import JumpConfigError
+    from fabrik.orchestrator.context import DeploymentContext
+
+    orch = _orchestrator()
+    ctx = DeploymentContext(spec_path=Path("/tmp/unused.yaml"))
+    ctx.target_vps = "vps1"
+    spec = {"id": "demo", "name": "demo", "domain": "demo.example.com"}
+    with (
+        patch(
+            "fabrik.orchestrator.DNSClient.add_subdomain",
+            side_effect=JumpConfigError("FABRIK_SSH_JUMP_VPS='-x' is not a ProxyJump value"),
+        ),
+        patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
+    ):
+        with pytest.raises(JumpConfigError):
+            orch._provision_dns(ctx, spec)
+    cloudflare.assert_not_called()

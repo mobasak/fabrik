@@ -13,7 +13,7 @@ import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.drivers.preflight import HostUnreachableError, verify_host_reachable
-from fabrik.drivers.ssh import _ssh_host
+from fabrik.drivers.ssh import JumpConfigError, _ssh_host, jump_for
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
 from fabrik.orchestrator.exceptions import (
@@ -152,9 +152,9 @@ class DeploymentOrchestrator:
             _assert_error_webhook_colocated(spec, ctx.target_vps)
             # W-2b657bee: prove the ssh path(s) answer before anything touches the fleet,
             # so a dead path fails here in seconds, named, instead of hanging every
-            # later call (_pre_provision_db_for_boot is the first to ssh).
-            if not dry_run:
-                self._verify_reachable(ctx.target_vps)
+            # later call (_pre_provision_db_for_boot is the first to ssh). A dry run
+            # probes nothing but still refuses a malformed jump variable.
+            self._verify_reachable(ctx.target_vps, probe=not dry_run)
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
 
@@ -258,8 +258,10 @@ class DeploymentOrchestrator:
 
         return ctx
 
-    def _verify_reachable(self, target_vps: str) -> None:
+    def _verify_reachable(self, target_vps: str, probe: bool = True) -> None:
         """Probe the hub alias and, for a spoke, the target alias; dedup by alias.
+
+        ``probe=False`` (a dry run) runs no ssh and only checks each alias's jump variable.
 
         Raises:
             ValidationError: a path is dead or its jump variable is malformed — the
@@ -270,7 +272,12 @@ class DeploymentOrchestrator:
             hosts.append(_ssh_host())
         for host in dict.fromkeys(hosts):
             try:
-                verify_host_reachable(host)
+                if probe:
+                    verify_host_reachable(host)
+                else:
+                    jump_for(host)
+            except JumpConfigError as e:
+                raise ValidationError(f"SSH preflight: {e}", field="target_vps") from e
             except HostUnreachableError as e:
                 raise ValidationError(str(e), field="target_vps") from e
 
@@ -664,7 +671,8 @@ class DeploymentOrchestrator:
             ctx.add_resource("dns", domain, zone=base_domain)
             ctx.dns_record_id = domain
             logger.info("DNS record created: %s -> %s (via DNS Manager)", domain, vps_ip)
-        except ProvisioningError:
+        except (ProvisioningError, JumpConfigError):
+            # a malformed FABRIK_SSH_JUMP_<ALIAS> is config, never a reason to fall back
             raise
         except Exception as dns_err:
             logger.warning("DNS Manager failed (%s), trying Cloudflare...", dns_err)

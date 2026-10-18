@@ -164,6 +164,12 @@ class TestJump:
         mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="boom")
         with pytest.raises(RuntimeError, match="via jump 'vps2'"):
             ssh("true")
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="write failed: API_TOKEN=hunter2secret"
+        )
+        with pytest.raises(RuntimeError, match="via jump 'vps2'") as info:
+            scp_to_vps("/tmp/a", "/opt/b")
+        assert "hunter2secret" not in str(info.value)
         # another alias's variable never applies to this one
         monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps2")
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
@@ -190,19 +196,25 @@ class TestJump:
             "a,NONE",
             "vps2\n",
             "ssh://u@h:22",
+            "h:65536",
+            "h:99999",
+            "none:22",
+            "a,none:22",
         ],
     )
     @patch("subprocess.run")
     def test_invalid_jump_fails_closed(self, mock_run, value, monkeypatch):
         monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
         monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", value)
-        with pytest.raises(ValueError, match="FABRIK_SSH_JUMP_VPS"):
+        with pytest.raises(ssh_mod.JumpConfigError, match="FABRIK_SSH_JUMP_VPS"):
             ssh("true")
-        with pytest.raises(ValueError, match="FABRIK_SSH_JUMP_VPS"):
+        with pytest.raises(ssh_mod.JumpConfigError, match="FABRIK_SSH_JUMP_VPS"):
             scp_to_vps("/tmp/a", "/opt/b")
         mock_run.assert_not_called()
 
-    @pytest.mark.parametrize("value", ["vps2", "ozgur@96.9.214.128:2222", "a,b", "h.example.com"])
+    @pytest.mark.parametrize(
+        "value", ["vps2", "ozgur@96.9.214.128:2222", "a,b", "h.example.com", "h:65535", "h:1"]
+    )
     def test_valid_jump_values_accepted(self, value, monkeypatch):
         monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", value)
         assert ssh_mod.jump_args("vps") == ["-o", f"ProxyJump={value}"]

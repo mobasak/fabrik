@@ -67,8 +67,8 @@ def _ssh_host() -> str:
 
 
 JUMP_ENV_PREFIX = "FABRIK_SSH_JUMP_"
-"""Per-alias opt-in jump (W-2b657bee): ``FABRIK_SSH_JUMP_VPS=vps2`` routes every ssh/scp to
-the ``vps`` alias through ``vps2``. Unset, the argv is exactly what it was before. Never an
+"""Per-alias opt-in jump (W-2b657bee): ``FABRIK_SSH_JUMP_VPS=vps2`` routes ssh/scp to the
+``vps`` alias through ``vps2`` — here, in ``drivers/dns.py`` and in ``audit._ssh_check``. Unset, the argv is exactly what it was before. Never an
 automatic reroute: a dead path is named by ``preflight.verify_host_reachable`` instead.
 """
 
@@ -78,8 +78,26 @@ automatic reroute: a dead path is named by ``preflight.verify_host_reachable`` i
 # are IPv6 literals (name the hop by an alias) and ``none``, ProxyJump's disable keyword,
 # which would silently mean "direct" while every message said "via jump".
 _JUMP_HOP = re.compile(
-    r"(?:[A-Za-z0-9_][A-Za-z0-9_.-]*@)?[A-Za-z0-9_][A-Za-z0-9_.-]*(?::[1-9][0-9]{0,4})?"
+    r"(?:(?P<user>[A-Za-z0-9_][A-Za-z0-9_.-]*)@)?(?P<host>[A-Za-z0-9_][A-Za-z0-9_.-]*)"
+    r"(?::(?P<port>[1-9][0-9]{0,4}))?"
 )
+
+
+class JumpConfigError(ValueError):
+    """``FABRIK_SSH_JUMP_<ALIAS>`` holds a non-ProxyJump value. Its own type so a caller's
+    broad ``except Exception`` fallback (the orchestrator's DNS step) can let it through."""
+
+
+def parse_hop(hop: str) -> tuple[str | None, str, int | None] | None:
+    """Split one hop into ``(user, host, port)``, or ``None`` when it is outside the grammar
+    (host ``none`` — ProxyJump's disable keyword — and ports past 65535 included)."""
+    m = _JUMP_HOP.fullmatch(hop)
+    if not m or m["host"].lower() == "none":
+        return None
+    port = int(m["port"]) if m["port"] else None
+    if port is not None and port > 65535:
+        return None
+    return m["user"], m["host"], port
 
 
 def jump_env_name(host: str) -> str:
@@ -94,7 +112,7 @@ def jump_for(host: str) -> str | None:
     """Return the ProxyJump value set for *host*, or ``None`` (unset or empty).
 
     Raises:
-        ValueError: the variable is set to something outside the hop grammar. Fail
+        JumpConfigError: the variable is set to something outside the hop grammar. Fail
             closed: a typo must not silently fall back to the dead direct path.
     """
     name = jump_env_name(host)
@@ -102,23 +120,25 @@ def jump_for(host: str) -> str | None:
     if not value:
         return None
     hops = value.split(",")
-    if not all(_JUMP_HOP.fullmatch(h) and h.lower() != "none" for h in hops):
-        raise ValueError(
+    if not all(parse_hop(h) for h in hops):
+        raise JumpConfigError(
             f"{name}={value!r} is not a ProxyJump value: [user@]host[:port] hops, comma-"
-            "separated (no IPv6 literals — use an ssh alias; 'none' is refused)"
+            "separated, port 1-65535 (no IPv6 literals — use an ssh alias; 'none' is refused)"
         )
     return value
 
 
-def jump_args(host: str) -> list[str]:
-    """Return the ssh/scp options that route *host* through its jump — ``[]`` when none is set."""
-    jump = jump_for(host)
+def _jump_opts(jump: str | None) -> list[str]:
     return ["-o", f"ProxyJump={jump}"] if jump else []
 
 
-def _via(host: str) -> str:
+def jump_args(host: str) -> list[str]:
+    """Return the ssh/scp options that route *host* through its jump — ``[]`` when none is set."""
+    return _jump_opts(jump_for(host))
+
+
+def _via(jump: str | None) -> str:
     """`` via jump 'vps2'`` for a failure message, or ``""`` when no jump is set."""
-    jump = jump_for(host)
     return f" via jump {jump!r}" if jump else ""
 
 
@@ -140,7 +160,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         RuntimeError: SSH returned a non-zero exit code. Stderr is included
             in the exception message for quick diagnosis.
         subprocess.TimeoutExpired: The SSH call exceeded ``timeout`` seconds.
-        ValueError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
+        JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
 
     Example:
         >>> ssh("uname -m")  # doctest: +SKIP
@@ -151,10 +171,11 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         return ""
 
     host = _ssh_host()
+    jump = jump_for(host)  # read once: the argv and the error text name the same jump
     logger.debug("SSH %s: %s", host, _redact(cmd))
     try:
         result = subprocess.run(
-            ["ssh", *jump_args(host), host, cmd],
+            ["ssh", *_jump_opts(jump), host, cmd],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -174,7 +195,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # the debug line above redacts the command, but the error path shipped raw stderr,
         # forcing a mid-deploy credential rotation).
         raise RuntimeError(
-            f"SSH to {host!r}{_via(host)} failed (rc={result.returncode}): "
+            f"SSH to {host!r}{_via(jump)} failed (rc={result.returncode}): "
             f"{_redact(result.stderr.strip())}"
         )
     return result.stdout.strip()
@@ -197,7 +218,7 @@ def scp_to_vps(
     Raises:
         RuntimeError: ``scp`` returned a non-zero exit code.
         subprocess.TimeoutExpired: The copy exceeded ``timeout`` seconds.
-        ValueError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
+        JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
 
     Example:
         >>> scp_to_vps("/tmp/config.yml", "/opt/svc/config.yml")  # doctest: +SKIP
@@ -207,9 +228,10 @@ def scp_to_vps(
         return
 
     host = _ssh_host()
+    jump = jump_for(host)
     logger.debug("SCP %s -> %s:%s", local_path, host, remote_path)
     result = subprocess.run(
-        ["scp", *jump_args(host), local_path, f"{host}:{remote_path}"],
+        ["scp", *_jump_opts(jump), local_path, f"{host}:{remote_path}"],
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -217,5 +239,6 @@ def scp_to_vps(
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"SCP to {host!r}{_via(host)} failed (rc={result.returncode}): {result.stderr.strip()}"
+            f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
+            f"{_redact(result.stderr.strip())}"
         )

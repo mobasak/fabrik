@@ -43,7 +43,15 @@ import time
 
 import yaml
 
-from fabrik.drivers.ssh import _ssh_host, jump_env_name, jump_for, ssh
+from fabrik.drivers.ssh import (
+    JumpConfigError,
+    _ssh_host,
+    jump_args,
+    jump_env_name,
+    jump_for,
+    parse_hop,
+    ssh,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -319,11 +327,14 @@ class HostUnreachableError(RuntimeError):
 
 # stderr shapes of a NETWORK failure — only these earn the "set/check the jump" advice; a
 # host-key or auth failure (also rc 255) gets "run ssh <alias> true by hand" instead.
+# "connection closed" is deliberately absent: sshd also closes after an auth failure.
 _NETWORK_STDERR = re.compile(
-    r"timed out|banner exchange|connection refused|no route|unreachable|connection closed"
-    r"|could not resolve|name or service not known",
+    r"timed out|banner exchange|connection refused|connection reset|no route|unreachable"
+    r"|network is down|could not resolve|name or service not known",
     re.I,
 )
+# an ssh alias as fabrik names one; anything else (a leading "-") never reaches the argv
+_ALIAS = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]*")
 
 
 def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
@@ -338,6 +349,7 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
             argv,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=timeout + 5,
             stdin=subprocess.DEVNULL,
             check=False,
@@ -348,13 +360,23 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
         return False, False, f"{type(e).__name__}: {e}"
     if r.returncode == 0:
         return True, False, ""
-    lines = [ln for ln in (r.stderr or "").strip().splitlines() if ln.strip()]
-    reason = lines[-1].strip() if lines else f"rc={r.returncode}, no stderr"
-    return False, bool(_NETWORK_STDERR.search(r.stderr or "")), reason
+    lines = [ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()]
+    # the line that says WHY (a jumped refusal ends on a generic "Connection closed …")
+    cause = next((ln for ln in lines if _NETWORK_STDERR.search(ln)), None)
+    reason = (cause or (lines[-1] if lines else f"rc={r.returncode}, no stderr")).rstrip(".")
+    return False, cause is not None, reason
 
 
 def _batch(timeout: int) -> list[str]:
     return ["-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
+
+
+def _hop_destination(hop: str) -> str:
+    """``ssh://[user@]host[:port]`` — the one destination form ssh parses a port from."""
+    parsed = parse_hop(hop)
+    assert parsed is not None  # jump_for already refused anything else
+    user, host, port = parsed
+    return f"ssh://{user + '@' if user else ''}{host}{f':{port}' if port else ''}"
 
 
 def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
@@ -370,32 +392,52 @@ def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
         timeout: ``ConnectTimeout`` seconds; the outer bound is ``timeout + 5``.
 
     Raises:
-        HostUnreachableError: the path is dead, or the jump variable is malformed. The
-            message names the alias, the path tried, the dead leg, the reason and the fix.
+        HostUnreachableError: the path is dead, the alias is malformed, or the jump
+            variable is. The message names the alias, the path, the dead leg when a jump is
+            set, the reason and the next step.
     """
     host = host or _ssh_host()
+    if not _ALIAS.fullmatch(host):
+        raise HostUnreachableError(
+            f"SSH preflight: {host!r} is not an ssh alias (nothing was changed)"
+        )
     var = jump_env_name(host)
     try:
         jump = jump_for(host)
-    except ValueError as e:
-        raise HostUnreachableError(f"SSH preflight: {e}; nothing was changed") from None
+    except JumpConfigError as e:
+        raise HostUnreachableError(f"SSH preflight: {e} (nothing was changed)") from None
     path = f"via jump {jump!r}" if jump else "without a FABRIK jump (as ssh config resolves it)"
-    hop = ["-o", f"ProxyJump={jump}"] if jump else []
-    ok, network, reason = _probe(["ssh", *hop, *_batch(timeout), host, "true"], timeout)
+    ok, network, reason = _probe(["ssh", *jump_args(host), *_batch(timeout), host, "true"], timeout)
     if ok:
         if jump:
             _advise_if_direct_back(host, var)
         return
     head = f"SSH preflight: {host!r} is unreachable {path}: {reason}."
     if jump:
-        first = jump.split(",")[0]
-        first_ok, _, first_reason = _probe(["ssh", *_batch(timeout), first, "true"], timeout)
+        hops = jump.split(",")
+        first = hops[0]
+        first_ok, first_network, first_reason = _probe(
+            ["ssh", *_batch(timeout), _hop_destination(first), "true"], timeout
+        )
         if first_ok:
-            leg = f" The jump host {first!r} answers; the leg from it to {host!r} does not."
+            beyond = "a later hop or the leg to" if len(hops) > 1 else "the leg from it to"
+            tail = (
+                f" The jump host {first!r} answers; {beyond} {host!r} does not. Check that"
+                f" leg's network, or unset {var} if the direct path is back."
+                if network
+                else f" The jump host {first!r} answers. Run `ssh {host} true` by hand to see why."
+            )
+        elif first_network:
+            tail = (
+                f" The jump host {first!r} is unreachable too: {first_reason}. Check"
+                f" `ssh {first} true`, or unset {var} if the direct path is back."
+            )
         else:
-            leg = f" The jump host {first!r} is unreachable too: {first_reason}."
-        fix = f" Check `ssh {first} true`, or unset {var} if the direct path is back."
-        msg = head + leg + (fix if network or not first_ok else f" Run `ssh {host} true` by hand.")
+            tail = (
+                f" The jump host {first!r} fails: {first_reason}. Run `ssh {first} true` by"
+                " hand to see why."
+            )
+        msg = head + tail
     elif network:
         msg = head + (
             f" If another fleet host reaches it (e.g. over WireGuard), set {var}=<that alias>"

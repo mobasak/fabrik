@@ -357,6 +357,7 @@ class TestVerifyHostReachable:
         assert argv == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "vps", "true"]
         assert kwargs["timeout"] == 12
         assert kwargs["stdin"] is subprocess.DEVNULL
+        assert kwargs["errors"] == "replace"  # undecodable stderr never escapes as an error
         assert len(calls) == 1
 
     @pytest.mark.parametrize(
@@ -398,9 +399,11 @@ class TestVerifyHostReachable:
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
         assert calls[0][0][:3] == ["ssh", "-o", "ProxyJump=vps2"]
-        assert calls[1][0][-2:] == ["vps2", "true"]
-        assert "via jump 'vps2'" in str(info.value)
-        assert "'vps2' answers" in str(info.value)
+        assert calls[1][0][-2:] == ["ssh://vps2", "true"]
+        msg = str(info.value)
+        assert "via jump 'vps2'" in msg
+        assert "'vps2' answers; the leg from it to 'vps' does not" in msg
+        assert "Check that leg's network" in msg and "Check `ssh vps2 true`" not in msg
         # first hop dead too → the jump host is named
         run, _ = _probe([(255, "Connection timed out\n"), (255, "Connection refused\n")])
         with patch("subprocess.run", side_effect=run):
@@ -408,6 +411,54 @@ class TestVerifyHostReachable:
                 preflight.HostUnreachableError, match="jump host 'vps2' is unreachable"
             ):
                 preflight.verify_host_reachable("vps")
+
+    def test_first_hop_with_user_and_port_is_probed_as_an_ssh_uri(self, monkeypatch):
+        """`ssh … ops@vps2:2222 true` reads `vps2:2222` as the HOSTNAME; only ssh:// carries a port."""
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "ops@vps2:2222,b")
+        run, calls = _probe([(255, "Connection timed out\n"), 0])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert calls[1][0][-2:] == ["ssh://ops@vps2:2222", "true"]
+        assert "a later hop or the leg to 'vps' does not" in str(info.value)
+
+    def test_first_hop_auth_failure_gets_no_network_advice(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        run, _ = _probe([(255, "Connection timed out\n"), (255, "Host key verification failed.\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "The jump host 'vps2' fails: Host key verification failed." in msg
+        assert "Run `ssh vps2 true` by hand" in msg and "unset FABRIK_SSH_JUMP_VPS" not in msg
+        assert ".." not in msg
+
+    def test_reason_is_the_cause_line_and_reset_is_network_shaped(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "kex_exchange_identification: read: Connection reset by peer\n"
+            "Connection closed by 172.93.160.197 port 22\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "Connection reset by peer" in msg and "Connection closed" not in msg
+        assert "FABRIK_SSH_JUMP_VPS=" in msg
+        # an auth-side close alone is not network-shaped
+        run, _ = _probe([(255, "Connection closed by 172.93.160.197 port 22\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "FABRIK_SSH_JUMP_VPS=" not in str(info.value)
+
+    @pytest.mark.parametrize("alias", ["-oProxyCommand=x", "a b", "a;b"])
+    def test_non_alias_host_is_refused_before_any_probe(self, alias):
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(preflight.HostUnreachableError, match="not an ssh alias"):
+                preflight.verify_host_reachable(alias)
+            mock_run.assert_not_called()
 
     def test_invalid_jump_value_is_a_host_unreachable_error(self, monkeypatch):
         monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "-oProxyCommand=x")
