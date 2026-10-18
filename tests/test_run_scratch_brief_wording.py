@@ -40,12 +40,17 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     sentence; drop `seat-<n>`; drop `RUN-SCRATCH:`; drop 'never the session scratchpad root'; state it twice."""
     core = _norm(CORE)
     d8 = _section(
-        core, "**Every seat's brief carries the git-verb prohibition (D8):**", "<!-- POOL OFF (D-181, 2026-09-07)"
+        core,
+        "**Every seat's brief carries the git-verb prohibition (D8):**",
+        "<!-- POOL OFF (D-181, 2026-09-07)",
     )
     assert d8.count(RULE) == 1
     # the three consequences ride the same paragraph: nothing durable, the pins dir, the only staging
     assert "so nothing durable is written there (resume artifacts go to `SCRATCH:`)" in d8
-    assert "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead" in d8
+    assert (
+        "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead"
+        in d8
+    )
     assert (
         "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
         " under the run's durable `SCRATCH:` folder (D-836), as the partitioned review loops do so an interrupted"
@@ -63,7 +68,11 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
 def test_the_pin_paragraph_puts_the_pins_dir_under_the_run_scratch() -> None:
     """The pin command points at D8 for the pins dir's root, so the root and its review-loop exception are stated
     once (W-7bd671f6: a second statement here said `<run scratch>` while four review loops say `SCRATCH:`)."""
-    pin = _section(_norm(CORE), "**PIN the subject before you dispatch", "<!-- POOL OFF (D-181) — pool-grounder")
+    pin = _section(
+        _norm(CORE),
+        "**PIN the subject before you dispatch",
+        "<!-- POOL OFF (D-181) — pool-grounder",
+    )
     assert "--pins-dir <a NEW dir per pass>" in pin
     assert "the dir sits where the D8 paragraph puts the pins dir" in pin
     assert "<run scratch>" not in pin
@@ -83,8 +92,6 @@ def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
     assert "git -C <scratch> clone --shared --no-checkout" in iso
 
 
-
-
 def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> None:
     """Brief and report files go under `<run scratch>`; the durable salvage sentence keeps its scratchpad warning."""
     text = EXEC.read_text()
@@ -100,7 +107,10 @@ def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> Non
     )
     assert "<scratchpad>" not in text
     # kept as it was: durable state is never a scratchpad's (mail 01M4Y86A9R said so)
-    assert "(durable — a scratchpad is session-private and a resume may be a DIFFERENT session;" in norm
+    assert (
+        "(durable — a scratchpad is session-private and a resume may be a DIFFERENT session;"
+        in norm
+    )
 
 
 def test_the_d8_pointer_resolves_wherever_it_is_read() -> None:
@@ -109,6 +119,10 @@ def test_the_d8_pointer_resolves_wherever_it_is_read() -> None:
     for path in (CAT, EXEC):
         text = _norm(path)
         if path != CAT:
-            assert "{{include:subagents-core" not in path.read_text(), f"{path.name} now includes the fragment"
-        assert "§ Subagents, the D8 paragraph" not in text, f"{path.name} cites a section it does not render"
+            assert "{{include:subagents-core" not in path.read_text(), (
+                f"{path.name} now includes the fragment"
+            )
+        assert "§ Subagents, the D8 paragraph" not in text, (
+            f"{path.name} cites a section it does not render"
+        )
         assert "`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph" in text
