@@ -122,7 +122,9 @@ _ALLOWED_BASH = re.compile(
     # reads — proven on disk under `allow`. `grep` has no exec path and covers every held read.
     # `date` is off too: `date -s` sets the clock (root-gated here, not everywhere) — the very
     # clock the tick-staleness check reads. No checkpoint needs it.
-    r"|(cat|head|tail|grep|ls|wc|md5sum|readlink|echo|pwd|stat)\b)"
+    # …and each ends at a blank or the end, never at `\b`: `\b` holds before `-`, so `ls-evil` and
+    # `cat-evil` — any planted program on PATH — matched (W-945bf009 review, pass 1, executed)
+    r"|(cat|head|tail|grep|ls|wc|md5sum|readlink|echo|pwd|stat)(?=\s|$))"
 )
 # A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
 # hardening listed `&&` but never the single form: proven by execution (a held session's
@@ -153,9 +155,15 @@ _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$|`|\n|(?<!>)&(?!&)|[<>]\(")
 # ran one unknown word — and stripped, a `-C /opt/x<NBSP>log` prefix left a push (W-945bf009, both
 # design critiques, executed). Outside quotes only space, tab and newline are blanks.
 _NOT_A_BLANK = re.compile(r"[^\S \t\n]")
+# Unquoted BRACE EXPANSION turns one token into several before the command runs: `git push origin
+# {+,}master` is a FORCE push (`+master master`), `git add {.,}` a sweep — while shlex hands every
+# check one literal word (W-945bf009 review, pass 1, executed on base and new alike). Only the
+# expanding shapes, a `,` or `..` inside, are refused: `@{u}` and `HEAD^{tree}` stay git syntax.
+_BRACE_EXPANSION = re.compile(r"\{[^}\s]*(?:,|\.\.)[^}\s]*\}")
 # The RESOLVER (W-945bf009). A held session reads another checkout with `git -C <repo>`, goes back
-# to its own root with `cd <root> &&`, and gives `mail.py send` its body on stdin — the only way, a
-# file redirect being vetoed — and the start-anchored allow-list refused all three. Relaxing the
+# to its own root with `cd <root> &&`, and gives `mail.py send` a MULTI-LINE body on stdin — a
+# here-string carries one line (a quoted newline is the multi-line veto), a file redirect is vetoed
+# — and the start-anchored allow-list refused all three. Relaxing the
 # anchor alone re-opened a force push, so each prefix is STRIPPED here, by a grammar this file
 # owns, and every veto then judges what is left. A shape outside the grammar is left in place and
 # the anchored allow-list refuses it: every unknown fails CLOSED.
@@ -164,9 +172,13 @@ _NOT_A_BLANK = re.compile(r"[^\S \t\n]")
 #     another repo is a HARD STOP this hook cannot otherwise see).
 #   `cd <dir>`: only to the session's OWN repo root. The Bash tool's working directory persists
 #     between calls, so a `cd` anywhere else would carry the next, un-relocated `git commit` into
-#     another repo; a `cd` home is not a relocation and every rule applies as without it.
+#     another repo; a `cd` home is not a relocation and every rule applies as without it. The
+#     target is resolved as bash's LOGICAL `cd` does — `..` drops the previous component of the
+#     path as written, never of its symlink target — and must start with `/` or `.`, because bash
+#     searches CDPATH for any other relative name (W-945bf009 review, pass 1: through a symlinked
+#     component, the physical realpath named home while bash landed in another repo, executed).
 _REPO_DIR = r"/opt/[\w-][\w.-]*(?:/\.claude/worktrees/[\w-][\w.-]*)?/?"
-_CD_PREFIX = re.compile(r"^[ \t]*cd[ \t]+([\w./-]+)[ \t]*(?:&&|;)[ \t]*", re.ASCII)
+_CD_PREFIX = re.compile(r"^[ \t]*cd[ \t]+([/.][\w./-]*)[ \t]*(?:&&|;)[ \t]*", re.ASCII)
 _GIT_RELOCATE = re.compile(rf"^([ \t]*git)(?:[ \t]+-C[ \t]+{_REPO_DIR}(?=[ \t]))+", re.ASCII)
 _RELOCATED_WRITE = re.compile(r"^[ \t]*git[ \t]+(add|commit|push|fetch|reset)(?!-)\b", re.ASCII)
 # The one pipe: a body producer into `mail.py send`. Nothing else may pipe.
@@ -202,7 +214,7 @@ def _resolve(command: str, cwd: str | None) -> tuple[list[str], bool]:
     m = _CD_PREFIX.match(command)
     if m and cwd and (root := _own_root(cwd)) is not None:
         try:
-            if os.path.realpath(os.path.join(cwd, m.group(1))) == root:
+            if os.path.realpath(os.path.normpath(os.path.join(cwd, m.group(1)))) == root:
                 rest = command[m.end() :]
         except (OSError, ValueError):
             pass
@@ -233,7 +245,8 @@ def _segment_allowed(segment: str, pattern: re.Pattern[str]) -> bool:
 
 
 def _bash_allowed(command: str, cwd: str | None = None) -> bool:
-    if _NOT_A_BLANK.search(_mask_quoted(command)):
+    masked = _mask_quoted(command)
+    if _NOT_A_BLANK.search(masked) or _BRACE_EXPANSION.search(masked):
         return False
     segments, relocated = _resolve(command, cwd)
     if len(segments) == 2:

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the quota hold allows a read-only `git -C`, a `cd` home before a close and a piped `mail.py send`, and its veto no longer reads `-C` as git's verb (2026-10-18)
 
-- `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;`, every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Grader: `tests/test_quota_stop_verb_resolver.py`.
+- `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;` (resolved as bash's logical `cd`, target starting `/` or `.`), every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Two older holes in the same allow-list close with it: unquoted brace expansion (`git push origin {+,}master` was a force push, `git add {.,}` a sweep) and a read tool matched before a `-` (`ls-evil`). Grader: `tests/test_quota_stop_verb_resolver.py`.
 
 ### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
 

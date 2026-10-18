@@ -123,22 +123,113 @@ def test_a_cd_home_passes_and_a_cd_elsewhere_is_held(
     assert action[0] == expected, cmd
 
 
-def test_a_cd_is_held_when_the_payload_carries_no_cwd_or_no_repo(
+def _decide(cmd: str, cwd: Path | str) -> str:
+    return hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0, cwd=str(cwd))[0]
+
+
+def test_a_cd_is_never_stripped_without_an_absolute_cwd_inside_a_repo(
+    own_repo: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each case asserts the RESOLVER left the `cd` in place — a deny alone proves nothing, the
+    anchored allow-list refuses an unstripped `cd` anyway (review pass 1)."""
+    cmd = f"cd {own_repo} && python3 scripts/command_run.py line"
+    assert hook._resolve(cmd, None) == ([cmd], False)
+    bare = tmp_path_factory.mktemp("norepo")
+    assert hook._own_root(str(bare)) is None, "premise: no `.git` above the temp root"
+    assert hook._resolve(f"cd {bare} && git log", str(bare)) == ([f"cd {bare} && git log"], False)
+    # a RELATIVE cwd that would resolve into the repo from the hook's own working directory
+    monkeypatch.chdir(own_repo.parent)
+    assert hook._resolve(cmd, f"{own_repo.name}/scripts") == ([cmd], False)
+
+
+def test_a_linked_worktree_whose_dot_git_is_a_file_is_its_own_root(tmp_path: Path) -> None:
+    """A linked worktree's `.git` is a FILE, and hub sessions run in linked worktrees."""
+    (tmp_path / ".git").write_text("gitdir: /opt/x/.git/worktrees/w\n")
+    (tmp_path / "scripts").mkdir()
+    cmd = f"cd {tmp_path} && python3 scripts/command_run.py line"
+    assert _decide(cmd, tmp_path / "scripts") == "allow"
+
+
+def test_a_cwd_reached_through_a_symlink_finds_the_repo_it_points_into(
     own_repo: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
+    outside = tmp_path_factory.mktemp("outside")
+    (outside / "link").symlink_to(own_repo / "scripts")
     cmd = f"cd {own_repo} && python3 scripts/command_run.py line"
-    assert _action(cmd) == "deny"  # no cwd
-    bare = tmp_path_factory.mktemp("norepo")
-    assert (
-        hook.decide(
-            "Bash", f"cd {bare} && git log", stamp_exists=True, tick_age_s=10.0, cwd=str(bare)
-        )[0]
-        == "deny"
+    assert _decide(cmd, outside / "link") == "allow"
+
+
+def test_a_cd_is_resolved_logically_as_bash_does(tmp_path: Path) -> None:
+    """bash's `cd ..` drops the previous component of the path AS WRITTEN; the physical realpath
+    named the session's root while bash landed in another repo (review pass 1, executed twice)."""
+    root, other = tmp_path / "root", tmp_path / "other"
+    (root / ".git").mkdir(parents=True)
+    (other / ".git").mkdir(parents=True)
+    (other / "sub").mkdir()
+    (root / "link").symlink_to(other / "sub")
+    # the shell sits in root/link (physically other/sub): `cd ..` lands in ROOT, not in `other`
+    assert _decide("cd .. && git commit -m x -- f.py", root / "link") == "deny"
+    # …and from inside root, a symlinked component followed by `..` lands outside root
+    (root / "sub" / "nested" / ".git").mkdir(parents=True)
+    (root / "sub" / "nested" / "lnk2").symlink_to(root / "sub2")
+    (root / "sub2").mkdir()
+    assert _decide("cd nested/lnk2/.. && git commit -m x -- f.py", root / "sub") == "deny"
+    assert _decide("cd ./nested/lnk2/../.. && git log", root / "sub") == "deny"
+
+
+def test_a_relative_cd_name_bash_would_search_cdpath_for_is_held(own_repo: Path) -> None:
+    # `sub/../..` normalises to the root, but bash looks a name not starting `/` or `.` up in CDPATH
+    assert _decide("cd sub/../.. && git log", own_repo / "scripts") == "deny"
+    assert _decide("cd ./sub/../.. && git log", own_repo / "scripts") == "allow"
+
+
+@pytest.mark.parametrize(
+    "cmd, expected",
+    [
+        ("git push origin {+,}master", "deny"),
+        ("git push origin {:,}master", "deny"),
+        ("git add {.,}", "deny"),
+        ("git add -- a{1..3}.py", "deny"),
+        ('git push origin {"+",}master', "deny"),
+        ("git log --oneline @{u}..HEAD", "allow"),
+        ("git rev-parse HEAD^{tree}", "allow"),
+        ("git commit -m 'a {x,y}' -- f.py", "allow"),
+    ],
+)
+def test_brace_expansion_is_held_and_git_brace_syntax_is_not(cmd: str, expected: str) -> None:
+    """bash expands `{+,}master` into `+master master` — a force push the checks saw as one word."""
+    assert _action(cmd) == expected, cmd
+
+
+@pytest.mark.parametrize(
+    "cmd, expected",
+    [("ls-evil /etc", "deny"), ("cat-evil x", "deny"), ("ls -la", "allow"), ("pwd", "allow")],
+)
+def test_a_read_tool_name_ends_at_a_blank(cmd: str, expected: str) -> None:
+    assert _action(cmd) == expected, cmd
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "cd\xa0{root} && git log",
+        "cd {root}\xa0&& git log",
+        "cd {root} &&\x0bgit log",
+        "git -C /opt/fabrik\u2028log",
+        "git status\xa0--short",
+        "cat a\u2028b",
+        "ls\x1c-la",
+    ],
+)
+def test_whitespace_bash_does_not_split_on_is_held(own_repo: Path, cmd: str) -> None:
+    """Python's `\\s` matches U+00A0, U+2028 and 0x0B-0x1F; bash splits on none of them. Each row
+    is refused ONLY for that character: the same line with a plain space is allowed."""
+    cmd = cmd.format(root=own_repo)
+    assert _decide(cmd, own_repo) == "deny", repr(cmd)
+    plain = (
+        cmd.replace("\xa0", " ").replace("\u2028", " ").replace("\x0b", " ").replace("\x1c", " ")
     )
-    assert (
-        hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0, cwd="relative/dir")[0]
-        == "deny"
-    )
+    assert _decide(plain, own_repo) == "allow", repr(plain)
 
 
 @pytest.mark.parametrize(
@@ -147,27 +238,15 @@ def test_a_cd_is_held_when_the_payload_carries_no_cwd_or_no_repo(
         "git -C /opt/x\xa0log push --force origin master",
         "git -C /opt/x\x1clog add .",
         "git\xa0log push --force",
-        "git -C /opt/fabrik\u2028log",
         "cd\n{root}; python3 scripts/command_run.py line",
         "cd\x0b{root}; python3 scripts/command_run.py line",
-        "cd\xa0{root} && git log",
-        "cd {root}\xa0&& git log",
-        "cd {root} &&\x0bgit log",
         "git -C\n/opt/fabrik log",
-        "git status\xa0--short",
-        "cat a\u2028b",
     ],
 )
-def test_whitespace_bash_does_not_split_on_is_held(own_repo: Path, cmd: str) -> None:
-    """Python's `\\s` matches U+00A0, U+2028 and 0x0B-0x1F; bash splits on none of them, so a
-    pattern reading `\\s` judged a different command than bash ran (both critiques, executed: a
-    real commit landed through `-C /opt/x<NBSP>log commit`)."""
-    cmd = cmd.format(root=own_repo)
-    # cwd IS the repo the `cd` names, so only the whitespace can be what refuses it
-    action = hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0, cwd=str(own_repo))
-    assert action[0] == "deny", repr(cmd)
-    if cmd.startswith("git"):
-        assert hook._git_flags_forbidden(cmd) is True or "\n" in cmd, repr(cmd)
+def test_the_executed_whitespace_bypasses_are_held(own_repo: Path, cmd: str) -> None:
+    """The shapes the critiques executed (a real commit landed through `-C /opt/x<NBSP>log
+    commit`; `cd<NL>…` ran a script from $HOME) — refused, by whichever veto reaches them first."""
+    assert _decide(cmd.format(root=own_repo), own_repo) == "deny", repr(cmd)
 
 
 def test_quoted_unicode_whitespace_in_a_commit_message_is_data() -> None:
