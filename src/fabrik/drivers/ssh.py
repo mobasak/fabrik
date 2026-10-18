@@ -61,8 +61,10 @@ def _one_line(text: str, empty: str = "no stderr") -> str:
 
     ``repr`` escapes CR, LF, NUL, U+2028 and every other line break or control character, so the remote side
     cannot forge a log line (W-9a560686), and keeps printable non-ASCII as itself. The mask runs FIRST:
-    after ``repr`` an escaped ``\\r\\n`` is no longer whitespace, so ``_SECRETY_ASSIGN`` masks past it and a
-    newline-split base64 pipe no longer matches. An empty or whitespace-only ``text`` reads ``empty``.
+    after ``repr`` an escaped ``\\r\\n`` is no longer whitespace, so ``_SECRETY_ASSIGN`` masks past it, and a
+    base64 payload whose ``| base64 -d`` sits on the next line no longer matches. ``_redact``'s own gaps stay
+    (a payload split mid-run, a value's tail after a line break). An empty or whitespace-only ``text`` reads
+    ``empty``.
     """
     masked = _redact(text.strip())
     return repr(masked) if masked else empty

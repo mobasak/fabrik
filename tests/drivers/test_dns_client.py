@@ -607,3 +607,68 @@ def test_request_errors_carry_remote_text_on_one_line(where, monkeypatch):
         with pytest.raises(RuntimeError) as info:
             client._request_via_ssh("GET", "http://x/y")
     _assert_one_line_masked([str(info.value)])
+
+
+@pytest.mark.parametrize(
+    "ip",
+    ["10.0.0.5\nFORGED evil.example", "attacker.example/x?", "10.0.0.5:9999", "10.0.0.5 extra"],
+)
+def test_an_inspect_reply_that_is_not_an_ip_is_a_miss_never_a_target(ip, monkeypatch, caplog):
+    """The IP docker printed became the request's target host (`attacker.example/x?` sent the key there)."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    replies = [
+        MagicMock(returncode=0, stdout="site-provisioner-1\n", stderr=""),
+        MagicMock(returncode=0, stdout=ip + "\n", stderr=""),
+    ]
+    with patch("subprocess.run", side_effect=replies):
+        assert client._resolve_container_url() is None
+    assert client._resolved_url_cache is None
+    assert all(len(r.getMessage().splitlines()) == 1 for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "ip, url", [("10.0.0.5", "http://10.0.0.5:"), ("fd00::5", "http://fd00::5:")]
+)
+def test_an_inspect_reply_that_is_an_ip_still_resolves(ip, url, monkeypatch):
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    replies = [
+        MagicMock(returncode=0, stdout="site-provisioner-1\n", stderr=""),
+        MagicMock(returncode=0, stdout=ip + "\n", stderr=""),
+    ]
+    with patch("subprocess.run", side_effect=replies):
+        assert client._resolve_container_url().startswith(url)
+
+
+def test_a_whitespace_led_reply_is_not_called_empty(monkeypatch):
+    """The 200-character cut ran before the strip, so 205 spaces then text read `empty reply`."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k-0123456789", ssh_host="vps")
+    reply = MagicMock(returncode=0, stdout=" " * 205 + "Internal Server Error", stderr="")
+    with patch("subprocess.run", return_value=reply):
+        with pytest.raises(RuntimeError, match=r"non-JSON: 'Internal Server Error'$"):
+            client._request_via_ssh("GET", "http://x/y")
+
+
+@pytest.mark.parametrize("body", ["Internal Server Error", "\nInternal Server Error\r\n"])
+def test_delete_record_reads_the_real_non_json_error_as_absent(body, monkeypatch):
+    """End to end: the one-line, quoted non-JSON text `_request_via_ssh` now raises still reads as the
+    already-absent shape `delete_record` swallows (the unit test above hand-writes the old string)."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k-0123456789", ssh_host="vps")
+    client._resolved_url_cache = "http://10.0.0.5:8000"
+    with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout=body, stderr="")):
+        assert client.delete_record("ocoron.com", "A", "vps4") == {"status": "absent"}
