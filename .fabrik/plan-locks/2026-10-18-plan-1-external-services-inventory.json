@@ -41,11 +41,19 @@
   },
   "tickets": {
     "T01": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abbc8eb4119eeb47e",
+      "branch": "worktree-agent-abbc8eb4119eeb47e",
+      "base_commit": "4cde3f547",
+      "started_at": "2026-10-18T00:58:55Z",
+      "head": "4dc823196"
+    },
+    "T02": {
       "state": "dispatched",
       "worktree_path": null,
       "branch": null,
-      "base_commit": "4cde3f547",
-      "started_at": "2026-10-18T00:58:55Z"
+      "base_commit": null,
+      "started_at": "2026-10-18T02:38:43Z"
     }
   }
 }

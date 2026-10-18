@@ -175,7 +175,21 @@
     each(main, "[data-post]", function (el) { if (!hit && postKey(el) === key) { hit = el; } });
     return hit;
   }
-  function detailsKey(d) { if (d.id) { return "#" + d.id; } var s = d.querySelector("summary"); return "s:" + (s ? s.textContent : ""); }
+  function summaryText(d) {
+    // the count app.js writes into [data-filter-count] is not part of a section's identity
+    var s = d.querySelector("summary"); if (!s) { return ""; }
+    var c = s.cloneNode(true);
+    each(c, "[data-filter-count]", function (x) { x.parentNode.removeChild(x); });
+    return c.textContent;
+  }
+  function detailsKey(d) { return d.id ? "#" + d.id : "s:" + summaryText(d); }
+  // a field's value as the markup ships it (a SELECT has no defaultValue: its default is the defaultSelected option)
+  function fieldDefault(f) {
+    if (f.tagName !== "SELECT") { return f.defaultValue; }
+    var d = null;
+    Array.prototype.forEach.call(f.options, function (o) { if (d === null && o.defaultSelected) { d = o.value; } });
+    return d !== null ? d : (f.options.length && !f.multiple ? f.options[0].value : "");
+  }
   function clampKey(c) { if (c.id) { return "#" + c.id; } var p = c.querySelector(".clamp-text"); return "t:" + (p ? p.textContent : ""); }
 
   function swap(text, force) {
@@ -188,7 +202,7 @@
     var kept = {};
     each(main, "input, textarea, select", function (f) {
       var k = fieldKey(f);
-      if (k && f.type !== "hidden" && f.value !== f.defaultValue) { kept[k] = f.value; }
+      if (k && f.type !== "hidden" && f.value !== fieldDefault(f)) { kept[k] = f.value; }
     });
     var open = {};
     each(main, "details[open]", function (d) { open[detailsKey(d)] = true; });
@@ -488,6 +502,52 @@
         el.setAttribute("aria-pressed", f && f.chip && f.v === spec.slice(i + 1) ? "true" : "false");
       }
     });
+    applySections(g);
+  }
+  // The groups a filter opens. The ids it opened live in qd-filter-open:<group> (a list), NEVER inside
+  // qd-filter:<group>, whose every key validFilterState reads as a field filter. With a filter on, a
+  // [data-filter-section] holding a shown [data-filter-item] opens (an already-open one is the
+  // operator's and is left alone), one holding none is hidden; with the filter off, or once a group
+  // stops matching, every recorded group closes and the hidden ones return.
+  var openedMem = {}; // group -> the opened ids, kept beside storage so a blocked store cannot lose the record
+  function saveOpened(g) {
+    var name = g.getAttribute("data-filter-group");
+    openedMem[name] = (g._qdOpened || []).slice();
+    save("qd-filter-open:" + name, JSON.stringify(g._qdOpened || []));
+  }
+  function applySections(g) {
+    var state = g._qdFilter || {};
+    // a filter acts only through controls: a render of the group with none filters nothing
+    var active = filterControls(g).length > 0 && Object.keys(state).some(function (n) { return state[n] && state[n].v !== ""; });
+    var secs = [], per = [], total = 0, shown = 0;
+    each(g, "[data-filter-section]", function (sec) {
+      if (sec.closest("[data-filter-group]") === g) { secs.push(sec); per.push({ n: 0, total: 0 }); }
+    });
+    each(g, "[data-filter-item]", function (it) {
+      if (it.closest("[data-filter-group]") !== g) { return; }
+      var vis = !it.hidden, sec = it.closest("[data-filter-section]"), i = sec ? secs.indexOf(sec) : -1;
+      total++; if (vis) { shown++; }
+      if (i >= 0) { per[i].total++; if (vis) { per[i].n++; } }
+    });
+    var rec = g._qdOpened || [], next = [];
+    secs.forEach(function (sec, i) {
+      // sections are recorded by id (the components always give one); an id-less one is filtered, never opened
+      var hit = per[i].n > 0, mine = rec.indexOf(sec.id) >= 0;
+      sec.hidden = active && !hit;
+      if (active && hit) {
+        if (sec.id && !sec.open) { sec.open = true; mine = true; }
+        if (mine) { next.push(sec.id); }
+      } else if (mine) { sec.open = false; }
+      sec._qdExpect = sec.open; // the state this script left it in: a later toggle to another is the operator's
+      var cnt = sec.querySelector("[data-filter-count]");
+      if (cnt) { cnt.textContent = t("filter.group_count", { n: per[i].n, total: per[i].total }); }
+    });
+    var changed = JSON.stringify(next) !== JSON.stringify(rec);
+    g._qdOpened = next;
+    if (changed) { saveOpened(g); } else { openedMem[g.getAttribute("data-filter-group")] = next.slice(); }
+    each(g, "[data-filter-status]", function (st) {
+      if (st.closest("[data-filter-group]") === g) { st.textContent = t("filter.shown", { n: shown, total: total }); }
+    });
   }
   function validFilterState(state) {
     if (!plainObject(state)) { return false; }
@@ -502,19 +562,43 @@
       var state = loadJSON(skey);
       if (state === null) { state = {}; }
       else if (!validFilterState(state)) { state = {}; save(skey, "{}"); } // a corrupt store resets
-      var controls = filterControls(g);
-      Object.keys(state).forEach(function (n) {
-        var f = state[n]; if (!f.chip) { return; }
-        var there = controls.some(function (el) { return el.getAttribute("data-filter") === n + ":" + f.v; });
-        if (!there) { delete state[n]; }
-      });
+      var okey = "qd-filter-open:" + name, raw = load(okey), rec = [];
+      if (has(openedMem, name)) { rec = openedMem[name].slice(); } // this page's own record is the freshest
+      else if (raw !== null) {
+        try { rec = JSON.parse(raw); } catch (e) { rec = null; }
+        if (!Array.isArray(rec)) {
+          rec = []; save(okey, "[]"); // a corrupt record resets alone; the filter store is not its business
+        }
+      }
+      g._qdOpened = rec;
+      var controls = filterControls(g), dirty = false;
+      // with a control bar rendered, the state holds only keys a control names: nothing else could clear one
+      if (controls.length) {
+        Object.keys(state).forEach(function (n) {
+          var f = state[n];
+          var there = f.chip
+            ? controls.some(function (el) { return el.getAttribute("data-filter") === n + ":" + f.v; })
+            : controls.some(function (el) { return el.getAttribute("data-filter") === n; });
+          if (!there) { delete state[n]; dirty = true; }
+        });
+      }
       g._qdFilter = state;
       controls.forEach(function (el) {
         var spec = el.getAttribute("data-filter");
-        if (spec.indexOf(":") < 0 && /^(INPUT|TEXTAREA)$/.test(el.tagName)) {
-          var f = state[spec]; el.value = f && !f.chip ? f.v : "";
+        if (spec.indexOf(":") < 0 && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+          var f = state[spec], v = f && !f.chip ? f.v : "";
+          if (el.tagName === "SELECT") {
+            var offers = function (x) { return Array.prototype.some.call(el.options, function (o) { return o.value === x; }); };
+            if (v !== "" && offers(v)) { el.value = v; }
+            else {
+              // no value, or one no option offers, is NO filter: drop the key and show "all" (every filter select offers it)
+              if (f && !f.chip) { delete state[spec]; dirty = true; }
+              el.value = "";
+            }
+          } else { el.value = v; }
         }
       });
+      if (dirty) { save(skey, JSON.stringify(state)); }
       applyFilters(g);
     });
   }
@@ -661,6 +745,19 @@
     var el = ev.target;
     if (el && el.matches && el.matches("input[data-filter], textarea[data-filter]")) { filterInput(el); }
   });
+  document.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el && el.matches && el.matches("select[data-filter]")) { filterInput(el); }
+  });
+  // a section toggled to a state this script did not leave it in is the operator's act: it is no longer the
+  // filter's to close
+  document.addEventListener("toggle", function (ev) {
+    var sec = ev.target;
+    if (!sec || !sec.matches || !sec.matches("details[data-filter-section]") || sec.open === sec._qdExpect) { return; }
+    sec._qdExpect = sec.open;
+    var g = sec.closest("[data-filter-group]"), at = g ? (g._qdOpened || []).indexOf(sec.id) : -1;
+    if (at >= 0) { g._qdOpened.splice(at, 1); saveOpened(g); }
+  }, true);
   document.addEventListener("keydown", function (ev) {
     var el = ev.target;
     var modal = ev.key === "Tab" ? document.querySelector("dialog[open]") : null;

@@ -112,6 +112,17 @@ def _escapes(x):
         ("table.rows", lambda: ui.table("l", "L", ["h", "i"], [[x, "c"]])),
         ("table.rows#td", lambda: ui.table("l", "L", ["h", "i"], [["c", x]])),
         ("table.row_data", lambda: ui.table("l", "L", ["h"], [["c"]], row_data=[{"k": x}])),
+        ("select.label", lambda: ui.select(x, name="n", id="i", options=[("a", "A")])),
+        ("select.name", lambda: ui.select("l", name=x, id="i", options=[("a", "A")])),
+        ("select.options", lambda: ui.select("l", name="n", id="i", options=[("a", x)])),
+        ("select.options#value", lambda: ui.select("l", name="n", id="i", options=[(x, "A")])),
+        ("select.value", lambda: ui.select("l", name="n", id="i", options=[(x, "A")], value=x)),
+        (
+            "select.data",
+            lambda: ui.select("l", name="n", id="i", options=[("", "All")], data={"filter": x}),
+        ),
+        ("status_text.text", lambda: ui.status_text(x)),
+        ("status_text.data", lambda: ui.status_text("t", data={"filter-status": x})),
         ("button.label", lambda: ui.button(x)),
         ("button.data", lambda: ui.button("b", data={"body": x})),
         ("field.label", lambda: ui.field(x, name="n", id="i")),
@@ -160,6 +171,8 @@ def _refusals(x):
         ("card.id", lambda: ui.card("t", "b", id=x)),
         ("table.label_id", lambda: ui.table(x, "L", ["h"], [["c"]])),
         ("button.kind", lambda: ui.button("b", kind=x)),
+        ("table.align", lambda: ui.table("l", "L", ["h"], [["c"]], align=[x])),
+        ("select.id", lambda: ui.select("l", name="n", id=x, options=[])),
         ("field.kind", lambda: ui.field("l", name="n", id="i", kind=x)),
         ("field.id", lambda: ui.field("l", name="n", id=x)),
         ("group.tag", lambda: ui.group("b", tag=x)),
@@ -390,6 +403,84 @@ def test_each_severity_carries_an_icon_and_a_text_label(sev):
 def test_severities_are_the_five_named():
     assert ui.SEVERITIES == ("critical", "warning", "ok", "info", "neutral")
     assert len(set(ui.SEVERITY_ICONS.values())) == 5
+
+
+# ---------------------------------------------------------------- select, aligned table, status text
+def test_a_select_is_a_labelled_control_and_selects_the_matching_option_only():
+    out = ui.select(
+        "Cost",
+        name="cost",
+        id="cost-sel",
+        options=[("", "All"), ("free", "Free"), (PAYLOAD, PAYLOAD)],
+        value=PAYLOAD,
+        data={"filter": "cost", "filter-mode": "token"},
+    )
+    root = parse(out)
+    (lab,) = find_all(root, "label")
+    (sel,) = find_all(root, "select")
+    assert lab.attrs["for"] == sel.attrs["id"] == "cost-sel" and lab.all_text() == "Cost"
+    assert sel.attrs["name"] == "cost" and sel.attrs["data-filter"] == "cost"
+    assert sel.attrs["data-filter-mode"] == "token"
+    opts = find_all(sel, "option")
+    assert [o.attrs["value"] for o in opts] == ["", "free", PAYLOAD]
+    assert [("selected" in o.attrs) for o in opts] == [False, False, True]
+    assert PAYLOAD not in out and "<script>alert" not in out and ESCAPED in out
+
+
+def test_a_select_matches_its_value_by_string_and_selects_nothing_for_an_unknown_one():
+    out = ui.select("n", name="n", id="i", options=[(1, "One"), (2, "Two")], value=2)
+    opts = find_all(parse(out), "option")
+    assert [("selected" in o.attrs) for o in opts] == [False, True]
+    out = ui.select("n", name="n", id="i", options=[(1, "One")], value="zzz")
+    assert "selected" not in out
+
+
+def test_a_select_refuses_a_bad_id_and_a_bad_data_key():
+    for kw in ({"id": "a b"}, {"id": "1a"}, {"data": {"A": "x"}}, {"data": {"align": "x"}}):
+        args = {"name": "n", "id": "i", "options": [("a", "A")]} | kw
+        with pytest.raises(ValueError):
+            ui.select("l", **args)
+
+
+def test_a_table_aligns_the_named_columns_right_in_header_and_cells():
+    out = ui.table("t", "T", ["Name", "Keys"], [["a", "1"], ["b", "22"]], align=[None, "right"])
+    root = parse(out)
+    heads = find_all(root, "th", scope="col")
+    assert [h.attrs.get("data-align") for h in heads] == [None, "right"]
+    cells = find_all(root, "td")
+    assert [c.attrs.get("data-align") for c in cells] == ["right", "right"]
+    assert all("data-align" not in r.attrs for r in find_all(root, "th", scope="row"))
+
+
+def test_a_table_aligns_the_row_header_column_too_and_positional_calls_are_unchanged():
+    out = ui.table("t", "T", ["N", "K"], [["1", "2"]], align=["right", None])
+    (rowh,) = find_all(parse(out), "th", scope="row")
+    assert rowh.attrs["data-align"] == "right"
+    plain = ui.table("t", "T", ["N", "K"], [["1", "2"]])
+    assert "data-align" not in plain
+    assert plain == ui.table("t", "T", ["N", "K"], [["1", "2"]], align=None)
+    assert "data-align" not in ui.table("t", "T", ["N", "K"], [["1", "2"]], align=[None, None])
+
+
+@pytest.mark.parametrize("bad", ["left", "RIGHT", "", 1])
+def test_a_table_refuses_an_align_entry_that_is_not_right_or_none(bad):
+    with pytest.raises(ValueError):
+        ui.table("t", "T", ["N", "K"], [["1", "2"]], align=[bad, None])
+
+
+@pytest.mark.parametrize("bad", [["right"], ["right", None, None], "rt", ()])
+def test_a_table_refuses_an_align_that_is_not_one_entry_per_column(bad):
+    with pytest.raises(ValueError):
+        ui.table("t", "T", ["N", "K"], [["1", "2"]], align=bad)
+
+
+def test_a_status_text_is_a_polite_status_paragraph_with_its_hooks():
+    out = ui.status_text("3 of 5", data={"filter-status": ""})
+    (p,) = find_all(parse(out), "p")
+    assert p.attrs["role"] == "status" and "data-filter-status" in p.attrs
+    assert p.all_text() == "3 of 5"
+    with pytest.raises(ValueError):
+        ui.status_text("t", data={"Bad": "x"})
 
 
 # ---------------------------------------------------------------- dialog, field, table, tabs
@@ -1184,3 +1275,50 @@ def test_only_a_long_badge_is_marked_to_wrap():
     assert "data-wrap" not in ui.badge("warning", "<" * (ui.BADGE_WRAP_AT - 1))
     assert "data-wrap" in ui.badge("critical", "x" * ui.BADGE_WRAP_AT)
     assert "data-wrap" in ui.badge("critical", ui.fragment("budget failed: ", "y" * 40))
+
+
+# ---------------------------------------------------------------- review pass 1: select values, headers
+def test_a_select_defaults_to_selecting_the_empty_valued_option_alone():
+    opts = [("", "All"), ("free", "Free"), ("paid", "Paid")]
+    for kw in ({}, {"value": None}, {"value": ""}):
+        out = ui.select("c", name="c", id="i", options=opts, **kw)
+        sel = [o.attrs["value"] for o in find_all(parse(out), "option") if "selected" in o.attrs]
+        assert sel == [""], kw
+    out = ui.select("c", name="c", id="i", options=[("free", "Free"), ("paid", "Paid")])
+    assert "selected" not in out  # no empty-valued option, nothing to select by default
+
+
+def test_an_option_whose_value_is_none_renders_empty_and_is_selected_as_empty():
+    opts = [("free", "Free"), (None, "All")]
+    for value in ("", None):
+        out = ui.select("c", name="c", id="i", options=opts, value=value)
+        picked = [o.attrs["value"] for o in find_all(parse(out), "option") if "selected" in o.attrs]
+        assert picked == [""], value
+
+
+def test_a_positional_table_call_accepts_any_iterable_of_headers():
+    out = ui.table("t", "T", (h for h in ["a", "b"]), [["1", "2"]])
+    assert [h.all_text() for h in find_all(parse(out), "th", scope="col")] == ["a", "b"]
+    out = ui.table("t", "T", (h for h in ["a", "b"]), [["1", "2"]], align=[None, "right"])
+    heads = find_all(parse(out), "th", scope="col")
+    assert [h.attrs.get("data-align") for h in heads] == [None, "right"]
+
+
+# ---------------------------------------------------------------- review pass 3: two contracts at the component
+def test_a_filter_section_disclosure_needs_an_id():
+    with pytest.raises(ValueError):
+        ui.disclosure("s", "b", data={"filter-section": ""})
+    out = ui.disclosure("s", "b", data={"filter-section": ""}, id="sec-a")
+    assert 'id="sec-a"' in out and "data-filter-section" in out
+    assert "<details" in ui.disclosure("s", "b")  # an ordinary disclosure still needs none
+
+
+def test_a_filter_select_always_offers_the_empty_all_option():
+    for options in ([], [("free", "Free")], [(None, "x"), ("a", "A")][1:]):
+        with pytest.raises(ValueError):
+            ui.select("c", name="c", id="i", options=options, data={"filter": "cost"})
+    for options in ([("", "All"), ("free", "Free")], [(None, "All")]):
+        out = ui.select("c", name="c", id="i", options=options, data={"filter": "cost"})
+        assert "data-filter" in out
+    # a select that is no filter control has no such obligation
+    assert "<select" in ui.select("c", name="c", id="i", options=[("free", "Free")])

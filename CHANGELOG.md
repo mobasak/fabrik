@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Dashboard page layer: select, aligned table columns, status count and the filter's inverse (2026-10-18)
+`components.select()` (labelled, escaped, token-mode ready; a filter select must offer an `""` "all" option),
+`components.table(..., align=)` (right-aligned columns with tabular figures via `data-align="right"`; positional calls
+unchanged, any iterable of headers) and `components.status_text()` (a `role="status"` line); `disclosure()` refuses a
+filter section with no id. `app.js` drives and restores SELECT filters, opens a closed `<details>` section that holds a
+match and records it under `qd-filter-open:<group>` (the page's own record first, storage as persistence), hides
+sections with no match, writes the shown/total counts (`filter.shown`, `filter.group_count`), drops stored keys no
+control names, and on clear closes only the groups the filter opened, restores hidden ones and leaves a group the
+operator opened or re-opened by hand open. The page-layer scan now reads every option label (W-3e9e2f4c, T01; wave
+review `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T01-review.md`).
+
 ### Fixed — the board-banner test checks the banner the dashboard actually renders (2026-10-18)
 
 `tests/test_assemble_dispatch_step.py::test_v7_the_rendered_board_banner_carries_no_retired_literal` was red on master since the command-centre integration split `quota_dashboard._budget_probe()` (now the banner's data) from `dashboard_ui/views/overview.py::_budget_lines` (its rendering). The test now drives both, asserts the rendered seat and quota facts before its retired-literal check, reads the text unescaped, and requires the renderer to be this tree's exact `overview.py` — a `dashboard_ui` from another checkout, a nested worktree included, fails it (W-5567c00b).
