@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — double-escaped env values in every template deploy",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "TemplateRenderer autoescapes every *.j2 template (select_autoescape on the j2 suffix, since 0db807b36), so env_escape's shell escaping is HTML-escaped again: a compose env value a\"b&c renders a\\&#34;b&amp;c in every template-source deploy (2026-10-01, owner: fleet)"
 }

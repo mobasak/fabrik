@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Retired AGENTS.md copies outlive D-652's template deletion: 17 projects hold templates/saas-skeleton/AGENTS.md (scaffold.py:1455-1465 copies the skeleton into every project; copytree never prunes), and a template-sourced app deployed before the deletion (e.g. specs/services/my-docs-site.yaml) keeps /opt/<name>/AGENTS.md on its VPS (deployer_ssh.py:527-530 writes, never deletes)"
 }

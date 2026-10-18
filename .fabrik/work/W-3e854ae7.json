@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — saas-skeleton server tests cannot run unmodified",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "saas-skeleton server/ cannot run its own tests: no pytest config (pythonpath=src) and no pytest in its requirements, so server/tests/test_auth.py and test_glitchtip_no_secret_leak.py need PYTHONPATH set by hand (found by the W-dc4f5470 review)"
 }

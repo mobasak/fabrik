@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — advisory scan",
   "status": "open",
   "tags": [
-    "app-role-check",
-    "waits-quota-reset"
+    "app-role-check"
   ],
   "title": "app-role-check: scan a prisma/drizzle/django owner consumer's connection source for DATABASE_URL_OWNER"
 }

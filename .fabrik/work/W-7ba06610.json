@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — resource reads provisioned while grants pending, false green on data-access role",
   "status": "open",
   "tags": [
-    "security",
-    "waits-quota-reset"
+    "security"
   ],
   "title": "payments-ingest-role resource reads provisioned while create_payments_ingest_role reports grants=pending or unknown (review 2026-09-30 driver-NEW1, one hop out of W-90784c3b)"
 }

@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Disabled-healthcheck validator (deployer_ssh._validate_compose): an independent reader re-verifies c445a5165's rule (test \"\" accepted, [] and NONE refused), and decide the test-less block case (inherits the image HEALTHCHECK — only an image inspect can tell)"
 }

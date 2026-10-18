@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "medium",
-    "tests",
-    "waits-quota-reset"
+    "tests"
   ],
   "title": "Scaffold tests fail in any hub worktree: FABRIK_LIB_DIR = FABRIK_ROOT.parent / 'fabrik-lib' (src/fabrik/scaffold.py:244) resolves to .claude/worktrees/fabrik-lib, which does not exist (FileNotFoundError: Cannot fold the audit log)"
 }

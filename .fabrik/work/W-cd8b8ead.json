@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — new docusaurus project fails audit as shipped, false red",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "scripts/audit_all_projects.py _DEBIAN_BASE_RES knows only python, node and debian, so it grades D-664's docusaurus base nginx:mainline-trixie as noncompliant (critical) — a new docusaurus project fails the audit as shipped"
 }

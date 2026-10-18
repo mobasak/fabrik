@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — no pytest timeout in scaffolds; runaway tests took WSL down twice",
   "status": "open",
   "tags": [
-    "queued",
-    "waits-quota-reset"
+    "queued"
   ],
   "title": "Scaffolded projects' pytest runs have no per-test timeout: add pytest-timeout to every scaffold's dev dependency list (python-api, file-worker, the server types that copy the pytest table) and set timeout in the emitted pytest config — moved from infra's P0 W-162398ef (D-935) because the server/file-worker scaffolds install no plugin today"
 }

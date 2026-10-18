@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — ingest role re-widened on signature change",
   "status": "open",
   "tags": [
-    "security",
-    "waits-quota-reset"
+    "security"
   ],
   "title": "ingest lane has no changed-signature guard: an additive change to payments_grant_ingest's signature makes to_regprocedure NULL, so the legacy DROP+CREATE block runs and re-widens the ingest role (review 2026-09-30 round 3, one hop out of the fulfilment spec)"
 }

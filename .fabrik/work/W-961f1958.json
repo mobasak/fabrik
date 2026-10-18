@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scaffold lint can go red on fresh scaffold; no live failure today",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "chrome-extension and mobile scaffolds: transitive lint drift — @antfu/eslint-config 7.7.3 pulls 36 caret plugin ranges (perfectionist ^5.6.0 → 5.12.1, @typescript-eslint ^8.57.0, regexp ^3.1.0 → 3.3.0) and eslint ^9.39.2 floats, so a fresh scaffold's lint --max-warnings 0 can still go red; decide lockfile vs pnpm.overrides (W-70d9c609 design OUT)"
 }

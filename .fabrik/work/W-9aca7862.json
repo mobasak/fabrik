@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — docusaurus divergences polish",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "docusaurus scaffold: the remaining 42-docusaurus divergences (onBrokenLinks warn vs throw, colour tokens, dark default, frontmatter check, OpenAPI placeholder artifacts)"
 }

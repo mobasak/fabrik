@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Registrar naming hygiene: five specs claim the shared postgres database 'main' (ai-model-catalog, compliance-ops, exam-coach, gmail-account-creator, proxy) and four set depends.postgres with no shape: block (job-agent, proposal-creator, trading-core, triggered-content-orchestration)"
 }

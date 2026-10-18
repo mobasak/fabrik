@@ -22,8 +22,7 @@
   "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "5 hub specs name a database in depends.postgres that the registrar never creates (needs_database false or no shape: block): job-agent (jobagent), proposal-creator (proposals), trading-core (trading), triggered-content-orchestration (tco), proxy (main) — correct each against its live database"
 }

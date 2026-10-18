@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "fix_project's root-.gitignore patch writes through a symlinked .gitignore and raises on a directory or non-UTF-8 .gitignore (pre-existing, scaffold.py root patch block)"
 }

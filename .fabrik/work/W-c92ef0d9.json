@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — route other receipts; none live-false-failing",
   "status": "open",
   "tags": [
-    "gate",
-    "waits-quota-reset"
+    "gate"
   ],
   "title": "check_convergence.py: route the other design-family review receipts (/fabrik-ui-design-review, /fabrik-flows-review, /fabrik-deploy-plan-review, /design-review) to the Pass-Ledger proof like spec/plan-review (W-39d8d1fd OUT; none live-false-failing — tryton's /design-review receipt passes today only via a gate embed)"
 }

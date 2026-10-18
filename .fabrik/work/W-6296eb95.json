@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — rare Markdown garble in alerting",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "**Telegram legacy-Markdown parity at the alerting boundary** (external-services review pass 33, CW4): `libs/alerting/telegram.py` sends `*{title}*\\n{body}` with `parse_mode: Markdown` and escapes n..."
 }

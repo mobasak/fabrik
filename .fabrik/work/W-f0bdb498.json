@@ -20,7 +20,6 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — operator said bhdtrade urgent, deploy-blocking",
   "status": "open",
   "tags": [
-    "waits-quota-reset",
     "waits-wef-migration"
   ],
   "title": "bhdtrade.com go-live, hub side (D-921, D-106): register the deploy — the static Astro site on Cloudflare Pages and only services/quote-forms (SMTP relay) on vps1 via a hub copy of web-ecommerce-factory/specs/services/bhdtrade.yaml + fabrik apply; check W-bce494ec (SSH identity in the vps1 docker group, alias vps vs vps1) with the operator; deploy only after Gate 2"

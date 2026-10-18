@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "ci-scaffold",
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "backfill_ci.py: its skip guard keys on .github/workflows/ci.yml the generator no longer emits, and it seeds no sqlfluff state while regenerating a ci_local.sh that now lints every tracked .sql"
 }

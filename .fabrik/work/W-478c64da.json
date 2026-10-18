@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "medium",
-    "waits-cron-template-change",
-    "waits-quota-reset"
+    "waits-cron-template-change"
   ],
   "title": "**Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sy..."
 }

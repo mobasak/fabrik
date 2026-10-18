@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — test regex fail-closed on rare prose; rare edge",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "tests/test_scaffold_logging_lint.py: _NOQA's re.I reads a lowercase prose word ending in digits (step2) after '# noqa: G003' as a code — fails closed (rejects a valid line)"
 }

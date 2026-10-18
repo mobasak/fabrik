@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — failed apply leaves no state file",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "a failed or rolled-back fabrik apply writes no state file, so registrar_failures describes only the last COMPLETED apply"
 }

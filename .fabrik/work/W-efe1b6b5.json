@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing alert on audit unknown",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "No alert fires on a long-lived backrest audit 'unknown': configs/prometheus/rules/fabrik-drift.yml has no rule on fabrik_audit_status, so a structurally broken probe (jq, sudo, Backrest container name) disables the coverage check silently — Opus 5.5 critique of W-5c4ad6a6"
 }

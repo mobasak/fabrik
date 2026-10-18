@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — retired-term docs sweep coverage",
   "status": "open",
   "tags": [
-    "docs",
-    "waits-quota-reset"
+    "docs"
   ],
   "title": "check_retired_terms.py covers docs/ + README.md only; root INDEX.md (8 WARNs incl. :29-30 'Kilo CLI bootstrap config', :168) and AGENTS-compact.md (2) still frame Kilo as live"
 }

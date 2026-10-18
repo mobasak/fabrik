@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "infra",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "final_gate never lints a project's server/ backend (ruff roots scripts/ src/; mypy skipped green) — fleet W-1c722f35 gate side; decide once fleet's server/ ruff/mypy config lands"
 }

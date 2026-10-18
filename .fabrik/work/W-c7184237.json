@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m4ythz83gtwe7w46801hps0h",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "mt-router: fabrik-lib's .env autoload now loads the MT_CLAUDE_* tier switches (SB-129) — check the hub's vendored copy (mail 01M4YTHZ83GTWE7W46801HPS0H)"
 }

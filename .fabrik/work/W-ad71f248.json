@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — doc-stub detector near-dead, false green",
   "status": "open",
   "tags": [
-    "infra",
-    "waits-quota-reset"
+    "infra"
   ],
   "title": "check_doc_stubs.py detects a seeded-unfilled doc only by [Project Name]/[PROJECT_NAME]/{PROJECT_NAME}, which seeding substitutes — near-dead for scaffolded docs (sibling of 01M4664J)"
 }

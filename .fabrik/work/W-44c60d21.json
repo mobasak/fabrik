@@ -31,8 +31,7 @@
   "tags": [
     "fleet",
     "medium",
-    "operator-accepted",
-    "waits-quota-reset"
+    "operator-accepted"
   ],
   "title": "Coolify-retirement wave T06+T08 review residue: vps_sync has no test module (categorize_containers, the meilisearch exact-name command, its silent empty result); import_bundle reads manifest.json by raw name so a ./ repack reads as absent; test_tarball_contains_no_legacy_uuids scans one marker; test_proof_run_guard's fabrik imports depend on conftest importing fabrik before the subprocess fakes"
 }

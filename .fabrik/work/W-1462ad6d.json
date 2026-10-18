@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — edge in drift tracker quoting",
   "status": "open",
   "tags": [
-    "vps",
-    "waits-quota-reset"
+    "vps"
   ],
   "title": "vps_script_drift cron_paths: quotes inside $(...) within double quotes are not tracked, and env names with characters outside [A-Za-z0-9_] read as jobs"
 }

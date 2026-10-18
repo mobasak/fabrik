@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — spec producers emit stale depends; runtime already warns",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Spec producers still emit depends.redis beside needs_cache false: spec_generator.py:525 (depends.redis='main' whenever the scanned compose env contains the substring 'redis') and the deprecated fabrik new --from-project (cli.py:243-253, depends.postgres/redis 'main' with no shape) — the runtime now warns (W-81524f52), the producers are unfixed"
 }

@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — data exposure of hub hosts in published docs",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "A docusaurus site still publishes the seeded top-level project docs (CONFIGURATION, FEATURES, QUICKSTART, README, TROUBLESHOOTING); CONFIGURATION names hub hosts (*.vps1.ocoron.com, postgres-main, redis-main, the 10.99.0.1 WireGuard IP) and README links to the unpublished trees (2026-10-01, owner: fleet)"
 }

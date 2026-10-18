@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — prevents deadlocked deploys; new warning, nobody blocked",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "**Scaffold/validate warning for dependency-asserting compose healthchecks** (deploy-triad root-cause #1): a compose healthcheck pointing at a READINESS route (one that 503s on an unreachable depend..."
 }

@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — registrar warnings not printed on exit-2 branch, small build item",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "fulfilment-role build: print registrar_warnings in fabrik refresh's exit-2 branch (cli.py:1282) as well as its ✅ branch (:1293) — spec 2026-09-30-payments-fulfilment-role § The delta item 5 names 'the refresh summary' singular (spec-review round 4, rules-O22, recorded under the scope-growth stop)"
 }

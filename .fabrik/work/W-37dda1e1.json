@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Spoke watchdog runtime gaps after W-fc3eddd8: WATCHDOG_APPRISE_URL defaults to http://apprise:8000 (not mesh-published; apprise is not in _SHARED_INFRA_HOSTS), so a spoke sidecar cannot alert; the sidecar bind-mounts VPS_CLAUDE_HOME and .claude.json, which must already exist on the spoke or claude -p is dead"
 }

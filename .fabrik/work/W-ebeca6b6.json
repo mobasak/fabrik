@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — watchdog prompt file follow-up",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "Watchdog driver renders WATCHDOG_PROMPT_FILE=/project/<project_system_prompt_file> when set — fabrik-lib agent.py now reads it file-first (D-571 salvage a)"
 }
