@@ -53,8 +53,8 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     )
     assert (
         "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
-        " under the run's durable `SCRATCH:` folder (D-836), as the partitioned review loops do so an interrupted"
-        " pass resumes;" in d8
+        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review` and"
+        " `/fabrik-spec-review` do so an interrupted pass resumes;" in d8
     )
     assert (
         "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the"
@@ -65,17 +65,27 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     assert core.count("`<run scratch>/seat-<n>/`") == 1
 
 
-def test_the_pin_paragraph_puts_the_pins_dir_under_the_run_scratch() -> None:
+def test_the_pin_paragraph_defers_the_pins_dir_root_to_d8() -> None:
     """The pin command points at D8 for the pins dir's root, so the root and its review-loop exception are stated
-    once (W-7bd671f6: a second statement here said `<run scratch>` while four review loops say `SCRATCH:`)."""
+    once (W-7bd671f6: a second statement here said `<run scratch>` while three including review loops say
+    `SCRATCH:`)."""
     pin = _section(
         _norm(CORE),
         "**PIN the subject before you dispatch",
         "<!-- POOL OFF (D-181) — pool-grounder",
     )
     assert "--pins-dir <a NEW dir per pass>" in pin
-    assert "the dir sits where the D8 paragraph puts the pins dir" in pin
-    assert "<run scratch>" not in pin
+    assert "the pins dir sits where the D8 paragraph puts it" in pin
+    assert "<run scratch>" not in pin and "SCRATCH:" not in pin
+
+
+def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
+    """Each command D8 names as putting the pins dir under `SCRATCH:` includes the fragment and says so itself, so
+    the rendered command states one root. Mutants: drop a source's parenthesis; drop its include."""
+    for name in ("fabrik-review", "fabrik-plan-review", "fabrik-spec-review"):
+        src = _norm(ROOT / "commands" / "_sources" / f"{name}.md")
+        assert "{{include:subagents-core}}" in src, name
+        assert "go under the run's `SCRATCH:` folder" in src, name
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
