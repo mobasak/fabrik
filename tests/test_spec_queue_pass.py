@@ -123,8 +123,9 @@ def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> N
     the status probe, since the quote rule forbids quoting a WebFetch reply; /fabrik-spec-review carries the same
     division of labour."""
     rule = (
-        "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback: a count over a file you"
-        " downloaded, and a seat's quote matched — whitespace normalised first, as"
+        "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback — for example a count over"
+        " a fetched file, which you download and count yourself, and a seat's quote matched — whitespace normalised"
+        " first, as"
     )
     tail = "against your own raw fetch when the raw-fetch tools are down."
     spec = _flat(SRC)
@@ -139,4 +140,4 @@ def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> N
         in spec
     )
     review = _flat(ROOT / "commands" / "_sources" / "fabrik-spec-review.md")
-    assert rule + " `/fabrik-spec`'s Phase 1c quote rule says — " + tail in review
+    assert rule + " the quote rule above says — " + tail in review
