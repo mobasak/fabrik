@@ -2084,7 +2084,10 @@ def _continue_claiming(ctx: _Ctx, rec: dict) -> dict | None:
         rec["phase"] = "claimed"
         _save(ctx, rec)
         return rec
-    if (box / "inbox" / f"{rec['id']}.md").is_file():
+    inbox = box / "inbox" / f"{rec['id']}.md"
+    if inbox.is_file():
+        if rec.get("retries") and _acked(inbox):
+            raise _stale_ack(rec["id"])  # a requeue that left the ack in place (_reopen)
         return _mail_claim(ctx, rec)
     print(
         f"merge_request: {rec['id']} is in neither inbox nor archive — record removed",
@@ -2380,13 +2383,19 @@ def _reopen(ctx: _Ctx, rec: dict) -> dict:
             f"mail.py requeue {rec['id']} failed: {res.stderr.strip() or res.returncode}; "
             "nothing changed"
         )
-    inbox = _mail_root() / ctx.mailbox / "inbox" / f"{rec['id']}.md"
-    if _acked(inbox):
-        raise RefusedError(
-            f"{rec['id']} still carries its old ack after `mail.py requeue` (undecodable bytes?) — "
-            "strip it by hand, then `merge_request.py resume " + rec["id"] + "`"
-        )
+    if _acked(_mail_root() / ctx.mailbox / "inbox" / f"{rec['id']}.md"):
+        raise _stale_ack(rec["id"])
     return _mail_claim(ctx, rec)
+
+
+def _stale_ack(msg_id: str) -> RefusedError:
+    """A retry's mail back in the inbox still carrying the refusal's ack: claiming it would merge
+    and then skip the merge's own ack. The record stays ``claiming``, so every later run refuses
+    here too (``_continue_claiming``) until the ack line is stripped by hand."""
+    return RefusedError(
+        f"{msg_id} still carries its old ack after `mail.py requeue` (undecodable bytes?) — "
+        f"strip the `acked-by:` line by hand, then `merge_request.py resume {msg_id}`"
+    )
 
 
 def _acked(path: Path) -> bool:

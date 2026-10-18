@@ -1811,6 +1811,36 @@ def test_a_retry_stopped_before_its_requeue_is_reopened_by_resume(world, monkeyp
     assert len(acks) == 1 and "disposition: done" in acks[0], acks
 
 
+def test_a_requeue_that_keeps_the_ack_refuses_until_stripped(world, monkeypatch, capsys):
+    """`mail.py requeue` leaves an undecodable message's ack in place. The retry refused, but the
+    record stayed `claiming` with the mail in the inbox, and `resume` claimed it directly: the
+    merge landed and its own ack was skipped. Every run refuses until the ack is stripped."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    box = world.tmp / "mail" / "proj"
+    real = world.mod._mail_cli
+
+    def requeue_keeps_ack(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            (box / "archive" / f"{msg_id}.md").rename(box / "inbox" / f"{msg_id}.md")
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", requeue_keeps_ack)
+    assert world.run("retry", msg_id) == 1
+    monkeypatch.setattr(world.mod, "_mail_cli", real)
+    assert world.run("resume", msg_id) == 1
+    assert "still carries its old ack" in capsys.readouterr().err
+    assert world.record(msg_id)["phase"] == "claiming" and msg_id in world.inbox()
+
+    inbox = box / "inbox" / f"{msg_id}.md"
+    kept = [ln for ln in inbox.read_text().splitlines() if not ln.startswith("acked-by:")]
+    inbox.write_text("\n".join(kept) + "\n")
+    assert world.run("resume", msg_id) == 0
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0], acks
+
+
 def test_retry_refuses_a_head_already_in_base(world, capsys):
     """A head merged under ANOTHER request (one already replied, so not "open") would be re-opened
     only to be refused again "already in base", its first refusal's ack lost on the way."""
