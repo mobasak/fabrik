@@ -453,7 +453,8 @@ def _read_item(repo: Path, item_id: str) -> dict:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        raise WorkError(f"no item {item_id} in {_store_dir(repo)}") from None
+        hint = _main_only_hint(repo, item_id)
+        raise WorkError(f"no item {item_id} in {_store_dir(repo)}{hint}") from None
     except OSError as exc:
         raise WorkError(f"cannot read item {item_id} ({path}): {exc}") from exc
     try:
@@ -468,6 +469,20 @@ def _read_item(repo: Path, item_id: str) -> dict:
             "refusing to write through a mismatched item file"
         )
     return data
+
+
+def _main_only_hint(repo: Path, item_id: str) -> str:
+    """The refusal's remedy when a linked worktree lacks an item the main checkout holds: a verb that
+    WRITES the item (``done``, ``drop``, ``answer``, ``assign``) needs its file on this branch, which
+    only a merge brings — the claim taken from here (``_read_item_any``) is not enough. "" otherwise;
+    never raises (a refusal message must not fail on its own hint)."""
+    try:
+        main = _worktrees(repo)[0]
+        if main != repo.resolve() and _item_path(main, item_id).is_file():
+            return f" — the main checkout {main} holds it: merge its branch into this one first"
+    except Exception:
+        pass
+    return ""
 
 
 def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:

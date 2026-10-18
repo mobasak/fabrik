@@ -1110,3 +1110,33 @@ def test_claim_of_a_main_store_item_reads_its_blockers_from_the_main_store(tmp_p
     data["status"] = "done"
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     _ok(["claim", item, "--session", "W"], env, wt)
+
+
+def test_a_corrupt_worktree_copy_is_refused_never_shadowed_by_the_main_store(tmp_path):
+    """Critique fold: the fallback is for a MISSING file only — a corrupt branch copy is this
+    tree's refusal, even though the main checkout holds a good one."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    _item_file(wt, item).write_text("{", encoding="utf-8")
+    r = run(["claim", item, "--session", "W"], env, wt)
+    assert r.returncode != 0 and "corrupt" in r.stderr, r.stderr
+    assert not (_shared(repo) / "claims" / f"{item}.json").exists()
+
+
+def test_a_write_verb_on_a_main_store_item_names_the_merge_it_needs(tmp_path):
+    """Critique fold: `done` writes the item file, so from a worktree that lacks it the refusal
+    says the main checkout holds it and the branch needs a merge — never a bare `no item`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "W"], env, wt)
+    r = run(["done", item, "--session", "W", "--evidence", "HEAD"], env, wt)
+    assert r.returncode != 0, r.stderr
+    assert "the main checkout" in r.stderr and "merge its branch into this one" in r.stderr, (
+        r.stderr
+    )
