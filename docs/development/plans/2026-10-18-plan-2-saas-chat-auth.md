@@ -1,163 +1,357 @@
-# Plan — saas-skeleton chat only a signed-in, rate-limited user can spend (W-ab242b11)
+# Plan — saas-skeleton chat that only a signed-in, rate-limited user can spend, slice 2 (W-ab242b11)
 
-Status: DRAFT — superseded pending the spec amendment (plan-review round 1 confirmed F1-F14; re-plan after /fabrik-spec-review)
+Status: CONVERGED
 Profile: small
 **Owner:** fleet
-**Surface:** `git rev-parse HEAD` = c948d00ba at authoring, plus the spec amendment in this commit.
+**Surface:** `git rev-parse HEAD` = 3974671ef at authoring (master, the CONVERGED spec merged).
 
-Spec: `docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md` (DRAFT, `Size: small`, `Profile: full`; D then A). `/fabrik-plan-review` grades its sections together with this plan and flips both at its approval gate.
+Spec: `docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md`. It is CONVERGED, with approval row D-1010 and receipt `docs/development/reviews/2026-10-18-saas-chat-auth-spec-review.md`. This plan re-plans slice 2. Slice 1 shipped as D-1005. The earlier DRAFT of this file was superseded by the round-1 findings `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-round1-findings.md`, which the spec amendment answered.
 
-Estimated diff: about 260 code lines across 4 code files:
-- `src/fabrik/scaffold.py`: the chat route, the bucket and the env, in the emitted backend;
-- `templates/saas-skeleton/components/chat/SSEStream.tsx`: credentials and the CSRF header;
-- `templates/saas-skeleton/components/chat/index.ts`;
-- `templates/saas-skeleton/README.md`;
-- one deletion, `templates/saas-skeleton/app/api/chat/route.ts`.
+**Estimated diff:** about 395 code lines in 3 code files, plus 2 dependency files and a one-line spec note.
 
-Tests: about 300 lines in two new files.
+| File | What changes | Approx. lines |
+|---|---|---|
+| `src/fabrik/scaffold.py` | the emitted `chat.py`, the `auth.py` public names, the `_http_exc` header fix, the `main.py` include and two counters | ~320 |
+| `templates/saas-skeleton/components/chat/SSEStream.tsx` | the client changes | ~60 |
+| `templates/saas-skeleton/components/chat/ChatUI.tsx` | pass `onError` and render its message | ~15 |
+| `pyproject.toml`, `uv.lock` | the dev dependencies, Phase A | — |
+
+**Tests:** about 500 lines across three new hub test files and one emitted test, plus edits to one existing grader.
 
 ## What this plan is
 
-Two slices, in order:
-- **Phase A** (spec § Chosen approach, slice 1) removes the public, key-burning Next route from the template.
-- **Phase B** (spec § Chosen approach, slice 2) re-adds chat as an authenticated, Redis-rate-limited backend route.
-- **Phase C** is the integration review and the ledgers.
+Three phases, in order:
+- **Phase A** makes the hub venv able to load the vendored auth modules. This is W-0ae9b7e1 (the hub venv lacks email-validator). It also adds a real Redis client for the chat tests.
+- **Phase B** builds the backend chat route the spec chose (spec § Chosen approach), its limiter, and its tests.
+- **Phase C** changes the template's chat client (spec § Chosen approach, Client). It then runs the whole-plan review, the docs pass and the final gates.
 
-The six live projects keep their copies until their own follow-up items (spec § Lifecycle).
+The live projects adopt slice 2 through one item each, filed by the coordinator after merge (spec § Lifecycle, Adoption).
+
+## What we already agreed (citations, not restatement)
+
+- Goal: spec § Goal.
+- Approach A, the backend route: spec § Chosen approach and § Decisions taken (D-1010).
+- Rejected B2, B1, C, middleware placement, plan-tier limits, `.env.api`, re-implementing `client_ip`: spec § Rejected alternatives.
+- The order of checks, the four buckets, the body contract, upstream, observability, key placement and the client: spec § Chosen approach.
+- Lifecycle, degradation and residual risks: spec § Lifecycle.
+- Validation cases: spec § Validation.
+- The fabrik-lib verdict, with the README:175 deviations: spec § fabrik-lib verdict.
+- Coordinator, 2026-10-18 (verbatim): "W-0ae9b7e1 … stays with you, HIGH, as the plan's first step … If fixing it means editing a dependency file (pyproject.toml or uv.lock), the item is your authorisation for that one package only. Name it in the plan and the D-row."
+- Coordinator, 2026-10-18 (verbatim): "Approved: add `redis>=5.0` to the `dev` extra in pyproject.toml, plus the uv.lock change … Use a real throwaway redis-server, not the in-process fake." The conditions: "(1) Only those two packages, both in the dev extra; no other dependency change. (2) Name both in the plan's Phase A and in its D-row, citing this approval and the pack line as the reason the spec's fake is replaced. Note that in the spec too, as a deviation the rule forces. (3) The shared-venv install … must remove nothing; if the dry run shows a removal, stop and tell me. (4) … free random port with no persistence … kill it in teardown. Never use 6379." And its correction: "don't pass `--port 0` … That turns TCP off … use `--port 0 --unixsocket <tmpdir>/redis.sock` and connect over the socket. Keep `--save ''` and `--appendonly no`".
+- The four post-stop residues the spec review routed here: the receipt's § Recorded, rows R-pttl-order, R-above-limit, R-testclient-ip and R-503-label.
 
 ## Intake Inventory
 
-The spec's Intake Inventory: 7 items, all IN (spec § Intake Inventory). This plan adds none and drops none.
+| I# | Item (anchored) | Disposition | Where |
+|---|---|---|---|
+| I1 | The CONVERGED spec's slice 2, "re-plan after /fabrik-spec-review" (coordinator) | IN | Phases B, C |
+| I2 | "W-0ae9b7e1 … as the plan's first step" (coordinator) | IN | Phase A |
+| I3 | "editing a dependency file … your authorisation for that one package only. Name it in the plan and the D-row" | IN | Phase A step 2; the Phase A D-row |
+| I4 | R-pttl-order: "the returned TTL is the re-armed one, the Lua test asserts `Retry-After` equals the window" (receipt § Recorded) | IN | Phase B step 1 (the limiter case) and the Phase B Behavior Contract's TTL row |
+| I5 | R-above-limit: "at or above its limit" | IN | Phase B step 1 (the limiter case) and the Phase B Behavior Contract's TTL row |
+| I6 | R-testclient-ip: "the IP-bucket rows set a parseable peer" | IN | Phase B step 7 |
+| I7 | R-503-label: "how the identity wrapper tells a denylist 503 from other refusals" | IN | Phase B step 4 |
+| I8 | The spec's Open unknown: "a request mail to fabrik-lib at plan time" for the `client_ip` export from a leaf module | IN | Phase C step 6 |
+| I9 | The spec's Open unknown: the default bucket sizes, "the plan's D-row derives them from `OPENROUTER_MODEL`'s per-token price and a stated daily budget" | IN | Phase B step 9, which states the ceiling in tokens instead, because `OPENROUTER_MODEL` has no default |
+| I10 | Grounding finding, this run: the emitted `_http_exc` drops `HTTPException.headers`, so a 429's `Retry-After` never reaches the client (probe in § Evidence) | IN | Phase B step 3 |
+| I11 | Grounding finding, this run: `45-testing-strategy.md:176` bans "fakeredis / mockredis standing in for Redis", which collides with the spec's in-process Redis fake | IN | Phase A step 2 (`redis` approved by the coordinator), Phase B steps 1 and 7, the spec deviation note |
+| I12 | Coordinator: "Note that in the spec too, as a deviation the rule forces" | IN | Phase A step 5 |
+| I13 | R-reasoning-tokens: "`CHAT_MAX_TOKENS` default 1024 on reasoning models … the default's choice goes to the plan" (receipt § Recorded) | IN | Phase B step 9 |
 
-## What we already agreed (citations, not restatement)
-- The goal: spec § Goal.
-- The two-slice approach and its order: spec § Chosen approach; the panel result is in spec § Decisions taken.
-- Identity is the vendored `build_current_user`, not `require_user`: spec § Chosen approach, slice 2 (amended at authoring, after `src/fabrik/scaffold.py:2529-2539` showed `TenantMiddleware` is bearer-only).
-- The rejected alternatives: spec § Rejected alternatives.
-- The external facts: spec § External dependencies (E1-E3).
+Intake: 13 items — 13 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## Global Constraints (every phase inherits these)
-- The rows of spec § Constraints digest (C1-C5) bind every phase.
-- Never edit another repo; the six live projects are out of scope (spec § Lifecycle).
-- Every test runs through `/opt/fabrik/scripts/capped_run.sh`.
-- Every grader is red-proven on a mutant in a throwaway worktree, never in this checkout.
 
-## Phase A — remove the public chat route (slice 1)
+- **Backing services.** `redis-main:6379` and `postgres-main:5432`, never `localhost`, in emitted code. The URL comes from env (`REDIS_URL`); `fabrik apply` gives each `needs_cache` app its own logical DB (spec § Constraints digest note).
+- **Logs.** Unbuffered JSON to stdout only, through the scaffolded logger (`from {package}.logger import get_logger`), never a logfile (XI).
+- **Tests.** Real backing services. Tests run against a throwaway real `redis-server`, never fakeredis or an in-memory Redis (X; `45-testing-strategy.md:174-176`).
+- **Config.** Granular env vars only (`CHAT_RATE_*`, `CHAT_MAX_*`, `CHAT_UPSTREAM_READ_TIMEOUT`, `OPENROUTER_*`). No grouped config sets and no secrets in code (III).
+- **Processes.** Stateless; chat state lives only in Redis with a TTL (VI). No bare `asyncio.create_task()`.
+- **Error responses.** Every 4xx/5xx the chat route raises is RFC 9457 `application/problem+json`, through the app's existing `_http_exc` handler (`src/fabrik/scaffold.py:3207-3210`). Two refusals come from middleware before the route and keep their own shape:
+  - the vendored `CsrfOriginMiddleware` 403 is `application/json` `{"detail": …}` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py:136-137`);
+  - the emitted `TenantMiddleware` answers an invalid or revoked bearer token with a problem+json 401, and a non-member tenant with a problem+json 403 (`src/fabrik/scaffold.py:2530-2538`, `:2549-2550`).
+  The client handles all of them.
+- **Dependencies.** No dependency edits except Phase A's two dev-extra packages, `email-validator` and `redis`, each authorised by the coordinator on 2026-10-18. The emitted backend already declares `httpx>=0.28.0` (`src/fabrik/scaffold.py:2255`) and `redis>=5.0` (`:2266`).
+- **Synced surfaces.** No fleet-synced path is touched. `src/fabrik/scaffold.py` and `templates/saas-skeleton/` ship to new scaffolds, not through the governance sync.
+- **Never-route paths.** None touched.
 
+## Constraints Digest
+
+| Quote | Source |
+|---|---|
+| Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:38` |
+| Use the scaffolded logger: `from {package}.logger import get_logger` | `.windsurf/rules/core/10-python.md:217` |
+| Never a bare `asyncio.create_task()` | `.windsurf/rules/core/10-python.md:223` |
+| All HTTP 4xx/5xx responses must conform to RFC 9457 (supersedes RFC 7807, backward-compatible). | `.windsurf/rules/core/15-api-contracts.md:77` |
+| Never swallow errors silently. At minimum, log with context. | `.windsurf/rules/core/20-typescript.md:113` |
+| Assert application state and user-visible outcomes only. | `.windsurf/rules/core/45-testing-strategy.md:21` |
+| a non-trivial behavior's test proves something only if it has been SEEN RED | `.windsurf/rules/core/45-testing-strategy.md:22` |
+| fakeredis / mockredis standing in for Redis. | `.windsurf/rules/core/45-testing-strategy.md:176` |
+| Any in-memory substitute for a real backing service. | `.windsurf/rules/core/45-testing-strategy.md:177` |
+| Session state goes to redis-main (Redis) with a TTL. | `.windsurf/rules/core/35-security-auth.md:149` |
+| Use proxy.ts (older majors: middleware.ts) only for UX redirects | `.windsurf/rules/core/35-security-auth.md:187` |
+| that cryptographically validates the token with the backend (FastAPI or Supabase JWKS) | `.windsurf/rules/core/35-security-auth.md:188` |
+| Redis keys carry the tenant: t:{tenant_id}:settings; unprefixed keys are reserved for explicitly global data (global:). | `.windsurf/rules/saas/95-multi-tenant-saas.md:161` |
+| Rate-limit per tenant so a noisy neighbour cannot exhaust the VPS | `.windsurf/rules/saas/95-multi-tenant-saas.md:166` |
+| No skipped heading levels — ## to ###, never ## to #### | `.windsurf/rules/core/40-documentation.md:242` |
+| Fenced code blocks only — never indented code | `.windsurf/rules/core/40-documentation.md:244` |
+| every interactive component handles all enriched states (loading, empty, error, permission denied, success, partial success, disabled) | `.windsurf/rules/saas/60-saas-ui.md:69` |
+| build against the slot NAMES (var(--color-danger), --font-heading) — never a brand's raw hex or font name | `.windsurf/rules/core/design-system-template.md:10` |
+
+Every selection below cites a row or is unconstrained:
+- **Real Redis in tests** cites rows 8 and 9. The spec's in-process fake is overruled by them, since a rule pack outranks a ticket on how the code is written (CLAUDE.md § Behavior, Conflict resolution).
+- **Errors through `_http_exc`** cites row 4.
+- **The scaffolded logger** cites row 2.
+- **The client error path** cites row 5: a failure is shown and logged, never swallowed.
+- **The client states** cite the `60-saas-ui.md:69` row: `SSEStream` surfaces loading (streaming), error, permission denied (signed out after a second 401) and rate-limited (a 429 with `Retry-After`) to its caller. It adds no markup or colour; the design-system row stays unconstrained, since this slice changes no visual.
+- **The README section** cites the two `40-documentation.md` rows: no skipped heading levels, and fenced examples only.
+- **Deviations the spec already recorded:** C4 token buckets and C5 middleware placement and plan tiers (D-1010).
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `.windsurf/rules/core/10-python.md` (MATCHED) | dependency edits only when authorised; the scaffolded logger; no bare create_task | `:38`, `:217`, `:223` |
+| `.windsurf/rules/core/45-testing-strategy.md` (MATCHED) | real backing services; watched-fail-first; no cosmetic assertions | `:21`, `:22`, `:174-177` |
+| `.windsurf/rules/core/20-typescript.md` (MATCHED) | strict mode; never swallow errors | `:113` |
+| `.windsurf/rules/core/15-api-contracts.md` | RFC 9457 errors | `:77` |
+| `.windsurf/rules/core/35-security-auth.md` (FLOOR) | verify with the backend; Redis-backed state | `:149`, `:187`, `:188` |
+| `.windsurf/rules/saas/95-multi-tenant-saas.md` | tenant key form; per-tenant limit | `:161`, `:166` |
+| fabrik-lib `fastapi-user-auth` (already vendored) | `build_current_user(*, secret, denylist, session_cookie_secure=True)`; `client_ip(request, trusted_proxy_hops)`; CSRF double-submit plus Origin | `dependencies.py:64`, `router.py:139-154`, `csrf.py:199`, `:307-324` |
+| fabrik-lib modules declined | `abuse-prevention`, `api-auth`, `cost-budget`, `ai-consult`, `async-http-client`, `api-quota` | spec § fabrik-lib verdict |
+| `agents-fabrik.md` § Scaffold Types | saas-skeleton, static-site and office-extension share `_scaffold_saas_skeleton` | `src/fabrik/scaffold.py:4480`, `:7818`, `:7881` |
+| `shape.needs_cache` | already `true` in the saas-skeleton defaults; no shape change | `templates/saas-skeleton/defaults.yaml:13` |
+| `docs/data-contract.md`, `docs/ui-design.md` | none in the hub for this surface | — |
+
+🆕 fabrik-lib candidate: none new. The spec's upstream note asks for a general Redis limiter module (spec § fabrik-lib verdict, Rate limiting). Phase C step 6 sends it with the `client_ip` export request.
+
+## Phase A — the hub venv can load the vendored auth modules (W-0ae9b7e1)
 Appetite: 30
 
-**Steps:**
-1. Write `tests/test_saas_chat_route_removed.py` first, and see it red on today's template. It scaffolds a fresh saas-skeleton into `tmp_path` with `create_project` and asserts three things:
-   - no `app/api/chat/route.ts` exists;
-   - no file under `app/api/` contains `OPENROUTER_API_KEY`;
-   - `components/chat/index.ts` does not export `ChatUI`.
-2. Delete `templates/saas-skeleton/app/api/chat/route.ts`, and drop the `ChatUI` export from `templates/saas-skeleton/components/chat/index.ts` (the component file stays for Phase B).
-3. Replace the README example at `templates/saas-skeleton/README.md:76-80` with one line: chat is served by the backend `POST /api/v1/chat` once Phase B lands.
-4. Run the new test green, then the existing saas-skeleton scaffold tests (`command grep -l saas-skeleton tests/` gives the census), one file at a time.
+Implements: W-0ae9b7e1 and the spec § Validation precondition ("Fleet's open item W-0ae9b7e1 … the slice-2 plan sequences it before the hub chat test").
 
-**Behavior Contract:**
-| # | Behaviour | Test | Spec |
-|---|---|---|---|
-| A1 | A fresh scaffold ships no Next chat route | `test_a_fresh_scaffold_has_no_next_chat_route` | spec § Chosen approach, slice 1 |
-| A2 | No Next API route reads the OpenRouter key | `test_no_next_api_route_reads_the_openrouter_key` | spec § Validation |
+**Interfaces.**
+- Consumes: nothing.
+- Produces: a hub `.venv` that imports `email_validator` and `redis.asyncio`. Phases B and C rely on both.
 
-**Gate:** `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q tests/test_saas_chat_route_removed.py`
+Steps:
+1. **Probe first.** `.venv/bin/python -c "import email_validator"` must print `ModuleNotFoundError`, and `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_scaffold_saas_web_wiring.py -q -p no:cacheprovider` must give `4 failed, 17 passed`. That is the red baseline (§ Evidence).
+2. **Add the dependencies.** In `pyproject.toml` `[project.optional-dependencies] dev` (lines 37-53), add `email-validator>=2.0` with a comment naming W-0ae9b7e1 and the coordinator's authorisation, following the precedent at lines 48-52. Also add `redis>=5.0`, the floor the emitted backend declares (`src/fabrik/scaffold.py:2266`), with a comment naming the coordinator's approval and `45-testing-strategy.md:176-177`. These two packages and nothing else (the coordinator's condition 1). Then run `uv lock`.
+   - Gate: `command grep -c "email-validator" uv.lock` is at least 1.
+   - Gate: `git diff --numstat -- pyproject.toml uv.lock` shows only these entries and their transitive pins.
+3. **Install into the shared venv, on the coordinator's turn.** `.venv` is a symlink to the shared `/opt/fabrik/.venv`, so this is a shared-runtime act. First run `uv sync --inexact --extra dev --dry-run` and read it. If it shows any removal, stop and tell the coordinator (condition 3). Otherwise run `uv sync --inexact --extra dev` once, and send the coordinator the list of packages it added. `--inexact` removes nothing that is installed but missing from the lock.
+   - Gate: `.venv/bin/python -c "import email_validator, redis.asyncio"` exits 0.
+4. **Re-run the baseline.** `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_scaffold_saas_web_wiring.py -q -p no:cacheprovider` → `21 passed`.
+5. **Record it.**
+   - The D-row is D-1013, minted with this plan. It names both packages and both coordinator approvals, and gives `45-testing-strategy.md:176-177` as the reason the spec's in-process Redis fake is replaced by a real throwaway `redis-server`. Add the commit SHA to the work item, not to the row.
+   - Add one line to the spec's § Decisions taken deviations list: "the hub tests use a real throwaway `redis-server`, not the in-process fake § Validation names — forced by `.windsurf/rules/core/45-testing-strategy.md:176-177` (D-1013)".
+6. Closing sequence:
+   1. Run the phase gate (step 4) and fix it to green.
+   2. `python scripts/enforcement/check_doc_sync.py`, plus the phase's doc steps: the spec note (step 5) and the CHANGELOG entry (orchestrator-applied).
+   3. `/fabrik-review-scoped` on this phase's diff, run to a pass that confirms zero defects.
+   4. Commit with explicit paths and provenance trailers, with a message that names W-0ae9b7e1, then push. `work.py done` accepts only a SHA whose message names the item (`scripts/work.py:3617`, `_evidence_commits`).
+   5. Close W-0ae9b7e1 with `python3 scripts/work.py done W-0ae9b7e1 --evidence <the commit SHA from 4>`.
 
-## Phase B — authenticated, rate-limited backend chat (slice 2)
+**Behavior Contract.**
+- **Given** the hub venv after Phase A, **When** `tests/test_scaffold_saas_web_wiring.py` runs, **Then** all 21 tests pass, including the four CSRF origin cases that fail today on `settings.py:13` (W-0ae9b7e1).
 
+## Phase B — the backend chat route, its limiter and its tests
+Appetite: 180
+
+Implements spec § Chosen approach (Identity, CSRF, The order of checks, Limits, Body, The system prompt, Upstream, Observability, Key placement) and spec § Validation (Hub tests, the limiter test, the emitted tests, the slice-1 graders).
+
+**Interfaces.**
+- Consumes: Phase A's venv. The vendored `build_current_user` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:64`) and `client_ip` (`router.py:139`).
+- Produces, all in the emitted backend under `server/src/<pkg>/`:
+  - `auth.py`: `redis_client()`, an lru-cached `redis.asyncio` client, or None when `REDIS_URL` is unset; and `denylist()`, the public alias of `_denylist()`.
+  - `chat.py`:
+    - `CHAT_SYSTEM_PROMPT: str` and `RATE_LUA: str`;
+    - `ChatSettings`, a frozen dataclass, and `load_chat_settings(environ) -> ChatSettings`. It parses `CHAT_RATE_*`, `CHAT_MAX_*` and `CHAT_UPSTREAM_READ_TIMEOUT`, raising `ValueError` on a malformed value, and reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`. An empty value counts as unset, so a copied `.env.example` gives the 503;
+    - `build_chat_router(*, chat_settings, auth_settings, redis, denylist, client_ip, http_client) -> APIRouter`. It serves `POST /api/v1/chat`: the router's prefix is `/api/v1` and its route is `/chat`;
+    - `chat_requests_total` and `chat_rate_limited_total`, registered on `metrics.REGISTRY`.
+  - `main.py`:
+    - calls `load_chat_settings(os.environ)` at import. A malformed value fails the app at start (spec § Limits);
+    - builds one `httpx.AsyncClient` with `httpx.Timeout(10.0, read=<CHAT_UPSTREAM_READ_TIMEOUT>)`, a 10 s default for connect, write and pool plus the read override. `httpx.Timeout(connect=10, read=60)` alone raises `ValueError` ("must either include a default, or set all four parameters explicitly", httpx 0.28.1);
+    - includes `build_chat_router(...)`;
+    - closes the client in `lifespan` after `yield` (`src/fabrik/scaffold.py:3168-3174`).
+  - Env names: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CHAT_RATE_APP`, `CHAT_RATE_TENANT`, `CHAT_RATE_USER`, `CHAT_RATE_IP`, `CHAT_MAX_TOKENS`, `CHAT_MAX_MESSAGE_CHARS`, `CHAT_MAX_BODY_BYTES`, `CHAT_UPSTREAM_READ_TIMEOUT`.
+
+Steps (the highest-risk behaviour first, test-first):
+1. **The limiter, test-first.** Write `tests/test_saas_chat_limiter_lua.py` before the script exists:
+   - Start a throwaway `redis-server --port 0 --unixsocket <dir>/redis.sock --save '' --appendonly no` and connect over the socket (TCP is off; never 6379). Use a short `tempfile.mkdtemp(dir="/tmp")` directory, so the socket path stays under the 108-byte AF_UNIX limit (§ Evidence). Kill the server and remove the directory in the fixture's teardown.
+   - Load the emitted `RATE_LUA` text from a fresh scaffold.
+   - Drive it with `redis.asyncio` (Phase A).
+   - The cases:
+     - a refused request leaves every other key unchanged;
+     - the first increment sets the window TTL;
+     - a key at or above its limit without a TTL gets the full window back, and the returned TTL is the re-armed one (I4, I5);
+     - a refusal returns its bucket name and a TTL of at least 1000 ms.
+   - Watch it fail: no `RATE_LUA` exists yet. Then write `RATE_LUA` in the emitted `chat.py` text and watch it pass. Prove it red on the mutant that increments before it checks.
+   - Gate: `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_saas_chat_limiter_lua.py -q -p no:cacheprovider` → all pass. The pasted output must show no skip.
+2. **The `auth.py` public names** (`src/fabrik/scaffold.py:2585`, `_SAAS_AUTH_PY`):
+   - Add `redis_client()`, the `@lru_cache` client built once from `get_settings().redis_url`.
+   - `_denylist()` (`:2649-2664`) builds its `RedisDenylist` on `redis_client()`.
+   - `aclose()` (`:2725-2735`) closes `redis_client()` once, replacing its `_denylist()._client` lookup, which would now be the same object; the `_denylist()` call there goes.
+   - Add `denylist = _denylist`.
+   - The two other `_denylist()` call sites (`:2691`, `:2715`) stay as they are.
+   - Gate: `tests/test_scaffold_saas_backend.py` and `tests/test_scaffold_saas_web_wiring.py` stay green.
+3. **`_http_exc` forwards headers** (I10). In `_SAAS_MAIN_PY` (`src/fabrik/scaffold.py:3207-3210`), `_problem` gains an optional `headers` argument, and `_http_exc` passes `getattr(exc, "headers", None)`. Every header-carrying HTTPException keeps its headers. Today all of them are dropped; see the probe in § Evidence.
+   - Gate: `tests/test_saas_chat_backend.py` extracts `_problem` and `_http_exc` from the emitted `main.py` by AST, the pattern of `_web_origins` (`tests/test_scaffold_saas_web_wiring.py:142-158`). It mounts them on a bare app and asserts that a raised `HTTPException(429, headers={"Retry-After": "30"})` comes back with that header. Today's text returns `Retry-After: None` (§ Evidence), so the row is red until the fix lands. The emitted `server/tests/test_chat.py` (step 8) asserts the same header on the real app's 429.
+4. **The emitted `chat.py`.** A new `_SAAS_CHAT_PY` constant beside `_SAAS_AUTH_PY`, written by `_scaffold_saas_backend` beside `auth.py` (`src/fabrik/scaffold.py:3607-3613`). It holds:
+   - **The seam.** `build_chat_router(...)` receives every collaborator, the HTTP client included. `chat.py` holds no import-time state beyond its constants (spec § Chosen approach, Identity).
+   - **The identity wrapper.** It calls the `current_user` that `build_current_user` returned, directly, as `current_user(request=request, authorization=request.headers.get("authorization"))`, inside a try/except, wrapping the denylist in a fail-closed adapter. Both arguments must be explicit: called directly, the `authorization` default is a `Header(...)` object, and `_access_token` fails on `.lower()` with a 500 (`dependencies.py:90`, `:37`). The adapter raises its own marked 503, so the wrapper labels a denylist outage `redis_down` and any other refusal `unauthenticated`, then re-raises (I7).
+   - **The body.** It enforces the `Content-Length` cap, then a bounded read, then the JSON contract (spec § Chosen approach, Body).
+   - **The key and model check.**
+   - **The limiter call.** It builds the `global:chat:app`, `t:{tenant_id}:chat:rate`, `global:chat:user:{user_id}` and `global:chat:ip:{ip}` keys. IPv6 is keyed on its /64, an IPv4-mapped address on its IPv4, and an unparseable or empty IP skips the IP bucket.
+   - **The upstream.** The `http_client` from the seam, streaming with `max_tokens`.
+   - **The SSE relay.** It reads only `data:` lines.
+   - **The counters**, on `REGISTRY` (`src/fabrik/scaffold.py:1728`).
+   - **One log line per request**, through `get_logger`.
+   - **Counting, and its limit.** The counters see every request that reaches the route. Two kinds of request are refused by middleware before the route and are not counted there:
+     - a bearer token `TenantMiddleware` already refused (`src/fabrik/scaffold.py:2530-2538`);
+     - a `TenantMiddleware` 403 for a tenant the user is not a member of (`:2549-2550`);
+     - a CSRF 403.
+     A cookie-borne 401 is counted.
+5. **Mount it.** `_SAAS_MAIN_PY` includes the chat router, whose prefix is `/api/v1` and route `/chat`, before `app.include_router(v1)` (`src/fabrik/scaffold.py:3290`), so the path is `POST /api/v1/chat`, under the `/api` prefix Traefik routes to the backend. The `app.include_router(build_saas_auth_router())` line (`:3201`, pinned by `tests/test_scaffold_saas_web_wiring.py:44`) stays verbatim.
+6. **The template.**
+   - `templates/saas-skeleton/.env.example` gets a chat block after App Config (`:22-24`) with the ten chat variables and `TEST_REDIS_URL` (step 8), eleven lines.
+     - The key line is `OPENROUTER_API_KEY=`, uncommented and empty, so `_detect_secrets` puts it into a new spec's `secrets.from_env`: it skips commented lines (`src/fabrik/scaffold.py:118-122`), and `_is_likely_secret` matches `_API_KEY$` (`:80`).
+     - The other ten are commented: the eight `CHAT_*` lines with their defaults, and `OPENROUTER_MODEL` and `TEST_REDIS_URL` with example values, since neither has a default.
+   - The emitted `docs/CONFIGURATION.md` gets a chat section. `_scaffold_shared` seeds that file first (`src/fabrik/scaffold.py:1209`), but `_should_seed_doc` can skip it for a type (`:423-433`). So `_scaffold_saas_skeleton` appends the section when the file exists and writes it as a new file when it does not. The append sits next to its `SERVICE_NAME` append to `.env.example` (`:4411-4412`), the same pattern. It is not added to the shared `docs/CONFIGURATION_TEMPLATE.md`, which every project type reads (`:300`, `:470`). This is spec § Shape and infra and § Documentation landing sites.
+   - `templates/saas-skeleton/README.md` § AI Chat Integration (`:68-88`) gets the chat section the spec lists (spec § Documentation landing sites).
+   - Narrow the slice-1 graders in the same step, because the template now names the key (spec § Validation, the slice-1 graders):
+     - `tests/test_saas_skeleton_chat_system_prompt.py:106` becomes a ban on `NEXT_PUBLIC_OPENROUTER`;
+     - `:80-83` keeps scanning the whole tree, allowlists only `.env.example` and `README.md`, and still scans those two for `NEXT_PUBLIC_OPENROUTER` and `api/chat`;
+     - a new test asserts that, of every emitted file, only `server/src/<pkg>/chat.py` contains `OPENROUTER_API_KEY`. The scan covers the root config files such as `next.config.js`, where an `env:` entry would inline the key into the client bundle. It excludes `server/tests/`, the fleet-synced `scripts/` tree (`scripts/rivals_run.py` names the key for its own use, `scripts/fabrik_synced_manifest.py:53`), `docs/`, `*.md` and `.env.example`. The key still reaches every container through the shared root `.env`, the spec's recorded key-placement deviation (spec § Chosen approach, Key placement), so the test does not claim otherwise.
+7. **The hub backend test, test-first per risky row.** `tests/test_saas_chat_backend.py`:
+   - Scaffold into `tmp_path`.
+   - Load the vendored leaf modules by path under a stub package, with this file's own loader, a copy of `_load_vendored_idp` (`tests/test_scaffold_saas_web_wiring.py:125-139`) extended with `tokens` and `dependencies`. That file is not edited. Load the emitted `chat.py` by path.
+   - `client_ip` is a stand-in: a verbatim copy of `router.py:139-154`. `router.py` itself needs `uuid_utils` and `argon2` (`router.py:16`, `passwords.py:3`), which the hub venv lacks. The emitted test proves the real import.
+   - Mount it on a bare Starlette app with the vendored `CsrfOriginMiddleware` and stand-in `BaseHTTPMiddleware` layers.
+   - Point it at a throwaway real `redis-server` (step 1's fixture, shared through a module fixture).
+   - Mock OpenRouter with `httpx.MockTransport`.
+   - IP-bucket rows send an `X-Forwarded-For` with a parseable address, because TestClient's peer `"testclient"` would skip the bucket (I6).
+   - The cases are the spec's § Validation list, one test per case, each seen red on its mutant.
+8. **The emitted test.** A new `_SAAS_TEST_CHAT_PY` is written to `server/tests/test_chat.py` beside `test_auth.py` (`src/fabrik/scaffold.py:3621-3622`). It covers the core cases against the real emitted app and a real Redis named by `TEST_REDIS_URL`, never the app's `REDIS_URL`:
+   - A throwaway guard refuses a URL whose logical DB is 0, or that equals the `REDIS_URL` captured when the test module loads, before any test points the app at `TEST_REDIS_URL`, on the model of the emitted Postgres guard `require_throwaway` (`src/fabrik/scaffold.py:232-248`), a database-name check used here only as a precedent. So filling the app bucket can never lock real users out.
+   - It skips with a stated reason when `TEST_REDIS_URL` is unset, and never substitutes a fake.
+   - Each test sets the app's `REDIS_URL` to `TEST_REDIS_URL`, builds the app fresh, and clears the `get_settings()`, `_denylist()` and `redis_client()` lru caches. So no stale URL or client crosses pytest-asyncio's per-test event loops.
+   - `TEST_REDIS_URL` joins the `.env.example` chat block, commented.
+9. **The default bucket sizes and token ceiling** (I9, I13). `OPENROUTER_MODEL` has no default (unset gives 503), so the D-row states the defaults as a token ceiling, not dollars. With the app bucket at 1200 requests per hour and `CHAT_MAX_TOKENS` at 1024, the app's output is at most 1,228,800 tokens per hour. The owner turns that into money with their model's price, and the README says so.
+   - `CHAT_MAX_TOKENS` stays 1024. The README notes that on a reasoning model the limit covers reasoning and visible output together, so a small value can return an empty reply with `finish_reason: "length"` (research ledger chat-16), and names raising it as the knob.
+   - The values stay env-overridable.
+10. Closing sequence:
+    1. Run the phase gate and fix it to green:
+       - `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_saas_chat_limiter_lua.py tests/test_saas_chat_backend.py tests/test_saas_skeleton_chat_system_prompt.py tests/test_scaffold_saas_backend.py tests/test_scaffold_saas_web_wiring.py -q -p no:cacheprovider` → all pass, no skip in the first two files.
+    2. `python scripts/enforcement/check_doc_sync.py`, plus the doc steps: the template README and `.env.example` (step 6), and the CHANGELOG entry and D-row (orchestrator-applied).
+    3. `/fabrik-review-scoped` on this phase's diff, run to a pass that confirms zero defects.
+    4. Commit with explicit paths and provenance trailers.
+
+**Behavior Contract.**
+- **Given** a request with no session and no bearer, **When** `POST /api/v1/chat`, **Then** 401, no Redis key touched, and no upstream call (spec § Validation).
+- **Given** a cookie-borne request without the CSRF token, or without an allowed Origin, **When** it posts, **Then** 403, each case on its own (spec § Validation).
+- **Given** any bucket is full, the app bucket included, **When** a signed-in user posts, **Then** 429 with `Retry-After` of at least 1, the bucket named, and no other bucket incremented (spec § Limits; I10).
+- **Given** a key at or above its limit without a TTL, **When** the limiter runs, **Then** the key gets the full window back and the returned TTL is that window (I4, I5).
+- **Given** a body over `CHAT_MAX_BODY_BYTES`, or any `SLICE2_BAD_BODIES` body, **When** it posts, **Then** 413 or 400 and no bucket touched (spec § Body).
+- **Given** `REDIS_URL` is unset, the key or the model is unset or empty, or Redis raises, **When** a signed-in user posts, **Then** 503, never a pass (spec § Lifecycle, Degradation).
+- **Given** `SLICE2_HOSTILE_FIELDS`, **When** a signed-in user posts, **Then** 200, and the upstream payload is exactly `{model, messages, stream, max_tokens}` (spec § Upstream).
+- **Given** a client disconnect mid-stream, **When** the stream is open, **Then** the upstream `httpx` stream is closed (spec § Upstream).
+- **Given** a malformed `CHAT_RATE_*` value, **When** `load_chat_settings` reads the environment, **Then** it raises `ValueError`, so the app fails at start (spec § Limits).
+
+## Phase C — the template's chat client, then the whole-plan close
 Appetite: 120
 
-**Steps:**
-1. Write `tests/test_saas_chat_backend.py` first. It scaffolds a saas-skeleton, imports the emitted `server` app (as the existing saas backend tests do; the census is in step 6), fakes Redis with a fake that implements the commands the bucket uses, and fakes the OpenRouter HTTP call with an `httpx` mock. Its cases:
-   - anonymous: 401;
-   - bearer-authenticated: 200 with `text_delta` and `done` frames;
-   - cookie-authenticated without the CSRF header: 403;
-   - cookie-authenticated with it: 200;
-   - each of the tenant, user and IP buckets exhausted: 429 with `Retry-After`;
-   - `REDIS_URL` unset: 503;
-   - a body that is not a non-empty `message` string: 400.
+Implements spec § Chosen approach, Client, and spec § Validation, The template grader.
 
-   See them red before step 2.
-2. In `_SAAS_MAIN_PY` (`src/fabrik/scaffold.py:3098`), add `chat_user = build_current_user(secret=…, denylist=…, session_cookie_secure=…)`, built from the same settings the auth router uses (`src/fabrik/scaffold.py:2631-2660`). Then add `@v1.post("/chat")` before `app.include_router(v1)` (`src/fabrik/scaffold.py:3290`), depending on `chat_user`.
-3. In the same emitted module, add the token bucket: one Redis `INCR` plus `EXPIRE` window counter per key (`chat:t:<tenant_id>`, `chat:u:<user_id>`, `chat:ip:<client ip>`). The capacity and window come from `CHAT_TENANT_RATE`, `CHAT_USER_RATE` and `CHAT_IP_RATE` (`<count>/<seconds>`, with defaults stated in the D-row). The client IP honours the module's `trusted_proxy_hops`. When Redis is absent it returns 503 and never passes.
-4. Port the OpenRouter streaming from the deleted Next route: the body rule (only `message`, a non-empty string), the server-side system prompt, and the same SSE frame shapes. Stream with `httpx.AsyncClient` (already a backend dependency, `src/fabrik/scaffold.py:2072`). `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read from the backend env. The emitted `.env.example` and `docs/CONFIGURATION.md` gain them and the three rate vars.
-5. Client: `SSEStream.tsx`'s fetch (`templates/saas-skeleton/components/chat/SSEStream.tsx:32`) sends `credentials: "include"` and the `X-CSRF-Token` header read from the `__Host-csrf_token` cookie. Re-export `ChatUI`. The README documents the endpoint, the env vars and the same-site plus `CORS_ORIGINS` requirement (spec § Chosen approach).
-6. Run the new test green, then the existing saas backend scaffold tests one file at a time, and `ruff` on the scaffold.
+**Interfaces.**
+- Consumes: Phase B's `POST /api/v1/chat` contract (its frames, its 401/403/413/429/503 problem+json responses and its `Retry-After`) and the backend's `/auth/refresh` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/router.py:777-789`).
+- Produces:
+  - `templates/saas-skeleton/components/chat/SSEStream.tsx`, with the same exported names (`useSSEStream`, `ToolCallIndicator`, `StreamingIndicator`) and the same `startStream(url, body)` signature, so `ChatUI.tsx:6` and `index.ts:2` are unchanged;
+  - `ChatUI.tsx`, which passes an `onError` to `useSSEStream` (`:29`, which today passes none) and renders the message: signed out, rate-limited with its `Retry-After`, or the stream error.
 
-**Behavior Contract:**
-| # | Behaviour | Test | Spec |
-|---|---|---|---|
-| B1 | An anonymous chat request is refused | `test_anonymous_chat_is_401` | spec § Chosen approach, slice 2 (Identity) |
-| B2 | A signed-in user (bearer or cookie with CSRF) streams a reply | `test_signed_in_chat_streams` | spec § Chosen approach, slice 2 |
-| B3 | A cookie-borne request without the CSRF token is refused | `test_cookie_chat_without_csrf_is_403` | spec § Chosen approach, slice 2 (Identity) |
-| B4 | Each bucket, when exhausted, answers 429 with Retry-After | `test_each_bucket_exhausted_is_429` | spec § Chosen approach, slice 2 (Limits) |
-| B5 | No Redis means closed, never unlimited | `test_no_redis_is_503` | spec § Lifecycle, Degradation |
-| B6 | Only a non-empty string `message` is accepted | `test_bad_body_is_400` | spec § Validation |
+Steps:
+1. **The source grader, test-first.** Write `tests/test_saas_chat_client_template.py`, in the plain substring style of `tests/test_scaffold_saas_web_wiring.py:92-98`, over `SSEStream.tsx` and `ChatUI.tsx`. It asserts:
+   - `credentials: "same-origin"` and the `X-CSRF-Token` header are sent;
+   - both cookie names are read (`__Host-csrf_token`, `csrf_token`), and read again before a retry;
+   - one `/auth/refresh` call on a 401, with a second 401 shown as signed out;
+   - a streaming decode (`{ stream: true }`) and a carried partial line;
+   - one `onComplete` call site;
+   - a 429 shows `Retry-After`;
+   - neither `SSEStream.tsx` nor `ChatUI.tsx` contains "openrouter" or "api/chat", which keeps the slice-1 ban;
+   - `ChatUI.tsx` passes `onError` to `useSSEStream`, keeps the message it receives in state, and renders that state in the chat surface. So a no-op handler fails the grader.
 
-**Gate:** `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q tests/test_saas_chat_backend.py`
+   Its scope is `SSEStream.tsx` and `ChatUI.tsx`. It is a source grader: it proves the wiring is present, not the rendered text. The rendered messages are the project's own front-end tests (spec § Validation, The template grader). Watch it fail on today's files. Then:
+   - Gate: `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_saas_chat_client_template.py -q -p no:cacheprovider`.
+2. **Change `SSEStream.tsx`** (`:32` the fetch, `:45-58` the decode and split, `:85` and `:96` the double `onComplete`, `:98-99` the outer catch) to pass the grader.
+   - Keep strict TypeScript with no `any`. Errors go to `onError` and are never swallowed.
+   - An error body is read as problem+json `detail` when present, else as the vendored CSRF middleware's plain `{"detail": …}`.
+   - Then change `ChatUI.tsx` to pass `onError` and render its message in the existing chat surface, using design-system slot names only (step 1's last assertion).
+3. **Five legitimate spellings.** For each grader assertion, the test file carries five spellings a different author would plausibly write, as executable cases, and reports the count it catches (`45-testing-strategy.md` § BANNED in tests).
+4. **The whole-plan review.** One `/fabrik-review` over the whole-plan diff (`3974671ef..HEAD`). It is the `/fabrik-execute-plan` D7 floor. Size the seats with `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <groups>` and stamp them with `python3 scripts/command_run.py dispatch --seats <n>`. Run it to a closing pass that confirms zero code or doc defects. The receipt is `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-review.md`.
+5. **`/fabrik-docs-review`** over the docs this plan touched: the template README and `.env.example`, and the CHANGELOG entry.
+6. **Mail fabrik-lib** (I8). One `python3 scripts/mail.py send --to fabrik-lib --kind request` asking for:
+   - the `client_ip` export from a leaf module that does not need argon2;
+   - the general Redis limiter module the spec's upstream note names.
 
-## Phase C — integration review and ledgers
+   It carries the D-035 message contract.
+7. **Final gates.**
+   - `python scripts/final_gate.py --check --json` → `"status":"success"`. Read `skipped_checks` and `advisory`.
+   - `python3 scripts/enforcement/check_convergence.py` → exit 0.
+   - A green gate is necessary, not sufficient. The proof is § Evidence and the receipt.
+8. Closing sequence:
+   1. Run the phase gate (steps 1 and 7) and fix it to green.
+   2. `python scripts/enforcement/check_doc_sync.py`.
+   3. `/fabrik-review-scoped` on this phase's own diff, before step 4's whole-plan review, run to a pass that confirms zero defects.
+   4. Commit with explicit paths and provenance trailers, then push the branch (`git push origin worktree-fleet`; `merge_request.py request` refuses an unpushed branch).
+   5. Send the merge request: `python3 scripts/merge_request.py request --review <receipt> --item W-ab242b11`.
 
-Appetite: 60
+**Behavior Contract.**
+- **Given** a signed-in browser user, **When** `SSEStream` posts, **Then** it sends the session cookie and the CSRF header from either cookie name (spec § Client).
+- **Given** an expired access cookie and a valid refresh cookie, **When** the chat POST returns 401, **Then** the client refreshes once, re-reads the rotated CSRF cookie and retries once, and a second 401 shows signed out (spec § Client).
+- **Given** a frame split across two network chunks, **When** the stream is read, **Then** the frame is delivered once and `onComplete` fires once, on the error path too (spec § Client).
+- **Given** a 429, a second 401, or a CSRF 403 with its plain `{"detail": …}` body, **When** `ChatUI` streams, **Then** the user sees the matching message, never an empty reply (spec § Client).
 
-1. Run the full `/fabrik-review` over Phase A and Phase B's commits. It is a heavy surface (auth), so it is never the scoped review. Seats are sized by `dispatch_headroom.py`, and the receipt goes under `docs/development/reviews/`.
-2. Ledgers:
-   - a `docs/DECISIONS.md` row with the D-then-A decision, the bucket defaults and their derivation (spec § Open / blocking unknowns);
-   - a `CHANGELOG.md` entry per slice;
-   - the work item closed on Phase B's code commit.
-   The coordinator then files one follow-up item per live project (spec § Lifecycle).
+## File Scope (owned paths)
 
-**Gate:** `python3 scripts/final_gate.py --json` → `status: "success"`.
-
-## Behavior Contract
-- **Given** a fresh saas-skeleton scaffold, **When** its tree is listed, **Then** no `app/api/chat/route.ts` exists and no `app/api/` file reads `OPENROUTER_API_KEY` (A1, A2).
-- **Given** no credentials, **When** `POST /api/v1/chat`, **Then** 401 and no OpenRouter call (B1).
-- **Given** a valid bearer token, or the session cookie plus the matching `X-CSRF-Token`, **When** `POST /api/v1/chat {message}`, **Then** 200 with `text_delta` frames and a `done` frame (B2).
-- **Given** the session cookie without the CSRF token, **When** `POST /api/v1/chat`, **Then** 403 (B3).
-- **Given** the tenant, user or IP bucket is exhausted, **When** `POST /api/v1/chat`, **Then** 429 with `Retry-After` (B4).
-- **Given** `REDIS_URL` is unset, **When** `POST /api/v1/chat`, **Then** 503, never an unlimited call (B5).
-- **Given** a body that is not `{message: <non-empty string>}`, **When** `POST /api/v1/chat`, **Then** 400 (B6).
-- **Mocked:** Redis (an in-memory fake implementing INCR/EXPIRE/TTL) and the OpenRouter HTTP endpoint (an httpx transport mock). Real: the emitted FastAPI app, the vendored fastapi-user-auth dependency, CSRF and CORS middleware, and JWTs signed with the test secret.
-
-## Touches
-- `templates/saas-skeleton/app/api/chat/route.ts` (deleted)
-- `templates/saas-skeleton/components/chat/index.ts`
-- `templates/saas-skeleton/components/chat/SSEStream.tsx`
-- `templates/saas-skeleton/README.md`
-- `src/fabrik/scaffold.py`
-- `tests/test_saas_chat_route_removed.py` (new)
-- `tests/test_saas_chat_backend.py` (new)
-
-## Context Files
-- `docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md`
-- `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py`
-- `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py`
-- `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/cookies.py`
+- pyproject.toml
+- uv.lock
+- src/fabrik/scaffold.py
+- templates/saas-skeleton/components/chat/SSEStream.tsx
+- templates/saas-skeleton/components/chat/ChatUI.tsx
+- docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md
+- templates/saas-skeleton/README.md
+- templates/saas-skeleton/.env.example
+- tests/test_saas_chat_limiter_lua.py
+- tests/test_saas_chat_backend.py
+- tests/test_saas_chat_client_template.py
+- tests/test_saas_skeleton_chat_system_prompt.py
+- docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-review.md
+- docs/development/plans/2026-10-18-plan-2-saas-chat-auth.md
 
 ## Coverage Checklist
 
-Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four recurrence classes.
+Derived from the `review_rubric.py` run below (FLOOR and MATCHED), plus the four recurrence classes. `/fabrik-plan-review` and the per-phase reviews set each verdict.
 
 | Row | Hunt | Verdict |
 |---|---|---|
-| FLOOR core/35-security-auth | C1 verifySession with the backend; CSRF on cookie mutations; Redis-backed limits | UNCHECKED |
-| FLOOR core/25-data-postgres | no schema or DB change | UNCHECKED |
-| FLOOR core/30-ops | env vars documented; no new service or port | UNCHECKED |
-| FLOOR 12-FACTOR | config from env (CHAT_*_RATE, OPENROUTER_*); stateless process, Redis state | UNCHECKED |
-| MATCHED core/10-python | no deps-file edit; httpx/redis already backend deps | UNCHECKED |
-| MATCHED core/12-node + core/20-typescript | the SSEStream fetch change typed; no new package | UNCHECKED |
-| MATCHED core/40-documentation | README, .env.example, CONFIGURATION, CHANGELOG, D-row | UNCHECKED |
-| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red on a mutant | UNCHECKED |
-| MATCHED core/design-system-template + saas/60-saas-ui | no UI surface change beyond the fetch options | UNCHECKED |
-| RECURRENCE fail-open vs fail-closed | no Redis → 503; anonymous → 401; missing CSRF → 403 | UNCHECKED |
-| RECURRENCE cost/quota/limit accounting | three buckets at their edges; Retry-After | UNCHECKED |
-| RECURRENCE boundary/sentinel/prefix collisions | bucket keys per tenant/user/ip; client IP behind trusted hops | UNCHECKED |
-| RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A/B row | UNCHECKED |
+| FLOOR core/35-security-auth | verify with the backend (C1); CSRF on cookie mutations; Redis-backed state; fail closed | FIXED — pass 1: the direct call passes `authorization=` explicitly (`dependencies.py:90`, `:37`); the CSRF 403 and TenantMiddleware 401 shapes named (`csrf.py:136-137`, `scaffold.py:2530-2538`); the fail-closed adapter on NullDenylist kept; hunted Phase B steps 2-5 |
+| FLOOR core/25-data-postgres | no schema or DB change | CLEAN — pass 1: no schema, migration or DB step in any phase; hunted Phases A-C |
+| FLOOR core/30-ops | env vars documented; no new service, port or compose change | FIXED — pass 1: `OPENROUTER_API_KEY=` uncommented so `_detect_secrets` lists it (`scaffold.py:118-122`, `:80`); the emitted `docs/CONFIGURATION.md` chat section (`:4411-4412` pattern); no service, port or compose change |
+| FLOOR 12-FACTOR | III granular env; VI Redis state; X real Redis in tests; XI stdout logs | FIXED — pass 1: X — the emitted test uses `TEST_REDIS_URL` behind a throwaway guard, never `REDIS_URL` (`scaffold.py:232-248` precedent); III, VI and XI unchanged and clean |
+| MATCHED core/10-python | the only dependency edit is Phase A's, authorised; the scaffolded logger; no bare create_task | CLEAN — pass 1: the scaffolded logger and no bare create_task stated; the dependency edits are Phase A's two packages (D-1013) |
+| MATCHED core/20-typescript | strict mode; no swallowed error; the exported API unchanged | FIXED — pass 1: `ChatUI.tsx` passes `onError` and renders it (`ChatUI.tsx:29` passed none); error bodies read as problem+json or the CSRF `{detail}` shape; strict, no `any` |
+| MATCHED core/40-documentation | README chat section; `.env.example`; CHANGELOG; D-rows | FIXED — pass 1: `docs/CONFIGURATION.md` added to Phase B step 6; the README section follows the two heading and fence rows |
+| MATCHED core/45-testing-strategy | one test per behaviour, each seen red; real Redis; five spellings per grader | FIXED — pass 1: the `Retry-After` gate exercises the emitted `_http_exc` by AST (it was vacuous on bare Starlette); the start-up `ValueError` row; the `client_ip` stand-in named; the real redis-server |
+| MATCHED core/design-system-template + saas/60-saas-ui | no visual change; the SSEStream logic only | CLEAN — pass 1: ChatUI's error message uses design-system slot names only; the states (streaming, error, signed out, rate-limited) are covered by the Phase C contract |
+| RECURRENCE fail-open vs fail-closed | NullDenylist → 503; Redis error → 503; key or model unset → 503; never a pass | FIXED — pass 1: the request-only direct call 500 path closed (explicit arguments); NullDenylist, Redis error and key/model unset all 503 |
+| RECURRENCE cost/quota/limit accounting | check-before-increment; the app bucket; `max_tokens`; the 413 cap | CLEAN — pass 1: check-before-increment; the app bucket; `max_tokens`; the 413 cap; the D-row's token ceiling (1,228,800 output tokens per hour at the defaults) |
+| RECURRENCE boundary/sentinel/prefix collisions | key forms; IPv6 /64; IPv4-mapped; the empty or unparseable IP; TTL ≤ 0 | CLEAN — pass 1: IPv6 /64, IPv4-mapped, the empty or unparseable IP, the TTL at or above the limit (Phase B steps 1 and 4) |
+| RECURRENCE behaviour-without-a-test | every spec § Validation case maps to a B or C test | FIXED — pass 1: the malformed `CHAT_RATE_*` row added; the I10 header row made non-vacuous; ChatUI's error rendering graded |
 
 Rubric invocation (verbatim output):
 
 ```text
-$ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saas-skeleton/components/chat/SSEStream.tsx templates/saas-skeleton/components/chat/index.ts templates/saas-skeleton/README.md tests/test_saas_chat_backend.py
+$ python3 scripts/review_rubric.py --changed pyproject.toml uv.lock src/fabrik/scaffold.py templates/saas-skeleton/components/chat/SSEStream.tsx templates/saas-skeleton/components/chat/ChatUI.tsx docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md templates/saas-skeleton/README.md templates/saas-skeleton/.env.example tests/test_saas_chat_limiter_lua.py tests/test_saas_chat_backend.py tests/test_saas_chat_client_template.py tests/test_saas_skeleton_chat_system_prompt.py
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
@@ -248,7 +442,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### core/10-python.md  (hit: src/fabrik/scaffold.py, tests/test_saas_chat_backend.py)
+### core/10-python.md  (hit: src/fabrik/scaffold.py, tests/test_saas_chat_backend.py, tests/test_saas_chat_client_template.py)
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -271,28 +465,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 | `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 
-### core/12-node.md  (hit: templates/saas-skeleton/components/chat/index.ts)
-- Never mix `require()` and `import` in the same package — dual-package hazard.
-- **New services target the current Active LTS line** (`node:<!--v:node_lts-->24<!--/v-->`). The previous LTS line is maintenance-only — existing services may ride it to its EOL, new services never target it. `node-api` + `file-api` scaffolds declare the floor `engines.node: ">=<!--v:node_engines_floor-->22<!--/v-->.0.0"`.
-- **Never** `process.env.X || 'default'` for secrets/tokens/DSNs — silent defaults are the #1 source of "works locally, fails in prod".
-- For complex config: Zod schema validation at boot, typed `config` object exported, never reach `process.env` from business code.
-- > **12-Factor XI (Logs), verbatim:** *"each running process writes its event stream, unbuffered, to `stdout`"* — and *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
-- > **BANNED: any file transport.** `pino.destination('/path/app.log')`, `winston.transports.File`, `winston-daily-rotate-file`, `fs.createWriteStream` for logs, any `*.log` write, any in-app log rotation/retention. The app logs JSON to `stdout` and nothing else; **Docker → Promtail → Loki owns routing and retention.** Full rule: `55-observability.md` § Logs.
-- Use `pino` for application logs; `pino-http` for request logs. NEVER `console.log` outside bootstrap (breaks Loki/Promtail parsing + wastes GlitchTip).
-- Auth tokens, HMAC signatures, webhook secrets — **always** `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))`. Never `==` or `===`. (The bug class Node itself shipped as CVE-2026-21713 — HMAC verification through a non-constant-time compare, a timing side channel leaking MAC values; the runtime fix is the patch floor above, this rule keeps the class out of OUR code.)
-- A crafted `__proto__` header name crashes an unpatched Node via `req.headersDistinct` (CVE-2026-21710 — uncaught TypeError, process-down DoS). Mitigation is the patched-runtime floor above. **Coding agents:** never read raw header maps without an explicit allowlist.
-- Always terminate TLS at Traefik, never in Node. CVE-2026-21637 (unhandled exception in the TLS SNI-callback path → remote DoS) is avoided entirely by Traefik handling TLS.
-- CORS: explicit `origin:` array per environment. Never `cors({ origin: '*' })` on a service with auth.
-| `cluster` | **BANNED** | Replaced by deploying multiple Docker container replicas behind Traefik. Cluster in a containerized environment doubles process count without observable scaling. |
-- **Local development: run `.ts` files directly — `node index.ts`.** Type stripping is stable and enabled by default in current Node; ts-node and tsx are obsolete for dev (opt-out flag `--no-experimental-strip-types` exists, never use it).
-- **Production Docker build:** `esbuild` or `swc` for transpile (millisecond-fast). `tsc --noEmit` runs in CI for type-checking only — never as a build step.
-- LLM gateway: **OpenRouter only.** Never import vendor SDKs (`openai`, `@anthropic-ai/sdk`) directly. See `core/65-rag-search.md`.
-- Payment processing: **iyzico** for TR domestic SaaS subscriptions; **Paddle Billing** (international MoR) for cross-border. PayTR applies only to WooCommerce / physical D2C (see `85-payments-billing.md:16`), not to Node SaaS backends. **Stripe is unavailable to a TR-resident LLC** — never wire the `stripe` npm SDK. Per-flow detail: `core/85-payments-billing.md`.
-- Never inline `APIKeyHeader` middleware patterns or per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`) — single shared secret per-fleet.
-| `pino.destination('*.log')` / `winston.transports.File` / any log file write or rotation | JSON → `stdout` only; Docker → Promtail → Loki routes | 12-Factor XI: the app must never write or manage a logfile |
-- [ ] `npm ci --ignore-scripts` in Dockerfile + CI (never `npm install`).
-
-### core/20-typescript.md  (hit: templates/saas-skeleton/components/chat/SSEStream.tsx, templates/saas-skeleton/components/chat/index.ts)
+### core/20-typescript.md  (hit: templates/saas-skeleton/components/chat/ChatUI.tsx, templates/saas-skeleton/components/chat/SSEStream.tsx)
 - Never loosen `strict` mode. If a library lacks types, write a `.d.ts` declaration file rather than using `any`.
 - Parse and validate environment variables **once at boot** via a typed Zod schema — the TypeScript analog to Python's Pydantic `BaseSettings`. Never scatter raw `process.env.X` access across the codebase.
 - Never swallow errors silently. At minimum, log with context.
@@ -300,7 +473,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 - Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always the current-LTS `-slim` image on `linux/amd64`. Never use Alpine.
 - Never ship `ts-node` or `tsx` in the production image. Compile TypeScript at build time (`esbuild`/`swc`), run JavaScript at runtime. In DEV, `.ts` runs natively via built-in type stripping — ts-node/tsx are obsolete there too; see `12-node.md` § TypeScript.
 
-### core/40-documentation.md  (hit: templates/saas-skeleton/README.md)
+### core/40-documentation.md  (hit: docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md, templates/saas-skeleton/README.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
@@ -311,7 +484,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 
-### core/45-testing-strategy.md  (hit: tests/test_saas_chat_backend.py)
+### core/45-testing-strategy.md  (hit: tests/test_saas_chat_backend.py, tests/test_saas_chat_client_template.py, tests/test_saas_chat_limiter_lua.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -330,7 +503,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 | A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
 - [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`; where it did not (an unscaffolded repo has no such helper), this anchored predicate, verbatim: `dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname` — never point them at a dev/shared DB.
 
-### core/design-system-template.md  (hit: templates/saas-skeleton/components/chat/SSEStream.tsx)
+### core/design-system-template.md  (hit: templates/saas-skeleton/components/chat/ChatUI.tsx, templates/saas-skeleton/components/chat/SSEStream.tsx)
 - AGENT USAGE: build against the slot NAMES (var(--color-danger), --font-heading) — never a brand's raw hex or font name. The values come from the project's docs/design-system.md. -->
 - A **house identity** is referenced, not copied: a declared project's `docs/design-system.md` is the header line plus any § Structural overrides, and the house pack itself supplies sections 2–10 under its own headings (`ocoron-design-system.md` names which of its sections answers which row). Nothing else belongs in it: the structure is inherited from this file by reference, never copied (a copied structure drifts from the canonical one on the next change here). A machine-readable copy of the tokens may ride beside it in the W3C Design Tokens Community Group format (stable since October 2025: `$value` / `$type` / `$description` per token, media type `application/design-tokens+json`, extension `.tokens` or `.tokens.json`) — the markdown file stays the contract a reviewer checks.
 | `--bp-sm` … `--bp-2xl` | § Responsive Layout — fixed, never overridden | Breakpoints |
@@ -408,7 +581,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 - 2. **Never use inline styles** in production code. Use Tailwind classes or CSS mapped to the slots.
 - 10. **Colour is never the only signal.** Every state colour ships with an icon, a label or a pattern (ACC2).
 
-### saas/60-saas-ui.md  (hit: templates/saas-skeleton/components/chat/SSEStream.tsx)
+### saas/60-saas-ui.md  (hit: templates/saas-skeleton/components/chat/ChatUI.tsx, templates/saas-skeleton/components/chat/SSEStream.tsx)
 - 1. **Freeze the fields** — `/fabrik-data-contract` → `docs/data-contract.md` (every GUI field ↔ its DB column). A screen never shows a field absent from this file.
 - brand-identiy-creator" — the pipeline stops there by name; never fall through silently.
 - `core/design-system-template.md` for every project whatever its brand, so a BIC brand never needs the house pack, and never gets the house BRAND by accident.
@@ -449,7 +622,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 - [ ] Authenticated users never see marketing content on the homepage.
 - (`<userId>:<tenantId>:<entity>:<id|new>`), purge a user's drafts on logout and org switch, and never persist secrets or card fields — a shared browser must never restore someone else's draft. Canonical detail: `core/design-system-template.md` § Save Behavior — except the key and the purge above, which win until that section is corrected (backlog FILE 26).
 
-# promote-to-check_*: 168 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
+# promote-to-check_*: 150 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
 - `fabrik-lib/fastapi-user-auth` `DELETE … RETURNING` `jti` `agents-fabrik.md § Supabase`
 - `chrome-extension` `chrome.identity.launchWebAuthFlow` `https://<ext-id>.chromiumapp.org/` `chrome.storage.session`
 - `desktop-app` `safeStorage` `desktop-app/72-desktop.md`
@@ -473,19 +646,103 @@ $ python scripts/review_rubric.py --changed src/fabrik/scaffold.py templates/saa
 ```
 
 ## Evidence
-- `src/fabrik/scaffold.py:2529-2539`: `TenantMiddleware` reads only `Authorization: Bearer`. That is why Phase B depends on `build_current_user` and not on `require_user` (`src/fabrik/scaffold.py:2737`).
-- `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py:307`: the CSRF token gate covers every cookie-borne non-bearer mutation. That is why B3 exists.
-- `src/fabrik/scaffold.py:3188-3196`: CORS is credentialed with exact env origins.
+
+**Phase A.**
+- `pyproject.toml:37-53` is the dev extras group. `.venv` is a symlink to `/opt/fabrik/.venv`.
+- `uv.lock` holds no email-validator: `command grep -c "email-validator\|email_validator" uv.lock` printed 0.
+- `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:13` is `_EMAIL = TypeAdapter(EmailStr)`, which raises at import.
 
 ```text
-$ python3 scripts/enforcement/check_spec_convergence.py <the spec copied with Status: CONVERGED>
-spec convergence: 1 CONVERGED spec(s) examined of 1 named, 0 with findings (artifact-only; citations not re-fetched)
+$ /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_scaffold_saas_web_wiring.py -q -p no:cacheprovider
+4 failed, 17 passed, 1 warning in 3.57s
+E   ImportError: email-validator is not installed, run `pip install 'pydantic[email]'`
 ```
 
+**Phase B.**
+- `src/fabrik/scaffold.py:2585` is `_SAAS_AUTH_PY`. `:2649-2664` is `_denylist`. `:2725-2735` is `aclose`.
+- `:3207-3210` is `_http_exc`; it drops headers. `:3250` is the `v1` router; `:3290` includes it.
+- `:3607-3613` writes the `pkg_dir` files. `:3621-3622` writes `server/tests/test_auth.py`.
+- `:1728` is `REGISTRY`. `:2255` declares `httpx`.
+
+The header probe defines `_problem` and `_http_exc` verbatim from `src/fabrik/scaffold.py:3153-3165` and `:3207-3210` on a bare FastAPI app. One route raises `HTTPException(429, "limited", headers={"Retry-After": "30"})`, and the probe prints the TestClient response's status, content type and `Retry-After`. Phase B step 3's hub test row re-runs this same check, by AST, against the emitted text:
+
+```text
+$ .venv/bin/python -I probe_headers.py
+429 application/problem+json Retry-After: None
+```
+
+```text
+$ redis-server --version
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92
+```
+
+**Phase C.**
+- `templates/saas-skeleton/components/chat/SSEStream.tsx:32` is the fetch, with no credentials and no CSRF header.
+- `:52` is `decoder.decode(value)` with no `{stream:true}`.
+- `:85` and `:96` both call `onComplete`.
+- `tests/test_saas_skeleton_chat_system_prompt.py:80-83` and `:106` are the slice-1 bans.
+
+```text
+$ command grep -rn SSEStream templates/saas-skeleton --include=*.ts --include=*.tsx
+templates/saas-skeleton/components/chat/ChatUI.tsx:6:import { useSSEStream, StreamingIndicator } from "./SSEStream";
+templates/saas-skeleton/components/chat/ChatUI.tsx:29:  const { isStreaming, streamText, toolCalls, startStream } = useSSEStream({
+templates/saas-skeleton/components/chat/index.ts:2:export { useSSEStream, StreamingIndicator, ToolCallIndicator } from "./SSEStream";
+templates/saas-skeleton/components/chat/SSEStream.tsx:14:interface UseSSEStreamOptions {
+templates/saas-skeleton/components/chat/SSEStream.tsx:20:export function useSSEStream(options: UseSSEStreamOptions = {}) {
+$ command grep -n "onError\|useSSEStream" templates/saas-skeleton/components/chat/ChatUI.tsx
+6:import { useSSEStream, StreamingIndicator } from "./SSEStream";
+29:  const { isStreaming, streamText, toolCalls, startStream } = useSSEStream({
+```
+
+## Pass Ledger
+
+`/fabrik-plan-review` slices, by section:
+- **Opus, slice A (rules and backend):** § Global Constraints, § Constraints Digest, § Context Ledger, § Phase B, § File Scope, § Coverage Checklist.
+- **Sonnet, slice B (the rest):** the header, § What we already agreed, § Intake Inventory, § Phase A, § Phase C, § Evidence, § Self-audit, § Residual unknowns.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (slice A) + sonnet×1 (slice B) · all axes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 30 | method: citation — full pass. Every candidate was re-executed by the lead: `csrf.py:136-137` (the CSRF 403 is plain `{detail}`), `scaffold.py:118-122` (`_detect_secrets` skips commented keys), `dependencies.py:86-92` (a direct call needs `authorization=`), `scaffold.py:2530-2538` (TenantMiddleware's bearer 401), `ChatUI.tsx:29` (no `onError`), and the 5-line SSEStream grep that replaced a retyped 2-line subset. One candidate was a duplicate (CONFIGURATION.md raised by both seats). | 2e60ccd086a3158f0b7767a0ff6d2e45 → a80f58bca732d7d5d83b07e1056af39e |
+| Pass 2 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-1 fix diff + one hop | found: 16, new: 16, confirmed: 10, fixed: 10, unexecuted: 0, edits: 22 | method: re-derivation — the 24 pass-1 ids were re-executed: 21 CLOSED, and 3 partly open (S-C1, S-C4, O-C8). The new candidates were re-executed by the lead: `scripts/rivals_run.py` names `OPENROUTER_API_KEY` and ships in every scaffold (`fabrik_synced_manifest.py:53`); `require_throwaway` is at `scaffold.py:232`, not `:2114`; `httpx.Timeout(connect=10, read=60)` raises `ValueError`; TenantMiddleware's 403 is at `:2549-2550`; `_evidence_commits` (`work.py:3617`) needs the id in the message. The I9 wording and the estimate table were fixed one hop out (not counted). R3 (`secrets.from_env` makes the key required) was recorded as the spec's own "again" decision. All 10 confirmed defects were own-fix, round 1. | bc6b0bc576dfc02f4ee7e5c9d6368c74 → b0d61df00a70d1f972d6c484b0d9a37a |
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners) · the pass-2 fixed set + one hop | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0, edits: 6 | method: re-derivation — the 11 pass-2 ids were re-executed: 9 CLOSED and 2 partly open (O-N4, O-C8). New candidates, re-executed by the lead: `grep -n "Not a member of this tenant"` gives `scaffold.py:2550` (the round-2 cite `:2545-2546` was wrong, and is corrected in all 3 places, this ledger's Pass 2 row included); `_write_saas_compose` gives `web`, `api` and `worker` the same root `.env` (`:3340-3342`, `:3376-3378`, `:3415-3417`), so the compose assertion was false and is deleted, not reworded; `next.config.js` is the template's only `.js` file, so the scan now covers the whole emitted tree; two of the ten chat variables have no default. Recorded one hop out: the Coverage rows :337 and :339, the Phase C contract and the TenantMiddleware 403, the `_engine` cache, and DB 0 for a pathless URL. Scope-growth stop: all 5 confirmed defects are own-fix, round 2. | 7de342f7b4fda8efdd796d322f0fd0a4 → 5e0f30aaffaf260f51c7560a7768b338 |
+| Pass 4 | opus×1 (round-1 owner of slice A) · the pass-3 fixed set only (scope-growth remainder round); slice B standing clean since Pass 3 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the 4 pass-3 hunks re-executed CLOSED. The checks: `scaffold.py:2549-2550` is the guard and the return; `next.config.js` is the template's only `.js` (41 files listed); `git grep OPENROUTER` over the template and `scaffold.py` gives 0, so the whole-tree scan is green today; the 8 `CHAT_*` names re-counted from Interfaces, all with spec defaults (spec:102, :116, :121, :127, :129). The one candidate — the "deviation" cite should also name spec § Decisions taken (spec:258) — is RECORDED, measured: own-fix residue after the stop, routed to Phase B's `/fabrik-review-scoped`. | cef7adbc5a413361a756f3525f855a3c → cef7adbc5a413361a756f3525f855a3c ✓ |
+
 ## Self-audit
-- Every phase carries an Appetite (30, 120, 60), a Behaviour Contract that cites the spec, and a runnable Gate.
-- The plan restates nothing the spec says; it only cites it.
-- Open items carried from the spec: the bucket defaults (decided at Phase C's D-row from the model's price), and SSE through the two middlewares (settled by B2's stream test). Neither is deferred to the operator.
+
+**Grounding passes.** Three seats ran, each from the spec's anchors:
+- **Backend (Opus).** Found that `.env.example` and README ship from the template copy (`src/fabrik/scaffold.py:4383`). Found that `tests/test_scaffold_saas_backend.py` pins `auth.py` only by substring. Found that all three types run `_scaffold_saas_backend`.
+- **Template and graders (Sonnet).** Gave the exact bans, the loader and the SSEStream lines.
+- **Toolchain (Sonnet).** Reproduced the red baseline. Found the shared venv. Found the AF_UNIX path limit.
+- **The lead's own probes.** The `_http_exc` header drop, a new finding, now Phase B step 3. The pack ban on an in-memory Redis, a new collision, now Phase A step 2 and Phase B step 7.
+
+**(a) Coverage.** Each line of "What we already agreed" maps to a phase:
+- Goal and approach A: Phases B and C.
+- Order of checks, body, upstream and observability: Phase B step 4. The buckets and the limiter: Phase B steps 1 and 4. `Retry-After` reaching the client: Phase B step 3.
+- The client: Phase C step 2.
+- Lifecycle degradation: the Phase B Behavior Contract.
+- Validation: Phase B steps 1, 7 and 8, and Phase C step 1.
+- The fabrik-lib deviations: unchanged, and Phase C step 6 sends the upstream notes.
+- The coordinator's W-0ae9b7e1 order: Phase A.
+- The four residues: Phase B steps 1, 4 and 7.
+
+**(b) Cross-phase names.**
+- Phase B produces `build_chat_router`, `RATE_LUA`, `redis_client` and `denylist`. Phase B's own tests consume them; Phase C does not.
+- Phase C consumes only the HTTP contract and `/auth/refresh`.
+- The env names in Phase B's Interfaces match spec § Shape and infra and Phase B step 6.
+
+**Fixed point.** Not claimed. That is `/fabrik-plan-review`'s job.
 
 ## Residual unknowns
-- Whether the emitted backend's existing tests import `server` in a way the new Phase B test can reuse. The census is in Phase B step 6. If none does, the new test builds the app the same way the scaffold smoke tests do.
+
+**Resolved:**
+- The by-path loader pattern: `tests/test_scaffold_saas_web_wiring.py:125-139`.
+- `httpx` is already a backend dependency: `src/fabrik/scaffold.py:2255`.
+- The template copy is what ships: `:4383`.
+- `redis-server` 7.0.15 is on the box.
+- The pytest leg of the hub completion gate is off (no `.fabrik/run-pytest`), so each phase runs its own tests by hand.
+
+- `redis` in the hub dev extras: approved by the coordinator on 2026-10-18, with four conditions, carried into Phase A and Phase B step 1.
+
+**Open: the shared-venv install (Phase A step 3).**
+- Resolution step: it runs on the coordinator's turn as a shared-runtime act.
+- The act itself is additive (`--inexact`).

@@ -391,3 +391,31 @@ def test_the_main_checkout_of_a_submodule_worktree_is_the_submodule_not_git_inte
     monkeypatch.setattr(cdl, "REPO", wt)
     monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
     assert cdl._main_checkout() == sub.resolve()
+
+
+def test_a_fenced_link_to_a_missing_path_is_not_graded():
+    """W-f11e740e: a fenced EXAMPLE of a link was graded while fenced bare refs were not."""
+    text = "intro\n```\n[x](docs/nope-fenced.md)\n```\n"
+    assert "docs/nope-fenced.md" not in [t for t, _k in cdl._iter_refs(text)]
+
+
+def test_the_same_link_outside_a_fence_is_still_graded():
+    text = "```\ncode\n```\n[x](docs/nope-open.md)\n"
+    assert ("docs/nope-open.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_a_four_backtick_fence_body_is_skipped():
+    """Review pass 1: the round-0 guard made a ```` ```` ```` opener (a backtick after its first
+    three) no fence, so its body was graded — bare paths included, which were skipped before."""
+    text = "````md\nSee docs/nope-four.md\n[x](docs/nope-four-link.md)\n````\n[y](docs/nope-after.md)\n"
+    refs = list(cdl._iter_refs(text))
+    assert ("docs/nope-four.md", "bare") not in refs
+    assert ("docs/nope-four-link.md", "link") not in refs
+    assert ("docs/nope-after.md", "link") in refs
+
+
+def test_an_inline_triple_backtick_span_does_not_open_a_fence():
+    """Review pass 2: a line-leading ```x``` span is inline code; read as a fence opener it hid every
+    link below it, which the pre-change check still graded."""
+    text = "```x``` is inline\n[x](docs/nope-after.md)\n"
+    assert ("docs/nope-after.md", "link") in list(cdl._iter_refs(text))

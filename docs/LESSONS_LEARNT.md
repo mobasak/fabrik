@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A gate's fleet diff is re-run after EVERY fix, not once at design time (2026-10-18)
+
+W-f11e740e (D-1015) changed how check_doc_links and docs_updater read markdown links.
+- **The design-time diff measured a different change.** The fence diff ran on the plain "skip links in fences" variant and found
+  0 findings changed. The round-0 inline-span guard I then added shipped unmeasured, and it broke four-backtick fences. The
+  review's CommonMark fix for that measured 16 NEW hard-gate reds across 15 project repos. Re-running the probe after each fix
+  caught it before merge; reading the diff never would have.
+- **Correct can be wrong for the fleet.** All 16 come from one shared lessons-learnt template whose ``` blocks only balance by
+  the old toggle. A parser that is more correct must first fix the documents the old parser tolerated. Until then the residue
+  item carries the model, and the toggle stays.
+- **A rule narrowed to kill a false green breeds the mirror false red.** The scheme rule went from "letters then a colon" to a
+  named list, which graded `MAILTO:` and `urn:` as files. Then it became "a dot-free scheme", which keeps every real URI external
+  and still grades `notes.md:12`. Probe both directions on every narrowing.
 ## pathlib swallows the error you meant to count, and raises the one you did not guard (2026-10-18)
 
 W-6f46cebd (kaizen_coroner exit codes):

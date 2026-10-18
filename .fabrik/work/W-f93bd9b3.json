@@ -1,8 +1,10 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab242b11"
+  ],
   "created": "2026-10-18T14:16:49.064212Z",
   "creator": "coordinator",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-f93bd9b3",
   "impact": "high",
@@ -16,8 +18,8 @@
   "next": "on a successful merge, mark the request's item done with the merge sha as evidence unless the merged branch already closed it (a same-value close merges clean under D-988); test with a request whose branch left the item open, and one whose branch closed it",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "HIGH: a bug in the merge tool that silently leaves delivered work open in every repo's store (28 today); one function plus tests",
+  "priority": 2,
+  "score_reason": "UPGRADED to /fabrik-spec (D-1014, tradeoffs A vs B): spec chain = high effort, a major; held behind W-ab242b11 (one major in flight)",
   "status": "open",
   "title": "merge_request.py merge does not close the --item it merges: 28 items stayed open on master after a merge(coordinator) commit named each as delivered (fleet's audit 2026-10-18; 17 closed by the coordinator, 11 by fleet)"
 }
