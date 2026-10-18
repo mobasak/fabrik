@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — merge_request merges work-item files key by key instead of refusing them (2026-10-18)
+
+- `merge_request.py merge` refused a branch whenever the coordinator scored an item on master after its builder closed it on the branch. This happened four times on 2026-10-18.
+  - The two sides changed different keys, but `work.py` writes one key per line in sorted order, so `effort` sits beside `evidence` and `score_reason` beside `status`.
+  - Git's line merge refuses changes from the two sides that land on neighbouring lines.
+- Item conflicts in `_build` now go through the new `work.py merge-item <base> <ours> <theirs>` verb:
+  - Each key takes the side that changed it; an identical change on both sides merges.
+  - `links` merges per sub-key. `tags` and `blocked_by` merge as sets, and `comments` keeps both sides' appends in time order.
+  - A key both sides changed differently, or deleted on one side and changed on the other, still refuses. The refusal now names the key (exit 3).
+- The merged item's `id` must match its file name before it is staged (D-988, W-5f3617e6).
+
 ### Fixed — kaizen_coroner --sweep exits 3 when it ran blind (2026-10-18)
 
 - `scripts/sysadmin/kaizen_coroner.py --sweep` exited 0 even when `kaizen_events` or `command_run` failed to import, or when the sweep counted an error. When that happened, it closed no records or emitted no events, and the daily `weekly_catchup.sh` job still stamped the day done, so nothing retried for 24 hours.
