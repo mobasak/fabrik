@@ -71,7 +71,7 @@ export function ChatUI({
 
   return (
     <div className={cn("flex flex-col h-[600px] rounded-2xl border", className)}>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4" aria-live="polite">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" aria-live="polite" aria-busy={isStreaming}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Start a conversation

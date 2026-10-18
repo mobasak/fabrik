@@ -21,6 +21,7 @@ import asyncio
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -946,7 +947,7 @@ def _emitted_guard_ns(project: Path, app_redis_urls: tuple[str, ...]) -> dict[st
     tree = ast.parse(emitted.read_text())
     keep = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in _GUARD_FUNCTIONS]
     assert len(keep) == len(_GUARD_FUNCTIONS), [n.name for n in keep]
-    ns: dict[str, Any] = {"_APP_REDIS_URLS": app_redis_urls, "Path": Path}
+    ns: dict[str, Any] = {"_APP_REDIS_URLS": app_redis_urls, "Path": Path, "re": re}
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(emitted), "exec"), ns)  # noqa: S102
     return ns
 
@@ -960,17 +961,28 @@ def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
 def test_the_emitted_guard_reads_the_apps_redis_url_from_its_env_files(project, tmp_path):
     """Compose delivers the root .env and WSL dev keeps .env.local; neither is exported into the
     test process, so the guard reads them itself."""
-    (tmp_path / ".env").write_text("# app\nREDIS_URL=redis://h:6379/5\nOTHER=1\n")
-    (tmp_path / ".env.local").write_text('export REDIS_URL="redis://h:6379/6"\n')
-    (tmp_path / "empty.env").write_text("REDIS_URL=\n")
+    files = {
+        "plain": "# app\nREDIS_URL=redis://h:6379/5\nOTHER=1\n",
+        "export": 'export REDIS_URL="redis://h:6379/6"\n',
+        "bom": "\ufeffREDIS_URL=redis://h:6379/7\n",
+        "tab": "export\tREDIS_URL=redis://h:6379/8\n",
+        "comment": 'REDIS_URL = "rediss://h:6380/9" # the app\n',
+        "crlf": "REDIS_URL=unix:///run/r.sock?db=10\r\n",
+        "ignored": "# REDIS_URL=redis://h:6379/1\nTEST_REDIS_URL=redis://h:6379/2\nREDIS_URL=\n",
+    }
+    paths = []
+    for name, text in files.items():
+        (tmp_path / name).write_bytes(text.encode())
+        paths.append(tmp_path / name)
     read = _emitted_guard_ns(project, ())["_dotenv_redis_urls"]
-    paths = [
-        tmp_path / ".env",
-        tmp_path / ".env.local",
-        tmp_path / "empty.env",
-        tmp_path / "absent",
+    assert read([*paths, tmp_path / "absent"]) == [
+        "redis://h:6379/5",
+        "redis://h:6379/6",
+        "redis://h:6379/7",
+        "redis://h:6379/8",
+        "rediss://h:6380/9",
+        "unix:///run/r.sock?db=10",
     ]
-    assert read(paths) == ["redis://h:6379/5", "redis://h:6379/6"]
 
 
 def test_the_emitted_guard_checks_every_app_url_it_found(project, redis_sock):

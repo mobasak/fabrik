@@ -532,7 +532,8 @@ def test_the_render_check_accepts_five_spellings_and_refuses_two_broken_ones():
 def test_the_chat_ui_names_its_controls_and_announces_replies():
     text = (CHAT / "ChatUI.tsx").read_text()
     assert 'aria-label="Message"' in text and 'aria-label="Send message"' in text
-    assert 'aria-live="polite"' in text
+    # the region is busy while a reply streams, so it is announced once settled, not per delta
+    assert re.search(r'aria-live="polite"\s+aria-busy=\{isStreaming\}', text)
 
 
 @pytest.mark.parametrize("name", ["SSEStream.tsx", "ChatUI.tsx"])

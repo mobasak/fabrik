@@ -3949,6 +3949,7 @@ these tests fill rate buckets and flush that DB. Unset, they skip. OpenRouter is
 import importlib
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 
@@ -3967,15 +3968,15 @@ def _dotenv_redis_urls(paths: list[Path]) -> list[str]:
     found: list[str] = []
     for path in paths:
         try:
-            lines = path.read_text().splitlines()
-        except OSError:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, UnicodeDecodeError):
             continue
         for line in lines:
-            key, sep, value = line.strip().partition("=")
-            if sep and key.removeprefix("export ").strip() == "REDIS_URL":
-                value = value.strip().strip('"').strip("'")
-                if value:
-                    found.append(value)
+            # any dotenv dialect: `export` and its whitespace, spaces round `=`, quotes, a comment
+            match = re.match(r"\s*(?:export\s+)?REDIS_URL\s*=(.*)", line)
+            url = match and re.search(r"(?:rediss?|unix)://[^\s\"'#]+", match.group(1))
+            if url:
+                found.append(url.group(0))
     return found
 
 
