@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
+
+`commands/_sources/fabrik-review.md` Phase 2: a fix the lead routes to another seat is written in the pass's fix
+list as the invariant it must hold plus the shapes the replaced form held and the reproduction it answers, never as
+the patch alone. `commands/_fragments/review-probe-catalogue.md` Sweep: the doc lines a fix outdates include
+comments. Answers /fabrik-review rows 1792291617 and 1792294458 (recurrences of held subjects).
+
 ### Changed — review rewrites ask whether the yielding branch can go; seat isolation names where the editable .pth sits (2026-10-18)
 
 `commands/_fragments/term-coverage.md` rule (3): the forced rewrite first asks whether the yielding branch can be
