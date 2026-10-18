@@ -826,8 +826,8 @@ class TestLinkCheckReadsCommonMarkLinks:
         assert self._issues(tmp_path, monkeypatch, body) == []
 
     def test_a_colon_in_a_relative_name_is_still_graded(self, tmp_path, monkeypatch):
-        """Review pass 1: "letters then a colon" read `notes.md:12` and `ab:c.md` as URIs and
-        skipped them; only `scheme://` and the named no-`//` schemes are external."""
+        """Review passes 1-2: a dot or slash before the colon makes it a path, so `notes.md:12` and
+        `src/gone.py:1` are graded; a dot-free 2+ character prefix (`ab:c.md`) reads as a scheme."""
         issues = self._issues(tmp_path, monkeypatch, "[a](src/gone.py:1)\n[b](notes.md:12)\n")
         assert any(i.endswith(": src/gone.py:1") for i in issues), issues
         assert any(i.endswith(": notes.md:12") for i in issues), issues
