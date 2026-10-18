@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `work.py edit` changes an item's title, next and links; `render` refuses outside the main checkout (2026-10-18)
+`work.py edit <id> [--title] [--next] [--link key=value]… [--unlink key]…` changes what `add` wrote, on the kinds
+`add` makes (`backlog`, `task`), under the store lock, so a plan finisher no longer hand-edits
+`.fabrik/work/<id>.json`. It refuses the derived kinds, a malformed `links` and a stored non-string link (named, never
+coerced); `--next ""` clears next; a `spec=`/`plan=` value that is not a regular file inside the repo is applied with
+a warning. `render` builds the backlog block from the caller's own store, so it now refuses in a linked worktree — a
+measured worktree render rewrote 433 rows of a block its branch then merges — and refuses `--repo` naming a tree the
+caller is not in; `--here` renders a linked worktree's own store and says not to commit it (kaizen mail 01M55ZNVH7,
+D-990; review `docs/development/reviews/2026-10-18-work-edit-render-review.md`).
+
 ### Changed — The external-services static file renders through the shared inventory section; `dashboard_server.py` retired (2026-10-18)
 `scripts/gen_dashboard.py` keeps its CLI, exit codes, atomic PID-tmp write and its `load()`, `credit_cell` and
 `STALE_AFTER_H` names, and now writes the inventory section (`dashboard_ui/inventory.py::render`,
