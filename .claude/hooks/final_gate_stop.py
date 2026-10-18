@@ -3003,10 +3003,47 @@ _PANEL_RE = re.compile(
 # of `docs/DECISIONS.md` sees missing its `Panel:` line.
 _DESIGN_ASK_RE = re.compile(r"\bapprove\b[^?\n]*\b(?:design|spec|journeys)\b", re.I)
 _PANEL_BRIEF_RE = re.compile(r"^[#*\s]*PANEL\s+APPROVED\s*\(([^)\n]+)\)", re.M)
-# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the artifact
+# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the
+# artifact span after the dash — one path, or a joint `<plan> + <spec>` (W-f253a5eb: the capture
+# stopped at the first space, so a joint verdict named the plan alone and never matched)
 _PANEL_VERDICT_RE = re.compile(
-    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*`?([^\s`]+)", re.I
+    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*(.+)", re.I
 )
+_PATH_JOIN_RE = re.compile(r"\s+\+\s+")
+
+
+def _bare_path(token: str) -> str:
+    """``token`` with backticks and trailing ``.,;:)`` stripped until stable (`` `x.md`. `` → x.md)."""
+    prev = None
+    while prev != token:
+        prev, token = token, token.strip("`").rstrip(".,;:)")
+    return token
+
+
+def _heading_paths(text: str) -> frozenset[str]:
+    """The brief's own claim, parsed STRICTLY: `<path>` or `<path> + <path> …`, each part ONE token.
+    Empty for an empty heading or any part that is not one token — a heading never shrinks to its
+    first path (`<plan> and <spec>` would certify the spec on a plan-only panel)."""
+    parts = [p.strip("`").strip() for p in _PATH_JOIN_RE.split(text.strip().strip("`").strip())]
+    if not parts or any(len(p.split()) != 1 for p in parts):
+        return frozenset()
+    paths = frozenset(_bare_path(p) for p in parts)
+    return paths if all(paths) else frozenset()
+
+
+def _verdict_paths(quote: str) -> frozenset[str]:
+    """The paths an APPROVING verdict line names — each ` + `-separated part's first token, so
+    trailing prose is tolerated; only ` + ` joins (a paraphrased joiner fails closed). Empty when the
+    quote is no approving VERDICT line."""
+    v = _PANEL_VERDICT_RE.match(quote)
+    if not v:
+        return frozenset()
+    paths = frozenset(
+        _bare_path(p.split()[0]) for p in _PATH_JOIN_RE.split(v.group(1)) if p.split()
+    )
+    return paths if paths and all(paths) else frozenset()
+
+
 _PANEL_LINE_RE = re.compile(r"^\W*Panel:\s*(.+)$", re.M)
 # Operator-entry rows that are the harness's or a hook's words, never the operator's:
 # `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
@@ -3740,21 +3777,25 @@ def _panel_problem(
             "panel that answers it is the decision"
         )
     quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
+    line_local = False  # a both-approve quote is a seat's FIRST LINE: it may not span a line break
     if m.group(3).lower() == "both-approve":
-        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path>` line: a
+        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path(s)>` line: a
         # disagreeing verdict, or one given on another artifact, never approves this one
-        def _names(q: str) -> str:
-            v = _PANEL_VERDICT_RE.match(q)
-            return v.group(1).rstrip(".,;:)") if v else ""
-
-        # the path the VERDICT line names must BE the artifact — a containing path is another file
-        bad = [q for q in quotes if _names(q) != artifact.strip("` ")]
+        want = _heading_paths(artifact)
+        if not want:
+            return (
+                f"{ground}: the PANEL APPROVED heading names no artifact path — it must read "
+                "`PANEL APPROVED (<path>)` or `PANEL APPROVED (<path> + <path>)`"
+            )
+        # the paths the VERDICT line names must BE the heading's — a containing path is another file
+        bad = [q for q in quotes if _verdict_paths(q) != want]
         if bad:
             return (
                 f"{ground}: a both-approve Panel line quotes each seat's first line, "
-                f"`VERDICT: sound|sound-with-changes — {artifact or '<artifact path>'}` — not: "
-                + "; ".join(repr(q[:60]) for q in bad)
+                f"`VERDICT: sound|sound-with-changes — {' + '.join(sorted(want))}` — not: "
+                + "; ".join(repr(q[:300]) for q in bad)
             )
+        line_local = True
     stand_in = bool(re.search(r"\bfable unavailable\b", panel, re.I))
     # Each quote must come from ITS seat's own returned text — never any tool result (round 1:
     # an `echo` of the wanted verdict passed). A seat is an Agent call whose result row carries
@@ -3763,6 +3804,14 @@ def _panel_problem(
     # hand-back row whose harness `origin` names that agentId. Only what follows the operator's
     # last word.
     said: dict[str, list[str]] = {"opus": [], "fable": []}
+    # the same texts one normalised LINE at a time: `_norm_ws` folds newlines, so without these a
+    # quote could be stitched from a plan-only verdict and a `+ <spec>` bullet on the next line
+    said_lines: dict[str, list[str]] = {"opus": [], "fable": []}
+    by_seat_lines: dict[str, list[str]] = {}
+
+    def _lines(text: str) -> list[str]:
+        return [_norm_ws(ln) for ln in text.splitlines() if ln.strip()]
+
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
     try:
@@ -3790,6 +3839,8 @@ def _panel_problem(
                         if meta.get("status") != "async_launched":
                             said[fam].append(_norm_ws(text))
                             by_seat.setdefault(str(meta["agentId"]), []).append(_norm_ws(text))
+                            said_lines[fam].extend(_lines(text))
+                            by_seat_lines.setdefault(str(meta["agentId"]), []).extend(_lines(text))
                     continue
                 # a hand-back is told by the HARNESS's own `origin` record (kind peer, handback,
                 # from = the agentId), never by the tag in its text: a `Bash` echo (round 2) and a
@@ -3803,13 +3854,18 @@ def _panel_problem(
                 ):
                     said[seats[str(origin["from"])]].append(_norm_ws(text))
                     by_seat.setdefault(str(origin["from"]), []).append(_norm_ws(text))
+                    said_lines[seats[str(origin["from"])]].extend(_lines(text))
+                    by_seat_lines.setdefault(str(origin["from"]), []).extend(_lines(text))
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
+    seat_texts = by_seat_lines if line_local else by_seat
+    if line_local:
+        said = said_lines
     if stand_in:
         opus_ids = [a for a, f in seats.items() if f == "opus"]
-        first = [a for a in opus_ids if any(quotes[0] in t for t in by_seat.get(a, []))]
-        second = [a for a in opus_ids if any(quotes[1] in t for t in by_seat.get(a, []))]
+        first = [a for a in opus_ids if any(quotes[0] in t for t in seat_texts.get(a, []))]
+        second = [a for a in opus_ids if any(quotes[1] in t for t in seat_texts.get(a, []))]
         if any(a != b for a in first for b in second):
             return ""
         return (
