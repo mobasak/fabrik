@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T19:31:27.368421Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-f144f486",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "add to commands/_fragments/design-critique.md that in /fabrik-task a concern phase 2 routes to § UPGRADE takes that disposition, or have phase 2 record it OPEN then cross; check every includer",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work = HIGH (D-956); one label in the design-critique fragment",
   "status": "open",
   "title": "design-critique fragment's dispositions (ACCEPTED/REJECTED/OPEN) have no label for /fabrik-task's phase-2 UPGRADE crossing (D-1008/D-1012: a second approach the build cannot settle, its claim executed and holding, crosses as tradeoffs)"
 }
