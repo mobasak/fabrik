@@ -12,7 +12,8 @@ after the spec's main compose stack is deployed. Three jobs:
 
 2. **Compose overlay.** Generate ``compose.watchdog.yaml`` next to the spec's
    ``compose.yaml`` carrying ONLY the ``watchdog`` service. Operators bring
-   the stack up with ``docker compose -f compose.yaml -f compose.watchdog.yaml up -d``;
+   the stack up with ``sudo docker compose -f compose.yaml -f compose.watchdog.yaml up -d``
+   (the overlay, like ``.env``, is root-only 0600 — it carries WATCHDOG_PG_DSN);
    the driver does the same to start the sidecar after build. Overlay pattern
    chosen over in-place YAML merge to avoid clobbering ``SSHDeployer``'s
    contract that it owns ``compose.yaml``.

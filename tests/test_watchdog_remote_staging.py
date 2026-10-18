@@ -28,6 +28,7 @@ class _Remote:
     def __init__(self, fail_on: str | None = None):
         self.cmds: list[str] = []
         self.made: list[str] = []
+        self.kinds: list[str] = []  # "dir" or "file", one per made path
         self.fail_on = fail_on
 
     def __call__(self, cmd, *a, **k):
@@ -37,12 +38,21 @@ class _Remote:
         if cmd.startswith("mktemp"):
             path = f"/tmp/fabrik-Stage{len(self.made):05d}"
             self.made.append(path)
+            self.kinds.append("dir" if cmd.startswith("mktemp -d ") else "file")
             return path + "\n"
         if "test -f" in cmd:
             return "ABSENT"  # the deploy-key existence probe
         if cmd.startswith("cat "):
             return "ssh-ed25519 AAAAC3Nz stub watchdog-demo@fabrik"
         return ""
+
+
+def _scp_failing(fail_on):
+    def scp(local, dst, **k):
+        if fail_on == "scp":
+            raise RuntimeError("boom: scp")
+
+    return scp
 
 
 def _ctx(spec):
@@ -142,6 +152,9 @@ def test_every_watchdog_staging_path_is_a_mktemp_path(sidecar, governance_src):
         d._push_overlay(rctx)
         d._ensure_deploy_key(rctx)
     assert len(remote.made) == 4, remote.made  # build, governance, overlay, key: one stage each
+    # the build and governance stages hold a tarball and its extract, the key a pair: dirs; the overlay
+    # is moved into place as ONE file
+    assert remote.kinds == ["dir", "dir", "file", "dir"], remote.kinds
     assert rctx.remote_build_dir == remote.made[0]
     _assert_only_stage_paths(remote, scps)
     keygen = next(c for c in remote.cmds if "ssh-keygen" in c)
@@ -149,14 +162,16 @@ def test_every_watchdog_staging_path_is_a_mktemp_path(sidecar, governance_src):
     assert any(c.startswith("mktemp -d") for c in remote.cmds)
 
 
-@pytest.mark.parametrize("fail_on", [None, "tar -xzf", "docker cp", "sudo mv"])
+@pytest.mark.parametrize(
+    "fail_on", [None, "scp", "tar -xzf", "ssh-keygen", "docker cp", "sudo mv", "sudo chown"]
+)
 def test_watchdog_stages_are_removed_and_never_guessed(fail_on, sidecar, governance_src):
     """Each stage is removed whether its step succeeds or fails, and nothing outside a stage is rm'd."""
     d = WatchdogDriver()
     remote = _Remote(fail_on=fail_on)
     with (
         mock.patch.object(wd, "ssh", side_effect=remote),
-        mock.patch.object(wd, "scp_to_vps"),
+        mock.patch.object(wd, "scp_to_vps", side_effect=_scp_failing(fail_on)),
         mock.patch.object(d, "_detect_docker_sock_gid", return_value=999),
     ):
         rctx = _rctx(d, propose_fix_prs=True)
@@ -175,7 +190,10 @@ def test_watchdog_stages_are_removed_and_never_guessed(fail_on, sidecar, governa
     removes = [c for c in remote.cmds if re.search(r"\brm -r?f\b", c) and "/tmp/" in c]
     for stage in remote.made:
         # removed, or (the overlay on success) moved into place by the command that ran without error
-        moved = any(f"sudo mv {stage} " in c for c in remote.cmds) and fail_on != "sudo mv"
+        moved = (
+            any(f"sudo mv {stage} " in c and not (fail_on and fail_on in c) for c in remote.cmds)
+            and fail_on != "scp"
+        )
         assert moved or any(stage in _paths(c) for c in removes), (stage, remote.cmds)
     for c in removes:
         assert all(any(p == s or p.startswith(s + "/") for s in remote.made) for p in _paths(c)), c
