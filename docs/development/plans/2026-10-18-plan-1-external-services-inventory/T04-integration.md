@@ -6,24 +6,31 @@ Integration: true
 Implements spec § Chosen approach item 1 (`docs/superpowers/specs/2026-10-18-external-services-page-design.md:105`),
 § Failure's live half (:284), the board half of § Contract deltas (:308), D2, D8 and D9 (:485, :499, :503), and
 § Validation's browser and accessibility rows (:335). Indivisible: the collector in `scripts/sysadmin/quota_dashboard.py`
-(144,534 B), the Services view, the removed link card and its four strings, the route's `303`, the test isolation helper
-and the four board test files that pin the link card or render Services (`tests/test_quota_dashboard.py` alone is
-247,958 B) change together, or a commit between them leaves a red suite. Then the whole-plan close.
+(144,534 B), the Services view, the removed link card and its four strings, the test isolation helper and the four
+board test files that pin the link card or render Services (`tests/test_quota_dashboard.py` alone is 247,958 B)
+change together, or a commit between them leaves a red suite. The route's `303` could land in a commit of its own;
+it stays here by choice (spine § Ticket breadth). Then the whole-plan close.
 
 The collector, `_inventory(ctx)`, in `quota_dashboard.py`: appends `scripts/` to `sys.path` once at import, guarded
 like its own insert (:52-54); imports `registry_db` and `dashboard_ui.inventory.load` inside the function (D9: a
 missing psycopg2 is that section's error state, never a board that will not start); runs the read in a daemon worker
 thread joined with a 5 s deadline, connecting with `connect_timeout=2` and `options="-c statement_timeout=2000"` and
 passing `load` a `before_query` that re-arms `SET LOCAL statement_timeout` to the deadline left, never below 1 ms,
-raising once nothing is left. Each request has ONE deadline, 5 s from its own arrival, covering any wait and the
-read. The last good read sits in one module-level slot with its read-START time and serves for 60 s from that
-start; only the worker writes it, on completion, under a lock held for the write alone, so no thread ever holds
-a lock across a read. At most one registry read is alive at a time: a request that finds a fresh slot serves it;
-one that finds a read alive whose own deadline has not passed waits on it until its OWN deadline and serves the
-result if it lands; one that finds only an abandoned read alive (past its deadline, still blocked) starts none and
-serves the last good slot if one exists, else the error state; otherwise it starts the read. A failed read is the
-section's error state,
-carrying the exception's class and first line only, and never replaces the slot; reads `classified_at` as the mtime of
+raising once nothing is left. The collector's state is two fields behind ONE lock: the last good read (rows,
+`synced_at`, and the read's START time) and the read in flight (its thread, its start, its own deadline, a done
+event). Each request has ONE deadline, 5 s from its own arrival; every wait it makes — the lock and the read — is
+bounded by what is left of it. Under the lock, held only for these decisions and never across a read or a join, a
+request (1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, records and
+starts one, whose deadline is this request's; else (3) when a read is in flight within its own deadline, joins it;
+else (4) — a read in flight past its own deadline — starts none and goes straight to the outcome rule. In cases 2
+and 3 it then releases the lock and waits on that read's done event until its OWN deadline; the worker alone
+writes the last good read, under the lock, on success, and clears the in-flight field on any exit. ONE outcome rule
+covers every request that ends without a fresh result — its wait timed out, the read failed, or only a stale read
+was in flight: it serves the section's error state, as spec § Failure states for a registry that does not answer;
+the last good read is served only inside its 60 s. So at most one read is ever alive. When a read's own deadline passes, its starter calls the connection's
+`cancel()`, and the connection carries `keepalives=1, keepalives_idle=5, keepalives_count=2`, so a stalled read ends in
+bounded time and the in-flight field clears. The error state carries the exception's class and first line only,
+and a failed read never replaces the last good read; reads `classified_at` as the mtime of
 `_FABRIK_ROOT / ".tmp/external-services/classify_last.json"`. `_view_data("services")` carries `inventory` in place of
 `ext_page`; `views/services.py` renders the section after the pool and API cards and drops `_external` and its
 `link` import; `/external-services.html` answers `303` to `/#services` with no removal date; `EXT_SERVICES_HTML` and
@@ -59,7 +66,7 @@ Docs: `docs/workstation/quota-dashboard.md` (the Services section, the route row
 ## Behavior Contract
 - **Given** the board test isolation, **When** any board test renders the Services view or calls registry_db.connect, **Then** the inventory collector returns the census fixture or its stated stub, every connect attempt raises and is recorded so the test fails, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:46)
 - **Given** a registry whose read never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the exception class and first line only, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
-- **Given** an empty slot, a read in flight, a read abandoned past its deadline, and a slot 59 s and 61 s past its read start, **When** requests reach the collector, **Then** concurrent requests share one read, every request answers within 5 s of its own arrival, a request finding only an abandoned read starts none and serves the last good slot or the error state, and the slot serves at 59 s and is re-read at 61 s (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
+- **Given** an empty slot, two concurrent requests, a read in flight past its deadline, a failed read, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one read, every request answers within 5 s of its own arrival, a stale in-flight read starts no second read, every request without a fresh result serves the section's error state, the stalled read is cancelled at its deadline, and the read at 59 s is served while 61 s starts a new read (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
 - **Given** psycopg2 cannot be imported, **When** the board starts and the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and scripts appears on sys.path once (spec § Contract deltas D9)
 - **Given** a bookmark to /external-services.html, **When** it is requested, **Then** the board answers 303 to /#services with an empty body, and no link card, ext_page key or services.ext string remains (spec § Contract deltas; scripts/sysadmin/quota_dashboard.py:2833)
 - **Given** the Services view at census scale (tests/external_services_fixture.py) in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select, force-swaps and clears, **Then** the group holding the match opens, groups with no match are hidden, the count updates, Cost free shows no freemium row, the Needs-attention list is unchanged by any filter, the filter values, the qd-filter-open:<group> record and the visible filtering survive the swap, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)

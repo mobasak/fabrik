@@ -11,6 +11,7 @@
 | Pass | seats · axes re-checked | counters | method | set md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (slice rules: spine Interfaces, Execution Discipline, Global Constraints, roll-up, File Scope; T02, T04) + sonnet×1 (slice context: T01, T03; spine agreed, intake, breadth, digest, ledger, Evidence, Self-audit, residuals) | found: 20, new: 20, confirmed: 19, fixed: 19, unexecuted: 0, edits: 31 | method: re-derivation — every candidate re-executed by the lead (the one-argument `render` lambda against the keyword call, `link()` over `/admin` and `#top`, a spy on `socket.socket.connect` around `psycopg2.connect`, the chain fakes' answer keys) | 57927e7d695b0abf43104f848437f88f → 346d93a7a99b0a7dc669734bb21d5eeb |
+| Pass 2 | opus×1 + sonnet×1 (round-1 owners) · delta over every pass-1 hunk + one hop (fix1.diff, 436 lines) · shape: agent-tool | found: 8, new: 8, confirmed: 8, fixed: 8, unexecuted: 0, edits: 9 | method: re-derivation — 20 pass-1 ids re-executed (19 FIXED, context-7b recorded and accepted); new candidates re-executed by the lead: `link()` against a prefix gate (`http://a b` passes the prefix, `link()` refuses), the chain fake at `tests/test_external_services_chain.py:1643` (Decimal) and :2459 (the connect patch), `scripts/tests/test_registry_sync.py:41-44` (the opt-in writes the LIVE registry), `psycopg2.extensions.connection.cancel` (present); the collector's concurrency paragraph, which drew defects in two consecutive passes, was REWRITTEN whole around one lock and one outcome rule (the spec's error state) | baf2aa3d3422cc15ad18b1a17e467196 → d4eb141c00914aa1ad93ac7850fb4b18 |
 
 ## Findings
 
@@ -37,3 +38,11 @@
 | rules-10 | 1 | T04 — abandoned workers unbounded | FIXED r1 (at most one read alive) |
 | rules-11 | 1 | T04 — the generator also writes `llms.txt` | FIXED r1 (in Touches and File Scope) |
 | rules-12 | 1 | T04 — the slot's 60 s start | FIXED r1 (from the read's start) |
+| NEW-1 | 2 | T04 — the start-a-read decision not atomic | FIXED r2 (one lock over every decision, never held across a read; every wait bounded by the request's deadline) — the paragraph rewritten whole |
+| NEW-2 | 2 | T04 — two fallback policies | FIXED r2 (one outcome rule: the spec's error state) |
+| NEW-3 | 2 | T04 Scope vs the spine's breadth note on the route | FIXED r2 (the route stays by choice, both places) |
+| NEW-4 | 2 | T02 — the https gate read as a prefix test | FIXED r2 (a link only when it starts with http(s):// AND link() accepts it whole) |
+| PLAUSIBLE-1 | 2 | T04 — a permanently wedged read | FIXED r2 (cancel() at the read's deadline, keepalives on the connection) |
+| context-9 | 2 | Ticket breadth — T03 six rows | FIXED r2 (seven) |
+| context-10 | 2 | T03 — the Decimal cite | FIXED r2 (:1643-1650 Decimal, :2419-2420 float) |
+| context-11 | 2 | Residual — REGISTRY_WRITE_TESTS gate step | FIXED r2 (resolved without a gate run: the opt-in writes the live registry; the shape is covered by the fake-cursor cases) |

@@ -42,8 +42,9 @@ Docs: none (the subsystem docs are updated in T03 and T04)
   `FROM subscriptions`, and the credit query's `fetched_at DESC, id DESC`. Rows sorted by category, then provider.
 - `inventory.render(rows, *, now: float, synced_at: float | None, classified_at: float | None, interactive: bool) -> Safe`
   — the body-only section of spec § The design; every time argument is an epoch float (the board's `ctx.now`
-  is `time.time()`); a provider URL is passed to `link()` only when it matches `^https?://` exactly as `link()`
-  accepts it, every other value is plain text (`link()` also accepts `/…` and `#…`, executed); it emits the
+  is `time.time()`); a provider URL renders as a link only when it starts with `https://` or `http://` AND `link()`
+  accepts it whole; any URL that fails either test — `link()` also accepts `/…` and `#…` (executed), and refuses
+  whitespace and uppercase schemes — renders as plain text, and the render never raises on a URL; it emits the
   filter wire `app.js` reads — `data-filter-group`, `data-filter="<name>"` with `data-filter-mode`, and
   `data-f-<name>` on every target (`app.js:454-473`, as `views/commands.py` emits it) — plus T01's markers; it
   reads each row's keys by index, so a row missing a key raises `KeyError` (the guard the chain
