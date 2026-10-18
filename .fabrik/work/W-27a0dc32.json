@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-18T05:15:11.354114Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "165fed26f8831a8b92c1a9819cb84703f4726519",
   "id": "W-27a0dc32",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-repo-review names no root for its pins dir, so an interrupted pass cannot resume — the other three partitioned review loops put pins_dir under the durable SCRATCH: folder (D-836)"
 }
