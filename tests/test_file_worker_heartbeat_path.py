@@ -144,4 +144,6 @@ def test_a_smoke_run_beats_but_never_claims(smoke, claims, tmp_path, monkeypatch
     out = json.loads(r.stdout.strip().splitlines()[-1])
     assert out == {"claims": claims, "beat": True}, out  # two polls: a normal worker claims on each
     # exactly "1" is smoke, and only smoke says so in the log (the triage signal for a worker that claims nothing)
-    assert ("worker_smoke_mode" in r.stdout + r.stderr) is (smoke == "1"), r.stdout[-2000:] + r.stderr[-2000:]
+    assert ("worker_smoke_mode" in r.stdout + r.stderr) is (smoke == "1"), (
+        r.stdout[-2000:] + r.stderr[-2000:]
+    )

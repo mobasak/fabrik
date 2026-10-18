@@ -276,10 +276,16 @@ def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "header",
-    ["docker-smoke docker-x: docker-build", "docker-smoke &: docker-build", " docker-smoke: docker-build"],
+    [
+        "docker-smoke docker-x: docker-build",
+        "docker-smoke &: docker-build",
+        " docker-smoke: docker-build",
+    ],
     ids=["multi-target", "grouped", "leading-space"],
 )
-def test_a_smoke_rule_the_regex_cannot_read_still_loses_the_live_worker_line(header, tmp_path, monkeypatch):
+def test_a_smoke_rule_the_regex_cannot_read_still_loses_the_live_worker_line(
+    header, tmp_path, monkeypatch
+):
     """A rule header the guard's regex misses must not leave the template's live-worker run line (W-807b73fd)."""
     tpl = tmp_path / "tpl"
     shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
@@ -297,6 +303,30 @@ def test_a_smoke_rule_the_regex_cannot_read_still_loses_the_live_worker_line(hea
     assert runs == [
         "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true"
     ], runs
+
+
+def test_an_unreadable_header_with_both_smoke_lines_drifted_fails_the_scaffold(
+    tmp_path, monkeypatch
+):
+    """Neither the header regex nor the exact smoke lines see this template; the live run line must still be refused."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    for old, new in [
+        ("\ndocker-smoke: docker-build", "\n docker-smoke: docker-build"),
+        ("--env-file .env $(PROJECT_NAME)", "--env-file .env  $(PROJECT_NAME)"),
+        ("curl -sf", "curl -fs"),
+    ]:
+        assert src.count(old) == 1, old
+        src = src.replace(old, new)
+    mk.write_text(src)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-double-drift"
+    project.mkdir()
+    with pytest.raises(ValueError, match="live worker"):
+        scaffold._scaffold_file_worker(project, "fw-double-drift", "drift")
 
 
 def test_a_project_named_like_the_smoke_container_keeps_a_loadable_makefile(tmp_path, monkeypatch):

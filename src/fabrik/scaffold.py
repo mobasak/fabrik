@@ -5073,6 +5073,16 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                     f"{old.strip()!r}"
                 )
             content = content.replace(old, new)
+        # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
+        live = [
+            ln.strip()
+            for ln in content.splitlines()
+            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
+        ]
+        if live:
+            raise ValueError(
+                f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"
+            )
         if has_smoke:
             content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
         # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
