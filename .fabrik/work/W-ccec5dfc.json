@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:22:31.435130Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ccec5dfc",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide how the shared venv is kept on master's lock (sync from the main checkout only) and guard against a worktree uv sync repointing the editable install",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "latent break on every hub session (a worktree uv sync repoints the shared editable fabrik); one guard plus a main-checkout sync step, one session",
+  "status": "open",
+  "title": "Shared /opt/fabrik/.venv drifts from master's uv.lock (a uv sync would swap coverage 7.13.1→7.13.0, librt 0.7.7→0.7.5, and upgrade hypothesis, mutmut, textual, libcst), and a uv sync run from a linked worktree repoints the editable fabrik package to that worktree for every hub session (fleet dry run, W-0ae9b7e1 Phase A)"
+}
