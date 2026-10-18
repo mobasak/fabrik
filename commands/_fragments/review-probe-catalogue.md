@@ -161,7 +161,9 @@ it, or name in the brief why the shape does not have it.
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
   are marked before they are rewritten.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
-  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; every doc line,
+  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
+  writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
+  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
   docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
   that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
   the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
