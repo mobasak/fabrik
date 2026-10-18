@@ -194,6 +194,7 @@ def test_a_session_that_cannot_switch_model_runs_on_and_says_so() -> None:
     and named no path for a session that cannot switch itself."""
     sec = " ".join(_drive_section().split())
     assert (
-        "`/model` is the operator's to type, so a session that cannot switch itself runs on the model it has and"
-        " names that model in its FEEDBACK line."
+        "account percentages. A session the operator has not switched runs on Opus, or on Fable outside that RED,"
+        " and names its model in the commit body; on a seat model, or on Fable at that RED, it takes the handoff"
+        " close (§ Drive, Resilience) naming the model the run needs."
     ) in sec

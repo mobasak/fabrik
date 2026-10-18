@@ -21,14 +21,15 @@ five runs, each of which a reader can judge on its own.
   the distributor (`infra`) when `.fabrik/work/config.json` names no `feedback_owner` (`CLAUDE.md` § Autonomy). A fleet window or a project-repo agent does not run it: it files
   its verdict at its own close and the queue is worked from the hub. An unnamed hub window names
   its role in the commit body.
-- **Driver.** The session running it is on Fable — `/model claude-fable-5-1` before phase 1 if it
-  is not; `/model` is the operator's to type, so a session that cannot switch itself runs on the model it has
-  and names that model in its FEEDBACK line. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
+- **Driver.** The session running it is on Fable — the operator types `/model claude-fable-5-1` before
+  phase 1 if it is not. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
   `on this account's own Fable window` when the clamp binds), the run is driven on Opus
   (`/model claude-opus-5`), never on a seat model; AMBER on Fable is finish-what-you-started, not a
   switch. The Fable band is raised to this account's own Fable reading whenever that is hotter than
   the fleet's, because no relief flip reaches a Fable window (D-295): read the line, not the
-  account percentages.
+  account percentages. A session the operator has not switched runs on Opus, or on Fable outside that
+  RED, and names its model in the commit body; on a seat model, or on Fable at that RED, it takes the
+  handoff close (§ Drive, Resilience) naming the model the run needs.
 - **Seats.** Sized from the BOX by `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py`,
   from the units the SURFACE has — one source file is one unit (§ PHASE 4) — and priced by role
   (haiku 1× · sonnet 2× · opus 5× · fable 10×, D-190): Opus authoritative, Sonnet breadth, Haiku
