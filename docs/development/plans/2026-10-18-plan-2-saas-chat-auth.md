@@ -88,12 +88,18 @@ Intake: 12 items — 12 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | that cryptographically validates the token with the backend (FastAPI or Supabase JWKS) | `.windsurf/rules/core/35-security-auth.md:188` |
 | Redis keys carry the tenant: t:{tenant_id}:settings; unprefixed keys are reserved for explicitly global data (global:). | `.windsurf/rules/saas/95-multi-tenant-saas.md:161` |
 | Rate-limit per tenant so a noisy neighbour cannot exhaust the VPS | `.windsurf/rules/saas/95-multi-tenant-saas.md:166` |
+| No skipped heading levels — ## to ###, never ## to #### | `.windsurf/rules/core/40-documentation.md:242` |
+| Fenced code blocks only — never indented code | `.windsurf/rules/core/40-documentation.md:244` |
+| every interactive component handles all enriched states (loading, empty, error, permission denied, success, partial success, disabled) | `.windsurf/rules/saas/60-saas-ui.md:69` |
+| build against the slot NAMES (var(--color-danger), --font-heading) — never a brand's raw hex or font name | `.windsurf/rules/core/design-system-template.md:10` |
 
 Every selection below cites a row or is unconstrained:
 - **Real Redis in tests** cites rows 8 and 9. The spec's in-process fake is overruled by them, since a rule pack outranks a ticket on how the code is written (CLAUDE.md § Behavior, Conflict resolution).
 - **Errors through `_http_exc`** cites row 4.
 - **The scaffolded logger** cites row 2.
 - **The client error path** cites row 5: a failure is shown and logged, never swallowed.
+- **The client states** cite the `60-saas-ui.md:69` row: `SSEStream` surfaces loading (streaming), error, permission denied (signed out after a second 401) and rate-limited (a 429 with `Retry-After`) to its caller. It adds no markup or colour; the design-system row stays unconstrained, since this slice changes no visual.
+- **The README section** cites the two `40-documentation.md` rows: no skipped heading levels, and fenced examples only.
 - **Deviations the spec already recorded:** C4 token buckets and C5 middleware placement and plan tiers (D-1010).
 
 ## Context Ledger
@@ -641,6 +647,15 @@ $ command grep -rn SSEStream templates/saas-skeleton --include=*.ts --include=*.
 templates/saas-skeleton/components/chat/ChatUI.tsx:6:import { useSSEStream, StreamingIndicator } from "./SSEStream";
 templates/saas-skeleton/components/chat/index.ts:2:export { useSSEStream, StreamingIndicator, ToolCallIndicator } from "./SSEStream";
 ```
+
+## Pass Ledger
+
+`/fabrik-plan-review` slices, by section:
+- **Opus, slice A (rules and backend):** § Global Constraints, § Constraints Digest, § Context Ledger, § Phase B, § File Scope, § Coverage Checklist.
+- **Sonnet, slice B (the rest):** the header, § What we already agreed, § Intake Inventory, § Phase A, § Phase C, § Evidence, § Self-audit, § Residual unknowns.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
 
 ## Self-audit
 
