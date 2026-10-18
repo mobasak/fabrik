@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-task (hook, fleet-synced → full /fabrik-review): a network-client class in seat_guard._scan beside kills and git writes, tests in tests/test_seat_guard.py for ssh -G pass, ssh/scp/sftp/rsync-remote deny, env/timeout-wrapped forms, and the stated limit (a script that shells out is not seen); one house-rule sentence in commands/_agents/fabrik-reviewer.md naming ssh -G as the only sanctioned form",
+  "next": "/fabrik-spec seeded with /opt/fabrik/.tmp/runs/7e6fef18-ef7b-4fc0-b940-07694d395af9/fabrik-task-2026-10-18T18-29-32-0330/seed.md — choose the approach (network namespace, deny-by-default git, token-anywhere deny) before any network class ships (D-1004)",
   "note": "",
   "owner": "",
   "priority": 2,
