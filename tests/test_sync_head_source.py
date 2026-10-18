@@ -233,7 +233,12 @@ def test_head_drift_is_reset_like_every_other_module_global(hub) -> None:
     mod, _hub_root, _c, _u = hub
     src = Path(mod.__file__).read_text(encoding="utf-8")
     main_body = src.split("def main(")[1]
-    for marker in ("_SAFETY_FLOOR_FAILURES.clear()", "_head_drift.clear()"):
+    for marker in (
+        "_SAFETY_FLOOR_FAILURES.clear()",
+        "_head_drift.clear()",
+        "_HUB_SOURCES.clear()",  # derive from the manifest, rebound per run (W-8c57e84a)
+        "_HUB_BLOBS.clear()",
+    ):
         assert marker in main_body, f"{marker} missing from main()"
 
 
@@ -574,28 +579,103 @@ def test_the_drift_line_says_the_manifest_governs_what_ships(
         _STUB_MANIFEST.replace("CORE-MARK", "")
         .replace("BLOCK-MARK", "B")
         .replace("RETIRED_VENDORED_DIRS = ()\n", ""),
+        _STUB_MANIFEST.replace("CORE-MARK", "").replace("BLOCK-MARK", "B") + "def broken(:\n",
+        _STUB_MANIFEST.replace("CORE-MARK", "").replace("BLOCK-MARK", "B")
+        + "import sys\nsys.exit(0)\n",
     ],
-    ids=["raises-on-exec", "lacks-a-name"],
+    ids=["raises-on-exec", "lacks-a-name", "syntax-error", "exits-zero"],
 )
 def test_an_unusable_head_manifest_is_a_named_refusal_never_a_tree_fallback(
     hub, tmp_path: Path, monkeypatch, capsys, head: str
 ) -> None:
     """Falling back to the working tree would ship uncommitted bytes, the incident this closes; a
-    traceback would name nothing. The run stops with the reason and writes nothing."""
+    traceback would name nothing, and a `sys.exit(0)` would end the run green having synced
+    nothing. The run stops with the reason before any project is touched."""
     mod, hub_root, _committed, _untracked = hub
-    _manifest_hub(hub_root, head, _stub("TREE-BLOCK"))
+    (hub_root / "scripts" / "head_only.py").write_text("# x\n", encoding="utf-8")
+    _manifest_hub(hub_root, head, _stub("TREE-BLOCK", '"head_only.py",'))
     project = _one_project(tmp_path, monkeypatch, mod)
     assert mod.main() == 1
     out = capsys.readouterr().out
     assert "HEAD's scripts/fabrik_synced_manifest.py cannot be bound" in out, out
     assert (project / ".gitignore").read_text(encoding="utf-8") == ".env\n.venv/\n__pycache__/\n"
+    assert not (project / "scripts").exists()  # the tree's list shipped nothing either
+
+
+def test_a_dataclass_in_heads_manifest_binds(hub) -> None:
+    """`dataclasses` resolves `sys.modules[cls.__module__]` at decoration time under
+    `from __future__ import annotations`; an unregistered exec module turned a valid manifest into a
+    refusal. The exec module is registered while it runs, and removed after."""
+    mod, hub_root, _committed, _untracked = hub
+    head = (
+        "from __future__ import annotations\nfrom dataclasses import dataclass\n"
+        + _stub("DC-BLOCK")
+        + "\n@dataclass\nclass Row:\n    name: str\n"
+    )
+    _manifest_hub(hub_root, head, None)
+    assert mod._bind_manifest_from_head() is None
+    assert "DC-BLOCK" in mod.gitignore_block_text()
+    assert "fabrik_synced_manifest_at_head" not in sys.modules
+
+
+def test_a_manifest_resolving_paths_from_its_file_binds(hub) -> None:
+    """An import sets `__file__`; the exec module must too, or a manifest that resolves a path from
+    it (`Path(__file__).parent`) is refused although it is committed and valid."""
+    mod, hub_root, _committed, _untracked = hub
+    head = "from pathlib import Path\nHERE = Path(__file__).resolve().parent\n" + _stub("F-BLOCK")
+    _manifest_hub(hub_root, head, None)
+    assert mod._bind_manifest_from_head() is None
+    assert "F-BLOCK" in mod.gitignore_block_text()
+
+
+def test_a_refusal_restores_the_import_time_binding(hub) -> None:
+    """A refused bind after a successful one must not leave the earlier HEAD binding in place."""
+    mod, hub_root, _committed, _untracked = hub
+    imported = mod.gitignore_block_text
+    _manifest_hub(hub_root, _stub("HEAD-BLOCK"), None)
+    assert mod._bind_manifest_from_head() is None
+    assert mod.gitignore_block_text is not imported
+    _manifest_hub(hub_root, _stub("B") + "raise RuntimeError('x')\n", None)
+    assert mod._bind_manifest_from_head() is not None
+    assert mod.gitignore_block_text is imported
+
+
+def test_the_bind_runs_after_argparse_so_help_never_needs_the_manifest(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """`--help` answers even when HEAD's manifest cannot be bound."""
+    mod, hub_root, _committed, _untracked = hub
+    _manifest_hub(hub_root, _stub("B") + "raise RuntimeError('x')\n", None)
+    _one_project(tmp_path, monkeypatch, mod)
+    monkeypatch.setattr(sys, "argv", ["sync", "--help"])
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 0
+    assert "cannot be bound" not in capsys.readouterr().out
+
+
+def test_the_manifest_note_is_absent_when_only_synced_files_drift(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """The drift line's manifest note fires only when the manifest itself drifted."""
+    mod, hub_root, committed, _untracked = hub
+    (hub_root / "scripts" / "enforcement" / "committed.py").write_text("x = 1\n", encoding="utf-8")
+    _manifest_hub(hub_root, _stub("B", '"enforcement/committed.py",'), None)
+    committed.write_text(
+        "COMMITTED = 2\n", encoding="utf-8"
+    )  # a synced file drifts, not the manifest
+    _one_project(tmp_path, monkeypatch, mod)
+    mod.main()
+    out = capsys.readouterr().out
+    assert "hub file(s) differ" in out and "scripts/enforcement/committed.py" in out, out
+    assert "is the manifest itself" not in out, out
 
 
 def test_no_head_manifest_restores_the_import_time_binding(
     hub, tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    """A run against a hub whose manifest is untracked must not inherit an EARLIER in-process run's
-    HEAD binding: the import-time binding comes back."""
+    """A run against a hub with no HEAD manifest (here a fresh repo with no commit) must not inherit
+    an EARLIER in-process run's HEAD binding: the import-time binding comes back."""
     mod, hub_root, _committed, _untracked = hub
     imported = mod.gitignore_block_text
     _manifest_hub(hub_root, _stub("HEAD-BLOCK"), None)
@@ -610,7 +690,8 @@ def test_no_head_manifest_restores_the_import_time_binding(
 
 def test_the_rebound_names_are_exactly_the_modules_manifest_imports(hub) -> None:
     """A name imported from the manifest but missing from `_MANIFEST_NAMES` would stay bound to the
-    working tree, silently; so would a second, function-local import (one at :2627 did)."""
+    working tree, silently; so would a second, function-local import (one in
+    `_unreachable_vendored_copies` did)."""
     import ast
 
     mod = hub[0]

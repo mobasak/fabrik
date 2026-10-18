@@ -1876,8 +1876,8 @@ _MANIFEST_NAMES = (
     "iter_synced_pairs",
     "worktreeinclude_text",
 )
-# The import-time (working-tree) binding, restored when there is no HEAD to bind from, so a run
-# never inherits an EARLIER in-process run's HEAD binding.
+# The import-time (working-tree) binding, restored at the start of every bind, so a run never
+# inherits an EARLIER in-process run's HEAD binding (on success, refusal or no HEAD alike).
 _IMPORTED_MANIFEST = {name: globals()[name] for name in _MANIFEST_NAMES}
 
 
@@ -1891,31 +1891,41 @@ def _bind_manifest_from_head() -> str | None:
     ran on it). Reading it through `_head_source` gives it the copied files' contract: HEAD's bytes
     ship, and a drifted manifest is recorded in `_head_drift` and named in the run's report.
 
-    An untracked manifest, or a hub git cannot read, has no HEAD to bind from: the import-time
-    working-tree binding is restored, silently, as `_head_source` treats any untracked file. Every
-    name in `_MANIFEST_NAMES` is the module's only manifest import (a test pins the two equal) and
-    is read inside functions only, so rebinding them here reaches every use. A name a caller set on
-    the module before `main()` is replaced, so patch the hub's HEAD instead.
-
-    Returns None, or a refusal when HEAD's manifest cannot be bound — it raises on exec or lacks a
-    name the sync imports (a manifest and a sync edited together and committed apart). Falling
-    back to the working tree there would ship uncommitted bytes, the incident this closes; nothing
-    is rebound and `main()` stops with the reason.
+    Two cases where HEAD gives no manifest, and they are NOT handled alike:
+    - No HEAD blob to read (an untracked manifest, an unborn HEAD, a hub git cannot read): the
+      import-time working-tree binding is restored, silently — `_head_source`'s rule for EVERY
+      untracked source (T12.17), not a choice made here; reporting those loudly is W-ba306861.
+    - A HEAD blob that cannot be BOUND (it raises on exec, or lacks a name the sync imports — a
+      manifest and a sync edited together and committed apart): a refusal. A working-tree fallback
+      there would ship uncommitted bytes while a committed manifest exists, the incident this
+      closes; the import-time binding is restored and `main()` stops with the reason.
+    Every name in `_MANIFEST_NAMES` is the module's only manifest import (a test pins the two
+    equal) and is read inside functions only, so rebinding them here reaches every use. A name a
+    caller set on the module before `main()` is replaced, so patch the hub's HEAD instead. The
+    module still IMPORTS the working-tree manifest at load (that binding is the fallback above), so
+    a working tree that cannot import stops the run before `main()`, as it always has.
     """
     path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
     head = _head_source(path)
+    globals().update(_IMPORTED_MANIFEST)  # never inherit an earlier in-process run's binding
     if head is None:
-        globals().update(_IMPORTED_MANIFEST)
         return None
     committed = types.ModuleType("fabrik_synced_manifest_at_head")
+    committed.__file__ = str(path)  # as an import sets it — a manifest may resolve paths from it
+    # Registered while it executes: `dataclasses` (under `from __future__ import annotations`)
+    # resolves `sys.modules[cls.__module__]` at decoration time, and an unregistered module would
+    # turn a valid manifest into a misleading refusal.
+    sys.modules[committed.__name__] = committed
     try:
         exec(compile(head[0], str(path), "exec"), committed.__dict__)  # noqa: S102 — the hub's own
         bound = {name: getattr(committed, name) for name in _MANIFEST_NAMES}
-    except Exception as exc:  # noqa: BLE001 — any failure is a refusal, never a tree fallback
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 — a refusal, never a tree fallback
         return (
             f"HEAD's scripts/fabrik_synced_manifest.py cannot be bound ({type(exc).__name__}: "
             f"{exc}); commit the manifest and the sync together, then re-run"
         )
+    finally:
+        sys.modules.pop(committed.__name__, None)
     globals().update(bound)
     return None
 
@@ -2704,7 +2714,7 @@ def main() -> int:
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
-    _HUB_SOURCES.clear()  # both derive from the manifest, which is now rebound per run
+    _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
