@@ -17,6 +17,87 @@ interface UseSSEStreamOptions {
   onError?: (error: string) => void;
 }
 
+// The backend's double-submit CSRF cookie: `__Host-csrf_token` over HTTPS, `csrf_token` otherwise.
+const CSRF_COOKIES = ["__Host-csrf_token", "csrf_token"];
+
+/** The CSRF token, read afresh on every call: a cookie-borne refresh rotates it. The raw value,
+ * as the server compares it (quotes stripped, never URL-decoded). */
+function csrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const cookies = document.cookie.split(";").map((c) => c.trim());
+  for (const name of CSRF_COOKIES) {
+    const hit = cookies.find((c) => c.startsWith(`${name}=`));
+    if (hit) return hit.slice(name.length + 1).replace(/^"|"$/g, "");
+  }
+  return "";
+}
+
+function send(url: string, body: Record<string, unknown>): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+    body: JSON.stringify(body),
+  });
+}
+
+// One refresh at a time for the whole page: the backend rotates a refresh token once, so a second
+// concurrent refresh would lose and sign the user out.
+let refreshing: Promise<boolean> | null = null;
+const REFRESH_TIMEOUT_MS = 10_000;
+
+function refreshSession(): Promise<boolean> {
+  refreshing ??= fetch("/auth/refresh", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRF-Token": csrfToken() },
+    signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS), // a hung refresh is signed out, never a stuck page
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+async function readDetail(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (body && typeof body === "object" && "detail" in body) {
+      const detail = (body as { detail?: unknown }).detail;
+      if (typeof detail === "string" && detail) return detail;
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
+}
+
+function isStreamEvent(value: unknown): value is StreamEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  return (
+    typeof event.type === "string" &&
+    (event.text === undefined || typeof event.text === "string") &&
+    (event.error === undefined || typeof event.error === "string") &&
+    (event.tool === undefined || typeof event.tool === "string")
+  );
+}
+
+/** The message a refused request shows: problem+json `detail`, else the CSRF middleware's `{detail}`. */
+async function refusal(response: Response): Promise<string> {
+  if (response.status === 401) return "You are signed out. Sign in to chat.";
+  const detail = await readDetail(response);
+  if (response.status === 429) {
+    // the detail names the bucket: a full tenant or app bucket is a shared budget, not the user's own
+    const wait = response.headers.get("Retry-After");
+    const limit = detail ?? "Too many messages.";
+    return wait ? `${limit} Try again in ${wait} seconds.` : `${limit} Try again later.`;
+  }
+  return detail ?? `The chat request failed (HTTP ${response.status}).`;
+}
+
 export function useSSEStream(options: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
@@ -27,76 +108,97 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
       setIsStreaming(true);
       setStreamText("");
       setToolCalls([]);
+      let fullText = "";
+      let failed = false;
+      let finished = false;
 
+      const handle = (event: StreamEvent) => {
+        options.onEvent?.(event);
+        switch (event.type) {
+          case "text_delta":
+            if (event.text) {
+              fullText += event.text;
+              setStreamText(fullText);
+            }
+            break;
+          case "tool_call":
+            if (event.tool) {
+              const tool = event.tool;
+              setToolCalls((prev) => [...prev, { tool, status: "running" }]);
+            }
+            break;
+          case "tool_result":
+            setToolCalls((prev) =>
+              prev.map((call, i) => (i === prev.length - 1 ? { ...call, status: "done" } : call))
+            );
+            break;
+          case "error":
+            failed = true;
+            options.onError?.(event.error || "The chat stream reported an error.");
+            break;
+          case "done":
+            finished = true;
+            break;
+        }
+      };
+
+      const dispatch = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+        let event: unknown;
+        try {
+          event = JSON.parse(line.slice(6));
+        } catch {
+          event = undefined;
+        }
+        if (!isStreamEvent(event)) {
+          failed = true;
+          options.onError?.("The chat stream sent a malformed frame.");
+          return;
+        }
+        handle(event);
+      };
+
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
+        let response = await send(url, body);
+        if (response.status === 401 && (await refreshSession())) {
+          await response.body?.cancel();
+          response = await send(url, body); // once: the retry reads the rotated CSRF cookie
+        }
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          options.onError?.(await refusal(response));
+          return;
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        reader = response.body?.getReader();
+        if (!reader) throw new Error("The chat response had no body.");
 
         const decoder = new TextDecoder();
-        let fullText = "";
-
+        let buffer = "";
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const event: StreamEvent = JSON.parse(line.slice(6));
-                options.onEvent?.(event);
-
-                switch (event.type) {
-                  case "text_delta":
-                    if (event.text) {
-                      fullText += event.text;
-                      setStreamText(fullText);
-                    }
-                    break;
-                  case "tool_call":
-                    if (event.tool) {
-                      setToolCalls((prev) => [...prev, { tool: event.tool!, status: "running" }]);
-                    }
-                    break;
-                  case "tool_result":
-                    setToolCalls((prev) => {
-                      const updated = [...prev];
-                      const last = updated[updated.length - 1];
-                      if (last) last.status = "done";
-                      return updated;
-                    });
-                    break;
-                  case "error":
-                    options.onError?.(event.error || "Unknown error");
-                    break;
-                  case "done":
-                    options.onComplete?.(fullText);
-                    break;
-                }
-              } catch {
-                // Skip malformed JSON
-              }
-            }
-          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? ""; // a frame cut across chunks waits for its other half
+          lines.forEach(dispatch);
         }
-
+        buffer += decoder.decode();
+        if (buffer) dispatch(buffer);
+        if (!failed && !finished) {
+          // the backend always ends with `done` or `error`: a stream without either was cut off
+          options.onError?.("The reply was cut off. Try again.");
+        } else if (!failed && !fullText) {
+          // a reasoning model capped by the server's max_tokens can finish with no visible text
+          options.onError?.("The model returned an empty reply. Try again.");
+        }
+      } catch (error) {
+        options.onError?.(error instanceof Error ? error.message : "The chat stream failed.");
+      } finally {
+        // an early exit (a throwing handler) must not leave the backend relaying to max_tokens
+        await reader?.cancel().catch(() => undefined);
         setIsStreaming(false);
         options.onComplete?.(fullText);
-      } catch (error) {
-        setIsStreaming(false);
-        options.onError?.(error instanceof Error ? error.message : "Stream failed");
       }
     },
     [options]
