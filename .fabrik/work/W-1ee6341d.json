@@ -3,7 +3,7 @@
   "created": "2026-10-15T13:22:40.029655Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "00bf077b296e75b674450dae41d16a0b699f43b8",
   "id": "W-1ee6341d",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — spoke apply fails and deletes GlitchTip project; deploy blocker",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

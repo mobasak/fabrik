@@ -3,7 +3,7 @@
   "created": "2026-10-15T16:37:30.749371Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d8195d63070757cd8eac74770aa05ba96b43a3b1",
   "id": "W-fc3eddd8",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "a failed DSN verify on refresh deletes the EXISTING GlitchTip project (data loss) and spoke watchdog runs on the hub; one driver (drivers/watchdog.py) plus a guard, one session; owner: deploy registrars = fleet",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "medium"

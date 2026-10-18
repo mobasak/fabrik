@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - The close used to run `final_gate.py --check --json` only after the closing pass, so a fix the gate forced landed after the closing seats had read the surface. A sentence before "Close in this ORDER" now has the reader stage their own files and run the gate before the pin of every pass that follows a fix, since any of them may be the closing pass. A red outside the surface forces no fix; it is measured as the `GATE-SCOPE` paragraph does, and the pass is pinned unchanged. This answers row 1792335517, the second sighting of the held subject final-gate-before-closing-pass. `tests/test_review_queue_pass.py` pins the sentence.
 
+### Fixed — a review seat can run a scaffold test against its pins: fabrik-lib is linked beside the archive, never copied (2026-10-18)
+
+- `.claude/workflows/fabrik-review-loop.js` (W-393ffefa, D-1001): `PIN_IMPORT` tells a seat whose subject reads the sibling repo through the hub root to run `ln -sfn /opt/fabrik-lib SCRATCH/fabrik-lib` before any probe (a repeated plain `ln -s` follows the link and writes inside fabrik-lib) (the scaffold looked for fabrik-lib beside the archive and found nothing; the docs-site test skipped silently), to treat every fabrik-lib result as UNPINNED, and to keep a scaffold probe offline and in SCRATCH; `PYTEST_PINS` skips a test that starts a database container (`scratch_pg`, `_real_pg`, or a `docker run`/`docker compose` the test itself executes — a bare `docker` hit is not one). Graders in `tests/test_review_loop_workflow.py`.
+
 ### Fixed — the quota hold allows a read-only `git -C`, a `cd` home before a close and a piped `mail.py send`, and its veto no longer reads `-C` as git's verb (2026-10-18)
 
 - `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;` (resolved as bash's logical `cd`, target absolute or `./`/`../`-relative), every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Two older holes in the same allow-list close with it: unquoted brace expansion (`git push origin {+,}master` was a force push, `git add {.,}` a sweep) and a read tool matched before a `-` (`ls-evil`). Grader: `tests/test_quota_stop_verb_resolver.py`.
@@ -99,6 +103,15 @@ review `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T
 - PHASE 2's "a recurrence is edited, never re-rejected" now names its one exception. A recurrence whose edit PHASE 1 refuses as weakening is routed to the operator as a proposal. Its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. A later sighting cites that proposal instead of routing again. Terminal gains the matching `no edit this run — the surviving row routed to the operator` close (row 1792329659).
 - `commands/_fragments/close-chain.md`, which 37 commands and fragments render, now says that in a command running a review loop, what a close input says about the change is written, or checked sentence by sentence against the final text, after the closing pass. That covers the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` entry or another ledger entry. The check runs again after any fix the chain's own check or `final_gate.py` forces (row 1792329281, the third sighting of the held after-the-closing-pass class).
 - The queue's other two rows were rejected with their reasons: one misfiled, one held as advice.
+
+### Fixed — the watchdog driver stages nothing on a VPS under a guessable /tmp name (2026-10-18)
+
+`fabrik apply` for a watchdog project used to stage the sidecar build context and the governance tarball, which root
+extracts, in a shared `/tmp/fabrik-watchdog-build`. It also staged the compose overlay carrying the database DSN, and the
+write-enabled deploy key, at fixed `/tmp/<project>-…` names. Another local user could swap or read any of them.
+Each now gets its own random remote `mktemp` file or dir (0600/0700) through the new `drivers.ssh.remote_mktemp`, which
+the deployer shares. The overlay is root-only 0600 before it moves. Every stage is removed after use.
+D-1000 (W-719b2678; the monitoring drivers follow in W-42e79070).
 
 ### Fixed — a scaffolded file-worker's `make docker-smoke` never claims a production job (2026-10-18)
 

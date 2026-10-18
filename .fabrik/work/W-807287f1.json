@@ -3,7 +3,7 @@
   "created": "2026-10-03T20:20:27.909210Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "143504c1567b23cc3e0e72e5b1a8c1affc6fe03f",
   "id": "W-807287f1",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — local deploy path skips compose invariants validation",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "queued"
