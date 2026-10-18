@@ -20,26 +20,30 @@ connects with `registry_db.connect(connect_timeout=2, options="-c statement_time
 1 ms), and prints one JSON object on stdout, `{"rows": [<row>, …], "synced_at": <float> | null}`, every row
 carrying T02's keys with strings, ints, floats, `null` and lists of strings only (a balance or price is converted
 to `float` before `json.dumps`), exiting 0; on any failure it prints exactly one line on stderr,
-`<ExceptionClass>: <first line of the message>`, and exits 1. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
+`<ExceptionClass>: <first line of the message>`, and exits 1. Its module top imports only the stdlib: `registry_db`,
+`inventory` and psycopg2 are imported inside the one `try` whose `except Exception` prints that line, so an import
+failure prints it too, never a traceback. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
 is the child's failure, so the section's error state), and needs no `sys.path` change.
 
 The collector, `_inventory(ctx)`, in `quota_dashboard.py`, keeps two fields behind ONE lock: the last good read
 (rows, `synced_at`, the read's START time) and the read in flight (its `subprocess.Popen`, its start, its
 deadline, a done event). Each request has ONE deadline, 5 s from its own arrival, and every wait it makes is
 bounded by what is left of it. Under the lock — held only for these decisions, never across a read — a request
-(1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, spawns the child,
-whose deadline is this request's; else (3) joins the read in flight. It then releases the lock and waits on that
+(1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, spawns the child;
+else (3) joins the read in flight. It then releases the lock and waits on that
 read's done event until its OWN deadline. A read's deadline is 4.5 s after its spawning request's arrival, so the
 kill, the cleanup and the render fit inside that request's 5 s. The spawning request's waiter thread reads the
 child with `communicate(timeout=<the read's deadline left>)` and on timeout kills it and calls `communicate()`
 again, which reaps the child and drains and closes both pipes and cannot block on the server — the child is
-gone (`kill()` then `wait()` on a child blocked in `recv()` returned in 0.001 s in the review's probe); it writes the last good read under the lock on success, and clears
+gone (`kill()` then `communicate()` on a child blocked in `recv()` returned in 0.001 s with both pipes closed, in the
+review's pass-6 probe); it writes the last good read under the lock on success, and clears
 the in-flight field on every exit — so a read never outlives its 5 s and at most one is ever alive. ONE outcome
 rule covers every request that ends without a fresh result (its wait ran out, the child failed or was killed):
 the section's error state, as spec § Failure states; the last good read is served only inside its 60 s, and a
-failed read never replaces it. The error state carries the failure's class and first line only: the child's
-stderr line as printed, `ReadTimeout: registry read killed at its deadline` for a killed child, and
-`ReadFailed: <first stderr line, or the exit status>` for a child that exits non-zero without the line. No connection is
+failed read never replaces it. The error state carries the failure's class and first line only:
+`ReadTimeout: registry read killed at its deadline` for a killed child; the child's stderr as printed when it is
+exactly one line matching `^[A-Za-z_][\w.]*: `; and otherwise `ReadFailed: <first stderr line, or the exit
+status>` (a crash before the handler, or stray output). No connection is
 ever cancelled: `psycopg2`'s `cancel()` against a server that accepts and never answers froze every thread of the
 process in this review's pass-3 probe (TCP, executed); the child's kill is what ends a stalled read. The collector
 also reads `classified_at` as the mtime of
