@@ -2464,7 +2464,7 @@ SCRATCH_HOME_CLAUSE = (
     "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the "
     "run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk "
     "across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session "
-    "scratchpad when `start` printed no `SCRATCH:` line"
+    "scratchpad when `start` printed no line that begins `SCRATCH:`"
 )
 REVIEW_LOOP_COMMANDS = (
     "fabrik-review",
@@ -2483,6 +2483,8 @@ def test_each_review_command_names_the_durable_home_of_pins_and_pass_files() -> 
         body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
         flat = " ".join(body.split())
         assert flat.count(SCRATCH_HOME_CLAUSE) == 1, name
+        # W-49adc7a7: 'after `SCRATCH: `' also matches inside the `RUN-SCRATCH: ` line
+        assert "the path after `SCRATCH: `" not in flat, name
     scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
     flat = " ".join(scoped.read_text(encoding="utf-8").split())
     assert "--pins-dir <a NEW pins_dir under the run's `SCRATCH:` folder>" in flat

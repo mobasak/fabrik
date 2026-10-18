@@ -739,7 +739,7 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
     changelog-figure-before-close and changelog-test-count-from-pytest)."""
     review = _norm(SRC)
     assert (
-        "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
+        "or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the "
         "lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and "
         "`files_read` are already in the pass files there); only the seats' copies go under"
     ) in review
