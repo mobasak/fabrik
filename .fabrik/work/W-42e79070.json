@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T14:19:06.940928Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-42e79070",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "route each through drivers.ssh.remote_mktemp(ssh_fn) as W-719b2678 slice 1 did for the watchdog driver",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH, security class (slice 2 of W-719b2678): monitoring drivers stage configs under guessable fixed /tmp names on the VPS; integrity only, no secrets; reuses drivers.ssh.remote_mktemp",
   "status": "open",
   "tags": [
     "fleet",
