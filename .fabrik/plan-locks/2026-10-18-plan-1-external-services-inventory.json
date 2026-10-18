@@ -65,11 +65,12 @@
       "head": "5ccd137b7"
     },
     "T04": {
-      "state": "dispatched",
-      "worktree_path": null,
-      "branch": null,
-      "base_commit": null,
-      "started_at": "2026-10-18T05:28:35Z"
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a897c0c8ef7b1c10d",
+      "branch": "worktree-agent-a897c0c8ef7b1c10d",
+      "base_commit": "4bddb47d2",
+      "started_at": "2026-10-18T05:28:35Z",
+      "head": "89fdcf104"
     }
   }
 }

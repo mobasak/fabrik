@@ -1,6 +1,23 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A bound enforced inside the stalled call never fires — and a test named for a scenario can be proving a different bound (2026-10-18)
+
+The external-services plan's T04 reads the registry in a child process the board kills at 4.5 s. Two things the
+whole-plan review (`docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md`) had to
+correct:
+- **A guard on one side of a boundary is not a guard.** The board suites' socket guard cannot see libpq's C-level
+  connect, so the registry read needed a second side (an unusable DSN) beside the stubbed spawn; and a bound enforced
+  inside the stalled call (`statement_timeout`, `cancel()`) never fires on a server that accepts and never answers —
+  only killing the child bounds the read, and only a SIGALRM in the child bounds it once the board itself is gone.
+- **Mutate the bound you THINK the test proves.** The test "a registry that accepts and never answers is the error
+  state within five seconds" passed with the kill path made unbounded: libpq's `connect_timeout=2` ended the child at
+  2.1 s first. A test is about the mechanism that actually stops its scenario; name and assert that one (here `< 4.0 s`
+  and the connect-timeout text), and keep the kill proven by a test whose child cannot end on its own.
+- **A restated number in prose is the site that keeps yielding.** The child's docstring stated the alarm's margin;
+  it was wrong after round 1, again after round 2 (`int()` truncates toward zero for a just-past deadline). The fix
+  that ended it was deleting the number for a pointer to the code that owns it.
+
 ## A fix that answers a finding's first half leaves its second half for the next round — read the whole row before closing it (2026-10-12)
 
 The Finish `/fabrik-review` of the owner-DSN split (plan `2026-10-12-plan-1-owner-dsn-split`, 20 candidates, 17 confirmed) needed a third fix

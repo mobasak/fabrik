@@ -1,6 +1,6 @@
 # Review — 2026-10-18-plan-1-external-services-inventory
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = e2bc1bcc63a61577760c6ccb3f9525cdedd0ef0f; range tip e2bc1bcc63a61577760c6ccb3f9525cdedd0ef0f; `git diff 4cde3f547..e2bc1bcc6 -- scripts/gen_dashboard.py scripts/registry_db.py scripts/sysadmin/dashboard_ui/components.py scripts/sysadmin/dashboard_ui/inventory.py scripts/sysadmin/dashboard_ui/static/app.css scripts/sysadmin/dashboard_ui/static/app.js scripts/sysadmin/dashboard_ui/strings.py scripts/sysadmin/dashboard_ui/views/services.py scripts/sysadmin/inventory_read.py scripts/sysadmin/quota_dashboard.py tests/external_services_fixture.py tests/quota_dashboard_isolation.py tests/test_external_services_chain.py tests/test_external_services_inventory.py tests/test_quota_dashboard.py tests/test_quota_dashboard_app_js.py tests/test_quota_dashboard_browser.py tests/test_quota_dashboard_page_layer.py tests/test_quota_dashboard_server.py tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_views_misc.py docs/workstation/quota-dashboard.md docs/reference/external-services-registry.md docs/CAPABILITIES.md` md5 9f45449f2b1469a7c26ba53191c56ebf (322704 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/gen_dashboard.py`, `scripts/registry_db.py`, `scripts/sysadmin/dashboard_ui/components.py`, `scripts/sysadmin/dashboard_ui/inventory.py`, `scripts/sysadmin/dashboard_ui/static/app.css`, `scripts/sysadmin/dashboard_ui/static/app.js`, `scripts/sysadmin/dashboard_ui/strings.py`, `scripts/sysadmin/dashboard_ui/views/services.py`, `scripts/sysadmin/inventory_read.py`, `scripts/sysadmin/quota_dashboard.py`, `tests/external_services_fixture.py`, `tests/quota_dashboard_isolation.py`, `tests/test_external_services_chain.py`, `tests/test_external_services_inventory.py`, `tests/test_quota_dashboard.py`, `tests/test_quota_dashboard_app_js.py`, `tests/test_quota_dashboard_browser.py`, `tests/test_quota_dashboard_page_layer.py`, `tests/test_quota_dashboard_server.py`, `tests/test_quota_dashboard_ui_kit.py`, `tests/test_quota_dashboard_views_misc.py`, `docs/workstation/quota-dashboard.md`, `docs/reference/external-services-registry.md`, `docs/CAPABILITIES.md`
 **Plan:** `docs/development/plans/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md`
@@ -131,36 +131,36 @@ $ python scripts/review_rubric.py --changed scripts/gen_dashboard.py scripts/reg
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/gen_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/registry_db.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/components.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/inventory.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/static/app.css` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/static/app.js` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/strings.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/dashboard_ui/views/services.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/inventory_read.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/external_services_fixture.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/quota_dashboard_isolation.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_external_services_chain.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_external_services_inventory.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_app_js.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_browser.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_page_layer.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_server.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_ui_kit.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard_views_misc.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/quota-dashboard.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/reference/external-services-registry.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/CAPABILITIES.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/gen_dashboard.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/gen_dashboard.py: atomic temp-and-replace write, the chain's 900 s step timeout, connect with no kwargs — R12; C-sonnet + CD-haiku) |
+| Hunt: `scripts/registry_db.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/registry_db.py: connect(**kwargs) passthrough and every caller — registry_sync.py:311,489, declare_subscription.py:32, gen_dashboard.py:64) |
+| Hunt: `scripts/sysadmin/dashboard_ui/components.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/dashboard_ui/components.py: table(align) validation, select's empty option, the disclosure id guard, t() keys 19/19 present) |
+| Hunt: `scripts/sysadmin/dashboard_ui/inventory.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/dashboard_ui/inventory.py: escaping probe over ten fields both modes, NULL columns, t() keys 48+41 derived present; R13-R15 recorded) |
+| Hunt: `scripts/sysadmin/dashboard_ui/static/app.css` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/dashboard_ui/static/app.css: the [hidden] and filter-bar hunks against the markup inventory.py emits; no rule names a missing class) |
+| Hunt: `scripts/sysadmin/dashboard_ui/static/app.js` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/dashboard_ui/static/app.js: 42 data-* names read vs emitted both ways, applySections/applyFilters, CADENCE has no services refresh — R17) |
+| Hunt: `scripts/sysadmin/dashboard_ui/strings.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/dashboard_ui/strings.py: 527 keys, 0 duplicates, the four removed services.ext.* keys have 0 uses, services.inv.* present) |
+| Hunt: `scripts/sysadmin/dashboard_ui/views/services.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (scripts/sysadmin/dashboard_ui/views/services.py: the module docstring describes the in-place inventory, not the removed link card — F6) |
+| Hunt: `scripts/sysadmin/inventory_read.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (scripts/sysadmin/inventory_read.py: SIGALRM self-bound F2, path comment F7 corrected at round zero; docstring F15 r2 and F16 r3 rewritten as a pointer) |
+| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (scripts/sysadmin/quota_dashboard.py: child killed and reaped on every exit F1, lock wait and text F3, finite synced_at F4, stat outside the lock F5; overflow-safe _epoch F13 r2) |
+| Hunt: `tests/external_services_fixture.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/external_services_fixture.py: the census fixture shared by the inventory and chain suites, exercised by 588 passing tests on PIN2) |
+| Hunt: `tests/quota_dashboard_isolation.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/quota_dashboard_isolation.py: unusable SERVICES_REGISTRY_DSN, the _inventory_spawn stub and use_real; StubChild gaps R6 hold no green) |
+| Hunt: `tests/test_external_services_chain.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_external_services_chain.py: 61 passed with .venv (R1), the retirement test, conn.close and 48 h mutants killed; R20/R21 recorded) |
+| Hunt: `tests/test_external_services_inventory.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_external_services_inventory.py: STALE_AFTER_H mutant kills 13, weak needles R21 each backed by a stronger assertion, R19 recorded) |
+| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (tests/test_quota_dashboard.py: the never-answers test states the connect bound F8, four new graders red-on-revert; SIGALRM assertion F14 and two overflow rows r2) |
+| Hunt: `tests/test_quota_dashboard_app_js.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (tests/test_quota_dashboard_app_js.py: a Chromium launch failure skips — 116 skipped, 0 errors with an empty PLAYWRIGHT_BROWSERS_PATH — F11) |
+| Hunt: `tests/test_quota_dashboard_browser.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (tests/test_quota_dashboard_browser.py: a Chromium launch failure skips (F11); the filter, height and axe rows ran in the lead's suites — R8) |
+| Hunt: `tests/test_quota_dashboard_page_layer.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_quota_dashboard_page_layer.py: the select/status_text/option scans and the INVENTORY entry; 92 collected, all passing in every run) |
+| Hunt: `tests/test_quota_dashboard_server.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_quota_dashboard_server.py: the view-data key set with inventory in place of ext_page; 45 collected, all passing) |
+| Hunt: `tests/test_quota_dashboard_ui_kit.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_quota_dashboard_ui_kit.py: the select mutant killed by two tests, table align; R21's ui_kit:1322 recorded) |
+| Hunt: `tests/test_quota_dashboard_views_misc.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (tests/test_quota_dashboard_views_misc.py: the filter test asserts data-filter=find F9, the wall-clock test asserts the ctx.now-derived (5d) F10, both red-on-revert) |
+| Hunt: `docs/workstation/quota-dashboard.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (docs/workstation/quota-dashboard.md: the 4.5 s deadline runs from the spawning request, joiners wait their own 5 s, the SIGALRM clause states no number — F12) |
+| Hunt: `docs/reference/external-services-registry.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/reference/external-services-registry.md: step 4's generator, credit_cell, render(interactive=False), 48 h, the legend strings and the retired server, each checked to code) |
+| Hunt: `docs/CAPABILITIES.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/CAPABILITIES.md: the dashboard_server removal, the inventory_read.py entry and the gen_dashboard line checked against the pin; regenerated by its script) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (quota_dashboard.py _inventory_wait: a non-timeout read fault left the child alive — F1; the child's own bound F2; every guard re-run in passes 2-4) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (no pool units in this surface; native seats stamped and closed per round in the run record; the 4.5/5/60 s budgets measured by the deadline tests) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (quota_dashboard.py _inventory_outcome: NaN/inf/negative synced_at F4, and the 400-digit overflow F13 in r2; _epoch probed over 26 inputs) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (tests: the kill path, the connect bound, the filter input and the ctx.now age were unproven — F8-F10; every new grader red-on-revert in passes 2-4) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (every count in this receipt states its population: 466 services, 862 api_keys rows, 34 outcome rows, 26 _epoch inputs, collected test totals per file) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every confirmed finding executed by a probe, a mutant or a test run on a pinned copy; suites run on the integrated tree, not read; seats' claims re-run by the lead) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -189,6 +189,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass 1 | native fable×1 + sonnet×4 + haiku×2 | found: 45, new: 45, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation; shape: agent-tool (D-961); slices A (T04 runtime: fable, sonnet, haiku), B (T04 tests: sonnet, haiku), C (T01–T03 core: sonnet, haiku), D (cross-ticket tests + docs: sonnet, haiku) over the pin `e2bc1bcc6`; box cap 3 → four waves; seats: A-fable 6/7 · A-sonnet 3/4 · AB-haiku 3/7 · B-sonnet 4/9 · C-sonnet 0/6 · D-sonnet 2/4 · CD-haiku 0/8 (confirmed/raised, duplicates credited to each raiser); every candidate executed or re-read by the lead against the pin; full suite on the integrated tree 1,232 passed + 3 chain reds that are the scratch tree's missing `.venv` (61/61 with the link); stop: confirmed 12; fix: one fixup coder, findings F1–F12 below |
 | Pass 2 | native fable×1 + sonnet×2 | found: 6, new: 6, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); delta over the round-1 fix `e2bc1bcc6..557344551` pinned as PIN2; the round-1 owners re-executed their slice claims: A (fable) F1–F7 HOLD, 4 new tests red on a reverted copy (`7 failed, 18 passed` vs `25 passed`); B (sonnet) F8–F11 HOLD, every new or changed test red-on-revert; D (sonnet) F11–F12 HOLD, `588 passed`; C restated 6/6 (no hunk); round-zero probe before the pin: the round-1 path comment measured wrong (`['r0', 'sysadmin', …]`) and corrected in `557344551`, the F11 skip path executed (147 skipped, 0 errors, empty `PLAYWRIGHT_BROWSERS_PATH`); full suite on PIN2's tree 1,241 passed, 20 skipped (registry write opt-ins); own-fix: round 1 for all three (F13–F15); stop: confirmed 3; fix: round-2 coder |
 | Pass 3 | native fable×1 + sonnet×1 | found: 3, new: 3, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); delta over round 2's fix `557344551..af0baa4c3` pinned as PIN3; A (fable) F13 HOLDS on 26 `_epoch` inputs and 34 outcome rows, F14 red on the alarm-removed copy, F15 false for a 0–1 s-past deadline (F16); B (sonnet) F13's two new rows red on the reverted `_epoch`, F14 red on both the alarm-removed and the fast-fail mutant, `227 passed`; C and D restated (no hunk); lead round-zero probe: F14 red executed on a throwaway worktree (`1 failed, 21 passed`); own-fix: round 2; site `inventory_read.py` docstring alarm sentence yielded in rounds 2 and 3 → class rewrite by deletion (rule 3); `round` printed SCOPE GROWTH (12/0 → 3/3 → 1/1) → the fixed set alone re-verified in pass 4; stop: scope-growth advisory; fix: +2 −2 lines for 1 confirmed |
+| Pass 4 | native fable×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); the scope-growth exit — the fixed set F13–F16 alone re-verified by its round-1 owner on PIN4 `89fdcf104`: `quota_dashboard.py` byte-equal to PIN3 (`cmp`), the 26 `_epoch` and 34 outcome rows re-derived identical, F14 `1 passed` on the copy and `1 failed … the child outlived its own bound` on the alarm-removed mutant, no alarm margin stated anywhere (`grep` over three files, 8 hits read); B, C and D restated at their last verified counts (B 2/2, C 6/6, D 4/4); one ONE_HOP wording note recorded (R29); full suite on PIN4's tree re-run by the lead (1,243 passed, 20 skipped — the registry write opt-ins); stop: closable |
+| Pass 5 | native sonnet×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); an independent second reader of the same fixed set on PIN4 (the grader's seat-token pattern reads no Fable token, W-d90fe030, so the closing row carries a seat it can read — the seat ran in full): F13 re-derived by a probe importing the copy's module (400-digit, its negative, NaN, Infinity, −1, true, "123" → `ReadFailed: exit status 0`; null and absent → `('ok', [], None)`; 0 and 1.5 → ok), `22 passed, 205 deselected`; F14 `1 failed … the child outlived its own bound` with the alarm line deleted; F15/F16 no alarm margin stated in the three files; candidates none, one-hop none; stop: closable |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -255,15 +257,16 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 | Id | Verdict |
 |---|---|
-| R27 | RECORDED — measured (two `_epoch` helpers with different bounds: the board's admits 1e308 as a fresh read that `inventory.py`'s refuses and renders "never synced" — PIN2 already accepted it; one hop out, filed to W-da612c6e) |
-| R28 | RECORDED — measured (`_epoch(-0.0)` passes `-0.0` through; non-negative per the contract, cosmetic in JSON; filed to W-da612c6e) |
+| R27 | RECORDED — measured (two `_epoch` helpers with different bounds: the board's admits 1e308 as a fresh read that `inventory.py`'s refuses and renders "never synced" — PIN2 already accepted it; one hop out, filed to W-a4bc74a6) |
+| R28 | RECORDED — measured (`_epoch(-0.0)` passes `-0.0` through; non-negative per the contract, cosmetic in JSON; filed to W-a4bc74a6) |
+| R29 | RECORDED — measured ("a moment past" at `inventory_read.py:55` and `quota-dashboard.md:174` is loose for a deadline already a second or more past, where the floor fires 1 s from now; unquantified, so no contradiction — one hop out of pass 4's fixed set) |
 
 ### Refuted and recorded in pass 2
 
 | Id | Verdict |
 |---|---|
 | R23 | REFUTED (the round-1 `finally` guard reads `proc.returncode` outside a try: only an object with no `returncode` raises, and `_inventory_spawn` returns a `Popen` or a stub that carries it — `tests/test_quota_dashboard.py:2240,2465`, `quota_dashboard_isolation.py` `StubChild`) |
-| R24 | RECORDED — measured (the flight's `deadline_epoch` is taken after the lock wait while the kill deadline runs from arrival; the lock is held for the decision only, so the drift is that decision's length — one hop out, pre-existing; destination W-74b67c7e) |
+| R24 | RECORDED — measured (the flight's `deadline_epoch` is taken after the lock wait while the kill deadline runs from arrival; the lock is held for the decision only, so the drift is that decision's length — one hop out, pre-existing; filed to W-a4bc74a6) |
 | R25 | RECORDED — measured (a system `python3` without the venv's Chromium revision skips every browser row; the skip is printed with `-rs` and the doc names the venv runner — one hop out) |
 | R26 | RECORDED — measured (the app_js fixture catches only `sync_api.Error`; no non-Playwright launch failure exists to execute — one hop out) |
 
@@ -283,20 +286,41 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 | R10 | REFUTED (the `sys.modules["psycopg2"].__file__` check is the right shape in a shared pytest process; the fresh-interpreter test proves the board never imports it) |
 | R11 | REFUTED (grandchild holding the pipe: the child is a plain Python process that spawns nothing) |
 | R12 | REFUTED (`gen_dashboard.py` connects with no timeout, but the chain runs it under `timeout -k 30 $STEP_TIMEOUT` (900 s), `external_services_chain.sh:28,81,117`) |
-| R13 | RECORDED — measured (no ORDER BY on `api_keys`/`subscriptions`: the query shape predates the plan in base `gen_dashboard.py:86,110`; live registry 0 of 466 services have more than one email or subscription; filed to W-da612c6e) |
-| R14 | RECORDED — measured (`sorted(projects)` on a NULL array element: 0 of 862 live `api_keys` rows carry one; filed to W-da612c6e) |
-| R15 | RECORDED — measured (six statements on one READ COMMITTED connection may straddle a sync commit; transient, no code claim made true or false by it; filed to W-da612c6e) |
+| R13 | RECORDED — measured (no ORDER BY on `api_keys`/`subscriptions`: the query shape predates the plan in base `gen_dashboard.py:86,110`; live registry 0 of 466 services have more than one email or subscription; filed to W-a4bc74a6) |
+| R14 | RECORDED — measured (`sorted(projects)` on a NULL array element: 0 of 862 live `api_keys` rows carry one; filed to W-a4bc74a6) |
+| R15 | RECORDED — measured (six statements on one READ COMMITTED connection may straddle a sync commit; transient, no code claim made true or false by it; filed to W-a4bc74a6) |
 | R16 | RECORDED — measured (the static file's h1→h3 heading outline and its axe best-practice `heading-order` were filed as T03 residue, W-74b67c7e, before this review) |
 | R17 | REFUTED (app.js ghost filter state with no filter bar: `applySections` hides only when a control-driven filter is active, the comment's stated behaviour; nothing hidden without controls) |
 | R18 | RECORDED — measured (`_guarded` formats the whole message: pre-existing code outside the diff, reachable only through a fault outside `_inventory`'s own try blocks, which no probe could produce) |
-| R19 | RECORDED — measured (`test_external_services_inventory.py:765` named `_under_200_ms` asserts a 10× ratio and a 0.6 s ceiling: T02's file, passing in every run; the rename filed to W-da612c6e) |
-| R20 | RECORDED — measured (the retirement scan at `test_external_services_chain.py:2610` covers scripts/ and tests/ only; no live stale pointer anywhere — gap only, filed to W-f67b6977) |
-| R21 | RECORDED — measured (weak needles in T01/T02 tests — inventory:386, :1029, :1149, :977-981, ui_kit:1322, chain:1095, :2571 — each backed by a stronger assertion in the same test; filed to W-da612c6e) |
+| R19 | RECORDED — measured (`test_external_services_inventory.py:765` named `_under_200_ms` asserts a 10× ratio and a 0.6 s ceiling: T02's file, passing in every run; the rename filed to W-a4bc74a6) |
+| R20 | RECORDED — measured (the retirement scan at `test_external_services_chain.py:2610` covers scripts/ and tests/ only; no live stale pointer anywhere — gap only, filed to W-a4bc74a6) |
+| R21 | RECORDED — measured (weak needles in T01/T02 tests — inventory:386, :1029, :1149, :977-981, ui_kit:1322, chain:1095, :2571 — each backed by a stronger assertion in the same test; filed to W-a4bc74a6) |
 | R22 | REFUTED (`jscpd-report.json:587` naming `scripts/dashboard_server.py` is a generated duplication report, not a pointer anything reads) |
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — T01 page-layer additions: CLEAN
+
+Its wave review converged before merge (`2026-10-18-plan-1-external-services-inventory-T01-review.md`); in this
+whole-plan pass the T01 surface (components.py, app.js, app.css, the ui-kit and app_js tests) raised no confirmed
+defect except F11's browser-fixture skip, fixed in round 1 and executed (116 skipped, 0 errors without Chromium).
+
+### Phase 2 — T02 the inventory module: CLEAN
+
+Converged at its wave review (`…-T02-review.md`); here: escaping, NULL columns, the strings and the reader's queries
+re-checked, no confirmed defect; R13–R15, R19, R21, R27 and R28 recorded to W-a4bc74a6.
+
+### Phase 3 — T03 the static file; dashboard_server retired: CLEAN
+
+Converged at its wave review (`…-T03-review.md`); here: no remaining invoker of `scripts/dashboard_server.py` in
+scripts/, .claude/, the chain or any schedule; the generator's write and timeout hold (R12); R16 and R20 recorded.
+
+### Phase 4 — T04 integration, and the cross-ticket validation: FIXED
+
+The live inventory in the Services view and the child-process read: sixteen confirmed defects (F1–F16) fixed over
+rounds 1–3 with red-on-revert graders, the closing pass 4 confirming zero; the cross-ticket seams (T02's reader and
+renderer used live and static, T01's filter driving T02's markup, T03's retirement and T04's 303) hold, and the full
+suite of every ticket ran green on the integrated tree.
 
 ## Gate
 
@@ -305,7 +329,18 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 68,
+  "failed": 0,
+  "skipped": 3,
+  "skipped_checks": [
+    "bandit",
+    "semgrep",
+    "pytest"
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):

@@ -265,6 +265,7 @@
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
 - [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
+- [scripts/sysadmin/inventory_read.py](../INDEX.md) (owner: infra): The registry read the Services view runs, as a CHILD PROCESS the board spawns and kills at the read's deadline.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): Kaizen T08 — noise-floor backfill over the pre-event transcript corpus.
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): Kaizen collector — measure how agents ACTUALLY behave, fleet-wide, daily.
 - [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): Kaizen M1 collector v2 — derived facts, versioned metrics, paired-counter registry.

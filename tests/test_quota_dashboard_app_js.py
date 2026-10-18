@@ -115,7 +115,10 @@ def server():
 @pytest.fixture(scope="module")
 def browser():
     with sync_api.sync_playwright() as p:
-        b = p.chromium.launch()
+        try:
+            b = p.chromium.launch()
+        except sync_api.Error as exc:  # the package without its Chromium binary
+            pytest.skip(f"Chromium cannot launch: {str(exc).splitlines()[0]}")
         yield b
         b.close()
 
