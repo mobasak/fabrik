@@ -187,6 +187,38 @@ def test_a_manifest_that_exits_while_loading_fails_red(
     assert "SystemExit" in out and _HUB_WORDS in out, out
 
 
+@pytest.mark.parametrize(
+    "raise_line",
+    ['raise GeneratorExit("gen")', 'raise BaseExceptionGroup("g", [GeneratorExit()])'],
+    ids=["GeneratorExit", "BaseExceptionGroup"],
+)
+def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    raise_line: str,
+) -> None:
+    """W-3d6a6236: `except (Exception, SystemExit)` let any other BaseException escape as a bare
+    traceback — still rc 1, but with no word about the hub. Only KeyboardInterrupt, the operator's,
+    is let through."""
+    manifest = raise_line + "\n" + _FULL_MANIFEST
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out, out
+    assert _PROJECT_BLAME not in out, out
+
+
+def test_a_keyboardinterrupt_while_loading_is_the_operators_never_named_the_hubs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A CONTROL (true before and after): Ctrl-C during the load reaches the operator unchanged."""
+    manifest = "raise KeyboardInterrupt\n" + _FULL_MANIFEST
+    with pytest.raises(KeyboardInterrupt):
+        _run(monkeypatch, tmp_path, manifest, {"a.txt": "x"}, {"a.txt": _md5("x")})
+
+
 def test_an_absent_manifest_file_with_a_clean_lock_stays_green(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

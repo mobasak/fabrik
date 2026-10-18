@@ -47,8 +47,9 @@ def _md5(path: Path) -> str:
 # a missing module (both raise ImportError, both with `name == "fabrik_synced_manifest"`) and ran
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
-# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names EVERY load
-# failure that raises, SystemExit included, and refuses a present list of the wrong shape.
+# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names every load
+# failure that raises except a bare KeyboardInterrupt (the operator's), SystemExit and GeneratorExit
+# included, and refuses a present list of the wrong shape.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -116,11 +117,14 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     man = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(man)
-    # Every load failure that RAISES is the hub's and is NAMED, never swallowed — SystemExit too,
-    # which is no Exception: a manifest calling sys.exit(0) would otherwise end the check GREEN.
-    # A manifest that kills the process (os._exit) or is interrupted (KeyboardInterrupt) is not
-    # caught: nothing in-process can catch the first, and the second is the operator's.
-    except (Exception, SystemExit) as e:
+    # Every load failure that RAISES is the hub's and is NAMED, never swallowed — SystemExit too (a
+    # manifest calling sys.exit(0) would otherwise end the check GREEN), and GeneratorExit or any
+    # other BaseException (a bare traceback named nothing; W-3d6a6236). Only a bare
+    # KeyboardInterrupt is let through: it is the operator's. A manifest that kills the process
+    # (os._exit) is not caught: nothing in-process can.
+    except KeyboardInterrupt:
+        raise
+    except BaseException as e:
         raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
     missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
     if missing:
