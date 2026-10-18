@@ -2061,8 +2061,9 @@ def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause
     assert "Anything short of those three" not in hub
     assert "hub D-993). Anything short of those: keep going. A step the plan assigns" in hub
     close = (
-        "--reason \"<one of the three BLOCKED cases>\"`**, or `blocked --wall` / `blocked --paused` at the quota"
-        " wall or an operator's pause (§ Behavior, the plan-execution override)."
+        "--reason \"<one of the three BLOCKED cases>\"`**, or the same close with `--wall` (its reason the quota"
+        " wall's) or `--paused` (its reason the operator's words) at the quota wall or an operator's pause (§"
+        " Behavior, the plan-execution override)."
     )
     for rel in ("CLAUDE.md", TEMPLATE_REL):
         assert close in _normalised(FABRIK / rel), rel

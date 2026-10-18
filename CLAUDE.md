@@ -23,10 +23,10 @@ Invoking a `/fabrik-*` command means opening a run record and keeping it current
   --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`** at every phase;
   **`round --findings <N> --confirmed <N> --classes-swept a,b --classes-new c,d`** per convergence pass;
   **`done --command <name> --evidence "<proof>"`** only when the terminal condition is met, or **`blocked
-  --command <name> --reason "<one of the three BLOCKED cases>"`**, or `blocked --wall` / `blocked --paused` at
-  the quota wall or an operator's pause (§ Behavior, the plan-execution override). **Closing names the run you
-  are closing; a name that is not the live one is refused.** Closing an already-closed record is a warned
-  no-op.
+  --command <name> --reason "<one of the three BLOCKED
+  cases>"`**, or the same close with `--wall` (its reason the quota wall's) or `--paused` (its reason the operator's
+  words) at the quota wall or an operator's pause (§ Behavior, the plan-execution override). **Closing names the run
+  you are closing; a name that is not the live one is refused.** Closing an already-closed record is a warned no-op.
 - **While a run is active, every response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce it with
   `python3 scripts/command_run.py line` and paste it verbatim: `RUN: /<command> · phase <c>/<t> (<title>) · round
   <r> · terminal: <condition>`. **When no run is active the command prints nothing and the line is omitted.**
