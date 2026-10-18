@@ -3,7 +3,7 @@
   "created": "2026-10-18T05:15:11.354114Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "165fed26f8831a8b92c1a9819cb84703f4726519",
   "id": "W-27a0dc32",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (D-956); fabrik-repo-review names no pins root, so an interrupted pass cannot resume; one command source, same fix the other three loops got",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-repo-review names no root for its pins dir, so an interrupted pass cannot resume — the other three partitioned review loops put pins_dir under the durable SCRATCH: folder (D-836)"
 }

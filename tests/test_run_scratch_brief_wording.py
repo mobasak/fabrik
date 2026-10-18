@@ -53,8 +53,9 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     )
     assert (
         "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
-        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review` and"
-        " `/fabrik-spec-review` do so an interrupted pass resumes;" in d8
+        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`,"
+        " `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins;"
+        in d8
     )
     assert (
         "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the"
@@ -80,15 +81,51 @@ def test_the_pin_paragraph_defers_the_pins_dir_root_to_d8() -> None:
 
 
 def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
-    """Each command D8 names as putting the pins dir under `SCRATCH:` includes the fragment and says so itself, so
-    the rendered command states one root. Mutants: drop a source's parenthesis; drop its include."""
-    for name in ("fabrik-review", "fabrik-plan-review", "fabrik-spec-review"):
-        src = _norm(ROOT / "commands" / "_sources" / f"{name}.md")
-        assert "{{include:subagents-core}}" in src, name
-        assert (
-            "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's"
-            " `SCRATCH:` folder" in src
-        ), name
+    """D8 names the commands that put the pins dir under `SCRATCH:`; each includes the fragment and says so itself,
+    and every includer whose own text names `pins_dir` or `--pins-dir` is in D8's list, so no rendered command states two roots.
+    Mutants: drop a source's sentence; drop its include; add an includer naming `pins_dir` but missing from D8."""
+    core = _norm(CORE)
+    m = re.search(
+        r"durable `SCRATCH:` folder \(D-836\), as (.+?) do so an interrupted pass keeps its pins;",
+        core,
+    )
+    assert m, "D8's list of SCRATCH: commands"
+    named = set(re.findall(r"`/(fabrik-[a-z-]+)`", m.group(1)))
+    assert named == {
+        "fabrik-review",
+        "fabrik-plan-review",
+        "fabrik-spec-review",
+        "fabrik-repo-review",
+    }, named
+    sources = ROOT / "commands" / "_sources"
+    includers = {
+        p.stem
+        for p in sources.glob("*.md")
+        if "{{include:subagents-core}}" in (src := _norm(p))
+        and ("pins_dir" in src or "--pins-dir" in src)
+    }
+    assert includers == named, includers ^ named
+    loop = (
+        "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's"
+        " `SCRATCH:` folder"
+    )
+    for name in sorted(named - {"fabrik-repo-review"}):
+        assert loop in _norm(sources / f"{name}.md"), name
+    # W-27a0dc32: repo-review has no `<scratch>` ledger calls; its batch launch names the same root and scratch_dir
+    batch = _section(
+        _norm(sources / "fabrik-repo-review.md"),
+        "a slice batch IS a round",
+        "contract and fallback",
+    )
+    assert (
+        "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on"
+        " the line `start` printed (a trailing `(adopted from …)` is not part of it)"
+    ) in batch
+    assert (
+        "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
+        " `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed"
+        " no `SCRATCH:` line);"
+    ) in batch
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:

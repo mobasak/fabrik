@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-repo-review keeps its batch pins in the durable SCRATCH: folder (2026-10-18)
+
+- `commands/_sources/fabrik-repo-review.md`: each batch's `pins_dir` goes under the run's `SCRATCH:` folder
+  (D-836), as `/fabrik-review`, `/fabrik-plan-review` and `/fabrik-spec-review` already say, so a WSL shutdown
+  mid-batch keeps them; the batch launch also names `scratch_dir`, which the review-loop workflow requires.
+  `subagents-core.md` D8 names it with the three; `tests/test_run_scratch_brief_wording.py` reads D8's list and
+  checks every includer naming `pins_dir` against it (W-27a0dc32).
+
 ### Changed — /fabrik-task tells a worktree session how to write its durable files (2026-10-18)
 
 - `commands/_sources/fabrik-task.md`: the `<durable>` paragraph says a linked-worktree session, whose Write tool
