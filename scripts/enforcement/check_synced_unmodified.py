@@ -47,8 +47,11 @@ def _md5(path: Path) -> str:
 # a missing module (both raise ImportError, both with `name == "fabrik_synced_manifest"`) and ran
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
-# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names EVERY load
-# failure that raises, SystemExit included, and refuses a present list of the wrong shape.
+# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names anything the
+# manifest raises while it loads or while its lists are read, except a bare KeyboardInterrupt (the
+# operator's), SystemExit and GeneratorExit included, consults no manifest object once the lists
+# are read, and refuses a present list of the wrong shape (the boundary — a manifest that reaches
+# into this module can rewrite it — is stated at the load in `_manifest_lists`).
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -68,16 +71,23 @@ def _is_file(path: Path) -> bool | None:
 
 def _path_list(path: Path, name: str, value: object, *, tuple_entries: bool) -> list[object]:
     """`value` as a list of paths, or ManifestError: a present list of the wrong shape is a guessed
-    list too (`set(None)` crashed bare; a string exploded into one-character prefixes)."""
-    if not isinstance(value, (set, frozenset, list, tuple)):  # a str is none of these
+    list too (`set(None)` crashed bare; a string exploded into one-character prefixes).
+
+    EXACT built-in types only, tested by identity (`type(x) is T`), never `isinstance` or `==` (a
+    metaclass answers both): a subclass's `__iter__`, `__str__` or `rstrip`, or a `__class__`
+    property, is the manifest's code running after its load is over, where a `sys.exit(0)` ended
+    the check GREEN (W-3d6a6236). The value is iterated ONCE, so the entries checked are the entries
+    returned. The message names a refused entry by its type, never its `repr`, for the same reason."""
+    if not any(type(value) is t for t in (set, frozenset, list, tuple)):  # a str is none of these
         raise ManifestError(
             f"{path}: {name} is a {type(value).__name__}, not a collection of paths"
         )
-    for item in value:
-        head = item[0] if tuple_entries and isinstance(item, tuple) and item else item
-        if not isinstance(head, str):
-            raise ManifestError(f"{path}: {name} holds {item!r}, not a path")
-    return list(value)
+    items = list(value)
+    for item in items:
+        head = item[0] if tuple_entries and type(item) is tuple and item else item
+        if type(head) is not str:
+            raise ManifestError(f"{path}: {name} holds a {type(head).__name__}, not a path")
+    return items
 
 
 def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
@@ -102,8 +112,8 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     but a lock row whose file is absent is a hard failure here — so in any target the sync no
     longer reaches, following that instruction reds `final_gate` forever with no way to clear it.
     Measured: 2 of 47 locks under /opt still carry the 26 `libs/subagents` rows, both in
-    worktree-shaped repos that the SYNC skips by design (`sync_enforcement_to_projects.py:2269`,
-    `.git` is a file — this `main()` has no such check and processes them, which is exactly why
+    worktree-shaped repos that the SYNC skips by design (`scripts/sync_enforcement_to_projects.py`
+    `main()`, `.git` is a file — this `main()` has no such check and processes them, which is why
     their frozen locks matter here), both frozen since
     2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
     """
@@ -114,22 +124,48 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     if spec is None or spec.loader is None:
         raise ManifestError(f"cannot load {path}")
     man = importlib.util.module_from_spec(spec)
+    # The module's own dict, taken BEFORE any manifest code runs: the lists are read from it, never
+    # through the module object, whose class the manifest can swap (a `__dict__` property) and
+    # whose `__getattr__` it can define.
+    names = man.__dict__
+    # Anything the manifest raises while it loads, or while its lists are read, is the hub's and is
+    # NAMED, never swallowed — SystemExit too (a manifest calling sys.exit(0) would otherwise end
+    # the check GREEN), and GeneratorExit or any other BaseException (a bare traceback named
+    # nothing; W-3d6a6236). Only a bare KeyboardInterrupt (exactly that type) is let through: it is
+    # the operator's. The exception's own `str()` is the manifest's code too and could exit 0 from
+    # inside this handler, so it gets the same guard. What the catch cannot reach: a manifest that
+    # ends the process (os._exit) or installs a side effect that outlives its load (an atexit hook,
+    # sys.excepthook, a signal handler) — it is the hub's own stdlib-only file, not a sandboxed one.
+    # A manifest that deliberately reaches into THIS module (a frame walk, gc) can rewrite the check
+    # itself — replacing `_md5` passes any drift with nothing raised — so these guards close what an
+    # honest manifest can get wrong, never an attack (W-3d6a6236 review pass 2).
     try:
         spec.loader.exec_module(man)
-    # Every load failure that RAISES is the hub's and is NAMED, never swallowed — SystemExit too,
-    # which is no Exception: a manifest calling sys.exit(0) would otherwise end the check GREEN.
-    # A manifest that kills the process (os._exit) or is interrupted (KeyboardInterrupt) is not
-    # caught: nothing in-process can catch the first, and the second is the operator's.
-    except (Exception, SystemExit) as e:
-        raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
-    missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
-    if missing:
-        raise ManifestError(f"{path} has no {', '.join(missing)} — renamed or removed in the hub?")
-    seeded = _path_list(path, "SEEDED_NOT_ENFORCED", man.SEEDED_NOT_ENFORCED, tuple_entries=False)
-    retired = _path_list(
-        path, "RETIRED_VENDORED_DIRS", man.RETIRED_VENDORED_DIRS, tuple_entries=True
-    )
-    return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
+        missing = [a for a in REQUIRED_MANIFEST_ATTRS if a not in names]
+        if missing:
+            raise ManifestError(
+                f"{path} has no {', '.join(missing)} — renamed or removed in the hub?"
+            )
+        seeded = _path_list(
+            path, "SEEDED_NOT_ENFORCED", names["SEEDED_NOT_ENFORCED"], tuple_entries=False
+        )
+        retired = _path_list(
+            path, "RETIRED_VENDORED_DIRS", names["RETIRED_VENDORED_DIRS"], tuple_entries=True
+        )
+        # Exact built-in strs and tuples only past this line, so nothing below runs manifest code.
+        return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
+    except BaseException as e:
+        # This check's own refusal passes as raised — the exact type, so a ManifestError subclass
+        # (whose `__str__` would run when `main()` prints it) is named like any other failure.
+        if type(e) is ManifestError or type(e) is KeyboardInterrupt:
+            raise
+        try:
+            detail = str(e)
+        except BaseException as inner:
+            if type(inner) is KeyboardInterrupt:
+                raise
+            detail = "<its message raised too>"
+        raise ManifestError(f"{path} failed to load or answer: {type(e).__name__}: {detail}") from e
 
 
 def _main_checkout(project_root: Path) -> Path | None:
@@ -204,8 +240,8 @@ def main() -> int:
         # and neither can ever be cleared by a sync that no longer reaches it. The first version
         # skipped only the deletion, so a project that kept the dir and changed one line reds
         # `final_gate` forever, under a remedy text ("the next sync restores it") that is false
-        # for a retired path. `startswith(())` is False, so an empty tuple (manifest unimportable)
-        # degrades to the old behaviour with no special case — verified, not assumed.
+        # for a retired path. `startswith(())` is False, so an empty tuple (a hub or manifest file
+        # that is absent or cannot be examined) degrades to the old behaviour with no special case — verified, not assumed.
         if rel.startswith(retired):
             continue
         if not dest.exists():

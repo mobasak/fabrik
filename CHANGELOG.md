@@ -18,6 +18,20 @@ MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's
 Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
 22662 (D-979).
 
+### Fixed — check_synced_unmodified names any BaseException a hub manifest raises and runs none of its code once its lists are read (2026-10-18)
+
+- `scripts/enforcement/check_synced_unmodified.py`: a hub manifest that raised GeneratorExit, a BaseExceptionGroup, a KeyboardInterrupt subclass or any other non-Exception BaseException at load escaped as a bare traceback. It is now named as the hub's defect (rc 1); only an exact KeyboardInterrupt still reaches the operator. Manifest code that ran AFTER the load also ended the check GREEN over a drifted file via `sys.exit(0)`. The cases:
+  - a module `__getattr__`;
+  - a swapped module class;
+  - a list, str or tuple subclass;
+  - a `__class__` property;
+  - a metaclass;
+  - an entry's `__repr__`;
+  - a colliding globals key;
+  - the exception's own `__str__`.
+
+  The module dict is taken before the load, every list read shares the load's catch, only exact built-in types are accepted, and the message is built safely (W-3d6a6236, D-980).
+
 ### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
 
 - `scripts/command_run.py::_seat_size_lines` globbed `seat-*`, so seats named `seat2-opus` or `seat-p1-<pin>-A-haiku`

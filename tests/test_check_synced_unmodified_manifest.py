@@ -91,6 +91,8 @@ def test_a_manifest_missing_a_symbol_fails_red_naming_it(
     assert missing in out, out
     assert _HUB_WORDS in out, out
     assert _PROJECT_BLAME not in out, f"the red must name the hub, not blame the project:\n{out}"
+    # The check's own refusal passes as raised, never re-wrapped as a load failure of itself.
+    assert "failed to load" not in out, out
 
 
 def test_a_manifest_that_fails_to_load_fails_red(
@@ -187,6 +189,158 @@ def test_a_manifest_that_exits_while_loading_fails_red(
     assert "SystemExit" in out and _HUB_WORDS in out, out
 
 
+@pytest.mark.parametrize(
+    ("raise_line", "named"),
+    [
+        ('raise GeneratorExit("gen")', "GeneratorExit"),
+        ('raise BaseExceptionGroup("g", [GeneratorExit()])', "BaseExceptionGroup"),
+        ('raise BaseExceptionGroup("g", [KeyboardInterrupt()])', "BaseExceptionGroup"),
+        ("class K(KeyboardInterrupt):\n    pass\nraise K", "K"),
+        (
+            "class X(Exception):\n    def __str__(self):\n        raise KI\n"
+            "class KI(KeyboardInterrupt):\n    pass\nraise X",
+            "<its message raised too>",
+        ),
+    ],
+    ids=[
+        "GeneratorExit",
+        "BaseExceptionGroup",
+        "group-holding-a-KeyboardInterrupt",
+        "KeyboardInterrupt-subclass",
+        "KeyboardInterrupt-subclass-from-the-message",
+    ],
+)
+def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    raise_line: str,
+    named: str,
+) -> None:
+    """W-3d6a6236: `except (Exception, SystemExit)` let any other BaseException escape as a bare
+    traceback — still rc 1, but with no word about the hub. Only a bare KeyboardInterrupt, the
+    operator's, is let through: a group holding one, or a subclass of it, is the manifest's
+    construct and is named (a group names only itself, never its members)."""
+    manifest = raise_line + "\n" + _FULL_MANIFEST
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out and named in out, out
+    assert _PROJECT_BLAME not in out, out
+
+
+_EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        _EXIT0 + "__getattr__ = _exit0\n",
+        _EXIT0 + "class L(list):\n    __iter__ = _exit0\n"
+        'SEEDED_NOT_ENFORCED = L(["PORTS.md"])\nRETIRED_VENDORED_DIRS = []\n',
+        _EXIT0 + "class S(str):\n    __str__ = _exit0\n"
+        'SEEDED_NOT_ENFORCED = {S("PORTS.md")}\nRETIRED_VENDORED_DIRS = []\n',
+        _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [S("libs/x")]\n',
+        _EXIT0 + "class P:\n    __class__ = property(_exit0)\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [P()]\n",
+        # An isinstance shape check would index it clean once and let `main()` index it again into
+        # the exit; the exact-type check refuses the tuple subclass before indexing it.
+        _EXIT0 + "class T(tuple):\n    calls = 0\n    def __getitem__(self, i):\n"
+        "        T.calls += 1\n        return 'libs/x' if T.calls == 1 else _exit0()\n"
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [T(("libs/x",))]\n',
+        _EXIT0 + "class R:\n    __repr__ = _exit0\n"
+        "SEEDED_NOT_ENFORCED = [R()]\nRETIRED_VENDORED_DIRS = []\n",
+        _EXIT0 + "class X(BaseException):\n    __str__ = _exit0\nraise X\n",
+        # The LIVE check's ManifestError, from the frame running `_manifest_lists`.
+        _EXIT0 + "import sys\nf = sys._getframe()\n"
+        "while '_manifest_lists' not in f.f_globals:\n    f = f.f_back\n"
+        "class F(f.f_globals['ManifestError']):\n    __str__ = _exit0\nraise F('x')\n",
+        # An isinstance shape check would iterate it clean once, and the second iteration would
+        # hand `main()` a str subclass whose `rstrip` exits; the exact-type check refuses the list
+        # subclass before iterating it.
+        _EXIT0 + "class S(str):\n    rstrip = _exit0\nclass L(list):\n    calls = 0\n"
+        "    def __iter__(self):\n        L.calls += 1\n"
+        "        return iter(['libs/x'] if L.calls == 1 else [S('libs/x')])\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = L(['libs/x'])\n",
+        _EXIT0 + "class Meta(type):\n    __eq__ = _exit0\n    __hash__ = type.__hash__\n"
+        "class C(metaclass=Meta):\n    pass\n"
+        "SEEDED_NOT_ENFORCED = C()\nRETIRED_VENDORED_DIRS = []\n",
+        # A metaclass that answers `==` True for any class passes an `in`/`==` type test; its
+        # second iteration hands `main()` a str subclass whose `rstrip` exits.
+        _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
+        "class Meta(type):\n    __eq__ = lambda c, o: True\n    __hash__ = type.__hash__\n"
+        "class C(list, metaclass=Meta):\n    calls = 0\n    def __iter__(self):\n"
+        "        C.calls += 1\n        return iter(['libs/x'] if C.calls == 1 else [S('libs/x')])\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = C(['libs/x'])\n",
+        _EXIT0 + "class Meta(type):\n    __name__ = property(_exit0)\n"
+        "class C(metaclass=Meta):\n    pass\n"
+        "SEEDED_NOT_ENFORCED = [C()]\nRETIRED_VENDORED_DIRS = []\n",
+        # The key takes the name's primary slot BEFORE the list is bound, so the list probes past it
+        # and every later lookup compares against it; its `__eq__` is armed only once the body is
+        # done, so the first armed comparison is the check's own lookup.
+        _EXIT0 + "class K:\n    armed = False\n"
+        "    def __hash__(self):\n        return hash('SEEDED_NOT_ENFORCED')\n"
+        "    def __eq__(self, other):\n        if K.armed:\n            _exit0()\n"
+        "        return False\nglobals()[K()] = 1\n" + _FULL_MANIFEST + "K.armed = True\n",
+    ],
+    ids=[
+        "module-getattr",
+        "list-iter",
+        "str-str",
+        "str-rstrip",
+        "class-property",
+        "tuple-getitem",
+        "repr",
+        "exc-str",
+        "manifesterror-subclass",
+        "list-iterates-differently",
+        "metaclass-eq",
+        "metaclass-eq-true",
+        "metaclass-name",
+        "colliding-dict-key",
+    ],
+)
+def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    manifest: str,
+) -> None:
+    """W-3d6a6236 (Opus critique, review pass 1): the load's catch closed when `exec_module`
+    returned, yet a module `__getattr__`, a list, str or tuple subclass, a `__class__` property, an
+    entry's `__repr__`, the raised exception's own `__str__`, a ManifestError subclass the
+    manifest raises, a metaclass `__eq__` or `__name__`, or a globals key whose hash collides with a
+    list's name runs the manifest's code later — each one a
+    `sys.exit(0)` that ended the check GREEN over a drifted file. The check reads the module dict it
+    took before the load, inside the catch, and takes only exact built-in types."""
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out, out
+    assert _PROJECT_BLAME not in out, out
+
+
+@pytest.mark.parametrize(
+    "raise_code",
+    [
+        "raise KeyboardInterrupt\n",
+        "class X(Exception):\n    def __str__(self):\n        raise KeyboardInterrupt\nraise X\n",
+    ],
+    ids=["at-load", "while-the-message-is-built"],
+)
+def test_a_keyboardinterrupt_while_loading_is_the_operators_never_named_the_hubs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, raise_code: str
+) -> None:
+    """Ctrl-C during the load reaches the operator unchanged (a CONTROL, true before and after),
+    and so does one that lands while the handler builds the failure's message."""
+    manifest = raise_code + _FULL_MANIFEST
+    with pytest.raises(KeyboardInterrupt):
+        _run(monkeypatch, tmp_path, manifest, {"a.txt": "x"}, {"a.txt": _md5("x")})
+
+
 def test_an_absent_manifest_file_with_a_clean_lock_stays_green(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -218,6 +372,51 @@ def test_a_complete_manifest_applies_both_lists(
     assert "synced.py" in out, out
     assert "PORTS.md" not in out, out
     assert "libs/retired_mod" not in out, out
+
+
+def test_a_manifest_that_swaps_its_module_class_cannot_answer_through_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W-3d6a6236 review pass 1: a manifest can reach its own module object (gc) and swap its class
+    for one with a `__dict__` property, so `vars(man)` after the load ran a `sys.exit(0)` and ended
+    the check GREEN. The dict taken before the load answers instead: the lists apply and the
+    drifted file is reported."""
+    manifest = (
+        _EXIT0 + "import gc, types\nclass M(types.ModuleType):\n    __dict__ = property(_exit0)\n"
+        "me = [o for o in gc.get_referrers(globals()) if isinstance(o, types.ModuleType)][0]\n"
+        "me.__class__ = M\nSEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = []\n"
+    )
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "PORTS.md" in out and _HUB_WORDS not in out, out
+
+
+def test_a_tuple_entry_is_a_retired_dirs_convention_never_a_seeded_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`RETIRED_VENDORED_DIRS` accepts an exact `(path, …)` tuple entry by convention and exempts
+    its path; `SEEDED_NOT_ENFORCED` takes plain strings only, so a tuple there is the hub's."""
+    files = {"libs/retired_mod/a.py": "edited"}
+    lock = {"libs/retired_mod/a.py": _md5("orig")}
+    manifest = (
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [("libs/retired_mod", "why")]\n'
+    )
+    rc = _run(monkeypatch, tmp_path / "retired", manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    manifest = 'SEEDED_NOT_ENFORCED = {("PORTS.md",)}\nRETIRED_VENDORED_DIRS = []\n'
+    rc = _run(monkeypatch, tmp_path / "seeded", manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out, out
+    # A tuple entry whose head is no path names the HEAD's type, never the tuple's.
+    manifest = 'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [(1, "why")]\n'
+    rc = _run(monkeypatch, tmp_path / "head", manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "holds a int, not a path" in out, out
 
 
 def test_the_repo_manifest_answers_the_checks_own_loader(monkeypatch: pytest.MonkeyPatch) -> None:
