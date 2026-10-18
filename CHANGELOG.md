@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review-probe-catalogue: a review brief names the tests that load each changed module, for every seat to run (2026-10-19)
+
+- § Seat isolation said HOW a seat runs tests (the `PIN_IMPORT`/`PYTEST_PINS` recipe) but never WHICH. A new import that breaks a stubbed loader could pass every review run, because only the tests loading the module by path exercise it. A brief over changed code now names the tests that load each changed module, found by grepping `tests/` for each changed file's stem (or an `__init__.py`'s package dotted name) and keeping the hits that import or load it, for every seat to run by that recipe. A test the recipe leaves unrun stays unverified. This answers row 1792359501, a recurrence of the held subject full-suite-import-time-registration. It reaches `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-execute-plan`, `/fabrik-docs-review` and `/fabrik-spec-review`.
+- The same queue pass rejected five rows:
+  - three already stated in § Seat isolation, a line not followed, filed as W-f512daeb;
+  - one routed to infra (`round --slices` echo, mail 01M58H6DF7);
+  - one that would lengthen the review loop (waiting for another beat's ruling).
+
 ### Changed — CLAUDE.md and the project template: the halt list names the quota wall and an operator's pause; coordinator job (7) waits for the builder's confirmation (2026-10-19)
 
 - Both contracts said "The ONLY legitimate halts are the three BLOCKED cases" while their own RED band closes a run `blocked --wall` and hub D-993 closes an operator's pause `blocked --paused`. The plan-execution override now names those two stops beside the three cases. § COMMAND RUN-RECORD gives their runnable form, the same `blocked` close with `--wall` or `--paused` (W-8008e144).

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:06:43.307154Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-3abbba36",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review-scoped",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated (D-711 Opus audit 2026-10-19): commands/_sources/fabrik-review-scoped.md:48-50 'Every checkable claim any fix adds … is either executed, with its",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review-scoped"
+}
