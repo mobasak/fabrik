@@ -1978,7 +1978,8 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 # A record closed at the fleet quota wall was TERMINAL: the session's next `start` overwrote it,
 # so the successor lost the round and class ledgers, the design, the SIZE declaration and the
 # start clock — its quiet round read as "round 1 is the full pass" and `done --commit` refused
-# every pre-wall commit. `blocked --wall` keeps a JSON seed of the closed record under
+# every pre-wall commit. `blocked --wall` (and an operator's `blocked --paused`, W-79638b4a) keeps
+# a JSON seed of the closed record under
 # `<state>/seeds/`; `start --resume-from <seed>` carries it forward. The explicit flag is the
 # gate; `_WALL_REASON` catches the hook's own phrase (quota_stop.py `_reason`) for an agent who
 # pasted it without the flag; `_WALL_HINT` only prints a NOTE naming the flag — a missed match is
@@ -1994,7 +1995,7 @@ _WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
 # rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
 # reservation siblings subtract for 25 min — stale by construction), `stack` (rebuilt from the
 # live record), `covered`/`first_review_reach`/`reviewed_surfaces`/`event_seq`/`session_id`/`repo_root`/`agent`/
-# `account` (the session's), `state`/`wall`/`blocked_reason`/`resume`/`resume_copy`/
+# `account` (the session's), `state`/`wall`/`paused`/`blocked_reason`/`resume`/`resume_copy`/
 # `resume_seed`/`usage`/`feedback`/`feedback_to`/`feedback_text`/`closed_by`/`evidence`/
 # `nested`/`child_closed_ts` (the closed sitting's own).
 _RESUME_CARRY = (
@@ -6497,7 +6498,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             or _norm_command(_named) != _norm_command(str(rec.get("command") or ""))
         ):
             msg = (
-                f"REFUSED — round --command /{_norm_command(_named)}, but the LIVE run is "
+                f"REFUSED — round --command {('/' + _norm_command(_named)) if _named.strip() else '(empty)'}"
+                f", but the LIVE run is "
                 f"/{rec.get('command')} (phase {rec.get('phase')}/{rec.get('phases')}); nothing "
                 f"was recorded. Re-run with --command {rec.get('command')}, or close the live run first."
             )
@@ -7238,6 +7240,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _wall = True
         rec["wall"] = True
         rec["paused"] = True
+        if _WALL_REASON.search(str(getattr(args, "reason", "") or "")):
+            sys.stderr.write(
+                "[command_run] NOTE — this pause's reason names the fleet quota wall. IF this close IS the "
+                "wall, close with `blocked --wall` instead: its row reads `wall: quota`, which the quota "
+                "readers count; this one is recorded as an operator pause.\n"
+            )
     elif args.cmd == "blocked":
         _reason_text = str(getattr(args, "reason", "") or "")
         _wall = bool(getattr(args, "wall", False)) or bool(_WALL_REASON.search(_reason_text))
@@ -7637,7 +7645,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             _seed_kept = True
         else:
             sys.stderr.write(
-                f"[command_run] WARNING — the quota-wall seed could not be kept ({_kept_seed[:160]}); "
+                f"[command_run] WARNING — the {'pause' if _paused else 'quota-wall'} seed could not be "
+                f"kept ({_kept_seed[:160]}); "
                 f"the record file itself is the seed until this session's next start: "
                 f"{_record_path(sid)}\n"
             )
@@ -7657,7 +7666,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         return 1
     # the run folder's marker (scratch lifecycle plan D2, P5): AFTER the record persisted and
     # BEFORE the nested return, so a nested close marks its own folder too; a wall close — the
-    # flag OR the reason regex, the same `_wall` the seed keys on — keeps it `resumable`, unless
+    # flag OR the reason regex — or an operator pause (`--paused` sets the same `_wall` the seed keys
+    # on) keeps it `resumable`, unless
     # its seed could not be kept (P12: no folder stays resumable with nobody to adopt it)
     _mark_run_scratch(rec, "resumable" if _wall and _seed_kept else "done", sid)
     _sup = str(rec.get("superseded_run_scratch") or "")

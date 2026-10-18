@@ -69,8 +69,9 @@ def test_a_paused_run_reopens_from_its_seed_with_its_rounds(run_dir: Path) -> No
 def test_paused_and_wall_are_exclusive(run_dir: Path) -> None:  # noqa: F811
     _start(run_dir)
     out = _cr(run_dir, "blocked", "--command", _PROBE, "--paused", "--wall", "--reason", "x")
-    assert out.returncode != 0, out.stdout
+    assert out.returncode == 2 and "not allowed with" in out.stderr, out.stdout + out.stderr
     assert _rec(run_dir)["state"] == "running"
+    assert not (run_dir / "seeds").exists() or not any((run_dir / "seeds").iterdir())
 
 
 def test_a_plain_blocked_still_keeps_no_seed(run_dir: Path) -> None:  # noqa: F811
@@ -112,6 +113,8 @@ def _ledger(run_dir: Path) -> list[dict]:  # noqa: F811
 
 def _events(run_dir: Path, sid: str = "s1") -> list[dict]:  # noqa: F811
     path = run_dir.parent / "events" / f"{sid}.jsonl"
+    if not path.is_file():
+        return []
     return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
@@ -164,7 +167,7 @@ def test_a_pause_reason_naming_the_quota_wall_is_still_a_pause(run_dir: Path) ->
     )
     assert out.returncode == 0, out.stdout + out.stderr
     assert _ledger(run_dir)[-1]["wall"] == "paused"
-    assert "NOTE" not in out.stderr, out.stderr
+    assert "close with `blocked --wall` instead" in out.stderr, out.stderr
 
 
 def test_a_nested_pause_names_the_parent_flag(run_dir: Path) -> None:  # noqa: F811
@@ -180,3 +183,20 @@ def test_round_with_an_empty_command_is_refused(run_dir: Path) -> None:  # noqa:
     out = _cr(run_dir, "round", "--command", "", "--findings", "1", "--confirmed", "0")
     assert out.returncode == 1, out.stdout + out.stderr
     assert not _rec(run_dir).get("rounds")
+
+
+def test_round_command_is_compared_normalised(run_dir: Path) -> None:  # noqa: F811
+    """Review pass 1 (a raw-string compare mutant survived): a leading slash and another case
+    name the same live run, as the close verbs accept."""
+    _start(run_dir)
+    out = _cr(
+        run_dir, "round", "--command", "/" + _PROBE.upper(), "--findings", "0", "--confirmed", "0"
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_an_empty_round_command_says_it_was_empty(run_dir: Path) -> None:  # noqa: F811
+    _start(run_dir)
+    out = _cr(run_dir, "round", "--command", "  ", "--findings", "0", "--confirmed", "0")
+    assert out.returncode == 1 and "(empty)" in out.stdout, out.stdout
