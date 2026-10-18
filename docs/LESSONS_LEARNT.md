@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## pathlib swallows the error you meant to count, and raises the one you did not guard (2026-10-18)
+
+W-6f46cebd (kaizen_coroner exit codes):
+- **`Path.glob` never raises.** On 3.12 it returns `[]` for a dir it cannot read, so an `except OSError` around it is dead
+  code. The work item cited that branch as a live silent path. Both design critics found it dead only because the brief told
+  them to replay each path through the real code, not read it. `os.listdir` raises, so list with it when the failure must count.
+- **`Path.exists()` raises PermissionError under an unsearchable parent.** It also reads ENOTDIR and a dangling link as absent.
+  A new "is it missing?" check therefore aborted the sweep it was guarding. All three review seats reproduced that by A/B
+  against the old code. `os.lstat` with only `FileNotFoundError` as "absent" answers every case in one call.
+- **A retry the exit code promises is not a retry the code delivers.** Exit 3 re-runs the job, but a lost ttl session_end
+  or revival is never reached again, because the record is already `expired` and `has_recon` is already set. Say "one-shot"
+  in the D-row, never "retried".
 ## A bound enforced inside the stalled call never fires — and a test named for a scenario can be proving a different bound (2026-10-18)
 
 The external-services plan's T04 reads the registry in a child process the board kills at 4.5 s. Two things the
