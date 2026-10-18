@@ -1083,3 +1083,88 @@ def test_g16_fixture_overrides_are_copied_per_row():
     rows = census_rows(projects=[])
     rows[0]["projects"].append("x")
     assert rows[1]["projects"] == [] and rows[0]["projects"] is not rows[1]["projects"]
+
+
+# ---------------------------------------------------------------- pass-2 review fixes (H1-H5)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://u@", "http://user@", "http://u@/x", "https://user@/path", "https://u:p@",
+        "https://[", "https://ok.example:", "https://", "http://", "https:///path", "HTTPS://UP.example",
+        "/admin", "#x", "http://a b", "javascript:alert(1)", "ftp://ok.example",
+    ],
+)  # fmt: skip
+def test_h1_a_url_with_no_host_or_a_broken_authority_is_text(url):
+    for interactive in (True, False):
+        root = dom(render([base("p", url=url)], interactive=interactive))
+        assert root.find("a") == [], url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://ok.example", "http://ok.example", "http://localhost", "https://[::1]/",
+        "https://h:8080/x", "https://bücher.example/path?q=1#f",
+    ],
+)  # fmt: skip
+def test_h1_a_parsed_http_url_with_a_host_is_the_link(url):
+    for interactive in (True, False):
+        root = dom(render([base("p", url=url)], interactive=interactive))
+        assert [a.attrs["href"] for a in root.find("a")] == [url]
+
+
+@pytest.mark.parametrize(
+    ("url", "shown"),
+    [
+        ("https://u:pw@h.example/", "https://h.example/"),
+        ("https://u@h.example/", "https://h.example/"),
+        ("https://@h.example/", "https://h.example/"),
+        ("http://u:pw@h.example:8080/x", "http://h.example:8080/x"),
+    ],
+)
+def test_h2_a_url_carrying_credentials_is_never_a_link_and_never_printed_with_them(url, shown):
+    for interactive in (True, False):
+        markup = str(render([base("p", url=url)], interactive=interactive))
+        root = dom(markup)
+        assert root.find("a") == []
+        assert "pw" not in markup.replace("pw@", "") or "u:pw" not in markup
+        assert "u:pw" not in markup and "u@" not in markup and "@h.example" not in markup
+        assert shown in root.text()
+
+
+def test_h3_one_stale_rule_the_cell_the_attention_list_and_the_count_agree_at_48_hours():
+    for ahead, stale in ((0, False), (1, True)):
+        row = base("edge", balance=4.0, unit="usd", credit_at=NOW - 48 * H - ahead)
+        root = dom(render([row]))
+        cell = inventory.credit_cell(4.0, "usd", NOW - 48 * H - ahead, NOW)
+        assert cell.startswith("⚠") is stale
+        assert ("edge:" in attention_card(root).text()) is stale
+        got = {
+            tr.attrs["data-count"]: tr.find("td")[-1].text()
+            for tr in root.find("tr", data_count=True)
+        }
+        assert (got["credit_stale"], got["credit_tracked"]) == (("1", "0") if stale else ("0", "1"))
+
+
+def test_h4_the_queue_shows_an_unattributed_badge_only_when_there_is_one():
+    rows = [
+        base("zero", category="?", cost="?", status="?", unattributed=0),
+        base("two", category="?", cost="?", status="?", unattributed=2),
+    ]
+    root = dom(render(rows))
+    (queue,) = [d for d in root.find("details") if d.attrs["id"].startswith("queue-")]
+    entries = {
+        li.text().split(" · ")[0]: li.text() for li in queue.find("li", data_filter_item=True)
+    }
+    assert t("services.inv.unattributed", n=2) in entries["two"]
+    assert (
+        t("services.inv.unattributed", n=0) not in entries["zero"]
+        and "unattributed" not in entries["zero"]
+    )
+
+
+def test_h5_the_singular_heading_is_rendered():
+    for interactive in (True, False):
+        text = dom(render([base("only")], interactive=interactive)).text()
+        assert t("services.inv.providers.one", n=1) in text
+        assert re.search(r"(?<!of )(?<!\d)1 providers", text) is None

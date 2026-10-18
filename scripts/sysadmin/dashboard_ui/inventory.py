@@ -22,11 +22,11 @@ collapses to a count that still lists every name, so collapsing never hides a pr
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from urllib.parse import urlsplit
 
 from .components import (
     Safe,
@@ -68,9 +68,6 @@ _STATUSES = {
     "?": "services.inv.unknown",
 }
 _FILTER_GROUP = "inventory"
-_HAS_HOST = re.compile(
-    r"https?://(?:[^/?#@]*@)?[^/?#@:]+"
-)  # a scheme, then something to connect to
 _EDGE_S = (
     253402300799 - 2 * 86400
 )  # past this a local-zone conversion can leave year 9999 (zones are within a day)
@@ -143,9 +140,8 @@ def credit_cell(balance: object, unit: object, credit_at: object, now: float) ->
     if bal is None:
         return ""
     text = f"{_plain(bal)} {unit or ''}".strip()
-    age = _age_h(credit_at, now)
-    if age is not None and age > STALE_AFTER_H:
-        return t("services.inv.credit_stale", text=text, days=f"{age / 24:.0f}")
+    if _credit_stale(bal, credit_at, now):  # the one definition of stale
+        return t("services.inv.credit_stale", text=text, days=f"{_age_h(credit_at, now) / 24:.0f}")
     return text
 
 
@@ -327,10 +323,20 @@ class _Ids:
 
 
 def _name(row: _Row) -> object:
-    """The provider as a link when its URL is an ``http(s)://`` URL ``link()`` accepts whole; text otherwise."""
-    if _HAS_HOST.match(row.url):  # a scheme alone, or an empty host, is no destination
+    """The provider as a link when its URL PARSES as an ``http(s)`` URL with a host, no userinfo and no
+    broken port, and ``link()`` accepts the whole string; text otherwise. A URL that carries
+    credentials is never a link and is shown without them (zero secrets)."""
+    url = row.url
+    if url.startswith(("https://", "http://")):  # the scheme is lowercase: HTTPS:// stays text
         try:
-            return link(row.provider, row.url, new_tab=True)
+            parts = urlsplit(url)
+            hostport = parts.netloc.rpartition("@")[2]
+            ok = bool(parts.hostname) and not hostport.endswith(":")
+            parts.port  # noqa: B018 — reading it raises ValueError for a malformed port
+            if ok and "@" in parts.netloc:  # userinfo: text, never a link, and never the credential
+                return fragment(row.provider, " ", parts._replace(netloc=hostport).geturl())
+            if ok:
+                return link(row.provider, url, new_tab=True)
         except ValueError:
             pass
     return row.provider
