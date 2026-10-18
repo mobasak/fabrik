@@ -273,6 +273,6 @@ def test_measure_greps_a_work_items_cited_line_before_the_design_takes_its_wordi
     wording about a cited file:line that did not hold the symbol the item named."""
     assert (
         "a failure reported with a command is replayed by that command, never a reconstruction, and a work item's cited"
-        " `path:line` is grepped here for the symbol it names, before the design takes the item's wording (MIRROR greps"
-        " every name the design uses again)."
+        " `path:line` is grepped here, in the cited file, for the symbol it names; a miss is a finding PROBLEM states,"
+        " never the item's wording (MIRROR greps every name the design uses again)."
     ) in _section("## Phase 1", "## Phase 2")
