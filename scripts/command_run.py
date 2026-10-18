@@ -1827,6 +1827,11 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     for seat in entries:
         if seat.is_symlink() or not seat.is_dir():
             continue
+        # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an archive
+        # extraction, the remedy this line recommends, never the defect. Known by its sibling's
+        # MANIFEST.json (a content test, not a name), so a hand-made `x.base` is still measured.
+        if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
+            continue
         try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
             out = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],

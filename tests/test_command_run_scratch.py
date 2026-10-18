@@ -1209,6 +1209,26 @@ def test_every_top_level_directory_of_the_run_folder_is_measured(tmp_path: Path)
     assert named == [".hidden", "pins-p1", "probe", "seat-1", "seat2-opus"], lines
 
 
+def test_a_ledger_pin_base_extraction_is_exempt_but_a_hand_made_base_is_not(tmp_path: Path) -> None:
+    """`review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base` beside the pins
+    dir's MANIFEST.json — the archive the advisory recommends, so it never prints; an `x.base` with
+    no such sibling is measured like any folder (Opus design critique, W-3c60b7db)."""
+    big = b"x" * (2 * 1024 * 1024)
+    (tmp_path / "pins-p1").mkdir()
+    (tmp_path / "pins-p1" / "MANIFEST.json").write_text("{}", encoding="utf-8")
+    for name in ("pins-p1.base", "handmade.base"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "tree.bin").write_bytes(big)
+    lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
+    assert [ln.split(":", 1)[0] for ln in lines] == ["handmade.base"], lines
+
+
+def test_a_vanished_run_folder_answers_no_lines_never_raises(tmp_path: Path) -> None:
+    """`glob` answered a missing folder with nothing; `iterdir` raises — the advisory keeps the
+    old contract (its caller only suppresses, so a raise would hide every other folder's line)."""
+    assert cr._seat_size_lines(str(tmp_path / "gone"), threshold=1, deadline_s=5.0) == []
+
+
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────
 def test_an_adopted_folder_reads_running_and_is_never_retired(tmp_path: Path, monkeypatch) -> None:
     """F-A1: once the resumed record persists, the adopted folder's marker reads `running` with an
