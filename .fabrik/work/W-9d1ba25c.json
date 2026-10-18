@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T18:05:27.841364Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-9d1ba25c",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure: after /clear, command_run line/round/done, final_gate_stop and work.py release all read the new sid; design adoption by cwd+agent+window, /fabrik-task",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "bug that blocks agents: a pre-/clear record keeps the Stop hook and claims on the old session id; one script, one session",
   "status": "open",
   "tags": [
     "infra"
