@@ -1,0 +1,32 @@
+{
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
+  "created": "2026-10-18T02:19:57.886448Z",
+  "creator": "fleet",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-ab242b11",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: design the auth hook against the template's auth story (fastapi-user-auth / D-xxx), then /fabrik-task or /fabrik-spec",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "HIGH security; effort high on fleet's evidence: Pattern A auth means a design trade-off (backend route vs /auth/me check vs Next-side limiter), a /fabrik-spec; major, held behind the one in flight; interim mitigation (leave OPENROUTER_API_KEY unset) mailed to the 4 live projects",
+  "status": "open",
+  "tags": [
+    "interim-mail-01m56g1k5b",
+    "interim-mail-01m56g1kjw",
+    "interim-mail-01m56g1kzf",
+    "interim-mail-01m56g1mcz",
+    "security"
+  ],
+  "title": "saas-skeleton /api/chat is unauthenticated: any visitor can stream completions on the app's own OPENROUTER_API_KEY (no middleware in templates/saas-skeleton; 7 scaffolded projects carry the same route) — needs a session/auth check and a rate limit before a scaffolded app goes public"
+}

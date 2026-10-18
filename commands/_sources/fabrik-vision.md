@@ -296,7 +296,7 @@ orientation-time checks (distinct from, and in addition to, Phase 3's 20 constra
 market-facing capability — Phase 3's E-analysis).** A market-facing vision — a product with real external
 competitors/users, not an internal tool, not a Retrofit delta with no market-facing surface — checks
 `docs/reference/rivals/<market>.md` before anything else, whichever entry path or mode you're on. That
-file is written by `/fabrik-rivals` (`commands/_sources/fabrik-rivals.md`), never by this command.
+file is written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command.
 **If the vision (or, in EXISTING mode, the delta) is market-facing and no dossier exists at that path:
 STOP HERE and name `/fabrik-rivals <market>` as the pre-step** — do not draft a market-facing vision blind
 to the competitive evidence; there is nothing to challenge the owner's assumptions with otherwise.

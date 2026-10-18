@@ -22,6 +22,21 @@ All notable changes to this project will be documented in this file.
   `%23` for `#` — and a file whose real name holds `%XX` still resolves by that name. Graders in
   `tests/test_check_doc_index_percent_encoding.py` (W-7ae1169a, D-976).
 
+### Fixed — rendered commands cite fragments, sources and seat files by their hub path (2026-10-18)
+
+Twelve citations of `commands/_fragments/`, `commands/_sources/` or `commands/_agents/` files across eight
+command sources and `subagents-core.md` resolved nowhere in a project repo, where the rendered commands also run;
+they now read `/opt/fabrik/commands/<dir>/<f>.md`, as the other citations did. Guarded by
+`tests/test_check_command_corpus.py::test_a_fragment_is_cited_by_its_hub_absolute_path` (W-aeb35e3a).
+
+### Changed — /fabrik-review-scoped: shell-written briefs quote their backticks; archive roots from every path a test reaches (2026-10-18)
+
+Step 5: a brief or Workflow args file is written with the Write tool or a quoted heredoc, and a grep pattern
+holding a backtick goes unescaped in single quotes (GNU grep reads a backslash-backtick as a start-of-text
+anchor). The archive-roots rule now names where the roots are read from: every path expression in the test
+files and the scripts they run by subprocess. Answers /fabrik-review-scoped rows 1792291162 and 1792288442;
+pinned in `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — round zero rewrites a heuristic one-item picker at its first residue (2026-10-18)
 
 `commands/_fragments/term-coverage.md` rule (3): a function under review that picks ONE item from a list by
@@ -29,6 +44,22 @@ heuristic is rewritten at the first delta round its site yields an own-fix defec
 a noise rule probed against its live population, with a `(round k)` class-rewrite cell; a second yield without
 the rewrite is the foundation error. Answers /fabrik-review row 1792289039; pinned in
 `tests/test_review_queue_pass.py`.
+
+### Fixed — file-worker template runs outside a container (2026-10-18)
+
+- `templates/file-worker/worker/main.py` created `/app/.tmp` when imported, so `python -m worker.main` on a dev
+  host died with `PermissionError: '/app'` before the worker ran. The heartbeat is now the project's own `.tmp/`
+  beside `worker/` (still `/app/.tmp/worker_heartbeat` in the image the `.j2` Dockerfile builds), and `_beat()`
+  makes the directory on each heartbeat instead of at import (W-2a2c5a08). A scaffolded project's `pgrep`
+  healthcheck, which never reads the heartbeat, is a separate item (W-0bf1a37b).
+
+### Fixed — saas-skeleton chat route no longer lets the browser set the model's system prompt (2026-10-18)
+
+- `templates/saas-skeleton/app/api/chat/route.ts` read `systemPrompt` from the request body and sent it as the
+  system message on the app's own OpenRouter key, on an unauthenticated route. It now reads only `message`, as a
+  non-empty string (anything else is a 400 before any upstream call), and takes the system prompt from the server
+  constant `CHAT_SYSTEM_PROMPT` in the new `lib/config/chat.ts`. `ChatUI` no longer has a `systemPrompt` prop, and
+  the README example no longer passes one (W-46afa9c4). Scaffolded projects keep their own copies and were mailed.
 
 ### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
 

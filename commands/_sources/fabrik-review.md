@@ -534,7 +534,7 @@ re-sweeping. Close the run at that verdict with
 
 ⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the
 phase's Behavior Contract | the module>`) rather than hand-running it. The steps below are the SAME BYTES
-it runs — both files render them from one shared fragment (`commands/_fragments/test-generation-loop.md`),
+it runs — both files render them from one shared fragment (`/opt/fabrik/commands/_fragments/test-generation-loop.md`),
 so they cannot drift out of step with the command that owns them. They are shown here because a reviewer
 mid-loop needs the shape without leaving the page, NOT as a second implementation; the per-step DETAIL
 lives only in `/fabrik-generate-tests`. **Edit the fragment, never either copy.**

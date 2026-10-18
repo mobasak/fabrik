@@ -620,3 +620,30 @@ def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_impor
             assert token in consts[name], (
                 f"{name} lost {token!r}, which the catalogue sentence names"
             )
+
+
+def test_a_shell_written_brief_quotes_its_backticks() -> None:
+    """Row 1792291162, the second sighting of HELD quote-heredoc-when-writing-briefs: a brief or Workflow args file
+    written through an unquoted heredoc runs its backticks, and an escaped backtick in a grep pattern is GNU grep's
+    start-of-text anchor, so it matches nothing mid-pattern and the wrong line at its start (round 1, Opus probe).
+    It sits beside the delta-brief clause, not between 'lacking a hash;' and 'before you adjudicate the pass'."""
+    src = _norm(SRC)
+    clause = (
+        "(01M236V84, 01M23ESF5); a brief or Workflow args file you write is written with the Write tool, or through a"
+        " quoted heredoc (`<<'EOF'`) where a shell must write it, so no backtick in it runs, and a check command it"
+        " hands a seat writes a backtick in a grep pattern unescaped inside single quotes (a pattern that also holds"
+        " `'` splices it in as `'\\''`), since GNU grep reads a backslash-backtick as a start-of-text anchor: escaped,"
+        " the pattern matches nothing mid-pattern and the wrong lines at its start; a delta seat's brief"
+    )
+    assert src.count(clause) == 1
+    assert "lacking a hash; before you adjudicate the pass" in src
+
+
+def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
+    """Row 1792288442 (and the answered rejects on this sentence before it): the lead hand-listed archive roots in a
+    brief it wrote; the rule now names where the roots are read from, subprocess-run scripts included (round 1, Opus:
+    imports and constants alone missed inline paths and a subprocess target), without restating the recipe."""
+    assert (
+        "derived from what the tests import, read or run, every path expression in the test files, the scripts they"
+        " run by subprocess and what those scripts read included, never a hand-listed path set"
+    ) in _norm(SRC)
