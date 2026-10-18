@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:12:36.359577Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f512daeb",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one reviewed edit making the section followable (lead the section with the three things seats get wrong, pointing at the recipe), without losing a rule; the fragment renders into many commands, so the full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "commands/_fragments/review-probe-catalogue.md § Seat isolation (the PIN_IMPORT/PYTEST_PINS recipe, derived archive roots, no-.git clone rule) is cited by 24 answered fabrik-review rejects and more on fabrik-review-scoped — a line not followed: seats still hand-list roots, run pytest from a cd, or miss templates/commands/.claude/hooks (rows 1792361061, 1792356819, 1792352960)"
+}
