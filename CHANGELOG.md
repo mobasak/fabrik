@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: a fix forced at the close re-opens a closing pass unless it edits the receipt alone (2026-10-18)
+
+- The close order said "flip back to `IN-PROGRESS`, fix it, and repeat the order" on a post-flip red, the pre-flip `IN-PROGRESS` run had no in-surface route, and the `GATE-SCOPE` paragraph said "fix it and re-run", so a fix the gate forced at the close shipped with no seat reading it. Both gate runs now share one rule: a red whose findings name this surface or its receipt is yours; fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the order. The `GATE-SCOPE` paragraph counts a finding that names the receipt as naming the surface, so a receipt-only red cannot be declared out-of-surface, and points at that rule. This closes W-c71703cb. `tests/test_review_queue_pass.py` pins all three sites.
+
 ### Changed — /fabrik-review: stage and run the gate before the pin of every pass that follows a fix, so a gate-forced fix is reviewed (2026-10-18)
 
 - The close used to run `final_gate.py --check --json` only after the closing pass, so a fix the gate forced landed after the closing seats had read the surface. A sentence before "Close in this ORDER" now has the reader stage their own files and run the gate before the pin of every pass that follows a fix, since any of them may be the closing pass. A red outside the surface forces no fix; it is measured as the `GATE-SCOPE` paragraph does, and the pass is pinned unchanged. This answers row 1792335517, the second sighting of the held subject final-gate-before-closing-pass. `tests/test_review_queue_pass.py` pins the sentence.
