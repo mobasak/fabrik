@@ -12,6 +12,8 @@ from typing import Any
 import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
+from fabrik.drivers.preflight import HostUnreachableError, verify_host_reachable
+from fabrik.drivers.ssh import _ssh_host
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
 from fabrik.orchestrator.exceptions import (
@@ -148,6 +150,11 @@ class DeploymentOrchestrator:
             ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
             # Phase 2: fail closed on cross-host error_webhook (unreachable :8889).
             _assert_error_webhook_colocated(spec, ctx.target_vps)
+            # W-2b657bee: prove the ssh path(s) answer before anything touches the fleet,
+            # so a dead path fails here in seconds, named, instead of hanging every
+            # later call (_pre_provision_db_for_boot is the first to ssh).
+            if not dry_run:
+                self._verify_reachable(ctx.target_vps)
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
 
@@ -250,6 +257,22 @@ class DeploymentOrchestrator:
                 self._transition(ctx, DeploymentState.FAILED)
 
         return ctx
+
+    def _verify_reachable(self, target_vps: str) -> None:
+        """Probe the hub alias and, for a spoke, the target alias; dedup by alias.
+
+        Raises:
+            ValidationError: a path is dead or its jump variable is malformed — the
+                message is :class:`HostUnreachableError`'s (alias, dead leg, fix).
+        """
+        hosts = [_ssh_host()]
+        with _host_env(target_vps):
+            hosts.append(_ssh_host())
+        for host in dict.fromkeys(hosts):
+            try:
+                verify_host_reachable(host)
+            except HostUnreachableError as e:
+                raise ValidationError(str(e), field="target_vps") from e
 
     def _warn_fabricated_secrets(self, keys: list) -> None:
         """Warn for each REQUIRED secret that is absent and will be auto-generated.

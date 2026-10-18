@@ -66,6 +66,62 @@ def _ssh_host() -> str:
     return os.getenv("FABRIK_VPS_SSH_HOST", DEFAULT_SSH_HOST)
 
 
+JUMP_ENV_PREFIX = "FABRIK_SSH_JUMP_"
+"""Per-alias opt-in jump (W-2b657bee): ``FABRIK_SSH_JUMP_VPS=vps2`` routes every ssh/scp to
+the ``vps`` alias through ``vps2``. Unset, the argv is exactly what it was before. Never an
+automatic reroute: a dead path is named by ``preflight.verify_host_reachable`` instead.
+"""
+
+# One ProxyJump hop is ``[user@]host[:port]``; several are comma-separated (OpenSSH's own
+# -J syntax). Strict on purpose, checked per hop with fullmatch: the value lands in ssh's
+# argv, so a leading ``-``, a space or a shell character is refused rather than passed; so
+# are IPv6 literals (name the hop by an alias) and ``none``, ProxyJump's disable keyword,
+# which would silently mean "direct" while every message said "via jump".
+_JUMP_HOP = re.compile(
+    r"(?:[A-Za-z0-9_][A-Za-z0-9_.-]*@)?[A-Za-z0-9_][A-Za-z0-9_.-]*(?::[1-9][0-9]{0,4})?"
+)
+
+
+def jump_env_name(host: str) -> str:
+    """Return the variable that names *host*'s jump: ``vps`` → ``FABRIK_SSH_JUMP_VPS``.
+
+    Every character outside ``[A-Z0-9]`` becomes ``_``, so ``vps-1`` and ``vps_1`` share one.
+    """
+    return JUMP_ENV_PREFIX + re.sub(r"[^A-Z0-9]", "_", host.upper())
+
+
+def jump_for(host: str) -> str | None:
+    """Return the ProxyJump value set for *host*, or ``None`` (unset or empty).
+
+    Raises:
+        ValueError: the variable is set to something outside the hop grammar. Fail
+            closed: a typo must not silently fall back to the dead direct path.
+    """
+    name = jump_env_name(host)
+    value = os.getenv(name, "")
+    if not value:
+        return None
+    hops = value.split(",")
+    if not all(_JUMP_HOP.fullmatch(h) and h.lower() != "none" for h in hops):
+        raise ValueError(
+            f"{name}={value!r} is not a ProxyJump value: [user@]host[:port] hops, comma-"
+            "separated (no IPv6 literals — use an ssh alias; 'none' is refused)"
+        )
+    return value
+
+
+def jump_args(host: str) -> list[str]:
+    """Return the ssh/scp options that route *host* through its jump — ``[]`` when none is set."""
+    jump = jump_for(host)
+    return ["-o", f"ProxyJump={jump}"] if jump else []
+
+
+def _via(host: str) -> str:
+    """`` via jump 'vps2'`` for a failure message, or ``""`` when no jump is set."""
+    jump = jump_for(host)
+    return f" via jump {jump!r}" if jump else ""
+
+
 def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
     """Execute a shell command on the Fabrik VPS via SSH and return stdout.
 
@@ -84,6 +140,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         RuntimeError: SSH returned a non-zero exit code. Stderr is included
             in the exception message for quick diagnosis.
         subprocess.TimeoutExpired: The SSH call exceeded ``timeout`` seconds.
+        ValueError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
 
     Example:
         >>> ssh("uname -m")  # doctest: +SKIP
@@ -97,7 +154,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
     logger.debug("SSH %s: %s", host, _redact(cmd))
     try:
         result = subprocess.run(
-            ["ssh", host, cmd],
+            ["ssh", *jump_args(host), host, cmd],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -117,7 +174,8 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # the debug line above redacts the command, but the error path shipped raw stderr,
         # forcing a mid-deploy credential rotation).
         raise RuntimeError(
-            f"SSH to {host!r} failed (rc={result.returncode}): {_redact(result.stderr.strip())}"
+            f"SSH to {host!r}{_via(host)} failed (rc={result.returncode}): "
+            f"{_redact(result.stderr.strip())}"
         )
     return result.stdout.strip()
 
@@ -139,6 +197,7 @@ def scp_to_vps(
     Raises:
         RuntimeError: ``scp`` returned a non-zero exit code.
         subprocess.TimeoutExpired: The copy exceeded ``timeout`` seconds.
+        ValueError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
 
     Example:
         >>> scp_to_vps("/tmp/config.yml", "/opt/svc/config.yml")  # doctest: +SKIP
@@ -150,7 +209,7 @@ def scp_to_vps(
     host = _ssh_host()
     logger.debug("SCP %s -> %s:%s", local_path, host, remote_path)
     result = subprocess.run(
-        ["scp", local_path, f"{host}:{remote_path}"],
+        ["scp", *jump_args(host), local_path, f"{host}:{remote_path}"],
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -158,5 +217,5 @@ def scp_to_vps(
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"SCP to {host!r} failed (rc={result.returncode}): {result.stderr.strip()}"
+            f"SCP to {host!r}{_via(host)} failed (rc={result.returncode}): {result.stderr.strip()}"
         )

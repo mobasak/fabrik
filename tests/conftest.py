@@ -130,6 +130,10 @@ def pytest_configure(config):
     # GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n come in numbered pairs with no fixed bound.
     for key in [k for k in os.environ if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))]:
         os.environ.pop(key, None)
+    # An exported FABRIK_SSH_JUMP_<ALIAS> (W-2b657bee) would shift every ssh/scp argv pin by
+    # two elements; tests that want a jump set it with monkeypatch.
+    for key in [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]:
+        os.environ.pop(key, None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
     # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
@@ -380,6 +384,22 @@ def _no_live_app_role_step(request, _private_monkeypatch):
     _private_monkeypatch.setattr(
         InfrastructureProvisioner, "_provision_app_role", lambda *a, **k: None, raising=False
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_live_reachability_preflight(request, _private_monkeypatch):
+    """`DeploymentOrchestrator.deploy` probes `ssh <alias> true` before anything else (W-2b657bee);
+    the fleet guard below refuses that probe, which would fail every non-dry orchestrator test.
+    The probe is a no-op for every test; a module that exercises it sets
+    `LIVE_REACHABILITY_PREFLIGHT = True` and mocks `subprocess.run` itself
+    (tests/orchestrator/test_reachability_preflight.py) — unmocked, the guard still refuses it."""
+    if getattr(request.module, "LIVE_REACHABILITY_PREFLIGHT", False):
+        return
+    try:
+        import fabrik.orchestrator as _orch
+    except ImportError:
+        return
+    _private_monkeypatch.setattr(_orch, "verify_host_reachable", lambda *a, **k: None)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -44,6 +44,27 @@ python -c "from fabrik.config import Config; Config(); print('OK — required va
    ssh-copy-id deploy@your-vps
    ```
 
+### SSH jump — `FABRIK_SSH_JUMP_<ALIAS>` (opt-in, per box)
+
+**Why needed:** only on a box whose direct ssh path to a fleet host is dead while another fleet
+host still reaches it (W-2b657bee, 2026-10-18: this WSL box times out at vps1's banner exchange;
+vps2 reaches vps1 over WireGuard).
+
+**What it does:** `FABRIK_SSH_JUMP_VPS=vps2` adds `-o ProxyJump=vps2` to every ssh/scp that
+fabrik runs against the `vps` alias — the SSH driver (`src/fabrik/drivers/ssh.py`), the DNS
+client's SSH proxy and the audit probes. The key is the alias upper-cased with every
+non-alphanumeric turned into `_` (`vps2` → `FABRIK_SSH_JUMP_VPS2`; `vps-1` and `vps_1` share
+one). The value is one or more comma-separated `[user@]host[:port]` hops; anything else (a
+leading `-`, a space, an IPv6 literal, `none`) is refused with an error naming the variable.
+Unset, the argv is exactly what it was before — nothing reroutes automatically.
+
+**How it is checked:** every non-dry `fabrik apply` first runs one bounded `ssh <alias> true`
+for the hub alias (and the target alias for a spoke). A dead path fails the run in validation,
+naming the alias, the dead leg (the jump host or the hop behind it) and the fix; on a jumped
+pass it logs a warning once the direct path answers again, so the variable can be removed.
+
+**Where:** the `.env` the operator's `fabrik` loads (`/opt/fabrik/.env` for the main checkout).
+
 <!--
 Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
 

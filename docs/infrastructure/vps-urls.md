@@ -321,6 +321,12 @@ Host vps3  →  ozgur@104.128.190.151                    — Coventry UK spoke
 
 All three hosts: `ozgur` user (NOPASSWD sudo), Ed25519 key auth only, root login disabled, password auth disabled, fail2ban active. SSH posture matches across the fleet (this was the Lesson 65 takeaway from the vps2 bootstrap lockout).
 
+**When a direct path is dead.** A box that cannot reach one host directly while another fleet host
+can (2026-10-18: this WSL box times out at vps1's banner exchange; vps2 reaches vps1 over
+WireGuard) sets `FABRIK_SSH_JUMP_<ALIAS>` in its `.env` — `FABRIK_SSH_JUMP_VPS=vps2` — and every
+fabrik ssh/scp to that alias goes through the jump. `fabrik apply` probes each path it needs first
+and names the dead leg; nothing reroutes on its own. Detail: `docs/CONFIGURATION.md` § SSH jump.
+
 ---
 
 ## Maintenance command quick-reference

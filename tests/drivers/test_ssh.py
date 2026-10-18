@@ -132,3 +132,107 @@ class TestScpToVps:
         )
         with pytest.raises(RuntimeError, match="Permission denied"):
             scp_to_vps("/tmp/x", "/opt/y")
+
+
+class TestJump:
+    """The opt-in per-host jump, FABRIK_SSH_JUMP_<ALIAS> (W-2b657bee): inert when unset,
+    `-o ProxyJump=<v>` before the host when set, fail closed on a value outside the grammar."""
+
+    @patch("subprocess.run")
+    def test_unset_or_empty_leaves_argv_unchanged(self, mock_run, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        for value in (None, ""):
+            if value is None:
+                monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+            else:
+                monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", value)
+            ssh("true")
+            assert mock_run.call_args[0][0] == ["ssh", "vps", "true"]
+            scp_to_vps("/tmp/a", "/opt/b")
+            assert mock_run.call_args[0][0] == ["scp", "/tmp/a", "vps:/opt/b"]
+
+    @patch("subprocess.run")
+    def test_jump_inserted_for_its_alias_only(self, mock_run, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        ssh("true")
+        assert mock_run.call_args[0][0] == ["ssh", "-o", "ProxyJump=vps2", "vps", "true"]
+        scp_to_vps("/tmp/a", "/opt/b")
+        assert mock_run.call_args[0][0] == ["scp", "-o", "ProxyJump=vps2", "/tmp/a", "vps:/opt/b"]
+        mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="boom")
+        with pytest.raises(RuntimeError, match="via jump 'vps2'"):
+            ssh("true")
+        # another alias's variable never applies to this one
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps2")
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        ssh("true")
+        assert mock_run.call_args[0][0] == ["ssh", "vps2", "true"]
+        assert ssh_mod.jump_env_name("vps-1.x") == "FABRIK_SSH_JUMP_VPS_1_X"
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "-oProxyCommand=x",
+            "a b",
+            "a;b",
+            ",a",
+            "a,",
+            "a,,b",
+            "@h",
+            "h:",
+            "h:0",
+            "a,-oX",
+            "x@-h",
+            "[::1]",
+            "none",
+            "a,NONE",
+            "vps2\n",
+            "ssh://u@h:22",
+        ],
+    )
+    @patch("subprocess.run")
+    def test_invalid_jump_fails_closed(self, mock_run, value, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", value)
+        with pytest.raises(ValueError, match="FABRIK_SSH_JUMP_VPS"):
+            ssh("true")
+        with pytest.raises(ValueError, match="FABRIK_SSH_JUMP_VPS"):
+            scp_to_vps("/tmp/a", "/opt/b")
+        mock_run.assert_not_called()
+
+    @pytest.mark.parametrize("value", ["vps2", "ozgur@96.9.214.128:2222", "a,b", "h.example.com"])
+    def test_valid_jump_values_accepted(self, value, monkeypatch):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", value)
+        assert ssh_mod.jump_args("vps") == ["-o", f"ProxyJump={value}"]
+
+    def test_raw_argv_callers_honour_the_jump(self, monkeypatch):
+        from fabrik import audit
+        from fabrik.drivers.dns import DNSClient
+
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        monkeypatch.delenv("FABRIK_AUDIT_VPS", raising=False)
+        monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+        monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+            assert audit._ssh_check("true")[0] is True
+            assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+            client = DNSClient(api_key="t", ssh_host="vps")
+            client._request_via_ssh("GET", "http://x/y")
+            assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+            mock_run.return_value = MagicMock(
+                returncode=0, stdout="site-provisioner-1\n", stderr=""
+            )
+            client._resolve_container_url()
+            for call in mock_run.call_args_list[-2:]:
+                assert call[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+        # a bad value is not swallowed into dns's public-URL fallback
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "-oProxyCommand=x")
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(ValueError):
+                DNSClient(api_key="t", ssh_host="vps")._resolve_container_url()
+            mock_run.assert_not_called()
+            ok, msg = audit._ssh_check("true")
+            assert ok is False and "FABRIK_SSH_JUMP_VPS" in msg
