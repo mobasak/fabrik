@@ -98,7 +98,7 @@ LEGACY_DIRS = {
 # --- docs/ allowlist: DERIVED from the canonical registry (SSOT), never hand-maintained ---
 # The registry lives sibling-to-sibling in scripts/enforcement/ (synced fleet-wide), so a
 # SAME-DIR import resolves both hub-side and project-side. Do NOT use the
-# sys.path.insert(0, FABRIK_ROOT/"scripts") pattern (e.g. check_synced_unmodified.py) —
+# sys.path.insert(0, FABRIK_ROOT/"scripts") pattern (any read of a hub-root module) —
 # FABRIK_ROOT is hardcoded /opt/fabrik, so a project would import the HUB's registry
 # instead of its own synced copy. We call docs_allowlist() with NO argument: the permissive
 # full union, so a recognized doc never false-WARNs regardless of the project's exact shape
