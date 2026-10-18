@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
   // Only `message` is read from the body, and only as a non-empty string: the system prompt
   // is server code (lib/config/chat.ts), so no visitor can rewrite the model's instructions
   // or ship content-part arrays upstream on the app's key.
-  const { message } = await request.json();
+  // A malformed or non-object body (invalid JSON, `null`) is the same 400 as a missing message.
+  const body: unknown = await request.json().catch(() => null);
+  const message =
+    body !== null && typeof body === "object" ? (body as { message?: unknown }).message : undefined;
 
   if (typeof message !== "string" || !message.trim()) {
     return new Response(JSON.stringify({ error: "Message required" }), {
