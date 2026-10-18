@@ -1,7 +1,7 @@
 # saas-skeleton chat that only a signed-in, rate-limited user can spend — design spec
 
 Status: DRAFT
-Size: small (≈260 lines, 4 files)
+Review: /fabrik-plan-review round 1 (2026-10-18) confirmed a foundation error and scope beyond `Size: small`. The Size line was removed per that command's escape hatch. Findings F1-F14: `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-round1-findings.md`. Next: amend this spec, then `/fabrik-spec-review`.
 Profile: full (the rate limit and the backend chat route have no code behind them today)
 Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the major in flight
 
