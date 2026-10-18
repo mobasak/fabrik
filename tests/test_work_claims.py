@@ -1091,7 +1091,9 @@ def test_claim_from_a_worktree_finds_an_item_that_lives_only_in_the_main_store(t
 
 def test_claim_of_a_main_store_item_reads_its_blockers_from_the_main_store(tmp_path):
     """The blocker check runs against the store that holds the item: a main-only item blocked by
-    an open main-only item is refused naming it, and claimable once that blocker is done."""
+    an open main-only item is refused naming it, and claimable once that blocker is done. The
+    second half is what catches reading the worktree's store (`_refuse_blocked(repo, …)`): there
+    the done blocker is missing, so it still reads as waiting."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
     _commit_store(repo, env)
