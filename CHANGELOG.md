@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — saas-skeleton chat route no longer lets the browser set the model's system prompt (2026-10-18)
+
+- `templates/saas-skeleton/app/api/chat/route.ts` read `systemPrompt` from the request body and sent it as the
+  system message on the app's own OpenRouter key, on an unauthenticated route. It now reads only `message`, as a
+  non-empty string (anything else is a 400 before any upstream call), and takes the system prompt from the server
+  constant `CHAT_SYSTEM_PROMPT` in the new `lib/config/chat.ts`. `ChatUI` no longer has a `systemPrompt` prop, and
+  the README example no longer passes one (W-46afa9c4). Scaffolded projects keep their own copies and were mailed.
+
 ### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
 
 - 6cff7527c made `command_run.py`'s `--commit` accept one comma-joined value (split, since a sha never holds a comma)
