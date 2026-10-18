@@ -368,6 +368,7 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/dashboard_ui/__init__.py`
 - `scripts/sysadmin/dashboard_ui/components.py`
 - `scripts/sysadmin/dashboard_ui/fmt.py`
+- `scripts/sysadmin/dashboard_ui/inventory.py`
 - `scripts/sysadmin/dashboard_ui/merges.py`
 - `scripts/sysadmin/dashboard_ui/snapshot.py`
 - `scripts/sysadmin/dashboard_ui/strings.py`

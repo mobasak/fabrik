@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The external-services inventory module (2026-10-18)
+`scripts/sysadmin/dashboard_ui/inventory.py` holds the registry reader (`load(conn, *, before_query=None)` →
+rows and the registry's own sync time; `credit_cell` and `STALE_AFTER_H` moved out of `gen_dashboard.py`'s rules)
+and the renderer (`render(rows, *, now, synced_at, classified_at, interactive)`): Needs attention (provider rules
+plus a stale registry and a stalled classifier, collapsing a reason past five rows), one table per category with
+the Unidentified table last, the Untriaged queue as a list, and the filter wire for the live view; the static mode
+prints its synced and snapshot lines with the heading. Balances and prices render exactly (never `1.23457e+06`), a
+time no local zone can format reads as unknown, and a provider URL links only when it parses as an http(s) URL
+with a real host and port and no credentials — a URL carrying userinfo shows as text with the credentials cut out.
+`services.inv.*` strings (singular and plural forms), `registry_db.connect(**kwargs)` and
+`tests/external_services_fixture.py` (the census-class fixture) ship with it. Nothing calls the module yet; T03
+and T04 wire it (W-3e9e2f4c, T02; wave review
+`docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T02-review.md`).
+
 ### Added — Dashboard page layer: select, aligned table columns, status count and the filter's inverse (2026-10-18)
 `components.select()` (labelled, escaped, token-mode ready; a filter select must offer an `""` "all" option),
 `components.table(..., align=)` (right-aligned columns with tabular figures via `data-align="right"`; positional calls

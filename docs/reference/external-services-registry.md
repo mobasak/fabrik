@@ -79,4 +79,5 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/classify_services.py`
 - `scripts/gen_dashboard.py`
+- `scripts/sysadmin/dashboard_ui/inventory.py`
 <!-- END related-scripts -->
