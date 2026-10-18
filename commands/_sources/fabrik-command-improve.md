@@ -179,8 +179,8 @@ quote and why that text is not wrong; to FIND that line, grep the rendered comma
 points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
 it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
-still final; per D-952 it is an advice hold when its reason says the text lacks the advice but is not
-wrong, an answered reject when it says the text already states it or never said it, and neither when it
+still final; it is an advice hold when its reason says the text lacks the advice but is not wrong, an
+answered reject when it says the text already states it or never said it (D-952), and neither when it
 is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
 its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
 audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
@@ -256,7 +256,9 @@ paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corp
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
 VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets
-one sentence.
+one sentence. An edit that must describe what a script does states only the fact its reader acts on and points
+at the doc that owns the script for the rest — the doc the script's `# AFTER-EDIT:` header names, else the
+script by path — never restating it.
 
 **Check the claim, not the prose.** A sentence naming what a gate or script reads or refuses is checked against
 every branch of that function and every other path that filters or grades the same input, traced from the entry
