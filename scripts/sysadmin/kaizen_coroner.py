@@ -609,10 +609,17 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
     if command_run is None:
         report.errors.append("command_run unavailable — record closure skipped")
         return
+    # `os.listdir`, never `Path.glob`: glob returns [] for a dir it cannot read (it never
+    # raises), which closed no record and counted nothing (W-6f46cebd). A runs dir that does
+    # not exist is a box that never ran a command — no records, not an error.
     try:
-        record_files = sorted(sources.runs_dir.glob("*.json"))
-    except OSError:
+        names = os.listdir(sources.runs_dir)
+    except FileNotFoundError:
+        names = []
+    except OSError as exc:
+        report.errors.append(f"runs dir unreadable ({exc!r}) — record closure skipped")
         return
+    record_files = sorted(sources.runs_dir / n for n in names if n.endswith(".json"))
     ttl = _ttl_s()
     for path in record_files:
         stem = path.stem
@@ -649,6 +656,9 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                         _mark_run_folders_done(rec, raw_sid)
                     else:
                         _emit_ttl_end(sources, raw_sid, report)
+                else:
+                    # the record stays running, so the next sweep retries it (W-6f46cebd)
+                    report.errors.append(f"record close for {stem} not persisted")
         except Exception as exc:
             _warn(f"record close for {stem} failed open: {exc!r}")
             # counted, not only warned: the sweep line's `errors` must not read 0 after one
@@ -678,6 +688,9 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
             closed_by="ttl",
         ):
             report.session_ends.append(raw_sid)
+        else:
+            # one-shot: the record is already `expired`, so no later sweep re-reaches here
+            report.errors.append(f"ttl session_end emit failed for {raw_sid}")
     except Exception as exc:  # pragma: no cover - emit() itself never raises
         _warn(f"ttl session_end for {raw_sid} failed open: {exc!r}")
         report.errors.append(f"ttl session_end for {raw_sid} failed: {exc!r}")
@@ -768,6 +781,8 @@ def _write_sweep_line(src: Sources, report: CoronerReport, clock: float) -> None
             os.close(fd)
     except Exception as exc:
         _warn(f"sweep log write failed open: {exc!r}")
+        # the line that failed cannot carry it, but the exit code can (W-6f46cebd)
+        report.errors.append(f"sweep log write failed: {exc!r}")
 
 
 def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | None:
@@ -863,6 +878,11 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
             # session_ends, so a session dying today COUNTS as today's hole (the
             # instrument alarm) even though this very sweep then closes it.
             report.holes_today = holes(src)
+            # A blind reading over a transcripts dir that EXISTS (unreadable, or holes()'s own
+            # error) is a sweep that could not see — counted, so it exits 3 (W-6f46cebd). A host
+            # with no transcripts dir at all is not an installation to measure.
+            if report.holes_today is None and src.transcripts_dir.exists():
+                report.errors.append("holes() unmeasurable (blind)")
             _reconstruct(src, deaths, report)
             _close_records(src, evidence, clock, report)
     except Exception as exc:
@@ -977,16 +997,20 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
                 continue
             report.deaths_reconstructed.append(death.sid)
             revived_at = _log_revival(src.mesh_log, death.sid)
-            if revived_at is not None and kaizen_events.emit(
-                "revival",
-                sid=death.sid,
-                exposure_override=joined,
-                sid_source="join",
-                reconstructed=True,
-                revived_at=revived_at,
-                **{"class": death.cls},
-            ):
-                report.revivals.append(death.sid)
+            if revived_at is not None:
+                if kaizen_events.emit(
+                    "revival",
+                    sid=death.sid,
+                    exposure_override=joined,
+                    sid_source="join",
+                    reconstructed=True,
+                    revived_at=revived_at,
+                    **{"class": death.cls},
+                ):
+                    report.revivals.append(death.sid)
+                else:
+                    # one-shot: the death landed, so `has_recon` skips this block on every retry
+                    report.errors.append(f"revival emit failed for {death.sid}")
         if kaizen_events.emit(
             "session_end",
             sid=death.sid,
@@ -996,6 +1020,8 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
             closed_by="coroner",
         ):
             report.session_ends.append(death.sid)
+        else:
+            report.errors.append(f"session_end emit failed for {death.sid}")
 
 
 # ── duplex selftest ──────────────────────────────────────────────────────────────────
