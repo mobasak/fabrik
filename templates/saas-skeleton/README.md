@@ -89,7 +89,7 @@ model's instructions are the server constant `CHAT_SYSTEM_PROMPT`, never part of
 ### Turning chat on
 
 1. Set `OPENROUTER_API_KEY` (the spec's `secrets.from_env` lists it) and `OPENROUTER_MODEL` (in the
-   root `.env`; it is not a secret, so it is not listed). Either
+   spec's `env:`, since it is not a secret; the root `.env` serves a local compose run only). Either
    one empty means chat answers a signed-in user's valid request with 503 (a signed-out caller still
    gets 401, a bad body 400 or 413).
 2. Keep `shape.needs_cache: true` (the default), so `REDIS_URL` is set. Without Redis, chat answers 503.
@@ -110,7 +110,7 @@ own port proxies neither, so a chat request there reaches Next and is a 404.
 Up to four buckets must all pass, checked together before any is counted: the whole app
 (`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600; only for a user who
 belongs to one), the user (`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per
-/64, an IPv6 address carrying an IPv4 one as that IPv4; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
+/64; an IPv4-mapped, IPv4-compatible or NAT64 (`64:ff9b::/96`) address as its IPv4; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
 each starting at its bucket's first request, so at the defaults the app produces at most
 1200 × 1024 = 1,228,800 output tokens per window, and up to twice that in any one rolling hour that
 spans two windows; multiply by your model's price to get the ceiling in money.
@@ -174,7 +174,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 #   JWT_SECRET=<32+ char secret>
 #   OPENROUTER_API_KEY=, OPENROUTER_MODEL=   chat (see "Turning chat on" above)
 #   CHAT_RATE_*, CHAT_MAX_*, CHAT_UPSTREAM_READ_TIMEOUT   chat limits (see "Limits and cost")
-#   TEST_REDIS_URL=   the chat tests' throwaway Redis DB (server/tests/test_chat.py only)
+
+# Chat tests: export TEST_REDIS_URL in the test shell (never read from .env), a throwaway Redis DB
+# that server/tests/test_chat.py alone uses
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS

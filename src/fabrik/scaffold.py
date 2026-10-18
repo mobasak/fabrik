@@ -2803,7 +2803,7 @@ Read only by `server/src/<pkg>/chat.py`. Signed-in users only; Redis (`REDIS_URL
 | `CHAT_RATE_APP` | `1200/3600` | `<count>/<seconds>` for the whole app. |
 | `CHAT_RATE_TENANT` | `600/3600` | Per tenant; only for a user who belongs to one. |
 | `CHAT_RATE_USER` | `60/3600` | Per signed-in user. |
-| `CHAT_RATE_IP` | `120/3600` | Per client IP (IPv6 per /64; an IPv6 address carrying an IPv4 one as that IPv4); skipped when the IP does not parse. |
+| `CHAT_RATE_IP` | `120/3600` | Per client IP (IPv6 per /64; an IPv4-mapped, IPv4-compatible or NAT64 (`64:ff9b::/96`) address as its IPv4); skipped when the IP does not parse. |
 | `CHAT_MAX_TOKENS` | `1024` | Max output tokens per request. |
 | `CHAT_MAX_MESSAGE_CHARS` | `4000` | Longest message accepted (400 above it). |
 | `CHAT_MAX_BODY_BYTES` | `65536` | Largest request body (413 above it). |
