@@ -23,6 +23,24 @@ def _section(start: str, end: str) -> str:
     return text[i : text.index(end, i + len(start))]
 
 
+def test_size_check_ignores_each_new_path() -> None:
+    """Row 1792293040, the second verdict on held new-file-must-git-added: a declared path that does not exist yet
+    fell under a root `lib/` ignore rule and never reached the commit; SIZE now runs `git check-ignore -v` on it."""
+    assert (
+        "**declare the grader you are about to write**, and `git check-ignore -v` each new path, since an ignored one"
+        " never commits; `ls` and grep every other path for the rule first"
+    ) in _section("## SIZE", "## Phase 1")
+
+
+def test_measure_runs_a_codec_change_on_its_edge_inputs() -> None:
+    """Row 1792291304, the second verdict on held design-list-input-grammar: MEASURE runs a decoder or encoder change
+    on non-UTF-8 bytes, NUL and its own escape before design.md is written."""
+    assert (
+        "a codec change run on non-UTF-8 bytes, NUL and its own escape, an independent parser for a parsed format"
+        in _section("## Phase 1", "## Phase 2")
+    )
+
+
 def test_size_checks_each_declared_path_before_declaring_it() -> None:
     """Rows 1790966184, 1791467990: a typo'd declared path is accepted silently as a grader."""
     assert "`ls` and grep every other path for the rule first, since a typo reads as that grader" in _section(

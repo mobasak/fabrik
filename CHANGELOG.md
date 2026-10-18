@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task checks new paths against ignore rules and runs a codec change on its edge inputs (2026-10-18)
+
+SIZE runs `git check-ignore -v` on each new path it declares, since an ignored one never commits; MEASURE runs a
+codec change on non-UTF-8 bytes, NUL and its own escape before `design.md`. Answers /fabrik-task rows 1792293040
+and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 -> 22550 (D-979).
+
 ### Fixed — rendered commands cite fragments, sources and seat files by their hub path (2026-10-18)
 
 Twelve citations of `commands/_fragments/`, `commands/_sources/` or `commands/_agents/` files across eight
