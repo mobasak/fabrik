@@ -318,6 +318,25 @@ class TestRequestViaSsh:
             with pytest.raises(RuntimeError, match=r"failed \(rc=255\): no stderr$"):
                 client._request_via_ssh("GET", "https://h/x")
 
+    def test_a_reply_that_is_not_utf8_is_a_cleaned_error_not_a_decode_crash(self, monkeypatch):
+        """Review pass 1: a UnicodeDecodeError from the reply escaped every handler, and its repr
+        carries the raw bytes — a reply echoing the key would ship it. The reply is decoded with
+        `errors="replace"` and reaches the cleaned non-JSON error. Real `sh`, the client's own
+        `subprocess.run` keywords."""
+        import subprocess
+
+        client = self._client(monkeypatch)
+        real_run = subprocess.run
+
+        def reply_with_a_bad_byte(argv, **kw):
+            kw.pop("input", None)
+            return real_run(["sh", "-c", f"printf '\\377 {self.KEY}'"], **kw)
+
+        with patch("subprocess.run", side_effect=reply_with_a_bad_byte):
+            with pytest.raises(RuntimeError, match="non-JSON") as info:
+                client._request_via_ssh("GET", "https://h/x")
+        assert self.KEY not in str(info.value)
+
     def test_a_non_json_reply_leaks_no_secret(self, monkeypatch):
         """Review C-H3: an error page echoing the request reached the RuntimeError uncleaned."""
         from unittest.mock import MagicMock
@@ -347,23 +366,63 @@ class TestRequestViaSsh:
         assert self.KEY[:6] not in str(info.value)
 
 
-def test_a_container_resolve_timeout_is_raised_not_swallowed(monkeypatch):
+def _dead(kind):
+    """A `subprocess.run` stand-in whose ssh path dies at the named call."""
+    import subprocess
+    from unittest.mock import MagicMock
+
+    def run(argv, **kw):
+        run.stdins.append(kw.get("stdin"))
+        n = len(run.stdins)
+        if kind == "timeout-1" or (kind == "timeout-2" and n == 2):
+            raise subprocess.TimeoutExpired(argv, kw.get("timeout", 30))
+        if kind == "no-ssh":
+            raise FileNotFoundError(2, "No such file or directory", "ssh")
+        if kind == "not-executable":
+            raise PermissionError(13, "Permission denied", "ssh")
+        if kind == "rc255-1" or (kind == "rc255-2" and n == 2):
+            return MagicMock(
+                returncode=255,
+                stdout="",
+                stderr="ssh: connect to host vps port 22: Connection refused",
+            )
+        return MagicMock(returncode=0, stdout="site-provisioner-1\n", stderr="")
+
+    run.stdins = []
+    return run
+
+
+_DEAD_KINDS = ["timeout-1", "timeout-2", "no-ssh", "not-executable", "rc255-1", "rc255-2"]
+
+
+@pytest.mark.parametrize("kind", _DEAD_KINDS)
+def test_a_dead_ssh_path_without_an_internal_url_is_raised_not_swallowed(kind, monkeypatch):
     """W-894fdc5f (review C-H5): a dead ssh path is not a container "miss" — swallowed, it sent the
     request on to the public URL, which this box cannot reach, and named the wrong failure."""
     import subprocess
 
     monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
     monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
     client = DNSClient(api_key="k", ssh_host="vps")
-    seen = {}
-
-    def run(argv, **kw):
-        seen["stdin"] = kw.get("stdin")
-        raise subprocess.TimeoutExpired(argv, kw.get("timeout", 30))
-
+    run = _dead(kind)
     with patch("subprocess.run", side_effect=run):
-        with pytest.raises(subprocess.TimeoutExpired) as info:
+        with pytest.raises(RuntimeError, match=r"ssh to 'vps' is dead") as info:
             client._resolve_container_url()
-    assert info.value.cmd == ["ssh", "vps", "<command redacted>"]
-    assert info.value.__context__ is None
-    assert seen["stdin"] is subprocess.DEVNULL
+    msg = str(info.value)
+    assert "docker" not in msg and info.value.__context__ is None  # no command anywhere
+    assert run.stdins and all(s is subprocess.DEVNULL for s in run.stdins)
+    assert len(run.stdins) == (2 if kind.endswith("-2") else 1)
+
+
+@pytest.mark.parametrize("kind", _DEAD_KINDS)
+def test_a_dead_ssh_path_with_an_internal_url_falls_back_to_it(kind, monkeypatch, caplog):
+    """Review pass 1 (C1): with SITE_PROVISIONER_INTERNAL_URL set, a dead resolve path must not
+    take the static internal route away — it is logged and the internal URL is used."""
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.setenv("SITE_PROVISIONER_INTERNAL_URL", "http://10.0.1.25:8001")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    with caplog.at_level("WARNING"), patch("subprocess.run", side_effect=_dead(kind)):
+        assert client._resolve_container_url() is None
+    assert "is dead" in caplog.text and "SITE_PROVISIONER_INTERNAL_URL" in caplog.text

@@ -126,10 +126,18 @@ class DNSClient:
     def _resolve_container_url(self) -> str | None:
         """Resolve the live internal URL via ``docker inspect`` over SSH.
 
-        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or
-        the container can't be resolved (caller falls back to
-        ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
+        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or the container can't be
+        found (caller falls back to ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
         instance — create a fresh ``DNSClient`` after a Coolify redeploy.
+
+        A DEAD ssh path — a timeout, an ``OSError`` running ssh, or ssh's own exit 255 (no
+        connection, auth, host key) — is not a miss (W-894fdc5f): with
+        ``SITE_PROVISIONER_INTERNAL_URL`` set it is logged and the static URL is used; without it,
+        it raises rather than fall through to the public URL this box cannot reach.
+
+        Raises:
+            RuntimeError: the ssh path is dead and no ``SITE_PROVISIONER_INTERNAL_URL`` is set
+                (the message names the host and the cause, never the command).
         """
         if not self._container_prefix:
             return None
@@ -138,79 +146,82 @@ class DNSClient:
         # Outside the try below: a bad FABRIK_SSH_JUMP_<ALIAS> must fail loud, never be
         # swallowed into the public-URL fallback (W-2b657bee).
         jump = jump_args(self.ssh_host)
-        # Find full container name by prefix, then read its IP on the
-        # shared coolify network (avoids picking the per-app UUID net).
-        dead: Exception | None = None
-        try:
-            name_proc = subprocess.run(
-                [
-                    "ssh",
-                    *jump,
-                    self.ssh_host,
-                    f"sudo docker ps --filter name=^{self._container_prefix} "
-                    "--format '{{.Names}}' | head -1",
-                ],
+
+        def run(remote: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["ssh", *jump, self.ssh_host, remote],
                 capture_output=True,
                 text=True,
+                errors="replace",
                 stdin=subprocess.DEVNULL,
                 timeout=int(self.timeout),
                 check=False,
             )
+
+        # Find full container name by prefix, then read its IP on the
+        # shared coolify network (avoids picking the per-app UUID net).
+        dead: str | None = None  # why the ssh path is dead, when it is
+        try:
+            name_proc = run(
+                f"sudo docker ps --filter name=^{self._container_prefix} "
+                "--format '{{.Names}}' | head -1"
+            )
             container = name_proc.stdout.strip()
-            if name_proc.returncode != 0 or not container:
+            if name_proc.returncode == 255:
+                dead = f"rc=255: {_redact(name_proc.stderr.strip()) or 'no stderr'}"
+            elif name_proc.returncode != 0 or not container:
                 logger.warning(
                     "DNS client: container prefix %r not found on VPS (stderr=%r)",
                     self._container_prefix,
                     name_proc.stderr.strip(),
                 )
                 return None
-            fmt = (
-                '{{(index .NetworkSettings.Networks "' + self._container_network + '").IPAddress}}'
-            )
-            ip_proc = subprocess.run(
-                [
-                    "ssh",
-                    *jump,
-                    self.ssh_host,
-                    f"sudo docker inspect {container} --format '{fmt}'",
-                ],
-                capture_output=True,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                timeout=int(self.timeout),
-                check=False,
-            )
-            ip = ip_proc.stdout.strip()
-            if ip_proc.returncode != 0 or not ip or ip == "<no value>":
-                logger.warning(
-                    "DNS client: could not resolve %s IP on %s (stderr=%r)",
-                    container,
-                    self._container_network,
-                    ip_proc.stderr.strip(),
+            else:
+                fmt = (
+                    '{{(index .NetworkSettings.Networks "'
+                    + self._container_network
+                    + '").IPAddress}}'
                 )
-                return None
-            url = f"http://{ip}:{self._container_port}"
-            self._resolved_url_cache = url
-            logger.debug(
-                "DNS client: resolved %s → %s (container=%s)",
-                self._container_prefix,
-                url,
-                container,
-            )
-            return url
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            dead = e
+                ip_proc = run(f"sudo docker inspect {container} --format '{fmt}'")
+                ip = ip_proc.stdout.strip()
+                if ip_proc.returncode == 255:
+                    dead = f"rc=255: {_redact(ip_proc.stderr.strip()) or 'no stderr'}"
+                elif ip_proc.returncode != 0 or not ip or ip == "<no value>":
+                    logger.warning(
+                        "DNS client: could not resolve %s IP on %s (stderr=%r)",
+                        container,
+                        self._container_network,
+                        ip_proc.stderr.strip(),
+                    )
+                    return None
+                else:
+                    url = f"http://{ip}:{self._container_port}"
+                    self._resolved_url_cache = url
+                    logger.debug(
+                        "DNS client: resolved %s → %s (container=%s)",
+                        self._container_prefix,
+                        url,
+                        container,
+                    )
+                    return url
+        except subprocess.TimeoutExpired:
+            dead = f"no answer in {int(self.timeout)}s"
+        except OSError as e:  # no ssh binary, not executable, …
+            dead = f"{type(e).__name__}: {e.strerror or e}"
         except Exception as e:  # noqa: BLE001
             logger.warning("DNS client: container resolution failed: %s", e)
             return None
-        # A dead ssh path is not a container "miss": swallowed, it sent the request on to the
-        # public URL this box cannot reach and named the wrong failure (W-894fdc5f). Raised
-        # OUTSIDE the except and command-free, like _request_via_ssh's timeout.
-        if isinstance(dead, subprocess.TimeoutExpired):
-            raise subprocess.TimeoutExpired(
-                ["ssh", *jump, self.ssh_host, "<command redacted>"], self.timeout
+        where = f"ssh to {self.ssh_host!r}{_via(jump_for(self.ssh_host))}"
+        if self._internal_url:
+            logger.warning(
+                "DNS client: %s is dead (%s) — using SITE_PROVISIONER_INTERNAL_URL", where, dead
             )
-        raise dead  # FileNotFoundError: no ssh binary
+            return None
+        # Raised OUTSIDE the except, so no __context__ carries the command.
+        raise RuntimeError(
+            f"DNS client: {where} is dead ({dead}) and SITE_PROVISIONER_INTERNAL_URL is unset — "
+            "not falling back to the public URL"
+        )
 
     def _request_via_ssh(
         self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
@@ -218,7 +229,7 @@ class DNSClient:
         """Proxy an HTTP request through SSH to bypass Traefik IP allowlist.
 
         The API key and the body never touch an argv (W-894fdc5f): they reach the remote curl as a
-        ``-K -`` config on stdin, which ``ps`` cannot read on either host. So the ``vps`` alias must
+        ``-K -`` config on stdin, so neither appears in a ``ps`` listing on either host. So the ``vps`` alias must
         not set ``StdinNull`` or ``ForkAfterAuthentication`` in ``~/.ssh/config`` — the request
         would then go out keyless — and ``-T`` keeps a ``RequestTTY`` setting from echoing it back.
         """
@@ -249,6 +260,7 @@ class DNSClient:
                 ["ssh", "-T", *_jump_opts(jump), host, cmd],
                 input=config,
                 encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 timeout=self.timeout,
                 check=False,
