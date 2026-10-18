@@ -69,9 +69,9 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
 a reconstruction, and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it
 names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit
-can sit in dead code); a miss, or a replay that does not fail, is a finding PROBLEM states, never the item's
-wording, and a replay that cannot reach the state it needs is recorded unverified, never as refuted (MIRROR greps
-every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
+can sit in dead code); a miss, or a replay on a copy carrying that state that does not fail as claimed, is a
+finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded
+unverified, never as refuted (MIRROR greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
 `<durable>/measure.md`, beside phase 2's `design.md`, never in
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
 import, grade or run the declared files (grep the tests for each file's name and every mode or flag
@@ -120,7 +120,7 @@ reads, names the unmerged branch owning a mirrored file, bars live-provider cred
 outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
 grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files,
 else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted. A second
-approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed, is the § UPGRADE
+approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed and holding, is the § UPGRADE
 crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED. Then, before this
 call: read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in
 backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:

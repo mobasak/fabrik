@@ -118,7 +118,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-1011 (kaizen, 2026-10-18): 24006 -> 24209 — supersedes D-1008's figure: the replay names the state it needs and
 # records an unreachable one unverified, never refuted; the phase-2 crossing carries the equivalent-implementation
 # guard, its seat's claim executed, and the `tradeoffs` token (review round 1 on rows 1792348018, 1792339442).
-SIZE_CAP = 24209
+# D-1012 (kaizen, 2026-10-18): 24209 -> 24260 — supersedes D-1011's replay outcomes: a replay on a copy carrying
+# the state that does not fail as claimed is a finding, one whose copy cannot carry it is unverified; the phase-2
+# seat's claim is executed and holding (review round 2 on rows 1792348018, 1792339442).
+SIZE_CAP = 24260
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
