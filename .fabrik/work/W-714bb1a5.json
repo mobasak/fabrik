@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:19:04.552966Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-714bb1a5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find which host fails, confirm whether the pending .env jump line fixes it, otherwise fix the key/known_hosts; then ack the mail",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "monitoring blind for 3 days on a fleet host (a break); one diagnosis, one session",
+  "status": "open",
+  "tags": [
+    "mail-01m58gbtz07ph1m3cydrdx5bhh"
+  ],
+  "title": "mail 01M58GBTZ07PH1M3CYDRDX5BHH: vps_script_drift.py cannot ssh to a VPS (BatchMode) on 3 consecutive daily runs, so script drift there is unchecked — likely the vps1 SSH path that needs FABRIK_SSH_JUMP_VPS=vps2 in /opt/fabrik/.env (W-2b657bee, D-973)"
+}

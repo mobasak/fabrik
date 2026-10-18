@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:18:53.687618Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-30df7f63",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56DEZ5XR8MWX95F4ZHK5TQ6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "re: execute-plan step 6 per D-975 — done in 0de3081c9 (archive at once, never repoint the ledger row)"
+}
