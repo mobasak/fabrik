@@ -1,6 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## `except ImportError` cannot tell a missing symbol from a missing module, and `Path.is_file()` can raise (2026-10-18)
+
+W-5feb6e9c (D-972): `check_synced_unmodified.py` guarded `from fabrik_synced_manifest import X` with `except ImportError`,
+meaning "the hub is not here". Executed on Python 3.12: a missing SYMBOL raises a plain `ImportError` whose `.name` is the
+MODULE's name — the same name an absent module carries — so only the exception TYPE (`ModuleNotFoundError`) discriminates,
+and a hub rename silently emptied two exemption lists in every project copy at once.
+- **Guard the case you mean by its own test.** "The file is absent" is `path.is_file()` before the load, never an
+  exception class caught after it; then every load failure is the producer's, and is named.
+- **The replacement guard had its own hole, found only by the review seats:** `Path.is_file()` swallows ENOENT-class
+  errors but RAISES `PermissionError` for a directory another uid owns, and `except Exception` does not catch `SystemExit`
+  (a manifest calling `sys.exit(0)` ended the gate GREEN). Enumerate the guard's input space, not just its happy and
+  absent paths.
+- **A grader's docstring is a claim too.** The repo-manifest test said it caught a non-stdlib import; a seat added
+  `import yaml` (installed in the hub venv) and it stayed green. A behaviour is graded only once a mutant of it reds.
+
 ## A fix that answers a finding's first half leaves its second half for the next round — read the whole row before closing it (2026-10-12)
 
 The Finish `/fabrik-review` of the owner-DSN split (plan `2026-10-12-plan-1-owner-dsn-split`, 20 candidates, 17 confirmed) needed a third fix
