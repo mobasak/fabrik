@@ -28,6 +28,13 @@ All notable changes to this project will be documented in this file.
   `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
   both sentences.
 
+### Fixed — kaizen_coroner --sweep exits 3 when it ran blind (2026-10-18)
+
+- `scripts/sysadmin/kaizen_coroner.py --sweep` exited 0 even when `kaizen_events` or `command_run` failed to import, or when the sweep counted an error. When that happened, it closed no records or emitted no events, and the daily `weekly_catchup.sh` job still stamped the day done, so nothing retried for 24 hours.
+- It now prints the report, names each failed import with its exception (plus the first counted error) on stderr, and exits 3. The job then retries every hour.
+- The import stays tolerant, so `kaizen_collect_v2` still loads the module (W-4bd4ea3c).
+- The deeper `sweep()` paths that count no error are tracked as W-6f46cebd.
+
 ### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
 
 - `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
