@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
   - `claim` checks the item's blockers in the store that holds it.
 - A write verb (`done`, `drop`, `answer`, `assign`, `verdict`) on such an item now names the merge it needs, instead of a bare `no item` (D-991, W-98204c50).
 
+### Changed — /fabrik-task: a review fix commit goes through the capture line; MIRROR censuses the whole AST (2026-10-18)
+
+- Phase 5's after-commit review form now says each commit a review fix makes is a run commit. It is made through step 5's capture line, so its sha lands in `commit.sha`, and the receipt is re-made after the last one as `/fabrik-review`'s exit proofs say. A sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead (the `--restamp` form). Rows 1792327651 and 1792309961's confusion read the range-tip rule as excluding fix commits.
+- MIRROR's search now names an `ast.walk` census of a Python name's readers beside the grep, never `tree.body` alone. A function-local or `try:` import sits below `tree.body`, and a string-named import, `getattr` or subprocess argv is no import node, so the grep finds it. This is row 1792303601, the second sighting of the held subject `ast-census-for-python-imports`.
+- The other five rows of the queue were rejected with their reasons: one held as advice, four answered.
+
 ### Fixed — merge_request merges work-item files key by key instead of refusing them (2026-10-18)
 
 - `merge_request.py merge` refused a branch whenever the coordinator scored an item on master after its builder closed it on the branch. This happened four times on 2026-10-18.

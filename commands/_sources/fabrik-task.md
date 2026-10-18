@@ -148,7 +148,9 @@ deleted file, other surfaces stating a changed claim, the gates that grade it �
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
 whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
-or stdout (grep its tests for `== {` and `len(`),
+or stdout (grep its tests for `== {` and `len(`), every Python reader of a name by an `ast.walk` census beside the
+grep, never `tree.body` alone (a function-local or `try:` import sits below it; a string-named import, `getattr` or
+subprocess argv is no import node, so the grep finds it),
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
 parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a
 repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the
@@ -219,7 +221,11 @@ The close re-measures every commit. At v1 an undeclared path is RECORDED as `ove
 never refused. *(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2's
 rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
-too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
+too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and
+in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line
+so its sha lands in `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a
+sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the
+`--restamp` form below):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
 --range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
