@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the synced-files check no longer swallows a missing hub manifest symbol (2026-10-18)
+
+- `scripts/enforcement/check_synced_unmodified.py` read `SEEDED_NOT_ENFORCED` and `RETIRED_VENDORED_DIRS` with
+  `from fabrik_synced_manifest import X` under `except ImportError`, which treats a missing symbol exactly like a
+  missing module: one hub rename ran the check with empty lists in every project and blamed the project for the reds.
+  It now loads the hub manifest by file location and exits 1 naming the hub when the manifest fails to load (a
+  `sys.exit` included), lacks either list, or holds one of the wrong shape. An absent or unreadable hub still degrades
+  quietly, and a drift report under a hub with no manifest file names the missing manifest. New graders in
+  `tests/test_check_synced_unmodified_manifest.py`, including one that loads this tree's manifest through the check's
+  own loader and one that keeps the manifest stdlib-only (W-5feb6e9c, D-972).
+
 ### Fixed — a merge check no longer refuses on tests that read the installed `~/.claude` corpus (2026-10-18)
 
 - `scripts/merge_request.py` runs the owner tests before the merge lands, but the corpus reaches `~/.claude` only at the
