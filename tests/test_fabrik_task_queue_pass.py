@@ -266,3 +266,13 @@ def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole
         " function-local or `try:` import sits below it; a string-named import, `getattr` or subprocess argv is no"
         " import node, so the grep finds it),"
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_measure_greps_a_work_items_cited_line_before_the_design_takes_its_wording() -> None:
+    """Row 1792330126, the second sighting of held measure-refuted-ticket-premise: a design took a work item's
+    wording about a cited file:line that did not hold the symbol the item named."""
+    assert (
+        "a failure reported with a command is replayed by that command, never a reconstruction, and a work item's cited"
+        " `path:line` is grepped here for the symbol it names, before the design takes the item's wording (MIRROR greps"
+        " every name the design uses again)."
+    ) in _section("## Phase 1", "## Phase 2")
