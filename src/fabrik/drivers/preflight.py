@@ -332,8 +332,10 @@ _NETWORK_STDERR = re.compile(
     r"|network is down|could not resolve|name or service not known",
     re.I,
 )
-# ssh's generic sign-off, which says nothing of why the connection failed
-_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)", re.I)
+# ssh's noise — its generic sign-off, a `Warning:` line (a known_hosts addition, which can name
+# an unreachable-looking host) and the `@`-ruled host-key banner; none says why it failed
+_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)|warning:|@", re.I)
+_REASON_MAX = 300  # one terminal-width-ish error line; ssh's longest (a changed host key) is ~600
 # an ssh alias as fabrik names one; anything else (a leading "-") never reaches the argv
 _ALIAS = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]*")
 
@@ -362,14 +364,16 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
     if r.returncode == 0:
         return True, False, ""
     lines = [ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()]
-    # the line that says WHY (a jumped refusal ends on a generic "Connection closed …")
-    cause = next((ln for ln in lines if _NETWORK_STDERR.search(ln)), None)
-    # else the LAST line that is not the sign-off: ssh prints the failure last, after any
-    # `Warning:` line or `@`-ruled host-key banner and before its generic sign-off
-    specific = next((ln for ln in reversed(lines) if not _SSH_NOISE.match(ln)), None)
-    fallback = specific or (lines[-1] if lines else f"rc={r.returncode}, no stderr")
-    reason = (cause or fallback).rstrip(".")
-    return False, cause is not None, reason
+    # Every line but ssh's noise, in order — no single line is picked, because which line
+    # says WHY differs by failure (a jumped refusal's cause comes first, a host-key failure's
+    # last). Tail-kept when long: ssh prints the failure last.
+    said = [ln.rstrip(".") for ln in lines if not _SSH_NOISE.match(ln)]
+    reason = "; ".join(said) or (
+        lines[-1].rstrip(".") if lines else f"rc={r.returncode}, no stderr"
+    )
+    if len(reason) > _REASON_MAX:
+        reason = "…" + reason[-_REASON_MAX:]
+    return False, any(_NETWORK_STDERR.search(ln) for ln in said), reason
 
 
 def _batch(timeout: int) -> list[str]:

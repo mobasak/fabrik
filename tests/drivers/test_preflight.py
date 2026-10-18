@@ -474,8 +474,9 @@ class TestVerifyHostReachable:
         with patch("subprocess.run", side_effect=run):
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
-        assert "stdio forwarding failed" in str(info.value)
-        assert "Connection closed" not in str(info.value)
+        msg = str(info.value)
+        assert "administratively prohibited" in msg and "stdio forwarding failed" in msg
+        assert "Connection closed" not in msg
 
     @pytest.mark.parametrize(
         "stderr, cause",
@@ -503,7 +504,34 @@ class TestVerifyHostReachable:
         with patch("subprocess.run", side_effect=run):
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
-        assert f"(as ssh config resolves it): {cause}." in str(info.value)
+        msg = str(info.value)
+        assert cause in msg
+        assert "Warning:" not in msg and "@@@" not in msg
+        assert "FABRIK_SSH_JUMP_VPS=" not in msg  # an auth/host-key failure, not the network
+
+    def test_a_warning_line_never_makes_a_failure_network_shaped(self, monkeypatch):
+        """`Warning: Permanently added 'vps-unreachable-box' …` contains 'unreachable'."""
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "Warning: Permanently added 'vps-unreachable-box' (ED25519) to the list of known hosts.\n"
+            "Permission denied (publickey).\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "FABRIK_SSH_JUMP_VPS=" not in str(info.value)
+
+    def test_a_long_reason_keeps_its_tail(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = "".join(f"line {i} of a long host-key notice\n" for i in range(40))
+        stderr += "Host key verification failed.\n"
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "Host key verification failed" in msg and "…" in msg and "line 0 " not in msg
 
     @pytest.mark.parametrize("alias", ["-oProxyCommand=x", "a b", "a;b"])
     def test_non_alias_host_is_refused_before_any_probe(self, alias):
