@@ -11,11 +11,13 @@ All notable changes to this project will be documented in this file.
   - a CSRF pass for cookie requests;
   - the body (413/400);
   - the key and model (503);
-  - one Lua script that checks the app, tenant, user and IP buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
+  - one Lua script that checks the app, tenant (for a user who has one), user and IP (when it parses) buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
 - The emitted `_http_exc` now keeps an exception's headers, so `Retry-After` reaches the client.
 - Defaults are env-overridable: 1200 requests per fixed hourly window app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens per window, up to twice that in a rolling hour that spans two windows (D-1022).
 - The project gets its own `server/tests/test_chat.py`, run against a throwaway `TEST_REDIS_URL` DB.
-- The hub proves the route and the limiter on a real throwaway `redis-server`: `tests/test_saas_chat_backend.py` and `tests/test_saas_chat_limiter_lua.py` (W-ab242b11 slice 2, D-1013, D-1022).
+- The template client (`components/chat/SSEStream.tsx`, `ChatUI.tsx`) and README target `/api/v1/chat`: the session cookie plus the CSRF header, one refresh on a 401, a 429's bucket and `Retry-After`, and a cut-off or empty reply all reach the user (D-1025).
+- The emitted test's throwaway-DB guard refuses a `TEST_REDIS_URL` on the app's own server and DB, whichever of the environment, the root `.env`, `.env.local` or `server/.env` names it, and refuses an app URL it cannot read.
+- The hub proves the route and the limiter on a real throwaway `redis-server`, and the client by running its hook under node: `tests/test_saas_chat_backend.py`, `tests/test_saas_chat_limiter_lua.py` and `tests/test_saas_chat_client_template.py` (W-ab242b11 slice 2, D-1013, D-1022, D-1025).
 
 ### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
 

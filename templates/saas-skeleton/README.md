@@ -23,8 +23,8 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env — frontend needs NEXT_PUBLIC_API_URL; the backend
-# (server/.env) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
+# Edit .env — frontend needs NEXT_PUBLIC_API_URL; the same root .env (compose's
+# env_file for the api and worker) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
 
 # Start development
 npm run dev
@@ -81,12 +81,15 @@ export default function ChatPage() {
 ```
 
 `ChatUI` sends only `{ message }` with the session cookie and the `X-CSRF-Token` header, and renders
-the `text_delta` / `done` / `error` SSE events it receives. The model's instructions are the server
-constant `CHAT_SYSTEM_PROMPT`, never part of the request.
+the `text_delta` / `done` / `error` SSE events it receives. On a 401 it refreshes the session once
+through `/auth/refresh` and retries; a stream that ends without `done` or `error` shows "The reply
+was cut off", and a finished reply with no text shows "The model returned an empty reply". The
+model's instructions are the server constant `CHAT_SYSTEM_PROMPT`, never part of the request.
 
 ### Turning chat on
 
-1. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (in the spec's `secrets.from_env` or `.env`). Either
+1. Set `OPENROUTER_API_KEY` (the spec's `secrets.from_env` lists it) and `OPENROUTER_MODEL` (in the
+   root `.env`; it is not a secret, so it is not listed). Either
    one empty means chat answers a signed-in user's valid request with 503 (a signed-out caller still
    gets 401, a bad body 400 or 413).
 2. Keep `shape.needs_cache: true` (the default), so `REDIS_URL` is set. Without Redis, chat answers 503.
@@ -107,10 +110,13 @@ own port proxies neither, so a chat request there reaches Next and is a 404.
 Up to four buckets must all pass, checked together before any is counted: the whole app
 (`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600; only for a user who
 belongs to one), the user (`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per
-/64; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
+/64, an IPv6 address carrying an IPv4 one as that IPv4; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
 each starting at its bucket's first request, so at the defaults the app produces at most
 1200 × 1024 = 1,228,800 output tokens per window, and up to twice that in any one rolling hour that
 spans two windows; multiply by your model's price to get the ceiling in money.
+
+A message over `CHAT_MAX_MESSAGE_CHARS` (4000) is a 400, a body over `CHAT_MAX_BODY_BYTES` (64 KiB)
+a 413, and a malformed `CHAT_*` value fails the app at start.
 
 `CHAT_MAX_TOKENS` (default 1024) bounds each reply. On a reasoning model it covers the reasoning and
 the visible reply together, so a small value can return an empty reply that stopped at the limit;
@@ -162,12 +168,13 @@ deploy it as its own service (its `nginx.conf` serves the static build). See
 # Frontend (Pattern A: no DB/auth secrets — just the backend API base URL)
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# Backend (server/.env) — the IdP owns these:
+# Backend (the same root .env; compose's env_file hands it to the api and worker) — the IdP owns these:
 #   DATABASE_URL=postgresql://…@postgres-main:5432/<db>
-#   REDIS_URL=redis://redis-main:6379/0
+#   REDIS_URL=redis://redis-main:6379/<n>   (fabrik apply assigns the app its own DB, 1-15)
 #   JWT_SECRET=<32+ char secret>
 #   OPENROUTER_API_KEY=, OPENROUTER_MODEL=   chat (see "Turning chat on" above)
 #   CHAT_RATE_*, CHAT_MAX_*, CHAT_UPSTREAM_READ_TIMEOUT   chat limits (see "Limits and cost")
+#   TEST_REDIS_URL=   the chat tests' throwaway Redis DB (server/tests/test_chat.py only)
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS

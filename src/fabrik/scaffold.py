@@ -2801,16 +2801,17 @@ Read only by `server/src/<pkg>/chat.py`. Signed-in users only; Redis (`REDIS_URL
 | `OPENROUTER_API_KEY` | — (secret) | The model key. Empty means chat answers 503. Never a `NEXT_PUBLIC_` name. |
 | `OPENROUTER_MODEL` | — | The model id. Empty means chat answers 503. |
 | `CHAT_RATE_APP` | `1200/3600` | `<count>/<seconds>` for the whole app. |
-| `CHAT_RATE_TENANT` | `600/3600` | Per tenant. |
+| `CHAT_RATE_TENANT` | `600/3600` | Per tenant; only for a user who belongs to one. |
 | `CHAT_RATE_USER` | `60/3600` | Per signed-in user. |
-| `CHAT_RATE_IP` | `120/3600` | Per client IP (IPv6 per /64). |
+| `CHAT_RATE_IP` | `120/3600` | Per client IP (IPv6 per /64; an IPv6 address carrying an IPv4 one as that IPv4); skipped when the IP does not parse. |
 | `CHAT_MAX_TOKENS` | `1024` | Max output tokens per request. |
 | `CHAT_MAX_MESSAGE_CHARS` | `4000` | Longest message accepted (400 above it). |
 | `CHAT_MAX_BODY_BYTES` | `65536` | Largest request body (413 above it). |
 | `CHAT_UPSTREAM_READ_TIMEOUT` | `60` | Seconds to wait between streamed chunks. |
 | `TEST_REDIS_URL` | — | `server/tests/test_chat.py` only: a throwaway Redis, never DB 0, never `REDIS_URL`. |
 
-A malformed `CHAT_*` value fails the app at start.
+A malformed `CHAT_*` value fails the app at start: a rate that is not `<count>/<seconds>` with both
+at least 1 and the window at most 31622400 (366 days), or a number that is not positive and finite.
 """
 
 # The emitted chat route (W-ab242b11 slice 2; spec docs/superpowers/specs/2026-10-18-saas-skeleton-
