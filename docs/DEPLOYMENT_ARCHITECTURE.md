@@ -765,6 +765,7 @@ Python: always `python-dotenv` or `pydantic-settings`.
 | Variable | Used by | Source |
 |---|---|---|
 | `FABRIK_VPS_SSH_HOST` | `drivers/ssh.py`, `drivers/locks.py` | Defaults to `vps`; set in `~/.ssh/config` |
+| `FABRIK_SSH_JUMP_<ALIAS>` | `drivers/ssh.py`, `drivers/dns.py`, `audit.py`, `drivers/preflight.py` (called by `orchestrator/__init__.py`) | Opt-in, per box: a ProxyJump for one alias (`docs/CONFIGURATION.md` § SSH jump) |
 | `SITE_PROVISIONER_API_KEY` | `drivers/dns.py` | site-provisioner admin |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` | `drivers/cloudflare.py` fallback | Cloudflare dashboard |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `drivers/grafana.py` | Grafana → Service Accounts |

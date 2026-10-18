@@ -280,7 +280,7 @@
 - [scripts/sysadmin/mcp_orphan_reaper.py](../INDEX.md) (owner: infra): Reap stdio MCP server processes whose Claude Code session is gone (operator mail 01M4AR32MY).
 - [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
 - [scripts/sysadmin/prune_transcripts.py](../INDEX.md) (owner: infra): prune_transcripts — Phase C.2/C.3 of the session-history retention plan (D-736).
-- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The account-quota dashboard: a localhost page showing every Claude account's session +
+- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The command centre (plan 2026-10-17-plan-1): the localhost board the operator leaves open — six
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 - [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
 - [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen

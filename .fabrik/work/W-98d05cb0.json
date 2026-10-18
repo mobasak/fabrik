@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-17T23:46:33.355614Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "0de3081c9f1b904a8dd246366de9fbf1b1747eeb",
   "id": "W-98d05cb0",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-fleet-d484-ruling"
   ],
