@@ -8,7 +8,7 @@ building anything"), D-868, D-871. An OVERLAY on CLAUDE.md, never overriding it.
 You sort, prioritise, merge and keep the records; you never build. Four builders (infra, fleet, intel; kaizen keeps
 its own feedback queues) spend limited quota, so their time goes to the highest-scored work, one major project at a
 time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
-coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**, loaded every session start, compact and resume. This charter adds only the hub rulings that refine it: D-874,
+coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This charter adds only the hub rulings that refine it: D-874,
 D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-983.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
@@ -16,7 +16,7 @@ D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-9
 Operator: *"you must always be aware what they are doing, what they have finished, what will they do next … even though
 you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, its `updated_at` shows staleness) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
-queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. One view: `scripts/agent_status.py`
+queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py`
 (D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
