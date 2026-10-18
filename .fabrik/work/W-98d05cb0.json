@@ -13,8 +13,11 @@
   },
   "next": "Wait for fleet's keep/retire ruling on D-484; if retired, change step 6 to: archive now, never repoint an existing DECISIONS row, the row keeps its pre-archive path; pins in tests/test_execute_plan_d7.py",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-fleet-d484-ruling"
+  ],
   "title": "execute-plan Finish step 6: simplify the archive rule if fleet retires D-484's stay-in-place rule (intel 01M562393B, D-965)"
 }
