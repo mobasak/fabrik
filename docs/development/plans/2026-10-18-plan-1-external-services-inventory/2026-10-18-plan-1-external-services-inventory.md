@@ -1,6 +1,6 @@
 # Plan — the external-services inventory, rendered by one page-layer function into the board and the chain's file (W-3e9e2f4c)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** infra
 
 Spec: `docs/superpowers/specs/2026-10-18-external-services-page-design.md` — CONVERGED, approved by the Opus + Fable panel
@@ -49,7 +49,7 @@ W-7e467f2d (the stalled classifier, spec I8).
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | Page-layer additions | — | ⚡ | ⬜ | |
+| T01 | Page-layer additions | — | ⚡ | 🔵 | |
 | T02 | The inventory module | T01 | ⛓️ | ⬜ | |
 | T03 | The static file; dashboard_server retired | T02 | ⛓️ | ⬜ | |
 | T04 | Integration | T01, T02, T03 | ⛓️ | ⬜ | |
