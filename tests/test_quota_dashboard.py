@@ -1841,32 +1841,6 @@ def test_the_views_are_six_in_navigation_order_and_the_commands_list_every_sourc
         assert col in heads, col
 
 
-def test_the_services_view_links_the_external_services_page_and_states_its_age(
-    tmp_path, monkeypatch
-):
-    """The External tab's lazy iframe is retired (INV-3: no iframe): the Services view states the
-    page's age and links it, opening in its own tab; with no page yet it says so and links nothing."""
-    qd = _load(tmp_path, monkeypatch)
-    page = tmp_path / "external-services-dashboard.html"
-    page.write_text("<html></html>", encoding="utf-8")
-    old = time.time() - 10 * 3600
-    os.utime(page, (old, old))
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
-    html_ = _view(qd, "services")
-    assert "<iframe" not in html_
-    # the phrase SHAPE is pinned: reusing `_fmt_age` once produced "regenerated cached 10h ago ago"
-    assert re.search(r"regenerated 10\.0 h ago by the daily chain", _text(html_))
-    link = _find(_dom(html_), "a", href="/external-services.html")
-    assert (
-        link and link[0].attrs.get("target") == "_blank" and link[0].attrs.get("rel") == "noopener"
-    )
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", tmp_path / "missing.html")
-    absent = _view(qd, "services")
-    assert "not generated yet" in _text(absent) and not _find(
-        _dom(absent), "a", href="/external-services.html"
-    )
-
-
 def _pool_view(qd, monkeypatch, credits: dict) -> str:
     with monkeypatch.context() as m:
         m.setattr(qd, "_pool_credits", lambda *_a, **_k: credits)
@@ -2234,48 +2208,698 @@ def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_pa
     assert "Command corpus unreadable" in _text(_commands(qd))
 
 
-# ── External-services tab (operator ask 2026-09-03; seen RED first) ───────────────────────────
+# ── The external-services inventory in the Services view (plan 2026-10-18-plan-1, T04) ──────────
+# The registry is read by a child process (scripts/sysadmin/inventory_read.py) the collector spawns and
+# kills at the read's deadline. Every test here uses the shared isolation's stub spawn or a fake child
+# of its own; the two that run the REAL child point it at a socket that never answers or at a script
+# that never ends. No test reads the real registry.
 
 
-def test_external_services_page_is_served_from_the_static_file_and_404s_when_absent(
+class _Ctx:
+    now = 0.0
+
+
+def _inv_data(qd):
+    return qd._inventory(_Ctx())
+
+
+class _FakeChild:
+    """A child that answers when released, never when not, and ends when killed — the three things
+    the collector's waiter thread asks of a ``Popen``."""
+
+    def __init__(
+        self, stdout: bytes = b"", code: int = 0, *, answers: bool = True, at_once: bool = False
+    ):
+        import threading
+
+        self.stdout, self.code, self.answers = stdout, code, answers
+        self.wake = threading.Event()
+        if at_once:
+            self.wake.set()
+        self.killed = threading.Event()
+        self.returncode = None
+
+    def release(self) -> None:
+        self.wake.set()
+
+    def communicate(self, timeout=None):
+        if not self.killed.is_set():
+            self.wake.wait(timeout)
+        if self.killed.is_set():
+            self.returncode = -9
+            return b"", b""
+        if not (self.wake.is_set() and self.answers):
+            raise subprocess.TimeoutExpired("inventory_read", timeout or 0)
+        self.returncode = self.code
+        return self.stdout, b""
+
+    def kill(self) -> None:
+        self.killed.set()
+        self.wake.set()
+
+
+def _fake_children(qd, monkeypatch, **kw):
+    spawned: list[_FakeChild] = []
+
+    def spawn(deadline):
+        child = _FakeChild(**kw)
+        spawned.append(child)
+        return child
+
+    monkeypatch.setattr(qd, "_inventory_spawn", spawn)
+    return spawned
+
+
+def _rows_json(rows=None, synced=1_790_000_000.0) -> bytes:
+    return json.dumps(
+        {"rows": [{"provider": "p"}] if rows is None else rows, "synced_at": synced}
+    ).encode()
+
+
+def _fast_deadlines(qd, monkeypatch, request_s=0.8, read_s=0.6):
+    monkeypatch.setattr(qd, "INVENTORY_REQUEST_S", request_s)
+    monkeypatch.setattr(qd, "INVENTORY_READ_S", read_s)
+
+
+def _call_in_thread(qd, results: list, *, start_gap: float = 0.0):
+    import threading
+
+    def run():
+        t0 = time.monotonic()
+        out = _inv_data(qd)
+        results.append((out, time.monotonic() - t0))
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    if start_gap:
+        time.sleep(start_gap)
+    return th
+
+
+def test_a_board_test_never_reaches_the_registry(tmp_path, monkeypatch):
+    """Isolation (spec § Validation): the spawn is the stub, the DSN names a socket directory that
+    does not exist, the 60 s slot is empty, and a Services render reads the census fixture through
+    the stub — one spawn, no process."""
+    qd = _load(tmp_path, monkeypatch)
+    stub = qd.INVENTORY_STUB
+    assert qd._inv_good is None and qd._inv_flight is None
+    assert qd._inventory_spawn == stub.spawn
+    dsn = os.environ["SERVICES_REGISTRY_DSN"]
+    assert "host=" in dsn and not Path(dsn.split("host=", 1)[1]).exists()
+    text = _text(_view(qd, "services"))
+    assert "466 providers" in text and len(stub.spawns) == 1
+
+
+def test_the_board_process_imports_neither_registry_db_nor_psycopg2(tmp_path):
+    """D9: psycopg2 lives in the child only. A fresh interpreter loads the board, renders the Services
+    view through a stubbed spawn, and reports whether either module was ever imported."""
+    script = tmp_path / "probe.py"
+    script.write_text(
+        "import importlib.util, json, sys\n"
+        f"spec = importlib.util.spec_from_file_location('qd_probe', {str(_SRC)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "class C:\n"
+        "    returncode = 0\n"
+        "    def communicate(self, timeout=None):\n"
+        "        return json.dumps({'rows': [], 'synced_at': None}).encode(), b''\n"
+        "m._inventory_spawn = lambda deadline: C()\n"
+        "html = m._render_view('services')\n"
+        "print(json.dumps({'psycopg2': 'psycopg2' in sys.modules,\n"
+        "                  'registry_db': 'registry_db' in sys.modules,\n"
+        "                  'rendered': 'data-view-root=\"services\"' in html}))\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "HOME": str(tmp_path), "QUOTA_DASH_BUDGET": "0", "NO_PROXY": "*"}
+    for var in ("PYTHONPATH", "SERVICES_REGISTRY_DSN"):
+        env.pop(var, None)
+    out = subprocess.run(
+        [sys.executable, "-I", str(script)], capture_output=True, text=True, timeout=60, env=env
+    )
+    assert out.returncode == 0, out.stderr[-500:]
+    assert json.loads(out.stdout.splitlines()[-1]) == {
+        "psycopg2": False,
+        "registry_db": False,
+        "rendered": True,
+    }
+
+
+def test_a_registry_that_accepts_and_never_answers_is_the_error_state_within_five_seconds(
+    tmp_path, monkeypatch
+):
+    """The REAL child against a loopback server that accepts and never answers: the section shows its
+    error state with the failure's class and first line, inside 5 s; the child is gone; the pool and
+    API cards render beside it."""
+    import socket
+
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(5)
+    held: list = []
+    stop = False
+
+    def accept_and_hold():
+        srv.settimeout(0.2)
+        while not stop:
+            try:
+                held.append(srv.accept()[0])
+            except OSError:
+                continue
+
+    import threading
+
+    threading.Thread(target=accept_and_hold, daemon=True).start()
+    monkeypatch.setenv(
+        "SERVICES_REGISTRY_DSN", f"postgresql://u@127.0.0.1:{srv.getsockname()[1]}/none"
+    )
+    procs: list = []
+    real_spawn = qd._inventory_spawn
+
+    def recording_spawn(deadline):
+        procs.append(real_spawn(deadline))
+        return procs[-1]
+
+    monkeypatch.setattr(qd, "_inventory_spawn", recording_spawn)
+    monkeypatch.setattr(
+        qd,
+        "_pool_credits",
+        lambda *_a, **_k: {
+            "granted": 245.0,
+            "used": 225.0,
+            "remaining": 20.0,
+            "age_s": 0.0,
+            "stale": False,
+        },
+    )
+    t0 = time.monotonic()
+    try:
+        html_ = _view(qd, "services")
+    finally:
+        stop = True
+        for c in held:
+            c.close()
+        srv.close()
+    took = time.monotonic() - t0
+    text = _text(html_)
+    assert took < 5.0, took
+    assert "The external-services inventory could not be read: " in text
+    assert re.search(r"could not be read: [A-Za-z]+(Error|Timeout|Failed): \S", text), text[-400:]
+    assert "OpenRouter pool" in text and "Search-API quota" in text
+    assert procs and procs[0].poll() is not None  # the child is gone
+    assert "\n" not in re.search(r"could not be read: ([^<]*)", html_).group(1)
+
+
+def test_a_child_that_never_ends_is_killed_at_the_read_deadline_and_reaped(tmp_path, monkeypatch):
+    """A script that sleeps for a minute stands for a read a server stalls: the request ends inside
+    its 5 s with the timeout's one line, the child is dead, and both its pipes are closed."""
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    sleeper = tmp_path / "sleeper.py"
+    sleeper.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+    monkeypatch.setattr(qd, "_INVENTORY_READ", sleeper)
+    procs: list = []
+    real_spawn = qd._inventory_spawn
+
+    def recording_spawn(deadline):
+        procs.append(real_spawn(deadline))
+        return procs[-1]
+
+    monkeypatch.setattr(qd, "_inventory_spawn", recording_spawn)
+    t0 = time.monotonic()
+    out = _inv_data(qd)
+    took = time.monotonic() - t0
+    assert out == {"error": "ReadTimeout: registry read killed at its deadline"}
+    assert 4.0 < took < 5.0, took
+    assert len(procs) == 1 and procs[0].poll() is not None
+    assert procs[0].stdout.closed and procs[0].stderr.closed
+    assert qd._inv_flight is None
+
+
+def test_the_read_deadline_leaves_the_request_room_to_kill_clean_up_and_render(
+    tmp_path, monkeypatch
+):
+    """The arithmetic the whole bound rests on: a read's deadline is 4.5 s after its spawning request's
+    arrival, inside that request's 5 s, with half a second for the kill, the reap and the render."""
+    mod = _load(tmp_path, monkeypatch)
+    assert (mod.INVENTORY_REQUEST_S, mod.INVENTORY_READ_S, mod.INVENTORY_FRESH_S) == (
+        5.0,
+        4.5,
+        60.0,
+    )
+    assert mod.INVENTORY_REQUEST_S - mod.INVENTORY_READ_S >= 0.5
+
+
+def test_concurrent_requests_share_one_child_and_each_gets_the_result(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, stdout=_rows_json(), answers=True)
+    _fast_deadlines(qd, monkeypatch, request_s=3.0, read_s=2.5)
+    results: list = []
+    first = _call_in_thread(qd, results, start_gap=0.2)
+    second = _call_in_thread(qd, results, start_gap=0.2)
+    assert len(spawned) == 1 and qd._inv_flight is not None  # one child in flight, two waiting
+    spawned[0].release()
+    first.join(5)
+    second.join(5)
+    assert len(spawned) == 1 and len(results) == 2
+    assert all(r[0]["rows"] == [{"provider": "p"}] for r in results), results
+    assert qd._inv_flight is None  # cleared on exit
+
+
+def test_every_request_without_a_fresh_result_is_the_error_state_within_its_own_deadline(
+    tmp_path, monkeypatch
+):
+    """A child that never answers, a joiner arriving later: both answer the error state, each inside
+    5 s (here the scaled 0.8 s) of its OWN arrival, the child is killed, and the field is clear."""
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, answers=False)
+    _fast_deadlines(qd, monkeypatch, request_s=0.8, read_s=0.6)
+    results: list = []
+    a = _call_in_thread(qd, results, start_gap=0.3)
+    b = _call_in_thread(qd, results)
+    a.join(5)
+    b.join(5)
+    assert len(spawned) == 1 and spawned[0].killed.is_set()
+    assert [r[0] for r in results] == [{"error": qd._INV_TIMEOUT}] * 2
+    assert all(r[1] < 0.8 + 0.25 for r in results), [r[1] for r in results]  # its own 5 s, scaled
+    assert qd._inv_flight is None
+    # the next request starts afresh: a new child, not a join of the dead one
+    _inv_data(qd)
+    assert len(spawned) == 2
+
+
+def test_a_failed_child_is_the_error_state_and_leaves_the_last_good_read(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    good = ([{"provider": "kept"}], 1.0, time.monotonic() - 61)  # past its 60 s, still held
+    monkeypatch.setattr(qd, "_inv_good", good)
+    _fake_children(
+        qd,
+        monkeypatch,
+        stdout=json.dumps({"error": "OperationalError: no route"}).encode(),
+        code=1,
+        at_once=True,
+    )
+    for _ in range(2):  # a failure is not cached: both requests read, both fail
+        out = _inv_data(qd)
+        assert out == {"error": "OperationalError: no route"}
+        assert qd._inv_good is good  # the failed read never replaced it
+        assert qd._inv_flight is None  # and the field cleared, so the next request starts afresh
+
+
+def test_the_last_good_read_is_served_inside_its_60_seconds_and_a_new_child_starts_past_them(
     tmp_path, monkeypatch
 ):
     qd = _load(tmp_path, monkeypatch)
-    page = tmp_path / "external-services-dashboard.html"
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
-    httpd, base = _serve(qd)
+    fresh = _rows_json([{"provider": "new"}])
+    spawned = _fake_children(qd, monkeypatch, stdout=fresh)
+    monkeypatch.setattr(qd, "_inv_good", ([{"provider": "old"}], 5.0, time.monotonic() - 59))
+    assert (
+        _inv_data(qd)["rows"] == [{"provider": "old"}] and spawned == []
+    )  # 59 s: served, no child
+    monkeypatch.setattr(qd, "_inv_good", ([{"provider": "old"}], 5.0, time.monotonic() - 61))
+    out: list = []
+    th = _call_in_thread(qd, out, start_gap=0.2)
+    assert len(spawned) == 1  # 61 s: a new child
+    spawned[0].release()
+    th.join(5)
+    assert out[0][0]["rows"] == [{"provider": "new"}]
+    assert qd._inv_good[0] == [{"provider": "new"}]
+
+
+def test_a_request_held_on_the_lock_answers_inside_its_own_deadline(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, stdout=_rows_json())
+    _fast_deadlines(qd, monkeypatch, request_s=0.4, read_s=0.3)
+    # the lock acquire is bounded by the constant the request reads, so the scaled value applies
+    qd._inv_lock.acquire()
     try:
-        with pytest.raises(urllib.error.HTTPError) as e:
-            urllib.request.urlopen(base + "/external-services.html", timeout=10)
-        assert e.value.code == 404
-        page.write_text(
-            "<html><title>External Services</title><body>ok</body></html>", encoding="utf-8"
-        )
-        with urllib.request.urlopen(base + "/external-services.html", timeout=10) as r:
-            assert r.status == 200 and "text/html" in r.headers["Content-Type"]
-            assert b"External Services" in r.read()
+        results: list = []
+        _call_in_thread(qd, results).join(5)
     finally:
-        httpd.shutdown()
+        qd._inv_lock.release()
+    assert results[0][0] == {"error": qd._INV_TIMEOUT} and results[0][1] < 0.4 + 0.25
+    assert spawned == []
 
 
-def test_external_services_route_serves_only_a_regular_html_file(tmp_path, monkeypatch):
-    """Review: the env override followed a symlink to /etc/hostname. A directory, a symlink whose
-    name is not .html, or a non-.html file all 404 — the single-operator threat model is stated in
-    the route comment; this is the cheap guard that still makes the measured leak impossible."""
-    import os
+def test_a_spawn_that_raises_is_the_error_state_and_clears_the_field(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+
+    def broken(deadline):
+        raise OSError("fork failed")
+
+    monkeypatch.setattr(qd, "_inventory_spawn", broken)
+    assert _inv_data(qd) == {"error": "OSError: fork failed"}
+    assert qd._inv_flight is None and qd._inv_good is None
+
+
+def test_a_thread_that_cannot_start_clears_the_field_so_the_next_request_starts_afresh(
+    tmp_path, monkeypatch
+):
+    import threading
 
     qd = _load(tmp_path, monkeypatch)
-    link = tmp_path / "l"
-    os.symlink("/etc/hostname", link)
+    real_start = threading.Thread.start
+
+    def refuse(self):
+        if self.name == "inventory-read":
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    assert _inv_data(qd) == {"error": "RuntimeError: can't start new thread"}
+    assert qd._inv_flight is None
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    assert "rows" in _inv_data(qd)  # the stub answers: nothing stayed stuck in flight
+
+
+def test_no_connection_is_ever_cancelled_and_the_board_never_imports_a_driver():
+    """psycopg2's cancel() against a server that accepts and never answers froze every thread of the
+    process (the plan review's pass-3 probe): the child's kill is the only way a read ends."""
+    child = (_SRC.parent / "inventory_read.py").read_text(encoding="utf-8")
+    board = _SRC.read_text(encoding="utf-8")
+    assert not re.search(r"\.cancel\s*\(|\bcancel\s*\(", child)
+    assert not re.search(
+        r"\.cancel\s*\(",
+        board[board.index("def _inventory_spawn") : board.index("def _pointer_slug")],
+    )
+    code = "\n".join(line for line in board.splitlines() if not line.lstrip().startswith("#"))
+    assert not re.search(r"^\s*(import|from)\s+(psycopg2|registry_db)\b", code, re.M)
+
+
+@pytest.mark.parametrize(
+    "stdout,code,want",
+    [
+        (b'{"rows": [{"a": 1}], "synced_at": 5.5}', 0, ("ok", [{"a": 1}], 5.5)),
+        (b'{"rows": [], "synced_at": null}', 0, ("ok", [], None)),
+        (b'{"error": "ValueError: bad\\nsecond line"}', 1, ("err", "ValueError: bad")),
+        (
+            b'{"error": "X: y"}',
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),  # shape against exit status
+        (b'{"rows": [], "synced_at": null}', 1, ("err", "ReadFailed: exit status 1")),
+        (
+            b'{"rows": [], "synced_at": null, "error": "X: y"}',
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),
+        (b'{"rows": {}, "synced_at": null}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [1], "synced_at": null}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": "yesterday"}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": true}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"error": 5}', 1, ("err", "ReadFailed: exit status 1")),
+        (b"[]", 0, ("err", "ReadFailed: exit status 0")),
+        (b"not json", 0, ("err", "ReadFailed: exit status 0")),
+        (b"", -9, ("err", "ReadFailed: exit status -9")),
+        (b"\xff\xfe", 1, ("err", "ReadFailed: exit status 1")),
+    ],
+)
+def test_the_childs_stdout_and_exit_status_are_one_outcome(
+    tmp_path, monkeypatch, stdout, code, want
+):
+    qd = _load(tmp_path, monkeypatch)
+    assert qd._inventory_outcome(stdout, code) == want
+
+
+def test_a_child_that_cannot_import_psycopg2_is_only_the_inventory_sections_error_state(
+    tmp_path, monkeypatch
+):
+    """D9: a missing driver fails the CHILD. The error object names the import's exception class
+    whatever the child's stderr holds (here it prints a decoy `{"error": …}` line), every other view
+    serves, and the board process never imported psycopg2."""
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    (blocked / "psycopg2.py").write_text(
+        "import sys\n"
+        'sys.stderr.write(\'{"error": "Decoy: stderr is never read"}\\n\')\n'
+        "raise ModuleNotFoundError(\"No module named 'psycopg2'\", name='psycopg2')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PYTHONPATH", str(blocked))
+    out = _inv_data(qd)
+    assert out == {"error": "ModuleNotFoundError: No module named 'psycopg2'"}
+    html_ = _view(qd, "services")
+    assert "could not be read: ModuleNotFoundError: No module named" in _text(html_)
+    assert "Decoy" not in html_
+    for name in qd._views.VIEWS:
+        if name != "services":
+            assert 'data-state="error"' not in _view(qd, name).split(">", 1)[0], name
+    assert "psycopg2" not in sys.modules or sys.modules["psycopg2"].__file__ != str(
+        blocked / "psycopg2.py"
+    )
+
+
+def test_external_services_html_is_a_303_to_the_inventory_section_with_no_body(
+    tmp_path, monkeypatch
+):
+    from datetime import date
+
+    qd = _load(tmp_path, monkeypatch)
     httpd, base = _serve(qd)
     try:
-        for target in (tmp_path, link, tmp_path / "nope.html"):
-            monkeypatch.setattr(qd, "EXT_SERVICES_HTML", target)
-            with pytest.raises(urllib.error.HTTPError) as e:
-                urllib.request.urlopen(base + "/external-services.html", timeout=10)
-            assert e.value.code == 404, target
+        for path in ("/external-services.html", "/external-services.html?x=1"):
+            status, hdrs, body = _get(base, path)
+            assert status == 303 and hdrs["Location"] == "/#services" and body == b"", (
+                path,
+                status,
+            )
+            assert hdrs["Content-Length"] == "0" and hdrs["Cache-Control"] == "no-store"
+        assert (
+            qd._LEGACY_TOKEN_UNTIL is not None
+        )  # the redirect is not tied to the work-verdict window
+        monkeypatch.setattr(
+            qd, "_LEGACY_TOKEN_UNTIL", date(2000, 1, 1)
+        )  # that window closed long ago
+        assert _get(base, "/external-services.html")[0] == 303
     finally:
         httpd.shutdown()
+
+
+def test_no_link_card_ext_page_key_or_services_ext_string_remains(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    data = qd._view_data("services", type("C", (), {"now": time.time()})())
+    assert "ext_page" not in data and "inventory" in data
+    assert not [k for k in qd._strings.CATALOGUE if k.startswith("services.ext.")]
+    assert not hasattr(qd, "EXT_SERVICES_HTML")
+    source = _SRC.read_text(encoding="utf-8")
+    assert "QUOTA_DASH_EXT_SERVICES" not in source
+    html_ = _view(qd, "services")
+    assert (
+        'href="/external-services.html"' not in html_ and "external-services-dashboard" not in html_
+    )
+
+
+def test_the_inventory_reads_the_classifiers_last_run_from_its_stamp_file(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    assert _inv_data(qd)["classified_at"] is None or isinstance(
+        _inv_data(qd)["classified_at"], float
+    )
+    stamp = tmp_path / "classify_last.json"
+    stamp.write_text("{}", encoding="utf-8")
+    os.utime(stamp, (1_700_000_000, 1_700_000_000))
+    monkeypatch.setattr(qd, "_CLASSIFY_STAMP", stamp)
+    assert _inv_data(qd)["classified_at"] == 1_700_000_000.0
+    monkeypatch.setattr(qd, "_CLASSIFY_STAMP", tmp_path / "absent.json")
+    assert _inv_data(qd)["classified_at"] is None
+
+
+def test_two_renders_of_the_services_view_a_minute_apart_carry_the_same_data_stamp(
+    tmp_path, monkeypatch
+):
+    """Spec § Data flow: the stamp hashes the markup, so a render must not carry the clock — the
+    summary, the attention list and the rows are the registry's, the same registry gives the same stamp."""
+    qd = _load(tmp_path, monkeypatch)
+    real_time = time.time
+
+    def stamp_of(html_: str) -> str:
+        root = re.match(r"<section[^>]*>", html_.strip()).group(0)
+        assert 'data-view-root="services"' in root
+        return re.search(r'data-stamp="([0-9a-f]{16})"', root).group(1)
+
+    first = stamp_of(_view(qd, "services"))
+    monkeypatch.setattr(qd.time, "time", lambda: real_time() + 60)
+    monkeypatch.setattr(qd, "_inv_good", None)  # a read, not the cache
+    second = stamp_of(_view(qd, "services"))
+    assert len(qd.INVENTORY_STUB.spawns) == 2 and first == second
+
+
+# ── the child process itself (scripts/sysadmin/inventory_read.py) ────────────────────────────
+
+_CHILD = _SRC.parent / "inventory_read.py"
+
+
+def _child_module(monkeypatch):
+    """The child's module, loaded by path, with the registry's driver module and the reader faked:
+    nothing here connects to anything."""
+    monkeypatch.syspath_prepend(str(_SRC.parents[1]))
+    monkeypatch.syspath_prepend(str(_SRC.parent))
+    spec = importlib.util.spec_from_file_location("inventory_read_under_test", _CHILD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class _OneWrite:
+    def __init__(self):
+        self.writes: list[str] = []
+
+    def write(self, text):
+        self.writes.append(text)
+
+    def flush(self):
+        pass
+
+
+def test_the_child_reports_a_read_as_one_json_object_with_floats_for_decimals(monkeypatch):
+    from decimal import Decimal
+
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    seen: dict = {}
+
+    class Conn:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    conn = Conn()
+
+    def connect(**kw):
+        seen["kw"] = kw
+        return conn
+
+    def load(c, *, before_query=None):
+        assert c is conn and before_query is not None
+        return [
+            {
+                "provider": "p",
+                "balance": Decimal("12.50"),
+                "projects": {"b", "a"},
+                "keys": 2,
+                "x": None,
+            },
+        ], Decimal("1790000000.5")
+
+    monkeypatch.setattr(registry_db, "connect", connect)
+    monkeypatch.setattr(inventory, "load", load)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    code = child.main(["inventory_read.py", "--deadline", str(time.time() + 4)])
+    assert code == 0 and len(out.writes) == 1  # ONE write, the whole object
+    obj = json.loads(out.writes[0])
+    assert obj == {
+        "rows": [{"provider": "p", "balance": 12.5, "projects": ["a", "b"], "keys": 2, "x": None}],
+        "synced_at": 1790000000.5,
+    }
+    assert isinstance(obj["rows"][0]["balance"], float)
+    assert seen["kw"] == {"connect_timeout": 2, "options": "-c statement_timeout=2000"}
+    assert conn.closed  # closed on success
+
+
+def test_the_child_re_arms_the_statement_timeout_to_the_deadline_left_never_below_one_ms(
+    monkeypatch,
+):
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    class Cur:
+        def __init__(self):
+            self.sql: list[str] = []
+
+        def execute(self, sql):
+            self.sql.append(sql)
+
+    cur = Cur()
+    conn = type("Conn", (), {"close": lambda self: None})()
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
+
+    def load(c, *, before_query=None):
+        before_query(cur)
+        return [], None
+
+    monkeypatch.setattr(inventory, "load", load)
+    for deadline_in, low, high in ((3.0, 2500, 3000), (0.0004, 1, 1), (-5.0, 1, 1)):
+        cur.sql.clear()
+        monkeypatch.setattr(sys, "stdout", _OneWrite())
+        assert child.main(["x", "--deadline", repr(time.time() + deadline_in)]) == 0
+        (stmt,) = cur.sql
+        ms = int(re.fullmatch(r"SET LOCAL statement_timeout = (\d+)", stmt).group(1))
+        assert low <= ms <= high, (deadline_in, ms)  # 0 would DISABLE the bound in Postgres
+
+
+@pytest.mark.parametrize(
+    "argv,starts",
+    [
+        (["x"], "ValueError: usage"),
+        (["x", "--deadline"], "ValueError: usage"),
+        (["x", "--deadline", "soon"], "ValueError: could not convert string to float"),
+        (["x", "--bogus", "1"], "ValueError: usage"),
+        (["x", "--deadline", "1", "extra"], "ValueError: usage"),
+    ],
+)
+def test_the_child_reports_a_bad_argv_the_same_way_as_any_failure(monkeypatch, argv, starts):
+    child = _child_module(monkeypatch)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(argv) == 1 and len(out.writes) == 1
+    err = json.loads(out.writes[0])["error"]
+    assert err.startswith(starts) and "\n" not in err
+
+
+def test_the_child_closes_the_connection_and_reports_the_first_line_when_the_read_fails(
+    monkeypatch,
+):
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    conn = type(
+        "Conn", (), {"closed": False, "close": lambda self: setattr(self, "closed", True)}
+    )()
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
+
+    def load(c, *, before_query=None):
+        raise RuntimeError("canceling statement due to statement timeout\nCONTEXT: second line")
+
+    monkeypatch.setattr(inventory, "load", load)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(["x", "--deadline", "1"]) == 1
+    assert json.loads(out.writes[0]) == {
+        "error": "RuntimeError: canceling statement due to statement timeout"
+    }
+    assert conn.closed
+
+
+def test_the_child_reports_an_interrupt_and_a_missing_connection_the_same_way(monkeypatch):
+    child = _child_module(monkeypatch)
+    import registry_db
+
+    for exc, want in (
+        (KeyboardInterrupt(), "KeyboardInterrupt"),
+        (OSError("connection refused"), "OSError: connection refused"),
+    ):
+
+        def connect(_exc=exc, **kw):
+            raise _exc
+
+        monkeypatch.setattr(registry_db, "connect", connect)
+        out = _OneWrite()
+        monkeypatch.setattr(sys, "stdout", out)
+        assert child.main(["x", "--deadline", "1"]) == 1
+        assert json.loads(out.writes[0]) == {"error": want}
+
+
+def test_the_real_child_process_with_no_argument_prints_one_error_object_and_exits_one():
+    out = subprocess.run([sys.executable, str(_CHILD)], capture_output=True, text=True, timeout=60)
+    assert out.returncode == 1 and out.stderr == ""
+    assert json.loads(out.stdout)["error"].startswith("ValueError: usage")
 
 
 # ── 2026-09-03 20:10: the probe timed out 7× in a row (60 s each) while ob@ burned 96 → 100 ──

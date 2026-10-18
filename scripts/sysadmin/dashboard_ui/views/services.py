@@ -15,7 +15,8 @@ import math
 import os
 from datetime import datetime
 
-from ..components import badge, card, fragment, freshness, link, region_state, slug, table
+from .. import inventory
+from ..components import badge, card, fragment, freshness, region_state, slug, table
 from ..fmt import read_ts
 from ..strings import t
 from . import ViewContext, ViewResult
@@ -180,16 +181,21 @@ def _apis(quotas: object, now: float):
     return body, freshness(read_ts(quotas.get("ts")), APIS_CADENCE_S)
 
 
-def _external(ext: object, now: float):
-    ext = ext if isinstance(ext, dict) else {}
-    path = ext.get("path") or "/external-services.html"
-    mtime = _real(ext.get("mtime"))
-    if mtime is None:
-        return t("services.ext.missing", path=path)
-    return fragment(
-        t("services.ext.age", hours=f"{max(0.0, now - mtime) / 3600:.1f}"),
-        " ",
-        link(t("services.ext.open"), path, new_tab=True),
+def _inventory(inv: object, now: float):
+    """The external-services section (``inventory.render``, live). A failed or missing read is this
+    section's error state in words, with Retry, inside its own titled card; the other cards still render."""
+    if not isinstance(inv, dict) or "error" in inv:
+        why = inv["error"] if isinstance(inv, dict) else t("services.inv.error.none")
+        return card(
+            t("services.inv.title"),
+            region_state("error", t("services.inv.error", error=why), retry=True),
+        )
+    return inventory.render(
+        inv.get("rows") or [],
+        now=now,
+        synced_at=inv.get("synced_at"),
+        classified_at=inv.get("classified_at"),
+        interactive=True,
     )
 
 
@@ -201,10 +207,6 @@ def render(data: dict, ctx: ViewContext) -> ViewResult:
         fragment(
             card(t("services.pool.title"), pool_body, age=pool_age, id=slug("pool", "services")),
             card(t("services.apis.title"), apis_body, age=apis_age, id=slug("apis", "services")),
-            card(
-                t("services.ext.title"),
-                _external(data.get("ext_page"), now),
-                id=slug("ext", "services"),
-            ),
+            _inventory(data.get("inventory"), now),
         )
     )

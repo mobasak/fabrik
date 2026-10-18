@@ -560,7 +560,6 @@ def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
     monkeypatch.setenv("QUOTA_DASH_CREDITS_KEY_FILE", str(tmp_path / "no-key.env"))
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
-    monkeypatch.setenv("QUOTA_DASH_EXT_SERVICES", str(tmp_path / "external-services.html"))
     monkeypatch.setenv("QUOTA_DASH_RENDERED_COMMANDS", str(tmp_path / "rendered"))
     isolate(tmp_path, monkeypatch)  # tests/quota_dashboard_isolation.py
     spec = importlib.util.spec_from_file_location(f"qd_layer_{tmp_path.name}", _SRC)
@@ -753,7 +752,6 @@ def board(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, payload: dict | No
     data = misc._services_data()
     monkeypatch.setattr(qd, "_pool_credits", lambda *a, **k: data["pool"])
     monkeypatch.setattr(qd, "_api_quotas", lambda *a, **k: data["apis"])
-    (tmp_path / "external-services.html").write_text("<!doctype html><title>x</title>")
     qd._set_last_status(time.time(), payload if payload is not None else payload_fixture())
     if probe_failed:
         qd._LAST_PROBE_FAILURE[0] = (time.time() - 5, "RuntimeError")
@@ -874,8 +872,9 @@ INVENTORY: list[tuple[str, str, str, tuple[str, ...]]] = [
     # External — `_pool_credits_panel`, `_api_quotas_panel`, `_ext_services_intro`
     ("external", "the pool credits", "services", (K("services.pool.line"), "225")),
     ("external", "the search-API quotas", "services", (K("services.apis.table"), "Brave Search")),
-    ("external", "the external-services intro and page", "services",
-     (K("services.ext.age"), K("services.ext.open"), 'href="/external-services.html"')),
+    ("external", "the external-services inventory in place of the old page link", "services",
+     (K("services.inv.title"), K("services.inv.sum.label"), K("services.inv.filter.find"),
+      K("services.inv.attn.title"))),
 ]  # fmt: skip
 
 # the entries a second fixture shows: a banner only one state of the payload can carry

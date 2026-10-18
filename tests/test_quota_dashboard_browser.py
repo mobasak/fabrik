@@ -526,3 +526,252 @@ def test_the_owner_chips_filter_the_work_view_and_the_choice_survives_a_reload(b
         assert shown == ["infra"], shown
     finally:
         context.close()
+
+
+# ---------------------------------------------------------------- the external-services inventory (plan 2026-10-18-plan-1, T04)
+# The Services view at census scale: the isolation's stub answers the 466-row fixture, so the section
+# is the real one at the real size. `window.qdRefresh(true)` is the forced swap.
+LAPTOP = {"width": 1280, "height": 900}
+SMALL = {"width": 375, "height": 800}
+_AXE_SCS = {"wcag131", "wcag141", "wcag143", "wcag1411", "wcag211", "wcag332", "wcag413"}
+_GROUP = '[data-filter-group="inventory"]'
+_VISIBLE_ROWS = (
+    "() => Array.from(document.querySelectorAll('[data-filter-group=\"inventory\"] [data-filter-item]'))"
+    ".filter((r) => !r.hidden).map((r) => ({find: r.dataset.fFind, cost: r.dataset.fCost,"
+    " status: r.dataset.fStatus}))"
+)
+_SECTIONS = (
+    "() => Array.from(document.querySelectorAll('[data-filter-group=\"inventory\"] [data-filter-section]'))"
+    ".map((s) => ({title: s.querySelector('summary').textContent.split(' · ')[0], open: s.open,"
+    " hidden: s.hidden, count: (s.querySelector('[data-filter-count]') || {}).textContent}))"
+)
+
+
+def _inventory_page(browser, board, viewport, **ctx):
+    context, page = _open(browser, board, viewport, "#services", **ctx)
+    page.wait_for_selector(_GROUP)
+    return context, page
+
+
+def _status(page) -> str:
+    return page.locator(_GROUP + " [data-filter-status]").inner_text()
+
+
+def _sideways(page) -> int:
+    return page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+
+
+def _attention(page):
+    return page.locator(
+        "article", has=page.locator("h3", has_text=t("services.inv.attn.title"))
+    ).last
+
+
+def _by_title(sections: list[dict]) -> dict[str, dict]:
+    return {s["title"]: s for s in sections}
+
+
+@pytest.mark.parametrize("viewport", [LAPTOP, SMALL], ids=["1280", "375"])
+def test_the_inventory_filter_opens_hides_counts_survives_a_swap_and_clears(
+    browser, board, viewport
+):
+    context, page = _inventory_page(browser, board, viewport)
+    try:
+        total = 466
+        assert _status(page) == t("filter.shown", n=total, total=total)
+        assert not [s for s in page.evaluate(_SECTIONS) if s["open"] or s["hidden"]]
+        attention = _attention(page).inner_html()
+        # a group opened BY HAND before any filter
+        page.locator("details[data-filter-section] > summary", has_text="cat-00 ·").click()
+        assert _by_title(page.evaluate(_SECTIONS))["cat-00"]["open"]
+
+        # typing a provider name: the groups holding the match open, the rest hide, the count updates
+        page.locator("#inventory-find").fill("real-03")
+        page.wait_for_function("(s) => document.querySelector('[data-filter-status]').textContent === s",
+                               arg=t("filter.shown", n=10, total=total))  # fmt: skip
+        sections = _by_title(page.evaluate(_SECTIONS))
+        assert [k for k, s in sections.items() if not s["hidden"]] == ["cat-02", "cat-03"]
+        assert sections["cat-02"]["open"] and sections["cat-03"]["open"]
+        assert sections["cat-02"]["count"] == t("filter.group_count", n=6, total=6)
+        assert sections["cat-03"]["count"] == t("filter.group_count", n=4, total=6)
+        assert (
+            sections["cat-00"]["hidden"] and sections["cat-00"]["open"]
+        )  # hidden, still the operator's
+        assert (
+            _attention(page).inner_html() == attention
+        )  # the filter never narrows Needs attention
+        assert _sideways(page) <= 0
+
+        # clearing closes what the filter opened, returns the hidden groups, keeps the hand-opened one
+        page.locator("#inventory-find").fill("")
+        page.wait_for_function("(s) => document.querySelector('[data-filter-status]').textContent === s",
+                               arg=t("filter.shown", n=total, total=total))  # fmt: skip
+        sections = _by_title(page.evaluate(_SECTIONS))
+        assert not [k for k, s in sections.items() if s["hidden"]]
+        assert [k for k, s in sections.items() if s["open"]] == ["cat-00"]
+        assert page.evaluate("() => localStorage.getItem('qd-filter-open:inventory')") == "[]"
+
+        # each select, one at a time: the shown rows are exactly the rows carrying the token
+        for name in ("cost", "status"):
+            for value in page.evaluate(
+                "(n) => Array.from(document.querySelectorAll('#inventory-' + n + ' option'))"
+                ".map((o) => o.value).filter((v) => v !== '')", name):  # fmt: skip
+                page.locator("#inventory-" + name).select_option(value)
+                want = page.evaluate(
+                    "([n, v]) => Array.from(document.querySelectorAll('[data-filter-item]'))"
+                    ".filter((r) => r.dataset['f' + n[0].toUpperCase() + n.slice(1)] === v).length",
+                    [name, value],
+                )
+                page.wait_for_function("(s) => document.querySelector('[data-filter-status]').textContent === s",
+                                       arg=t("filter.shown", n=want, total=total))  # fmt: skip
+                rows = page.evaluate(_VISIBLE_ROWS)
+                assert len(rows) == want and {r[name] for r in rows} == ({value} if want else set())
+                if (name, value) == ("cost", "free"):
+                    assert want == 19 and not [r for r in rows if r["cost"] == "freemium"]
+                assert _attention(page).inner_html() == attention
+            page.locator("#inventory-" + name).select_option("")
+
+        # a forced swap with the filter on: values, the open record and the filtering survive
+        page.locator("#inventory-find").fill("real-04")
+        page.locator("#inventory-status").select_option("active")
+        page.wait_for_function("(s) => document.querySelector('[data-filter-status]').textContent === s",
+                               arg=t("filter.shown", n=10, total=total))  # fmt: skip
+        before = {
+            "find": page.locator("#inventory-find").input_value(),
+            "status": page.locator("#inventory-status").input_value(),
+            "record": page.evaluate("() => localStorage.getItem('qd-filter-open:inventory')"),
+            "rows": page.evaluate(_VISIBLE_ROWS),
+            "sections": page.evaluate(_SECTIONS),
+        }
+        assert before["record"] not in (None, "[]")
+        page.evaluate(
+            "() => { document.querySelector('[data-view-root]').__old = true; window.qdRefresh(true); }"
+        )
+        page.wait_for_function("() => !document.querySelector('[data-view-root]').__old")
+        page.wait_for_selector(_GROUP)
+        assert page.locator("#inventory-find").input_value() == before["find"]
+        assert page.locator("#inventory-status").input_value() == before["status"]
+        assert (
+            page.evaluate("() => localStorage.getItem('qd-filter-open:inventory')")
+            == before["record"]
+        )
+        assert page.evaluate(_VISIBLE_ROWS) == before["rows"]
+        assert page.evaluate(_SECTIONS) == before["sections"]
+        assert _status(page) == t("filter.shown", n=10, total=total)
+        assert _attention(page).inner_html() == attention
+        assert _sideways(page) <= 0
+
+        # clearing after the swap still closes what the filter opened and keeps the hand-opened group
+        page.locator("#inventory-find").fill("")
+        page.locator("#inventory-status").select_option("")
+        page.wait_for_function("(s) => document.querySelector('[data-filter-status]').textContent === s",
+                               arg=t("filter.shown", n=total, total=total))  # fmt: skip
+        sections = _by_title(page.evaluate(_SECTIONS))
+        assert [k for k, s in sections.items() if s["open"]] == ["cat-00"]
+        assert not [k for k, s in sections.items() if s["hidden"]]
+        assert _sideways(page) <= 0
+    finally:
+        context.close()
+
+
+def _static_file(tmp_path, monkeypatch) -> Path:
+    """The file gen_dashboard writes from the census fixture — through its own `main`, registry faked."""
+    import importlib.util
+
+    from tests.external_services_fixture import CENSUS_NOW, census_rows
+
+    spec = importlib.util.spec_from_file_location(
+        "gen_dashboard_t04", _ROOT / "scripts" / "gen_dashboard.py"
+    )
+    gd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gd)
+    monkeypatch.setattr(gd, "_read", lambda: (census_rows(), CENSUS_NOW - 3600, CENSUS_NOW - 7200))
+    out = tmp_path / "external-services-dashboard.html"
+    assert gd.main([str(out)]) == 0
+    return out
+
+
+_CARD_HEIGHT = (
+    "() => { const g = document.querySelector('[data-filter-group=\"inventory\"]');"
+    " const card = g ? g.closest('article') : document.querySelector('main article');"
+    " return card.getBoundingClientRect().height; }"
+)
+
+
+@pytest.mark.parametrize("viewport", [LAPTOP, SMALL], ids=["1280", "375"])
+def test_the_collapsed_inventory_section_is_at_most_4000px_tall_live_and_static(
+    browser, board, tmp_path, monkeypatch, viewport
+):
+    context, page = _inventory_page(browser, board, viewport)
+    try:
+        live = page.evaluate(_CARD_HEIGHT)
+        assert 0 < live <= 4000, live
+        assert _sideways(page) <= 0
+    finally:
+        context.close()
+    static = _static_file(tmp_path, monkeypatch)
+    context = browser.new_context(viewport=viewport)
+    page = context.new_page()
+    try:
+        page.goto(static.as_uri())
+        assert 0 < page.evaluate(_CARD_HEIGHT) <= 4000
+        assert _sideways(page) <= 0  # the tables scroll inside their own wrapper, never the page
+        assert page.evaluate("() => document.scripts.length") == 0  # D7: no script at all
+    finally:
+        context.close()
+
+
+def _axe_source() -> str:
+    import glob
+    import os
+
+    path = os.environ.get("AXE_CORE_JS") or next(
+        iter(sorted(glob.glob("/opt/*/node_modules/axe-core/axe.min.js"))), ""
+    )
+    if not path or not Path(path).is_file():
+        pytest.skip("axe-core is not installed on this box (set AXE_CORE_JS to its axe.min.js)")
+    return Path(path).read_text(encoding="utf-8")
+
+
+_AXE_RUN = """async () => {
+  const r = await axe.run(document, { runOnly: { type: 'tag', values:
+    ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } });
+  return r.violations.map((v) => ({ id: v.id, tags: v.tags, impact: v.impact,
+    nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')) }));
+}"""
+
+
+def _open_a_group_and_its_row_detail(page) -> None:
+    page.locator(
+        "details > summary", has_text="cat-00 ·"
+    ).click()  # the static file has no filter marker
+    page.locator("details[open] th details > summary").first.click()
+    assert page.locator("details[open] th details[open]").count() == 1
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("viewport", [LAPTOP, SMALL], ids=["1280", "375"])
+@pytest.mark.parametrize("surface", ["live", "static"])
+def test_axe_reports_no_violation_of_the_inventory_success_criteria_with_a_row_detail_open(
+    browser, board, tmp_path, monkeypatch, surface, viewport, theme
+):
+    axe = _axe_source()
+    if surface == "live":
+        context, page = _inventory_page(browser, board, viewport)
+    else:
+        context = browser.new_context(viewport=viewport)
+        page = context.new_page()
+        page.goto(_static_file(tmp_path, monkeypatch).as_uri())
+    try:
+        page.evaluate("(t) => document.documentElement.setAttribute('data-theme', t)", theme)
+        _open_a_group_and_its_row_detail(page)
+        page.evaluate(axe)
+        found = page.evaluate(_AXE_RUN)
+        print(
+            f"AXE {surface} {viewport['width']} {theme}: "
+            + json.dumps([[v["id"], v["tags"], v["nodes"]] for v in found])
+        )
+        bad = [v for v in found if _AXE_SCS & set(v["tags"])]
+        assert bad == [], bad
+    finally:
+        context.close()
