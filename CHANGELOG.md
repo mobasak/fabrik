@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: an edit that widens, splits or places text re-reads the clauses that now bind differently (2026-10-18)
+
+- PHASE 3 now has a sentence beside its placement rules. Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause attaching to the changed part is read against what it will bind once the edit lands. That covers the sentence edited, the sentence holding the pronoun, and each later sentence or item pointing back into either. The reason given: a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer. This answers row 1792332697, the second sighting of the held subject placement-keeps-anaphor-with-antecedent. In the case that raised it, widening "you run the status probe" attached the sentence's existing WebFetch fallback to a quote check /fabrik-spec forbids.
+- The queue's other two rows were rejected: the self-filed-rows row was already answered by PHASE 1, and the short-sha row was refuted because `_resolve_commit` expands an abbreviation inside `--repo`.
+
 ### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
 
 - `_seat_size_lines` (W-2dadedfd) treated `du`'s output as the size even when `du` exited non-zero; it prints the PARTIAL size it reached, so a large seat tree under an unreadable folder read as small and dropped out silently. A non-zero exit now prints `<seat>: size unmeasured — cannot be examined`; a seat removed before `du` answers gives no line, like a gone run folder. The docstring now says an unlistable run folder yields no lines and only an unsearchable one reads as unmeasured. Tests: `tests/test_command_run_scratch.py` (three new, 72 pass).
