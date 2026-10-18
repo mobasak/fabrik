@@ -15,6 +15,22 @@ All notable changes to this project will be documented in this file.
   - A key both sides changed differently, or deleted on one side and changed on the other, still refuses. The refusal now names the key (exit 3).
 - The merged item's `id` must match its file name before it is staged (D-988, W-5f3617e6).
 
+### Fixed — /fabrik-deploy-plan-review names `scratch_dir` and its pins root (2026-10-18)
+
+- `commands/_sources/fabrik-deploy-plan-review.md`: its `Workflow` args now carry `scratch_dir` (the review-loop
+  script refuses a launch without it) and put `pins_dir` under the run's durable `SCRATCH:` folder, in the words
+  `/fabrik-repo-review` uses; it does not include `subagents-core`, so D8's root never reached it (W-f9933654).
+  `fabrik-repo-review.md`'s fallback now reads "printed no line that begins `SCRATCH:`" too, and
+  `tests/test_review_loop_workflow.py` checks every non-`RUN-` `SCRATCH:` mention in the six review-loop sources
+  is the folder noun or the line selector.
+
+### Fixed — the four review loops name the start line that BEGINS `SCRATCH:` for their pins root (2026-10-18)
+
+- `fabrik-review.md`, `fabrik-review-scoped.md`, `fabrik-plan-review.md`, `fabrik-spec-review.md`: "the path after
+  `SCRATCH: ` on the line `start` printed" also matched inside the `RUN-SCRATCH: ` line, so a literal reader could
+  pin under the disposable folder; each now says "the path on the line `start` printed that begins `SCRATCH:`", as
+  `/fabrik-repo-review` does. `SCRATCH_HOME_CLAUSE` in `tests/test_review_loop_workflow.py` pins it (W-49adc7a7).
+
 ### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
 
 - `commands/_sources/fabrik-review.md`: after "apply the lines of the probe catalogue", the same sentence
