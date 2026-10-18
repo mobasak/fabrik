@@ -1765,7 +1765,11 @@ _head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool]] = {}
 
 
 def _head_source(source: Path) -> tuple[bytes, int] | None:
-    """The COMMITTED bytes and mode of a hub-tracked source, or None when it is untracked.
+    """The COMMITTED bytes and mode of a hub-tracked source, or None when the working tree ships.
+
+    None means one of: untracked, a hub with no commit yet, a source outside the hub — or a git
+    that could not read it from HEAD, which is recorded in `_head_unread` with the reason and
+    named in the run's report (W-ba306861).
 
     T12.17 (01M1Y86PQ). This script is the fleet-distribution mechanism and it copied the WORKING
     TREE: an uncommitted edit — mine, or a sibling's, on a tree three sessions share — shipped to
@@ -1804,7 +1808,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # repo in the 47-repo walk was served the pre-commit bytes. Reading HEAD's own tree keys
         # the memo on what the function actually returns, at the same one-subprocess cost, and
         # takes the MODE from HEAD too (the index's mode is as stale as its SHA).
-        # `--literal-pathspecs`: a file named `:(…` is pathspec MAGIC to git and `ls-tree` exits 128
+        # `--literal-pathspecs`: a hub path that STARTS with `:(` (a root file so named) is pathspec MAGIC; `ls-tree` exits 128
         # on it, which would read as a git that cannot answer (W-ba306861 critique).
         step = "ls-tree"
         ls = subprocess.run(
@@ -1814,18 +1818,12 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             check=False,
         )
         if ls.returncode != 0:
-            # A git that cannot ANSWER is not an untracked file (W-ba306861): a corrupt tree, a
-            # non-repo hub, dubious ownership. Only an unborn HEAD (`rev-parse` rc 1 — a hub with no
-            # commit yet, which a post-commit hook never sees) has nothing in HEAD to read, like an
-            # untracked file; every other failure is named, and the working tree ships for it.
+            # A git that cannot ANSWER is not an untracked file (W-ba306861): a corrupt tree or ref,
+            # a non-repo hub, dubious ownership. Only an unborn HEAD — a hub with no commit yet, which
+            # a post-commit hook never sees — has nothing in HEAD to read, like an untracked file;
+            # every other failure is named, and the working tree ships for it.
             step = "rev-parse"
-            born = subprocess.run(
-                ["git", "rev-parse", "--verify", "-q", "HEAD"],
-                cwd=FABRIK_ROOT,
-                capture_output=True,
-                check=False,
-            )
-            if born.returncode != 1:
+            if not _hub_is_unborn():
                 _head_unread[rel] = f"git ls-tree exited {ls.returncode}: {_first_line(ls.stderr)}"
             return None
         if not ls.stdout.strip():
@@ -1850,7 +1848,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # commit landed mid-run and every remaining repo was served the pre-commit bytes, all
         # reported `copied`, with the drift report computed against the stale HEAD. `ls-tree HEAD` is
         # the cheap half of the pair and it already prints the SHA, so keying on it costs nothing
-        # and memoises only the expensive `git show` + `read_bytes`.
+        # and memoises only the expensive blob read + `read_bytes`.
         sha = ls.stdout.split()[2].decode()  # field 2 under ls-tree (field 1 is the word "blob")
         try:
             st = source.stat()
@@ -1862,15 +1860,17 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             if drifted:
                 _head_drift.add(rel)  # rebuilt per run; a cache hit still records
             return data, mode
-        step = "show"
+        # The blob `ls-tree` LISTED, by its SHA — never `git show HEAD:<rel>`, which re-resolves
+        # HEAD: a sibling's commit between the two calls paired the new bytes with the old mode and
+        # cached them under the old SHA (W-ba306861 review).
+        step = "cat-file"
         blob = subprocess.run(
-            ["git", "show", f"HEAD:{rel}"], cwd=FABRIK_ROOT, capture_output=True, check=False
+            ["git", "cat-file", "blob", sha], cwd=FABRIK_ROOT, capture_output=True, check=False
         )
         if blob.returncode != 0:
-            # `ls-tree HEAD` just listed the blob, so this is a missing or corrupt object, or a
-            # sibling's commit that removed the file between the two calls — never a staged add.
-            # NOT cached: one transient failure must not answer for the rest of the walk.
-            _head_unread[rel] = f"git show exited {blob.returncode}: {_first_line(blob.stderr)}"
+            # `ls-tree HEAD` just listed this blob, so its object is missing or corrupt — never a
+            # staged add. NOT cached: one transient failure must not answer for the rest of the walk.
+            _head_unread[rel] = f"git cat-file exited {blob.returncode}: {_first_line(blob.stderr)}"
             return None
     except OSError as exc:
         _head_unread[rel] = f"git not runnable ({step}): {exc}"
@@ -1882,13 +1882,40 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # The working copy cannot be read, so what ships (HEAD) is not what is on disk: drift, with
         # its reason. NOT cached, so a cache hit can never drop the reason or serve it stale.
         _head_drift.add(rel)
-        _head_drift_why[rel] = f"working copy unreadable ({type(exc).__name__})"
+        _head_drift_why[rel] = (
+            "deleted in the working tree"
+            if isinstance(exc, FileNotFoundError)
+            else f"working copy unreadable ({type(exc).__name__})"
+        )
         return data, mode
     if drifted:
         _head_drift.add(rel)
     if key is not None:
         _head_cache[key] = (data, mode, drifted)
     return data, mode
+
+
+def _hub_is_unborn() -> bool:
+    """True only for a hub repo with no commit yet (W-ba306861 review).
+
+    `rev-parse --verify -q HEAD` exits 1 for an unborn HEAD AND for a corrupt or deleted branch
+    ref, executed, so it cannot tell "nothing committed" from "a commit git cannot reach". Unborn
+    is: HEAD is a symbolic ref, no ref exists (and none is broken — `for-each-ref` warns on
+    stderr), and the object store is empty; a hub with objects but no reachable HEAD is broken.
+    """
+    for cmd in (["git", "symbolic-ref", "-q", "HEAD"], ["git", "for-each-ref"]):
+        p = subprocess.run(cmd, cwd=FABRIK_ROOT, capture_output=True, check=False)
+        if p.returncode != 0 or p.stderr.strip() or (cmd[1] == "for-each-ref" and p.stdout.strip()):
+            return False
+    counts = subprocess.run(
+        ["git", "count-objects", "-v"], cwd=FABRIK_ROOT, capture_output=True, check=False
+    )
+    fields = dict(
+        line.split(": ", 1)
+        for line in counts.stdout.decode(errors="replace").splitlines()
+        if ": " in line
+    )
+    return counts.returncode == 0 and fields.get("count") == "0" and fields.get("in-pack") == "0"
 
 
 def _named(names: list[str], why: dict[str, str]) -> str:
@@ -2905,7 +2932,7 @@ def main() -> int:
         )
         # An unreadable copy has nothing to commit; the advice names both remedies when it applies.
         advice = (
-            "Commit them (or make an unreadable copy readable again) and re-run to distribute"
+            "Commit them (or restore a deleted or unreadable copy) and re-run to distribute"
             if _head_drift_why
             else "Commit them and re-run to distribute"
         )
@@ -2916,11 +2943,17 @@ def main() -> int:
         )
     if _head_unread:
         # W-ba306861: a git that cannot answer used to read as an untracked file, silently.
-        unread_verb = "would ship (--dry-run)" if args.dry_run else "shipped"
+        # Consulted on every branch, like the drift line above: say what the run did, never a flat
+        # "shipped" — an identical destination wrote nothing (W-ba306861 review).
+        unread_verb = (
+            "nothing was written (--dry-run); a real run would write the WORKING TREE's bytes "
+            "for them"
+            if args.dry_run
+            else "wherever this run wrote them, it wrote the WORKING TREE's bytes"
+        )
         print(
-            f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s), so the WORKING "
-            f"TREE {unread_verb} for them instead of the committed bytes (T12.17): "
-            f"{_named(sorted(_head_unread), _head_unread)}"
+            f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s); {unread_verb}, "
+            f"not the committed ones (T12.17): {_named(sorted(_head_unread), _head_unread)}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
@@ -2965,7 +2998,7 @@ def main() -> int:
         summary += f" | HEAD drift: {len(_head_drift)}"
     if _head_unread:
         summary += f" | HEAD unread: {len(_head_unread)} (working tree " + (
-            "would ship)" if args.dry_run else "shipped)"
+            "would be used)" if args.dry_run else "used)"
         )
     print(summary)
 
