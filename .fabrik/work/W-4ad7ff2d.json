@@ -20,7 +20,8 @@
   "score_reason": "agent request (kaizen): review-loop seat recipe layout for a final_gate seat; intel owns the review loop",
   "status": "open",
   "tags": [
-    "mail-01m53hezhs75gr9jm6fwd486ng"
+    "mail-01m53hezhs75gr9jm6fwd486ng",
+    "waits-quota-green"
   ],
   "title": "mail 01M53HEZHS75GR9JM6FWD486NG: /fabrik-plan-review row 1792192144: the review-loop seat recipe has no layout for a seat that runs final_gate.py"
 }
