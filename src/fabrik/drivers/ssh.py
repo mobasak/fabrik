@@ -219,7 +219,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # forcing a mid-deploy credential rotation).
         raise RuntimeError(
             f"SSH to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_redact(result.stderr.strip())}"
+            f"{_redact(result.stderr.strip()) or 'no stderr'}"
         )
     return result.stdout.strip()
 
@@ -255,7 +255,8 @@ def scp_to_vps(
     jump = jump_for(host)
     logger.debug("SCP %s -> %s:%s", local_path, host, remote_path)
     result = subprocess.run(
-        ["scp", *_jump_opts(jump), local_path, f"{host}:{remote_path}"],
+        # `--`: a local path starting with `-` would otherwise be read as an option (W-894fdc5f)
+        ["scp", *_jump_opts(jump), "--", local_path, f"{host}:{remote_path}"],
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -264,5 +265,5 @@ def scp_to_vps(
     if result.returncode != 0:
         raise RuntimeError(
             f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_redact(result.stderr.strip())}"
+            f"{_redact(result.stderr.strip()) or 'no stderr'}"
         )

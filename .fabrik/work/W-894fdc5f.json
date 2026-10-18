@@ -3,7 +3,7 @@
   "created": "2026-10-18T04:23:58.992586Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2dd62367026d354cd12acf400885f0a92d16e8cc",
   "id": "W-894fdc5f",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH, security first within HIGH (D-958): the site-provisioner API key is visible in ps while a DNS call runs; six driver leftovers in two files",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

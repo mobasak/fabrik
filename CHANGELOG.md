@@ -28,11 +28,31 @@ All notable changes to this project will be documented in this file.
   `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
   both sentences.
 
+### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
+
+- `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
+- It says `POST /auth/passwordless/request` is already capped per email and per IP by the library. Tune that cap; add no second limiter and never answer 429, because a 429 would reveal accounts.
+- It marks the two token-only routes as IP-only limits and tells Pattern B to configure Supabase Auth's own limits (W-51994793).
+
+### Fixed — the sync's synced lists and .gitignore block come from HEAD's manifest, never the working tree (2026-10-18)
+
+- `scripts/sync_enforcement_to_projects.py` already shipped tracked files from HEAD (T12.17), but WHAT it ships and the `.gitignore` block it computes came from the manifest imported off disk, so a sibling's uncommitted manifest edit patched ~46 repos with no drift line.
+- `main()` now binds every manifest name from the committed manifest, and the drift report names a drifted manifest as such. A HEAD manifest that cannot be bound stops the run with the reason instead of falling back to the working tree. A function-local manifest import that bypassed the binding is gone (W-8c57e84a, D-986).
+
 ### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
 
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Fixed — the DNS SSH proxy's API key leaves the ssh argv; a dead container-resolve path is named (2026-10-18)
+
+`src/fabrik/drivers/dns.py`: `_request_via_ssh` sends `X-API-Key` and the request body to the remote curl as a
+`-K -` config on ssh's stdin (escaped; CR/LF/NUL refused), so neither shows in `ps` on the hub or the VPS.
+`_resolve_container_url` treats a timeout, an OSError, rc 255 or a signal kill as a dead path — falling back to
+`SITE_PROVISIONER_INTERNAL_URL` when set, else raising a command-free error naming host and jump — while an
+ordinary miss stays a miss. `src/fabrik/drivers/ssh.py`: scp passes `--` before the local path; an empty stderr
+reads `no stderr`. D-985 (W-894fdc5f).
 
 ### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
 
