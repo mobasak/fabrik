@@ -3,7 +3,7 @@
   "created": "2026-10-17T22:43:13.203213Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "82ff998711cf7f5be044c00bf6cf0e24db2dcac2",
   "id": "W-f1d9c212",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "D-956 kaizen work: one sentence in fabrik-review.md after intel's seat-notes fix (7d98637db)",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review.md: say the durable pass files hold the seats' reports too (intel 01M55Y7Y3S, after 577a31053 merged)"
 }

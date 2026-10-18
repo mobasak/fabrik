@@ -737,8 +737,8 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
     review = _norm(SRC)
     assert (
         "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
-        "lead writes for each pass, so a resumed review has them (the seats' candidates and verdicts are already in "
-        "the pass files there); only the seats' copies go under"
+        "lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and "
+        "`files_read` are already in the pass files there); only the seats' copies go under"
     ) in review
     assert (
         "When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 "
@@ -757,3 +757,41 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
         "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
         "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
     ) in cc
+
+
+def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> None:
+    """Row 1792275662 (2026-10-18), recurring held pointer-resolve-test-same-change (1790686995): a synced pack's
+    fix cited a hub-only fragment, a pointer that resolves nowhere in the fleet."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
+        " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
+        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet;"
+    ) in cov
+
+
+def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
+    """Rows 1792277512 (recurring held status-vocabulary-single-source / checked-format-pointer: a CHANGELOG or doc
+    line restating a constant the code owns) and 1792274565 (recurring held
+    a-validator-fix-emits-the-value-its-check-tested: a fix and a neighbouring check reading one field two ways)."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "resolves nowhere in the fleet; a CHANGELOG or doc line the fix writes that would restate, count or partition"
+        " what another artifact owns is a pointer to that owner from the first draft, opened before the pin and"
+        " recorded by APPENDING `· pointer: <path:line> read` after the round-zero probe text below; a fix that reads"
+        " a field another check in the same file or call path already validates (grep the pin for the field name)"
+        " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
+    ) in cov
+    assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
+
+
+def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
+    """Row 1792262881 (2026-10-18), recurring held wording-claim-execution (1791453535): both seats of a wording
+    review ran the command the changed text described, unprompted; the brief now asks for it."""
+    cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
+    assert (
+        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of"
+        " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
+        " deploys or reaches a host stays the lead's — and probe"
+    ) in cat
+    assert "every citation in a docs change, every cross-repo claim" in cat, "the Execute line stays the lead's"

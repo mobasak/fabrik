@@ -8,8 +8,9 @@ it, or name in the brief why the shape does not have it.
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
   check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
-  docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
-  raises.
+  docstring instruction as a caller would, and hand each seat of the brief that same command to run under § Seat
+  isolation — one that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe
+  each exception a rewritten docstring says the function still raises.
 - A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
   that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
   `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
