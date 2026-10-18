@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-9d1ba25c"
+  ],
   "created": "2026-10-18T23:23:37.126459Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-7f9d308d",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "final_gate_stop.py sixth cause: on 2026-10-19 sid 8a498855 was blocked for W-d90fe030's files, reviewed to CONVERGED under sid 7e6fef18 (its record: covered 20:43:35-21:35:13, reviewed_surfaces W-d90fe030); read the prior sid's covered windows and reviewed_surfaces when the transcript carries its turns",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "break on agents: a resumed window's Stop hook falsely blocks reviewed work; same session-id root as W-9d1ba25c, so it rides that mechanism",
   "status": "open",
   "tags": [
     "stop-hook"
