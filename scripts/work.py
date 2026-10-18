@@ -2912,10 +2912,9 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
     01M55ZNVH7: a worktree render rewrote 433 rows of a block its branch then merges)."""
     _require_store(repo)
     here = bool(getattr(args, "here", False))
-    if not here:
-        why = _render_refusal(repo)
-        if why:
-            raise WorkError(why)
+    why = _render_refusal(repo)  # asked once, before any write (review A-opus-5)
+    if why and not here:
+        raise WorkError(why)
     path = repo / _BACKLOG_REL
     if not path.is_file():
         # T09 review A-O5: a repo with no backlog file is a no-op, not an error — T10's adoption
@@ -2949,9 +2948,19 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
         print(f"work: render — updated {_rel(repo, path)}")
     else:
         print(f"work: render — {_rel(repo, path)} already current")
-    if here and _render_refusal(repo):
+    if why:  # only `--here` reaches this with a refusal
         print("work: render --here — this block is this tree's view — do not commit it")
     return 0
+
+
+def _is_file_inside(repo: Path, value: str) -> bool:
+    """True when ``value`` (repo-relative or absolute) names a regular file inside ``repo``. Never
+    raises: a name the filesystem refuses (too long, a NUL) is simply not a file inside."""
+    try:
+        target = (repo / value).resolve()
+        return target.is_relative_to(repo.resolve()) and target.is_file()
+    except (OSError, ValueError):
+        return False
 
 
 def _render_refusal(repo: Path) -> str | None:
@@ -3161,8 +3170,10 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
-# The kinds `edit` refuses, each with the reason `add` gives for it: their title and links are derived
-# (the Stop harvest, the mail claim, the feedback queue), so a hand edit would fork them from their source.
+# `edit` changes only the kinds `add` makes — an allowlist, so a hand-set or future kind is refused too.
+# The derived kinds carry the reason `add` gives for them: their title and links come from their
+# mechanism (the Stop harvest, the mail claim, the feedback queue), so a hand edit would fork them.
+_EDIT_KINDS = ("backlog", "task")
 _EDIT_REFUSED_KINDS = {
     "decision": "decision items come only from DECISION blocks (the Stop-hook harvest)",
     "next": "a next item comes only from the Stop harvest of a session's NEXT line",
@@ -3199,19 +3210,41 @@ def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
         )
     for key in ("spec", "plan"):
         value = links.get(key)
-        if value is not None and not (repo / value).is_file():
-            _warn(f"--link {key}={value}: not a file under {repo} — applied as given")
+        if value is not None and not _is_file_inside(repo, value):
+            _warn(f"--link {key}={value}: not a file inside {repo} — applied as given")
 
     def _check_kind(item: dict) -> None:
-        kind = str(item.get("kind") or "")
-        if kind in _EDIT_REFUSED_KINDS:
-            raise WorkError(
-                f"edit {item['id']} refused: a {kind} item — {_EDIT_REFUSED_KINDS[kind]}"
-            )
+        kind = item.get("kind")
+        if kind in _EDIT_KINDS:
+            return
+        why = _EDIT_REFUSED_KINDS.get(kind) if isinstance(kind, str) else None
+        label = kind if isinstance(kind, str) and kind.isidentifier() else repr(kind)
+        raise WorkError(
+            f"edit {item['id']} refused: a {label} item — "
+            + (why or f"edit changes only the kinds `add` makes ({', '.join(_EDIT_KINDS)})")
+        )
 
-    _check_kind(
-        _read_item(repo, args.id)
-    )  # a missing id or a derived kind is named before the lock
+    def _new_links(item: dict) -> dict:
+        current = item.get("links", {})
+        if not isinstance(current, dict):
+            raise WorkError(
+                f"edit {item['id']} refused: its links is not a mapping ({type(current).__name__}) — "
+                "repair the item file by hand first"
+            )
+        merged = {**{key: current.get(key, "") for key in LINK_KEYS}, **current, **links}
+        for key in unlink:
+            merged[key] = ""
+        return merged
+
+    linked = _is_linked_worktree(
+        repo
+    )  # every git answer is taken before the write (review A-opus-5)
+    first = _read_item(
+        repo, args.id
+    )  # a missing id, a refused kind or bad links is named before the lock
+    _check_kind(first)
+    if links or unlink:
+        _new_links(first)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="edit"):
         item = _read_item(repo, args.id)
         _check_kind(item)
@@ -3220,17 +3253,13 @@ def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
         if next_action is not None:
             item["next"] = next_action
         if links or unlink:
-            current = item.get("links") if isinstance(item.get("links"), dict) else {}
-            merged = {**current, **links}
-            for key in unlink:
-                merged[key] = ""
-            item["links"] = merged
+            item["links"] = _new_links(item)
         _write_item(repo, item)
         _after_write(repo, _session())
     print(_line(item))
     if title is None:
         print("work: edit — the backlog block lists owner, title and id only — nothing to render")
-    if _is_linked_worktree(repo):
+    if linked:
         print(
             "work: edit — this item merges with the branch; if the main checkout holds an uncommitted "
             "write to it, run `work.py commit-items` there before the merge"

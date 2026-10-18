@@ -302,3 +302,113 @@ def test_render_here_and_the_main_checkout(tmp_path):
     text = (tree / BACKLOG).read_text(encoding="utf-8")
     assert tree_id in text and main_id not in text
     assert "do not commit" in r.stdout
+
+
+# ── review pass 1 (fixup 1): the invariants behind A-opus-1/2/4/5 and A-sonnet-1/2 ─────────────
+
+
+@pytest.mark.parametrize("kind", ["weird", "Backlog", " task", None])
+def test_edit_allows_only_the_kinds_add_makes(tmp_path, kind):
+    """An allowlist, never a denylist: a hand-set unknown kind, a case or space variant and a missing
+    kind are refused exactly as the derived kinds are."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    path = _item_file(repo, item_id)
+    item = json.loads(path.read_text(encoding="utf-8"))
+    if kind is None:
+        item.pop("kind")
+    else:
+        item["kind"] = kind
+    path.write_text(json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    before = path.read_bytes()
+    r = run(["edit", item_id, "--title", "x"], env, repo)
+    assert r.returncode == 1, (kind, r.stdout)
+    assert "refused" in r.stderr and "backlog" in r.stderr, r.stderr
+    assert path.read_bytes() == before
+
+
+def test_a_link_path_warns_unless_it_is_a_file_inside_the_repo(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    outside = tmp_path / "outside.md"
+    outside.write_text("x\n", encoding="utf-8")
+    cases = {
+        "docs/STRATEGIC_BACKLOG.md": False,  # a file inside the repo: silent
+        "docs/missing.md": True,
+        str(outside): True,  # absolute, outside
+        "../outside.md": True,  # relative, escapes the repo though the file exists
+        "a" * 300: True,  # a name the filesystem refuses: a warning, never a crash
+    }
+    for value, warns in cases.items():
+        r = run(["edit", item_id, "--link", f"plan={value}"], env, repo)
+        assert r.returncode == 0, (value[:40], r.stderr)
+        assert ("not a file inside" in r.stderr) is warns, (value[:40], r.stderr)
+        stored = json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))
+        assert stored["links"]["plan"] == value
+
+
+def test_edit_keeps_the_links_shape_add_writes_and_refuses_a_malformed_one(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    path = _item_file(repo, item_id)
+    item = json.loads(path.read_text(encoding="utf-8"))
+    item["links"] = {"plan": "docs/p.md"}  # a hand edit dropped spec and decision
+    path.write_text(json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    r = run(["edit", item_id, "--unlink", "plan"], env, repo)
+    assert r.returncode == 0, r.stderr
+    links = json.loads(path.read_text(encoding="utf-8"))["links"]
+    assert links == {"decision": "", "plan": "", "spec": ""}, links
+
+    item = json.loads(path.read_text(encoding="utf-8"))
+    item["links"] = ["docs/p.md"]
+    path.write_text(json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    before = path.read_bytes()
+    r = run(["edit", item_id, "--link", "plan=docs/q.md"], env, repo)
+    assert r.returncode == 1, r.stdout
+    assert "links" in r.stderr and "not" in r.stderr, r.stderr
+    assert path.read_bytes() == before
+    # a title-only edit leaves the malformed links alone and still succeeds
+    r = run(["edit", item_id, "--title", "fine"], env, repo)
+    assert r.returncode == 0, r.stderr
+
+
+def test_no_git_call_after_the_write_can_fail_edit_or_render(tmp_path, monkeypatch):
+    """Every git answer edit and render need is taken BEFORE they write: a git failure after the write
+    would report a failure for a change that already landed."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    _git(repo, env, "add", f".fabrik/work/{item_id}.json")
+    _git(repo, env, "commit", "-q", "-m", "item")
+    tree = _linked(repo, env, tmp_path)
+    work = _work_module()
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.chdir(tree)
+    real_linked, real_item, real_text = work._is_linked_worktree, work._write_item, work._write_text
+    written = {"yes": False}
+
+    def write_item(*a, **k):
+        written["yes"] = True
+        return real_item(*a, **k)
+
+    def write_text(*a, **k):
+        written["yes"] = True
+        return real_text(*a, **k)
+
+    def linked(repo_path):
+        if written["yes"]:
+            raise work.WorkError("git asked after the write")
+        return real_linked(repo_path)
+
+    monkeypatch.setattr(work, "_write_item", write_item)
+    monkeypatch.setattr(work, "_write_text", write_text)
+    monkeypatch.setattr(work, "_is_linked_worktree", linked)
+    assert work.main(["edit", item_id, "--title", "after"]) == 0
+    assert json.loads(_item_file(tree, item_id).read_text(encoding="utf-8"))["title"] == "after"
+    written["yes"] = False
+    assert work.main(["render", "--here"]) == 0
+    assert item_id in (tree / BACKLOG).read_text(encoding="utf-8")
