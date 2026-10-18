@@ -31,6 +31,12 @@ MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's
 Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
 22662 (D-979).
 
+### Fixed — check_doc_index and check_doc_links read every CommonMark inline-link shape (2026-10-18)
+
+- `scripts/enforcement/check_doc_index.py` and `scripts/enforcement/check_doc_links.py` read links with a regex that stopped at the first `)` or space. A balanced-paren link (`docs/a(b).md`) was truncated and reported missing, and a titled or `<angle>` link to a missing doc was never examined by either check. Both now share one `link_targets()` scanner, each file carrying its own copy, pinned equal by a test. It handles balanced parens, titles, angle destinations, escapes and fragments.
+- Direction (b) and (c) count every parsed link, and the added-code listing reads non-ASCII names.
+- Fleet replay: no finding changes in any /opt repo (W-dd091f0d, D-982).
+
 ### Fixed — check_synced_unmodified names any BaseException a hub manifest raises and runs none of its code once its lists are read (2026-10-18)
 
 - `scripts/enforcement/check_synced_unmodified.py`: a hub manifest that raised GeneratorExit, a BaseExceptionGroup, a KeyboardInterrupt subclass or any other non-Exception BaseException at load escaped as a bare traceback. It is now named as the hub's defect (rc 1); only an exact KeyboardInterrupt still reaches the operator. Manifest code that ran AFTER the load also ended the check GREEN over a drifted file via `sys.exit(0)`. The cases:
