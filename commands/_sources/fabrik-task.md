@@ -44,10 +44,10 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
 operator-named work (lane row 1b), declared here rather than found at phase 4.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
-purpose: **declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it before
-phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep every
-other path for the rule first, since a typo reads as that grader; a golden or snapshot that pins the output is declared
-too. Declare the CODE surface ONLY — the close excludes the Doc Sync Matrix destinations, the ledger files and
+purpose: **declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it just
+before phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep
+every other path for the rule first, since a typo reads as that grader; a golden or snapshot that pins the output is
+declared too. Declare the CODE surface ONLY — the close excludes the Doc Sync Matrix destinations, the ledger files and
 `docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
 
 The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path may be a sibling's
