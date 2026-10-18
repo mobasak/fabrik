@@ -208,15 +208,16 @@ def table(
     ``align`` is one entry per column, ``"right"`` or ``None``: a right column's header and cells carry
     ``data-align="right"`` (a number column, set in tabular figures by the stylesheet)."""
     label_id = _id(label_id, "table label id")
+    heads = list(headers)
     if align is None:
-        marks = [""] * len(headers)
+        marks = [""] * len(heads)
     else:
-        if isinstance(align, str) or len(align) != len(headers):
-            raise ValueError(f"table align {align!r} needs one entry per column ({len(headers)})")
+        if isinstance(align, str) or len(align) != len(heads):
+            raise ValueError(f"table align {align!r} needs one entry per column ({len(heads)})")
         for a in align:
             _choice(a, ALIGNS, "table align")
         marks = [' data-align="right"' if a == "right" else "" for a in align]
-    head = "".join(f'<th scope="col"{marks[i]}>{_esc(h)}</th>' for i, h in enumerate(headers))
+    head = "".join(f'<th scope="col"{marks[i]}>{_esc(h)}</th>' for i, h in enumerate(heads))
     body = []
     for i, row in enumerate(rows):
         attrs = _data(row_data[i] if row_data is not None and i < len(row_data) else None)
@@ -289,9 +290,8 @@ def select(
     id = _id(id, "select id")  # noqa: A001
     want = "" if value is None else str(value)
     opts = "".join(
-        f"<option{_attr('value', '' if v is None else v)}{' selected' if str(v) == want else ''}>"
-        f"{_esc(text)}</option>"
-        for v, text in options
+        f"<option{_attr('value', ov)}{' selected' if ov == want else ''}>{_esc(text)}</option>"
+        for ov, text in (("" if v is None else str(v), text) for v, text in options)
     )
     common = f"{_attr('id', id)}{_attr('name', '' if name is None else name)}{_data(data)}"
     return Safe(

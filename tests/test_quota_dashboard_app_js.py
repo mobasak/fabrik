@@ -482,7 +482,7 @@ _SID = {title: ui.slug(title, "inv") for title in _INV}
 _FILTER_KEY, _OPEN_KEY = "qd-filter:inv", "qd-filter-open:inv"
 
 
-def _inv_view(stamp="s1"):
+def _inv_view(stamp="s1", *, idless=False, options=None):
     sections = []
     for title, rows in _INV.items():
         table = ui.table(
@@ -497,7 +497,7 @@ def _inv_view(stamp="s1"):
             ui.disclosure(
                 ui.fragment(title, " ", count),
                 table,
-                id=_SID[title],
+                id=None if idless else _SID[title],
                 data={"filter-section": ""},
             )
         )
@@ -507,7 +507,7 @@ def _inv_view(stamp="s1"):
             "Cost",
             name="cost-sel",
             id="cost-sel",
-            options=[("", "All"), ("free", "Free"), ("paid", "Paid")],
+            options=options or [("", "All"), ("free", "Free"), ("paid", "Paid")],
             data={"filter": "cost", "filter-mode": "token"},
         ),
         ui.status_text("", data={"filter-status": ""}),
@@ -567,6 +567,9 @@ def test_a_right_aligned_column_is_drawn_right_while_the_others_stay_left(board)
     assert page.locator("td").evaluate(align) == "right"
     assert page.locator("th[scope=col]").nth(1).evaluate(align) == "right"
     assert page.locator("th[scope=col]").nth(0).evaluate(align) in ("left", "start")
+    figures = "e => getComputedStyle(e).fontVariantNumeric"
+    assert "tabular-nums" in page.locator("td").evaluate(figures)
+    assert "tabular-nums" not in page.locator("th[scope=col]").nth(0).evaluate(figures)
 
 
 def test_a_stored_select_value_is_restored_and_an_unoffered_one_resets_to_all(board):
@@ -1601,3 +1604,215 @@ def test_restoring_focus_never_moves_the_page(board):
     settle(page)
     assert page.evaluate("document.activeElement.id") == "n1"
     assert page.evaluate("window.scrollY") == 1500
+
+
+# ---------------------------------------------------------------- review pass 1: filter invariants
+def _flags(page) -> list[tuple[bool, bool]]:
+    """(hidden, open) of each filter section, in document order (works for id-less sections)."""
+    rows = page.eval_on_selector_all(
+        "details[data-filter-section]", "ds => ds.map(d => [d.hidden, d.open])"
+    )
+    return [(h, o) for h, o in rows]
+
+
+def test_a_stored_filter_key_no_control_names_is_dropped_and_filters_nothing(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    stored = {"account": {"v": "zz", "mode": "substr", "chip": False}}
+    page.evaluate(f"localStorage.setItem({_FILTER_KEY!r}, {json.dumps(json.dumps(stored))})")
+    page.reload()
+    settle(page)
+    assert page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})") == "{}"
+    assert not any(o or h for h, o in _flags(page))
+    assert _status(page) == cat.t("filter.shown", n=5, total=5)
+    assert _visible_rows(page) == ["alpha", "beta", "gamma", "delta", "eps"]
+    assert (_record(page) or []) == []
+
+
+def test_a_group_the_operator_closes_and_reopens_by_hand_stays_open_on_clear(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    two = _SID["Group two"]
+    page.get_by_label("Name").fill("gam")
+    assert _record(page) == [two]
+    page.locator("summary", has_text="Group two").click()  # the operator closes it ...
+    settle(page)
+    page.locator("summary", has_text="Group two").click()  # ... and opens it again
+    settle(page)
+    assert _sections(page)[two] == (False, True)
+    page.get_by_label("Name").fill("")
+    assert _sections(page)[two] == (False, True)
+    assert _record(page) == []
+
+
+def test_an_idless_section_keeps_its_hand_opened_state_across_a_swap(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _inv_view(idless=True)})
+    settle(page)
+    page.locator("summary", has_text="Group one").click()
+    assert _flags(page)[0] == (False, True)
+    state.fragments["overview"] = _inv_view(stamp="s2", idless=True)
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert _flags(page)[0] == (False, True)
+
+
+def test_an_idless_section_is_never_recorded_so_a_hand_opened_one_stays_open_on_clear(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _inv_view(idless=True)})
+    settle(page)
+    page.locator("summary", has_text="Group one").click()  # by hand
+    page.get_by_label("Name").fill("a")
+    assert (_record(page) or []) == []
+    page.get_by_label("Name").fill("")
+    assert _flags(page)[0] == (False, True)
+    assert (_record(page) or []) == []
+
+
+_NO_ALL = [("free", "Free"), ("paid", "Paid")]
+
+
+def test_a_select_with_no_empty_option_filters_by_the_value_it_shows(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _inv_view(options=_NO_ALL)})
+    settle(page)
+    assert page.locator("#cost-sel").input_value() == "free"
+    assert _visible_rows(page) == ["alpha", "delta"]
+    stored = json.loads(page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})"))
+    assert stored["cost"]["v"] == "free"
+    state.fragments["overview"] = _inv_view(stamp="s2", options=_NO_ALL)
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.locator("#cost-sel").input_value() == "free"
+    assert _visible_rows(page) == ["alpha", "delta"]
+
+
+def _pick_view(default, stamp):
+    sel = ui.select(
+        "Pick", name="pick", id="pick", options=[("a", "A"), ("b", "B"), ("c", "C")], value=default
+    )
+    return view(sel, stamp=stamp)
+
+
+def test_a_swap_keeps_a_select_the_operator_changed_and_takes_the_new_default_of_one_they_did_not(
+    board,
+):
+    state, page, open_ = board
+    open_("#overview", {"overview": _pick_view("b", "s1")})
+    settle(page)
+    state.fragments["overview"] = _pick_view("c", "s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.locator("#pick").input_value() == "c"  # untouched: the server's new default shows
+    page.select_option("#pick", "a")
+    page.locator("#pick").blur()
+    state.fragments["overview"] = _pick_view("c", "s3")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.locator("#pick").input_value() == "a"  # changed by the operator: carried
+
+
+def test_with_storage_blocked_a_swap_closes_the_groups_the_lost_filter_had_opened(board):
+    state, page, open_ = board
+    page.add_init_script(
+        "Object.defineProperty(window, 'localStorage', {get() { throw new Error('blocked'); }});"
+    )
+    _open_inv(open_, page)
+    two = _SID["Group two"]
+    page.get_by_label("Name").fill("gam")
+    assert _sections(page)[two] == (False, True)
+    state.fragments["overview"] = _inv_view(stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    # nothing persisted the filter, so the swap clears it; what it had opened must close with it
+    assert page.get_by_label("Name").input_value() == ""
+    assert _sections(page)[two] == (False, False)
+
+
+def test_the_filter_survives_a_reload_and_clearing_it_then_closes_what_it_opened(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    one, two, three = (_SID[k] for k in _INV)
+    page.get_by_label("Name").fill("gam")
+    page.reload()
+    settle(page)
+    assert _sections(page) == {one: (True, False), two: (False, True), three: (True, False)}
+    page.get_by_label("Name").fill("")
+    assert _sections(page) == {one: (False, False), two: (False, False), three: (False, False)}
+    assert _record(page) == []
+
+
+@pytest.mark.parametrize("stored", ['{"a":1}', "[1,2]", '"x"', "not json", '[["a"]]'])
+def test_a_corrupt_opened_group_record_with_no_filter_is_stored_empty_after_load(board, stored):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    page.evaluate(f"localStorage.setItem({_OPEN_KEY!r}, {json.dumps(stored)})")
+    page.reload()
+    settle(page)
+    assert page.evaluate(f"localStorage.getItem({_OPEN_KEY!r})") == "[]"
+    assert page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})") is None
+
+
+def _nested_view():
+    def sec(title, names, key):
+        sid = ui.slug(title, "nz")
+        tbl = ui.table(
+            "t-" + sid,
+            title,
+            ["Name"],
+            [[n] for n in names],
+            row_data=[{"filter-item": "", key: n} for n in names],
+        )
+        count = ui.group("", tag="span", data={"filter-count": ""})
+        dis = ui.disclosure(
+            ui.fragment(title, " ", count), tbl, id=sid, data={"filter-section": ""}
+        )
+        return dis, sid
+
+    outer_sec, osid = sec("Outer sec", ["alpha", "beta"], "f-name")
+    inner_sec, isid = sec("Inner sec", ["gamma", "delta"], "f-tag")
+    inner = ui.group(
+        ui.fragment(
+            ui.field("Tag", name="tag-box", kind="search", id="tag-box", data={"filter": "tag"}),
+            ui.status_text("", data={"filter-status": ""}),
+            inner_sec,
+        ),
+        data={"filter-group": "inner"},
+    )
+    outer = ui.group(
+        ui.fragment(
+            ui.field(
+                "Name", name="name-box", kind="search", id="name-box", data={"filter": "name"}
+            ),
+            ui.status_text("", data={"filter-status": ""}),
+            outer_sec,
+            inner,
+        ),
+        data={"filter-group": "outer"},
+    )
+    return view(outer), osid, isid
+
+
+def test_a_nested_filter_group_keeps_its_own_counts_sections_and_record(board):
+    state, page, open_ = board
+    html, osid, isid = _nested_view()
+    open_("#overview", {"overview": html})
+    settle(page)
+    assert page.locator("[data-filter-status]").all_text_contents() == [
+        cat.t("filter.shown", n=2, total=2),
+        cat.t("filter.shown", n=2, total=2),
+    ]
+    page.get_by_label("Name").fill("alp")
+    assert page.locator("[data-filter-status]").all_text_contents() == [
+        cat.t("filter.shown", n=1, total=2),
+        cat.t("filter.shown", n=2, total=2),
+    ]
+    assert _sections(page) == {osid: (False, True), isid: (False, False)}
+    assert json.loads(page.evaluate("localStorage.getItem('qd-filter-open:outer')")) == [osid]
+    assert page.evaluate("localStorage.getItem('qd-filter-open:inner')") is None
+    page.get_by_label("Tag").fill("gam")
+    assert page.locator("[data-filter-status]").all_text_contents() == [
+        cat.t("filter.shown", n=1, total=2),
+        cat.t("filter.shown", n=1, total=2),
+    ]
+    assert json.loads(page.evaluate("localStorage.getItem('qd-filter-open:inner')")) == [isid]

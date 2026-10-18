@@ -415,9 +415,29 @@ def _view_literals(src: str) -> list[str]:
             if i in pos or isinstance(arg, ast.Starred):  # a splat lands in some slot: read it
                 bad += _worded(arg, bound)
         for kw in node.keywords:
-            if kw.arg in kws or (kw.arg is not None and kw.arg not in _NON_TEXT_KWS):
+            if name == "select" and kw.arg == "value":
+                continue  # an option KEY, not displayed text
+            if name == "select" and kw.arg == "options":
+                bad += _option_labels(kw.value, bound)  # the LABEL of each pair is displayed text
+            elif kw.arg in kws or (kw.arg is not None and kw.arg not in _NON_TEXT_KWS):
                 bad += _worded(kw.value, bound)
     return bad
+
+
+def _option_labels(node: ast.AST, bound: dict[str, list[ast.AST]]) -> list[str]:
+    """The words in the label (index 1) of each literal ``(value, label)`` option pair; the value
+    (index 0) is a key and stays out. Pairs built elsewhere (a name, a call) are not descended."""
+    if isinstance(node, (ast.ListComp, ast.GeneratorExp, ast.SetComp)):
+        elt = node.elt
+        if isinstance(elt, (ast.Tuple, ast.List)) and len(elt.elts) == 2:
+            return _worded(elt.elts[1], bound)
+        return []
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        pairs = [e for e in node.elts if isinstance(e, (ast.Tuple, ast.List)) and len(e.elts) == 2]
+        if pairs:
+            return [w for e in pairs for w in _worded(e.elts[1], bound)]
+        return [w for e in node.elts for w in _option_labels(e, bound)]
+    return []
 
 
 def test_no_view_module_hands_a_component_a_literal_word():
@@ -887,3 +907,28 @@ def test_the_shared_formatters_take_every_word_from_the_catalogue():
     assert outs["burn"] == K("fmt.burn_wall") + " 0.50 12" and outs["noburn"] == K("fmt.no_burn")
     for words in ("ago", "cached", "due", "burn", "wall", " in "):
         assert all(words not in _visible(v) for v in outs.values()), words
+
+
+# ---------------------------------------------------------------- review pass 1: select options and value
+@pytest.mark.parametrize(
+    "mutant",
+    [
+        "ui.select(t('a'), name='c', id='i', options=[('paid', 'Paid')])\n",
+        "ui.select(t('a'), name='c', id='i', options=[['paid', 'Paid']])\n",
+        "ui.select(t('a'), name='c', id='i', options=[(v, 'Paid') for v in vs])\n",
+        "ui.select(t('a'), name='c', id='i', options=[('', t('x')), ('paid', 'Paid')])\n",
+    ],
+)
+def test_the_view_literal_scan_reads_a_select_option_label(mutant):
+    assert _view_literals(mutant) != []
+
+
+def test_the_view_literal_scan_reads_the_label_and_not_the_value_of_a_select_option():
+    assert (
+        _view_literals(
+            "ui.select(t('a'), name='c', id='i', options=[('paid', t('x')), ('free', t('y'))],"
+            " value='paid')\n"
+            "ui.select(t('a'), name='c', id='i', options=[(v, t('x')) for v in vs])\n"
+        )
+        == []
+    )

@@ -1272,3 +1272,30 @@ def test_only_a_long_badge_is_marked_to_wrap():
     assert "data-wrap" not in ui.badge("warning", "<" * (ui.BADGE_WRAP_AT - 1))
     assert "data-wrap" in ui.badge("critical", "x" * ui.BADGE_WRAP_AT)
     assert "data-wrap" in ui.badge("critical", ui.fragment("budget failed: ", "y" * 40))
+
+
+# ---------------------------------------------------------------- review pass 1: select values, headers
+def test_a_select_defaults_to_selecting_the_empty_valued_option_alone():
+    opts = [("", "All"), ("free", "Free"), ("paid", "Paid")]
+    for kw in ({}, {"value": None}, {"value": ""}):
+        out = ui.select("c", name="c", id="i", options=opts, **kw)
+        sel = [o.attrs["value"] for o in find_all(parse(out), "option") if "selected" in o.attrs]
+        assert sel == [""], kw
+    out = ui.select("c", name="c", id="i", options=[("free", "Free"), ("paid", "Paid")])
+    assert "selected" not in out  # no empty-valued option, nothing to select by default
+
+
+def test_an_option_whose_value_is_none_renders_empty_and_is_selected_as_empty():
+    opts = [("free", "Free"), (None, "All")]
+    for value in ("", None):
+        out = ui.select("c", name="c", id="i", options=opts, value=value)
+        picked = [o.attrs["value"] for o in find_all(parse(out), "option") if "selected" in o.attrs]
+        assert picked == [""], value
+
+
+def test_a_positional_table_call_accepts_any_iterable_of_headers():
+    out = ui.table("t", "T", (h for h in ["a", "b"]), [["1", "2"]])
+    assert [h.all_text() for h in find_all(parse(out), "th", scope="col")] == ["a", "b"]
+    out = ui.table("t", "T", (h for h in ["a", "b"]), [["1", "2"]], align=[None, "right"])
+    heads = find_all(parse(out), "th", scope="col")
+    assert [h.attrs.get("data-align") for h in heads] == [None, "right"]
