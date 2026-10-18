@@ -3,7 +3,7 @@
   "created": "2026-10-18T20:53:59.661569Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5e0b24cfcfc5f9c2964b86bff7f4a05bcdc5f58b",
   "id": "W-42ddde8f",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "break on an agent: the Stop hook flags an open review's own files as unreviewed",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m55cm91h0jbggjjff89cqnwq"
   ],
