@@ -2412,8 +2412,8 @@ def _seat_dirs(prompts: dict) -> dict:
 
 
 def test_every_seat_scratch_dir_is_a_tagged_seat_folder_under_scratch_dir() -> None:
-    """`round`'s size warning reads only `seat-*` children of the run folder (command_run.py
-    `_seat_size_lines`), and the run folder is what `scratch_dir` names. A finder, a refuter and both
+    """`round`'s size warning reads every top-level child of the run folder (command_run.py
+    `_seat_size_lines`, W-3c60b7db), and the run folder is what `scratch_dir` names. A finder, a refuter and both
     retries each get a `seat-p<pass>-<digest8>-` child of `scratch_dir`, never a bare `<slice>-<model>/`."""
     seats = {
         **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)]),

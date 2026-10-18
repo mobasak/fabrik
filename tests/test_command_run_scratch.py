@@ -1162,7 +1162,9 @@ def test_round_reports_large_seat_folders(tmp_path: Path, case: str) -> None:
     assert out.returncode == 0, out.stdout + out.stderr
     lines = [ln for ln in out.stdout.splitlines() if ln.startswith("seat-1:")]
     if case == "over":
-        assert lines == ["seat-1: 3.0 MB — copied a tree instead of archive/clone"], out.stdout
+        assert lines == ["seat-1: 3.0 MB — a copied tree? an archive or clone is leaner"], (
+            out.stdout
+        )
     elif case == "deadline":
         assert lines == ["seat-1: size unmeasured — over the deadline"], out.stdout
     else:
@@ -1175,8 +1177,9 @@ def test_each_seat_folder_gets_its_own_du_deadline(tmp_path: Path, monkeypatch) 
     """F8 (W-c0a1d324): spec D5 gives EACH seat folder its own `du` deadline. One deadline shared
     across the seats left a later seat whatever a slow earlier one did not spend — down to zero,
     so one large copy made every later seat read "size unmeasured"."""
+    run = tmp_path / "run"  # its own folder: every top-level folder is measured (W-3c60b7db)
     for n in (1, 2, 3):
-        (tmp_path / f"seat-{n}").mkdir()
+        (run / f"seat-{n}").mkdir(parents=True)
     clock = {"t": 0.0}
     timeouts: list[float] = []
 
@@ -1187,9 +1190,79 @@ def test_each_seat_folder_gets_its_own_du_deadline(tmp_path: Path, monkeypatch) 
 
     monkeypatch.setattr(cr.time, "monotonic", lambda: clock["t"])
     monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    lines = cr._seat_size_lines(str(tmp_path), threshold=1024, deadline_s=15.0)
+    lines = cr._seat_size_lines(str(run), threshold=1024, deadline_s=15.0)
     assert timeouts == [15.0, 15.0, 15.0], timeouts
     assert lines == [], lines
+
+
+def test_every_top_level_directory_of_the_run_folder_is_measured(tmp_path: Path) -> None:
+    """W-3c60b7db (kaizen 01M4Z543MQ): the glob was `seat-*`, so `seat2-opus`, a hand-made pin of a
+    whole tree and any other top-level folder escaped the advisory — 436 top-level dirs across 103
+    live run folders on 2026-10-18, a third of them outside `seat-*`. Every directory is a seat's
+    or the lead's write, so every one is measured; a plain file and a symlink are not folders."""
+    big = b"x" * (2 * 1024 * 1024)
+    for name in ("seat-1", "seat2-opus", "pins-p1", "probe", ".hidden"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "copy.bin").write_bytes(big)
+    (tmp_path / "brief.md").write_bytes(big)  # a file at the top level is no folder
+    (tmp_path / "linked").symlink_to(tmp_path / "seat-1")  # a symlink is never measured
+    lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
+    named = sorted(ln.split(":", 1)[0] for ln in lines)
+    assert named == [".hidden", "pins-p1", "probe", "seat-1", "seat2-opus"], lines
+
+
+def test_a_symlinked_folder_is_never_handed_to_du(tmp_path: Path, monkeypatch) -> None:
+    """`du -s` does not follow a symlink, so the output alone cannot tell whether the skip ran
+    (review pass 1, C1): the observable is that `du` is never spawned on it."""
+    run = tmp_path / "run"  # its own folder: the conftest pins isolation dirs into tmp_path
+    (run / "real").mkdir(parents=True)
+    (run / "linked").symlink_to(run / "real")
+    seen: list[str] = []
+
+    def fake_run(cmd, **kw):
+        seen.append(Path(cmd[-1]).name)
+        return subprocess.CompletedProcess(cmd, 0, stdout="5\t" + cmd[-1] + "\n", stderr="")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    cr._seat_size_lines(str(run), threshold=1024, deadline_s=5.0)
+    assert seen == ["real"], seen
+
+
+def test_an_unsearchable_run_folder_never_raises(tmp_path: Path) -> None:
+    """A readable but unsearchable folder (mode 0444) lists its names but every stat raises
+    EACCES: the advisory says each entry is unmeasured and returns, never raises past its caller's
+    `suppress` (review pass 1, Ah-C1) and never reads as "not large" by silence (pass 2, C-1)."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0444")
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    run.chmod(0o444)
+    try:
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
+    finally:
+        run.chmod(0o755)
+    assert lines == ["seat-1: size unmeasured — cannot be examined"], lines
+
+
+def test_a_ledger_pin_base_extraction_is_exempt_but_a_hand_made_base_is_not(tmp_path: Path) -> None:
+    """`review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base` beside the pins
+    dir's MANIFEST.json — the archive the advisory recommends, so it never prints; an `x.base` with
+    no such sibling is measured like any folder (Opus design critique, W-3c60b7db)."""
+    big = b"x" * (2 * 1024 * 1024)
+    (tmp_path / "pins-p1").mkdir()
+    (tmp_path / "pins-p1" / "MANIFEST.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "probe").mkdir()  # a sibling FOLDER with no MANIFEST.json earns no exemption
+    for name in ("pins-p1.base", "handmade.base", "probe.base"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "tree.bin").write_bytes(big)
+    lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
+    assert sorted(ln.split(":", 1)[0] for ln in lines) == ["handmade.base", "probe.base"], lines
+
+
+def test_a_vanished_run_folder_answers_no_lines_never_raises(tmp_path: Path) -> None:
+    """`glob` answered a missing folder with nothing; `iterdir` raises — the advisory keeps the
+    old contract (its caller only suppresses, so a raise would hide every other folder's line)."""
+    assert cr._seat_size_lines(str(tmp_path / "gone"), threshold=1, deadline_s=5.0) == []
 
 
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────
