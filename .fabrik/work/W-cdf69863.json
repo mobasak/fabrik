@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — version pin bump",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "Docusaurus scaffold pins @docusaurus/core 3.7.0; current is 3.10.2 (2026-07-10)"
 }

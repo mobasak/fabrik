@@ -23,8 +23,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — deploy env path resolves wrong dir",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "deploy's own path resolves read_env/inject_env at /opt/<ctx.app_name> (deployer_ssh.py:326, :363-364) while _deploy_local writes a local source's files at source.path (:668-671, :692): for fabrik-file-worker a registrar injection during apply lands in /opt/fabrik-file-worker/.env, not /opt/file-worker/.env — found by the Fable approval seat at the W-36571dff spec (2026-10-14)"
 }

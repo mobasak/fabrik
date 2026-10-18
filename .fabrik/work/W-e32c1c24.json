@@ -22,8 +22,7 @@
   "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "**[fleet]** A local source living off /opt/<name> is half-supported: deploy reads its .env (W-7ec31807), but refresh_infrastructure (orchestrator/__init__.py:491-497) cannot find it and inject_env/read_env/restart/_compose_up (deployer_ssh.py:308-375) all target /opt/{ctx.app_name} — measured 2026-10-08: 1 of 69 specs (7 local sources) is affected, fabrik-file-worker (source.path /opt/file-worker), whose registrar injections go to /opt/fabrik-file-worker"
 }

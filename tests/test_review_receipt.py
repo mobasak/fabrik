@@ -212,6 +212,40 @@ def test_v11_is_satisfiable_on_a_prose_ledger(repo: Path) -> None:
     assert any("names no finder seat before its counters" in e for e in errs), errs
 
 
+def test_a_fable_only_closing_row_names_a_seat(repo: Path) -> None:
+    """W-d90fe030 — a dispatched Fable seat re-verifies its own slice in the closing pass
+    (core/62 § The orchestrator), so a closing row naming only `fable×N` names a seat, in the
+    table grammar and in the prose one."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    table = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | native fable×1 |"
+    )
+    assert table != done
+    out.write_text(table, encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    prose = done.replace(
+        "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
+        "| method: citation |\n"
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
+        "unexecuted: 0 | method: re-derivation |\n",
+        "\nPass 1 (native fable×1 + sonnet×2): found: 1, confirmed: 1, fixed: 1\n"
+        "Pass 2 (native fable×1): found: 0, confirmed: 0, fixed: 0 — method: re-derivation\n\n",
+        1,
+    )
+    assert prose != done
+    out.write_text(prose, encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    # a spelled-out version is no token, so a closing row naming only one is still refused
+    spelled = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | native Fable 5.1×1 |"
+    )
+    out.write_text(spelled, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("names no finder seat" in e for e in errs), errs
+
+
 def test_a_checklist_row_citing_a_line_is_told_the_citation_repair(repo: Path) -> None:
     """ROUND 2 — where the citation-idiom refusal CAN fire (a receipt with a checklist section),
     the message must name an edit the row's author can make."""

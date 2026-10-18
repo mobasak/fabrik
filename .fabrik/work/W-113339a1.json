@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m4wzmr2tq6ax0s8vbtw1h476",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "i18n extractor: fabrik-lib fixed findings 1-2 (SB-126) and names one rule beyond the hub version plus one remaining hole (mail 01M4WZMR2TQ6AX0S8VBTW1H476)"
 }

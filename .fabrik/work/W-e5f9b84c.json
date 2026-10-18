@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:40.723348Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e5f9b84c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57H2HN4NTBVJBXHRQ4S35ZM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "tryton-crm resumed (agent-1, coordinator). Steps from your 01M51SDKDQ:"
+}

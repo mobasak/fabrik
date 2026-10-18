@@ -20,8 +20,7 @@
   "status": "open",
   "tags": [
     "medium",
-    "needs-split",
-    "waits-quota-reset"
+    "needs-split"
   ],
   "title": "file-api template: 12 findings (mails 01M35GSM/01M35JNA) on top of two emission paths that disagree — scaffold.py writes package.json inline and the Dockerfile from the shared Dockerfile.node, while templates/file-api/{package.json,Dockerfile.j2,compose.yaml.j2} serve the deploy path; presign binds neither Content-Type nor a valid checksum, DELETE drops the row after a failed object delete, Supabase Pattern B auth takes the first tenant, uncapped download expiry and open CORS, container healthchecks hit the dependency-checking endpoint, Express 4, and every type gets saas-skeleton + spec-pipeline copied in"
 }

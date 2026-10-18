@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:12.167764Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-59005afd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M50FD973GGRNSXF14W6MWRTW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: scratch-lifecycle conformance (W-a71b3926) — F11 and F10 fixed and merged; the rest is W-c0a1d324"
+}

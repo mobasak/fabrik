@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "LOW: a rare edge (oddly spaced 'docker run' passes the post-patch check); D-994 residue",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "file-worker scaffold: the post-patch live-worker check matches the literal 'docker run' and the marker as substrings, so 'docker run', 'docker container run' or the marker inside a trailing comment would pass (src/fabrik/scaffold.py _scaffold_file_worker, W-807b73fd review round 3 C2)"
 }

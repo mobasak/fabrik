@@ -58,6 +58,10 @@ from dashboard_ui import strings as _strings  # noqa: E402
 from dashboard_ui import views as _views  # noqa: E402
 from dashboard_ui.components import last_resort as _last_resort  # noqa: E402
 from dashboard_ui.fmt import opt_root as _opt_root  # noqa: E402
+
+# The child's `synced_at` is read by the PAGE's time rule, so the board and the page agree on what a time
+# is (W-a4bc74a6, R27); `dashboard_ui.inventory` is already loaded here through `views.services`.
+from dashboard_ui.inventory import _epoch  # noqa: E402
 from dashboard_ui.strings import CATALOGUE as _BUILTIN_WORDS  # noqa: E402
 
 ROTATE_CLI = Path(
@@ -605,18 +609,6 @@ def _inventory_spawn(deadline_epoch: float) -> subprocess.Popen:
 
 def _first_line(text: object) -> str:
     return (str(text).splitlines() or [""])[0][:300]
-
-
-def _epoch(value: object) -> float | None:
-    """``value`` as a finite, non-negative epoch float, or None (a bool, a non-number, NaN, an infinity,
-    a negative, or an integer too large for a float are all None)."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    try:
-        f = float(value)
-    except OverflowError:
-        return None
-    return f if math.isfinite(f) and f >= 0 else None
 
 
 def _inventory_outcome(out: bytes, code: int | None) -> tuple:

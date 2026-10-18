@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — fresh file-worker project make lint red",
   "status": "open",
   "tags": [
-    "scaffold",
-    "waits-quota-reset"
+    "scaffold"
   ],
   "title": "file-worker scaffold: worker/ has no pyproject and fails mypy (11 errors under --explicit-package-bases) — make lint is red on a fresh project"
 }

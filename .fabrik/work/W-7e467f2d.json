@@ -15,7 +15,7 @@
   },
   "next": "confirm why the chain's classify step stopped writing (pool off vs a skip), then propose the replacement path; found by the W-3e9e2f4c spec census (spec I8)",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: bug, classify_services.py has classified nothing since 2026-09-07; one script",
   "status": "open",

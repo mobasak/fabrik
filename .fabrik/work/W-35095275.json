@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:18.608684Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-35095275",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56CDEVS2X0V2JKNTVD6KA2C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "re: D-484's stay-in-place rule — RETIRED by D-975 (archive at once, never repoint the citing row)"
+}

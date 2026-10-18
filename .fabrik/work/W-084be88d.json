@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:51:44.892704Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-084be88d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve-style edit: make round zero's own-fix probe duty findable (its own bullet or a recipe line) without losing a rule; the fragment renders into 20 commands, so the full /fabrik-review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work + rule wording (D-956); one fragment line, rendered into 20 commands so the full /fabrik-review",
+  "status": "open",
+  "title": "commands/_fragments/term-edit.md:19 (round zero + rule (1): every claim the lead's own fix introduces is a probe script) is cited by 18 answered feedback rejects across the review family — a line not followed (fabrik-command-improve PHASE 2's three-or-more bar); the latest verdict's confusion: the rule sits in one long paragraph and is easy to miss"
+}

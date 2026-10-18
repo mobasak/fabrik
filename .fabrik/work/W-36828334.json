@@ -24,8 +24,7 @@
   "status": "open",
   "tags": [
     "gpu",
-    "money-guard",
-    "waits-quota-reset"
+    "money-guard"
   ],
   "title": "Modal endpoints: app.deploy() inside ModalClient.create_endpoint can be listed by app name (and so tagged FABRIK_SESSION_ID) before gpu_rent records the session, so a reaper run in that window may class our own deploying endpoint an orphan"
 }

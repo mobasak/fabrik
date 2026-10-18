@@ -1,0 +1,29 @@
+{
+  "blocked_by": [
+    "W-ab242b11"
+  ],
+  "created": "2026-10-18T18:05:27.841364Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-9d1ba25c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measured 2026-10-18 in window sid 8a498855 (after /clear from 7e6fef18): command_run line/round/done needed --session on every verb; merge_request request PARTIAL (work.py release refused the old claim); the review close counted 0 seats seen; and the Stop hook's unreviewed-work cause named 4 files the full /fabrik-review under 7e6fef18 covered (receipt efef94f9e). Design: adopt a running record and its covered windows by cwd+agent+window across /clear, /fabrik-task",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "spec-sized per infra's measure: new session-alias mechanism shared by 4 readers on governance-sync paths, trade-off first = a major; held behind W-ab242b11",
+  "status": "open",
+  "tags": [
+    "infra",
+    "mail-01m586az2zymn2493d249zv846"
+  ],
+  "title": "command_run.py: a running record follows the window across /clear (Stop hook, seat counts, work-item claims key on the pre-clear session id)"
+}

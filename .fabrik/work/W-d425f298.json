@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:59:21.922254Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-d425f298",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated (D-711 Opus audit 2026-10-19): commands/_sources/fabrik-command-improve.md:47-48 'Grounding — before drafting, not after review … the tool's own",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}

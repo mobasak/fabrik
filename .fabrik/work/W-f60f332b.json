@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:04:03.871265Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-f60f332b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56TBES2QQ950DNEYRGCQ0E6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "request: 01M56SXCD1TKCHSYH3QMP7W2EJ"
+}

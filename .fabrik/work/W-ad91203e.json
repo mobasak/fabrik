@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:20.605819Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ad91203e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M568PCA5XBARG7F2RB614XVW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "master is red on tests/test_fabrik_task_source.py::test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes"
+}

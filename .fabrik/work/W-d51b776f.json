@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:01.198679Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d51b776f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M57G442K5CEZG5SVXZNVT22W in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "agent request (kaizen): quota hold refuses SubagentHandback, plus one round fix",
+  "status": "open",
+  "tags": [
+    "mail-01m57g442k5cezg5svxznvt22w"
+  ],
+  "title": "mail 01M57G442K5CEZG5SVXZNVT22W: Two /fabrik-review-scoped feedback rows need code — quota hold refuses SubagentHandback (quota_stop.py:64); round accepts a delta round missing --own-fix"
+}

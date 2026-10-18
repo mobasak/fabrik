@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — validator blind spots, only unusual composes",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "deployer_ssh._validate_compose gaps shared by every deploy path (found by the W-807287f1 review): top-level include:/service extends: are never inspected, so a pulled-in service bypasses every invariant; a null deploy.resources.limits raises TypeError instead of a validation error; _assert_claude_cli_mounts is a raw substring test, so commented-out mount lines pass"
 }

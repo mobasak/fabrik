@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — template cleanup",
   "status": "open",
   "tags": [
-    "rules",
-    "waits-quota-reset"
+    "rules"
   ],
   "title": "mobile-app scaffold carries two unrelated translation sets: the app loads src/translations/ (starter-kit keys, en+ar) while static/i18n/ holds the i18n-kit key set the app never loads, and scripts/sync_rn_locales.py writes a third path (src/locales/)"
 }

@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "mail",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "scripts/mail.py in the hub main checkout was truncated to 0 bytes at 2026-10-06 19:39:02 +0300 by an unattributed writer"
 }

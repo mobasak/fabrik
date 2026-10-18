@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — allowlist two env names in audit",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "audit_envs/gather_envs: allowlist APP_ENV and APP_GIT_SHA (the scaffold now emits them)"
 }

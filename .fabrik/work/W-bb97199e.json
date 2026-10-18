@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T20:16:24.942784Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-bb97199e",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide ship-HEAD vs name-only; ls-tree the skipped path in the skip branch; test with a deleted tracked source",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare-edge sync residue from W-ba306861 (D-1018); nobody blocked",
   "status": "open",
   "tags": [
     "intel"

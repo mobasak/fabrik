@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T19:20:25.429377Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-2725ed54",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,12 @@
   },
   "next": "fix the lessons-learnt template (and its project copies) so its ``` blocks close where the author meant, then land the CommonMark fence model (char + run length, ~~~, info strings) with a fleet diff showing 0 new findings",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
   "status": "open",
+  "tags": [
+    "needs-template-fix"
+  ],
   "title": "check_doc_links fences: _iter_refs toggles on any line starting with ``` (no run length, no ~~~, a trailing-text closer closes); a CommonMark fence model measured 16 NEW hard-gate findings across 15 project repos, all docs/lessons-learnt.md from a shared template whose fences only balance by the toggle (W-f11e740e review)"
 }

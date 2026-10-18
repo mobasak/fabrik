@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — pre-deploy validation for watchdog fields; apply aborts late",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "watchdog: validate llm_actions (and the other watchdog fields) pre-deploy, so a bad value aborts fabrik apply and apply --dry-run instead of failing the registrar after the app deploys"
 }

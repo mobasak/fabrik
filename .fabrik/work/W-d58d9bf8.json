@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:24.051150Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d58d9bf8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55RY4KA2KBMVR0B2CJ7WF6D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-mail: 16 of the hub's own obligation(s) aged past the threshold"
+}

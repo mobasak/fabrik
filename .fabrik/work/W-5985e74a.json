@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on upstream role definition; nothing writes purchases",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "registrar: mint fabrik-lib payments' fulfilment-worker role (INSERT+SELECT on purchases plus its two RLS policies) once fabrik-lib defines it — today nothing writes purchases (fabrik-lib payments/db/schema.sql, Phase D) and the ingest role must NOT get the grant (mails 01M35P4T/01M35P9V)"
 }

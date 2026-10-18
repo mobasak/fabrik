@@ -3,7 +3,7 @@
   "created": "2026-10-18T13:58:54.331387Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d9d055ac9047d7ed76629b778648c1dfc0a7471a",
   "id": "W-d90fe030",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: blocking bug, the review grader refuses a valid Fable-only closing seat; one pattern in check_review_coverage.py",
-  "status": "open",
+  "status": "done",
   "tags": [
     "enforcement"
   ],

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T18:49:52.094510Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f82d4285",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: answered — review-probe-catalogue.md § Seat isolation names every writing verb outside scratch and forbids it, and commands/_agents/fabrik-reviewer.md forbids e",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review"
+}

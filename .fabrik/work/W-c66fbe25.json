@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — ownership reset on spokes",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "**Reset `/opt/fabrik/` ownership on vps2 + vps3 from `root:root` to `ozgur:ozgur`** (cosmetic): Today's bootstrap-vps.sh change covers fresh installs going forward, but the live state on vps2/vps3 ..."
 }

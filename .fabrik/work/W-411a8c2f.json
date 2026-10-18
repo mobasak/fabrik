@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:10.707277Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-411a8c2f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M50D4NQM5CW7W01W55YXBBND",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 70-chrome-ext.md § Distribution Model — the release-kit sentence is in (f3430f196, merge requested 01M50D43TR)"
+}

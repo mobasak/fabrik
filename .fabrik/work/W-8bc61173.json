@@ -16,7 +16,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — researcher fetch-path rule gaps measured by four seats",
   "status": "open",
