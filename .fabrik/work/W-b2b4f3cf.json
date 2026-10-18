@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:26.717492Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b2b4f3cf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4XWS6CTVNGZTF77VFPA1TM5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "skill_router.py nudges toward /fabrik-spec and has no /fabrik-task trigger — a mechanical bias in the lane decision (operator question 2026-10-14)"
+}

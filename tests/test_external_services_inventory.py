@@ -326,6 +326,55 @@ def test_load_accepts_zero_as_a_balance_and_a_price():
     assert (row["balance"], row["price"]) == (0.0, "0 usd")
 
 
+def test_the_first_email_and_the_last_added_whole_plan_win():
+    """W-a4bc74a6 (R13): the key read is ordered by insertion and the FIRST email wins; the plan read
+    is one row per service, the highest id first, and its price and renewal come from that ONE row —
+    two plans never merge column by column into a price of one and a renewal of the other. "Last
+    added", not "latest declared": a re-declared plan keeps its id (the upsert updates in place) and
+    the table holds no recency column. The fake returns rows in the order each ORDER BY asks for and
+    ignores the SQL, so each read's ORDER BY TAIL and the plan read's DISTINCT ON HEAD are asserted
+    exactly; a WHERE clause or a subquery between them is not checked here."""
+    conn = FakeConn(
+        {
+            "FROM services": SERVICES[:1],
+            "FROM api_keys": [(1, ["a"], "first@x.io", "credential"), (1, ["b"], "second@x.io", "credential")],
+            "FROM subscriptions": [(1, 20, "eur", None), (1, 10, "usd", "2026-01-01")],  # id DESC
+        }
+    )  # fmt: skip
+    (row,), _ = inventory.load(conn)
+    assert row["account"] == "first@x.io"
+    assert (row["price"], row["renews"]) == ("20 eur", "")  # the last-added plan, whole
+    sqls = [s for kind, s in conn.events if kind == "sql"]
+    keys = next(s for s in sqls if "FROM api_keys" in s and "max(last_seen)" not in s)
+    plans = next(s for s in sqls if "FROM subscriptions" in s)
+    # exactly these clauses — a substring would also pass `id DESC` (the LAST email) on the key read
+    assert re.search(r"\bORDER BY service_id, id\s*$", keys), keys
+    assert re.match(r"SELECT DISTINCT ON \(service_id\) ", plans), plans
+    assert re.search(r"\bORDER BY service_id, id DESC\s*$", plans), plans
+
+
+def test_a_null_project_element_is_skipped():
+    """W-a4bc74a6 (R14): a NULL element of `used_by_projects` used to put None beside the names, and
+    `sorted()` raised — the whole read failed. A lone NULL rendered as the text "None"."""
+    conn = FakeConn(
+        {
+            "FROM services": SERVICES[:2],
+            "FROM api_keys": [(1, ["b", None, "a"], None, "credential"), (2, [None], None, "credential")],
+        }
+    )  # fmt: skip
+    rows, _ = inventory.load(conn)
+    by = {r["provider"]: r for r in rows}
+    assert by["apify"]["projects"] == ["a", "b"] and by["mystery"]["projects"] == []
+
+
+def test_a_negative_zero_time_is_a_plain_zero():
+    """W-a4bc74a6 (R28): `_epoch` kept -0.0's sign; every other accepted value is unchanged."""
+    zero = inventory._epoch(-0.0)
+    assert zero == 0.0 and math.copysign(1.0, zero) == 1.0
+    assert inventory._epoch(0.0) == 0.0 and inventory._epoch(5) == 5.0
+    assert inventory._epoch(1e308) is None and inventory._epoch(-1) is None
+
+
 def test_registry_connect_passes_keyword_arguments_through_and_none_is_todays_call(monkeypatch):
     import registry_db
 
@@ -762,7 +811,7 @@ def _reference_workload() -> None:
         f"{i:g}".strip()
 
 
-def test_a_5000_row_fixture_renders_in_under_200_ms():
+def test_a_5000_row_fixture_renders_within_0_6_s_and_ten_reference_workloads():
     """CPU time (process_time), best of 5, in both modes: the render's own cost. Load stretches a
     process's CPU time (shared cores) and the reference workload alike, so the ratio of the two is
     stable; the absolute 0.6 s ceiling holds on any box."""

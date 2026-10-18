@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:00.676249Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a97a0edf",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M56AFR11MQ51V1VSZ7M6P40K in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "wording in review_rubric.py: a new grader-vacuity class name",
+  "status": "open",
+  "tags": [
+    "mail-01m56afr11mq51v1vsz7m6p40k"
+  ],
+  "title": "mail 01M56AFR11MQ51V1VSZ7M6P40K: review_rubric.py: name \"self-referencing expected value\" as a grader-vacuity class (/fabrik-review-scoped feedback row 1792275429)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:16.209755Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0d9a9d86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55C6HDWEGQVE6EWPMYX7NV0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review_loop_ledger.py next carries open claims (D-933) — both corpus sentences refreshed (kaizen dd58d45e9, D-948)"
+}

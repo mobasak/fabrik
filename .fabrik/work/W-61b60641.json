@@ -15,7 +15,7 @@
   },
   "next": "edit docs/reference/ai-media-generation-provider-map.md:152,163 to say Claude through claude -p on the subscription (llm-dispatch), OpenRouter only as the opted-in metered fallback",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — rule pack contradicts ai/00 subscription-first rule",
   "status": "open",

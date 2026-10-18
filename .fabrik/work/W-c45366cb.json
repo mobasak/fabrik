@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:59.131519Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c45366cb",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M55A2NAX6T02W2MT41FY0Z33 in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "every repo: the template gate-venv install line omits pytest-timeout",
+  "status": "open",
+  "tags": [
+    "mail-01m55a2nax6t02w2mt41fy0z33"
+  ],
+  "title": "mail 01M55A2NAX6T02W2MT41FY0Z33: templates/governance/CLAUDE.md's gate-venv install line leaves out pytest-timeout, so the scaffolds' new per-test timeout is inert in the gate's own run"
+}

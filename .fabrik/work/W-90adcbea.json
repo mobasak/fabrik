@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:17.436743Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-90adcbea",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5643GNH4QSRJE5X9K5TMXAG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: plan-review seats grade a pinned plan-set copy — DONE (57ffb33b8 on worktree-kaizen); --all waits on your merge (W-08669e63)"
+}

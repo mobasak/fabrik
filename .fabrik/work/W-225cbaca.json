@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:09.406489Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-225cbaca",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M50985K6DJK65SV9121CRR4J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: one sentence in 70-chrome-ext.md § Distribution Model (W-e2af3303) — accepted, waits on your merge"
+}

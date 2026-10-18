@@ -3,7 +3,7 @@
   "created": "2026-10-18T05:42:47.856869Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "11f4f68d5e06f88db0225afc181cf204e749b5e1",
   "id": "W-ba306861",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare silent cases in _head_source (a deleted manifest records no drift; an unreadable hub git falls back silently); D-986 follow-up",
-  "status": "open",
+  "status": "done",
   "title": "sync _head_source: a tracked synced file deleted from the working tree between import and the read ships HEAD's bytes but records NO drift (read_bytes OSError leaves drifted=False), so the drift report is silent on a deletion"
 }
