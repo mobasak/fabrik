@@ -865,3 +865,18 @@ def test_the_emitted_throwaway_guard_refuses_the_apps_db_when_the_app_is_unreach
 
 def test_the_emitted_throwaway_guard_allows_another_db_on_the_same_server(project, redis_sock):
     _emitted_redis_guard(project, f"unix://{redis_sock}?db=3")(f"unix://{redis_sock}?db=1")
+
+
+def test_the_emitted_throwaway_guard_refuses_a_test_user_denied_info(project, redis_sock):
+    """A Redis user without INFO hides its server's run_id; on the app's DB that is refused."""
+    admin = redis.Redis(unix_socket_path=redis_sock)
+    try:
+        admin.acl_setuser(
+            "noinfo", enabled=True, passwords=["+pw"], keys=["*"], commands=["+@all", "-info"]
+        )
+        guard = _emitted_redis_guard(project, f"unix://{redis_sock}?db=3")
+        with pytest.raises(RuntimeError, match="own REDIS_URL"):
+            guard(f"unix://noinfo:pw@{redis_sock}?db=3")
+    finally:
+        admin.acl_deluser("noinfo")
+        admin.close()

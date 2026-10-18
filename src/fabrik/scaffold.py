@@ -3978,8 +3978,9 @@ def _require_throwaway(url: str) -> None:
     if db == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
     if _APP_REDIS_URL and db == _db(_APP_REDIS_URL):
-        app_id = _server_id(_APP_REDIS_URL)  # unreachable: unprovable, so refused
-        if app_id is None or app_id == _server_id(url):
+        # an unknown run_id (unreachable, or a user denied INFO) proves nothing, so it is refused
+        app_id, test_id = _server_id(_APP_REDIS_URL), _server_id(url)
+        if app_id is None or test_id is None or app_id == test_id:
             raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
 
 
