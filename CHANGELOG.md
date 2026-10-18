@@ -109,6 +109,13 @@ Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
 
+### Fixed — a scaffolded file-worker's `make docker-smoke` checks the worker's heartbeat, not `/health` (2026-10-18)
+
+`fabrik scaffold --type file-worker` wrote a `docker-smoke` target that curled `/health`, which a worker never serves,
+so it always printed "Health FAILED". It now runs `FILE_WORKER_HEARTBEAT_CHECK` inside the smoke container after a
+bounded wait for the first beat, publishes no port, and names the container `<project>-smoke`, removing a leftover
+of its own first. A drifted `Makefile.python` smoke rule fails the scaffold. D-992 (W-881752ec).
+
 ### Fixed — remote ssh text reaches errors and logs masked and on one line (2026-10-18)
 
 `src/fabrik/drivers/ssh.py::_one_line` masks remote text with `_redact` and then `repr`-quotes it, so a CR, LF,
