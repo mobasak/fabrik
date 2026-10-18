@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
+
+- `scripts/command_run.py::_seat_size_lines` globbed `seat-*`, so seats named `seat2-opus` or `seat-p1-<pin>-A-haiku`
+  and hand-made pins of a whole tree — a third of the live run folders' top-level folders — were never measured. It
+  now measures every top-level folder (symlinks and files skipped, an unexaminable entry reported as unmeasured; a `pin --base` extraction
+  beside its pins `MANIFEST.json` is exempt), and the line reads `a copied tree? an archive or clone is leaner`
+  instead of accusing a legitimate clone (W-3c60b7db, D-978).
+
 ### Fixed — a doc whose name holds a space can be linked the markdown way in INDEX.md (2026-10-18)
 
 - `scripts/enforcement/check_doc_index.py` decoded only `%20` when checking INDEX link targets exist, but compared the
