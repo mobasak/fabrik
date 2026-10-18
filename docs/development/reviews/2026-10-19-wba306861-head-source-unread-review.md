@@ -1,6 +1,6 @@
 # W-ba306861 — the sync names a hub source git cannot read
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0b34aad26d6893a07d376c6ef41cc32fbd99bf99; range tip 0b34aad26d6893a07d376c6ef41cc32fbd99bf99; `git diff 47ec8841ab9013d45f93a9343367008afa07caa2..HEAD -- scripts/sync_enforcement_to_projects.py tests/test_sync_head_source.py tests/test_sync_worktree_adoption.py CHANGELOG.md docs/LESSONS_LEARNT.md` md5 7a4e4d069ec46bdcd461acfc3a97b114 (39066 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sync_enforcement_to_projects.py`, `tests/test_sync_head_source.py`, `tests/test_sync_worktree_adoption.py`, `CHANGELOG.md`, `docs/LESSONS_LEARNT.md`
 **Lane:** fabrik-task
@@ -175,6 +175,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | P2-A2s the summary says `working tree used` on an identical destination | REFUTED (the working tree's bytes were used for the comparison; `used` was chosen over `shipped` for exactly that branch) |
 | P2-stale a later successful read leaves the unread record | RECORDED — by design (D-1018) — the record means at least one read fell back, and the line's verb stays true |
 | P2-hygiene 13 template-residue hits in CHANGELOG.md | RECORDED — hygiene false positive (every hit sits at CHANGELOG.md:17883 or later, entries this change did not write; its own entry is at line 7) |
+| P2-U356 three `_hub_is_unborn` mutants survive (for-each-ref swapped, the rc check of symbolic-ref and for-each-ref ignored, the stderr clause dropped) | RECORDED — measured (each clause is redundant with the empty-object-store check in every state a hub reaches; the corrupt-ref and lost-ref tests kill the function's verdict both ways, U1/U2/U4) |
 | P2-dangling a hub with only unreachable loose objects is named | RECORDED — by design (D-1018) — the P2-N1 class, fail closed |
 
 ### Verdict grammar — an EXAMPLE, never rows
@@ -211,22 +212,13 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
 {
   "status": "success",
   "tier": 2,
-  "passed": 67,
+  "passed": 57,
   "failed": 0,
-  "skipped": 3,
+  "skipped": 1,
   "skipped_checks": [
-    "semgrep",
-    "pytest",
-    "sqlfluff"
+    "static tier"
   ],
   "advisory": [
-    {
-      "check": "pytest (NOT RUN)",
-      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
     {
       "check": "Vendored Drift (sync-excluded repos)",
       "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 48 identical \u00b7 11 declared-design \u00b7 30 UNREVIEWED diff \u00b7 13 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~21 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nor declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/core/self-healing.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
@@ -278,7 +270,7 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
     },
     {
       "check": "Citations resolve (path:line lands)",
-      "output": "",
+      "output": "\u26a0 check_citations_resolve NOTHING GRADED across 1 docs \u2014 0 graded of 1 found (0 bare filename, 1 ambiguous, 0 not under root /opt/fabrik/.claude/worktrees/intel)",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
@@ -382,43 +374,11 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
       "rerun": null
     }
   ],
-  "blocking": 42,
+  "blocking": 34,
   "checks": [
     {
-      "name": "check json",
-      "outcome": "pass"
-    },
-    {
-      "name": "check yaml",
-      "outcome": "pass"
-    },
-    {
-      "name": "mypy",
-      "outcome": "pass"
-    },
-    {
-      "name": "bandit",
-      "outcome": "pass"
-    },
-    {
-      "name": "bandit scripts/ (HIGH only)",
-      "outcome": "pass"
-    },
-    {
-      "name": "semgrep (NOT RUN \u2014 timed out after 30s)",
+      "name": "static tier (diff-sensed skip)",
       "outcome": "skipped"
-    },
-    {
-      "name": "pytest (NOT RUN)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "sqlfluff (NOT INSTALLED \u2014 skipped)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "vulture",
-      "outcome": "pass"
     },
     {
       "name": "Convergence Evidence (plans + reviews)",
@@ -497,10 +457,6 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
       "outcome": "advisory"
     },
     {
-      "name": "Schema Sync (DB Models)",
-      "outcome": "pass"
-    },
-    {
       "name": "Frozen Chain (contract pins)",
       "outcome": "advisory"
     },
@@ -510,10 +466,6 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
     },
     {
       "name": "Doc Sync Matrix",
-      "outcome": "pass"
-    },
-    {
-      "name": "Decision Ledger (unique ids)",
       "outcome": "pass"
     },
     {
@@ -656,17 +608,17 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
   "failures": [],
   "warnings": [
     {
-      "check": "sqlfluff (NOT INSTALLED \u2014 skipped)",
-      "output": "\u26a0 sqlfluff NOT INSTALLED \u2014 skipped, not passed; this green asserts nothing about what sqlfluff checks. Install it in the interpreter running the gate.",
+      "check": "static tier (diff-sensed skip)",
+      "output": "\u26a0 static checks skipped \u2014 only .md files in the diff; this green asserts nothing about lint/type debt",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
     },
     {
       "check": "Coverage Checklist (reviews)",
-      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~14 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\n COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-10-18-seat-guard-network-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-10-19-wba306861-head-source-unread-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 0 changed + 1 unintegrated review artifact(s)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-10-09-w-b63ffe1a-gate-scope-wording-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-10-18-seat-guard-network-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed + 0 unintegrated review artifact(s)",
       "truncated": true,
-      "omitted_lines": 14,
+      "omitted_lines": 13,
       "rerun": "python scripts/enforcement/check_review_coverage.py"
     },
     {
@@ -675,6 +627,13 @@ Pass 1 confirmed 12 of 23 and fixed all 12 in d05e4fde0; pass 2, the round-1 sea
       "truncated": true,
       "omitted_lines": 21,
       "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "\u26a0 check_citations_resolve NOTHING GRADED across 1 docs \u2014 0 graded of 1 found (0 bare filename, 1 ambiguous, 0 not under root /opt/fabrik/.claude/worktrees/intel)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
     },
     {
       "check": "Work items (sync)",
