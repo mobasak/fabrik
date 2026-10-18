@@ -1310,13 +1310,19 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
             'os.environ["FABRIK_ROOT"]=os.getcwd()',
             "an archive is not a linked worktree",
             # W-393ffefa (kaizen 01M54YKMF1): the sibling repo a scaffold test reads, and what it must not start
-            "`ln -s /opt/fabrik-lib SCRATCH/fabrik-lib`",
+            "`ln -sfn /opt/fabrik-lib SCRATCH/fabrik-lib`",
+            "a plain `ln -s` run a second time follows the existing link",
             "never a copy of the live tree",
+            "the scaffold imports a manifest from FABRIK_ROOT/scripts as it loads",
+            "The link is READ-ONLY: never write, chmod or delete through it",
+            "with its default `provision=False` and a `base=` under SCRATCH",
             "read a `fabrik-lib/docs-site not present` skip as the missing link",
             "fabrik-lib is another repo, never in the run's pins",
             'os.environ["FABRIK_SCAFFOLD_OFFLINE"]="1"',
             "never the `fabrik scaffold` CLI",
-            "`docker`, `scratch_pg` and `_real_pg`",
+            "for `scratch_pg` and `_real_pg` too",
+            "`docker run` or `docker compose` the test itself executes",
+            "pass `-B` to every python the probe starts",
         ):
             assert needed in p, (label, needed)
         assert "PKG" not in p, (label, "the one-package placeholder is gone")
@@ -1351,9 +1357,10 @@ def _audit_schema_found_under(root: Path) -> tuple[str, bool]:
 @pytest.mark.skipif(not _LIB_SCHEMA.is_file(), reason="needs the sibling repo /opt/fabrik-lib")
 def test_the_recipes_fabrik_lib_link_is_where_the_scaffold_looks(tmp_path: Path) -> None:
     """W-393ffefa (kaizen 01M54YKMF1): with FABRIK_ROOT on an archive, the scaffold looked for fabrik-lib beside it,
-    found nothing, and seats copied the live tree. The recipe's link lands exactly where the scaffold reads. Each
-    half is asserted on its own: a scaffold that hard-codes /opt/fabrik-lib reddens the first, one that reads
-    `FABRIK_ROOT / "fabrik-lib"` reddens both — either way the recipe would be stale."""
+    found nothing, and seats copied the live tree. The recipe's link lands exactly where the scaffold reads. The
+    first assert pins the unlinked path and its absence, so a scaffold that hard-codes /opt/fabrik-lib or reads
+    `FABRIK_ROOT / "fabrik-lib"` is red there; the second proves the link resolves — either way the recipe would be
+    stale."""
     arch = tmp_path / "arch"
     arch.mkdir()
     # importing the scaffold reads FABRIK_ROOT/scripts (its synced-manifest import at module level)
@@ -1362,6 +1369,27 @@ def test_the_recipes_fabrik_lib_link_is_where_the_scaffold_looks(tmp_path: Path)
     assert (where, found) == (str(tmp_path / "fabrik-lib" / "app-audit-log"), False)
     (tmp_path / "fabrik-lib").symlink_to("/opt/fabrik-lib")
     assert _audit_schema_found_under(arch) == (where, True)
+
+
+def test_the_recipes_link_command_run_twice_never_writes_into_the_sibling(tmp_path: Path) -> None:
+    """W-393ffefa review pass 1 (executed): a seat ran the recipe's `ln -s /opt/fabrik-lib SCRATCH/fabrik-lib` a
+    second time; GNU ln followed the existing link to the directory and wrote `/opt/fabrik-lib/fabrik-lib` — a write
+    into another repo. The command the prompt prints is run twice here against a stand-in sibling, which stays
+    empty."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-S1", 3)]}},
+    )
+    found = re.search(r"`(ln -s\w* /opt/fabrik-lib SCRATCH/fabrik-lib)`", prompts["find:S:sonnet"])
+    assert found, "the recipe names no link command"
+    sibling, scratch = tmp_path / "sibling", tmp_path / "scratch"
+    sibling.mkdir()
+    scratch.mkdir()
+    argv = found.group(1).replace("/opt/fabrik-lib", str(sibling)).replace("SCRATCH", str(scratch)).split()
+    for _ in range(2):
+        subprocess.run(argv, check=False, capture_output=True, timeout=30)
+    assert list(sibling.iterdir()) == [], list(sibling.iterdir())
+    assert (scratch / "fabrik-lib").resolve() == sibling
 
 
 def test_the_critique_and_seat_briefs_name_what_a_pin_cannot_hold() -> None:
