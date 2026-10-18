@@ -755,8 +755,9 @@ run in a fresh orchestrator context (spine + lock are the durable handoff).
 
 **⚠️ A plan that shipped HTTP surface does not reach a terminal state on green suites alone — it owes
 at least one LIVE REQUEST.** When any merged ticket added or changed a route, endpoint, or client
-call, validation requires ≥1 real request issued against the running service (from a linked worktree, one
-that runs this tree's code — Before You Start step 8), with its actual
+call, validation requires ≥1 real request issued against the running service (from a linked worktree, a
+shared service runs MAIN's code until the merge owner's reload, so the request waits for that reload, which the
+plan budgets — Before You Start step 8), with its actual
 response pasted verbatim into the spine's `## Evidence`. A passing suite proves the code the tests
 call; only a live request proves the route EXISTS at the path the caller uses. Measured (transdoc,
 2026-08-25): six verification layers were simultaneously green — the governing rule pack unreachable,
@@ -1285,10 +1286,11 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    other. Coder worktrees created BY this run are removed from this tree as usual — they are inside it,
    so no redirect is involved.
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
-   `final_commit`), flip the plan `Status: EXECUTED <date>` (this run flips and archives its own plan at every
-   position, (c) included; in the hub the coordinator does both only "once no run is live on it and every ticket
-   is merged", `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact
-   in the completion stamp** — a `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
+   `final_commit`), flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as
+   step 6 allows, at every position, (c) included; in the hub the coordinator does both only "once no run is
+   live on it and every ticket is merged", `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the
+   step-1 whole-plan review artifact in the completion stamp** — a
+   `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
    This is not bookkeeping: **`check_convergence.py` FAILS the gate on any plan that claims `EXECUTED` (in
    `plans/` OR `plans/archived/`) unless it cites a review artifact that EXISTS on disk and shows a
    coverage-adjudicated exit** (a `Coverage Checklist` + a final `found: 0` pass). The citation is the proof

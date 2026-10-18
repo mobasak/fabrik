@@ -257,8 +257,9 @@ def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
         " `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says."
         " - **Verify your owned paths are clean:**"
     ) in _norm()
-    assert "issued against the running service (from a linked worktree, one that runs this tree's code — Before You" \
-        " Start step 8), with its actual" in _norm()
+    assert "issued against the running service (from a linked worktree, a shared service runs MAIN's code until the" \
+        " merge owner's reload, so the request waits for that reload, which the plan budgets — Before You Start step 8)," \
+        " with its actual" in _norm()
     doc = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "multi-agent-operating-model.md").read_text())
     assert "## The shared runtime is NOT isolated" in doc
     assert "running the worktree's code in-process against a throwaway database clone" in doc
@@ -266,9 +267,10 @@ def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
 
 def test_finish_step_5_says_the_run_flips_its_own_plan_and_when_the_coordinator_does() -> None:
     """Row 1792345477: the template gives the coordinator a finished plan's EXECUTED flip with no condition, so step 5
-    names the run as the flipper and archiver at every position and quotes the hub charter's condition verbatim."""
+    names the run as the flipper, and the archiver as step 6 allows, at every position and quotes the hub charter's condition verbatim."""
     assert (
-        "flip the plan `Status: EXECUTED <date>` (this run flips and archives its own plan at every position, (c)"
+        "flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as step 6 allows, at every"
+        " position, (c)"
         ' included; in the hub the coordinator does both only "once no run is live on it and every ticket is merged",'
         " `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact"
     ) in _norm()
