@@ -482,7 +482,7 @@ _SID = {title: ui.slug(title, "inv") for title in _INV}
 _FILTER_KEY, _OPEN_KEY = "qd-filter:inv", "qd-filter-open:inv"
 
 
-def _inv_view(stamp="s1", *, idless=False, options=None):
+def _inv_view(stamp="s1", *, idless=False, options=None, bar=True):
     sections = []
     for title, rows in _INV.items():
         table = ui.table(
@@ -501,15 +501,24 @@ def _inv_view(stamp="s1", *, idless=False, options=None):
                 data={"filter-section": ""},
             )
         )
+    controls = (
+        [
+            ui.field(
+                "Name", name="name-box", kind="search", id="name-box", data={"filter": "name"}
+            ),
+            ui.select(
+                "Cost",
+                name="cost-sel",
+                id="cost-sel",
+                options=options or [("", "All"), ("free", "Free"), ("paid", "Paid")],
+                data={"filter": "cost", "filter-mode": "token"},
+            ),
+        ]
+        if bar
+        else []
+    )
     body = ui.fragment(
-        ui.field("Name", name="name-box", kind="search", id="name-box", data={"filter": "name"}),
-        ui.select(
-            "Cost",
-            name="cost-sel",
-            id="cost-sel",
-            options=options or [("", "All"), ("free", "Free"), ("paid", "Paid")],
-            data={"filter": "cost", "filter-mode": "token"},
-        ),
+        *controls,
         ui.status_text("", data={"filter-status": ""}),
         *sections,
     )
@@ -1657,34 +1666,97 @@ def test_an_idless_section_keeps_its_hand_opened_state_across_a_swap(board):
     assert _flags(page)[0] == (False, True)
 
 
-def test_an_idless_section_is_never_recorded_so_a_hand_opened_one_stays_open_on_clear(board):
+def test_an_idless_section_follows_the_same_open_record_rule_as_one_with_an_id(board):
     state, page, open_ = board
     open_("#overview", {"overview": _inv_view(idless=True)})
     settle(page)
     page.locator("summary", has_text="Group one").click()  # by hand
     page.get_by_label("Name").fill("a")
-    assert (_record(page) or []) == []
+    assert _flags(page) == [(False, True), (False, True), (True, False)]
+    assert len(_record(page)) == 1  # group two only: the hand-opened one is not the filter's
+    state.fragments["overview"] = _inv_view(stamp="s2", idless=True)
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert _flags(page) == [(False, True), (False, True), (True, False)]
     page.get_by_label("Name").fill("")
-    assert _flags(page)[0] == (False, True)
-    assert (_record(page) or []) == []
+    assert _flags(page) == [(False, True), (False, False), (False, False)]
+    assert _record(page) == []
 
 
 _NO_ALL = [("free", "Free"), ("paid", "Paid")]
 
 
-def test_a_select_with_no_empty_option_filters_by_the_value_it_shows(board):
+_ALL_ROWS = ["alpha", "beta", "gamma", "delta", "eps"]
+
+
+def _selected_index(page) -> int:
+    return page.evaluate("document.getElementById('cost-sel').selectedIndex")
+
+
+def _stored_filter(page) -> dict:
+    return json.loads(page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})") or "{}")
+
+
+@pytest.mark.parametrize("stored", [None, "zzz"])
+def test_a_select_with_no_empty_option_shows_no_selection_and_filters_nothing(board, stored):
     state, page, open_ = board
     open_("#overview", {"overview": _inv_view(options=_NO_ALL)})
     settle(page)
-    assert page.locator("#cost-sel").input_value() == "free"
-    assert _visible_rows(page) == ["alpha", "delta"]
-    stored = json.loads(page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})"))
-    assert stored["cost"]["v"] == "free"
+    if stored:
+        gone = {"cost": {"v": stored, "mode": "token", "chip": False}}
+        page.evaluate(f"localStorage.setItem({_FILTER_KEY!r}, {json.dumps(json.dumps(gone))})")
+        page.reload()
+        settle(page)
+    assert _selected_index(page) == -1  # nothing is chosen until the operator picks
+    assert _visible_rows(page) == _ALL_ROWS
+    assert "cost" not in _stored_filter(page)
     state.fragments["overview"] = _inv_view(stamp="s2", options=_NO_ALL)
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert _selected_index(page) == -1 and _visible_rows(page) == _ALL_ROWS
+    page.select_option("#cost-sel", "free")
+    assert _visible_rows(page) == ["alpha", "delta"]
     page.evaluate("window.qdRefresh(true)")
     settle(page)
     assert page.locator("#cost-sel").input_value() == "free"
     assert _visible_rows(page) == ["alpha", "delta"]
+
+
+def test_a_stale_stored_record_never_outranks_the_pages_own_when_storage_cannot_write(board):
+    state, page, open_ = board
+    page.add_init_script(
+        "window.__block = false; const set = Storage.prototype.setItem;"
+        "Storage.prototype.setItem = function (k, v) {"
+        " if (window.__block) { throw new Error('quota'); } return set.call(this, k, v); };"
+    )
+    _open_inv(open_, page)
+    one, two, three = (_SID[k] for k in _INV)
+    page.get_by_label("Name").fill("gam")
+    page.evaluate("window.__block = true")
+    page.get_by_label("Name").fill("eps")
+    assert _sections(page)[three] == (False, True)
+    state.fragments["overview"] = _inv_view(stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    page.get_by_label("Name").fill("")
+    assert _sections(page) == {one: (False, False), two: (False, False), three: (False, False)}
+
+
+def test_saved_filters_survive_a_render_of_the_group_that_has_no_controls(board):
+    state, page, open_ = board
+    open_("#overview", {"overview": _inv_view(bar=False)})
+    settle(page)
+    stored = {"name": {"v": "gam", "mode": "substr", "chip": False}}
+    page.evaluate(f"localStorage.setItem({_FILTER_KEY!r}, {json.dumps(json.dumps(stored))})")
+    page.reload()  # the bar-less render: nothing there can show or clear the saved filter
+    settle(page)
+    assert not any(o or h for h, o in _flags(page))  # and it filters nothing
+    assert _status(page) == cat.t("filter.shown", n=5, total=5)
+    state.fragments["overview"] = _inv_view(stamp="s2")  # the bar is back
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.get_by_label("Name").input_value() == "gam"
+    assert _visible_rows(page) == ["gamma"]
 
 
 def _pick_view(default, stamp):

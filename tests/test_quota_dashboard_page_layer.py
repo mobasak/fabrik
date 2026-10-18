@@ -424,20 +424,31 @@ def _view_literals(src: str) -> list[str]:
     return bad
 
 
-def _option_labels(node: ast.AST, bound: dict[str, list[ast.AST]]) -> list[str]:
-    """The words in the label (index 1) of each literal ``(value, label)`` option pair; the value
-    (index 0) is a key and stays out. Pairs built elsewhere (a name, a call) are not descended."""
-    if isinstance(node, (ast.ListComp, ast.GeneratorExp, ast.SetComp)):
-        elt = node.elt
-        if isinstance(elt, (ast.Tuple, ast.List)) and len(elt.elts) == 2:
-            return _worded(elt.elts[1], bound)
+def _option_labels(
+    node: ast.AST, bound: dict[str, list[ast.AST]], seen: frozenset[str] = frozenset()
+) -> list[str]:
+    """Every word-bearing string constant in an ``options`` expression, whatever builds the list
+    (a literal, ``+``, a comprehension, a splat, ``list(...)``, a name the module binds), except
+    element 0 of a two-element tuple or list — the option's KEY — and anything under a ``t(...)``
+    catalogue call."""
+    if isinstance(node, ast.Name):
+        if node.id in seen:
+            return []
+        return [
+            w for v in bound.get(node.id, []) for w in _option_labels(v, bound, seen | {node.id})
+        ]
+    if isinstance(node, ast.Constant):
+        ok = isinstance(node.value, str) and re.search("[A-Za-z]", node.value)
+        return [node.value] if ok else []
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "t":
         return []
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        pairs = [e for e in node.elts if isinstance(e, (ast.Tuple, ast.List)) and len(e.elts) == 2]
-        if pairs:
-            return [w for e in pairs for w in _worded(e.elts[1], bound)]
-        return [w for e in node.elts for w in _option_labels(e, bound)]
-    return []
+    key = node.elts[0] if isinstance(node, (ast.Tuple, ast.List)) and len(node.elts) == 2 else None
+    return [
+        w
+        for child in ast.iter_child_nodes(node)
+        if child is not key
+        for w in _option_labels(child, bound, seen)
+    ]
 
 
 def test_no_view_module_hands_a_component_a_literal_word():
@@ -917,6 +928,11 @@ def test_the_shared_formatters_take_every_word_from_the_catalogue():
         "ui.select(t('a'), name='c', id='i', options=[['paid', 'Paid']])\n",
         "ui.select(t('a'), name='c', id='i', options=[(v, 'Paid') for v in vs])\n",
         "ui.select(t('a'), name='c', id='i', options=[('', t('x')), ('paid', 'Paid')])\n",
+        "ui.select(t('a'), name='c', id='i', options=[('', t('x'))] + [('p', 'Paid')])\n",
+        "OPTS = [('p', 'Paid')]\nui.select(t('a'), name='c', id='i', options=OPTS)\n",
+        "ui.select(t('a'), name='c', id='i', options=[*[(v, 'Paid') for v in vs]])\n",
+        "ui.select(t('a'), name='c', id='i', options=list((('p', 'Paid'),)))\n",
+        "ui.select(t('a'), name='c', id='i', options=sorted(OPTS) + [('p', f'Paid {n}')])\n",
     ],
 )
 def test_the_view_literal_scan_reads_a_select_option_label(mutant):

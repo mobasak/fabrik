@@ -515,9 +515,12 @@
     openedMem[name] = (g._qdOpened || []).slice();
     save("qd-filter-open:" + name, JSON.stringify(g._qdOpened || []));
   }
+  // a section's record key is the one the open-carry across a swap uses: its id, else its summary text
+  function sectionKey(sec) { return sec.id || detailsKey(sec); }
   function applySections(g) {
     var state = g._qdFilter || {};
-    var active = Object.keys(state).some(function (n) { return state[n] && state[n].v !== ""; });
+    // a filter acts only through controls: a render of the group with none filters nothing
+    var active = filterControls(g).length > 0 && Object.keys(state).some(function (n) { return state[n] && state[n].v !== ""; });
     var secs = [], per = [], total = 0, shown = 0;
     each(g, "[data-filter-section]", function (sec) {
       if (sec.closest("[data-filter-group]") === g) { secs.push(sec); per.push({ n: 0, total: 0 }); }
@@ -530,11 +533,11 @@
     });
     var rec = g._qdOpened || [], next = [];
     secs.forEach(function (sec, i) {
-      var hit = per[i].n > 0, mine = sec.id !== "" && rec.indexOf(sec.id) >= 0; // an id-less section is never recorded
+      var key = sectionKey(sec), hit = per[i].n > 0, mine = rec.indexOf(key) >= 0;
       sec.hidden = active && !hit;
       if (active && hit) {
-        if (!sec.open) { sec.open = true; mine = sec.id !== ""; }
-        if (mine) { next.push(sec.id); }
+        if (!sec.open) { sec.open = true; mine = true; }
+        if (mine) { next.push(key); }
       } else if (mine) { sec.open = false; }
       sec._qdExpect = sec.open; // the state this script left it in: a later toggle to another is the operator's
       var cnt = sec.querySelector("[data-filter-count]");
@@ -561,24 +564,25 @@
       if (state === null) { state = {}; }
       else if (!validFilterState(state)) { state = {}; save(skey, "{}"); } // a corrupt store resets
       var okey = "qd-filter-open:" + name, raw = load(okey), rec = [];
-      if (raw === null) {
-        if (has(openedMem, name)) { rec = openedMem[name].slice(); } // the store gave nothing: this page's own record
-      } else {
+      if (has(openedMem, name)) { rec = openedMem[name].slice(); } // this page's own record is the freshest
+      else if (raw !== null) {
         try { rec = JSON.parse(raw); } catch (e) { rec = null; }
-        if (!Array.isArray(rec) || !rec.every(function (x) { return typeof x === "string"; })) {
+        if (!Array.isArray(rec)) {
           rec = []; save(okey, "[]"); // a corrupt record resets alone; the filter store is not its business
         }
       }
       g._qdOpened = rec;
       var controls = filterControls(g), dirty = false;
-      // the state only ever holds keys a control on this group names: nothing else on the page could clear one
-      Object.keys(state).forEach(function (n) {
-        var f = state[n];
-        var there = f.chip
-          ? controls.some(function (el) { return el.getAttribute("data-filter") === n + ":" + f.v; })
-          : controls.some(function (el) { return el.getAttribute("data-filter") === n; });
-        if (!there) { delete state[n]; dirty = true; }
-      });
+      // with a control bar rendered, the state holds only keys a control names: nothing else could clear one
+      if (controls.length) {
+        Object.keys(state).forEach(function (n) {
+          var f = state[n];
+          var there = f.chip
+            ? controls.some(function (el) { return el.getAttribute("data-filter") === n + ":" + f.v; })
+            : controls.some(function (el) { return el.getAttribute("data-filter") === n; });
+          if (!there) { delete state[n]; dirty = true; }
+        });
+      }
       g._qdFilter = state;
       controls.forEach(function (el) {
         var spec = el.getAttribute("data-filter");
@@ -586,15 +590,11 @@
           var f = state[spec], v = f && !f.chip ? f.v : "";
           if (el.tagName === "SELECT") {
             var offers = function (x) { return Array.prototype.some.call(el.options, function (o) { return o.value === x; }); };
-            if (offers(v)) { el.value = v; }
-            else if (!(f && f.chip)) {
-              // no option offers it: what the select DISPLAYS is the filter, and the store is made to agree
-              v = el.value;
-              if (v === "") { if (f) { delete state[spec]; dirty = true; } }
-              else {
-                state[spec] = { v: v, mode: el.getAttribute("data-filter-mode") === "token" ? "token" : "substr", chip: false };
-                dirty = true;
-              }
+            if (v !== "" && offers(v)) { el.value = v; }
+            else {
+              // no value, or one no option offers, is NO filter: drop the key and show no choice (or "all")
+              if (f && !f.chip) { delete state[spec]; dirty = true; }
+              if (offers("")) { el.value = ""; } else { el.selectedIndex = -1; }
             }
           } else { el.value = v; }
         }
@@ -756,7 +756,7 @@
     var sec = ev.target;
     if (!sec || !sec.matches || !sec.matches("details[data-filter-section]") || sec.open === sec._qdExpect) { return; }
     sec._qdExpect = sec.open;
-    var g = sec.closest("[data-filter-group]"), at = g && sec.id ? (g._qdOpened || []).indexOf(sec.id) : -1;
+    var g = sec.closest("[data-filter-group]"), at = g ? (g._qdOpened || []).indexOf(sectionKey(sec)) : -1;
     if (at >= 0) { g._qdOpened.splice(at, 1); saveOpened(g); }
   }, true);
   document.addEventListener("keydown", function (ev) {
