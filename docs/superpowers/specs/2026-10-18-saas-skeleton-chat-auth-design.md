@@ -9,7 +9,7 @@ Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the 
 
 - **Primary — the scaffolded app's owner**, whose key is at stake. In the work item's words, *"any visitor can stream completions on the app's own OPENROUTER_API_KEY"*. They pay OpenRouter for every token a chat streams.
 - **The signed-in end user** of a scaffolded SaaS app. They are the only person who may start a chat.
-- **The anonymous visitor or abuse bot.** After slice 1 there is no endpoint for them. Slice 2 must not reopen one.
+- **The anonymous visitor or abuse bot.** After slice 1 there is no chat endpoint for them, and slice 2 must not reopen one. But by default "signed-in" is open to anyone with an email address: passwordless login and its auto-signup are on (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:103`, `:109`), and an auto-signed-up user has no tenant (`router.py:1203-1205`). So a bot can mint users, each with a fresh user bucket, from many IPs. The app-wide bucket below is what bounds that, and `AUTH_PASSWORDLESS_AUTO_SIGNUP=false` is the project's knob to close the path.
 - **The tenant (paying account).** Per-tenant rate limiting is mandatory for SaaS (`.windsurf/rules/saas/95-multi-tenant-saas.md:166`). One tenant's users must not starve another.
 - **Automated consumers and duty holders:**
   - `fabrik scaffold` (saas-skeleton, static-site, office-extension), which emits the backend and the template and holds the duty to ship the fixed shape.
@@ -19,26 +19,26 @@ Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the 
   - The hub deployer (`fabrik apply`), which provisions Redis only when `shape.needs_cache` is true and writes the `secrets.from_env` keys into the root `.env`.
 
 **The owner's own setup loop, counted (the step budget is 3):**
-1. Set `OPENROUTER_API_KEY` (and, optionally, `OPENROUTER_MODEL` and the three `CHAT_RATE_*` values) in the spec's `secrets.from_env` or the project `.env`.
-2. Keep `shape.needs_cache: true` (the saas-skeleton default), so `REDIS_URL` is set.
-3. Deploy. Optionally, set a USD `limit` on the OpenRouter key itself (E3), which caps spend on OpenRouter's side whatever the app does.
+1. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (and, optionally, the four `CHAT_RATE_*` values) in the spec's `secrets.from_env` or the project `.env`.
+2. Keep `shape.needs_cache: true` (the saas-skeleton default), so `REDIS_URL` is set, and make sure the app's public URL is in the origin allowlist that web login already needs (`AUTH_ALLOWED_ORIGINS`, else `CORS_ORIGINS` plus `NEXT_PUBLIC_APP_URL`, whose template default is `http://localhost:3000`). Otherwise every cookie-borne chat request is a 403.
+3. Deploy. The README tells the owner to set a USD `limit` on the OpenRouter key itself (E3). That caps spend on OpenRouter's side whatever the app does, beside the app-wide bucket, which is the app's own hard bound.
 
 **The primary's minimal loop, counted (the step budget is 4):**
-1. The user signs in through the existing `/auth/login/web`.
+1. The user signs in through the existing `/auth/login/web` (or passwordless). The template ships no login page, so the project supplies one; the README chat section says so.
 2. They open a page that mounts `ChatUI`.
 3. They send a message.
 4. They read the streamed reply.
 
-An anonymous request ends at step 3 with a 401, an over-limit one with a 429, and one sent while Redis is down with a 503. No step is added for the user.
+An anonymous request ends at step 3 with a 401, an over-limit one with a 429, and one sent while Redis is down with a 503. No step is added for the user. The access cookie lives 15 minutes (`settings.py:72`), so the client refreshes the session once on a 401 and retries, and a user mid-session does not have to sign in again (§ Chosen approach, Client).
 
 Every feature below traces to a named persona:
 - the auth gate to the owner and the visitor;
-- the tenant, user and IP buckets to the tenant and the owner;
+- the tenant, user and IP buckets to the tenant and the owner, and the app-wide bucket to the owner;
 - the backend-only key path to the owner.
 
 ## Goal
 
-A scaffolded saas-skeleton app can offer chat that spends its OpenRouter key only on a signed-in user's request, within per-tenant, per-user and per-IP limits, and fails closed.
+A scaffolded saas-skeleton app can offer chat that spends its OpenRouter key only on a signed-in user's request, within per-tenant, per-user, per-IP and app-wide limits, and fails closed. The app-wide limit bounds total spend even when anyone can sign up.
 
 ## Why this exists
 
@@ -91,27 +91,29 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - `chat_user = build_current_user(secret=get_settings().jwt_secret, denylist=<fail-closed denylist>, session_cookie_secure=get_settings().session_cookie_secure)`. Because it reads the cookie as well as the header, a same-origin browser session authenticates (F1, F7).
   - The denylist passed in is a small adapter around the emitted denylist. Any Redis error in `contains` raises `HTTPException(503)`, so an outage is never a 500 (F4) and never a pass. When `REDIS_URL` is unset the emitted denylist is a `NullDenylist`, which never raises; the adapter therefore raises 503 itself for a `NullDenylist`, so a revoked token can never pass because Redis is unconfigured. An anonymous request still gets 401, because `build_current_user` refuses a missing token before it consults the denylist (`dependencies.py:98`).
   - The emitted `auth.py` gains two public names, and `chat.py` imports nothing private:
-    - `redis_client()`, an lru-cached accessor for the one async Redis client. `_denylist()` is changed to build its `RedisDenylist` on it, and `aclose()` closes it, so the limiter and the denylist share one client and nothing is left unclosed (`src/fabrik/scaffold.py:2725-2735` closes only `_denylist()._client` today).
+    - `redis_client()`, an lru-cached accessor for the auth module's async Redis client. `_denylist()` is changed to build its `RedisDenylist` on it, and `aclose()` closes it, so the limiter and the denylist share one client and neither is left unclosed (`src/fabrik/scaffold.py:2725-2735` closes only `_denylist()._client` today). `pause_state.py` keeps its own client (`src/fabrik/scaffold.py:2266`); this slice does not touch it.
     - `denylist()`, a public alias of `_denylist()`. `_denylist` itself keeps its name, because `build_saas_auth_router`, `token_revoked` and `aclose` call it.
-- **CSRF.** A cookie-borne POST carries `X-CSRF-Token` (read from `__Host-csrf_token`, same host) and the browser's own Origin. `CsrfOriginMiddleware` already enforces both. A bearer request is exempt, as everywhere (F2).
+  - `chat.py` receives its auth collaborators (settings, the Redis client, the denylist, `client_ip`) through one seam, never through import-time module state. So the hub test can load `chat.py` by path with stand-ins, without importing the emitted `auth.py` or the `fastapi_user_auth` package root, which needs argon2 (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/__init__.py`, `tests/test_scaffold_saas_web_wiring.py:121-135`). The seam's shape is the plan's.
+- **CSRF.** A cookie-borne POST carries `X-CSRF-Token`, read from the CSRF cookie under the name the backend sets (`__Host-csrf_token` when `AUTH_SESSION_COOKIE_SECURE` is true, `csrf_token` in local dev over http; `CsrfOriginMiddleware._cookie_name`, `csrf.py:199`), and the browser's own Origin. `CsrfOriginMiddleware` already enforces both. A bearer request is exempt, as everywhere (F2).
 - **The order of checks**, each refusing before the next costs anything:
   1. CSRF, in the middleware (403).
   2. Identity (401; 503 on a denylist outage or an unset `REDIS_URL`).
-  3. The body (400). A malformed request spends no bucket.
-  4. `OPENROUTER_API_KEY` unset (503). It comes after identity, so an anonymous caller learns nothing about the app's config.
+  3. The body: over `CHAT_MAX_BODY_BYTES` (default 64 KiB) is a 413, refused from `Content-Length` before the body is read and enforced again while reading; then malformed is a 400. Neither spends a bucket.
+  4. `OPENROUTER_API_KEY` or `OPENROUTER_MODEL` unset (503). It comes after identity, so an anonymous caller learns nothing about the app's config.
   5. The limiter (429; 503 on a Redis error).
   6. The upstream stream.
 - **Limits.** One Lua script per request, run with `EVAL` (Redis guarantees a script's atomic execution, E8). It checks every bucket before it increments any:
-  - For each key it reads the count. If any count is at its limit, it increments nothing and returns that bucket's name and its `PTTL`.
+  - For each key it reads the count. If any count is at its limit, it increments nothing and returns that bucket's name and its `PTTL`. A key at its limit with no TTL (`PTTL` below 0, which only a manual write or a restore can leave) gets its window's TTL re-armed in the same script, so no bucket stays locked for ever and `Retry-After` is never below 1.
   - Otherwise it `INCR`s every key, and `EXPIRE`s each key whose count became 1.
   - So a request refused on one bucket spends no other bucket. One user looping at 429 cannot drain their tenant's or their NAT neighbours' budget.
   - It takes the atomic INCR+EXPIRE of passwordless's `_RATE_LUA` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-181`) and reorders it to check every key first; `_RATE_LUA` itself increments before it compares. It needs no Redis 7 feature, and there is no non-atomic INCR-then-EXPIRE (F14).
   - The buckets, in C6's key form (the app's own logical DB is its namespace), all of which must pass:
+    - `global:chat:app`, always: one bucket for the whole app, the hard bound on its total spend whoever signs up;
     - `t:{tenant_id}:chat:rate`, when `tenant_id` is set;
     - `global:chat:user:{user_id}`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
-    - `global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:153-154`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
-  - Each bucket is `<count>/<seconds>` from `CHAT_RATE_TENANT` (default `600/3600`), `CHAT_RATE_USER` (`60/3600`) and `CHAT_RATE_IP` (`120/3600`). A malformed value fails the app at start.
-  - A full bucket returns 429 with `Retry-After` set to that key's remaining TTL, rounded up to whole seconds.
+    - `global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). An IPv6 address is keyed on its /64 prefix, because one host commonly holds a whole /64. When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:153-154`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
+  - Each bucket is `<count>/<seconds>` from `CHAT_RATE_APP` (default `1200/3600`), `CHAT_RATE_TENANT` (`600/3600`), `CHAT_RATE_USER` (`60/3600`) and `CHAT_RATE_IP` (`120/3600`). A malformed value fails the app at start.
+  - A full bucket returns 429 with `Retry-After` set to that key's remaining TTL, rounded up to whole seconds. The response names the bucket, deliberately: a user refused on `tenant` or `app` learns that the shared budget is spent, not their own.
   - A Redis error returns 503, closed.
   - A fixed window, by choice. Its known edge, a client spending one window's quota at its end and the next window's at its start (up to twice the rate across the boundary), is accepted here (E6). The user bucket is the primary key, not the IP, which is weak behind NAT (E6). A sliding window is the Growth path if the boundary burst ever shows in the metrics.
 - **Body.** The handler reads the raw JSON body itself and keeps the deleted route's contract.
@@ -125,10 +127,16 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - It is relayed as the same `{type: text_delta|done|error}` SSE frames `SSEStream` already consumes. The parser reads only `data:` lines. It skips SSE comment lines such as `: OPENROUTER PROCESSING`, and a final chunk that carries only `usage`, and it ends on `data: [DONE]` (E9).
   - The client has an explicit `httpx.Timeout` (connect 10 s; read 60 s between chunks, from `CHAT_UPSTREAM_READ_TIMEOUT`). A timeout gives an `error` frame, so a stalled provider cannot hold a connection open without bound.
   - A non-2xx upstream gives an `error` frame.
-  - A client disconnect cancels the upstream stream. The generator's close closes the `httpx` stream (E7). OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
-- **Observability.** The route's first dependency is a small wrapper that calls `chat_user(request=request, authorization=authorization)` directly inside a try/except (a direct, non-`Depends` call is supported, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:84-89`; a `Depends(chat_user)` would raise before the wrapper's body runs). It logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
+  - A client disconnect cancels the upstream stream, through the app's middleware stack: the generator's close closes the `httpx` stream (E7), and a hub test proves it. OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
+- **Observability.** The route's first dependency is a small wrapper that calls `chat_user(request=request, authorization=authorization)` directly inside a try/except (a direct, non-`Depends` call is supported, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:84-89`; a `Depends(chat_user)` would raise before the wrapper's body runs). It logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `too_large`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
 - **Key placement.** `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read only by `chat.py`. They live in the root `.env`, like every other backend secret, so they are present in the Next container's environment as `DATABASE_URL` and `JWT_SECRET` already are. Per-service env files are a fleet-wide hardening, not this slice (§ Rejected alternatives; F8).
-- **Client.** `SSEStream` sends `credentials: "same-origin"` and the `X-CSRF-Token` header. The README example uses `endpoint="/api/v1/chat"`.
+- **Client.** `templates/saas-skeleton/components/chat/SSEStream.tsx` changes in this slice; today it sends neither credentials nor a CSRF header (`SSEStream.tsx:32-36`), so every cookie-borne POST would be a 403. After it:
+  - it sends `credentials: "same-origin"` and `X-CSRF-Token` from the CSRF cookie under either name;
+  - on a 401 it calls `/auth/refresh` once, with the same credentials and header, and retries the request once; a second 401 is shown as signed out;
+  - it buffers the stream across network chunks (a streaming decode, and a line split that keeps a partial last line), so a frame cut across chunks is never dropped (today `SSEStream.tsx:52-58` decodes and splits each chunk alone, and `:88-90` swallows the parse error);
+  - it calls `onComplete` once (today `:85` and `:96` both call it);
+  - a 429 shows its `Retry-After`.
+  - The README example uses `endpoint="/api/v1/chat"`.
 
 ## Rejected alternatives
 
@@ -183,13 +191,13 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 
 - **Scaffold type:** `saas-skeleton` (also emitted for static-site and office-extension through the shared template).
 - **Redis:** `shape.needs_cache: true` is required for chat to work. Without `REDIS_URL` the route is a closed 503.
-- **Env:** `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CHAT_RATE_TENANT`, `CHAT_RATE_USER`, `CHAT_RATE_IP`, `CHAT_MAX_TOKENS`, `CHAT_MAX_MESSAGE_CHARS` and `CHAT_UPSTREAM_READ_TIMEOUT` go into the emitted `.env.example` and `docs/CONFIGURATION.md`. New specs list `OPENROUTER_API_KEY` under `secrets.from_env` again.
+- **Env:** `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CHAT_RATE_APP`, `CHAT_RATE_TENANT`, `CHAT_RATE_USER`, `CHAT_RATE_IP`, `CHAT_MAX_TOKENS`, `CHAT_MAX_MESSAGE_CHARS`, `CHAT_MAX_BODY_BYTES` and `CHAT_UPSTREAM_READ_TIMEOUT` go into the emitted `.env.example` and `docs/CONFIGURATION.md`. New specs list `OPENROUTER_API_KEY` under `secrets.from_env` again.
 - **No new port, service or path prefix:** `/api` already routes to the backend.
 
 ## Documentation landing sites
 
 - **The scaffolded project:**
-  - `README.md`: the chat section (endpoint, env, limits, same-host requirement);
+  - `README.md`: the chat section (endpoint, env, limits, the same-host requirement, the origin allowlist as the first cause of a 403, the missing login page, the OpenRouter key `limit` to set, and `AUTH_PASSWORDLESS_AUTO_SIGNUP` as the knob for open signup);
   - `.env.example` and `docs/CONFIGURATION.md`: the new vars;
   - `server/tests/test_chat.py`: the emitted tests.
 - **The hub:**
@@ -199,18 +207,23 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 ## Validation
 
 - **The slice-1 graders change with it.** `tests/test_saas_skeleton_chat_system_prompt.py` bans "openrouter" from the emitted `.env.example` and from every template file. Slice 2 needs the key in `.env.example`. So the `.env.example` assertion narrows to forbidding `NEXT_PUBLIC_OPENROUTER`. The template-file scan keeps the whole template tree (`app/`, `components/`, `lib/` and the rest). It exempts only the files that must name the key, the template's `.env.example` and `README.md`, through an allowlist, and those files are still scanned for `NEXT_PUBLIC_OPENROUTER` and for `api/chat`. A new assertion requires that the only emitted file reading `OPENROUTER_API_KEY` is `server/src/<pkg>/chat.py`. The Next side stays guarded, and no assertion is deleted.
-- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is an in-process fake of the client calls the route makes; OpenRouter is an `httpx.MockTransport`. The fake cannot prove the Lua itself, so the limiter script has its own test:
+- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored leaf modules (`cookies`, `tokens`, `dependencies`, `csrf`, `settings`) by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), passes its collaborators through the seam, and drives it with TestClient. `client_ip` comes from a stand-in until fabrik-lib exports it from a leaf module, so the IP-bucket rows are proven against that stand-in, and the emitted test proves the real import. The middleware rows run the vendored `CsrfOriginMiddleware` plus stand-in `BaseHTTPMiddleware` layers, because the emitted Correlation, SecurityHeaders and Tenant layers import the emitted `auth.py`; the emitted test runs the real stack. Redis is an in-process fake of the client calls the route makes; OpenRouter is an `httpx.MockTransport`. The fake cannot prove the Lua itself, so the limiter script has its own test:
   - `tests/test_saas_chat_limiter_lua.py` starts a throwaway `redis-server` on a unix socket in `tmp_path` (the box has `/usr/bin/redis-server`; the hub `.venv` has no redis client, so it drives the server with `redis-cli --eval` on the emitted script text).
   - It proves against real Redis that a refused request leaves every other key unchanged, that the first increment sets the TTL, and that the refusal returns the bucket and its `PTTL`.
   - A mutant that increments before it checks is proven red there.
-  - Where `redis-server` is absent, the test skips and says so. The emitted `server/tests/test_chat.py` runs the same script with the project's own redis client.
+  - It also proves that a key at its limit with no TTL gets one back and a `Retry-After` of at least 1.
+  - Where `redis-server` is absent, the test skips and says so. The hub runs no pytest in its completion gate, so the slice-2 plan's phase gate runs this test on this box, where `redis-server` exists, and its pasted output (not a skip) is the evidence. The emitted `server/tests/test_chat.py` runs the same script with the project's own redis client.
+- **The template grader.** A hub test over `SSEStream.tsx` asserts that it sends credentials and the CSRF header, refreshes once on a 401, keeps a partial line between chunks, and calls `onComplete` once. The hub runs no JavaScript test runner, so this is a source grader. The behaviour runs in the project's own front-end tests.
 
 The cases:
   - anonymous: 401;
   - bearer: 200 and frames;
   - cookie with token and Origin: 200;
   - cookie without token, or without an allowed Origin: 403 (each tested separately, so neither passes for the other's reason);
-  - each bucket full: 429 plus `Retry-After`;
+  - each bucket full: 429 plus `Retry-After`, the app bucket included, for a fresh user on a fresh IP;
+  - a body over `CHAT_MAX_BODY_BYTES`: 413, no bucket touched;
+  - two IPv6 addresses in one /64: one IP bucket;
+  - a client disconnect mid-stream: the upstream `httpx` stream is closed;
   - a request refused on the user bucket leaves the tenant and IP counts unchanged;
   - each refusal past CSRF, and the success, increments `chat_requests_total` with its outcome, `unauthenticated` included (a CSRF 403 is refused in the middleware, before the route, and is not counted here);
   - an empty client IP: no IP key touched;
@@ -218,7 +231,7 @@ The cases:
   - a tenantless user: no `t:` key touched;
   - Redis raising: 503 from the denylist and from the limiter;
   - `REDIS_URL` unset: 503 with a token, 401 without one;
-  - key unset: 503 with a token, 401 without one;
+  - key or model unset: 503 with a token, 401 without one;
   - a message over `CHAT_MAX_MESSAGE_CHARS`: 400;
   - an upstream that stalls past the read timeout: an `error` frame;
   - an upstream stream with `: OPENROUTER PROCESSING` comment lines and a usage-only chunk: the frames are unchanged;
@@ -227,8 +240,8 @@ The cases:
   - every `SLICE2_BAD_BODIES` body: 400;
   - `SLICE2_HOSTILE_FIELDS`: a 200, and the upstream payload is exactly `{model, messages, stream, max_tokens}`;
   - the system-constant rows;
-  - the stream through the app's four `BaseHTTPMiddleware` layers.
-- **The emitted tests.** `server/tests/test_chat.py` carries the same core cases for a project's own CI (`pip install -r requirements-dev.txt && pytest tests`).
+  - the stream through the CSRF middleware and stand-in `BaseHTTPMiddleware` layers.
+- **The emitted tests.** `server/tests/test_chat.py` carries the same core cases against the real emitted app, its real middleware and the real `client_ip`, for a project's own CI (`pip install -r requirements-dev.txt && pytest tests`). The hub never runs it (F6).
 - **Mutants.** Every grader is proven red on a mutant that drops its guard.
 
 ## Decisions taken
