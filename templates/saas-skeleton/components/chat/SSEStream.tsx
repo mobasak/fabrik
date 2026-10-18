@@ -17,6 +17,57 @@ interface UseSSEStreamOptions {
   onError?: (error: string) => void;
 }
 
+// The backend's double-submit CSRF cookie: `__Host-csrf_token` over HTTPS, `csrf_token` otherwise.
+const CSRF_COOKIES = ["__Host-csrf_token", "csrf_token"];
+
+/** The CSRF token, read afresh on every call: a cookie-borne refresh rotates it. */
+function csrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const cookies = document.cookie.split(";").map((c) => c.trim());
+  for (const name of CSRF_COOKIES) {
+    const hit = cookies.find((c) => c.startsWith(`${name}=`));
+    if (hit) return decodeURIComponent(hit.slice(name.length + 1));
+  }
+  return "";
+}
+
+function send(url: string, body: Record<string, unknown>): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+    body: JSON.stringify(body),
+  });
+}
+
+async function refreshSession(): Promise<boolean> {
+  const response = await fetch("/auth/refresh", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRF-Token": csrfToken() },
+  });
+  return response.ok;
+}
+
+/** The message a refused request shows: problem+json `detail`, else the CSRF middleware's `{detail}`. */
+async function refusal(response: Response): Promise<string> {
+  if (response.status === 401) return "You are signed out. Sign in to chat.";
+  if (response.status === 429) {
+    const wait = response.headers.get("Retry-After");
+    return wait ? `Too many messages. Try again in ${wait} seconds.` : "Too many messages. Try again later.";
+  }
+  try {
+    const body: unknown = await response.json();
+    if (body && typeof body === "object" && "detail" in body) {
+      const detail = (body as { detail?: unknown }).detail;
+      if (typeof detail === "string" && detail) return detail;
+    }
+  } catch {
+    // not JSON: fall through to the status line
+  }
+  return `The chat request failed (HTTP ${response.status}).`;
+}
+
 export function useSSEStream(options: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
@@ -27,76 +78,81 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
       setIsStreaming(true);
       setStreamText("");
       setToolCalls([]);
+      let fullText = "";
+
+      const handle = (event: StreamEvent) => {
+        options.onEvent?.(event);
+        switch (event.type) {
+          case "text_delta":
+            if (event.text) {
+              fullText += event.text;
+              setStreamText(fullText);
+            }
+            break;
+          case "tool_call":
+            if (event.tool) {
+              const tool = event.tool;
+              setToolCalls((prev) => [...prev, { tool, status: "running" }]);
+            }
+            break;
+          case "tool_result":
+            setToolCalls((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last) last.status = "done";
+              return updated;
+            });
+            break;
+          case "error":
+            options.onError?.(event.error || "The chat stream reported an error.");
+            break;
+          case "done":
+            break;
+        }
+      };
+
+      const dispatch = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+        let event: StreamEvent;
+        try {
+          event = JSON.parse(line.slice(6)) as StreamEvent;
+        } catch {
+          options.onError?.("The chat stream sent a malformed frame.");
+          return;
+        }
+        handle(event);
+      };
 
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
+        let response = await send(url, body);
+        if (response.status === 401 && (await refreshSession())) {
+          response = await send(url, body); // once: the retry reads the rotated CSRF cookie
+        }
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          options.onError?.(await refusal(response));
+          return;
         }
 
         const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        if (!reader) throw new Error("The chat response had no body.");
 
         const decoder = new TextDecoder();
-        let fullText = "";
-
+        let buffer = "";
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const event: StreamEvent = JSON.parse(line.slice(6));
-                options.onEvent?.(event);
-
-                switch (event.type) {
-                  case "text_delta":
-                    if (event.text) {
-                      fullText += event.text;
-                      setStreamText(fullText);
-                    }
-                    break;
-                  case "tool_call":
-                    if (event.tool) {
-                      setToolCalls((prev) => [...prev, { tool: event.tool!, status: "running" }]);
-                    }
-                    break;
-                  case "tool_result":
-                    setToolCalls((prev) => {
-                      const updated = [...prev];
-                      const last = updated[updated.length - 1];
-                      if (last) last.status = "done";
-                      return updated;
-                    });
-                    break;
-                  case "error":
-                    options.onError?.(event.error || "Unknown error");
-                    break;
-                  case "done":
-                    options.onComplete?.(fullText);
-                    break;
-                }
-              } catch {
-                // Skip malformed JSON
-              }
-            }
-          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? ""; // a frame cut across chunks waits for its other half
+          lines.forEach(dispatch);
         }
-
+        buffer += decoder.decode();
+        if (buffer) dispatch(buffer);
+      } catch (error) {
+        options.onError?.(error instanceof Error ? error.message : "The chat stream failed.");
+      } finally {
         setIsStreaming(false);
         options.onComplete?.(fullText);
-      } catch (error) {
-        setIsStreaming(false);
-        options.onError?.(error instanceof Error ? error.message : "Stream failed");
       }
     },
     [options]

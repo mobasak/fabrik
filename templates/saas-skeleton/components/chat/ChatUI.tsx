@@ -24,6 +24,7 @@ export function ChatUI({
 }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { isStreaming, streamText, toolCalls, startStream } = useSSEStream({
@@ -37,6 +38,7 @@ export function ChatUI({
         return updated;
       });
     },
+    onError: (message) => setError(message),
   });
 
   useEffect(() => {
@@ -61,8 +63,9 @@ export function ChatUI({
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
+    setError(null);
 
-    // Posts only the message to the endpoint its caller passes; the template ships no chat endpoint.
+    // Posts only the message, to the endpoint its caller passes (the backend's /api/v1/chat).
     await startStream(endpoint, { message: userMessage.content });
   };
 
@@ -118,6 +121,12 @@ export function ChatUI({
             </div>
           );
         })}
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <div ref={messagesEndRef} />
       </div>

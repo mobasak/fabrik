@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — saas-skeleton: an authenticated, rate-limited backend chat route, POST /api/v1/chat (2026-10-19)
+
+- Every new saas-skeleton backend now emits `server/src/<pkg>/chat.py`. It streams an OpenRouter completion on the app's key only for a signed-in user, checked through the vendored `build_current_user` with a fail-closed denylist.
+- The checks run in order:
+  - a CSRF pass for cookie requests;
+  - the body (413/400);
+  - the key and model (503);
+  - one Lua script that checks the app, tenant, user and IP buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
+- The emitted `_http_exc` now keeps an exception's headers, so `Retry-After` reaches the client.
+- Defaults are env-overridable: 1200 requests/hour app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens/hour (D-1022).
+- The project gets its own `server/tests/test_chat.py`, run against a throwaway `TEST_REDIS_URL` DB.
+- The hub proves the route and the limiter on a real throwaway `redis-server`: `tests/test_saas_chat_backend.py` and `tests/test_saas_chat_limiter_lua.py` (W-ab242b11 slice 2, D-1013, D-1022).
+
 ### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
 
 - Phase 1 used to count only a grep miss on a work item's cited line as a finding, so a grep hit on dead code carried an unproven premise into PROBLEM. A failure or error path the item claims there is now replayed on a copy that carries the state it needs. A replay on such a copy that does not fail as claimed is a finding PROBLEM states. A replay whose copy cannot carry that state is recorded unverified, never as refuted. This answers row 1792348018, a recurrence of the held subject measure-refuted-ticket-premise.
