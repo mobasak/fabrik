@@ -260,7 +260,9 @@ def test_the_held_subject_search_reads_the_reasons_view() -> None:
     assert (
         "Before rejecting, search earlier reject reasons for the subject: `python3"
         " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
-        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " is still final; it is an advice hold when its reason says the text lacks the advice but is"
+        " not wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and neither"
+        " when it is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
         " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
         " output into an audit seat's scratch, never the seat."
     ) in text
@@ -487,3 +489,17 @@ def test_test_fragment_and_removed_word_rules() -> None:
     assert "A reworded sentence's removed words" not in p3
     p4 = _phase("## PHASE 4", "## PHASE 5")
     assert "it returns the line that states the row's step. " + REMOVED_WORDS_RULE in p4
+
+
+SCRIPT_POINTER_RULE = (
+    "An edit that must describe what a script does states only the fact its reader acts on and points for the rest at"
+    " the `docs/` file the script's `# AFTER-EDIT:` header names for that behaviour, else at the script by path —"
+    " never restating the rest."
+)
+
+
+def test_a_script_description_points_at_the_doc_that_owns_the_script() -> None:
+    """Row 1792276714 (kaizen, 2026-10-18), recurring held other-tool-behaviour-one-fact-plus-pointer (1791508926): a
+    fix that restated work.py's behaviour seeded a new edge case each round until it pointed at work-tracking.md."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "so a one-sentence row gets one sentence. " + SCRIPT_POINTER_RULE in p3
