@@ -187,6 +187,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native fable×1 + sonnet×4 + haiku×2 | found: 45, new: 45, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation; shape: agent-tool (D-961); slices A (T04 runtime: fable, sonnet, haiku), B (T04 tests: sonnet, haiku), C (T01–T03 core: sonnet, haiku), D (cross-ticket tests + docs: sonnet, haiku) over the pin `e2bc1bcc6`; box cap 3 → four waves; seats: A-fable 6/7 · A-sonnet 3/4 · AB-haiku 3/7 · B-sonnet 4/9 · C-sonnet 0/6 · D-sonnet 2/4 · CD-haiku 0/8 (confirmed/raised, duplicates credited to each raiser); every candidate executed or re-read by the lead against the pin; full suite on the integrated tree 1,232 passed + 3 chain reds that are the scratch tree's missing `.venv` (61/61 with the link); stop: confirmed 12; fix: one fixup coder, findings F1–F12 below |
+| Pass 2 | native fable×1 + sonnet×2 | found: 6, new: 6, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); delta over the round-1 fix `e2bc1bcc6..557344551` pinned as PIN2; the round-1 owners re-executed their slice claims: A (fable) F1–F7 HOLD, 4 new tests red on a reverted copy (`7 failed, 18 passed` vs `25 passed`); B (sonnet) F8–F11 HOLD, every new or changed test red-on-revert; D (sonnet) F11–F12 HOLD, `588 passed`; C restated 6/6 (no hunk); round-zero probe before the pin: the round-1 path comment measured wrong (`['r0', 'sysadmin', …]`) and corrected in `557344551`, the F11 skip path executed (147 skipped, 0 errors, empty `PLAYWRIGHT_BROWSERS_PATH`); full suite on PIN2's tree 1,241 passed, 20 skipped (registry write opt-ins); own-fix: round 1 for all three (F13–F15); stop: confirmed 3; fix: round-2 coder |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -234,6 +235,23 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 | F10 | `test_time_is_not_read_from_the_wall_clock`: the base asserted a `ctx.now`-derived age; the new body asserts nothing time-dependent |
 | F11 | browser fixtures `test_quota_dashboard_app_js.py:118`, `test_quota_dashboard_browser.py:53`: a missing Chromium ERRORS every case while the doc says they skip (D-seat run: 116 errors) |
 | F12 | `docs/workstation/quota-dashboard.md:171-174`: "4.5 s after the request's arrival" holds only for the spawning request |
+
+### Confirmed in pass 2 (own-fix of round 1, fixed in round 2)
+
+| Id | Finding |
+|---|---|
+| F13 | `quota_dashboard.py` `_inventory_outcome`: a 400-digit integer `synced_at` makes the round-1 `math.isfinite` raise `OverflowError` instead of returning `ReadFailed: exit status 0` (Fable probe `OUTCOME bigint RAISED OverflowError`); own-fix: round 1 |
+| F14 | `test_the_real_child_bounds_itself…`: `returncode != 0` passes on any fast failure, not only the alarm (measured exit −14); own-fix: round 1 |
+| F15 | `inventory_read.py` docstring: "a margin of 1-2 s" is false for a past deadline (measured flat 1.02 s); own-fix: round 1 |
+
+### Refuted and recorded in pass 2
+
+| Id | Verdict |
+|---|---|
+| R23 | REFUTED (the round-1 `finally` guard reads `proc.returncode` outside a try: only an object with no `returncode` raises, and `_inventory_spawn` returns a `Popen` or a stub that carries it — `tests/test_quota_dashboard.py:2240,2465`, `quota_dashboard_isolation.py` `StubChild`) |
+| R24 | RECORDED — measured (the flight's `deadline_epoch` is taken after the lock wait while the kill deadline runs from arrival; the lock is held for the decision only, so the drift is that decision's length — one hop out, pre-existing; destination W-74b67c7e) |
+| R25 | RECORDED — measured (a system `python3` without the venv's Chromium revision skips every browser row; the skip is printed with `-rs` and the doc names the venv runner — one hop out) |
+| R26 | RECORDED — measured (the app_js fixture catches only `sync_api.Error`; no non-Playwright launch failure exists to execute — one hop out) |
 
 ### Refuted and recorded in pass 1
 
