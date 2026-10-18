@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "find which host fails, confirm whether the pending .env jump line fixes it, otherwise fix the key/known_hosts; then ack the mail",
+  "next": "/fabrik-task: route scripts/sysadmin/vps_script_drift.py:322's raw ssh through src/fabrik/drivers/ssh.py's jump helper (FABRIK_SSH_JUMP_VPS, D-973) with a grader; host 'vps' (vps1) times out direct, works via -J vps2 (fleet read-only diagnosis 2026-10-19). Start at GREEN.",
   "note": "",
   "owner": "fleet",
   "priority": 1,
