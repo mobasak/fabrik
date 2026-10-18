@@ -654,11 +654,14 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
     install's .pth shadowing a copied src; under PIN_IMPORT the copy sits ahead of it (probed), so the catalogue says
     where the live src can still win instead of warning about a shadow that the recipe prevents."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    start = iso.index("never `/opt/fabrik` from a worktree. ") + len("never `/opt/fabrik` from a worktree. ")
-    sentence = iso[start : iso.index(" The pins line follows", start)]
+    anchor = "never `/opt/fabrik` from a worktree."
+    start = iso.find(anchor)
+    end = iso.find("The pins line follows", start)
+    assert start != -1 and end != -1, "the worktree clause and the pins-line sentence still bound the note"
+    sentence = iso[start + len(anchor) : end].strip()
     assert sentence == (
-        "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; what still runs the main"
-        " checkout's code (a `PYTHONPATH` entry, a pytest run from the live repo, a child process) is listed in"
-        " `PIN_IMPORT` and `PYTEST_PINS`."
+        "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
+        " instead of the pin through a `PYTHONPATH` entry or a pytest run from the live repo (both in `PIN_IMPORT` and"
+        " `PYTEST_PINS`) and in a child process started with its own `env=`, which resolves the `.pth` again."
     ), sentence
     assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"
