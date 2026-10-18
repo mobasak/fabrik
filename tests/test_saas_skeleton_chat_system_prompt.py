@@ -121,7 +121,7 @@ def _run(tmp_path: Path, body: object, system_prompt: str | None = None) -> dict
 
 
 @_needs_node
-@pytest.mark.parametrize("constant", ["", "   "])
+@pytest.mark.parametrize("constant", ["", "   ", "You are the support assistant."])
 def test_a_client_supplied_system_prompt_never_reaches_the_model(tmp_path, constant):
     """Every field name a client might try, not only the one the old route read."""
     body = {
@@ -136,7 +136,10 @@ def test_a_client_supplied_system_prompt_never_reaches_the_model(tmp_path, const
     out = _run(tmp_path, body, constant)
     upstream = out["sent"][0]
     assert set(upstream) == {"model", "messages", "stream"}  # no body spread into the payload
-    assert upstream["messages"] == [{"role": "user", "content": "hi"}]
+    expected = [{"role": "user", "content": "hi"}]
+    if constant.strip():
+        expected.insert(0, {"role": "system", "content": constant})
+    assert upstream["messages"] == expected
     assert _HOSTILE not in json.dumps(out["sent"])
 
 
@@ -184,7 +187,7 @@ def test_no_template_file_offers_a_client_system_prompt():
         str(p.relative_to(TEMPLATE))
         for p in TEMPLATE.rglob("*")
         if p.is_file()
-        and not _BUILD_DIRS.intersection(p.parts)
+        and not _BUILD_DIRS.intersection(p.relative_to(TEMPLATE).parts)
         and "systemPrompt" in p.read_text(errors="ignore")
     ]
     assert hits == []
@@ -194,13 +197,23 @@ def test_no_template_source_file_is_ignored_by_the_repo():
     """The root `lib/` ignore rule once swallowed lib/config/chat.ts: committed without it, the
     template's route imports a module no clean checkout has. Every source file must be committable."""
     repo = TEMPLATE.parent.parent
+    vcs = shutil.which("git") or "git"
+    inside = subprocess.run(
+        [vcs, "rev-parse", "--is-inside-work-tree"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        pytest.skip("the template is not inside a work tree (a tarball or installed copy)")
     files = [
         str(p.relative_to(repo))
         for p in TEMPLATE.rglob("*")
-        if p.is_file() and not _BUILD_DIRS.intersection(p.parts)
+        if p.is_file() and not _BUILD_DIRS.intersection(p.relative_to(TEMPLATE).parts)
     ]
     r = subprocess.run(
-        [shutil.which("git") or "git", "check-ignore", "--no-index", "--stdin"],
+        [vcs, "-c", "core.excludesFile=/dev/null", "check-ignore", "--no-index", "--stdin"],
         input="\n".join(files),
         cwd=repo,
         capture_output=True,
