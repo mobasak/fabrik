@@ -916,6 +916,6 @@ def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
     ) in _norm(SRC)
     assert "or its receipt is fixed as the post-flip run's is); THEN flip the Status" in _norm(SRC)
     assert (
-        "YOUR debt, not another lane's — fix it as the close order fixes an in-surface red."
-        in _norm(SRC)
-    )
+        "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
+        " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
+    ) in _norm(SRC)
