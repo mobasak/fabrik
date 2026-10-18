@@ -113,8 +113,8 @@ print(json.dumps({"claims": len(calls), "beat": m.HEARTBEAT_FILE.exists()}))
 
 @pytest.mark.parametrize(
     "smoke, claims",
-    [(None, 2), ("0", 2), ("true", 2), ("", 2), ("1", 0)],
-    ids=["unset", "0", "true", "empty", "1"],
+    [(None, 2), ("0", 2), ("true", 2), ("", 2), ("yes", 2), (" 1", 2), ("1\n", 2), ("1", 0)],
+    ids=["unset", "0", "true", "empty", "yes", "space-1", "1-newline", "1"],
 )
 def test_a_smoke_run_beats_but_never_claims(smoke, claims, tmp_path, monkeypatch):
     monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _TEMPLATE)
@@ -143,3 +143,5 @@ def test_a_smoke_run_beats_but_never_claims(smoke, claims, tmp_path, monkeypatch
     assert r.returncode == 0, r.stderr[-2000:]
     out = json.loads(r.stdout.strip().splitlines()[-1])
     assert out == {"claims": claims, "beat": True}, out  # two polls: a normal worker claims on each
+    # exactly "1" is smoke, and only smoke says so in the log (the triage signal for a worker that claims nothing)
+    assert ("worker_smoke_mode" in r.stdout + r.stderr) is (smoke == "1"), r.stdout[-2000:] + r.stderr[-2000:]

@@ -274,6 +274,31 @@ def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
         scaffold._scaffold_file_worker(project, "fw-drift", "drift")
 
 
+@pytest.mark.parametrize(
+    "header",
+    ["docker-smoke docker-x: docker-build", "docker-smoke &: docker-build", " docker-smoke: docker-build"],
+    ids=["multi-target", "grouped", "leading-space"],
+)
+def test_a_smoke_rule_the_regex_cannot_read_still_loses_the_live_worker_line(header, tmp_path, monkeypatch):
+    """A rule header the guard's regex misses must not leave the template's live-worker run line (W-807b73fd)."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    assert "\ndocker-smoke: docker-build" in src
+    mk.write_text(src.replace("\ndocker-smoke: docker-build", "\n" + header))
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-header"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-header", "header")
+    makefile = (project / "Makefile").read_text()
+    runs = [ln for ln in makefile.splitlines() if "docker run" in ln]
+    assert runs == [
+        "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true"
+    ], runs
+
+
 def test_a_project_named_like_the_smoke_container_keeps_a_loadable_makefile(tmp_path, monkeypatch):
     """The `smoke-test` rename ran after the name went in, so `x9-smoke-test` got
     `PROJECT_NAME ?= x9-$(PROJECT_NAME)-smoke`, which make refuses to load."""

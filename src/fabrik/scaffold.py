@@ -5060,9 +5060,12 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             ),
         }
         # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
-        has_smoke = (
-            re.search(r"(?m)^docker-smoke[ \t]*::?(?![:=])", content) is not None
-        )  # a rule, never an assignment (`:=`, `::=`, `:::=`)
+        # a rule, never an assignment (`:=`, `::=`, `:::=`) — or any template still carrying a smoke line, whatever its
+        # rule header looks like (`docker-smoke docker-x:`, `docker-smoke &:`, a leading space): the live-worker run
+        # line must never survive a header the regex cannot read (W-807b73fd)
+        has_smoke = re.search(r"(?m)^docker-smoke[ \t]*::?(?![:=])", content) is not None or any(
+            old in content for old in smoke
+        )
         for old, new in smoke.items() if has_smoke else ():
             if content.count(old) != 1:
                 raise ValueError(
