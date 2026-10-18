@@ -189,15 +189,17 @@ its mechanism words (such as a guard, both sides, a false green), since one step
 subject. A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still
 writes it (it warns only on an identical `HELD:` tag). The one exception is a recurrence whose edit PHASE 1 refuses
 as weakening: it is routed to the operator as a proposal, and its rows are rejected with a reason opening
-`HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. An answered
-reject (PHASE 1) stays final, but a line that three or more answered rejects on one subject cite is a line not
-followed: it is a candidate group for this phase's ONE edit, its target resolved and lock-checked as below. An Opus
-seat audits the advice set for misfiled text defects before any advice is rejected. A reject reason here cites a line
-the queue's command reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the
-session running it loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already
-cites the command's current text). That rendered-copy grep is the lead's: the audit seat reads the command source and
-the fragments it includes, pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and
-checks any wording it proposes against the phases that rely on the sentence it would change.
+`HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken; `--reject`
+still prints its held warning for it, and a subject an earlier reason already routed cites that proposal's mail id
+instead of routing again. An answered reject (PHASE 1) stays final, but a line that three or more answered rejects on
+one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its target resolved and
+lock-checked as below. An Opus seat audits the advice set for misfiled text defects before any advice is rejected. A
+reject reason here cites a line the queue's command reaches — rendered into it, pointed at or run by it for that
+rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus (PHASE
+1's answered-row reject already cites the command's current text). That rendered-copy grep is the lead's: the audit
+seat reads the command source and the fragments it includes, pinned in its scratch, never the rendered `~/.claude`
+copy, which no seat opens, and checks any wording it proposes against the phases that rely on the sentence it would
+change.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 

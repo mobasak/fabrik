@@ -526,7 +526,9 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
     assert (
         "The one exception is a recurrence whose edit PHASE 1 refuses as weakening: it is routed to the operator as a"
         " proposal, and its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's"
-        " mail id and quotes the line the edit would weaken." in p2
+        " mail id and quotes the line the edit would weaken; `--reject` still prints its held warning for it, and a"
+        " subject an earlier reason already routed cites that proposal's mail id instead of routing again."
+        in p2
     )
     terminal = re.sub(r"\s+", " ", SRC.read_text()[SRC.read_text().index("## Terminal") :])
     assert (
@@ -536,7 +538,7 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
     chain = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "close-chain.md").read_text())
     assert (
         "a draft written mid-loop carries none. In such a command, what an input says about the change — the commit"
-        " message, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked sentence by sentence against"
-        " the final text, after that pass too, and again after any fix the chain's gate forces. Then: (1)"
-        in chain
+        " message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked"
+        " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
+        " check or `final_gate.py` forces. Then: (1)" in chain
     )
