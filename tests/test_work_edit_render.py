@@ -294,6 +294,11 @@ def test_render_here_and_the_main_checkout(tmp_path):
     assert r.returncode == 0, r.stderr
     assert main_id in (repo / BACKLOG).read_text(encoding="utf-8")
     assert "do not commit" not in r.stdout
+    r = run(
+        ["render", "--here"], env, repo
+    )  # `--here` in the main checkout: no notice (A-opus-p3-1)
+    assert r.returncode == 0, r.stderr
+    assert "do not commit" not in r.stdout
 
     tree = _linked(repo, env, tmp_path)
     tree_id = _add(tree, env, "Tree row")
@@ -471,7 +476,10 @@ def test_a_symlink_loop_is_a_warning_never_a_crash(tmp_path):
     )
 
 
-def test_edit_writes_every_link_as_a_string(tmp_path):
+def test_a_link_edit_never_changes_a_link_value_it_did_not_name(tmp_path):
+    """A stored LINK_KEYS value that is not a string is refused by name, never silently coerced —
+    an `--unlink plan` must not blank `spec` or `decision` (review pass 3, A-haiku-p3-2). A title-only
+    edit leaves links exactly as stored."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
     item_id = _add(repo, env)
@@ -479,10 +487,17 @@ def test_edit_writes_every_link_as_a_string(tmp_path):
     item = json.loads(path.read_text(encoding="utf-8"))
     item["links"] = {"spec": None, "plan": "docs/p.md", "decision": 7}
     path.write_text(json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    r = run(["edit", item_id, "--unlink", "plan"], env, repo)
+    before = path.read_bytes()
+    for args in (["--unlink", "plan"], ["--link", "plan=docs/q.md"]):
+        r = run(["edit", item_id, *args], env, repo)
+        assert r.returncode == 1, (args, r.stdout)
+        assert "links.decision, links.spec is not a string" in r.stderr, r.stderr
+        assert path.read_bytes() == before
+    r = run(["edit", item_id, "--title", "only the title"], env, repo)
     assert r.returncode == 0, r.stderr
-    links = json.loads(path.read_text(encoding="utf-8"))["links"]
-    assert links == {"decision": "", "plan": "", "spec": ""}, links
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert stored["title"] == "only the title"
+    assert stored["links"] == {"spec": None, "plan": "docs/p.md", "decision": 7}
 
 
 def test_edit_changes_a_task_item(tmp_path):
@@ -507,9 +522,18 @@ def test_edit_and_render_need_a_store(tmp_path):
     (repo / "docs").mkdir()
     (repo / BACKLOG).write_text("# Strategic backlog\n", encoding="utf-8")
     before = (repo / BACKLOG).read_bytes()
-    for args in (["render"], ["edit", "W-00000000", "--title", "x"]):
-        r = run(args, env, repo)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    cases = [
+        (["render"], repo),
+        (["edit", "W-00000000", "--title", "x"], repo),
+        # from another directory the store check must still come first (A-opus-p3-2)
+        (["--repo", str(repo), "render"], outside),
+        (["--repo", str(repo), "render", "--here"], outside),
+    ]
+    for args, cwd in cases:
+        r = run(args, env, cwd)
         assert r.returncode == 1, (args, r.stdout)
         assert "init" in r.stderr, (args, r.stderr)
-        assert "render refused" not in r.stderr, r.stderr
+        assert "render refused" not in r.stderr, (args, r.stderr)
     assert (repo / BACKLOG).read_bytes() == before

@@ -3241,10 +3241,15 @@ def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
                 f"edit {item['id']} refused: its links is not a mapping ({type(current).__name__}) — "
                 "repair the item file by hand first"
             )
-        merged = {**current, **links}
-        for key in LINK_KEYS:  # every LINK_KEYS value is a string, the shape `add` writes
-            if not isinstance(merged.get(key), str):
-                merged[key] = ""
+        # a stored LINK_KEYS value that is not a string is refused by name, never coerced: a link
+        # edit must not silently change a value the call did not name (review pass 3, A-haiku-p3-2)
+        bad = sorted(k for k in LINK_KEYS if k in current and not isinstance(current[k], str))
+        if bad:
+            raise WorkError(
+                f"edit {item['id']} refused: links.{', links.'.join(bad)} is not a string — "
+                "repair the item file by hand first"
+            )
+        merged = {**dict.fromkeys(LINK_KEYS, ""), **current, **links}
         for key in unlink:
             merged[key] = ""
         return merged
