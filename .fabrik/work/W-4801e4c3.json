@@ -21,7 +21,8 @@
   "status": "open",
   "tags": [
     "fleet",
-    "monitoring"
+    "monitoring",
+    "waits-quota-reset"
   ],
   "title": "ContainerHighMemory fires on Prometheus while its working set is 46% of its limit (kaizen 2026-10-02)"
 }
