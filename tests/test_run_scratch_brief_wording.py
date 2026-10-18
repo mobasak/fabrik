@@ -76,7 +76,7 @@ def test_the_pin_paragraph_defers_the_pins_dir_root_to_d8() -> None:
     )
     assert "--pins-dir <a NEW dir per pass>" in pin
     assert "the pins dir sits where the D8 paragraph puts it" in pin
-    assert "<run scratch>" not in pin and "SCRATCH:" not in pin
+    assert "<run scratch>" not in pin and "SCRATCH:" not in pin and "disposable" not in pin
 
 
 def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
@@ -85,7 +85,10 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     for name in ("fabrik-review", "fabrik-plan-review", "fabrik-spec-review"):
         src = _norm(ROOT / "commands" / "_sources" / f"{name}.md")
         assert "{{include:subagents-core}}" in src, name
-        assert "go under the run's `SCRATCH:` folder" in src, name
+        assert (
+            "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's"
+            " `SCRATCH:` folder" in src
+        ), name
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
