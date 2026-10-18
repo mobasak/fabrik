@@ -542,3 +542,15 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
         " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
         " check or `final_gate.py` forces. Then: (1)" in chain
     )
+
+
+def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None:
+    """Row 1792332697, the second sighting of held placement-keeps-anaphor-with-antecedent: widening 'you run the
+    status probe' to 'and every other shell-only check' attached the sentence's existing WebFetch fallback to a quote
+    check the command forbids."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "an edit that widens a sentence's subject or splits it re-reads each clause already in the sentence against"
+        " what that clause now binds, since a fallback written for one item attaches to every item a widened list adds"
+        in p3
+    )
