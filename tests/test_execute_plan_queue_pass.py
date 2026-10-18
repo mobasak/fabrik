@@ -239,7 +239,7 @@ def test_a_backlog_referrer_is_repointed_through_the_work_store() -> None:
     are a block `work.py render` writes from each item's `title`, so a row edited apart from its item is overwritten. The sentence is asserted whole,
     between the clause before it and the sentence after it, so a dropped or appended exception fails it."""
     assert (
-        "and `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row "
+        "IN THIS SAME COMMIT** — `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row "
         "inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the "
         "block's only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a"
         " delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than "
