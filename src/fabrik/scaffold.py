@@ -2936,8 +2936,8 @@ def _positive(environ: Mapping[str, str], name: str, default: str, kind: type = 
         value = kind(raw)
     except ValueError:
         value = None
-    if value is None or value <= 0:
-        raise ValueError(f"{name} must be a positive number, got {raw!r}")
+    if value is None or not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be a positive finite number, got {raw!r}")
     return value
 
 
@@ -2957,9 +2957,15 @@ def load_chat_settings(environ: Mapping[str, str]) -> ChatSettings:
     )
 
 
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+
+
 def ip_key(raw: str) -> str | None:
-    """The IP bucket's key part: IPv4 as itself, IPv4-mapped IPv6 as its IPv4, other IPv6 as its
-    /64. An empty or unparseable value skips the IP bucket (None), never one shared bucket."""
+    """The IP bucket's key part: IPv4 as itself; an IPv6 address that carries an IPv4 one
+    (IPv4-mapped, IPv4-compatible, or NAT64's ``64:ff9b::/96``) as that IPv4; IPv6 loopback as
+    itself; other IPv6 as its /64. An empty or unparseable value skips the IP bucket (None), never
+    one shared bucket."""
     try:
         addr = ipaddress.ip_address(raw.strip())
     except ValueError:
@@ -2967,6 +2973,10 @@ def ip_key(raw: str) -> str | None:
     if isinstance(addr, ipaddress.IPv6Address):
         if addr.ipv4_mapped is not None:
             return str(addr.ipv4_mapped)
+        if addr.is_loopback or addr.is_unspecified:
+            return str(addr)
+        if addr in _NAT64 or addr in _IPV4_COMPATIBLE:
+            return str(ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF))
         return str(ipaddress.ip_network(f"{addr}/64", strict=False))
     return str(addr)
 
@@ -3016,11 +3026,15 @@ async def _read_body(request: Request, max_bytes: int) -> bytes:
 def _parse_message(raw: bytes, max_chars: int) -> str:
     try:
         data = json.loads(raw)
-    except ValueError:
+    except (ValueError, RecursionError):
         raise HTTPException(400, "Body must be JSON") from None
     message = data.get("message") if isinstance(data, dict) else None
     if not isinstance(message, str) or not message.strip():
         raise HTTPException(400, 'Body must be {"message": <non-empty string>}')
+    try:
+        message.encode("utf-8")
+    except UnicodeEncodeError:
+        raise HTTPException(400, "message must be valid text") from None
     if len(message) > max_chars:
         raise HTTPException(400, f"message is longer than {max_chars} characters")
     return message
@@ -3038,8 +3052,9 @@ async def _relay(
 ) -> AsyncIterator[bytes]:
     """Stream OpenRouter's SSE into the frames SSEStream reads. Only ``data:`` lines are read:
     comment lines (``: OPENROUTER PROCESSING``) and a usage-only chunk are skipped, ``[DONE]``
-    ends it. A client disconnect closes this generator, which closes the upstream stream."""
-    outcome = "ok"
+    ends it. A client disconnect closes this generator, which closes the upstream stream, and is
+    recorded ``disconnected``: ``ok`` is set only once the ``done`` frame is sent."""
+    outcome = "disconnected"
     try:
         async with http_client.stream(
             "POST", OPENROUTER_URL, json=payload, headers={"Authorization": f"Bearer {api_key}"}
@@ -3065,16 +3080,20 @@ async def _relay(
                     yield _frame({"type": "error", "error": "The model service reported an error"})
                     return
                 choices = chunk.get("choices") if isinstance(chunk, dict) else None
-                if not choices:
-                    continue
-                text = (choices[0].get("delta") or {}).get("content")
-                if text:
+                first = choices[0] if isinstance(choices, list) and choices else None
+                delta = first.get("delta") if isinstance(first, dict) else None
+                text = delta.get("content") if isinstance(delta, dict) else None
+                if isinstance(text, str) and text:
                     yield _frame({"type": "text_delta", "text": text})
         yield _frame({"type": "done"})
+        outcome = "ok"
     except httpx.TimeoutException:
         outcome = "timeout"
         yield _frame({"type": "error", "error": "The model took too long to respond"})
     except httpx.HTTPError:
+        outcome = "upstream_error"
+        yield _frame({"type": "error", "error": "The model service could not be reached"})
+    except Exception:  # noqa: BLE001 — any other failure ends the stream with an error frame
         outcome = "upstream_error"
         yield _frame({"type": "error", "error": "The model service could not be reached"})
     finally:
@@ -3582,8 +3601,10 @@ async def lifespan(app: FastAPI) -> Any:  # noqa: ARG001
     yield
     logger.info("service_stopping")
     # Close the shared auth engine + Redis client (build_saas_auth_router creates them).
-    await aclose()
-    await _chat_http.aclose()
+    try:
+        await aclose()
+    finally:
+        await _chat_http.aclose()
 
 
 # Chat (W-ab242b11): a malformed CHAT_* value fails the app here, at start.
@@ -3916,7 +3937,6 @@ import importlib
 import json
 import os
 import uuid
-from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -3930,11 +3950,21 @@ _APP_REDIS_URL = os.environ.get(
 _TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "")
 
 
+def _target(url: str) -> tuple[object, object, object, int]:
+    """The server and logical DB a URL names, as redis-py itself reads it: ``/00``, a ``?db=``
+    query and a ``unix://`` socket URL all resolve the way the client will connect."""
+    from redis.connection import parse_url
+
+    kwargs = parse_url(url)
+    db = int(kwargs.get("db") or 0)
+    return (kwargs.get("host", "localhost"), kwargs.get("port", 6379), kwargs.get("path"), db)
+
+
 def _require_throwaway(url: str) -> None:
-    db = (urlsplit(url).path or "/0").lstrip("/") or "0"
-    if db == "0":
+    target = _target(url)
+    if target[3] == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
-    if _APP_REDIS_URL and url == _APP_REDIS_URL:
+    if _APP_REDIS_URL and target == _target(_APP_REDIS_URL):
         raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
 
 
@@ -3952,8 +3982,18 @@ LINES = [
 
 @pytest.fixture
 def app(monkeypatch):
-    """A freshly imported app on the test Redis, with every cached client cleared first."""
+    """A freshly imported app on the test Redis, with every cached client cleared before and
+    after, so no client built on the test Redis outlives the test."""
     _require_throwaway(_TEST_REDIS_URL)
+    for proxy in (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(proxy, raising=False)  # a proxy mount would bypass the mock transport
     monkeypatch.setenv("REDIS_URL", _TEST_REDIS_URL)
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
     monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
@@ -3961,11 +4001,13 @@ def app(monkeypatch):
     monkeypatch.setenv("CHAT_RATE_USER", "2/3600")
     from __PKG__ import auth
 
-    for cached in (auth.get_settings, auth._denylist, auth.redis_client):
+    caches = (auth.get_settings, auth._denylist, auth.redis_client)
+    for cached in caches:
         cached.cache_clear()
     import redis
 
-    redis.Redis.from_url(_TEST_REDIS_URL).flushdb()
+    sync = redis.Redis.from_url(_TEST_REDIS_URL)
+    sync.flushdb()
     main = importlib.reload(importlib.import_module("__PKG__.main"))
     sent: list[dict] = []
 
@@ -3975,7 +4017,11 @@ def app(monkeypatch):
 
     main._chat_http._transport = httpx.MockTransport(handler)
     main.app.state.sent = sent
-    return main.app
+    yield main.app
+    sync.flushdb()
+    sync.close()
+    for cached in caches:
+        cached.cache_clear()
 
 
 def _bearer(tenant: str | None = "t1", user: str | None = None) -> dict[str, str]:

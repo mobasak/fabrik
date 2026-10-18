@@ -207,7 +207,7 @@ Steps (the highest-risk behaviour first, test-first):
    - **The SSE relay.** It reads only `data:` lines.
    - **The counters**, on `REGISTRY` (`src/fabrik/scaffold.py:1728`).
    - **One log line per request**, through `get_logger`.
-   - **Counting, and its limit.** The counters see every request that reaches the route. Two kinds of request are refused by middleware before the route and are not counted there:
+   - **Counting, and its limit.** The counters see every request that reaches the route. These requests are refused by middleware before the route and are not counted there:
      - a bearer token `TenantMiddleware` already refused (`src/fabrik/scaffold.py:2530-2538`);
      - a `TenantMiddleware` 403 for a tenant the user is not a member of (`:2549-2550`);
      - a CSRF 403.

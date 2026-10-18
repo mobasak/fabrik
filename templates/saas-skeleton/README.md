@@ -87,14 +87,20 @@ constant `CHAT_SYSTEM_PROMPT`, never part of the request.
 ### Turning chat on
 
 1. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (in the spec's `secrets.from_env` or `.env`). Either
-   one empty means chat answers 503.
+   one empty means chat answers a signed-in user's valid request with 503 (a signed-out caller still
+   gets 401, a bad body 400 or 413).
 2. Keep `shape.needs_cache: true` (the default), so `REDIS_URL` is set. Without Redis, chat answers 503.
 3. Put the app's public URL in the origin allowlist web login already uses (`AUTH_ALLOWED_ORIGINS`,
-   else `CORS_ORIGINS` plus `NEXT_PUBLIC_APP_URL`). A chat request from an origin outside it is a 403.
+   else `CORS_ORIGINS` plus `NEXT_PUBLIC_APP_URL`). A cookie-borne chat request from an origin outside it,
+   or without the `X-CSRF-Token` header, is a 403; a bearer-token client skips both checks.
 4. Set a USD `limit` on the OpenRouter key itself. That caps spend on OpenRouter's side whatever the
    app does.
 
 The template ships no login page: chat needs one, through `/auth/login/web` or passwordless.
+
+The relative `endpoint="/api/v1/chat"` relies on the same-host front the emitted compose sets up
+(Traefik sends `/api` and `/auth` to the backend, everything else to Next). `next dev` alone on its
+own port proxies neither, so a chat request there reaches Next and is a 404.
 
 ### Limits and cost
 

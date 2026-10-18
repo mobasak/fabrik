@@ -97,7 +97,9 @@ def mods(project: Path) -> dict[str, types.ModuleType]:
     _load(f"{pkg_dir.name}.logger", pkg_dir / "logger.py")
     out["metrics"] = _load(f"{pkg_dir.name}.metrics", pkg_dir / "metrics.py")
     out["chat"] = _load(f"{pkg_dir.name}.chat", pkg_dir / "chat.py")
-    return out
+    yield out
+    for name in [n for n in sys.modules if n.split(".")[0] in ("fua_chat", pkg_dir.name)]:
+        del sys.modules[name]
 
 
 @pytest.fixture(scope="module")
@@ -131,22 +133,36 @@ def redis_sock() -> str:
         stderr=subprocess.DEVNULL,
     )
     try:
-        probe = redis.Redis(unix_socket_path=sock)
+        _wait_ready(proc, sock)
+        yield sock
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _wait_ready(proc: subprocess.Popen, sock: str) -> None:
+    probe = redis.Redis(unix_socket_path=sock)
+    try:
         deadline = time.monotonic() + 10
         while True:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"redis-server exited with {proc.returncode} before it was ready"
+                )
             try:
                 probe.ping()
-                break
+                return
             except (redis.ConnectionError, FileNotFoundError):
                 if time.monotonic() > deadline:
                     raise
                 time.sleep(0.05)
-        probe.close()
-        yield sock
     finally:
-        proc.terminate()
-        proc.wait(timeout=10)
-        shutil.rmtree(workdir, ignore_errors=True)
+        probe.close()
 
 
 @pytest.fixture
@@ -332,7 +348,7 @@ def test_a_cookie_request_with_the_token_and_an_allowed_origin_streams(
 
 
 @pytest.mark.parametrize(
-    ("csrf_header", "origin"), [(False, ORIGIN), (True, "https://evil.example")]
+    ("csrf_header", "origin"), [(False, ORIGIN), (True, "https://evil.example"), (True, None)]
 )
 def test_a_cookie_request_without_the_token_or_the_origin_is_403(
     mods, redis_sock, sync_redis, csrf_header, origin
@@ -414,6 +430,16 @@ def test_a_body_over_the_byte_cap_is_413_with_or_without_content_length(
     assert _keys(sync_redis) == set()
 
 
+def test_a_declared_content_length_over_the_cap_is_413_before_the_body_is_read(
+    mods, redis_sock, sync_redis
+):
+    up = Upstream()
+    app = _app(mods, redis_sock, up, env={"CHAT_MAX_BODY_BYTES": "64"})
+    small = json.dumps({"message": "hi"}).encode()  # under the cap: only the header is over it
+    r = _post(app, raw=small, headers={**_bearer(mods), "Content-Length": "1000"})
+    assert r.status_code == 413 and up.requests == []
+
+
 def test_hostile_fields_are_ignored_and_never_forwarded(mods, redis_sock, sync_redis):
     up = Upstream()
     body = {"message": "hi", **SLICE2_HOSTILE_FIELDS}
@@ -422,6 +448,22 @@ def test_hostile_fields_are_ignored_and_never_forwarded(mods, redis_sock, sync_r
     assert set(up.requests[0]) == {"model", "messages", "stream", "max_tokens"}
     assert up.requests[0]["model"] == MODEL
     assert up.requests[0]["messages"] == [{"role": "user", "content": "hi"}]
+    assert up.requests[0]["stream"] is True and up.requests[0]["max_tokens"] == 1024
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"message": "\\ud800"}',  # a lone surrogate: valid JSON, not encodable text
+        b"[" * 30000 + b"]" * 30000,  # nested past the parser's recursion limit, under the cap
+    ],
+    ids=["lone-surrogate", "deep-nesting"],
+)
+def test_a_body_json_accepts_but_python_cannot_use_is_400(mods, redis_sock, sync_redis, raw):
+    up = Upstream()
+    app = _app(mods, redis_sock, up, env={"CHAT_MAX_BODY_BYTES": "65536"})
+    assert _post(app, raw=raw, headers=_bearer(mods)).status_code == 400
+    assert _keys(sync_redis) == set() and up.requests == []
 
 
 def test_a_set_system_prompt_is_sent_first_verbatim(mods, redis_sock, sync_redis, monkeypatch):
@@ -446,6 +488,12 @@ def test_the_key_or_model_unset_is_503_with_a_token_and_401_without(
 def test_a_malformed_rate_fails_at_start(mods):
     with pytest.raises(ValueError, match="CHAT_RATE_USER"):
         mods["chat"].load_chat_settings({"CHAT_RATE_USER": "sixty"})
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "0", "-1"])
+def test_a_read_timeout_that_is_not_a_positive_finite_number_fails_at_start(mods, value):
+    with pytest.raises(ValueError, match="CHAT_UPSTREAM_READ_TIMEOUT"):
+        mods["chat"].load_chat_settings({"CHAT_UPSTREAM_READ_TIMEOUT": value})
 
 
 # --- limiter -------------------------------------------------------------------------------
@@ -476,14 +524,30 @@ def test_each_full_bucket_is_429_with_retry_after_and_names_it(
     assert f"({bucket})" in r.json()["detail"]
 
 
-def test_a_refusal_on_the_user_bucket_leaves_the_tenant_and_ip_counts(mods, redis_sock, sync_redis):
+def test_retry_after_rounds_the_ttl_up(mods, redis_sock, sync_redis):
+    app = _app(mods, redis_sock, Upstream(), env={"CHAT_RATE_USER": "1/3600"})
+    user = str(uuid.uuid4())
+    headers = _bearer(mods, user=user)
+    assert _post(app, {"message": "hi"}, headers=headers).status_code == 200
+    sync_redis.pexpire(f"global:chat:user:{user}", 1500)
+    r = _post(app, {"message": "hi"}, headers=headers)
+    assert r.status_code == 429 and r.headers["retry-after"] == "2"
+
+
+def test_a_refusal_on_the_user_bucket_spends_no_bucket(mods, redis_sock, sync_redis):
     app = _app(mods, redis_sock, Upstream(), env={"CHAT_RATE_USER": "1/3600"})
     user = str(uuid.uuid4())
     headers = _bearer(mods, user=user)
     _post(app, {"message": "hi"}, headers=headers)
-    assert _post(app, {"message": "hi"}, headers=headers).status_code == 429
-    assert sync_redis.get("t:t1:chat:rate") == b"1"
-    assert sync_redis.get("global:chat:ip:203.0.113.7") == b"1"
+    r = _post(app, {"message": "hi"}, headers=headers)
+    assert r.status_code == 429 and "(user)" in r.json()["detail"]
+    for key in (
+        "global:chat:app",
+        "t:t1:chat:rate",
+        f"global:chat:user:{user}",
+        "global:chat:ip:203.0.113.7",
+    ):
+        assert sync_redis.get(key) == b"1", key
 
 
 def test_a_tenantless_user_touches_no_tenant_key(mods, redis_sock, sync_redis):
@@ -496,11 +560,36 @@ def test_an_empty_or_unparseable_client_ip_touches_no_ip_key(mods, raw_ip):
     assert mods["chat"].ip_key(raw_ip) is None
 
 
+def test_a_request_with_an_unparseable_ip_spends_no_ip_bucket(mods, redis_sock, sync_redis):
+    r = _post(
+        _app(mods, redis_sock, Upstream()), {"message": "hi"}, headers=_bearer(mods, ip="unknown")
+    )
+    assert r.status_code == 200
+    assert not any(k.startswith("global:chat:ip:") for k in _keys(sync_redis))
+
+
 def test_ipv6_is_keyed_on_its_64_and_ipv4_mapped_on_its_ipv4(mods):
     ip_key = mods["chat"].ip_key
     assert ip_key("2001:db8:1:2::1") == ip_key("2001:db8:1:2:ffff::9") == "2001:db8:1:2::/64"
     assert ip_key("::ffff:203.0.113.7") == "203.0.113.7"
     assert ip_key("203.0.113.7") == "203.0.113.7"
+
+
+def test_an_ipv6_address_carrying_an_ipv4_one_is_keyed_on_that_ipv4(mods):
+    ip_key = mods["chat"].ip_key
+    assert ip_key("64:ff9b::cb00:7107") == "203.0.113.7"  # NAT64
+    assert ip_key("::203.0.113.7") == "203.0.113.7"  # IPv4-compatible
+    assert ip_key("::1") == "::1"  # loopback is itself, never the shared ::/64
+
+
+def test_two_ipv6_addresses_in_one_64_share_the_ip_bucket(mods, redis_sock, sync_redis):
+    app = _app(mods, redis_sock, Upstream(), env={"CHAT_RATE_IP": "1/3600"})
+    assert (
+        _post(app, {"message": "hi"}, headers=_bearer(mods, ip="2001:db8:1:2::1")).status_code
+        == 200
+    )
+    r = _post(app, {"message": "hi"}, headers=_bearer(mods, ip="2001:db8:1:2:ffff::9"))
+    assert r.status_code == 429 and "(ip)" in r.json()["detail"]
 
 
 def test_a_redis_error_in_the_limiter_is_503(mods, redis_sock, sync_redis):
@@ -525,6 +614,40 @@ def test_an_upstream_timeout_is_an_error_frame(mods, redis_sock, sync_redis):
     assert _frames(r.text) == [{"type": "error", "error": "The model took too long to respond"}]
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        'data: {"choices":"abc"}',
+        'data: {"choices":["x"]}',
+        'data: {"choices":[{"delta":"x"}]}',
+        'data: {"choices":[{"delta":{"content":5}}]}',
+    ],
+)
+def test_a_malformed_upstream_chunk_is_skipped(mods, redis_sock, sync_redis, line):
+    up = Upstream()
+    up.lines = [line, 'data: {"choices":[{"delta":{"content":"ok"}}]}', "data: [DONE]"]
+    r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
+    assert _frames(r.text) == [{"type": "text_delta", "text": "ok"}, {"type": "done"}]
+
+
+def _relay_outcome(mods, transport: httpx.MockTransport) -> tuple[list[dict[str, Any]], list[str]]:
+    outcomes: list[str] = []
+
+    async def run() -> list[dict[str, Any]]:
+        gen = mods["chat"]._relay(httpx.AsyncClient(transport=transport), {}, "k", outcomes.append)
+        return [json.loads(f[6:]) async for f in gen]
+
+    return asyncio.run(run()), outcomes
+
+
+def test_any_other_upstream_failure_is_an_error_frame_never_ok(mods):
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("the client was closed")
+
+    frames, outcomes = _relay_outcome(mods, httpx.MockTransport(boom))
+    assert [f["type"] for f in frames] == ["error"] and outcomes == ["upstream_error"]
+
+
 class _TrackedStream(httpx.AsyncByteStream):
     def __init__(self) -> None:
         self.closed = False
@@ -547,8 +670,17 @@ def test_closing_the_stream_closes_the_upstream_stream(mods):
         assert json.loads((await gen.__anext__())[6:]) == {"type": "text_delta", "text": "a"}
         await gen.aclose()  # what a client disconnect does to a StreamingResponse body
 
+    outcomes: list[str] = []
+
+    async def run_labelled() -> None:
+        gen = mods["chat"]._relay(httpx.AsyncClient(transport=transport), {}, "k", outcomes.append)
+        await gen.__anext__()
+        await gen.aclose()
+
     asyncio.run(run())
     assert stream.closed
+    asyncio.run(run_labelled())
+    assert outcomes == ["disconnected"], "a stream closed before its done frame is never ok"
 
 
 # --- observability -------------------------------------------------------------------------
@@ -570,6 +702,54 @@ def test_refusals_and_successes_are_counted_by_outcome(mods, redis_sock, sync_re
     assert _count(mods, "unauthenticated") == before["unauthenticated"] + 1
     assert _count(mods, "bad_body") == before["bad_body"] + 1
     assert _count(mods, "ok") == before["ok"] + 1
+
+
+def _limited(mods, bucket: str) -> float:
+    return (
+        mods["metrics"].REGISTRY.get_sample_value("chat_rate_limited_total", {"bucket": bucket})
+        or 0.0
+    )
+
+
+def _timeout_upstream() -> Upstream:
+    up = Upstream()
+    up.raise_exc = httpx.ReadTimeout("stalled")
+    return up
+
+
+def _bad_gateway() -> Upstream:
+    up = Upstream()
+    up.status = 502
+    return up
+
+
+@pytest.mark.parametrize(
+    ("outcome", "make"),
+    [
+        ("too_large", lambda m, s: (_app(m, s, Upstream(), env={"CHAT_MAX_BODY_BYTES": "8"}), {})),
+        ("no_config", lambda m, s: (_app(m, s, Upstream(), env={"OPENROUTER_API_KEY": ""}), {})),
+        ("redis_down", lambda m, s: (_app(m, s, Upstream(), redis_override=_RaisingRedis()), {})),
+        ("upstream_error", lambda m, s: (_app(m, s, _bad_gateway()), {})),
+        ("timeout", lambda m, s: (_app(m, s, _timeout_upstream()), {})),
+    ],
+)
+def test_each_refusal_and_failure_is_counted_by_its_outcome(
+    mods, redis_sock, sync_redis, outcome, make
+):
+    app, _ = make(mods, redis_sock)
+    before = _count(mods, outcome)
+    _post(app, {"message": "hi"}, headers=_bearer(mods))
+    assert _count(mods, outcome) == before + 1
+
+
+def test_a_limited_request_is_counted_with_its_bucket(mods, redis_sock, sync_redis):
+    app = _app(mods, redis_sock, Upstream(), env={"CHAT_RATE_USER": "1/3600"})
+    headers = _bearer(mods, user=str(uuid.uuid4()))
+    before, before_bucket = _count(mods, "limited:user"), _limited(mods, "user")
+    _post(app, {"message": "hi"}, headers=headers)
+    _post(app, {"message": "hi"}, headers=headers)
+    assert _count(mods, "limited:user") == before + 1
+    assert _limited(mods, "user") == before_bucket + 1
 
 
 # --- the emitted error handler keeps headers ------------------------------------------------
@@ -616,3 +796,46 @@ def test_the_scaffold_emits_the_projects_own_chat_tests(project):
     emitted = project / "server" / "tests" / "test_chat.py"
     text = emitted.read_text()
     assert "TEST_REDIS_URL" in text and "_require_throwaway" in text and "/api/v1/chat" in text
+
+
+def test_the_emitted_app_wires_the_read_timeout_into_its_chat_client(project):
+    main = next(project.glob("server/src/*/main.py")).read_text()
+    assert "httpx.Timeout(10.0, read=_chat_settings.read_timeout_s)" in main
+
+
+def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
+    """The emitted test's ``_target`` and ``_require_throwaway``, run here against redis-py."""
+    emitted = project / "server" / "tests" / "test_chat.py"
+    tree = ast.parse(emitted.read_text())
+    keep = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name in ("_target", "_require_throwaway")
+    ]
+    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url}
+    exec(compile(ast.Module(body=keep, type_ignores=[]), str(emitted), "exec"), ns)  # noqa: S102
+    return ns["_require_throwaway"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "redis://h:6379",
+        "redis://h:6379/0",
+        "redis://h:6379/00",
+        "redis://h:6379/1?db=0",
+        "unix:///tmp/r.sock",
+        "redis://app:6379/3/",  # the app's own DB, spelled differently
+    ],
+)
+def test_the_emitted_throwaway_guard_refuses_db_0_and_the_apps_db(project, url):
+    guard = _emitted_redis_guard(project, "redis://app:6379/3")
+    with pytest.raises(RuntimeError):
+        guard(url)
+
+
+@pytest.mark.parametrize(
+    "url", ["redis://h:6379/1", "rediss://h:6379/1", "unix:///tmp/r.sock?db=2"]
+)
+def test_the_emitted_throwaway_guard_allows_another_db(project, url):
+    _emitted_redis_guard(project, "redis://app:6379/3")(url)

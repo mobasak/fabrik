@@ -83,10 +83,14 @@ def client() -> redis.Redis:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    conn = redis.Redis(unix_socket_path=sock)
     try:
-        conn = redis.Redis(unix_socket_path=sock)
         deadline = time.monotonic() + 10
         while True:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"redis-server exited with {proc.returncode} before it was ready"
+                )
             try:
                 conn.ping()
                 break
@@ -95,10 +99,14 @@ def client() -> redis.Redis:
                     raise
                 time.sleep(0.05)
         yield conn
-        conn.close()
     finally:
+        conn.close()
         proc.terminate()
-        proc.wait(timeout=10)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
         shutil.rmtree(workdir, ignore_errors=True)
 
 

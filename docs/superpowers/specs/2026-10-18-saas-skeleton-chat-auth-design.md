@@ -129,7 +129,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - The client has an explicit `httpx.Timeout` (connect 10 s; read 60 s between chunks, from `CHAT_UPSTREAM_READ_TIMEOUT`). A timeout gives an `error` frame, so a stalled provider cannot hold a connection open without bound.
   - A non-2xx upstream gives an `error` frame.
   - A client disconnect cancels the upstream stream, through the app's middleware stack: the generator's close closes the `httpx` stream (E7), and a hub test proves it. OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
-- **Observability.** The route's first dependency is a small wrapper that calls `chat_user(request=request, authorization=authorization)` directly inside a try/except (a direct, non-`Depends` call is supported, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:84-89`; a `Depends(chat_user)` would raise before the wrapper's body runs). It logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `too_large`, `bad_body`, `no_config`, `limited:<bucket>`, `redis_down` (unreachable or unconfigured), `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
+- **Observability.** The route's first dependency is a small wrapper that calls `chat_user(request=request, authorization=authorization)` directly inside a try/except (a direct, non-`Depends` call is supported, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:84-89`; a `Depends(chat_user)` would raise before the wrapper's body runs). It logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `too_large`, `bad_body`, `no_config`, `limited:<bucket>`, `redis_down` (unreachable or unconfigured), `upstream_error`, `timeout`, and `disconnected`, a stream that ends before its `done` frame, D-1022) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
 - **Key placement.** `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read only by `chat.py`. They live in the root `.env`, like every other backend secret, so they are present in the Next container's environment as `DATABASE_URL` and `JWT_SECRET` already are. Per-service env files are a fleet-wide hardening, not this slice (§ Rejected alternatives; F8).
 - **Client.** `templates/saas-skeleton/components/chat/SSEStream.tsx` changes in this slice; today it sends neither credentials nor a CSRF header (`SSEStream.tsx:32-36`), so every cookie-borne POST would be a 403. After it:
   - it sends `credentials: "same-origin"` and `X-CSRF-Token` from the CSRF cookie under either name;
@@ -230,7 +230,7 @@ The cases:
   - two IPv6 addresses in one /64: one IP bucket; an IPv4-mapped address: its IPv4's bucket;
   - a client disconnect mid-stream: the upstream `httpx` stream is closed;
   - a request refused on the user bucket leaves the tenant and IP counts unchanged;
-  - each refusal past CSRF, and the success, increments `chat_requests_total` with its outcome, `unauthenticated` included (a CSRF 403 is refused in the middleware, before the route, and is not counted here);
+  - each refusal past CSRF, and the success, increments `chat_requests_total` with its outcome, `unauthenticated` included (a CSRF 403 is refused in the middleware, before the route, and is not counted here; nor is a bearer token the emitted `TenantMiddleware` refuses first, D-1022);
   - an empty or unparseable client IP: no IP key touched;
   - a body refused with 400: no bucket touched;
   - a tenantless user: no `t:` key touched;
@@ -258,6 +258,7 @@ The cases:
   - the key in the shared `.env` (the fleet-wide per-service env hardening is filed separately);
   - C4's token-bucket shape (fixed windows instead);
   - the hub tests use a real throwaway `redis-server`, not the in-process fake § Validation first named — forced by `.windsurf/rules/core/45-testing-strategy.md:176-177` (D-1013);
+  - a new outcome label, `disconnected`, so `ok` counts only a stream that sent its `done` frame; and an invalid, expired or revoked bearer token is refused by the emitted `TenantMiddleware` before the route, so it is not counted (D-1022);
   - README:175's `cost-budget/`, `async-http-client/` and `api-quota/` (request count × `max_tokens`, a timeout, and one key, instead; each has its adoption trigger in its verdict row, cost-budget's in § Lifecycle).
 
 ## Open / blocking unknowns
