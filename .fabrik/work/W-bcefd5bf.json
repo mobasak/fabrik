@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "kaizen command-wording change (D-956: kaizen work is HIGH); one command source, no spec",
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-execute-plan step 6 — simplify the archive rule per D-975 (a cited plan is archived at once; the citing row is never repointed)"
 }
