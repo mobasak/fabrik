@@ -87,8 +87,8 @@ ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a me
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
 `commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus the INDEX block
-`docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED`, archive move and stale plan lock, once no run is live on it and every
-ticket is merged; a spec's `Status:` line when its approval or retirement is recorded.
+`docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED`, archive move and stale plan lock, once its last run closed `done` and
+every ticket is merged; a spec's `Status:` line when its approval or retirement is recorded.
 
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
