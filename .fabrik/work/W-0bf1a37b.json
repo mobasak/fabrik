@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T03:27:21.539943Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-0bf1a37b",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "build the scaffolded file-worker image and run its HEALTHCHECK command; if pgrep is absent, install procps or switch the healthcheck to the heartbeat file's age",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: bug, scaffolded file-worker healthcheck ignores the heartbeat and pgrep may be absent; same healthcheck class as W-c384ff51, pair them",
   "status": "open",
   "tags": [
     "scaffold"

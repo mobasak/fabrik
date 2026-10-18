@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T03:34:41.288419Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-c384ff51",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "make the healthcheck fail on no match, e.g. test -n \"$(find /app/.tmp/worker_heartbeat -mmin -2)\", with a grader that runs it on a stale file",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: bug, a hung file-worker reads healthy (find exits 0 on a stale heartbeat); one template healthcheck",
   "status": "open",
   "tags": [
     "scaffold"
