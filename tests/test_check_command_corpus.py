@@ -3694,7 +3694,7 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
     `{{include:...}}` renderer syntax, a bare directory mention, a glob, a placeholder and a file that is not `.md`."""
     relative = re.compile(
         r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+"
-        r"(?:\.md\b|(?![\w.*</-]))"
+        r"(?:\.md\b|(?![\w*</-]|\.\w))"
     )
     for spelling in (
         "`commands/_agents/x.md`",
@@ -3703,6 +3703,7 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
         "`_fragments/a.md`",
         "commands/_sources/Term_x",
         "see commands/_fragments/a.md.",
+        "see commands/_fragments/term-coverage.",
     ):
         assert relative.search(spelling), spelling
     for spelling in (
