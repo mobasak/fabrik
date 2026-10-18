@@ -93,15 +93,22 @@ for _p in (str(_HERE), str(_HERE.parent)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+# A failed import is tolerated at load (a box mid-sync must still import this module), but it is
+# KEPT: `--sweep` exits non-zero naming it, so the daily job retries instead of stamping a blind
+# sweep done (W-4bd4ea3c).
+_IMPORT_ERRORS: dict[str, str] = {}
+
 try:
     import kaizen_events  # T01 emitter — same directory
-except Exception:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # pragma: no cover - a box mid-sync
     kaizen_events = None  # type: ignore[assignment]
+    _IMPORT_ERRORS["kaizen_events"] = f"{type(_exc).__name__}: {_exc}"
 
 try:
     import command_run  # scripts/command_run.py — the record load/save API
-except Exception:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # pragma: no cover - a box mid-sync
     command_run = None  # type: ignore[assignment]
+    _IMPORT_ERRORS["command_run"] = f"{type(_exc).__name__}: {_exc}"
 
 UNKNOWN = "unknown"
 EXPOSURE_KEYS = ("commit", "account", "model", "project", "headless", "plan_era")
@@ -1103,7 +1110,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.sweep:
         report = sweep()
         print(json.dumps(dataclasses.asdict(report), indent=1))
-        return 0
+        # Without `command_run` no record closes; without `kaizen_events` no event is emitted. The
+        # sweep line already says so (`errors`, `blind`); the exit code must too, or weekly_catchup
+        # (OK_MAX=0) stamps the day and nothing retries until tomorrow (W-4bd4ea3c).
+        missing = [
+            n
+            for n, m in (("kaizen_events", kaizen_events), ("command_run", command_run))
+            if m is None
+        ]
+        for name in missing:
+            print(
+                f"kaizen_coroner: --sweep ran without {name} "
+                f"({_IMPORT_ERRORS.get(name, 'import failed')}); exiting 3 so the job retries",
+                file=sys.stderr,
+            )
+        return 3 if missing else 0
     ap.print_usage()
     return 2
 

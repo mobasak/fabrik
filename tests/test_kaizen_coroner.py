@@ -1084,3 +1084,24 @@ def test_coroner_marks_only_after_a_successful_save(sources, tmp_path, monkeypat
     monkeypatch.setattr(kc, "_command_run_save", lambda sid, rec: False)
     kc.sweep(sources)
     assert _state(child) == "running" and _state(parent) == "running"
+
+
+@pytest.mark.parametrize("missing", ["kaizen_events", "command_run"])
+def test_a_sweep_with_a_failed_import_exits_nonzero_naming_it(monkeypatch, capsys, missing):
+    """W-4bd4ea3c: a failed import of either module was swallowed (`except Exception: ... = None`)
+    and `--sweep` still exited 0, so the daily job stamped a sweep that closed no records (no
+    `command_run`) or emitted no events (no `kaizen_events`) as done, and nothing retried it.
+    It now exits 3, naming the module and its import error; the report still prints."""
+    monkeypatch.setattr(kc, "sweep", lambda *a, **k: kc.CoronerReport())
+    monkeypatch.setattr(kc, missing, None)
+    monkeypatch.setattr(kc, "_IMPORT_ERRORS", {missing: "ImportError: boom"}, raising=False)
+    assert kc.main(["--sweep"]) == 3
+    captured = capsys.readouterr()
+    assert missing in captured.err and "ImportError: boom" in captured.err, captured.err
+    assert '"holes_today"' in captured.out  # the report is still printed
+
+
+def test_a_sweep_with_both_modules_exits_zero(monkeypatch, capsys):
+    """A CONTROL: a sweep whose imports succeeded exits 0, as before."""
+    monkeypatch.setattr(kc, "sweep", lambda *a, **k: kc.CoronerReport())
+    assert kc.main(["--sweep"]) == 0
