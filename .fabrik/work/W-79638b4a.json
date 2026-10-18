@@ -15,7 +15,7 @@
   },
   "next": "infra: read mail 01M4X6XQH0R2PMPAF1RTBFXH1W, claim it, act on it",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — two feedback-verdict requests from kaizen on command_run",
   "status": "open",

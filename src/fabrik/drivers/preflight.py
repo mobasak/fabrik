@@ -46,6 +46,7 @@ import yaml
 from fabrik.drivers.ssh import (
     JumpConfigError,
     _ssh_host,
+    is_alias,
     jump_env_name,
     jump_for,
     parse_hop,
@@ -332,12 +333,12 @@ _NETWORK_STDERR = re.compile(
     r"|network is down|could not resolve|name or service not known",
     re.I,
 )
-# ssh's noise — its generic sign-off, a `Warning:` line (a known_hosts addition, which can name
-# an unreachable-looking host) and the `@`-ruled host-key banner; none says why it failed
-_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)|warning:|@", re.I)
+# ssh's noise — its generic sign-off and the known_hosts addition notice; neither says why it
+# failed. Every other `Warning:` line stays: one can BE the cause (a host key that differs for
+# the IP, W-6a96f699) — but none counts toward the network shape, since it can name a host.
+_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)|warning: permanently added", re.I)
+_WARNING = re.compile(r"warning:", re.I)
 _REASON_MAX = 300  # one terminal-width-ish error line; ssh's longest (a changed host key) is ~600
-# an ssh alias as fabrik names one; anything else (a leading "-") never reaches the argv
-_ALIAS = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]*")
 
 
 def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
@@ -363,17 +364,35 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
         return False, False, f"{type(e).__name__}: {e}".rstrip(".")
     if r.returncode == 0:
         return True, False, ""
-    lines = [ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()]
+    # Each line stripped of its `@` frame (the host-key banner's rules become empty, its headline
+    # stays) and its trailing period; a line left empty says nothing.
+    lines, headline = [], []
+    for raw in (r.stderr or "").splitlines():
+        text = raw.strip().strip("@").strip().rstrip(".")
+        if text:
+            lines.append(text)
+            if raw.strip().startswith("@") and text not in headline:
+                headline.append(text)
     # Every line but ssh's noise, in order — no single line is picked, because which line
     # says WHY differs by failure (a jumped refusal's cause comes first, a host-key failure's
-    # last). Tail-kept when long: ssh prints the failure last.
-    said = [ln.rstrip(".") for ln in lines if not _SSH_NOISE.match(ln)]
-    reason = "; ".join(said) or (
-        lines[-1].rstrip(".") if lines else f"rc={r.returncode}, no stderr"
-    )
+    # last). The banner's headline leads; the rest is tail-kept when long: ssh prints the
+    # failure last.
+    said = [ln for ln in lines if not _SSH_NOISE.match(ln)]
+    body = [ln for ln in said if ln not in headline]
+    reason = "; ".join(body)
     if len(reason) > _REASON_MAX:
         reason = "…" + reason[-_REASON_MAX:]
-    return False, any(_NETWORK_STDERR.search(ln) for ln in said), reason
+    head = "; ".join(headline)  # a banner has one headline; never let it grow, and mark a cut
+    if len(head) > _REASON_MAX:
+        head = head[: _REASON_MAX - 1] + "…"
+    # Nothing kept: the last line that says anything (a noise line, as before), else the exit
+    # code — saying whether stderr was empty or held only `@`/`.` (it is not "no stderr" then).
+    empty = "no stderr" if not (r.stderr or "").strip() else "stderr held no text"
+    reason = "; ".join(part for part in (head, reason) if part) or (
+        lines[-1] if lines else f"rc={r.returncode}, {empty}"
+    )
+    network = any(_NETWORK_STDERR.search(ln) for ln in said if not _WARNING.match(ln))
+    return False, network, reason
 
 
 def _batch(timeout: int) -> list[str]:
@@ -398,7 +417,7 @@ def check_ssh_config(host: str) -> str | None:
     Raises:
         HostUnreachableError: either check failed.
     """
-    if not _ALIAS.fullmatch(host):
+    if not is_alias(host):
         raise HostUnreachableError(
             f"SSH preflight: {host!r} is not an ssh alias (nothing was changed)"
         )

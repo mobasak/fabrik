@@ -664,3 +664,42 @@ def test_no_test_can_fall_back_to_the_live_mail_root(monkeypatch):
     monkeypatch.setenv("FABRIK_MAIL_ROOT", "/elsewhere")
     monkeypatch.undo()
     assert not os.environ["FABRIK_MAIL_ROOT"].startswith("/opt/fabrik-mail")
+
+
+def test_no_ssh_jump_variable_reaches_a_test():
+    """W-2b657bee's conftest scrub: an exported FABRIK_SSH_JUMP_<ALIAS> would shift every ssh/scp
+    argv pin by two elements."""
+    assert not [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]
+
+
+def test_an_exported_ssh_jump_variable_is_scrubbed_before_any_test():
+    """W-6a96f699 (review P1-17): run the check above with the variable EXPORTED, through the real
+    conftest chain — in-process it passes in any shell that exports nothing."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    env["FABRIK_SSH_JUMP_VPS"] = "vps2"
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            f"{Path(__file__).resolve()}::test_no_ssh_jump_variable_reaches_a_test",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+        cwd=str(REPO),
+    )
+    assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
+
+
+def test_the_reachability_preflight_is_a_stub_for_a_module_that_does_not_opt_in():
+    """W-6a96f699 (review P1-17): the conftest pin makes `deploy`'s ssh probe a no-op here.
+    Imported with no try: an ImportError the fixture would swallow reds this instead."""
+    import fabrik.orchestrator as orch
+    from fabrik.drivers import preflight
+
+    assert orch.verify_host_reachable is not preflight.verify_host_reachable

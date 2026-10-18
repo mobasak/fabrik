@@ -227,3 +227,193 @@ def test_a_percent_escaped_link_to_a_missing_doc_is_still_reported(
     )
     assert rc == 1, out
     assert "INDEX.md names missing path: docs/gone x.md" in out, out
+
+
+def _links(monkeypatch, tmp_path, capsys) -> list[str]:
+    """Run check_doc_links over the repo `_run` just built and return its broken-ref lines."""
+    import json
+
+    import check_doc_links as cdl
+
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    monkeypatch.setattr(cdl.sys, "argv", ["check_doc_links.py", "--json"])
+    cdl.main()
+    return json.loads(capsys.readouterr().out)["broken"]
+
+
+@pytest.mark.parametrize(
+    ("docs", "index", "missing"),
+    [
+        (["docs/a(b).md"], "- [A](docs/a(b).md)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](docs/g(o)ne.md)\n", "docs/g(o)ne.md"),
+        (["docs/t.md"], '- [T](docs/t.md "Title")\n', None),
+        (["docs/t.md"], '- [T](docs/t.md "T")\n- [G](docs/g(1).md "Title")\n', "docs/g(1).md"),
+        (["docs/t.md"], "- [T](docs/t.md 'T')\n- [G](docs/g(2).md 'Title')\n", "docs/g(2).md"),
+        (["docs/t.md"], "- [T](docs/t.md (T))\n- [G](docs/g(3).md (Title))\n", "docs/g(3).md"),
+        (["docs/a b.md"], "- [A](<docs/a b.md>)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](<docs/gone x.md>)\n", "docs/gone x.md"),
+        (["docs/a_b.md"], "- [E](docs/a\\_b.md)\n", None),
+        (["docs/a_b c.md"], "- [E](docs/a\\_b%20c.md)\n", None),
+        (["docs/a_b%41.md"], "- [E](docs/a\\_b%41.md)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](docs/g\\#x.md)\n", "docs/g#x.md"),
+    ],
+    ids=[
+        "paren-live",
+        "paren-missing",
+        "titled-live",
+        "double-titled-missing",
+        "single-titled-missing",
+        "paren-titled-missing",
+        "angle-live",
+        "angle-missing",
+        "escaped-live",
+        "escaped-and-encoded-live",
+        "escaped-with-a-literal-percent-live",
+        "escaped-hash-missing",
+    ],
+)
+def test_every_commonmark_link_shape_is_graded_by_both_checks(
+    monkeypatch, tmp_path, capsys, docs: list[str], index: str, missing: str | None
+) -> None:
+    """W-dd091f0d: both INDEX link readers stopped at the first `)` or space. A balanced-paren link
+    to a live doc was truncated (`docs/a(b`) and reported missing; a titled or `<angle>` link never
+    matched, so a link to a MISSING doc was never examined. Direction (a) of check_doc_index and
+    check_doc_links must both read every shape CommonMark renders as a link, and an escaped link
+    (`docs/a\\_b.md`, also percent-encoded or naming a literal `%41`) counts for direction (b)
+    exactly when it counts for (a). Every missing target holds a paren, a space or a `#`, which
+    check_doc_links' BARE-path reader cannot match, so only its link reader can report it."""
+    rc, out = _run(monkeypatch, tmp_path, capsys, docs, index)
+    broken = _links(monkeypatch, tmp_path, capsys)
+    if missing is None:
+        assert rc == 0, out
+        assert broken == [], broken
+    else:
+        assert rc == 1, out
+        assert f"INDEX.md names missing path: {missing}" in out, out
+        assert broken == [f"INDEX.md: broken ref -> {missing}"], broken
+
+
+def test_a_link_whose_text_spans_a_line_break_is_graded(monkeypatch, tmp_path, capsys) -> None:
+    """CommonMark link text may span a line break (`[Notes⏎](docs/gone.md)`). A line-by-line
+    read of INDEX.md (a review-pass fix, reverted) put the `[` and the `](` on different lines and
+    passed the missing doc; direction (a) reads the whole text, as the pre-change regex did."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["docs/a.md"],
+        "- [Notes\n](docs/gone.md)\n- [A](docs/a.md)\n",
+    )
+    assert rc == 1, out
+    assert "INDEX.md names missing path: docs/gone.md" in out, out
+
+
+def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    """Direction (c) compared the RAW INDEX text only, so a row naming `scripts/a%20b.py` — the
+    spelling (a) and (b) accept — still earned "added code file not in INDEX.md". A bare encoded
+    mention counts through the decoded text, an escaped link through the parsed link set."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["scripts/a b.py", "scripts/a_b.py", "scripts/c d.py"],
+        "- scripts/a%20b.py (a bare mention)\n- [x](scripts/a\\_b.py)\n",
+    )
+    assert "added code file not in INDEX.md: scripts/a b.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/a_b.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/c d.py" in out, out  # still graded
+
+
+def test_a_non_ascii_added_code_path_is_examined(monkeypatch, tmp_path, capsys) -> None:
+    """`git diff --name-only` without `-z` C-quoted a non-ASCII name (`"scripts/caf\\303\\251.py"`),
+    which never starts with a code root, so such an added file was never examined at all."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["scripts/café.py", "scripts/naïve.py"],
+        "- [c](scripts/café.py)\n",
+    )
+    assert "added code file not in INDEX.md: scripts/café.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/naïve.py" in out, out
+
+
+def test_both_link_readers_find_one_set_of_targets() -> None:
+    """check_doc_index carries its own copy of the reader (no enforcement check imports a sibling);
+    the two must return one output."""
+    import check_doc_links as cdl
+
+    for text in [
+        "[a](docs/a(b).md) and [b](docs/b.md#frag)",
+        "[t](docs/t.md \"T\") [u](docs/u.md 'U') [v](docs/v.md (V))",
+        "[a](<docs/a b.md>) [n](<docs/n.md>)",
+        r"[e](docs/e\(x\).md) [i](![img](docs/i.png)",
+        "[bad](docs/a(b.md [open](docs/x.md",
+        '[x](#only-fragment) [y]() [z](docs/z.md "unterminated)',
+        r"[s](docs/a\ b.md) [h](docs/a\#b.md#frag) [w](docs/x](docs/gone.md).md)",
+        r"[e](docs/a\_b.md) [g](docs/g(o)ne.md) " + '[t](docs/x.md "see ](docs/gone.md)")',
+        r"\[x](docs/a.md) [a \\](docs/b.md)",
+        "[a](docs/a(b.md ) [n](<docs/a\nb.md>) " + r"[q](<docs/a\>b.md>) [c](docs/a\).md)",
+        "plain ](docs/stray.md) " + r'\](docs/a.md "see [x](docs/gone.md)") [a] \](docs/g.md)',
+        "[![i](docs/i.png)](docs/x.md)",
+        r'C:\\[a](docs/x.md) [e](docs/a\_b%20c.md) [p](docs/a\_b%41.md) [h](docs/g\#x.md "T" )',
+        "",
+    ]:
+        assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
+
+
+@pytest.mark.parametrize(
+    ("text", "targets"),
+    [
+        (r"[s](docs/a\ b.md)", []),  # `\ ` escapes nothing: the space ends it, so no link
+        (r"[h](docs/a\#b.md#frag)", ["docs/a#b.md"]),  # an escaped `#` is part of the path
+        ("[w](docs/x](docs/gone.md).md)", ["docs/x](docs/gone.md).md"]),  # one link, not two
+        ('[t](docs/x.md "see ](docs/gone.md)")', ["docs/x.md"]),  # a title holds no link
+        ('[t](docs/x.md "T")', ["docs/x.md"]),
+        ("[t](docs/x.md 'T')", ["docs/x.md"]),
+        ("[t](docs/x.md (T))", ["docs/x.md"]),
+        ("[a](docs/a(b.md )", []),  # an unclosed paren is no destination
+        ("[a](<docs/a\nb.md>)", []),  # an angle destination never spans a line
+        (r"[a](<docs/a\>b.md>)", ["docs/a>b.md"]),  # `\>` stays inside the angle form
+        (r"[e](docs/e\(x\).md)", ["docs/e(x).md"]),
+        (r"[e](docs/a\).md)", ["docs/a).md"]),  # an escaped `)` neither closes nor counts
+        ("plain ](docs/stray.md) text", []),  # no `[` before it: not a link
+        (r"\](docs/a.md)", []),  # an escaped `]` closes nothing
+        (r"[a] \](docs/gone.md)", []),  # ... even after an opener
+        (r'- \](docs/a.md "see [x](docs/gone.md)")', ["docs/gone.md"]),  # the real link survives
+        ("[![i](docs/i.png)](docs/x.md)", ["docs/i.png", "docs/x.md"]),  # an image inside a link
+        (r"C:\\[a](docs/x.md)", ["docs/x.md"]),  # `\\` is an escaped backslash: the `[` opens
+        (r"\[x](docs/a.md)", []),  # an escaped `[` opens nothing
+        (r"[a \\](docs/b.md)", ["docs/b.md"]),  # an even run before `]`: it still closes
+    ],
+    ids=[
+        "escaped-space",
+        "escaped-hash",
+        "bracket-in-destination",
+        "link-in-title",
+        "double-quoted-title",
+        "single-quoted-title",
+        "paren-title",
+        "unbalanced-paren",
+        "angle-across-a-line",
+        "escaped-angle-close",
+        "escaped-parens",
+        "escaped-unbalanced-close",
+        "no-opener",
+        "escaped-closer",
+        "escaped-closer-after-an-opener",
+        "stray-closer-before-a-real-link",
+        "image-inside-a-link",
+        "opener-after-an-escaped-backslash",
+        "escaped-opener",
+        "closer-after-an-even-backslash-run",
+    ],
+)
+def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
+    text: str, targets: list[str]
+) -> None:
+    import check_doc_links as cdl
+
+    assert list(cdl.link_targets(text)) == targets
