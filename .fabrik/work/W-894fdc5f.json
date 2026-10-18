@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T04:23:58.992586Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-894fdc5f",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "one /fabrik-task over src/fabrik/drivers/dns.py and ssh.py; the argv key first (it is the only exposure of the six)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH, security first within HIGH (D-958): the site-provisioner API key is visible in ps while a DNS call runs; six driver leftovers in two files",
   "status": "open",
   "tags": [
     "security"
