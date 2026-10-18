@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
+
+- `_seat_size_lines` (W-2dadedfd) treated `du`'s output as the size even when `du` exited non-zero; it prints the PARTIAL size it reached, so a large seat tree under an unreadable folder read as small and dropped out silently. A non-zero exit now prints `<seat>: size unmeasured — cannot be examined`; a seat removed before `du` answers gives no line, like a gone run folder. The docstring now says an unlistable run folder yields no lines and only an unsearchable one reads as unmeasured. Tests: `tests/test_command_run_scratch.py` (three new, 72 pass).
+
 ### Added — command_run.py: `blocked --paused` for an operator pause, and `round --command` (2026-10-18)
 
 - `blocked --paused --reason "<the operator's words>"` closes a run for an operator pause.

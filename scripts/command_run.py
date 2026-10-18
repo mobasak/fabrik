@@ -1814,8 +1814,10 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     — a seat (or the lead) that copied a whole tree instead of an archive or a clone. Every folder,
     not `seat-*` alone (W-3c60b7db): seats are named `seat2-opus`, `seat-p1-<pin>-A-haiku` and the
     like, and a hand-made pin of a whole tree is the same defect, so a name pattern let a third of
-    the live top-level folders escape. A symlink and a plain file are skipped (in a folder that cannot
-    be searched, every entry reads as unmeasured: its kind cannot be told). Runs AFTER the record lock
+    the live top-level folders escape. A symlink and a plain file are skipped (in a folder that can be
+    listed but not searched — read without execute — every entry reads as unmeasured: its kind cannot
+    be told; a folder that cannot be LISTED at all — no read bit, or gone — yields no lines, because
+    there is nothing to name). Runs AFTER the record lock
     drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
     a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
     read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
@@ -1841,17 +1843,27 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
             lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
-            out = subprocess.run(
+            proc = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
                 capture_output=True,
                 text=True,
                 timeout=deadline_s,
-            ).stdout
-            size = int(out.split()[0])
+            )
+            # W-2dadedfd review: a folder inside the seat that cannot be read makes `du` exit 1 yet
+            # still print the PARTIAL size it reached — a large tree under it read as small and
+            # dropped out silently. A non-zero exit is the "cannot be examined" line, never a size.
+            if proc.returncode != 0:
+                raise OSError(proc.stderr.strip()[:120] or f"du exit {proc.returncode}")
+            size = int(proc.stdout.split()[0])
         except subprocess.TimeoutExpired:
             lines.append(f"{seat.name}: size unmeasured — over the deadline")
             continue
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            # said, never silent — an entry the advisory cannot measure is not "not large"; one that
+            # was REMOVED between the listing and `du` (the sweep, the seat itself) is gone, not
+            # unmeasured: no line, as for a gone run folder
+            if os.path.lexists(seat):
+                lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         if size > threshold:
             lines.append(
