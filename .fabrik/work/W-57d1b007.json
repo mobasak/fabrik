@@ -1,7 +1,7 @@
 {
   "blocked_by": [
     "W-ab566484",
-    "W-3e9e2f4c"
+    "W-ab242b11"
   ],
   "created": "2026-10-01T19:55:20.060187Z",
   "creator": "fleet",
@@ -23,7 +23,8 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — template docusaurus deploy cannot build",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-quota-reset"
   ],
   "title": "A template-sourced docusaurus deploy cannot build: the template ships no docs/, no src/css/ and no openapi plugin, so docusaurus.config.js and sidebars.js reference files TemplateRenderer never writes (2026-10-01, owner: fleet)"
 }

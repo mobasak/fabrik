@@ -3,7 +3,7 @@
   "created": "2026-10-18T06:29:11.996925Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "35fe3b8737be4f00eb817c30b71475758562959f",
   "id": "W-5f3617e6",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: a bug blocking other agents' merges, 4 refused resend rounds today; one script plus tests",
-  "status": "open",
+  "status": "done",
   "tags": [
     "merge"
   ],

@@ -516,3 +516,49 @@ def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -
     )
     # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
     # fence, into one paragraph while its assert passed — so the rule bounds the rewrap at markers, blanks and fences
+
+
+def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass() -> None:
+    """Row 1792329659 (2026-10-18): PHASE 2's 'edited, never re-rejected' and PHASE 1's weakening refusal had no
+    order, and row 1792326723 was both; row 1792329281, recurring held size-figure-after-closing-pass and
+    commit-subject-written-after-closing-round: a CHANGELOG hunk drafted mid-review kept two refuted sentences."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "The one exception is a recurrence whose edit PHASE 1 refuses as weakening: it is routed to the operator as a"
+        " proposal, and its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's"
+        " mail id and quotes the line the edit would weaken; `--reject` still prints its held warning for it, and a"
+        " subject an earlier reason already routed cites that proposal's mail id instead of routing again."
+        in p2
+    )
+    terminal = re.sub(r"\s+", " ", SRC.read_text()[SRC.read_text().index("## Terminal") :])
+    assert (
+        "`no edit this run — the surviving row routed to the operator`, naming the row and the proposal's mail id"
+        in terminal
+    )
+    chain = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "close-chain.md").read_text())
+    assert (
+        "a draft written mid-loop carries none. In such a command, what an input says about the change — the commit"
+        " message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked"
+        " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
+        " check or `final_gate.py` forces. Then: (1)" in chain
+    )
+
+
+def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None:
+    """Row 1792332697, the second sighting of held placement-keeps-anaphor-with-antecedent: widening 'you run the
+    status probe' to 'and every other shell-only check' attached the sentence's existing WebFetch fallback to a quote
+    check the command forbids. Review round 1: the rule sits beside the placement sentences (where the held reject
+    sends it), reaches later sentences pointing back, and covers text placed between a pronoun and what it names."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "and the draft is that answer. Before an edit widens a sentence's subject, splits the sentence or places text"
+        ' between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the'
+        " sentence edited, in the sentence holding the pronoun, and in each later sentence or item pointing back into"
+        " either — is read against what that clause will bind once the edit lands, since a clause written for one"
+        " subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed"
+        " text puts nearer. An edit to what a SEAT may do"
+    ) in p3
+    assert (
+        'every branch the sentence\'s subject can bind (a pronoun for "the review" binds each review the step can pick), and'
+        in p3
+    )

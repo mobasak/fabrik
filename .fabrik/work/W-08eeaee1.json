@@ -1,6 +1,6 @@
 {
   "blocked_by": [
-    "W-3e9e2f4c"
+    "W-ab242b11"
   ],
   "created": "2026-09-26T13:31:47.618971Z",
   "creator": "intel",
@@ -21,6 +21,7 @@
   "tags": [
     "medium",
     "waits-operator-gate-b",
+    "waits-quota-reset",
     "waits-w91066339"
   ],
   "title": "Session-history retention plan is HALF built: Phase 0 (899bfb1a6) and Phase A (a1647928b) shipped 2026-09-06; Phase B (prove the restore) and Phase C (the pruner) never started — resume them or supersede"

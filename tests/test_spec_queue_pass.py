@@ -115,3 +115,29 @@ def test_a_build_tool_setting_is_probed_by_a_build_or_its_source() -> None:
         " config file's default included) is settled by a build you run or by the tool's own source read through `gh`"
         " — its docs page locates the setting but never settles it — else it is a named BLOCKING unknown."
     ) in phase
+
+
+def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> None:
+    """Row 1792241971, a recurrence of held researcher-no-shell-counts: a seat quote could not be byte-checked with
+    the raw-fetch tools down, and fabrik-researcher has no shell. Review round 1: the WebFetch fallback stays bound to
+    the status probe, since the quote rule forbids quoting a WebFetch reply; /fabrik-spec-review carries the same
+    division of labour."""
+    rule = (
+        "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback — for example a count over"
+        " a fetched file, which you download and count yourself, and a seat's quote matched — whitespace normalised"
+        " first, as"
+    )
+    tail = "against your own raw fetch when the raw-fetch tools are down."
+    spec = _flat(SRC)
+    assert (
+        "it answers about a page rather than reporting a code. "
+        + rule
+        + " the quote rule says — "
+        + tail
+    ) in spec
+    assert (
+        "When the raw-fetch tools are down, you make that fetch from the shell (the division of labour below)."
+        in spec
+    )
+    review = _flat(ROOT / "commands" / "_sources" / "fabrik-spec-review.md")
+    assert rule + " the quote rule above says — " + tail in review

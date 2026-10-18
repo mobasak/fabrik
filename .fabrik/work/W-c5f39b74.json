@@ -3,7 +3,7 @@
   "created": "2026-10-17T13:48:42.953295Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c8ed396bb47134053244e57c65aeb1dd79182fb4",
   "id": "W-c5f39b74",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-asked CLAUDE.md rule widening",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:25:51.164063Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "801211738bfc2aa2735d273ad19f0a1a6e256bc7",
+  "id": "W-c71703cb",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make an in-surface red at the close re-open a closing pass over the fix, the same rule b962d6504 applied to mid-loop gate-forced fixes",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956); a review-loop gap that lets an unreviewed fix ship; one command source",
+  "status": "done",
+  "title": "/fabrik-review's close order: 'fix it, and repeat the order' on an in-surface red at the close lets a fix land with no new closing pass (kaizen's one-hop note on W-a3ba6917, merge 01M57SVP08)"
+}

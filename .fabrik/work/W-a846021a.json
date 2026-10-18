@@ -3,7 +3,7 @@
   "created": "2026-10-17T01:42:08.236827Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "73ab18e5733d51732e22d53f125a4bc1dda4710e",
   "id": "W-a846021a",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — advisory false positive",
-  "status": "open",
+  "status": "done",
   "tags": [
     "enforcement"
   ],

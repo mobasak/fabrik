@@ -28,6 +28,8 @@ from dashboard_ui import components as ui  # noqa: E402
 from dashboard_ui import fmt, views  # noqa: E402
 from dashboard_ui import strings as cat  # noqa: E402
 
+from tests.external_services_fixture import census_rows  # noqa: E402
+
 NOW = 1_800_000_000.0
 CTX = views.ViewContext(
     opt_root=Path("/nonexistent-opt"), fabrik_root=Path("/nonexistent-fab"), now=NOW
@@ -172,7 +174,11 @@ def _services_data(**kw) -> dict:
             "firecrawl": {"state": "ok", "unlimited": True},
             "exa": {"state": "unconfigured"},
         },
-        "ext_page": {"path": "/external-services.html", "mtime": NOW - 3600 * 5},
+        "inventory": {
+            "rows": census_rows(),
+            "synced_at": NOW - 3600,
+            "classified_at": NOW - 7200,
+        },
     }
     data.update(kw)
     return data
@@ -324,12 +330,12 @@ def test_services_pool_exhausted_low_unreadable_and_stale():
     )
 
 
-def test_services_external_link_opens_in_own_tab_and_no_iframe():
+def test_services_renders_the_inventory_section_in_place_and_no_iframe_or_page_link():
     html, dom = _render("services", _services_data())
-    anchors = dom.find("a", href="/external-services.html")
-    assert len(anchors) == 1
-    assert anchors[0]["target"] == "_blank" and anchors[0]["rel"] == "noopener"
-    assert "regenerated 5.0 h ago" in dom.all_text()
+    assert dom.find("a", href="/external-services.html") == []
+    assert "External services" in dom.all_text() and "466 providers" in dom.all_text()
+    assert "Needs attention" in dom.all_text()
+    assert dom.find("input", **{"data-filter": "find"})
     for name, data in (
         ("services", _services_data()),
         ("commands", _commands_data()),
@@ -338,11 +344,17 @@ def test_services_external_link_opens_in_own_tab_and_no_iframe():
         assert "<iframe" not in _render(name, data)[0]
 
 
-def test_services_missing_external_page_says_so():
+def test_services_inventory_error_is_that_sections_error_state_and_the_rest_renders():
     _html, dom = _render(
-        "services", _services_data(ext_page={"path": "/external-services.html", "mtime": None})
+        "services",
+        _services_data(inventory={"error": "ReadTimeout: registry read killed at its deadline"}),
     )
-    assert "External-services page not generated yet" in dom.all_text()
+    text = dom.all_text()
+    assert "inventory could not be read: ReadTimeout: registry read killed at its deadline" in text
+    assert "Brave Search" in text and "$225.00" in text  # the pool and API cards still render
+    assert "466 providers" not in text
+    _h, dom = _render("services", _services_data(inventory=None))
+    assert "inventory could not be read: no reading" in dom.all_text()
 
 
 def test_api_quota_partial_and_hostile_entries_never_raise():
@@ -432,7 +444,7 @@ def _stamps(dom: _Dom) -> list[dict]:
 def test_each_view_stamp_uses_its_own_cadence():
     _h, services = _render("services", _services_data())
     cadences = {a.get("data-cadence") for a in _stamps(services)}
-    assert cadences == {"300", "1800"}  # pool 300 s, search APIs 1,800 s
+    assert cadences == {"300", "1800", "86400"}  # pool 300 s, search APIs 1,800 s, registry daily
     _h, usage = _render("usage", {"spend": SPEND})
     assert {a.get("data-cadence") for a in _stamps(usage)} == {"86400"}
     assert _stamps(usage)[0].get("data-ts")  # from built_at
@@ -444,11 +456,7 @@ def test_failed_collector_is_its_regions_error_the_rest_renders():
     html, dom = _render("services", _services_data(pool={"error": "boom"}))
     text = dom.all_text()
     assert "pool balance could not be read: boom" in text
-    assert (
-        "Brave Search" in text
-        and "External-services page" not in text
-        and dom.find("a", href="/external-services.html")
-    )
+    assert "Brave Search" in text and "466 providers" in text  # the other regions still render
     _h, dom = _render("services", _services_data(apis={"error": "disk"}))
     assert (
         "search-API quotas could not be read: disk" in dom.all_text()
@@ -497,7 +505,9 @@ def test_ids_are_valid_and_unique():
 def test_time_is_not_read_from_the_wall_clock():
     assert abs(time.time() - NOW) > 1  # fixtures pin NOW; views must use ctx.now
     _h, dom = _render("services", _services_data())
-    assert "regenerated 5.0 h ago" in dom.all_text()
+    assert (
+        "(5d)" in dom.all_text()
+    )  # the API card's renewal, derived from ctx.now (renews_at = NOW + 5 d)
     assert ui.SEVERITIES  # components import stays exercised
 
 
@@ -676,15 +686,20 @@ def _no_ts(dom: _Dom) -> bool:
     return bool(stamps) and all(not a.get("data-ts") for a in stamps)
 
 
+def _pool_api_stamps(dom: _Dom) -> list[dict]:
+    """The pool's and the search APIs' stamps with a time (the inventory's daily stamp is its own)."""
+    return [a for a in _stamps(dom) if a.get("data-ts") and a.get("data-cadence") != "86400"]
+
+
 @pytest.mark.parametrize("bad", _BAD_TS, ids=repr)
 def test_services_a_bad_pool_or_api_ts_drops_only_that_stamp(bad):
     base = _services_data()
     _h, dom = _render("services", _services_data(pool={**base["pool"], "ts": bad}))
     assert "$225.00" in dom.all_text()
-    assert len([a for a in _stamps(dom) if a.get("data-ts")]) == 1  # the APIs stamp survives
+    assert len(_pool_api_stamps(dom)) == 1  # the APIs stamp survives
     _h, dom = _render("services", _services_data(apis={**base["apis"], "ts": bad}))
     assert "Brave Search" in dom.all_text()
-    assert len([a for a in _stamps(dom) if a.get("data-ts")]) == 1  # the pool stamp survives
+    assert len(_pool_api_stamps(dom)) == 1  # the pool stamp survives
 
 
 @pytest.mark.parametrize("built", ["1960-01-01T00:00:00", "9999-12-31T00:00:00"])

@@ -3,7 +3,7 @@
   "created": "2026-10-15T08:25:22.037736Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "8d108a3567eb647f1ccbd07d6783c4fdfc9c4611",
   "id": "W-da4bc702",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — false triage nudge each coordinator turn",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium",
     "queued",

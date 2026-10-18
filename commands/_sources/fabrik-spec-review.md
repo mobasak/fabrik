@@ -109,7 +109,10 @@ central build-vs-buy verdict.
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
   Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
   from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
-  it answers about a page rather than reporting a code. Content is
+  it answers about a page rather than reporting a code. Every other shell-only check is yours from the shell
+  too, with no `WebFetch` fallback — for example a count over a fetched file, which you download and count yourself, and
+  a seat's quote matched — whitespace normalised first, as the quote rule above says — against your own raw fetch when the raw-fetch
+  tools are down. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
   third-party planning doc inside one).

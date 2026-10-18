@@ -106,7 +106,13 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # 1792293040, 1792291304; two held-subject recurrences).
 # D-984 (kaizen, 2026-10-18): 22662 -> 22917 — a linked-worktree session changes <durable> files as a scratchpad
 # copy cp'd back whole, since its Write tool refuses a main-checkout path (row 1792298605, a fourth sighting).
-SIZE_CAP = 22917
+# D-997 (kaizen, 2026-10-18): 22917 -> 23537 — phase 5's after-commit receipt form makes each review-fix commit
+# through step 5's capture line; MIRROR's ast.walk census sits beside the grep (rows 1792327651, 1792303601).
+# D-998 (kaizen, 2026-10-18): 23537 -> 23706 — MEASURE greps a work item's cited path:line for the symbol it names
+# before the design takes the item's wording (row 1792330126, a recurrence of held measure-refuted-ticket-premise).
+# D-999 (kaizen, 2026-10-18): 23706 -> 23744 — supersedes D-998: the cited-line grep runs in the cited file and a
+# miss is a finding PROBLEM states, never the item's wording (review round 1 on row 1792330126).
+SIZE_CAP = 23744
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

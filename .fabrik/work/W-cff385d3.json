@@ -1,6 +1,6 @@
 {
   "blocked_by": [
-    "W-3e9e2f4c"
+    "W-ab242b11"
   ],
   "created": "2026-09-29T14:42:01.406738Z",
   "creator": "fleet",
@@ -20,7 +20,8 @@
   "status": "open",
   "tags": [
     "medium",
-    "needs-split"
+    "needs-split",
+    "waits-quota-reset"
   ],
   "title": "Watchdog cost-budget currency: retired default models, registrar-injected FABRIK_ANALYTICS_URL, cost_ledger GRANTs, zero-cap semantics, fleet re-vendor"
 }

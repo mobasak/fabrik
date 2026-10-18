@@ -1265,6 +1265,22 @@ def test_a_vanished_run_folder_answers_no_lines_never_raises(tmp_path: Path) -> 
     assert cr._seat_size_lines(str(tmp_path / "gone"), threshold=1, deadline_s=5.0) == []
 
 
+def test_an_unlistable_run_folder_answers_no_lines(tmp_path: Path) -> None:
+    """W-2dadedfd: a folder with no read bit (mode 0000) cannot even be LISTED, so there is no entry
+    to name — no lines, unlike the listable-but-unsearchable 0444 folder whose entries each read as
+    unmeasured. The docstring states both; this pins the half it had overstated."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0000")
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    run.chmod(0o000)
+    try:
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
+    finally:
+        run.chmod(0o755)
+    assert lines == [], lines
+
+
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────
 def test_an_adopted_folder_reads_running_and_is_never_retired(tmp_path: Path, monkeypatch) -> None:
     """F-A1: once the resumed record persists, the adopted folder's marker reads `running` with an
@@ -1397,3 +1413,44 @@ def test_a_close_keeps_a_markers_own_created(tmp_path: Path) -> None:
     cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
     owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
     assert owner["created"] == 1234.5, owner
+
+
+@pytest.mark.parametrize("unreadable", ["seat-1", "seat-1/sub"])
+def test_a_seat_with_an_unreadable_folder_inside_is_unmeasured_never_small(
+    tmp_path: Path, unreadable: str
+) -> None:
+    """W-2dadedfd review (Opus, executed): `du` exits 1 on a folder it cannot read yet prints the
+    PARTIAL size it reached, so a large tree under an unreadable folder read as small and dropped
+    out with no line. A non-zero `du` exit is now the "cannot be examined" line."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0000")
+    run = tmp_path / "run"
+    (run / "seat-1" / "sub").mkdir(parents=True)
+    (run / "seat-1" / "sub" / "big.bin").write_bytes(b"x" * 5000)
+    locked = run / unreadable
+    locked.chmod(0o000)
+    try:
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
+    finally:
+        locked.chmod(0o755)
+    assert lines == ["seat-1: size unmeasured — cannot be examined"], lines
+
+
+def test_a_seat_removed_before_its_du_answers_no_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W-2dadedfd review pass 2 (Opus, executed): a seat folder removed between the listing and
+    `du` (the sweep, or the seat itself) is gone, not unmeasured — no line, as for a gone run
+    folder."""
+    import shutil
+
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    real_run = cr.subprocess.run
+
+    def vanish_then_du(argv, *a, **k):
+        shutil.rmtree(run / "seat-1")
+        return real_run(argv, *a, **k)
+
+    monkeypatch.setattr(cr.subprocess, "run", vanish_then_du)
+    assert cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0) == []

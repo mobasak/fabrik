@@ -21,7 +21,8 @@
   "status": "open",
   "tags": [
     "medium",
-    "rules"
+    "rules",
+    "waits-quota-reset"
   ],
   "title": "core/25-data-postgres mandates Alembic, but an emitted saas-skeleton ships no Alembic baseline (server/db/schema.sql is its only DDL path)"
 }

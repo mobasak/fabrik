@@ -3,7 +3,7 @@
   "created": "2026-10-15T16:50:48.994005Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "cf53e81dfe9ab3970e05888b60cad479319b57fd",
   "id": "W-f0fd555a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — DNS blocks every pnpm install box-wide",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-npm-hang-recurs"
   ],

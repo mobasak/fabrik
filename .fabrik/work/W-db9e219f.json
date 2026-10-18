@@ -20,7 +20,8 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — testing-library major bump with codemod",
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-quota-reset"
   ],
   "title": "mobile-app scaffold pins @testing-library/react-native at the previous major (13.3.x); the current stable major (v14) makes render/fireEvent/act async"
 }

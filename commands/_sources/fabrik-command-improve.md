@@ -175,28 +175,31 @@ on the post-commit hook. Make it only if it is correct for all of them, and say 
 one hub agent's verdict is not evidence about 46 projects.
 
 **What one row earns (D-711).** A one-off verdict is edited only when it shows the command text WRONG or MISLEADING;
-valid one-off advice is rejected with `HELD:<subject>` first in the reason, then the checked `path:line`, its
-quote and why that text is not wrong; to FIND that line, grep the rendered command
-(`~/.claude/commands/<command>.md`: every fragment, the appended close and every parameter), each file it
-points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
-it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
-/opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
-still final; it is an advice hold when its reason says the text lacks the advice but is not wrong, an
-answered reject when it says the text already states it or never said it (D-952's two grounds), and neither when it
-is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
-its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
-audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
-mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
-A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
-(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
-answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
-target resolved and lock-checked as below. An Opus seat audits the advice set
-for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
-reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
-loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
-command's current text). That rendered-copy grep is the lead's: the audit seat reads the command source and the
-fragments it includes, pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks
-any wording it proposes against the phases that rely on the sentence it would change.
+valid one-off advice is rejected with `HELD:<subject>` first in the reason, then the checked `path:line`, its quote
+and why that text is not wrong; to FIND that line, grep the rendered command (`~/.claude/commands/<command>.md`:
+every fragment, the appended close and every parameter), each file it points at for the rule, and the loaded
+`CLAUDE.md` for the row's subject, then cite the line in the file it renders from. Before rejecting, search earlier
+reject reasons for the subject: `python3 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without
+`--held` (an untagged reject is still final; it is an advice hold when its reason says the text lacks the advice but
+is not wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and
+neither when it is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`,
+reason), so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output
+into an audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for
+its mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one
+subject. A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still
+writes it (it warns only on an identical `HELD:` tag). The one exception is a recurrence whose edit PHASE 1 refuses
+as weakening: it is routed to the operator as a proposal, and its rows are rejected with a reason opening
+`HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken; `--reject`
+still prints its held warning for it, and a subject an earlier reason already routed cites that proposal's mail id
+instead of routing again. An answered reject (PHASE 1) stays final, but a line that three or more answered rejects on
+one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its target resolved and
+lock-checked as below. An Opus seat audits the advice set for misfiled text defects before any advice is rejected. A
+reject reason here cites a line the queue's command reaches — rendered into it, pointed at or run by it for that
+rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus (PHASE
+1's answered-row reject already cites the command's current text). That rendered-copy grep is the lead's: the audit
+seat reads the command source and the fragments it includes, pinned in its scratch, never the rendered `~/.claude`
+copy, which no seat opens, and checks any wording it proposes against the phases that rely on the sentence it would
+change.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -242,11 +245,16 @@ width and never past the next list marker, blank line or fence, by a script that
 PHASE 4's first pin. A row that prescribes how the command works — a step, an order, a commit or a hand-off, not a
 wording — and contradicts a line that reading finds is a decision (a NEW mechanism still routes per PHASE 2), settled
 before the first draft in CLAUDE.md § Autonomy's order ("the self-service sources first", then the Opus + Fable
-panel), and the draft is that answer. An edit to what a SEAT may do lands everywhere seat rules live, since a rule in
-one home is not in force in the others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>'
-commands .claude/workflows .claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under
-`commands/_agents/`, the seat-brief lists in `fabrik-review.md` and `design-critique.md`, `convergence-prompts.md`,
-and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
+panel), and the draft is that answer. Before an edit widens a sentence's subject, splits the sentence or places text
+between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence
+edited, in the sentence holding the pronoun, and in each later sentence or item pointing back into either — is read
+against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then
+binds whatever the widening adds, the split leaves beside it or the placed text puts nearer. An edit to what a SEAT
+may do lands everywhere seat rules live, since a rule in one home is not in force in the others: `command grep -rln
+-E '<two or more phrases of the neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference`
+names them — today `subagents-core.md`, each seat file under `commands/_agents/`, the seat-brief lists in
+`fabrik-review.md` and `design-critique.md`, `convergence-prompts.md`, and intel's `SEAT_ISOLATION` and
+`seat_guard.py` (mailed, never edited here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
@@ -382,15 +390,15 @@ is a mail, and the mail id belongs in the FEEDBACK line; a route to `/fabrik-tas
 then open it yourself in this session, ahead of any re-run over another queue; it is dispatched,
 never parked in a `NEXT:` line (`CLAUDE.md` § FINAL OUTPUT).
 
-One edit committed (and rendered, in the main checkout; infra renders a worktree's at merge), with its
-trailer naming the rows it answers — **or** an explicit
-`no edit this run — the queue holds nothing that survives review`, which is a legitimate close and
-must name what you read and why it did not survive — **or**, when every row's write target is
-lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is
-lock-owned and mailed`, naming the lock file and the mail id — **or**, when the only surviving row
-was mechanism-shaped and ROUTED (PHASE 2), an explicit `no edit this run — the surviving row routed
-to /fabrik-task`, naming the row and the `/fabrik-task` this session opens next (the record cannot exist yet — the close
-comes first) — **or**, when the run cannot reach any of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
-unfinished run.
+One edit committed (and rendered, in the main checkout; infra renders a worktree's at merge), with its trailer naming
+the rows it answers — **or** an explicit `no edit this run — the queue holds nothing that survives review`, which is
+a legitimate close and must name what you read and why it did not survive — **or**, when every row's write target is
+lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is lock-owned and mailed`,
+naming the lock file and the mail id — **or**, when the only surviving row was mechanism-shaped and ROUTED (PHASE 2),
+an explicit `no edit this run — the surviving row routed to /fabrik-task`, naming the row and the `/fabrik-task` this
+session opens next (the record cannot exist yet — the close comes first) — **or**, when the only surviving row was a
+recurrence refused as weakening (PHASE 2), an explicit `no edit this run — the surviving row routed to the operator`,
+naming the row and the proposal's mail id — **or**, when the run cannot reach any of those (§ Drive, Resilience), a
+`handoff` close naming the resume artifact. Anything else is an unfinished run.
 
 {{include:close-chain}}

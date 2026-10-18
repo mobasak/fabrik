@@ -892,3 +892,30 @@ def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> No
         "isolation and bookkeeping steps earlier runs found missing. " + sentence + "."
     )
     assert "it is not restated here" not in flat["fabrik-review"]
+
+
+def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> None:
+    """Row 1792335517, the second sighting of held final-gate-before-closing-pass: a fix final_gate forced landed
+    after the closing seats had read the surface."""
+    text = _norm(SRC)
+    sentence = (
+        "Before the pin of every pass that follows a fix (any of them may be the closing pass), stage your own files"
+        " and run `final_gate.py --check --json` too, so a fix the gate forces is in the surface that pass's seats read;"
+        " a red outside the surface forces no fix (measure it as the `GATE-SCOPE` paragraph below does, and pin"
+        " unchanged). Close in this ORDER: stage your own files"
+    )
+    assert sentence in text
+
+
+def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
+    """W-c71703cb: a fix forced by the post-flip gate run is read by a new closing pass, never shipped unreviewed."""
+    assert (
+        "embed THAT run in place of the first (a red whose findings name this surface or its receipt is yours: flip"
+        " back to `IN-PROGRESS`, fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the"
+        " order;"
+    ) in _norm(SRC)
+    assert "or its receipt is fixed as the post-flip run's is); THEN flip the Status" in _norm(SRC)
+    assert (
+        "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
+        " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
+    ) in _norm(SRC)
