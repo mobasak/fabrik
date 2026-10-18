@@ -7459,3 +7459,23 @@ document.
 - **Where it lives.** `scripts/kilo-benchmarks/tests/capture_golden.py` (`load_known_collapses`, `verify`),
   `tests/golden/known_collapses.json`, `docs/DECISIONS.md` (D-567),
   `docs/development/reviews/2026-10-05-golden-known-collapses-review.md`.
+
+## ssh reads `host:port` as a hostname, and never passes `-o` to a ProxyJump hop — a probe of a jump must speak ssh's own destination grammar (2026-10-18)
+
+- **What happened.** W-2b657bee added an opt-in `FABRIK_SSH_JUMP_<ALIAS>` and a reachability preflight that names the
+  dead leg. The first build probed the jump's first hop as `ssh … ops@vps2:2222 true`, the same `[user@]host[:port]`
+  string ProxyJump accepts. `ssh -G ops@vps2:2222` printed `hostname vps2:2222` and `port 22`, so the probe tested a
+  host that does not exist and blamed the wrong leg. Its advice printed the same wrong command, which survived until
+  the next round. The design also claimed `ConnectTimeout` cannot bound a banner-exchange hang. ssh_config(5) says it
+  bounds the connect and the handshake. What it cannot bound is a jump hop, because the hop's command line carries
+  only `-l -p -J -F -v`.
+- **Mechanism.** ProxyJump's hop grammar and the positional destination grammar are two grammars that look like one.
+  A value valid for one is silently wrong for the other. A fix that converts at the probe is only half done if the
+  advice text prints the original string.
+- **How to apply.** (1) A hop with a port is addressed as `ssh://[user@]host:port`, the one destination form ssh
+  parses a port from. (2) Bound a jumped probe with an outer `subprocess` timeout, not `ConnectTimeout` alone.
+  (3) Build every human-facing command in the message from the same destination the probe ran, never from the
+  input string.
+- **Where it lives.** `src/fabrik/drivers/preflight.py` (`_hop_destination`, `_probe`, `verify_host_reachable`),
+  `src/fabrik/drivers/ssh.py` (`parse_hop`, `jump_for`), `docs/DECISIONS.md` (D-973),
+  `docs/development/reviews/2026-10-18-ssh-jump-preflight-review.md`.

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — opt-in per-host SSH jump and a `fabrik apply` reachability preflight (2026-10-18)
+
+- `FABRIK_SSH_JUMP_<ALIAS>` (for example `FABRIK_SSH_JUMP_VPS=vps2`) routes the SSH driver, the DNS client's SSH
+  proxy and the audit probes to that alias through a ProxyJump. Unset, every ssh/scp argv is unchanged. A malformed
+  value is refused with an error naming the variable, and never falls back to another path (W-2b657bee, D-973).
+- `fabrik apply` now probes the hub alias (and a spoke target) before anything touches the fleet. A dead path fails
+  the run in validation within seconds, naming the alias, the reason, the dead leg when a jump is set and the next
+  step. Before, each call hung to its own timeout. A dry run checks the configuration without probing.
+- Docs: `docs/CONFIGURATION.md` § SSH jump, `.env.example`, `docs/infrastructure/vps-urls.md`,
+  `docs/reference/modules/drivers.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`.
+
 ### Changed — the Python, testing and code-review packs name the subagent-seat exception to `uv` (2026-10-18)
 
 - The three packs told every reader to run `uv` commands (`uv run pytest`, `uv run ruff`, `uv run mypy`,
