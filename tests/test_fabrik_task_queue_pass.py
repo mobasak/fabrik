@@ -25,10 +25,11 @@ def _section(start: str, end: str) -> str:
 
 def test_size_check_ignores_each_new_path() -> None:
     """Row 1792293040, the second verdict on held new-file-must-git-added: a declared path that does not exist yet
-    fell under a root `lib/` ignore rule and never reached the commit; SIZE now runs `git check-ignore -v` on it."""
+    fell under a `lib/` ignore rule and never reached the commit; SIZE now check-ignores and stages each new file."""
     assert (
-        "**declare the grader you are about to write**, and `git check-ignore -v` each new path, since an ignored one"
-        " never commits; `ls` and grep every other path for the rule first"
+        "**declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it"
+        " before phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`);"
+        " `ls` and grep every other path for the rule first"
     ) in _section("## SIZE", "## Phase 1")
 
 
@@ -36,7 +37,8 @@ def test_measure_runs_a_codec_change_on_its_edge_inputs() -> None:
     """Row 1792291304, the second verdict on held design-list-input-grammar: MEASURE runs a decoder or encoder change
     on non-UTF-8 bytes, NUL and its own escape before design.md is written."""
     assert (
-        "a codec change run on non-UTF-8 bytes, NUL and its own escape, an independent parser for a parsed format"
+        "the codec a change touches run on non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for"
+        " a parsed format"
         in _section("## Phase 1", "## Phase 2")
     )
 

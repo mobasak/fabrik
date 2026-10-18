@@ -101,9 +101,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # keys only, row 1792258556 (a third verdict on held measure-the-env-writers).
 # D-974 (kaizen, 2026-10-18): 22272 -> 22410 — phase 4 names both receipt routes for a nested full review: --range
 # to the last --commit, committed alone, or a receipt the D-row cites made before that commit (row 1792287653).
-# D-979 (kaizen, 2026-10-18): 22410 -> 22550 — SIZE runs `git check-ignore -v` on each new path; MEASURE runs a
-# codec change on non-UTF-8 bytes, NUL and its own escape (rows 1792293040, 1792291304; two held-subject recurrences).
-SIZE_CAP = 22550
+# D-979 (kaizen, 2026-10-18): 22410 -> 22657 — SIZE check-ignores and stages each new file path before the pathspec
+# commit; MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and its own escape (rows 1792293040,
+# 1792291304; two held-subject recurrences).
+SIZE_CAP = 22657
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
