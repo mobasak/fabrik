@@ -1413,3 +1413,24 @@ def test_a_close_keeps_a_markers_own_created(tmp_path: Path) -> None:
     cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
     owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
     assert owner["created"] == 1234.5, owner
+
+
+@pytest.mark.parametrize("unreadable", ["seat-1", "seat-1/sub"])
+def test_a_seat_with_an_unreadable_folder_inside_is_unmeasured_never_small(
+    tmp_path: Path, unreadable: str
+) -> None:
+    """W-2dadedfd review (Opus, executed): `du` exits 1 on a folder it cannot read yet prints the
+    PARTIAL size it reached, so a large tree under an unreadable folder read as small and dropped
+    out with no line. A non-zero `du` exit is now the "cannot be examined" line."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0000")
+    run = tmp_path / "run"
+    (run / "seat-1" / "sub").mkdir(parents=True)
+    (run / "seat-1" / "sub" / "big.bin").write_bytes(b"x" * 5000)
+    locked = run / unreadable
+    locked.chmod(0o000)
+    try:
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
+    finally:
+        locked.chmod(0o755)
+    assert lines == ["seat-1: size unmeasured — cannot be examined"], lines

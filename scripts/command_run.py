@@ -1843,17 +1843,24 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
             lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
-            out = subprocess.run(
+            proc = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
                 capture_output=True,
                 text=True,
                 timeout=deadline_s,
-            ).stdout
-            size = int(out.split()[0])
+            )
+            # W-2dadedfd review: a folder inside the seat that cannot be read makes `du` exit 1 yet
+            # still print the PARTIAL size it reached — a large tree under it read as small and
+            # dropped out silently. A non-zero exit is the "cannot be examined" line, never a size.
+            if proc.returncode != 0:
+                raise OSError(proc.stderr.strip()[:120] or f"du exit {proc.returncode}")
+            size = int(proc.stdout.split()[0])
         except subprocess.TimeoutExpired:
             lines.append(f"{seat.name}: size unmeasured — over the deadline")
             continue
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            # said, never silent — an entry the advisory cannot measure is not "not large"
+            lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         if size > threshold:
             lines.append(
