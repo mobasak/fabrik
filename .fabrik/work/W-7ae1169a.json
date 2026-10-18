@@ -3,7 +3,7 @@
   "created": "2026-09-11T00:00:00.000000Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "72df2367e73f5ac201c2b9136cc888e5638a681e",
   "id": "W-7ae1169a",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — gate false result on %20 decode",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
