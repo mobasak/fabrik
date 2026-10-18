@@ -46,6 +46,7 @@ How the chosen approach resolves it:
   - It installs `CsrfOriginMiddleware` (`src/fabrik/scaffold.py:3187`).
   - It adds `CORSMiddleware` with `allow_credentials=True` and exact origins from env (`src/fabrik/scaffold.py:3188-3196`).
   - It has a `v1 = APIRouter(prefix="/api/v1")` (`src/fabrik/scaffold.py:3250`) whose routes depend on `require_user` (`src/fabrik/scaffold.py:2737`).
+  - `require_user` only checks the claims `TenantMiddleware` decoded from an `Authorization: Bearer` header (`src/fabrik/scaffold.py:2529-2539`). The session cookie is never read on `v1` routes today.
 - **Cookies.** Web sessions are `__Host-session` (HttpOnly), `__Host-refresh` and `__Host-csrf_token`. All are SameSite=Lax and Path=/, with no `Domain`, so they are host-only (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/cookies.py:85-103`).
 - **The current-user dependency** reads the bearer header first and the session cookie second (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:64-67`).
 - **No `/auth/me` endpoint exists.** The only rate limiter is passwordless login's, which is Redis-backed (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:105-108`).
@@ -72,7 +73,10 @@ How the chosen approach resolves it:
 - No page used the route, so no user-visible feature is lost.
 
 **Slice 2 — authenticated backend chat (A).** `_SAAS_MAIN_PY` gains `POST /api/v1/chat` on the existing `v1` router.
-- **Identity:** `Depends(require_user)`. The handler is never reached anonymously, which meets C1 because the backend itself validates the token.
+- **Identity:** `Depends(chat_user)`, where `chat_user` is an instance of the vendored `build_current_user` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:64`). It reads the bearer header first and the `__Host-session` cookie second, validates the JWT and the jti denylist, and returns an `AuthedUser` with `user_id` and `tenant_id` (`dependencies.py:13-18`).
+  - It is NOT `require_user`. That dependency reads claims `TenantMiddleware` decoded from the `Authorization: Bearer` header only (`src/fabrik/scaffold.py:2529-2539`), so a cookie-authenticated browser request would always be 401 behind it.
+  - The handler is never reached anonymously, which meets C1 because the backend itself validates the token.
+  - A cookie-borne POST must carry the double-submit CSRF token, because `CsrfOriginMiddleware` gates every cookie-borne non-bearer mutation app-wide (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py:307`).
 - **Limits:** a Redis token bucket keyed on `chat:t:<tid>` (tenant), `chat:u:<sub>` (user) and `chat:ip:<client ip>` (behind the module's `trusted_proxy_hops`). Each bucket's capacity and window come from env (`CHAT_TENANT_RATE`, `CHAT_USER_RATE`, `CHAT_IP_RATE`).
 - **When a bucket is empty:** a 429 with `Retry-After`. This meets C3, C4 and C5.
 - **Redis down or `REDIS_URL` unset:** the route returns 503, closed, never unlimited.
@@ -116,7 +120,7 @@ How the chosen approach resolves it:
 
 | Capability | Verdict | Module | Why |
 |---|---|---|---|
-| End-user auth (identity on the chat request) | vendor (already vendored) | `/opt/fabrik-lib/fastapi-user-auth` | `require_user`/`build_current_user` already authenticate every `v1` route |
+| End-user auth (identity on the chat request) | vendor (already vendored) | `/opt/fabrik-lib/fastapi-user-auth` | its `build_current_user` reads the header then the session cookie and checks the denylist; the scaffold's bearer-only `require_user` cannot serve a browser |
 | Rate limiting (token bucket) | build, in the scaffold's backend | — | fabrik-lib has no general limiter. The only one is passwordless-specific inside fastapi-user-auth. A ~40-line Redis bucket on the existing client is smaller than a new module. Upstream note to fabrik-lib: a general limiter would serve every FastAPI scaffold |
 | OpenRouter streaming | build (moved) | — | The existing Next handler's logic, ported to the backend |
 
