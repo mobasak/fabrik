@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py
+# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py, tests/test_merge_request_work_items.py
 """Work tracking — one open-work record per repo, shared by its agents (spec 2026-09-24).
 
 THE STORE. One pretty-printed, sorted-key JSON file per item under ``<repo>/.fabrik/work/``,
@@ -6038,6 +6038,127 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+# ── merge-item: the key-wise 3-way merge of one item file (W-5f3617e6) ───────────────────────
+
+_ABSENT = object()
+# `merge-item`'s conflict exit — distinct from 1 (a failure), so no caller parses stderr.
+MERGE_CONFLICT_RC = 3
+# The store's SET-valued lists (sorted, no duplicates): `assign` and `verdict` write `tags`, `assign
+# --blocked-by` writes `blocked_by`. Each merges as a set: the base, plus what either side added,
+# minus what either side removed — so two sides each adding a tag never conflict.
+_SET_KEYS = frozenset({"tags", "blocked_by"})
+
+
+def _merge_set(base: object, ours: list, theirs: list) -> list | None:
+    """The 3-way set merge of a list of strings, sorted; None when an entry is not a string (the
+    caller then treats the list as an ordinary value)."""
+    base_list = base if isinstance(base, list) else []
+    if not all(isinstance(x, str) for x in (*base_list, *ours, *theirs)):
+        return None
+    b, o, th = set(base_list), set(ours), set(theirs)
+    return sorted((b | (o - b) | (th - b)) - (b - o) - (b - th))
+
+
+def _merge_appended(base: object, ours: list, theirs: list) -> list | None:
+    """Two sides that only APPENDED to the base list (``comments``): the base, then every appended
+    entry, ordered by its ``at`` when every appended entry carries a numeric one (else ours, then
+    theirs), an entry both sides appended kept once. None when a side did anything but append."""
+    base_list = base if isinstance(base, list) else []
+    n = len(base_list)
+    if ours[:n] != base_list or theirs[:n] != base_list:
+        return None
+    added = list(ours[n:])
+    added += [x for x in theirs[n:] if x not in added]
+    stamps = [x.get("at") if isinstance(x, dict) else None for x in added]
+    if all(isinstance(s, (int, float)) and not isinstance(s, bool) for s in stamps):
+        added = [x for _, x in sorted(zip(stamps, added, strict=True), key=lambda pair: pair[0])]
+    return [*base_list, *added]
+
+
+def _merge_keys(base: object, ours: object, theirs: object, path: str, conflicts: list[str]):
+    """One value, 3-way: the side that changed it against the base wins, a change both sides made
+    identically merges, and two different changes are a conflict named by its key path. Objects
+    recurse key by key (``links`` edited on both sides merges per sub-key — against ``{}`` when
+    the key is new on both sides); a list in ``_SET_KEYS`` merges as a set, any other list merges
+    when both sides only appended; ``_ABSENT`` is a missing key, so a delete against a change
+    conflicts and a delete on both sides deletes."""
+    if ours == theirs:
+        return ours
+    if ours == base:
+        return theirs
+    if theirs == base:
+        return ours
+    gone = base is _ABSENT
+    if isinstance(ours, dict) and isinstance(theirs, dict) and (gone or isinstance(base, dict)):
+        base = {} if gone else base
+        merged = {}
+        for key in sorted(set(base) | set(ours) | set(theirs)):
+            value = _merge_keys(
+                base.get(key, _ABSENT),
+                ours.get(key, _ABSENT),
+                theirs.get(key, _ABSENT),
+                f"{path}.{key}" if path else key,
+                conflicts,
+            )
+            if value is not _ABSENT:
+                merged[key] = value
+        return merged
+    if isinstance(ours, list) and isinstance(theirs, list) and (gone or isinstance(base, list)):
+        merged_list = (_merge_set if path in _SET_KEYS else _merge_appended)(base, ours, theirs)
+        if merged_list is not None:
+            return merged_list
+    conflicts.append(path or "(the whole item)")
+    return ours
+
+
+def merge_item(base: dict, ours: dict, theirs: dict) -> tuple[dict, list[str]]:
+    """The merged item and the key paths both sides changed to different values (empty = clean).
+
+    Why key-wise and not git's line merge: ``_dump`` writes one key per line in sorted order, so two
+    sides changing DISJOINT keys that sort next to each other (the coordinator's ``effort`` beside
+    the builder's ``evidence``, ``score_reason`` beside ``status``) collide as adjacent hunks — four
+    refused merge requests in one day (W-5f3617e6). Cobra check (D-253): the cheap way to make every
+    item merge "clean" is to pick a side on a real conflict; that would silently drop one agent's
+    status or score, so a key both sides changed differently is returned as a conflict, never
+    resolved here."""
+    conflicts: list[str] = []
+    merged = _merge_keys(base, ours, theirs, "", conflicts)
+    return (merged if isinstance(merged, dict) else ours), conflicts
+
+
+def cmd_merge_item(repo: Path | None, args: argparse.Namespace) -> int:
+    """``merge-item <base> <ours> <theirs>`` — git's merge-driver convention (``%O %A %B``): the
+    merged item is written into ``<ours>`` and the exit is 0; a conflict leaves ``<ours>`` untouched,
+    names every conflicting key on stderr and exits ``MERGE_CONFLICT_RC``; an unreadable or
+    non-object side exits 1. An empty or missing base (an item both sides added) merges against
+    ``{}``. Needs no repo: ``main`` skips the git lookup for this verb."""
+    texts = {}
+    for name in ("base", "ours", "theirs"):
+        path = Path(getattr(args, name))
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raw = ""
+        except UnicodeDecodeError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not UTF-8: {exc}") from exc
+        if name == "base" and not raw.strip():
+            texts[name] = {}
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise WorkError(f"merge-item: {name} ({path}) is not a JSON object")
+        texts[name] = data
+    merged, conflicts = merge_item(texts["base"], texts["ours"], texts["theirs"])
+    if conflicts:
+        _warn(f"merge-item: both sides changed {', '.join(conflicts)} to different values")
+        return MERGE_CONFLICT_RC
+    _write_json(Path(args.ours), merged)
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="work.py", description=__doc__.split("\n", 1)[0])
     p.add_argument("--repo", default=".", help="any path inside the repo (default: cwd)")
@@ -6172,6 +6293,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     s.set_defaults(fn=cmd_sync)
 
+    s = sub.add_parser(
+        "merge-item",
+        help="key-wise 3-way merge of one item file (git merge-driver convention: %O %A %B)",
+    )
+    s.add_argument("base", help="the merge base's copy (empty when both sides added the item)")
+    s.add_argument("ours", help="our copy — the merged item is written here on success")
+    s.add_argument("theirs", help="their copy")
+    s.set_defaults(fn=cmd_merge_item)
+
     s = sub.add_parser("render", help="regenerate the backlog's AUTO-GENERATED:BACKLOG block")
     s.set_defaults(fn=cmd_render)
 
@@ -6185,7 +6315,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        repo = _repo_root(args.repo)
+        repo = None if args.fn is cmd_merge_item else _repo_root(args.repo)
         return int(args.fn(repo, args))
     except WorkError as exc:
         _warn(str(exc))
