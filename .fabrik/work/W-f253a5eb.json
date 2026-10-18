@@ -3,7 +3,7 @@
   "created": "2026-10-18T20:53:57.915618Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "9e3ac4634b36969ca310e73a81651b48da1a1c63",
   "id": "W-f253a5eb",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "blocking bug: the Stop hook PANEL APPROVED check can never pass a joint spec+plan verdict",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m553bn2dxkw77vec2zwj6qpb"
   ],

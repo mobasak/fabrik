@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T23:07:16.863792Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-70193e61",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "final_gate_stop.py: _dirty_paths (git status, top-level) vs _session_files (:467, relative_to(root)); _own_uncommitted matches nothing when root is a subdirectory, and _commit_files is top-level too — normalise every leg to one base (found in W-42ddde8f's review)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "stop-hook"
+  ],
+  "title": "Stop hook keys paths from two bases: in a subdirectory session the uncommitted cause never fires (dirty paths are top-level-relative, authored paths cwd-relative)"
+}
