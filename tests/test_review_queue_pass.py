@@ -878,8 +878,15 @@ def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> No
     assert end > start
     sentence = flat["fabrik-review-scoped"][start : end + len(tail)]
     assert flat["fabrik-review"].count(sentence) == 1
-    assert (
+    # per paragraph, so text appended after the sentence or a paragraph break before it is caught
+    paras = [
+        " ".join(p.split()) for p in re.split(r"\n[ \t]*\n", (src / "fabrik-review.md").read_text())
+    ]
+    pointer = [
+        p for p in paras if "isolation and bookkeeping steps earlier runs found missing." in p
+    ]
+    assert len(pointer) == 1
+    assert pointer[0].endswith(
         "isolation and bookkeeping steps earlier runs found missing. " + sentence + "."
-        in flat["fabrik-review"]
     )
     assert "it is not restated here" not in flat["fabrik-review"]
