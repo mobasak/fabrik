@@ -30,6 +30,8 @@ def dsn() -> str:
     return value or DEFAULT_DSN
 
 
-def connect():
-    """Open a psycopg2 connection to the registry DB (peer-auth socket by default)."""
-    return psycopg2.connect(dsn())
+def connect(**kwargs):
+    """Open a psycopg2 connection to the registry DB (peer-auth socket by default). Keyword arguments
+    go to ``psycopg2.connect`` untouched (``connect_timeout``, ``options``): the board's bounded
+    read passes them, every other caller passes none."""
+    return psycopg2.connect(dsn(), **kwargs)
