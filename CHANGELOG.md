@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Stop hook: a joint plan + spec PANEL APPROVED verdict can pass (2026-10-19)
+
+- The design-gate panel check read only the first word after a verdict's dash, so a heading naming a plan and a spec together could never be approved. It now reads the heading's ` + `-joined path list as a set and requires each seat's verdict to name exactly that set, on one line of the seat's own text. A heading with no path, or with prose, approves nothing. Decision D-1029; item W-f253a5eb (mail 01M553BN2D).
+
 ### Changed — /fabrik-execute-plan: a worktree's gate does not grade a shared runtime's code; Finish step 5 says the run flips and archives its own plan (2026-10-18)
 
 - In a linked worktree, a gate or live request served by a shared runtime runs the main checkout's code. Step 8's isolation bullet now says this and points at `docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated for how to prove the tree's own code. D7's live-request rule points a worktree reader at it. How a worktree run meets D7's live request is filed as W-1c8b3ebd for a panel decision. This answers row 1792337134, a recurrence of the held subject clone-proof-uses-docker-run.
