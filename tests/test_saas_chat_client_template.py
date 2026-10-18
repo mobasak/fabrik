@@ -35,8 +35,15 @@ CHAT = (
     Path(__file__).resolve().parent.parent / "templates" / "saas-skeleton" / "components" / "chat"
 )
 
-# React stand-ins: the hook's state setters are inert, useCallback returns its function.
-_STUBS = """function useState<T>(init: T): [T, (v: unknown) => void] { return [init, () => {}]; }
+# React stand-ins: each useState slot records its last value, useCallback returns its function.
+_STUBS = """const __state: unknown[] = [];
+function useState<T>(init: T): [T, (v: unknown) => void] {
+  const i = __state.length;
+  __state.push(init);
+  return [init, (v: unknown) => {
+    __state[i] = typeof v === "function" ? (v as (p: unknown) => unknown)(__state[i]) : v;
+  }];
+}
 function useCallback<F>(f: F, _deps: unknown[]): F { return f; }
 """
 
@@ -56,6 +63,20 @@ function streamOf(chunks: Array<string | Uint8Array>): ReadableStream<Uint8Array
 function sse(chunks: Array<string | Uint8Array>): Response {
   return new Response(streamOf(chunks), { status: 200, headers: { "content-type": "text/event-stream" } });
 }
+let bodiesCancelled = 0;
+function counted401(): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(enc.encode('{"detail":"expired"}'));
+    },
+    cancel() {
+      bodiesCancelled += 1;
+    },
+  });
+  return new Response(body, { status: 401, headers: { "content-type": "application/problem+json" } });
+}
+// a normal answer: some text, then done
+const reply = (): Response => sse(['data: {"type":"text_delta","text":"ok"}\n\ndata: {"type":"done"}\n\n']);
 function problem(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/problem+json", ...headers } });
 }
@@ -92,12 +113,14 @@ async function run(
   };
   const completes: string[] = [];
   const errors: string[] = [];
+  __state.length = 0;
   const { startStream } = useSSEStream({
     onComplete: (t: string) => completes.push(t),
     onError: (e: string) => errors.push(e),
     onEvent,
   });
   await startStream("/api/v1/chat", { message: "hi" });
+  const [isStreaming, streamText, toolCalls] = __state;
   return {
     calls: calls.map((c) => ({
       url: c.url,
@@ -107,6 +130,7 @@ async function run(
     })),
     completes,
     errors,
+    state: { isStreaming, streamText, toolCalls },
   };
 }
 
@@ -124,8 +148,8 @@ const results: Record<string, unknown> = {
       'ne"}\n\n',
     ]),
   ]),
-  plain_cookie: await run("xcsrf_token=no; csrf_token=abc", [sse(['data: {"type":"done"}\n\n'])]),
-  refresh_then_ok: await run("__Host-csrf_token=old", [problem(401, { detail: "x" }), rotate, sse(['data: {"type":"done"}\n\n'])]),
+  plain_cookie: await run("xcsrf_token=no; csrf_token=abc", [reply()]),
+  refresh_then_ok: await run("__Host-csrf_token=old", [problem(401, { detail: "x" }), rotate, reply()]),
   refresh_refused: await run("__Host-csrf_token=old", [problem(401, { detail: "x" }), problem(401, { detail: "x" })]),
   retry_401: await run("__Host-csrf_token=old", [problem(401, { detail: "x" }), rotate, problem(401, { detail: "x" })]),
   limited: await run("csrf_token=a", [problem(429, { detail: "Rate limit reached (user)" }, { "Retry-After": "30" })]),
@@ -133,7 +157,31 @@ const results: Record<string, unknown> = {
   error_frame: await run("csrf_token=a", [sse(['data: {"type":"error","error":"The model took too long to respond"}\n\n'])]),
   network: await run("csrf_token=a", [new Error("connection reset")]),
   crlf: await run("csrf_token=a", [sse(['data: {"type":"text_delta","text":"ok"}\r\n\r\ndata: {"type":"done"}\r\n\r\n'])]),
-  quoted_cookie: await run('csrf_token="abc"', [sse(['data: {"type":"done"}\n\n'])]),
+  quoted_cookie: await run('csrf_token="abc"', [reply()]),
+  both_cookies: await run("csrf_token=plain; __Host-csrf_token=host", [reply()]),
+  unterminated: await run("csrf_token=a", [sse(['data: {"type":"text_delta","text":"last"}'])]),
+  tools: await run("csrf_token=a", [
+    sse([
+      'data: {"type":"tool_call","tool":"search"}\n\ndata: {"type":"tool_call","tool":"grep"}\n\n',
+      'data: {"type":"tool_result"}\n\ndata: {"type":"text_delta","text":"done"}\n\ndata: {"type":"done"}\n\n',
+    ]),
+  ]),
+  empty_reply: await run("csrf_token=a", [sse(['data: {"type":"done"}\n\n'])]),
+  refresh_bounded: await (async () => {
+    let signalled = false;
+    (globalThis as { document?: { cookie: string } }).document = { cookie: "csrf_token=a" };
+    (globalThis as { fetch?: unknown }).fetch = async (url: string, init: RequestInit) => {
+      if (url === "/auth/refresh") signalled = init.signal instanceof AbortSignal;
+      return problem(401, { detail: "x" });
+    };
+    await useSSEStream({}).startStream("/api/v1/chat", { message: "hi" });
+    return { signalled };
+  })(),
+  first_401_body: await (async () => {
+    bodiesCancelled = 0;
+    const r = await run("csrf_token=a", [counted401(), rotate, reply()]);
+    return { ...r, bodiesCancelled };
+  })(),
   refresh_throws: await run("csrf_token=a", [problem(401, { detail: "x" }), new Error("offline")]),
   bad_frame: await run("csrf_token=a", [
     sse(['data: {"type":"text_delta","text":5}\n\ndata: [1]\n\ndata: {"type":"text_delta","text":"ok"}\n\ndata: {"type":"done"}\n\n']),
@@ -156,7 +204,7 @@ const results: Record<string, unknown> = {
         return new Response("{}", { status: 200 });
       }
       const cookie = (globalThis as { document?: { cookie: string } }).document?.cookie ?? "";
-      return cookie.endsWith("new") ? sse(['data: {"type":"done"}\n\n']) : problem(401, { detail: "x" });
+      return cookie.endsWith("new") ? reply() : problem(401, { detail: "x" });
     };
     const errors: string[] = [];
     const a = useSSEStream({ onError: (e: string) => errors.push(e) });
@@ -169,13 +217,14 @@ console.log(JSON.stringify(results));
 """
 
 
-def _node_major() -> int:
+def _node_strips_types() -> bool:
+    # `--experimental-strip-types` arrived in node 22.6
     node = shutil.which("node")
     if node is None:
-        return 0
+        return False
     out = subprocess.run([node, "--version"], capture_output=True, text=True, check=False).stdout
-    match = re.match(r"v(\d+)", out.strip())
-    return int(match.group(1)) if match else 0
+    match = re.match(r"v(\d+)\.(\d+)", out.strip())
+    return bool(match) and (int(match.group(1)), int(match.group(2))) >= (22, 6)
 
 
 def _hook_logic(source: str) -> str:
@@ -201,9 +250,9 @@ def _run_hook(source: str, tmp_path: Path) -> dict:
 
 @pytest.fixture(scope="module")
 def hook(tmp_path_factory: pytest.TempPathFactory) -> dict:
-    if _node_major() < 22:
+    if not _node_strips_types():
         pytest.skip(
-            "node >= 22 (type stripping) is not installed; the hook is proven only by running it"
+            "node >= 22.6 (type stripping) is not installed; the hook is proven only by running it"
         )
     return _run_hook((CHAT / "SSEStream.tsx").read_text(), tmp_path_factory.mktemp("sse"))
 
@@ -232,6 +281,42 @@ def test_a_second_401_is_shown_as_signed_out_and_never_loops(hook, case):
     assert len(result["errors"]) == 1 and "signed out" in result["errors"][0].lower()
 
 
+def test_the_https_cookie_name_wins_when_both_are_set(hook):
+    assert hook["both_cookies"]["calls"][0]["csrf"] == "host"
+
+
+def test_a_last_frame_without_a_newline_is_still_delivered(hook):
+    assert hook["unterminated"]["completes"] == ["last"]
+
+
+def test_the_hook_state_tracks_the_stream(hook):
+    # what ChatUI renders: the streamed text, the tool indicators, and streaming switched off
+    state = hook["tools"]["state"]
+    assert state["streamText"] == "done" and state["isStreaming"] is False
+    assert state["toolCalls"] == [
+        {"tool": "search", "status": "running"},
+        {"tool": "grep", "status": "done"},
+    ]
+    for case in ("refresh_refused", "network", "handler_throws"):
+        assert hook[case]["state"]["isStreaming"] is False, case
+
+
+def test_a_reply_with_no_text_and_no_error_says_so(hook):
+    # a reasoning model capped by CHAT_MAX_TOKENS can answer with nothing; the user is told
+    result = hook["empty_reply"]
+    assert result["completes"] == [""] and len(result["errors"]) == 1
+    assert "empty" in result["errors"][0].lower()
+
+
+def test_the_refresh_request_is_bounded(hook):
+    # a hung /auth/refresh would hold the page-wide single flight, and every stream with it
+    assert hook["refresh_bounded"] == {"signalled": True}
+
+
+def test_the_refused_401_body_is_released_before_the_retry(hook):
+    assert hook["first_401_body"]["bodiesCancelled"] == 1
+
+
 def test_a_frame_cut_across_chunks_is_delivered_once(hook):
     # a frame split mid-JSON and mid-character ("é" across two chunks), and CRLF line endings
     assert hook["stream"]["completes"] == ["Héllo"] and hook["stream"]["errors"] == []
@@ -254,6 +339,11 @@ def test_a_frame_cut_across_chunks_is_delivered_once(hook):
         "quoted_cookie",
         "refresh_throws",
         "bad_frame",
+        "both_cookies",
+        "unterminated",
+        "tools",
+        "first_401_body",
+        "empty_reply",
     ],
 )
 def test_on_complete_fires_exactly_once_on_every_path(hook, case):
@@ -295,8 +385,8 @@ def test_a_refusal_or_failure_reaches_on_error(hook, case, message):
 
 def test_the_hook_harness_fails_on_the_pre_slice_2_client(tmp_path):
     # the client before this slice sent no credentials and no CSRF header: the harness must see it
-    if _node_major() < 22:
-        pytest.skip("node >= 22 is not installed")
+    if not _node_strips_types():
+        pytest.skip("node >= 22.6 (type stripping) is not installed")
     old = (
         "export function useSSEStream(options: { onComplete?: (t: string) => void; onError?: (e: string) => void } = {}) {\n"
         "  const startStream = async (url: string, body: Record<string, unknown>) => {\n"
@@ -332,8 +422,8 @@ console.log(JSON.stringify({
 def test_a_finished_reply_fills_the_bubble_and_an_empty_one_is_dropped(tmp_path):
     """Plan § Phase C Behaviour Contract: a refusal or error shows its message, never an empty
     reply. Executed: everything above the component in ChatUI.tsx runs under node."""
-    if _node_major() < 22:
-        pytest.skip("node >= 22 (type stripping) is not installed")
+    if not _node_strips_types():
+        pytest.skip("node >= 22.6 (type stripping) is not installed")
     source = (CHAT / "ChatUI.tsx").read_text()
     head = source[: source.index("export function ChatUI")]
     head = re.sub(r'^"use client";\n', "", head)

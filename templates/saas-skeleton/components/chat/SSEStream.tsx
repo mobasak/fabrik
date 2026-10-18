@@ -44,12 +44,14 @@ function send(url: string, body: Record<string, unknown>): Promise<Response> {
 // One refresh at a time for the whole page: the backend rotates a refresh token once, so a second
 // concurrent refresh would lose and sign the user out.
 let refreshing: Promise<boolean> | null = null;
+const REFRESH_TIMEOUT_MS = 10_000;
 
 function refreshSession(): Promise<boolean> {
   refreshing ??= fetch("/auth/refresh", {
     method: "POST",
     credentials: "same-origin",
     headers: { "X-CSRF-Token": csrfToken() },
+    signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS), // a hung refresh is signed out, never a stuck page
   })
     .then((response) => response.ok)
     .catch(() => false)
@@ -107,6 +109,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
       setStreamText("");
       setToolCalls([]);
       let fullText = "";
+      let failed = false;
 
       const handle = (event: StreamEvent) => {
         options.onEvent?.(event);
@@ -129,6 +132,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
             );
             break;
           case "error":
+            failed = true;
             options.onError?.(event.error || "The chat stream reported an error.");
             break;
           case "done":
@@ -145,6 +149,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
           event = undefined;
         }
         if (!isStreamEvent(event)) {
+          failed = true;
           options.onError?.("The chat stream sent a malformed frame.");
           return;
         }
@@ -178,6 +183,10 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
         }
         buffer += decoder.decode();
         if (buffer) dispatch(buffer);
+        if (!fullText && !failed) {
+          // a reasoning model capped by the server's max_tokens can finish with no visible text
+          options.onError?.("The model returned an empty reply. Try again.");
+        }
       } catch (error) {
         options.onError?.(error instanceof Error ? error.message : "The chat stream failed.");
       } finally {
