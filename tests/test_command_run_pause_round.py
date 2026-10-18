@@ -103,3 +103,80 @@ def test_round_without_command_is_unchanged(run_dir: Path) -> None:  # noqa: F81
     out = _cr(run_dir, "round", "--findings", "1", "--confirmed", "0")
     assert out.returncode == 0, out.stdout + out.stderr
     assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def _ledger(run_dir: Path) -> list[dict]:  # noqa: F811
+    path = run_dir.parent / "command-feedback.jsonl"
+    return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def _events(run_dir: Path, sid: str = "s1") -> list[dict]:  # noqa: F811
+    path = run_dir.parent / "events" / f"{sid}.jsonl"
+    return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def test_a_pause_is_counted_as_paused_in_the_ledger_row_and_the_close_event(run_dir: Path) -> None:  # noqa: F811
+    """Critique fold: both `wall` writers carry `paused`, never `quota` (a mutant reverting them
+    passed all seven tests before)."""
+    _start(run_dir)
+    _cr(run_dir, "blocked", "--command", _PROBE, "--paused", "--reason", "operator: pause")
+    assert _ledger(run_dir)[-1]["wall"] == "paused", _ledger(run_dir)[-1]
+    close = [e for e in _events(run_dir) if e.get("event") == "run_close"][-1]
+    assert close["wall"] == "paused", close
+    assert "-paused-" in Path(_rec(run_dir)["resume_seed"]).name
+
+
+def test_a_resumed_paused_run_names_its_first_sitting_as_paused(run_dir: Path) -> None:  # noqa: F811
+    _start(run_dir)
+    _cr(run_dir, "blocked", "--command", _PROBE, "--paused", "--reason", "operator: pause")
+    seed = _rec(run_dir)["resume_seed"]
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--resume-from",
+        seed,
+    )
+    assert _rec(run_dir)["resumed_from"]["paused"] is True
+    out = _cr(
+        run_dir, "blocked", "--command", _PROBE, "--reason", "3 consecutive same-test failures"
+    )
+    assert "carried from the paused sitting" in out.stdout and "(wall: paused)" in out.stdout, (
+        out.stdout
+    )
+
+
+def test_a_pause_reason_naming_the_quota_wall_is_still_a_pause(run_dir: Path) -> None:  # noqa: F811
+    _start(run_dir)
+    out = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--paused",
+        "--reason",
+        "operator: stop before the quota wall",
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _ledger(run_dir)[-1]["wall"] == "paused"
+    assert "NOTE" not in out.stderr, out.stderr
+
+
+def test_a_nested_pause_names_the_parent_flag(run_dir: Path) -> None:  # noqa: F811
+    _cr(run_dir, "start", "--command", "fabrik-execute-plan", "--phases", "5", "--terminal", "t")
+    _start(run_dir)
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--paused", "--reason", "operator: pause")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "close it too with `blocked --paused`" in out.stdout, out.stdout
+
+
+def test_round_with_an_empty_command_is_refused(run_dir: Path) -> None:  # noqa: F811
+    _start(run_dir)
+    out = _cr(run_dir, "round", "--command", "", "--findings", "1", "--confirmed", "0")
+    assert out.returncode == 1, out.stdout + out.stderr
+    assert not _rec(run_dir).get("rounds")

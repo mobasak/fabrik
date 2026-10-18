@@ -5803,7 +5803,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if not _stack_cmds and _live is not None:
                 return _refuse(
                     f"REFUSED — start --resume-from: /{_live.get('command')} is live in this session; a "
-                    "wall-blocked run is resumed before its children — close or finish the live run first"
+                    "wall-blocked or paused run is resumed before its children — close or finish the "
+                    "live run first"
                 )
             if _seed.get("declared") is not None:
                 _declared = dict(_seed["declared"])
@@ -6047,6 +6048,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 "reason": str(_seed.get("blocked_reason") or "")[:200],
                 "seed": _seed_path,
                 "rounds": len(_seed.get("rounds") or []),
+                # W-79638b4a: the first sitting was an operator pause, not the quota wall
+                "paused": _seed.get("paused") is True,
             }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
@@ -6489,7 +6492,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # W-79638b4a: a round can name its run, as every close does; a nested caller's round that
         # names its parent while the child is live is refused before it lands on the wrong record
         _named = getattr(args, "command", None)
-        if _named and _norm_command(_named) != _norm_command(str(rec.get("command") or "")):
+        if _named is not None and (
+            not _named.strip()
+            or _norm_command(_named) != _norm_command(str(rec.get("command") or ""))
+        ):
             msg = (
                 f"REFUSED — round --command /{_norm_command(_named)}, but the LIVE run is "
                 f"/{rec.get('command')} (phase {rec.get('phase')}/{rec.get('phases')}); nothing "
@@ -7620,7 +7626,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             str(fr.get("command") or "") for fr in (rec.get("stack") or []) if isinstance(fr, dict)
         ]
         _kept_seed = _keep_resume_seed(
-            sid, json.dumps(_seed_rec, indent=2).encode("utf-8"), tag="-wall", ext=".json"
+            sid,
+            json.dumps(_seed_rec, indent=2).encode("utf-8"),
+            tag="-paused" if _paused else "-wall",
+            ext=".json",
         )
         if _kept_seed.startswith("/"):
             rec["resume_seed"] = _kept_seed
@@ -7667,16 +7676,17 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
     if rec.get("resumed_from"):
         _rf = rec.get("resumed_from") or {}
+        _first = ("paused", "paused") if _rf.get("paused") else ("wall-blocked", "quota")
         print(
             f"[command_run] NOTE — resumed run: rounds {_int0(_rf.get('rounds'))} carried from the "
-            f"wall-blocked sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
-            f"sitting's — the first sitting has its own ledger row (wall: quota)"
+            f"{_first[0]} sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
+            f"sitting's — the first sitting has its own ledger row (wall: {_first[1]})"
         )
     if _fb_line is not None:
         print(_fb_line)
     if _reopen:
         _why, _when, _flag = (
-            ("paused", "when the operator resumes", "--paused")
+            ("paused", "once the operator resumes", "--paused")
             if _paused
             else ("wall", "after the lift", "--wall")
         )
@@ -7687,7 +7697,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         if parent is not None:
             print(
                 f"{_why}: the parent /{parent.get('command')} is live — close it too with `blocked {_flag}`; "
-                f"{_when} resume the PARENT first, then this run"
+                f"{_when}: reopen the PARENT first, then this run"
             )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
