@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import shlex
 import subprocess
@@ -41,26 +42,30 @@ def _md5(path: Path) -> str:
     return h.hexdigest()
 
 
-def _seeded_not_enforced() -> set[str]:
-    """Files distributed once but allowed to diverge (never flagged). Empty if the manifest
-    isn't importable (e.g. /opt/fabrik absent) — a rare, acceptable degradation."""
-    if not FABRIK_ROOT.exists():
-        return set()
-    sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
-    try:
-        from fabrik_synced_manifest import SEEDED_NOT_ENFORCED
-
-        return set(SEEDED_NOT_ENFORCED)
-    except ImportError:
-        return set()
+# The two manifest lists this check reads. A missing one is a LOUD failure (W-5feb6e9c): the old
+# `from fabrik_synced_manifest import X` / `except ImportError` read a missing SYMBOL exactly like
+# a missing module (both raise ImportError, both with `name == "fabrik_synced_manifest"`) and ran
+# the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
+# allowed to make, with no word about the hub. Same rule as check_sync_trigger_coverage.py.
+REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 
 
-def _retired_vendored_dirs() -> tuple[str, ...]:
-    """Vendored dirs the fleet has RETIRED — deleting them locally is the sanctioned action.
+class ManifestError(Exception):
+    """The hub manifest exists but cannot answer — the hub's defect, never the project's."""
 
-    Same degradation as `_seeded_not_enforced`: empty when the manifest is not importable.
 
-    Why this exists (found 2026-09-08 by the independent closing pass of the D-196 retirement):
+def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
+    """(seeded-not-enforced files, retired vendored dirs) from the hub's live manifest.
+
+    Seeded files are distributed once but allowed to diverge (never flagged). Retired vendored
+    dirs are the PROJECT'S now — deleting or editing them is the sanctioned action.
+
+    Both are empty when the hub or its manifest FILE is absent (e.g. on a VPS) — a rare,
+    acceptable degradation. A manifest that is present but fails to load, or lacks either list,
+    raises ManifestError: a guessed empty list grades the wrong rule. Loaded by file location,
+    never `sys.path` + import, so no cached or shadowing module can answer for the hub's file.
+
+    Why retired dirs exist (found 2026-09-08 by the independent closing pass of the D-196 retirement):
     this check iterates the project's `.fabrik/synced.lock`, which is a FROZEN SNAPSHOT rewritten
     only by a sync. `RETIRED_VENDORED_DIRS` tells projects they "may delete it at their own pace",
     but a lock row whose file is absent is a hard failure here — so in any target the sync no
@@ -71,15 +76,21 @@ def _retired_vendored_dirs() -> tuple[str, ...]:
     their frozen locks matter here), both frozen since
     2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
     """
-    if not FABRIK_ROOT.exists():
-        return ()
-    sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
+    path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+    if not path.is_file():
+        return set(), ()
+    spec = importlib.util.spec_from_file_location("fabrik_synced_manifest", path)
+    if spec is None or spec.loader is None:
+        raise ManifestError(f"cannot load {path}")
+    man = importlib.util.module_from_spec(spec)
     try:
-        from fabrik_synced_manifest import RETIRED_VENDORED_DIRS
-
-        return tuple(RETIRED_VENDORED_DIRS)
-    except ImportError:
-        return ()
+        spec.loader.exec_module(man)
+    except Exception as e:  # any load failure is the hub's and is NAMED, never swallowed
+        raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
+    missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
+    if missing:
+        raise ManifestError(f"{path} has no {', '.join(missing)} — renamed or removed in the hub?")
+    return set(man.SEEDED_NOT_ENFORCED), tuple(man.RETIRED_VENDORED_DIRS)
 
 
 def _main_checkout(project_root: Path) -> Path | None:
@@ -134,12 +145,16 @@ def main() -> int:
         print(f"({LOCK_REL} unreadable: {e} — skipped)")
         return 0
 
-    seeded = _seeded_not_enforced()
+    try:
+        seeded, retired_dirs = _manifest_lists()
+    except ManifestError as e:
+        print(f"❌ the hub's synced manifest cannot answer this check: {e}")
+        print("This is the HUB's defect, not this project's — report it to /opt/fabrik (infra).")
+        print("Without it the check cannot tell a sanctioned seeded/retired edit from drift.")
+        return 1
     # `item[0] if tuple` mirrors check_sync_trigger_coverage.py:247 — these manifest lists accept
     # a tuple entry by convention, and an uncaught AttributeError here would fire in ~46 repos.
-    retired = tuple(
-        (d[0] if isinstance(d, tuple) else d).rstrip("/") + "/" for d in _retired_vendored_dirs()
-    )
+    retired = tuple((d[0] if isinstance(d, tuple) else d).rstrip("/") + "/" for d in retired_dirs)
     drifted: list[str] = []
     changed: list[str] = []  # differs or deleted — the stale-worktree remedy's subjects
     for rel, distributed_hash in lock.items():
