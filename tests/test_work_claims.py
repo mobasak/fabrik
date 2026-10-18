@@ -1140,3 +1140,33 @@ def test_a_write_verb_on_a_main_store_item_names_the_merge_it_needs(tmp_path):
     assert "the main checkout" in r.stderr and "merge its branch into this one" in r.stderr, (
         r.stderr
     )
+
+
+def test_an_item_this_branch_deleted_is_never_resurrected_from_the_main_store(tmp_path):
+    """Critique fold (both seats executed it): an item that existed at the fork point and was
+    removed on this branch stays refused here, though the main checkout still holds it."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    _git(wt, env, "rm", "-q", "--", f".fabrik/work/{item}.json")
+    _git(wt, env, "commit", "-q", "-m", "drop the item file")
+    r = run(["claim", item, "--session", "W"], env, wt)
+    assert r.returncode != 0 and f"no item {item}" in r.stderr, r.stderr
+    assert not (_shared(repo) / "claims" / f"{item}.json").exists()
+
+
+def test_claim_of_a_main_store_item_already_done_there_is_refused(tmp_path):
+    """The main copy's own status is checked: an item the main checkout closed is not claimable."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    item = _add(repo, env)
+    path = _item_file(repo, item)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["status"] = "done"
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    r = run(["claim", item, "--session", "W"], env, wt)
+    assert r.returncode != 0 and "already done" in r.stderr, r.stderr

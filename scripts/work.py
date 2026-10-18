@@ -453,8 +453,7 @@ def _read_item(repo: Path, item_id: str) -> dict:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        hint = _main_only_hint(repo, item_id)
-        raise WorkError(f"no item {item_id} in {_store_dir(repo)}{hint}") from None
+        raise WorkError(f"no item {item_id} in {_store_dir(repo)}") from None
     except OSError as exc:
         raise WorkError(f"cannot read item {item_id} ({path}): {exc}") from exc
     try:
@@ -485,6 +484,34 @@ def _main_only_hint(repo: Path, item_id: str) -> str:
     return ""
 
 
+def _require_item(repo: Path, item_id: str) -> dict:
+    """``_read_item`` for a write verb's first check of its id: a refusal for a file this linked
+    worktree lacks while the main checkout holds it names the merge that brings it. Kept out of
+    ``_read_item`` itself, which listing loops call per id — the hint runs ``git worktree list``."""
+    try:
+        return _read_item(repo, item_id)
+    except WorkError as exc:
+        if _item_path(repo, item_id).exists():
+            raise
+        raise WorkError(f"{exc}{_main_only_hint(repo, item_id)}") from None
+
+
+def _deleted_here(repo: Path, main: Path, item_id: str) -> bool:
+    """True when this branch REMOVED the item: its file existed at the fork point (the merge base
+    of this tree's HEAD and the main checkout's) and is gone here. No merge base (a git failure)
+    reads as True — the fallback then refuses, the pre-W-98204c50 behaviour, never a resurrection."""
+    rel = (STORE_REL / f"{item_id}.json").as_posix()
+    try:
+        base = _git(repo, "merge-base", "HEAD", _git(main, "rev-parse", "HEAD").strip()).strip()
+    except WorkError:
+        return True
+    try:
+        _git(repo, "cat-file", "-e", f"{base}:{rel}")
+    except WorkError:
+        return False  # absent at the fork point: the main checkout made it after
+    return True
+
+
 def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
     """The item and the tree whose store holds it: this tree's store first, else the MAIN
     checkout's — for the verbs that write only SHARED state (``claim``, ``release``: the claim lives
@@ -500,6 +527,8 @@ def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
             raise
         main = _worktrees(repo)[0]
         if main == repo.resolve() or not _item_path(main, item_id).is_file():
+            raise
+        if _deleted_here(repo, main, item_id):  # this branch removed it: never resurrect
             raise
         return _read_item(main, item_id), main
 
@@ -3115,7 +3144,7 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     owner = None if args.owner is None else args.owner.strip()
     if owner and not _valid_name(owner):
         raise WorkError(f"--owner {owner!r} is not an agent name ({NAME_RULE}); owners are agents")
-    _read_item(repo, args.id)  # a missing id is named before any ownership check
+    _require_item(repo, args.id)  # a missing id is named before any ownership check
     if owner and owner in _paused(repo):
         _warn(f"{owner} is PAUSED — the item waits in its queue until the pause is lifted")
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="assign"):
@@ -3616,7 +3645,7 @@ def _cited_done(repo: Path, cited: str) -> tuple[dict, str]:
 
 def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    first = _read_item(repo, args.id)
+    first = _require_item(repo, args.id)
     kind = str(first.get("kind") or "")
     if kind in LINKED_KINDS:
         raise WorkError(
@@ -3668,7 +3697,7 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
     verb = f"drop {item_id} --duplicate-of {keep_id}"
     if keep_id == item_id:
         raise WorkError(f"{verb} refused: an item cannot be a duplicate of itself")
-    _read_item(repo, keep_id)
+    _require_item(repo, keep_id)
     session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="drop"):
         item = _read_item(repo, item_id)
@@ -3733,7 +3762,7 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
 
 def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _require_item(repo, args.id)
     why = " ".join((args.why or "").split())
     keep_id = (args.duplicate_of or "").strip()
     if keep_id:
@@ -3762,7 +3791,7 @@ def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _require_item(repo, args.id)
     note = " ".join((args.note or "").split())
     if not note:
         raise WorkError(f"answer {args.id} needs --note <the operator's words>")
@@ -3832,7 +3861,7 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
     if action in ("reject", "comment") and not text:
         raise WorkError(f"verdict {action} needs --text <the operator's words>")
     via = _one_line(args.by or "", 40) or "cli"
-    _read_item(repo, args.id)
+    _require_item(repo, args.id)
     session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="verdict"):
         item = _read_item(repo, args.id)
