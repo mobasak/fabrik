@@ -5007,12 +5007,17 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         # The worker serves no HTTP: its HEALTHCHECK reads the heartbeat age instead (exec form, so the
         # CMD must be a JSON list — anything else Docker runs through /bin/sh, never healthy). A callable
         # replacement keeps re's template escapes out of the JSON; a template whose HEALTHCHECK drifted
-        # is refused, not shipped with the curl /health check a worker can never pass.
+        # is refused, not shipped with the curl /health check a worker can never pass. The template's
+        # HTTP comment lines above it, when present, are replaced too.
         healthcheck = (
+            "# Health check: the worker heartbeat was written in the last 120 s\n"
+            "# (fabrik.scaffold.FILE_WORKER_HEARTBEAT_CHECK; exec form, so CMD stays a JSON list)\n"
             "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \\\n"
             "    CMD " + json.dumps(["python", "-c", FILE_WORKER_HEARTBEAT_CHECK])
         )
         content, replaced = re.subn(
+            r"(?:# Health check \(customize port and endpoint\)\n)?"
+            r"(?:# Note: /health tests actual dependencies[^\n]*\n)?"
             r"HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\\n"
             r"    CMD curl -f http://localhost:\$\{PORT:-8000\}/health \|\| exit 1",
             lambda _m: healthcheck,

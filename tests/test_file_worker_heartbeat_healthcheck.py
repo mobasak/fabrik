@@ -64,8 +64,13 @@ def _scaffolded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, li
         name="fw-hc", project_type="file-worker", description="healthcheck", base=tmp_path
     )
     project = tmp_path / "fw-hc"
+    dockerfile = (project / "Dockerfile").read_text()
+    # /app is the project root the worker beats under (worker/main.py: <root>/.tmp/worker_heartbeat)
+    assert "WORKDIR /app\n" in dockerfile and "COPY . .\n" in dockerfile
+    # the template's HTTP comments went with its HTTP check
+    assert "/health" not in dockerfile and "customize port and endpoint" not in dockerfile
     return {
-        "scaffold-Dockerfile": _dockerfile_check((project / "Dockerfile").read_text()),
+        "scaffold-Dockerfile": _dockerfile_check(dockerfile),
         "scaffold-compose": _compose_check((project / "compose.yaml").read_text()),
     }
 
@@ -117,8 +122,17 @@ def test_no_emitted_check_runs_pgrep_or_find(checks: dict[str, list[str]]) -> No
         assert "pgrep" not in words and "find" not in words, (where, argv)
 
 
-_AGES = {"fresh": 0.0, "stale": -180.0, "future": 600.0, "missing": None}
-_EXPECT = {"fresh": 0, "stale": 1, "future": 1, "missing": 1}
+# Seconds added to "now" for the heartbeat's mtime. The 115/125 pair brackets the 120 s window (an exact
+# 120 is not testable against a moving clock); a 30 s or a 300 s window fails one of them.
+_AGES = {
+    "fresh": 0.0,
+    "fresh-115s": -115.0,
+    "stale-125s": -125.0,
+    "stale": -180.0,
+    "future": 600.0,
+    "missing": None,
+}
+_EXPECT = {"fresh": 0, "fresh-115s": 0, "stale-125s": 1, "stale": 1, "future": 1, "missing": 1}
 
 
 @pytest.mark.parametrize("state", sorted(_AGES))
@@ -156,20 +170,28 @@ def test_the_pgrep_kind_is_gone(tmp_path: Path) -> None:
         _write_canonical_compose(project, "w", with_traefik=False, healthcheck_kind="process")
 
 
+@pytest.mark.parametrize("drift, found", [("start-period", 0), ("doubled", 2)])
 def test_a_drifted_dockerfile_healthcheck_fails_the_scaffold(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    drift: str, found: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A `Dockerfile.python` whose HEALTHCHECK no longer matches would have kept the curl `/health` check,
-    which a worker with no HTTP server can never pass; the scaffold now refuses instead."""
+    which a worker with no HTTP server can never pass, and one with two would have shipped two; the
+    scaffold refuses both."""
     tpl = tmp_path / "tpl"
     shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
     src = (tpl / "docker" / "Dockerfile.python").read_text()
-    drifted = src.replace("--start-period=10s", "--start-period=20s")
+    m = re.search(r"(?m)^HEALTHCHECK .*\\\n.*\n", src)
+    assert m, "the template's HEALTHCHECK moved"
+    if drift == "start-period":
+        drifted = src.replace("--start-period=10s", "--start-period=20s")
+    else:
+        drifted = src.replace(m.group(0), m.group(0) + m.group(0))
     assert drifted != src
     (tpl / "docker" / "Dockerfile.python").write_text(drifted)
     monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
     monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
     project = tmp_path / "fw-drift"
     project.mkdir()
-    with pytest.raises(ValueError, match="HEALTHCHECK"):
+    with pytest.raises(ValueError, match=rf"expected one HTTP HEALTHCHECK .* found {found}$"):
         scaffold._scaffold_file_worker(project, "fw-drift", "drift")
+    assert not (project / "Dockerfile").exists()  # refused before anything was written
