@@ -5036,7 +5036,6 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     makefile_src = TEMPLATE_DIR / "docker" / "Makefile.python"
     if makefile_src.exists():
         content = makefile_src.read_text()
-        content = content.replace("myproject", name)
         # A file-worker keeps its code in worker/, not src/ (the template's lint/gate-lean type src).
         content = content.replace("mypy src", "mypy --explicit-package-bases worker")
         # docker-smoke: the worker serves no HTTP, so the template's curl to /health could never pass (W-881752ec).
@@ -5058,7 +5057,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             ),
         }
         # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
-        has_smoke = re.search(r"(?m)^docker-smoke\s*:", content) is not None
+        has_smoke = (
+            re.search(r"(?m)^docker-smoke[ \t]*::?(?!=)", content) is not None
+        )  # a rule, never `:=`
         for old, new in smoke.items() if has_smoke else ():
             if content.count(old) != 1:
                 raise ValueError(
@@ -5068,6 +5069,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             content = content.replace(old, new)
         if has_smoke:
             content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
+        # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
+        # turn `PROJECT_NAME ?= x9-smoke-test` into a self-reference make refuses to load
+        content = content.replace("myproject", name)
         # Replace the dev target body: match any uvicorn invocation on the line
         # following the "dev:" target and replace it with the worker command.
         # This handles the actual template command regardless of exact arguments.

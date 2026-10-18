@@ -271,3 +271,47 @@ def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
     project.mkdir()
     with pytest.raises(ValueError, match="docker-smoke"):
         scaffold._scaffold_file_worker(project, "fw-drift", "drift")
+
+
+def test_a_project_named_like_the_smoke_container_keeps_a_loadable_makefile(tmp_path, monkeypatch):
+    """The `smoke-test` rename ran after the name went in, so `x9-smoke-test` got
+    `PROJECT_NAME ?= x9-$(PROJECT_NAME)-smoke`, which make refuses to load."""
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", _ROOT / "templates" / "scaffold")
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    create_project(
+        name="x9-smoke-test", project_type="file-worker", description="smoke", base=tmp_path
+    )
+    project = tmp_path / "x9-smoke-test"
+    makefile = (project / "Makefile").read_text()
+    assert "PROJECT_NAME ?= x9-smoke-test\n" in makefile, makefile[:400]
+    if shutil.which("make") is None:
+        pytest.skip("GNU make is not on PATH")
+    out = subprocess.run(
+        ["make", "-n", "-C", str(project), "clean"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout
+    assert "docker stop x9-smoke-test-smoke" in out, out
+
+
+@pytest.mark.parametrize(
+    "makefile",
+    [
+        ".PHONY: dev docker-smoke\ndev:\n\tuvicorn x.main:app\n",  # a mention, no rule
+        "docker-smoke := 1\ndev:\n\tuvicorn x.main:app\n",  # an assignment, no rule
+        "docker-smoke\n: x\ndev:\n\tuvicorn x.main:app\n",  # not a rule: the colon is on the next line
+    ],
+)
+def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeypatch):
+    """Only a `docker-smoke:` (or `::`) rule is rewritten; a template without one has nothing to refuse."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    (tpl / "docker" / "Makefile.python").write_text(makefile)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-plain"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-plain", "plain")
+    assert (project / "Makefile").exists()
