@@ -1265,6 +1265,22 @@ def test_a_vanished_run_folder_answers_no_lines_never_raises(tmp_path: Path) -> 
     assert cr._seat_size_lines(str(tmp_path / "gone"), threshold=1, deadline_s=5.0) == []
 
 
+def test_an_unlistable_run_folder_answers_no_lines(tmp_path: Path) -> None:
+    """W-2dadedfd: a folder with no read bit (mode 0000) cannot even be LISTED, so there is no entry
+    to name — no lines, unlike the listable-but-unsearchable 0444 folder whose entries each read as
+    unmeasured. The docstring states both; this pins the half it had overstated."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0000")
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    run.chmod(0o000)
+    try:
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
+    finally:
+        run.chmod(0o755)
+    assert lines == [], lines
+
+
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────
 def test_an_adopted_folder_reads_running_and_is_never_retired(tmp_path: Path, monkeypatch) -> None:
     """F-A1: once the resumed record persists, the adopted folder's marker reads `running` with an
