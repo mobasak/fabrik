@@ -13,12 +13,14 @@ it stays here by choice (spine § Ticket breadth). Then the whole-plan close.
 
 The read runs in a CHILD PROCESS, so the spec's whole-read bound holds whatever the server does (spec
 `docs/superpowers/specs/2026-10-18-external-services-page-design.md:294`, :413). A new
-`scripts/sysadmin/inventory_read.py` is that child: run as `[sys.executable, <its path>]` like the board's other
-subprocesses (`quota_dashboard.py:493`, :592), it puts `scripts/` and `scripts/sysadmin/` on its own `sys.path`,
+`scripts/sysadmin/inventory_read.py` is that child: run as `[sys.executable, <its path>, "--deadline", <epoch seconds>]`
+like the board's rotation call (`quota_dashboard.py:592`), it puts `scripts/` and `scripts/sysadmin/` on its own `sys.path`,
 connects with `registry_db.connect(connect_timeout=2, options="-c statement_timeout=2000")`, calls
 `inventory.load(conn, before_query=…)` re-arming `SET LOCAL statement_timeout` to the deadline left (never below
-1 ms), and prints `{"rows": …, "synced_at": …}` as JSON on stdout, exiting non-zero with one line on stderr on
-any failure. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
+1 ms), and prints one JSON object on stdout, `{"rows": [<row>, …], "synced_at": <float> | null}`, every row
+carrying T02's keys with strings, ints, floats, `null` and lists of strings only (a balance or price is converted
+to `float` before `json.dumps`), exiting 0; on any failure it prints exactly one line on stderr,
+`<ExceptionClass>: <first line of the message>`, and exits 1. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
 is the child's failure, so the section's error state), and needs no `sys.path` change.
 
 The collector, `_inventory(ctx)`, in `quota_dashboard.py`, keeps two fields behind ONE lock: the last good read
@@ -27,13 +29,17 @@ deadline, a done event). Each request has ONE deadline, 5 s from its own arrival
 bounded by what is left of it. Under the lock — held only for these decisions, never across a read — a request
 (1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, spawns the child,
 whose deadline is this request's; else (3) joins the read in flight. It then releases the lock and waits on that
-read's done event until its OWN deadline. The spawning request's waiter thread reads the child with
-`communicate(timeout=<the read's deadline left>)`, kills the child on timeout (`kill()` then `wait()`, which
-cannot block on the server: the child is gone), writes the last good read under the lock on success, and clears
+read's done event until its OWN deadline. A read's deadline is 4.5 s after its spawning request's arrival, so the
+kill, the cleanup and the render fit inside that request's 5 s. The spawning request's waiter thread reads the
+child with `communicate(timeout=<the read's deadline left>)` and on timeout kills it and calls `communicate()`
+again, which reaps the child and drains and closes both pipes and cannot block on the server — the child is
+gone (`kill()` then `wait()` on a child blocked in `recv()` returned in 0.001 s in the review's probe); it writes the last good read under the lock on success, and clears
 the in-flight field on every exit — so a read never outlives its 5 s and at most one is ever alive. ONE outcome
 rule covers every request that ends without a fresh result (its wait ran out, the child failed or was killed):
 the section's error state, as spec § Failure states; the last good read is served only inside its 60 s, and a
-failed read never replaces it. The error state carries the failure's class and first line only. No connection is
+failed read never replaces it. The error state carries the failure's class and first line only: the child's
+stderr line as printed, `ReadTimeout: registry read killed at its deadline` for a killed child, and
+`ReadFailed: <first stderr line, or the exit status>` for a child that exits non-zero without the line. No connection is
 ever cancelled: `psycopg2`'s `cancel()` against a server that accepts and never answers froze every thread of the
 process in this review's pass-3 probe (TCP, executed); the child's kill is what ends a stalled read. The collector
 also reads `classified_at` as the mtime of
@@ -97,7 +103,8 @@ times out; libpq connects in C and never calls Python's `socket.socket.connect` 
 while `psycopg2.connect('host=127.0.0.1 port=1 …')` failed), so the board suites' `no_network` guard
 (`tests/quota_dashboard_isolation.py:51-58`) cannot see a registry connection, TCP or the default peer-auth socket
 (`scripts/registry_db.py:19`); the guard is therefore two-sided — `isolate()` (:35) sets `SERVICES_REGISTRY_DSN`
-(`scripts/registry_db.py:27`) to an unusable DSN, inherited by any child, and `after_load` (:46) replaces the
+(`scripts/registry_db.py:27`) to `postgresql:///none?host=<tmp_path>/no-socket`, a unix-socket directory that does
+not exist, so any child fails at once with no name lookup or network attempt; it is inherited by any child, and `after_load` (:46) replaces the
 collector's spawn with the stub — and without it every Services render in these suites would read the live
 registry —
 `tests/test_quota_dashboard.py` renders Services at :1284, :1349, :1527, :1855, :1864, :1873, :1961, :1966, :2476,

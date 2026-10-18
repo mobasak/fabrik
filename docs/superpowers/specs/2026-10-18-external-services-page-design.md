@@ -249,7 +249,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 
 - One reader: `load()` moves out of `gen_dashboard.py` into `dashboard_ui/inventory.py` as
   `load(conn, *, before_query=None) -> (rows, synced_at)`: it takes an open connection (the caller
-  connects) and calls `before_query(cur)` before each of its queries (the live collector's deadline hook,
+  connects) and calls `before_query(cur)` before each of its queries (the live read's deadline hook, run in its child process,
   § Failure; the chain passes none), keeping its queries,
   its `kind`-tolerant column check and its guards (NaN, Infinity and negative balances and prices refused).
   Each row gains `credit_at` (the snapshot's `fetched_at`) beside the balance, so the 48 h rule is judged at
@@ -325,7 +325,7 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
 - The board runs the registry reader as a child process (D9): `scripts/sysadmin/inventory_read.py` — new — puts
   `scripts/` and `scripts/sysadmin/` on its own `sys.path`, imports `registry_db` and `dashboard_ui.inventory.load`,
   and prints the read as JSON; the guarded collector in `quota_dashboard.py` spawns it under `sys.executable`
-  as the board's other subprocesses run (`quota_dashboard.py:493`, :592) and kills it at the read's deadline.
+  as the board's rotation call runs (`quota_dashboard.py:592`) and kills it at the read's deadline.
   The board process imports neither `registry_db` nor psycopg2 and changes no `sys.path`, so a missing psycopg2
   fails the child, the inventory section shows its error state, and the board always starts.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
@@ -561,5 +561,5 @@ https://docs.djangoproject.com/en/5.1/ref/templates/builtins/
 ## Amendments
 
 - 2026-10-18, decision D-968 (superseding D-966 in part), found by the plan review: the live registry read runs in a
-  child process the collector kills at its deadline — § Failure, § Contract deltas, § Constraints Digest and D9 —
+  child process the collector kills at its deadline — § Data flow, § Failure, § Contract deltas, § Constraints Digest, D9 —
   because no in-process mechanism ends a read against a server that accepts and never answers.
