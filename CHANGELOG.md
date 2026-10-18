@@ -7,9 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — the probe catalogue's Sweep also catches a paraphrase of a rule another command holds (2026-10-18)
 
 - `commands/_fragments/review-probe-catalogue.md` § Prose and docs fixes, Sweep: a sentence a fix writes that
-  states a rule another command or fragment already holds is found at that source and replaced by a pointer or the
-  clause quoted whole (`/fabrik-review-scoped` step 3). The quote re-read never saw a paraphrase; five answered
-  rejects had cited step 3 (row 1792304655).
+  restates a rule already stated elsewhere is held to `/fabrik-review-scoped` step 3's rule for what is already
+  stated, its source found by the rule's terms and two rewordings of them. The quote re-read never saw a paraphrase;
+  five answered rejects had cited step 3 (row 1792304655).
 
 ### Fixed — /fabrik-deploy-plan-review names `scratch_dir` and its pins root (2026-10-18)
 
