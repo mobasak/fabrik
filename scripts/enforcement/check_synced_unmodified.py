@@ -159,13 +159,26 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
         # (whose `__str__` would run when `main()` prints it) is named like any other failure.
         if type(e) is ManifestError or type(e) is KeyboardInterrupt:
             raise
+        # Both halves of the message run manifest code — the exception's `__str__` and its
+        # metaclass's `__name__` (W-deb8eb0f) — so each is read inside its own guard, and each
+        # must be an EXACT str: a str subclass's `__format__` would run in the f-string below.
+        try:
+            name = type(e).__name__
+            if type(name) is not str:
+                raise TypeError("not an exact str")
+        except BaseException as inner:
+            if type(inner) is KeyboardInterrupt:
+                raise
+            name = "<its type raised too>"
         try:
             detail = str(e)
+            if type(detail) is not str:
+                raise TypeError("not an exact str")
         except BaseException as inner:
             if type(inner) is KeyboardInterrupt:
                 raise
             detail = "<its message raised too>"
-        raise ManifestError(f"{path} failed to load or answer: {type(e).__name__}: {detail}") from e
+        raise ManifestError(f"{path} failed to load or answer: {name}: {detail}") from e
 
 
 def _main_checkout(project_root: Path) -> Path | None:

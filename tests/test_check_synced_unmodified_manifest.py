@@ -259,6 +259,9 @@ _POST_LOAD_REFUSAL = {
     "metaclass-eq-entry": "RETIRED_VENDORED_DIRS holds a C, not a path",
     "metaclass-name": "failed to load or answer: SystemExit: 0",
     "colliding-dict-key": "failed to load or answer: SystemExit: 0",
+    "exc-type-name": "failed to load or answer: <its type raised too>: x",
+    "exc-name-str-subclass": "failed to load or answer: <its type raised too>: x",
+    "exc-str-str-subclass": "failed to load or answer: E: <its message raised too>",
 }
 
 
@@ -321,6 +324,16 @@ _POST_LOAD_REFUSAL = {
         "    def __hash__(self):\n        return hash('SEEDED_NOT_ENFORCED')\n"
         "    def __eq__(self, other):\n        if K.armed:\n            _exit0()\n"
         "        return False\nglobals()[K()] = 1\n" + _FULL_MANIFEST + "K.armed = True\n",
+        # The raised exception's TYPE name, read while the failure's message is built (W-deb8eb0f):
+        # outside the inner guard it escaped `main()` as SystemExit(0), GREEN.
+        _EXIT0 + "class Meta(type):\n    __name__ = property(_exit0)\n"
+        "class E(Exception, metaclass=Meta):\n    pass\nraise E('x')\n",
+        # Either half returned as a str SUBCLASS: its `__format__` would run in the f-string.
+        _EXIT0 + "class S(str):\n    __format__ = _exit0\n"
+        "class Meta(type):\n    __name__ = property(lambda c: S('E'))\n"
+        "class E(Exception, metaclass=Meta):\n    pass\nraise E('x')\n",
+        _EXIT0 + "class S(str):\n    __format__ = _exit0\n"
+        "class E(Exception):\n    def __str__(self):\n        return S('x')\nraise E('x')\n",
     ],
     ids=[
         "module-getattr",
@@ -338,6 +351,9 @@ _POST_LOAD_REFUSAL = {
         "metaclass-eq-entry",
         "metaclass-name",
         "colliding-dict-key",
+        "exc-type-name",
+        "exc-name-str-subclass",
+        "exc-str-str-subclass",
     ],
 )
 def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
@@ -359,9 +375,19 @@ def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     `_POST_LOAD_REFUSAL` for the two that have none). A guard that regressed to
     `getattr`/`isinstance`/`==` ends some other way — the wide catch's "failed to load or answer:
     SystemExit", a SystemExit escaping `main()`, or drift blamed on the project — never with the
-    guard's own words."""
+    guard's own words.
+
+    An escaped SystemExit is failed HERE, by its plain code and outside the `except`, because
+    pytest formatting the hostile exception (W-deb8eb0f) re-runs its code and ends the whole
+    session at rc 0 — a regression that reads as a green suite."""
     files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
-    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    escaped: object = None
+    try:
+        rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    except SystemExit as exc:
+        escaped = repr(exc.code) if type(exc.code) in (int, type(None)) else "<non-int code>"
+    if escaped is not None:
+        pytest.fail(f"SystemExit({escaped}) escaped main(): GREEN in a real process", pytrace=False)
     out = capsys.readouterr().out
     assert rc == 1, out
     assert _HUB_WORDS in out, out
