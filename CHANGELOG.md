@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the sync's synced lists and .gitignore block come from HEAD's manifest, never the working tree (2026-10-18)
+
+- `scripts/sync_enforcement_to_projects.py` already shipped tracked files from HEAD (T12.17), but WHAT it ships and the `.gitignore` block it computes came from the manifest imported off disk, so a sibling's uncommitted manifest edit patched ~46 repos with no drift line.
+- `main()` now binds every manifest name from the committed manifest, and the drift report names a drifted manifest as such. A HEAD manifest that cannot be bound stops the run with the reason instead of falling back to the working tree. A function-local manifest import that bypassed the binding is gone (W-8c57e84a, D-986).
+
 ### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
 
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
