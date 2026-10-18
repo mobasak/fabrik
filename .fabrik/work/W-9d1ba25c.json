@@ -1,8 +1,10 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab242b11"
+  ],
   "created": "2026-10-18T18:05:27.841364Z",
   "creator": "infra",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-9d1ba25c",
   "impact": "high",
@@ -16,8 +18,8 @@
   "next": "measure: after /clear, command_run line/round/done, final_gate_stop and work.py release all read the new sid; design adoption by cwd+agent+window, /fabrik-task",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "bug that blocks agents: a pre-/clear record keeps the Stop hook and claims on the old session id; one script, one session",
+  "priority": 2,
+  "score_reason": "spec-sized per infra's measure: new session-alias mechanism shared by 4 readers on governance-sync paths, trade-off first = a major; held behind W-ab242b11",
   "status": "open",
   "tags": [
     "infra"
