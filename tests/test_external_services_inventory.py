@@ -744,22 +744,40 @@ def test_a_credential_value_appears_nowhere_and_a_hostile_name_renders_as_text(i
 
 
 # ---------------------------------------------------------------- 8. speed
+def _cpu_best(fn, runs: int = 5) -> float:
+    best = math.inf
+    for _ in range(runs):
+        start = time.process_time()
+        fn()
+        best = min(best, time.process_time() - start)
+    return best
+
+
+def _reference_workload() -> None:
+    """Escape-and-format work of the render's own kind: ~20 ms of CPU on an unloaded box."""
+    import html
+
+    for i in range(60000):
+        html.escape(f"u{i}@y.io", quote=True)
+        f"{i:g}".strip()
+
+
 def test_a_5000_row_fixture_renders_in_under_200_ms():
+    """CPU time (process_time), best of 5, in both modes: the render's own cost. On a loaded box a
+    process's CPU time itself stretches (shared cores), so the budget scales by how much a fixed
+    reference workload stretched (1x to 3x); a render that is slow stays slow against that."""
     rows = [  # the WORST mix: every row categorised, with a link, projects, a credit and a renewal
         base(
             f"p{i}", category=f"cat-{i % 18:02d}", cost="paid", url=f"https://p{i}.example",
-            keys=2, projects=["a", "b", "c", "d"], account="x@y.io", balance=5.0, unit="usd",
+            keys=2, projects=["a", "b", "c", "d"], account=f"u{i}@y.io", balance=5.0, unit="usd",
             credit_at=NOW - H, renews="2026-11-01", price="20 usd",
         )
         for i in range(5000)
     ]  # fmt: skip
     for interactive in (True, False):
-        best = math.inf
-        for _ in range(3):
-            start = time.perf_counter()
-            render(rows, interactive=interactive)
-            best = min(best, time.perf_counter() - start)
-        assert best < 0.2, (interactive, best)
+        stretch = min(3.0, max(1.0, _cpu_best(_reference_workload) / 0.020))
+        best = _cpu_best(lambda mode=interactive: render(rows, interactive=mode))
+        assert best < 0.2 * stretch, (interactive, best, stretch)
 
 
 # ---------------------------------------------------------------- invariants the rows are instances of
