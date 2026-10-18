@@ -2,13 +2,13 @@
 
 ## Overview
 
-A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and AI chat integration.
+A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and chat UI components (no chat endpoint yet).
 
 ## Features
 
 - **Marketing Site**: Landing, pricing, FAQ, terms, privacy pages
 - **App Shell**: Sidebar navigation, dashboard, job workflow
-- **Chat UI**: SSE streaming component for AI chat integration
+- **Chat UI**: SSE streaming components; wire them to an authenticated, rate-limited endpoint (none ships)
 - **Self-hosted auth (Pattern A)**: the FastAPI backend (`server/`) is the IdP — issues its own JWTs via the vendored `fastapi_user_auth` (Argon2, refresh rotation, jti denylist, tenant RLS) on `postgres-main` + `redis-main`
 
 ## Quick Start
@@ -23,7 +23,7 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env — frontend needs NEXT_PUBLIC_API_URL + OpenRouter; the backend
+# Edit .env — frontend needs NEXT_PUBLIC_API_URL; the backend
 # (server/.env) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
 
 # Start development
@@ -53,7 +53,6 @@ See `docs/QUICKSTART.md` for build instructions and local development, and `CLAU
 │   │   ├── items/[id]/   # Job detail
 │   │   └── settings/     # Settings
 │   ├── api/
-│   │   ├── chat/         # SSE streaming endpoint
 │   │   └── health/       # Health check endpoint
 │   └── layout.tsx        # Root layout
 ├── components/
@@ -70,19 +69,23 @@ See `docs/QUICKSTART.md` for build instructions and local development, and `CLAU
 
 ### Chat UI Component
 
-The template includes a pre-built chat component that streams AI responses:
+The template ships the `ChatUI` / `SSEStream` components and **no chat endpoint**. A model call spends
+the app's own provider key, so it must sit behind a signed-in session and a rate limit; an
+authenticated, rate-limited backend chat route is planned (W-ab242b11). Until it lands, wire
+`ChatUI` only to an endpoint that checks the session and limits the caller:
 
 ```tsx
 import { ChatUI } from "@/components/chat";
 
 export default function ChatPage() {
   return (
-    <ChatUI endpoint="/api/chat" placeholder="Ask anything..." />
+    <ChatUI endpoint="<your authenticated chat endpoint>" placeholder="Ask anything..." />
   );
 }
 ```
 
-The `/api/chat` endpoint streams responses via SSE, backed by the **OpenRouter API** (`openrouter.ai/api/v1` — one key, every provider; no vendor SDK). Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (default `anthropic/claude-sonnet-4.6`; pick any slug from <https://openrouter.ai/models>). The route re-emits `text_delta` / `done` / `error` events the `ChatUI` consumes, and returns 503 if `OPENROUTER_API_KEY` is unset. The assistant's instructions are server code: edit `CHAT_SYSTEM_PROMPT` in `lib/config/chat.ts` (empty sends no system message). The route reads only `message` from the request, as a non-empty string, so a visitor cannot set or override them.
+`ChatUI` sends only `{ message }` and renders the `text_delta` / `done` / `error` SSE events it
+receives; the model's instructions belong to the server, never to the request.
 
 ### Kilo CLI for Development
 
@@ -135,9 +138,6 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_APP_NAME=Your SaaS
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# AI chat (OpenRouter — required for /api/chat)
-OPENROUTER_API_KEY=your-openrouter-key
-OPENROUTER_MODEL=anthropic/claude-sonnet-4.6
 ```
 
 ## Customization
