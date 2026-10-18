@@ -2611,4 +2611,7 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         assert "scripts/final_gate.py" in p and "--check" in p, label
         assert 'os.chdir("SCRATCH/clone")' in p, label
         assert "never from the live repo" in p and "UNPINNED" in p, label
-        assert "skipped_checks" in p, label
+        assert "skipped_checks" in p and "setup-error" in p, label
+        # the two scopes the gate reads (critiques, executed): the index, and the range against @{upstream}
+        assert "--set-upstream-to=base pins" in p and "NEVER commit the pins" in p, label
+        assert "Run the gate TWICE" in p and "MANIFEST.md5" in p, label
