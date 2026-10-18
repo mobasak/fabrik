@@ -698,8 +698,8 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
     assert "and of each field a fix writes, named before the closing round." in cat
     assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring and"
-        " `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
+        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring,"
+        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
         " outdates);"
@@ -835,3 +835,17 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
         assert span == clause.format(unit), (name, span)
     picker = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
     assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
+
+
+def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
+    """Row 1792291617, a recurrence of held reproduction-verbatim-in-fix-brief (1791058267): the lead routed a fix to
+    a coder as a patch, and the coder's version held for the reported shape only. The fix list now carries the
+    invariant, the shapes the replaced form held and the reproduction, right after the shapes are enumerated."""
+    text = _norm(SRC)
+    start = text.index("asked here of every replaced form)?") + len("asked here of every replaced form)?")
+    end = text.find("A **wrong fix to a real finding is itself a defect**", start)
+    assert end != -1, "the wrong-fix sentence still follows"
+    assert text[start:end].strip() == (
+        "A fix the lead routes to another seat is written in the pass's fix list as the invariant it must hold plus"
+        " those shapes and the reproduction it answers, never as the patch alone."
+    )

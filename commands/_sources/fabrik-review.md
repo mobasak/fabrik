@@ -432,12 +432,13 @@ narrower one, a restored test by one covering fewer pages or languages — the s
 form before the fix is drafted, never from the new one, and listed in the fix's Pass Ledger `method:` cell
 beside its `round-zero probe` note (the probe catalogue's "what a replaced guard covered that its replacement
 does not"; the discipline `term-coverage` round zero states for a matcher or replacer, probed "against its
-live population before it widens or narrows", asked here of every replaced form)? A **wrong fix to a real
-finding is itself a defect**, and cheaper finders/implementers propose more of them — treat a finder's
-suggested fix as an *external reviewer's suggestion to verify*, never an order to transcribe. If the finding
-is real but its proposed fix is wrong, implement the correct fix (or, when the current behavior is actually
-right, REFUTE the fix with the reason). **Never apply a fix you can't stand behind just to clear the
-ledger** — no performative "fixed."
+live population before it widens or narrows", asked here of every replaced form)? A fix the lead routes to another seat
+is written in the pass's fix list as the invariant it must hold plus those shapes and the reproduction it answers, never
+as the patch alone. A **wrong fix to a real finding is itself a defect**, and cheaper finders/implementers propose more
+of them — treat a finder's suggested fix as an *external reviewer's suggestion to verify*, never an order to transcribe.
+If the finding is real but its proposed fix is wrong, implement the correct fix (or, when the current behavior is
+actually right, REFUTE the fix with the reason). **Never apply a fix you can't stand behind just to clear the ledger** —
+no performative "fixed."
 
 Classify each on TWO axes. **Severity:** correctness/security vs. style — correctness/security outranks
 style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — LOCAL vs
