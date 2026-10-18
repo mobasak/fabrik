@@ -71,7 +71,7 @@ export function ChatUI({
 
   return (
     <div className={cn("flex flex-col h-[600px] rounded-2xl border", className)}>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" aria-live="polite">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Start a conversation
@@ -135,6 +135,7 @@ export function ChatUI({
         <div className="flex gap-2">
           <input
             type="text"
+            aria-label="Message"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
@@ -143,6 +144,7 @@ export function ChatUI({
           />
           <button
             type="submit"
+            aria-label="Send message"
             disabled={isStreaming || !input.trim()}
             className="rounded-xl bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >

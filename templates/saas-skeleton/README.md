@@ -104,11 +104,13 @@ own port proxies neither, so a chat request there reaches Next and is a 404.
 
 ### Limits and cost
 
-Four buckets must all pass, checked together before any is counted: the whole app
-(`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600), the user
-(`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per /64). A full bucket answers
-429 with `Retry-After`. At the defaults the app produces at most 1200 × 1024 = 1,228,800 output
-tokens per hour; multiply by your model's price to get the ceiling in money.
+Up to four buckets must all pass, checked together before any is counted: the whole app
+(`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600; only for a user who
+belongs to one), the user (`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per
+/64; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
+each starting at its bucket's first request, so at the defaults the app produces at most
+1200 × 1024 = 1,228,800 output tokens per window, and up to twice that in any one rolling hour that
+spans two windows; multiply by your model's price to get the ceiling in money.
 
 `CHAT_MAX_TOKENS` (default 1024) bounds each reply. On a reasoning model it covers the reasoning and
 the visible reply together, so a small value can return an empty reply that stopped at the limit;

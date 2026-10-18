@@ -167,6 +167,8 @@ const results: Record<string, unknown> = {
     ]),
   ]),
   empty_reply: await run("csrf_token=a", [sse(['data: {"type":"done"}\n\n'])]),
+  malformed_only: await run("csrf_token=a", [sse(['data: {"type":"text_delta","text":5}\n\ndata: {"type":"done"}\n\n'])]),
+  limited_no_wait: await run("csrf_token=a", [problem(429, { detail: "Rate limit reached (app)" })]),
   refresh_bounded: await (async () => {
     let signalled = false;
     (globalThis as { document?: { cookie: string } }).document = { cookie: "csrf_token=a" };
@@ -285,8 +287,10 @@ def test_the_https_cookie_name_wins_when_both_are_set(hook):
     assert hook["both_cookies"]["calls"][0]["csrf"] == "host"
 
 
-def test_a_last_frame_without_a_newline_is_still_delivered(hook):
+def test_a_stream_without_its_done_frame_is_reported_cut_off(hook):
+    # the text that arrived is kept, and the user is told the reply did not finish
     assert hook["unterminated"]["completes"] == ["last"]
+    assert hook["unterminated"]["errors"] == ["The reply was cut off. Try again."]
 
 
 def test_the_hook_state_tracks_the_stream(hook):
@@ -344,6 +348,8 @@ def test_a_frame_cut_across_chunks_is_delivered_once(hook):
         "tools",
         "first_401_body",
         "empty_reply",
+        "malformed_only",
+        "limited_no_wait",
     ],
 )
 def test_on_complete_fires_exactly_once_on_every_path(hook, case):
@@ -355,8 +361,16 @@ def test_a_429_shows_its_retry_after_and_names_the_bucket(hook):
     assert "30" in hook["limited"]["errors"][0] and "(user)" in hook["limited"]["errors"][0]
 
 
-def test_a_malformed_frame_is_never_appended(hook):
+def test_a_malformed_frame_is_never_appended_and_is_reported(hook):
+    malformed = "The chat stream sent a malformed frame."
     assert hook["bad_frame"]["completes"] == ["ok"]
+    assert hook["bad_frame"]["errors"] == [malformed, malformed]
+    # a stream of only malformed frames reports them, never also an "empty reply"
+    assert hook["malformed_only"]["errors"] == [malformed]
+
+
+def test_a_429_without_retry_after_still_names_the_bucket(hook):
+    assert hook["limited_no_wait"]["errors"] == ["Rate limit reached (app) Try again later."]
 
 
 def test_a_throwing_handler_cancels_the_stream(hook):
@@ -513,6 +527,12 @@ def test_the_render_check_accepts_five_spellings_and_refuses_two_broken_ones():
     caught = [s for s in RENDER_SPELLINGS if _renders_the_error(s)]
     assert len(RENDER_SPELLINGS) == 5 and caught == RENDER_SPELLINGS, f"caught {len(caught)} of 5"
     assert not [s for s in RENDER_BROKEN if _renders_the_error(s)]
+
+
+def test_the_chat_ui_names_its_controls_and_announces_replies():
+    text = (CHAT / "ChatUI.tsx").read_text()
+    assert 'aria-label="Message"' in text and 'aria-label="Send message"' in text
+    assert 'aria-live="polite"' in text
 
 
 @pytest.mark.parametrize("name", ["SSEStream.tsx", "ChatUI.tsx"])

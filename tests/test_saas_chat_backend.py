@@ -491,6 +491,14 @@ def test_a_malformed_rate_fails_at_start(mods):
         mods["chat"].load_chat_settings({"CHAT_RATE_USER": "sixty"})
 
 
+@pytest.mark.parametrize("raw", ["1/9000000000000000", "1/31622401"])
+def test_a_rate_window_past_a_year_fails_at_start(mods, raw):
+    # PEXPIRE takes milliseconds: an absurd window would 503 every request instead of failing here
+    with pytest.raises(ValueError, match="CHAT_RATE_USER"):
+        mods["chat"].load_chat_settings({"CHAT_RATE_USER": raw})
+    assert mods["chat"].load_chat_settings({"CHAT_RATE_USER": "1/31622400"}).rate_user.window_s
+
+
 @pytest.mark.parametrize("value", ["nan", "inf", "0", "-1"])
 def test_a_read_timeout_that_is_not_a_positive_finite_number_fails_at_start(mods, value):
     with pytest.raises(ValueError, match="CHAT_UPSTREAM_READ_TIMEOUT"):
@@ -614,6 +622,26 @@ def test_a_non_2xx_upstream_is_an_error_frame(mods, redis_sock, sync_redis):
     up.status = 502
     r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
     assert [f["type"] for f in _frames(r.text)] == ["error"]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ['{"error": {"message": "bad key"}}'],  # a 200 JSON body, not SSE
+        ['data: {"choices":[{"delta":{"content":"par"}}]}'],  # the connection closes early
+    ],
+    ids=["json-body", "no-done"],
+)
+def test_an_upstream_that_ends_without_done_is_an_error(mods, redis_sock, sync_redis, lines):
+    up = Upstream()
+    up.lines = lines
+    before = _count(mods, "upstream_error")
+    r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
+    assert _frames(r.text)[-1] == {
+        "type": "error",
+        "error": "The model service ended the reply early",
+    }
+    assert _count(mods, "upstream_error") == before + 1
 
 
 def test_an_upstream_timeout_is_an_error_frame(mods, redis_sock, sync_redis):
@@ -812,19 +840,54 @@ def test_the_emitted_app_wires_the_read_timeout_into_its_chat_client(project):
     assert "httpx.Timeout(10.0, read=_chat_settings.read_timeout_s)" in main
 
 
-def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
-    """The emitted test's ``_db``, ``_server_id`` and ``_require_throwaway``, run here."""
+_GUARD_FUNCTIONS = ("_db", "_server_id", "_require_throwaway", "_dotenv_redis_urls")
+
+
+def _emitted_guard_ns(project: Path, app_redis_urls: tuple[str, ...]) -> dict[str, Any]:
+    """The emitted test's guard functions, run here against redis-py."""
     emitted = project / "server" / "tests" / "test_chat.py"
     tree = ast.parse(emitted.read_text())
-    keep = [
-        n
-        for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name in ("_db", "_server_id", "_require_throwaway")
-    ]
-    assert len(keep) == 3, [n.name for n in keep]
-    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url}
+    keep = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in _GUARD_FUNCTIONS]
+    assert len(keep) == len(_GUARD_FUNCTIONS), [n.name for n in keep]
+    ns: dict[str, Any] = {"_APP_REDIS_URLS": app_redis_urls, "Path": Path}
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(emitted), "exec"), ns)  # noqa: S102
-    return ns["_require_throwaway"]
+    return ns
+
+
+def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
+    return _emitted_guard_ns(project, (app_redis_url,) if app_redis_url else ())[
+        "_require_throwaway"
+    ]
+
+
+def test_the_emitted_guard_reads_the_apps_redis_url_from_its_env_files(project, tmp_path):
+    """Compose delivers the root .env and WSL dev keeps .env.local; neither is exported into the
+    test process, so the guard reads them itself."""
+    (tmp_path / ".env").write_text("# app\nREDIS_URL=redis://h:6379/5\nOTHER=1\n")
+    (tmp_path / ".env.local").write_text('export REDIS_URL="redis://h:6379/6"\n')
+    (tmp_path / "empty.env").write_text("REDIS_URL=\n")
+    read = _emitted_guard_ns(project, ())["_dotenv_redis_urls"]
+    paths = [
+        tmp_path / ".env",
+        tmp_path / ".env.local",
+        tmp_path / "empty.env",
+        tmp_path / "absent",
+    ]
+    assert read(paths) == ["redis://h:6379/5", "redis://h:6379/6"]
+
+
+def test_the_emitted_guard_checks_every_app_url_it_found(project, redis_sock):
+    # the app's URL from an env file is the second candidate; it alone matches and is refused
+    guard = _emitted_guard_ns(
+        project, ("redis://other.invalid:6379/2", f"unix://{redis_sock}?db=3")
+    )["_require_throwaway"]
+    with pytest.raises(RuntimeError, match="own REDIS_URL"):
+        guard(f"unix://{redis_sock}?db=3")
+
+
+def test_the_emitted_guard_scans_the_projects_env_files(project):
+    text = (project / "server" / "tests" / "test_chat.py").read_text()
+    assert '[_SERVER.parent / ".env", _SERVER.parent / ".env.local", _SERVER / ".env"]' in text
 
 
 @pytest.mark.parametrize(

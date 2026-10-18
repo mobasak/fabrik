@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
   - the key and model (503);
   - one Lua script that checks the app, tenant, user and IP buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
 - The emitted `_http_exc` now keeps an exception's headers, so `Retry-After` reaches the client.
-- Defaults are env-overridable: 1200 requests/hour app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens/hour (D-1022).
+- Defaults are env-overridable: 1200 requests per fixed hourly window app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens per window, up to twice that in a rolling hour that spans two windows (D-1022).
 - The project gets its own `server/tests/test_chat.py`, run against a throwaway `TEST_REDIS_URL` DB.
 - The hub proves the route and the limiter on a real throwaway `redis-server`: `tests/test_saas_chat_backend.py` and `tests/test_saas_chat_limiter_lua.py` (W-ab242b11 slice 2, D-1013, D-1022).
 

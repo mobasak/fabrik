@@ -110,6 +110,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
       setToolCalls([]);
       let fullText = "";
       let failed = false;
+      let finished = false;
 
       const handle = (event: StreamEvent) => {
         options.onEvent?.(event);
@@ -136,6 +137,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
             options.onError?.(event.error || "The chat stream reported an error.");
             break;
           case "done":
+            finished = true;
             break;
         }
       };
@@ -183,7 +185,10 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
         }
         buffer += decoder.decode();
         if (buffer) dispatch(buffer);
-        if (!fullText && !failed) {
+        if (!failed && !finished) {
+          // the backend always ends with `done` or `error`: a stream without either was cut off
+          options.onError?.("The reply was cut off. Try again.");
+        } else if (!failed && !fullText) {
           // a reasoning model capped by the server's max_tokens can finish with no visible text
           options.onError?.("The model returned an empty reply. Try again.");
         }

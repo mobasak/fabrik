@@ -2918,6 +2918,9 @@ class ChatSettings:
     read_timeout_s: float
 
 
+_MAX_WINDOW_S = 366 * 24 * 3600  # a year: PEXPIRE's milliseconds stay far inside int64
+
+
 def _bucket(environ: Mapping[str, str], name: str, default: str) -> Bucket:
     raw = (environ.get(name) or default).strip()
     count, sep, seconds = raw.partition("/")
@@ -2925,8 +2928,11 @@ def _bucket(environ: Mapping[str, str], name: str, default: str) -> Bucket:
         bucket = Bucket(int(count), int(seconds)) if sep else None
     except ValueError:
         bucket = None
-    if bucket is None or bucket.limit < 1 or bucket.window_s < 1:
-        raise ValueError(f"{name} must be <count>/<seconds> with both at least 1, got {raw!r}")
+    if bucket is None or bucket.limit < 1 or not 1 <= bucket.window_s <= _MAX_WINDOW_S:
+        raise ValueError(
+            f"{name} must be <count>/<seconds>, both at least 1 and the window at most"
+            f" {_MAX_WINDOW_S} s, got {raw!r}"
+        )
     return bucket
 
 
@@ -3065,11 +3071,13 @@ async def _relay(
                     {"type": "error", "error": f"The model service returned {response.status_code}"}
                 )
                 return
+            ended = False
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):
                     continue
                 data = line[5:].strip()
                 if data == "[DONE]":
+                    ended = True
                     break
                 try:
                     chunk = json.loads(data)
@@ -3085,6 +3093,11 @@ async def _relay(
                 text = delta.get("content") if isinstance(delta, dict) else None
                 if isinstance(text, str) and text:
                     yield _frame({"type": "text_delta", "text": text})
+            if not ended:
+                # a 200 that closes without [DONE] (a JSON error body, a dropped connection) is a failure
+                outcome = "upstream_error"
+                yield _frame({"type": "error", "error": "The model service ended the reply early"})
+                return
         yield _frame({"type": "done"})
         outcome = "ok"
     except httpx.TimeoutException:
@@ -3937,6 +3950,7 @@ import importlib
 import json
 import os
 import uuid
+from pathlib import Path
 
 import httpx
 import pytest
@@ -3944,9 +3958,38 @@ import pytest
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u@localhost/x")
 os.environ.setdefault("JWT_SECRET", "test-" + "x" * 40)  # >= 32 chars (module validator)
 
-_APP_REDIS_URL = os.environ.get(
-    "REDIS_URL", ""
-)  # captured before any test points the app elsewhere
+_SERVER = Path(__file__).resolve().parents[1]
+
+
+def _dotenv_redis_urls(paths: list[Path]) -> list[str]:
+    """REDIS_URL values in env files. Compose delivers the project's root .env to the app and WSL
+    dev keeps .env.local, neither of which is exported into this test process."""
+    found: list[str] = []
+    for path in paths:
+        try:
+            lines = path.read_text().splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            key, sep, value = line.strip().partition("=")
+            if sep and key.removeprefix("export ").strip() == "REDIS_URL":
+                value = value.strip().strip('"').strip("'")
+                if value:
+                    found.append(value)
+    return found
+
+
+# Every REDIS_URL the app could be using, captured before any test points the app elsewhere.
+_APP_REDIS_URLS = tuple(
+    url
+    for url in [
+        os.environ.get("REDIS_URL", ""),
+        *_dotenv_redis_urls(
+            [_SERVER.parent / ".env", _SERVER.parent / ".env.local", _SERVER / ".env"]
+        ),
+    ]
+    if url
+)
 _TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "")
 
 
@@ -3977,9 +4020,11 @@ def _require_throwaway(url: str) -> None:
     db = _db(url)
     if db == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
-    if _APP_REDIS_URL and db == _db(_APP_REDIS_URL):
+    for app_url in _APP_REDIS_URLS:
+        if db != _db(app_url):
+            continue
         # an unknown run_id (unreachable, or a user denied INFO) proves nothing, so it is refused
-        app_id, test_id = _server_id(_APP_REDIS_URL), _server_id(url)
+        app_id, test_id = _server_id(app_url), _server_id(url)
         if app_id is None or test_id is None or app_id == test_id:
             raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
 
