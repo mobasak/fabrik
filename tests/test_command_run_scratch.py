@@ -1230,17 +1230,18 @@ def test_a_symlinked_folder_is_never_handed_to_du(tmp_path: Path, monkeypatch) -
 
 def test_an_unsearchable_run_folder_never_raises(tmp_path: Path) -> None:
     """A readable but unsearchable folder (mode 0444) lists its names but every stat raises
-    EACCES: the advisory skips those entries and returns, never raises past its caller's
-    `suppress` and loses the folder's other lines (review pass 1, Ah-C1)."""
+    EACCES: the advisory says each entry is unmeasured and returns, never raises past its caller's
+    `suppress` (review pass 1, Ah-C1) and never reads as "not large" by silence (pass 2, C-1)."""
     if os.geteuid() == 0:
         pytest.skip("root bypasses mode 0444")
     run = tmp_path / "run"
     (run / "seat-1").mkdir(parents=True)
     run.chmod(0o444)
     try:
-        assert cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0) == []
+        lines = cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0)
     finally:
         run.chmod(0o755)
+    assert lines == ["seat-1: size unmeasured — cannot be examined"], lines
 
 
 def test_a_ledger_pin_base_extraction_is_exempt_but_a_hand_made_base_is_not(tmp_path: Path) -> None:
@@ -1250,11 +1251,12 @@ def test_a_ledger_pin_base_extraction_is_exempt_but_a_hand_made_base_is_not(tmp_
     big = b"x" * (2 * 1024 * 1024)
     (tmp_path / "pins-p1").mkdir()
     (tmp_path / "pins-p1" / "MANIFEST.json").write_text("{}", encoding="utf-8")
-    for name in ("pins-p1.base", "handmade.base"):
+    (tmp_path / "probe").mkdir()  # a sibling FOLDER with no MANIFEST.json earns no exemption
+    for name in ("pins-p1.base", "handmade.base", "probe.base"):
         (tmp_path / name).mkdir()
         (tmp_path / name / "tree.bin").write_bytes(big)
     lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
-    assert [ln.split(":", 1)[0] for ln in lines] == ["handmade.base"], lines
+    assert sorted(ln.split(":", 1)[0] for ln in lines) == ["handmade.base", "probe.base"], lines
 
 
 def test_a_vanished_run_folder_answers_no_lines_never_raises(tmp_path: Path) -> None:
