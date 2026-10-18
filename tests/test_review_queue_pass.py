@@ -766,5 +766,20 @@ def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> No
     assert (
         "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
         " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
-        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet; the Pass Ledger's"
+        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet;"
     ) in cov
+
+
+def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
+    """Rows 1792277512 (recurring held status-vocabulary-single-source / checked-format-pointer: a CHANGELOG or doc
+    line restating a constant the code owns) and 1792274565 (recurring held
+    a-validator-fix-emits-the-value-its-check-tested: a fix and a neighbouring check reading one field two ways)."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "resolves nowhere in the fleet; a CHANGELOG or doc line the fix writes that would restate, count or partition"
+        " what another artifact owns is a pointer to that owner from the first draft, opened before the pin and"
+        " recorded by APPENDING `· pointer: <path:line> read` after the round-zero probe text below; a fix that reads"
+        " a field another check in the same file or call path already validates (grep the pin for the field name)"
+        " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
+    ) in cov
+    assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
