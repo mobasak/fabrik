@@ -1955,6 +1955,32 @@ def _is_scaffold_template(rel: str) -> bool:
     return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
 
 
+# A URI that names no file: a scheme (two+ letters, digits, `+` or `-`, so a Windows `C:` is none)
+# then `:` — `mailto:`, `urn:`, `geo:`, `ms-settings:`, `HTTP://` alike. A dot or slash before the
+# colon makes it a path, so `notes.md:12` and `src/a.py:1` are graded (W-f11e740e review).
+_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+-]+:")
+
+
+def _shared_link_targets() -> Any:
+    """check_doc_links.link_targets — the CommonMark link reader the gate and check_doc_index use
+    (W-f11e740e) — or None when neither import path resolves (a repo whose synced
+    scripts/enforcement is missing), said on stderr each time it is asked, so the advisory row still
+    runs on the old regex and stdout carries only the report."""
+    try:
+        from enforcement.check_doc_links import link_targets
+    except ImportError:  # imported as scripts.docs_updater — scripts/ not on sys.path
+        try:
+            from scripts.enforcement.check_doc_links import link_targets  # type: ignore[no-redef]
+        except ImportError:
+            print(
+                "docs_updater: link_targets unavailable (scripts/enforcement/check_doc_links.py) "
+                "— links read by the old regex",
+                file=sys.stderr,
+            )
+            return None
+    return link_targets
+
+
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
     issues: list[str] = []
@@ -1979,6 +2005,7 @@ def check_link_integrity() -> list[str]:
         "factory-enterprise.md",
     )
 
+    link_targets = _shared_link_targets()
     all_docs = sorted(docs_dir.rglob("*.md"))
     # Fabrik-synced governance/reference copies are gitignored in consuming projects and their
     # links resolve only in the repo that owns them — same rationale as the cross-repo skip below.
@@ -2010,23 +2037,37 @@ def check_link_integrity() -> list[str]:
         # `>` quote is no longer reported. That is the intended trade — a blockquote quotes another
         # document, and its links resolve in that document's tree, not this one.
         content = _strip_quoted(doc.read_text())
-        for match in link_pattern.finditer(content):
-            link_text, link_path = match.groups()
+        # The shared reader yields each destination as CommonMark reads it — title and fragment
+        # dropped, escapes undone, balanced parens kept (W-f11e740e); the regex is the fallback,
+        # unchanged, and the only reader that sees link TEXT.
+        found: list[tuple[str, str | None]] = (
+            [(dest, None) for dest in link_targets(content)]
+            if link_targets is not None
+            else [(m.group(2), m.group(1)) for m in link_pattern.finditer(content)]
+        )
+        for link_path, link_text in found:
+            shared = link_text is None
 
             # Skip external links, anchors, mailto, and file:// URIs (usually cross-repo)
             if link_path.startswith(("http://", "https://", "#", "mailto:", "file://")):
                 continue
+            # Any other URI scheme (`javascript:`, `tel:`, `data:`) is no file either: to the shared
+            # reader a paren is a path character, so `javascript:alert(1)` reaches here now.
+            if shared and (_URI_SCHEME_RE.match(link_path) or link_path.startswith("//")):
+                continue  # `//host/x` is protocol-relative — another host's path, not a repo file
 
             # Skip external Factory doc paths
             if link_path.startswith(external_prefixes):
                 continue
 
-            # Skip regex patterns (contain special chars)
-            if any(c in link_path for c in ["[", "]", "(", ")", "*", "+", "?", "\\"]):
+            # Skip regex patterns (contain special chars). A paren is a path character to the
+            # shared reader, which yields only BALANCED ones; to the regex it is a cut match.
+            regexish = ["[", "]", "*", "+", "?", "\\"] + ([] if shared else ["(", ")"])
+            if any(c in link_path for c in regexish):
                 continue
 
             # Skip template placeholders and code examples
-            if link_path.startswith("../path") or "[" in link_text:
+            if link_path.startswith("../path") or (link_text is not None and "[" in link_text):
                 continue
             if "{" in link_path or "}" in link_path:
                 continue
@@ -2038,7 +2079,10 @@ def check_link_integrity() -> list[str]:
             if link_path.startswith("/"):
                 # A real absolute FS path OUTSIDE this repo (e.g. /opt/fabrik-lib/...) is a
                 # cross-repo reference, not a repo-root-relative link — not ours to validate.
-                literal = Path(urllib.parse.unquote(link_path.split("#")[0]))
+                # The shared reader already cut the fragment and undid `\#`: cutting again would
+                # cut a literal `#` in the name (check_doc_links.main says the same).
+                no_frag = link_path if shared else link_path.split("#")[0]
+                literal = Path(urllib.parse.unquote(no_frag))
                 if literal.is_absolute() and literal.exists():
                     try:
                         literal.relative_to(PROJECT_ROOT)
@@ -2048,7 +2092,7 @@ def check_link_integrity() -> list[str]:
                 target = PROJECT_ROOT / urllib.parse.unquote(link_path.lstrip("/"))
             else:
                 # Handle anchor in path
-                path_part = urllib.parse.unquote(link_path.split("#")[0])
+                path_part = urllib.parse.unquote(link_path if shared else link_path.split("#")[0])
                 if not path_part:
                     continue
                 target = (doc.parent / path_part).resolve()
@@ -2061,9 +2105,12 @@ def check_link_integrity() -> list[str]:
                 continue
 
             if not target.exists():
-                issues.append(
-                    f"Broken link in {doc.relative_to(PROJECT_ROOT)}: [{link_text}]({link_path})"
-                )
+                shown = link_path if link_text is None else f"[{link_text}]({link_path})"
+                issue = f"Broken link in {doc.relative_to(PROJECT_ROOT)}: {shown}"
+                # The shared reader's line carries no link text, so two links to one missing
+                # target in a doc would print twice, identically — report each once.
+                if not (shared and issue in issues):
+                    issues.append(issue)
     return issues
 
 
