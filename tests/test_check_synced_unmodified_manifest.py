@@ -195,7 +195,11 @@ def test_a_manifest_that_exits_while_loading_fails_red(
         ('raise GeneratorExit("gen")', "GeneratorExit"),
         ('raise BaseExceptionGroup("g", [GeneratorExit()])', "BaseExceptionGroup"),
         ('raise BaseExceptionGroup("g", [KeyboardInterrupt()])', "BaseExceptionGroup"),
-        ("class K(KeyboardInterrupt):\n    pass\nraise K", "K"),
+        (
+            "class SubclassOfKeyboardInterrupt(KeyboardInterrupt):\n    pass\n"
+            "raise SubclassOfKeyboardInterrupt",
+            "failed to load or answer: SubclassOfKeyboardInterrupt:",
+        ),
         (
             "class X(Exception):\n    def __str__(self):\n        raise KI\n"
             "class KI(KeyboardInterrupt):\n    pass\nraise X",
@@ -231,6 +235,25 @@ def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
 
 
 _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
+# The refusal each post-load param's OWN guard produces, by param id (W-73044efc). The last two
+# have no guard of their own: the exit fires inside the check's own read (a `__name__` while the
+# message is built, a dict lookup), so the wide catch IS what turns it red, and they pin that.
+_POST_LOAD_REFUSAL = {
+    "module-getattr": "has no SEEDED_NOT_ENFORCED, RETIRED_VENDORED_DIRS",
+    "list-iter": "SEEDED_NOT_ENFORCED is a L, not a collection of paths",
+    "str-str": "SEEDED_NOT_ENFORCED holds a S, not a path",
+    "str-rstrip": "RETIRED_VENDORED_DIRS holds a S, not a path",
+    "class-property": "RETIRED_VENDORED_DIRS holds a P, not a path",
+    "tuple-getitem": "RETIRED_VENDORED_DIRS holds a T, not a path",
+    "repr": "SEEDED_NOT_ENFORCED holds a R, not a path",
+    "exc-str": "failed to load or answer: X: <its message raised too>",
+    "manifesterror-subclass": "failed to load or answer: F: <its message raised too>",
+    "list-iterates-differently": "RETIRED_VENDORED_DIRS is a L, not a collection of paths",
+    "metaclass-eq": "SEEDED_NOT_ENFORCED is a C, not a collection of paths",
+    "metaclass-eq-true": "RETIRED_VENDORED_DIRS is a C, not a collection of paths",
+    "metaclass-name": "failed to load or answer: SystemExit: 0",
+    "colliding-dict-key": "failed to load or answer: SystemExit: 0",
+}
 
 
 @pytest.mark.parametrize(
@@ -268,7 +291,8 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         "class C(metaclass=Meta):\n    pass\n"
         "SEEDED_NOT_ENFORCED = C()\nRETIRED_VENDORED_DIRS = []\n",
         # A metaclass that answers `==` True for any class passes an `in`/`==` type test; its
-        # second iteration hands `main()` a str subclass whose `rstrip` exits.
+        # second iteration would hand `main()` a str subclass whose `rstrip` exits; the identity
+        # test (`type(x) is T`) refuses the class before iterating it.
         _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
         "class Meta(type):\n    __eq__ = lambda c, o: True\n    __hash__ = type.__hash__\n"
         "class C(list, metaclass=Meta):\n    calls = 0\n    def __iter__(self):\n"
@@ -306,6 +330,7 @@ def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    request: pytest.FixtureRequest,
     manifest: str,
 ) -> None:
     """W-3d6a6236 (Opus critique, review pass 1): the load's catch closed when `exec_module`
@@ -314,13 +339,19 @@ def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     manifest raises, a metaclass `__eq__` or `__name__`, or a globals key whose hash collides with a
     list's name runs the manifest's code later — each one a
     `sys.exit(0)` that ended the check GREEN over a drifted file. The check reads the module dict it
-    took before the load, inside the catch, and takes only exact built-in types."""
+    took before the load, inside the catch, and takes only exact built-in types.
+
+    Each param with a guard of its own asserts the refusal THAT guard produces (W-73044efc; see
+    `_POST_LOAD_REFUSAL` for the two that have none): the catch around the load is
+    wide, so a guard that regressed to `getattr`/`isinstance`/`==` still ends red naming the hub —
+    but as "failed to load or answer: SystemExit", never as the guard's own words."""
     files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
     rc = _run(monkeypatch, tmp_path, manifest, files, lock)
     out = capsys.readouterr().out
     assert rc == 1, out
     assert _HUB_WORDS in out, out
     assert _PROJECT_BLAME not in out, out
+    assert _POST_LOAD_REFUSAL[request.node.callspec.id] in out, out
 
 
 @pytest.mark.parametrize(
