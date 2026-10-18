@@ -1193,19 +1193,53 @@ def test_a_lost_event_counts_an_error(sources, monkeypatch, case):
     assert expected in report.errors, report.errors
 
 
-def test_an_unreadable_runs_dir_counts_an_error(sources, monkeypatch):
+_ROOT = hasattr(os, "geteuid") and os.geteuid() == 0
+
+
+@contextlib.contextmanager
+def _unreadable(path: Path):
+    """`path` at mode 000 for the block, restored after (tmp_path cleanup needs it back)."""
+    path.chmod(0)
+    try:
+        yield
+    finally:
+        path.chmod(0o755)
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 dir")
+def test_an_unreadable_runs_dir_counts_an_error(sources):
     """W-6f46cebd: `Path.glob` returns [] for an unreadable dir (it never raises), so a runs dir
-    the sweep could not list closed no record and counted nothing."""
-    real = os.listdir
-
-    def listdir(path="."):
-        if Path(path) == sources.runs_dir:
-            raise PermissionError(13, "Permission denied", str(path))
-        return real(path)
-
-    monkeypatch.setattr(os, "listdir", listdir)
-    report = kc.sweep(sources)
+    the sweep could not list closed no record and counted nothing. A REAL mode-000 dir."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+    with _unreadable(sources.runs_dir):
+        report = kc.sweep(sources)
     assert any(e.startswith("runs dir unreadable") for e in report.errors), report.errors
+
+
+@pytest.mark.skipif(_ROOT, reason="root searches a mode-000 dir")
+def test_a_transcripts_dir_under_an_unsearchable_parent_is_blind_and_still_repairs(
+    sources, tmp_path
+):
+    """W-6f46cebd review: `Path.exists()` RAISES PermissionError under an unsearchable parent,
+    which aborted the sweep before any record closed; the stale record still expires now, and
+    the blind reading is counted."""
+    parent = tmp_path / "locked"
+    (parent / "projects").mkdir(parents=True)
+    src = dataclasses.replace(sources, transcripts_dir=parent / "projects")
+    _write_record(src, "stale-1", age_s=13 * 3600.0)
+    with _unreadable(parent):
+        report = kc.sweep(src)
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+    assert "stale-1" in report.records_expired, report
+
+
+def test_a_dangling_transcripts_symlink_is_blind_not_absent(sources, tmp_path):
+    """A `~/.claude/projects` symlink to nothing is a broken installation, not no installation."""
+    link = tmp_path / "dangling-projects"
+    link.symlink_to(tmp_path / "nowhere")
+    report = kc.sweep(dataclasses.replace(sources, transcripts_dir=link))
+    assert report.holes_today is None
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
 
 
 def test_a_missing_runs_dir_is_no_records_not_an_error(sources):

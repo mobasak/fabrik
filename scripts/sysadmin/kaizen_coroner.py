@@ -752,7 +752,8 @@ def _write_sweep_line(src: Sources, report: CoronerReport, clock: float) -> None
     and could see (W-97de2aa3). ``inconclusive`` counts only markers on sessions the Stop
     hook instruments (:func:`_instrumented`): a probe ping's undecidable API error is not an
     unjudged agent death. ``blind`` when holes() could not see, the lock dir exists but
-    cannot be read, or the event emitter is missing. Fail-open: a write error warns."""
+    cannot be read, or the event emitter is missing. A write error warns and is counted in
+    report.errors, so the sweep exits 3 (W-6f46cebd); it never raises."""
     if src.sweeps_log is None:
         return
     try:
@@ -854,6 +855,17 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | N
 # ── the sweep ────────────────────────────────────────────────────────────────────────
 
 
+def _transcripts_present(path: Path) -> bool:
+    """Is there a transcripts dir to measure? Only a clean ENOENT says no. `Path.exists()`
+    RAISES PermissionError under an unsearchable parent — which aborted the sweep's repairs
+    (W-6f46cebd review) — and a dangling symlink reads as absent; both are an installation the
+    sweep could not see, so both count as present."""
+    try:
+        return path.exists() or path.is_symlink()
+    except OSError:
+        return True
+
+
 def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerReport:
     """One coroner pass. Never raises — a broken source is a skipped source.
 
@@ -881,7 +893,7 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
             # A blind reading over a transcripts dir that EXISTS (unreadable, or holes()'s own
             # error) is a sweep that could not see — counted, so it exits 3 (W-6f46cebd). A host
             # with no transcripts dir at all is not an installation to measure.
-            if report.holes_today is None and src.transcripts_dir.exists():
+            if report.holes_today is None and _transcripts_present(src.transcripts_dir):
                 report.errors.append("holes() unmeasurable (blind)")
             _reconstruct(src, deaths, report)
             _close_records(src, evidence, clock, report)
@@ -1140,7 +1152,9 @@ def main(argv: list[str] | None = None) -> int:
         # day and nothing retries until tomorrow (W-4bd4ea3c). Two causes, both already counted
         # in the sweep line's `errors` (which the collector reads), never in the exit code: a
         # failed import (no `command_run` → no record closes; no `kaizen_events` → no event), and
-        # any error the sweep itself counted (a crashed pass, a record close that raised). The
+        # any error the sweep itself counted — a crashed pass, a record close that raised or was
+        # not persisted, a lost event, an unreadable runs dir, a lost sweep line, a blind
+        # holes() (W-6f46cebd; each append site names itself in `report.errors`). The
         # sweep is idempotent, so the hourly retry is safe; an error that persists keeps the job
         # FAILED in its log every hour until it is fixed, which is the signal, not noise.
         # Cobra check (D-253): the cheap way to turn this green without a working sweep is to
