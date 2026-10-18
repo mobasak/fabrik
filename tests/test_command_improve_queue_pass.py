@@ -547,10 +547,17 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
 def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None:
     """Row 1792332697, the second sighting of held placement-keeps-anaphor-with-antecedent: widening 'you run the
     status probe' to 'and every other shell-only check' attached the sentence's existing WebFetch fallback to a quote
-    check the command forbids."""
+    check the command forbids. Review round 1: the rule sits beside the placement sentences (where the held reject
+    sends it), reaches later sentences pointing back, and covers text placed between a pronoun and what it names."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "an edit that widens a sentence's subject or splits it re-reads each clause already in the sentence against"
-        " what that clause now binds, since a fallback written for one item attaches to every item a widened list adds"
+        "and the draft is that answer. Before an edit widens a sentence's subject, splits the sentence or places text"
+        ' between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in that'
+        " sentence and in each later sentence or item pointing back into that sentence — is read against what that"
+        " clause will bind once the edit lands, since a trailing clause written for one item can attach to every item"
+        " a widening adds. An edit to what a SEAT may do"
+    ) in p3
+    assert (
+        'every branch the sentence\'s subject can bind (a pronoun for "the review" binds each review the step can pick), and'
         in p3
     )
