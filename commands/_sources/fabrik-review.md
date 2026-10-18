@@ -515,7 +515,8 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
   BLOCKED-escalate it per the contract and keep looping on the rest.
 - **The only other exit is `## BLOCKED: NON-CONVERGENCE`** after three non-decreasing nonzero delta
-  rounds, naming the suspected foundation error. There is no round cap.
+  rounds, naming the suspected foundation error, besides the quota wall and a pause the operator ordered
+  (`--wall` / `--paused`, as the exit list above says). There is no round cap.
 - **No flywheel rows while the pool is OFF (D-181/D-182)** — every seat is native and records nothing; the exit check is the adjudication ledger (every candidate FIXED or REFUTED with proof), never a score back-fill.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is

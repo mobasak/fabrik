@@ -284,9 +284,10 @@ def test_the_close_list_names_the_wall_and_the_pause_as_halts() -> None:
     pause (D-993) had no stated close; every command that restates the halt rule names or points at both."""
     frag = _norm("commands/_fragments/run-record.md")
     assert (
-        "The other two halts are `blocked` too: the quota wall (`blocked --wall`, at the RED band `CLAUDE.md` places"
-        " AT the wall: finish and checkpoint the step in hand, commit, push, then close) and a pause the operator"
-        " ordered (`blocked --paused`, its `--reason` the operator's words, D-993); nothing else halts a run"
+        "The other two halts are `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band `CLAUDE.md`"
+        " places AT the wall: finish and checkpoint the step in hand, commit, push, then close) and a pause the"
+        " operator ordered (`blocked --paused`, its `--reason` the operator's words, D-993). Those two hold in every"
+        " command, whatever its other lines say are the only ways to stop; nothing else halts a run"
     ) in frag
     assert "Nothing else is a legitimate halt" not in frag
     pointer = "besides the quota wall and the operator's pause § Run record names, the only reasons to stop before"
@@ -303,6 +304,16 @@ def test_the_close_list_names_the_wall_and_the_pause_as_halts() -> None:
         "on one of the three sanctioned cases, or with `--wall` / `--paused` at the quota wall or a pause the"
         " operator ordered —"
     ) in _norm("commands/_sources/fabrik-review.md")
+    assert (
+        "naming the suspected foundation error, besides the quota wall and a pause the operator ordered (`--wall` /"
+        " `--paused`, as the exit list above says)."
+    ) in _norm("commands/_sources/fabrik-review.md")
+    cov = _norm("commands/_fragments/term-coverage.md")
+    assert "**The exceptions are four.**" in cov
+    assert (
+        "And the quota wall and a pause the operator ordered, closed `blocked --wall` and `blocked --paused`."
+        in cov
+    )
     plan = _norm("commands/_sources/fabrik-execute-plan.md")
     assert (
         "a HARD STOP, the quota wall (`blocked --wall`) or a pause the operator ordered (`blocked --paused`, D-993);"
