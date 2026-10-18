@@ -30,7 +30,7 @@ HEARTBEAT_FILE = Path(__file__).resolve().parent.parent / ".tmp" / "worker_heart
 
 
 def _beat() -> None:
-    """Refresh the heartbeat the HEALTHCHECK reads."""
+    """Refresh the heartbeat the Dockerfile.j2/compose.yaml.j2 healthchecks read."""
     HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
     HEARTBEAT_FILE.touch()
 

@@ -23,8 +23,10 @@ from pathlib import Path
 from fabrik import scaffold
 from fabrik.scaffold import create_project
 
-# The scaffold copies main.py from FABRIK_ROOT, which follows the checkout the test RUNS in; pin it to
-# the checkout this test file belongs to, so the grader always scaffolds the template beside it.
+# The scaffold copies worker/main.py from FILE_WORKER_TEMPLATE_DIR, under FABRIK_ROOT ($FABRIK_ROOT,
+# else the hub worktree holding the cwd, else /opt/fabrik); pin that one directory to this test file's
+# checkout, so the main.py the probe imports is always the one beside this test (the scaffold's other
+# files still come from FABRIK_ROOT).
 _TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "file-worker"
 
 _PROBE = """
@@ -53,13 +55,15 @@ def test_the_worker_imports_outside_a_container_and_beats_into_its_own_tmp(tmp_p
         name="fw-heartbeat", project_type="file-worker", description="heartbeat path", base=tmp_path
     )
     project = tmp_path / "fw-heartbeat"
-    shutil.rmtree(
-        project / ".tmp", ignore_errors=True
-    )  # the scaffold seeds one; prove import makes none
+    # the scaffold seeds a .tmp/; remove it to prove the import makes none
+    shutil.rmtree(project / ".tmp", ignore_errors=True)
+    # a cwd that is not the project: the heartbeat path follows the package, never the cwd
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
     r = subprocess.run(
         [sys.executable, "-c", _PROBE],
-        cwd=project,
-        env={**_ENV, "HOME": str(tmp_path), "TMPDIR": str(tmp_path)},
+        cwd=elsewhere,
+        env={**_ENV, "HOME": str(tmp_path), "TMPDIR": str(tmp_path), "PYTHONPATH": str(project)},
         capture_output=True,
         text=True,
         timeout=120,
@@ -74,14 +78,10 @@ def test_the_worker_imports_outside_a_container_and_beats_into_its_own_tmp(tmp_p
 
 def test_the_j2_healthchecks_read_the_path_the_worker_writes_in_the_image():
     """The .j2 Dockerfile and compose (template_renderer's) read /app/.tmp/worker_heartbeat, and
-    WORKDIR /app + `COPY . .` puts worker/ at /app/worker, so HEARTBEAT_FILE lands exactly there."""
+    WORKDIR /app + `COPY . .` makes /app the project root — where the test above proves the worker
+    beats (`<project>/.tmp/worker_heartbeat`)."""
     dockerfile = (_TEMPLATE / "Dockerfile.j2").read_text()
     compose = (_TEMPLATE / "compose.yaml.j2").read_text()
     assert "WORKDIR /app" in dockerfile and "COPY . ." in dockerfile
     assert "/app/.tmp/worker_heartbeat" in dockerfile
     assert "/app/.tmp/worker_heartbeat" in compose
-    # the worker's own arithmetic, relocated to the image layout, is that same path
-    in_image = Path("/app/worker/main.py").parent.parent / ".tmp" / "worker_heartbeat"
-    main_src = (_TEMPLATE / "worker" / "main.py").read_text()
-    assert 'Path(__file__).resolve().parent.parent / ".tmp" / "worker_heartbeat"' in main_src
-    assert str(in_image) == "/app/.tmp/worker_heartbeat"
