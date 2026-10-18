@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — workflow seats abandon slice on operator message; breaks agent runs",
   "status": "open",
+  "tags": [
+    "waits-workflows-reenabled"
+  ],
   "title": "Workflow seats receive the operator's mid-turn message as their 'relayed request' and can abandon their slice"
 }

@@ -8,8 +8,9 @@ it, or name in the brief why the shape does not have it.
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
   check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
-  docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
-  raises.
+  docstring instruction as a caller would, and hand each seat of the brief that same command to run under § Seat
+  isolation — one that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe
+  each exception a rewritten docstring says the function still raises.
 - A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
   that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
   `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
@@ -160,14 +161,18 @@ it, or name in the brief why the shape does not have it.
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
   are marked before they are rewritten.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
-  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring
-  and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no longer
-  exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in the round the
-  fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates); every statement
-  of a changed number or count in the whole file; same-subject lines in the pack, doc summary rows and artifact
-  generators that restate it; residue words of a flipped decision; a cross-pack citation's terms against the section it
-  cites; a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script over every doc that cites the
-  file (find the symbol the prose names, compare it with the target line), never renumbered by hand.
+  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
+  writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
+  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
+  docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
+  that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
+  the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
+  every comment and docstring of a function whose behaviour a fix changes re-read whole, since a paraphrase names
+  neither the verb nor a removed name; every statement of a changed number or count in the whole file; same-subject
+  lines in the pack, doc summary rows and artifact generators that restate it; residue words of a flipped decision; a
+  cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by
+  CONTENT in one script over every doc that cites the file (find the symbol the prose names, compare it with the target
+  line), never renumbered by hand.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
@@ -198,23 +203,26 @@ it, or name in the brief why the shape does not have it.
   recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
   read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
   without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a
-  worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree
-  add` on the live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its
-  archive copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway
-  worktree, never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads
-  git history runs in a clone the seat makes with `git -C <scratch> clone --shared --no-checkout <live checkout> clone`,
-  checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until then its status reads every file
-  deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl
-  /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and
-  the pins laid over it, committed in the clone when the test reads HEAD, a diff or the status; that test's
-  red-on-revert overlays the revert on the clone. Branch, worktree and stash state the test creates lands in the clone's
-  own `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the lead's throwaway
-  worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy: ruff `--no-cache --config
-  <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache` in its working directory
-  and fails inside a read-only pin without `--no-cache`); tests run by exact node id. A script a seat runs is run from
-  its archive copy with every path argument under scratch (a script may treat any argument as a write path), and the pin
-  carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin` refuses the whole list
-  when one path is missing, a symlink or outside the repo root).
+  worktree. An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs
+  instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo (`PYTEST_PINS`) and a
+  child process started with its own `env=`, which resolves the `.pth` again. The pins line follows the real layout and
+  the digest is the pin authority. A SEAT never runs `git worktree add` on the live repo (its metadata lands in the
+  shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by `PYTEST_PINS`, and the lead's
+  red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a `PYTHONPATH` copy — set its
+  upstream and link `.env` before its first gate. A seat test that reads git history or the tracked set (`git ls-files`:
+  neither the archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C <scratch> clone --shared
+  --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until
+  then its status reads every file deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config
+  remote.origin.pushurl /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote
+  is ever pushed to) and the pins laid over it, committed in the clone when the test reads HEAD, a diff, the status or
+  the tracked set; that test's red-on-revert overlays the revert on the clone. Branch, worktree and stash state the test
+  creates lands in the clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash
+  runs in the lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy:
+  ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache`
+  in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id. A script
+  a seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
+  write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
+  refuses the whole list when one path is missing, a symlink or outside the repo root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word

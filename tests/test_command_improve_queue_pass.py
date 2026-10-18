@@ -260,7 +260,9 @@ def test_the_held_subject_search_reads_the_reasons_view() -> None:
     assert (
         "Before rejecting, search earlier reject reasons for the subject: `python3"
         " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
-        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " is still final; it is an advice hold when its reason says the text lacks the advice but is"
+        " not wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and neither"
+        " when it is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
         " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
         " output into an audit seat's scratch, never the seat."
     ) in text
@@ -426,7 +428,7 @@ def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pi
     ) in phase3
     assert (
         "as well as a synthetic file built to break it in a scratch repo (round zero's input classes in"
-        " `commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
+        " `/opt/fabrik/commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
         " and a sibling commit inside the window the recipe scans, when it scans one)"
     ) in phase3
     # the pointer resolves: round zero there lists the input classes this clause leans on
@@ -487,3 +489,56 @@ def test_test_fragment_and_removed_word_rules() -> None:
     assert "A reworded sentence's removed words" not in p3
     p4 = _phase("## PHASE 4", "## PHASE 5")
     assert "it returns the line that states the row's step. " + REMOVED_WORDS_RULE in p4
+
+
+SCRIPT_POINTER_RULE = (
+    "An edit that must describe what a script does states only the fact its reader acts on and points for the rest at"
+    " the `docs/` file the script's `# AFTER-EDIT:` header names for that behaviour, else at the script by path —"
+    " never restating the rest."
+)
+
+
+def test_a_script_description_points_at_the_doc_that_owns_the_script() -> None:
+    """Row 1792276714 (kaizen, 2026-10-18), recurring held other-tool-behaviour-one-fact-plus-pointer (1791508926): a
+    fix that restated work.py's behaviour seeded a new edge case each round until it pointed at work-tracking.md."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "so a one-sentence row gets one sentence. " + SCRIPT_POINTER_RULE in p3
+
+
+def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -> None:
+    """Row 1792287785 (2026-10-18), recurring held rewrap-pinned-bullet-by-script (1792268556): hand-rewrapping a
+    lengthened catalogue bullet pushed the overflow down a line twice before a script rewrapped it whole."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole,"
+        " at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
+        " unchanged, before PHASE 4's first pin. A row that prescribes" in p3
+    )
+    # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
+    # fence, into one paragraph while its assert passed — so the rule bounds the rewrap at markers, blanks and fences
+
+
+def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass() -> None:
+    """Row 1792329659 (2026-10-18): PHASE 2's 'edited, never re-rejected' and PHASE 1's weakening refusal had no
+    order, and row 1792326723 was both; row 1792329281, recurring held size-figure-after-closing-pass and
+    commit-subject-written-after-closing-round: a CHANGELOG hunk drafted mid-review kept two refuted sentences."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "The one exception is a recurrence whose edit PHASE 1 refuses as weakening: it is routed to the operator as a"
+        " proposal, and its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's"
+        " mail id and quotes the line the edit would weaken; `--reject` still prints its held warning for it, and a"
+        " subject an earlier reason already routed cites that proposal's mail id instead of routing again."
+        in p2
+    )
+    terminal = re.sub(r"\s+", " ", SRC.read_text()[SRC.read_text().index("## Terminal") :])
+    assert (
+        "`no edit this run — the surviving row routed to the operator`, naming the row and the proposal's mail id"
+        in terminal
+    )
+    chain = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "close-chain.md").read_text())
+    assert (
+        "a draft written mid-loop carries none. In such a command, what an input says about the change — the commit"
+        " message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked"
+        " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
+        " check or `final_gate.py` forces. Then: (1)" in chain
+    )

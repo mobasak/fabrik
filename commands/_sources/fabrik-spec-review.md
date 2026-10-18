@@ -103,13 +103,16 @@ central build-vs-buy verdict.
   exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
   returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
   CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
-  `fabrik-researcher` has `Bash` in its `disallowedTools` (`commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
+  `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
   deliberately, because it is read-only. So a dispatched grounder CANNOT run
   `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
   Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
   from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
-  it answers about a page rather than reporting a code. Content is
+  it answers about a page rather than reporting a code. Every other shell-only check is yours from the shell
+  too, with no `WebFetch` fallback — for example a count over a fetched file, which you download and count yourself, and
+  a seat's quote matched — whitespace normalised first, as the quote rule above says — against your own raw fetch when the raw-fetch
+  tools are down. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
   third-party planning doc inside one).
@@ -233,7 +236,7 @@ stamp it at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.
 `--slices` knows only opus/sonnet/haiku, and `--mechanical` is inert under it; never dispatch past `SEATS: 0` —
 read its reason line for what binds (the box, a cap, or your own invocation) and re-run it once that clears), then `python3 scripts/command_run.py dispatch --seats <n>`
 BEFORE they go out, then ONE `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js",
-args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no `SCRATCH:` line; only the seats' copies go under `scratch_dir`) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice
+args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no line that begins `SCRATCH:`; only the seats' copies go under `scratch_dir`) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice
 `{name, files: [the spec], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a
 cited-fact slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): each slice's
 seat finds, one fresh refuter per slice EXECUTES every candidate (the live fetch, for a researcher slice) and

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T23:46:33.355614Z",
+  "creator": "kaizen",
+  "evidence": "0de3081c9f1b904a8dd246366de9fbf1b1747eeb",
+  "id": "W-98d05cb0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Wait for fleet's keep/retire ruling on D-484; if retired, change step 6 to: archive now, never repoint an existing DECISIONS row, the row keeps its pre-archive path; pins in tests/test_execute_plan_d7.py",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "waits-fleet-d484-ruling"
+  ],
+  "title": "execute-plan Finish step 6: simplify the archive rule if fleet retires D-484's stay-in-place rule (intel 01M562393B, D-965)"
+}

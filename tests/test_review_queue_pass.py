@@ -358,12 +358,14 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         r"<!--.*?-->", "", _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
     )
     assert (
-        "before its first gate. A seat test that reads git history runs in a clone the seat makes with `git -C "
+        "before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: neither the"
+        " archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C "
         "<scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone "
         "checkout -q <the pass's base SHA>` (until then its status reads every file deleted), with its push to "
         "`origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: "
         "`origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and the pins laid"
-        " over it, committed in the clone when the test reads HEAD, a diff or the status; that test's red-on-revert "
+        " over it, committed in the clone when the test reads HEAD, a diff, the status or the tracked set; that test's"
+        " red-on-revert "
         "overlays the revert on the clone. Branch, worktree and stash state the test creates lands in the clone's own"
         " `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the lead's "
         "throwaway worktree. Ruff" in iso
@@ -696,11 +698,14 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
     assert "and of each field a fix writes, named before the closing round." in cat
     assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring and"
-        " `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
+        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
+        " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
+        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line, docstring,"
+        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates);"
+        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
+        " a paraphrase names neither the verb nor a removed name;"
     ) in cat
 
 
@@ -736,9 +741,9 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
     changelog-figure-before-close and changelog-test-count-from-pytest)."""
     review = _norm(SRC)
     assert (
-        "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
-        "lead writes for each pass, so a resumed review has them (the seats' candidates and verdicts are already in "
-        "the pass files there); only the seats' copies go under"
+        "or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the "
+        "lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and "
+        "`files_read` are already in the pass files there); only the seats' copies go under"
     ) in review
     assert (
         "When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 "
@@ -757,3 +762,133 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
         "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
         "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
     ) in cc
+
+
+def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> None:
+    """Row 1792275662 (2026-10-18), recurring held pointer-resolve-test-same-change (1790686995): a synced pack's
+    fix cited a hub-only fragment, a pointer that resolves nowhere in the fleet."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
+        " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
+        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet;"
+    ) in cov
+
+
+def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
+    """Rows 1792277512 (recurring held status-vocabulary-single-source / checked-format-pointer: a CHANGELOG or doc
+    line restating a constant the code owns) and 1792274565 (recurring held
+    a-validator-fix-emits-the-value-its-check-tested: a fix and a neighbouring check reading one field two ways)."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "resolves nowhere in the fleet; a CHANGELOG or doc line the fix writes that would restate, count or partition"
+        " what another artifact owns is a pointer to that owner from the first draft, opened before the pin and"
+        " recorded by APPENDING `· pointer: <path:line> read` after the round-zero probe text below; a fix that reads"
+        " a field another check in the same file or call path already validates (grep the pin for the field name)"
+        " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
+    ) in cov
+    assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
+
+
+def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
+    """Row 1792262881 (2026-10-18), recurring held wording-claim-execution (1791453535): both seats of a wording
+    review ran the command the changed text described, unprompted; the brief now asks for it."""
+    cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
+    assert (
+        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of"
+        " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
+        " deploys or reaches a host stays the lead's — and probe"
+    ) in cat
+    assert "every citation in a docs change, every cross-repo claim" in cat, (
+        "the Execute line stays the lead's"
+    )
+
+
+def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
+    """Row 1792289039 (second verdict on the held parser-residue-replace subject): a function that picks ONE item from
+    a list by heuristic is patched round after round, each patch moving the pick to the next wrong item, so rule (3)
+    rewrites it at the first delta round its site yields, after the deletion text so 'that residue' keeps its
+    antecedent, with a one-round method cell and an earlier foundation error."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    clause = (
+        "goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason"
+        " line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields"
+        " an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the"
+        " list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
+        " row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the"
+        " rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass"
+        " without a rewrite"
+    )
+    assert text.count(clause) == 1
+    assert "(rounds k, k+1)`; when that residue is itself a sentence" in text, (
+        "the deletion clause keeps its antecedent"
+    )
+    assert "a heuristic that SELECTS" not in text
+
+
+def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
+    """Row 1792293982, a recurrence of held 1791980043 (delete rather than re-cut a residue site): four rounds patched
+    one regex tail before its yielding branch was deleted, which ended the residue the patches kept regenerating."""
+    clause = (
+        " first asking whether the yielding site, or a {} in it, can be deleted outright (a deletion is that rewrite),"
+        " since a deletion ends the residue and a re-cut restarts it,"
+    )
+    for name, unit in (("term-coverage.md", "branch or clause"), ("term-edit.md", "clause")):
+        text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
+        start = text.index("in ONE batch instead of a third patch,") + len(
+            "in ONE batch instead of a third patch,"
+        )
+        span = text[start : text.index(" and the row's method cell APPENDS", start)]
+        assert span == clause.format(unit), (name, span)
+    picker = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text()
+    )
+    assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
+
+
+def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
+    """Row 1792291617, a recurrence of held reproduction-verbatim-in-fix-brief (1791058267): the lead routed a fix to
+    a coder as a patch, and the coder's version held for the reported shape only. The fix list now carries the
+    invariant, the shapes the replaced form held and the reproduction, right after the shapes are enumerated."""
+    text = _norm(SRC)
+    start = text.index("asked here of every replaced form)?") + len(
+        "asked here of every replaced form)?"
+    )
+    end = text.find("A **wrong fix to a real finding is itself a defect**", start)
+    assert end != -1, "the wrong-fix sentence still follows"
+    assert text[start:end].strip() == (
+        "A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it"
+        " must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively,"
+        " its failure scenario), never as the patch alone."
+    )
+
+
+def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> None:
+    """Rows 1792303600, 1792302600 (three earlier answered rejects on seat staging): /fabrik-review's brief pointer to
+    the probe catalogue carries review-scoped's § Seat isolation sentence word for word up to its recipe's roots, so a
+    lead copying either command's brief stages the whole archive. review-scoped's 'it is not restated here' is left out
+    of fabrik-review, whose brief list restates `PIN_IMPORT`. Mutant: drop or reword it in either source."""
+    src = ROOT / "commands" / "_sources"
+    flat = {
+        n: " ".join((src / f"{n}.md").read_text().split())
+        for n in ("fabrik-review", "fabrik-review-scoped")
+    }
+    tail = "the pytest config with the roots)"
+    start = flat["fabrik-review-scoped"].find("Its § Seat isolation applies whole")
+    assert start >= 0
+    end = flat["fabrik-review-scoped"].find(tail, start)
+    assert end > start
+    sentence = flat["fabrik-review-scoped"][start : end + len(tail)]
+    assert flat["fabrik-review"].count(sentence) == 1
+    # per paragraph, so text appended after the sentence or a paragraph break before it is caught
+    paras = [
+        " ".join(p.split()) for p in re.split(r"\n[ \t]*\n", (src / "fabrik-review.md").read_text())
+    ]
+    pointer = [
+        p for p in paras if "isolation and bookkeeping steps earlier runs found missing." in p
+    ]
+    assert len(pointer) == 1
+    assert pointer[0].endswith(
+        "isolation and bookkeeping steps earlier runs found missing. " + sentence + "."
+    )
+    assert "it is not restated here" not in flat["fabrik-review"]

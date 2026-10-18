@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:37.320821Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-40e1a7da",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M560A9BM7XS5T4YTBKR7F143",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to 01M5602897 — /fabrik-plan-review names check_rule_grounding only at the flip, not at pass 1"
+}

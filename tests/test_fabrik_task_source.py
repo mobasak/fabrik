@@ -99,7 +99,14 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # sit in; phase 2 tries a rule another component applies as a read of its output before copying it (2 rows).
 # D-951 (kaizen, 2026-10-17): 22044 -> 22272 — MEASURE reads a new env var's transport on the started process,
 # keys only, row 1792258556 (a third verdict on held measure-the-env-writers).
-SIZE_CAP = 22272
+# D-974 (kaizen, 2026-10-18): 22272 -> 22410 — phase 4 names both receipt routes for a nested full review: --range
+# to the last --commit, committed alone, or a receipt the D-row cites made before that commit (row 1792287653).
+# D-979 (kaizen, 2026-10-18): 22410 -> 22662 — SIZE check-ignores each new file path and stages it just before the
+# pathspec commit; MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape (rows
+# 1792293040, 1792291304; two held-subject recurrences).
+# D-984 (kaizen, 2026-10-18): 22662 -> 22917 — a linked-worktree session changes <durable> files as a scratchpad
+# copy cp'd back whole, since its Write tool refuses a main-checkout path (row 1792298605, a fourth sighting).
+SIZE_CAP = 22917
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -559,11 +566,11 @@ def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review(
         (review, "the review flavour by surface"),
     ):
         _assert_governs(text, sentence, why)
-    # the comma-joined form this ticket's review found and REMOVED — never resurfaces; T07-S3
-    # (a parser-level test of this syntax) belongs to T08, where the space-separated parser
-    # lives, and is deliberately NOT added here.
+    # The command source shows the space form only. Since 6cff7527c the parser also splits one
+    # comma-joined value (scripts/command_run.py, the `--commit a,b` comment), which the protocol
+    # doc describes in prose; parser-level tests live with the parser, not here.
     assert "sha1,sha2" not in text, (
-        'a comma-joined --commit example returned (nargs="+" is SPACE-separated)'
+        "a comma-joined --commit example entered the command source (it shows the space form)"
     )
 
 
@@ -641,7 +648,8 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
     """Behavior Contract row 2: every flag and feedback field named in T07's Scope is documented
     in `docs/reference/command-run-protocol.md`, matching T08's actual writer at `e6944534f`
     (`scripts/command_run.py`, read via `git show`, never checked out) — grounded, not guessed:
-    `--commit`/`--review` are SPACE-separated (`nargs="+"`); `step --appetite` is accepted on ANY
+    `--commit` is `nargs="+"` and, since 6cff7527c, also splits one comma-joined value; `--review`
+    takes one receipt; `step --appetite` is accepted on ANY
     command at lane v2, refused if non-positive regardless of version, ignored-with-note at v1;
     the `start` line matches the exact printed format. The Revision-2 field names (`parent`,
     `size`, `from_downgrade`, `design_amends`, `loc_added`, `over_appetite`, `upgrades`,
@@ -693,10 +701,11 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         ),
         (
             "`--commit` is the `fabrik-task` lane's flag on the three close verbs "
-            '(`nargs="+"` — SPACE-separated, never comma-joined) — REQUIRED on `done` there, '
-            "optional on `blocked`/`handoff` (which may close before any commit exists), "
-            "REFUSED on every other command;",
-            "`done --commit` SPACE-separated, never comma-joined",
+            '(`nargs="+"` — space-separated, or one comma-joined value, which is split: a sha '
+            "never holds a comma) — REQUIRED on `done` there, optional on `blocked`/`handoff` "
+            "(which may close before any commit exists), REFUSED on every other command;",
+            # 6cff7527c (kaizen 01M55GGMS5) made a comma-joined value legal and split it.
+            "`done --commit` space-separated or one comma-joined value, split",
         ),
         (
             "at lane v1 more than one is REFUSED (pass ONE).",
@@ -753,7 +762,10 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         "`phase_marks`",
     ):
         assert field in text, f"the protocol doc's feedback-field list drops {field}"
-    assert "sha>[,<sha>" not in text, "a comma-joined --commit/--review example returned"
+    assert "sha>[,<sha>" not in text, (
+        "a comma-joined synopsis entered the protocol doc (the synopsis keeps the space form "
+        "`<sha> [<sha>…]`; the comma form of --commit is described in prose)"
+    )
 
 
 def test_scope_growth_fragment_names_the_lane_variant() -> None:
@@ -853,7 +865,19 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     ) in text
     # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
     assert "<run-scratch>" not in raw
-    assert "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
+    assert (
+        "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
+    )
+    # D-984: the Write tool refuses a main-checkout path from a linked worktree; a scratchpad copy cp'd back whole
+    # keeps every byte (a heredoc stops at a content line equal to its delimiter; `cat >>` of a revised copy
+    # duplicates it)
+    assert (
+        "never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; a linked-worktree"
+        " session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp`"
+        " it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any"
+        " content byte for byte; with no `SCRATCH:` line"
+    ) in text
+    assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     assert raw.count("<durable>") == 9
     for site in (

@@ -352,6 +352,15 @@ def main(argv: list[str] | None = None) -> int:
         description="Advisory: a CONVERGED plan proves its rule reading."
     )
     parser.add_argument("--root", default=".", help="repo root to audit (default: cwd)")
+    # The budget below sizes the GATE's advisory row; a reviewer's run needs every finding at once, or a
+    # finding suppressed at a plan review's pass 1 surfaces only at the flip (web-ecommerce-factory
+    # 01M47T06VV: two extra review passes). Cobra (D-253): the flag helps only a run that passes it, so a
+    # command that has a reviewer run this check must say --all.
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="print every finding in full - no advisory budget, line cap or line truncation",
+    )
     # parse_KNOWN_args INSIDE the guard: argparse's SystemExit derives from BaseException — the
     # sibling checks' proven frame (a warn_only check may never exit non-zero).
     try:
@@ -394,9 +403,9 @@ def main(argv: list[str] | None = None) -> int:
     emitted = 0
     for f in findings:
         line = f"  {f.label}: {f.plan} {f.detail}".rstrip()
-        if len(line) > MAX_LINE:
+        if not args.all and len(line) > MAX_LINE:
             line = line[: MAX_LINE - 3] + "..."
-        if (budget - len(line) < 0 or emitted >= MAX_LINES - 3) and emitted:
+        if not args.all and (budget - len(line) < 0 or emitted >= MAX_LINES - 3) and emitted:
             break
         _say(line)
         budget -= len(line) + 1

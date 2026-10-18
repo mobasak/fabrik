@@ -233,8 +233,9 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
   resumed record is saved). A folder holding a worktree pointer is not moved and is marked
   `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
-- **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
-  archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`), each seat measured under its own `du`
+- **Advisory measures (D5, D6):** `round` prints `<folder>: <size> — a copied tree? an archive or clone
+  is leaner` for any top-level folder of the run folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`; a
+  `pin --base` extraction beside its pins `MANIFEST.json` is exempt), each folder measured under its own `du`
   deadline (`COMMAND_RUN_SEAT_DU_DEADLINE_S`, 10 s); `--dead --apply` writes
   `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
   folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook

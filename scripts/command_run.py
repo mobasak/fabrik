@@ -1810,32 +1810,64 @@ def _adopt_run_scratch(
 
 
 def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> list[str]:
-    """D5: one advisory line per `seat-*` folder of the run larger than `threshold` apparent bytes
-    — a seat that copied a whole tree instead of an archive or a clone. Runs AFTER the record lock
+    """D5: one advisory line per top-level FOLDER of the run larger than `threshold` apparent bytes
+    — a seat (or the lead) that copied a whole tree instead of an archive or a clone. Every folder,
+    not `seat-*` alone (W-3c60b7db): seats are named `seat2-opus`, `seat-p1-<pin>-A-haiku` and the
+    like, and a hand-made pin of a whole tree is the same defect, so a name pattern let a third of
+    the live top-level folders escape. A symlink and a plain file are skipped (in a folder that can be
+    listed but not searched — read without execute — every entry reads as unmeasured: its kind cannot
+    be told; a folder that cannot be LISTED at all — no read bit, or gone — yields no lines, because
+    there is nothing to name). Runs AFTER the record lock
     drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
     a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
-    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the seat count
-    times `deadline_s`. Never changes the exit code or the record."""
+    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
+    times `deadline_s` (measured 2026-10-18: at most 32 top-level folders in a live run folder, 0.31 s
+    warm). An entry that cannot be examined prints `size unmeasured — cannot be examined`; the others still print. Never
+    changes the exit code or the record."""
     lines: list[str] = []
-    for seat in sorted(Path(run_scratch).glob("seat-*")):
-        if seat.is_symlink() or not seat.is_dir():
+    try:  # `glob` answered a vanished or unreadable folder with nothing; `iterdir` raises
+        entries = sorted(Path(run_scratch).iterdir())
+    except OSError:
+        return lines
+    for seat in entries:
+        try:  # an unsearchable run folder makes the stat raise: say so for that entry, keep the rest
+            if seat.is_symlink() or not seat.is_dir():
+                continue
+            # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an
+            # archive extraction, the remedy this line recommends, never the defect. Known by its
+            # sibling's MANIFEST.json — an existence test, not a content check: an `x.base` with no
+            # `x/MANIFEST.json` FILE beside it is measured; any such file exempts it.
+            if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
+                continue
+        except OSError:  # said, never silent: an entry the advisory cannot see is not "not large"
+            lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
-            out = subprocess.run(
+            proc = subprocess.run(
                 ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
                 capture_output=True,
                 text=True,
                 timeout=deadline_s,
-            ).stdout
-            size = int(out.split()[0])
+            )
+            # W-2dadedfd review: a folder inside the seat that cannot be read makes `du` exit 1 yet
+            # still print the PARTIAL size it reached — a large tree under it read as small and
+            # dropped out silently. A non-zero exit is the "cannot be examined" line, never a size.
+            if proc.returncode != 0:
+                raise OSError(proc.stderr.strip()[:120] or f"du exit {proc.returncode}")
+            size = int(proc.stdout.split()[0])
         except subprocess.TimeoutExpired:
             lines.append(f"{seat.name}: size unmeasured — over the deadline")
             continue
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            # said, never silent — an entry the advisory cannot measure is not "not large"; one that
+            # was REMOVED between the listing and `du` (the sweep, the seat itself) is gone, not
+            # unmeasured: no line, as for a gone run folder
+            if os.path.lexists(seat):
+                lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         if size > threshold:
             lines.append(
-                f"{seat.name}: {size / 1024**2:.1f} MB — copied a tree instead of archive/clone"
+                f"{seat.name}: {size / 1024**2:.1f} MB — a copied tree? an archive or clone is leaner"
             )
     return lines
 
@@ -1958,7 +1990,8 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 # A record closed at the fleet quota wall was TERMINAL: the session's next `start` overwrote it,
 # so the successor lost the round and class ledgers, the design, the SIZE declaration and the
 # start clock — its quiet round read as "round 1 is the full pass" and `done --commit` refused
-# every pre-wall commit. `blocked --wall` keeps a JSON seed of the closed record under
+# every pre-wall commit. `blocked --wall` (and an operator's `blocked --paused`, W-79638b4a) keeps
+# a JSON seed of the closed record under
 # `<state>/seeds/`; `start --resume-from <seed>` carries it forward. The explicit flag is the
 # gate; `_WALL_REASON` catches the hook's own phrase (quota_stop.py `_reason`) for an agent who
 # pasted it without the flag; `_WALL_HINT` only prints a NOTE naming the flag — a missed match is
@@ -1974,7 +2007,7 @@ _WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
 # rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
 # reservation siblings subtract for 25 min — stale by construction), `stack` (rebuilt from the
 # live record), `covered`/`first_review_reach`/`reviewed_surfaces`/`event_seq`/`session_id`/`repo_root`/`agent`/
-# `account` (the session's), `state`/`wall`/`blocked_reason`/`resume`/`resume_copy`/
+# `account` (the session's), `state`/`wall`/`paused`/`blocked_reason`/`resume`/`resume_copy`/
 # `resume_seed`/`usage`/`feedback`/`feedback_to`/`feedback_text`/`closed_by`/`evidence`/
 # `nested`/`child_closed_ts` (the closed sitting's own).
 _RESUME_CARRY = (
@@ -3747,6 +3780,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="record one convergence round (--confirmed <n> is the exit counter)",
         parents=[common],
     )
+    p.add_argument(
+        "--command",
+        default=None,
+        help="the run this round is for — optional; when given it must be the LIVE one (rc 1 and "
+        "nothing recorded otherwise), the check the close verbs make (W-79638b4a)",
+    )
     p.add_argument("--findings", type=int, default=0)
     # D-206/D-203: quiet is zero CONFIRMED code or doc defects, never zero RAISED — a refuted or
     # recorded candidate never reopens the loop, so the raw candidate count cannot be the exit
@@ -3867,7 +3906,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
-    p.add_argument(
+    _resumable = p.add_mutually_exclusive_group()
+    _resumable.add_argument(
+        "--paused",
+        action="store_true",
+        help="this close is an OPERATOR PAUSE, not one of the three BLOCKED cases: --reason carries the "
+        "operator's words, and the record keeps the same resume seed `--wall` keeps, so `start "
+        "--resume-from` reopens it (W-79638b4a). A pause is never the quota wall, and the wall "
+        "regexes never read one into it.",
+    )
+    _resumable.add_argument(
         "--wall",
         action="store_true",
         help="this close is the fleet QUOTA WALL, not one of the three BLOCKED cases: the record is "
@@ -5744,7 +5792,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 elif loaded.get("state") != "blocked":
                     why = f"is not a blocked record (state {loaded.get('state')!r})"
                 elif loaded.get("wall") is not True:
-                    why = "was not closed at the quota wall (no `wall` mark — `blocked --wall` keeps one)"
+                    why = (
+                        "was not closed at the quota wall or by an operator pause (no `wall` mark — "
+                        "`blocked --wall` and `blocked --paused` keep one)"
+                    )
                 elif _norm_command(str(loaded.get("command") or "")) != _cmd:
                     why = f"belongs to /{loaded.get('command')}, not /{_cmd}"
                 else:
@@ -5765,7 +5816,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if not _stack_cmds and _live is not None:
                 return _refuse(
                     f"REFUSED — start --resume-from: /{_live.get('command')} is live in this session; a "
-                    "wall-blocked run is resumed before its children — close or finish the live run first"
+                    "wall-blocked or paused run is resumed before its children — close or finish the "
+                    "live run first"
                 )
             if _seed.get("declared") is not None:
                 _declared = dict(_seed["declared"])
@@ -5779,7 +5831,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             _superseded = str(rec.get("run_scratch") or "")
             # the forgotten flag is the common case: say where the seed is, then open as asked
             sys.stderr.write(
-                f"[command_run] NOTE — this session's /{_cmd} record was closed at the quota wall; "
+                f"[command_run] NOTE — this session's /{_cmd} record was closed "
+                f"{'by an operator pause' if rec.get('paused') else 'at the quota wall'}; "
                 f"a plain `start` restarts it from zero. To carry its rounds, design and commit "
                 f"window: start --command {_cmd} --phases {rec.get('phases')} --resume-from "
                 f"{rec.get('resume_seed') or _record_path(sid)}\n"
@@ -6008,6 +6061,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 "reason": str(_seed.get("blocked_reason") or "")[:200],
                 "seed": _seed_path,
                 "rounds": len(_seed.get("rounds") or []),
+                # W-79638b4a: the first sitting was an operator pause, not the quota wall
+                "paused": _seed.get("paused") is True,
             }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
@@ -6447,6 +6502,22 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "round":
+        # W-79638b4a: a round can name its run, as every close does; a nested caller's round that
+        # names its parent while the child is live is refused before it lands on the wrong record
+        _named = getattr(args, "command", None)
+        if _named is not None and (
+            not _named.strip()
+            or _norm_command(_named) != _norm_command(str(rec.get("command") or ""))
+        ):
+            msg = (
+                f"REFUSED — round --command {('/' + _norm_command(_named)) if _named.strip() else '(empty)'}"
+                f", but the LIVE run is "
+                f"/{rec.get('command')} (phase {rec.get('phase')}/{rec.get('phases')}); nothing "
+                f"was recorded. Re-run with --command {rec.get('command')}, or close the live run first."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
         rounds = list(rec.get("rounds") or [])
         # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation:
         # a NEGATIVE count can never reach 0, so the loop either counter describes has no exit at
@@ -7173,7 +7244,21 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # the quota wall (W-28f260c3): the flag is the gate, the hook's own phrase implies it, and a
     # quota-shaped reason WITHOUT either gets a NOTE — a silent miss here is a lost run
     _wall = False
-    if args.cmd == "blocked":
+    # an operator pause (W-79638b4a) keeps the wall's resume seed — `_wall` below drives the seed,
+    # the resumable folder and the reopen order — but is recorded as `paused`, its rows read
+    # `wall: paused`, and no quota regex runs on its reason (the operator's words are not a wall)
+    _paused = args.cmd == "blocked" and bool(getattr(args, "paused", False))
+    if _paused:
+        _wall = True
+        rec["wall"] = True
+        rec["paused"] = True
+        if _WALL_REASON.search(str(getattr(args, "reason", "") or "")):
+            sys.stderr.write(
+                "[command_run] NOTE — this pause's reason names the fleet quota wall. IF this close IS the "
+                "wall, close with `blocked --wall` instead: its row reads `wall: quota`, which the quota "
+                "readers count; this one is recorded as an operator pause.\n"
+            )
+    elif args.cmd == "blocked":
         _reason_text = str(getattr(args, "reason", "") or "")
         _wall = bool(getattr(args, "wall", False)) or bool(_WALL_REASON.search(_reason_text))
         if _wall:
@@ -7410,7 +7495,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # SCALAR under its own name: `resumed_from` on the record and the ledger row is the
             # dict (session_id, started_at, blocked_at, reason, seed, rounds); one name with two
             # shapes across the two streams was review tests-docs-S1
-            "wall": "quota" if _wall else "",
+            "wall": ("paused" if _paused else "quota") if _wall else "",
             "resumed_from_start": str((rec.get("resumed_from") or {}).get("started_at") or ""),
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
@@ -7496,7 +7581,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # seed it came from, the gap it never counted and the rounds it carried — a reader that
             # sums rows per command subtracts on `resumed_from` instead of counting the first
             # sitting twice. Tokens never span sessions (the transcript is this sid's).
-            "wall": "quota" if _wall else "",
+            "wall": ("paused" if _paused else "quota") if _wall else "",
             "resumed_from": dict(rec.get("resumed_from") or {}) or "",
             "gap_s": round(float(_finite_ts(rec.get("gap_s")) or 0.0), 1),
             "rounds_before_resume": _int0((rec.get("resumed_from") or {}).get("rounds")),
@@ -7561,7 +7646,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             str(fr.get("command") or "") for fr in (rec.get("stack") or []) if isinstance(fr, dict)
         ]
         _kept_seed = _keep_resume_seed(
-            sid, json.dumps(_seed_rec, indent=2).encode("utf-8"), tag="-wall", ext=".json"
+            sid,
+            json.dumps(_seed_rec, indent=2).encode("utf-8"),
+            tag="-paused" if _paused else "-wall",
+            ext=".json",
         )
         if _kept_seed.startswith("/"):
             rec["resume_seed"] = _kept_seed
@@ -7569,7 +7657,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             _seed_kept = True
         else:
             sys.stderr.write(
-                f"[command_run] WARNING — the quota-wall seed could not be kept ({_kept_seed[:160]}); "
+                f"[command_run] WARNING — the {'pause' if _paused else 'quota-wall'} seed could not be "
+                f"kept ({_kept_seed[:160]}); "
                 f"the record file itself is the seed until this session's next start: "
                 f"{_record_path(sid)}\n"
             )
@@ -7589,7 +7678,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         return 1
     # the run folder's marker (scratch lifecycle plan D2, P5): AFTER the record persisted and
     # BEFORE the nested return, so a nested close marks its own folder too; a wall close — the
-    # flag OR the reason regex, the same `_wall` the seed keys on — keeps it `resumable`, unless
+    # flag OR the reason regex — or an operator pause (`--paused` sets the same `_wall` the seed keys
+    # on) keeps it `resumable`, unless
     # its seed could not be kept (P12: no folder stays resumable with nobody to adopt it)
     _mark_run_scratch(rec, "resumable" if _wall and _seed_kept else "done", sid)
     _sup = str(rec.get("superseded_run_scratch") or "")
@@ -7608,22 +7698,28 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
     if rec.get("resumed_from"):
         _rf = rec.get("resumed_from") or {}
+        _first = ("paused", "paused") if _rf.get("paused") else ("wall-blocked", "quota")
         print(
             f"[command_run] NOTE — resumed run: rounds {_int0(_rf.get('rounds'))} carried from the "
-            f"wall-blocked sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
-            f"sitting's — the first sitting has its own ledger row (wall: quota)"
+            f"{_first[0]} sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
+            f"sitting's — the first sitting has its own ledger row (wall: {_first[1]})"
         )
     if _fb_line is not None:
         print(_fb_line)
     if _reopen:
+        _why, _when, _flag = (
+            ("paused", "once the operator resumes", "--paused")
+            if _paused
+            else ("wall", "after the lift", "--wall")
+        )
         print(
-            f"wall: the run is kept — reopen it after the lift with: start --command "
+            f"{_why}: the run is kept — reopen it {_when} with: start --command "
             f"{rec.get('command')} --phases {rec.get('phases')} --resume-from {_reopen}"
         )
         if parent is not None:
             print(
-                f"wall: the parent /{parent.get('command')} is live — close it too with `blocked --wall`; "
-                "after the lift resume the PARENT first, then this run"
+                f"{_why}: the parent /{parent.get('command')} is live — close it too with `blocked {_flag}`; "
+                f"{_when}: resume the PARENT first, then this run"
             )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")

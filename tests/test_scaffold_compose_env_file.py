@@ -124,7 +124,7 @@ def test_compose_parses_without_a_local_env_file(tmp_path: Path, output: str) ->
         ("canonical", {}),
         (
             "canonical",
-            {"with_traefik": False, "healthcheck_kind": "process", "process_pattern": "w"},
+            {"with_traefik": False, "healthcheck_kind": "heartbeat"},
         ),
         ("template", {}),
     ],

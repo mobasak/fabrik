@@ -33,6 +33,7 @@ eggs/
 .eggs/
 lib/
 !templates/mobile-app/src/lib/
+!templates/saas-skeleton/lib/
 lib64/
 parts/
 sdist/

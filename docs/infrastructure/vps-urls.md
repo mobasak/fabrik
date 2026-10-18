@@ -321,6 +321,9 @@ Host vps3  →  ozgur@104.128.190.151                    — Coventry UK spoke
 
 All three hosts: `ozgur` user (NOPASSWD sudo), Ed25519 key auth only, root login disabled, password auth disabled, fail2ban active. SSH posture matches across the fleet (this was the Lesson 65 takeaway from the vps2 bootstrap lockout).
 
+**When a direct path is dead** from one box while another fleet host still reaches the target, that box
+can route fabrik's ssh through the other host: `docs/CONFIGURATION.md` § SSH jump.
+
 ---
 
 ## Maintenance command quick-reference

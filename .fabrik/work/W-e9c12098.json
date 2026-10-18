@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:17.355185Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e9c12098",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55Z9MBPHFBKX2DMVEBJABSP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: libs/health_probe drifted again — already fixed (f9cb60105, W-6eaa8533)"
+}

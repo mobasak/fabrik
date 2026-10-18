@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T23:51:30.754942Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "824d693bb6dcc954e78b801d25ee4f54e69e986d",
+  "id": "W-c3177526",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-956 bug blocking merges of every agent-definition change; few-file fix in merge_request.py or the test",
+  "status": "done",
+  "tags": [
+    "queued",
+    "rules"
+  ],
+  "title": "merge_request.py owner tests include tests/test_agent_definitions.py::test_the_live_box_matches_the_repo_sources, which compares the INSTALLED ~/.claude/agents to the repo and can only pass after the merge's own render — so every branch that edits commands/_agents/*.md is refused (intel 01M564A4W4, W-eb9db7c0). Render into a temp dir for that test during the merge check, or exclude live-box tests from owner tests"
+}

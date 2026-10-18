@@ -28,6 +28,7 @@ import stat as stat_module
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -125,6 +126,93 @@ _PRISTINE_SEEDS: dict[str, frozenset[str]] = {
 _ABSENT_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.EBADF})
 
 
+def _pct_decode(text: str) -> str:
+    """Percent-decode, keeping `%2F` literal — the same one-liner as check_doc_links.pct_decode
+    (its docstring carries the why; a test pins the two to one output)."""
+    return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
+
+
+_TITLE_CLOSE_RE = re.compile(
+    r"""(?:[ \t]+(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\)"""
+)
+_ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+_PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
+
+
+def link_targets(text: str):
+    """Every inline link destination in `text` as CommonMark reads it — the same function as
+    check_doc_links.link_targets (its docstring carries the why, W-dd091f0d; a test pins the two
+    to one output)."""
+    n = len(text)
+    opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
+    o = text.find("[")
+    while o != -1:
+        b = o
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (o - b) % 2 == 0:
+            opened_at = o
+            break
+        o = text.find("[", o + 1)
+    i = text.find("](")
+    while i != -1:
+        # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
+        # anywhere before it — accepting one would consume a real link inside its "title".
+        b = i
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (i - b) % 2 or opened_at > i:
+            i = text.find("](", i + 2)
+            continue
+        j = i + 2
+        while j < n and text[j] in " \t":
+            j += 1
+        dest = None
+        if j < n and text[j] == "<":
+            k = j + 1
+            while k < n and text[k] not in "<>\n":
+                k += 2 if text[k] == "\\" and text[k + 1 : k + 2] in _PUNCT else 1
+            if k < n and text[k] == ">":
+                dest, k = text[j + 1 : k], k + 1
+        else:
+            k, depth = j, 0
+            while k < n:
+                c = text[k]
+                if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
+                    k += 2
+                    continue
+                # Any str.isspace() char ends it (NBSP-class too, OUT); a NUL stays and is reported.
+                if c.isspace():
+                    break
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            if depth == 0:
+                dest = text[j:k]
+        close = _TITLE_CLOSE_RE.match(text, k) if dest is not None else None
+        if dest is None or close is None:
+            i = text.find("](", i + 2)
+            continue
+        cut, p = len(dest), 0  # the fragment starts at the first UNESCAPED `#`
+        while p < len(dest):
+            if dest[p] == "\\" and dest[p + 1 : p + 2] in _PUNCT:
+                p += 2
+            elif dest[p] == "#":
+                cut = p
+                break
+            else:
+                p += 1
+        dest = _ESCAPED_RE.sub(r"\1", dest[:cut])
+        if dest:
+            yield dest
+        # Resume AFTER the link: a `](` inside its destination or title is not a second link.
+        i = text.find("](", close.end())
+
+
 def _printable(text: str) -> str:
     """Render a surrogateescape string safely for a UTF-8 stdout.
 
@@ -220,24 +308,23 @@ def _added_code_paths() -> list[str]:
     reason `get_changed_files()` excludes untracked-unstaged paths.
 
     Returns [] on any git failure: an advisory that guesses is worse than one that is silent.
+    `-z` and bytes, decoded with surrogateescape, for the reason `_ls` gives: git C-quotes a
+    non-ASCII or quoted name (`"scripts/caf\\303\\251.py"`), which never starts with a code root,
+    so such an added file went unexamined (W-dd091f0d design critique).
     """
     try:
         proc = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=A"],
             cwd=REPO,
             capture_output=True,
-            text=True,
             check=False,
         )
     except OSError:
         return []
     if proc.returncode != 0:
         return []
-    return [
-        ln.strip()
-        for ln in proc.stdout.splitlines()
-        if ln.strip().startswith(_CODE_ROOTS) and not ln.strip().endswith("/")
-    ]
+    paths = [c.decode("utf-8", "surrogateescape") for c in proc.stdout.split(b"\0") if c]
+    return [p for p in paths if p.startswith(_CODE_ROOTS) and not p.endswith("/")]
 
 
 def main() -> int:
@@ -326,11 +413,36 @@ def main() -> int:
         # still tracebacked past the guard above. Catch the class, not the instance.
         return _fail(f"INDEX.md could not be read ({exc.__class__.__name__}): {exc}")
     problems: list[str] = []
+    # INDEX.md percent-decoded ONCE, for (b): a doc counts as indexed when its raw path or
+    # basename appears in the text as written OR as decoded, so any valid escaping an author
+    # writes (`R&D%20notes.md`, lowercase hex, a `%E9` byte) agrees with (a). surrogateescape on
+    # both sides because paths are read that way (`_printable`), and a strict decode would raise.
+    index_unq = _pct_decode(index_text)
+    # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
+    # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
+    # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
+    # The WHOLE text, not line by line: CommonMark link text may span a line break
+    # (`[Notes⏎](docs/gone.md)`), and a per-line read dropped that link unexamined. The cost,
+    # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
+    # read as a link, so it is graded — exactly what the pre-change regex did, and fail-closed.
+    index_links = list(link_targets(index_text))
+    linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist
-    for m in re.finditer(r"\]\((docs/[^)#\s]+?)(?:#[^)]*)?\)", index_text):
-        t = m.group(1).replace("%20", " ").rstrip("/")
+    # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old
+    # regex truncated `docs/a(b).md` and never saw a titled or angle link to a missing doc.
+    for target in dict.fromkeys(index_links):
+        if not target.startswith("docs/"):
+            continue
+        # Percent-DECODED (W-7ae1169a): `%20` alone left every other escape — a literal `%`
+        # (`%25`), a `#` (`%23`), a UTF-8 name — with no link spelling direction (b) could agree
+        # with; (b) reads the same contract through `index_unq`. The link as WRITTEN still counts
+        # when its decoded form is absent, so a file whose real name holds `%XX` stays reachable.
+        raw = target.rstrip("/")
+        t = _pct_decode(raw).rstrip("/")
         state = _target_state(REPO / t)
+        if state == "absent" and t != raw and _target_state(REPO / raw) != "absent":
+            t, state = raw, _target_state(REPO / raw)
         if state == "absent":
             problems.append(f"INDEX.md names missing path: {t}")
         elif state == "unknown":
@@ -463,9 +575,9 @@ def main() -> int:
         tag = (
             " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
         )
-        if p in index_text:
+        if p in index_text or p in index_unq or p in linked:
             continue
-        if base not in index_text:
+        if base not in index_text and base not in index_unq:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
             continue
         others = [o for o in names.get(base, []) if o != p]
@@ -503,7 +615,8 @@ def main() -> int:
     code_problems: list[str] = []
     if not untracked_only:
         for rel in _added_code_paths():
-            if rel not in index_text:
+            # As written, percent-decoded or as a parsed link — the contract (a) and (b) read.
+            if rel not in index_text and rel not in index_unq and rel not in linked:
                 code_problems.append(
                     f"added code file not in INDEX.md: {rel} "
                     "(Doc Sync Matrix: File added/removed/renamed → INDEX.md; the row must name "

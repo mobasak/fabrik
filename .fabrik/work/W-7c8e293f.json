@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T01:07:43.415791Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "6fce5a8872e242b752b36b53c37ab21df731759f",
+  "id": "W-7c8e293f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-956 bug: a red test on master; one doc or test line",
+  "status": "done",
+  "tags": [
+    "queued",
+    "rules"
+  ],
+  "title": "RED on master: tests/test_fabrik_task_source.py::test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes — the command-run protocol doc no longer documents a flag or feedback field the test scopes (likely since 07dd69bed, the capture verb); kaizen 01M568PCA5"
+}

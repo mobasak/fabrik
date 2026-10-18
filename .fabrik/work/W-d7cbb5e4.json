@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:21:06.941386Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d7cbb5e4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53NBWPXWBYWFASQ2BYCK0C9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "libs/health_probe drifted again — fabrik-lib 8bedcaa4 landed 9 min after the 29b7466ff re-vendor; test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header is red on master"
+}

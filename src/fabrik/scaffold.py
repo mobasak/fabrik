@@ -14,6 +14,8 @@
 # strings), so three checks now consult the marker — all other gate checks still run.
 # Real runtime secrets never live here; they belong in .env.
 
+import contextlib
+import contextvars
 import fnmatch
 import json
 import logging
@@ -22,7 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import date
 from pathlib import Path
 from types import ModuleType
@@ -996,6 +998,18 @@ def _logger_py_content(name: str, package_name: str) -> str:
     )
 
 
+# The file-worker liveness check, the `python -c` code every file-worker healthcheck runs (this scaffold's
+# Dockerfile and compose, the literal copy in templates/file-worker/{Dockerfile,compose.yaml}.j2, and the
+# scaffolded Makefile's docker-smoke — tests/test_file_worker_heartbeat_healthcheck.py holds them equal). worker/main.py touches the heartbeat
+# every POLL_INTERVAL; healthy only when it was written in the last 120 s and not in the future. Never pgrep
+# (the slim image has no procps) and never `find -mmin` (it exits 0 on a stale file). No `$`: compose
+# interpolates it inside an exec-form `test:` list.
+FILE_WORKER_HEARTBEAT_CHECK = (
+    "import os,sys,time; p='/app/.tmp/worker_heartbeat'; "
+    "sys.exit(0 if os.path.exists(p) and 0 <= time.time() - os.path.getmtime(p) < 120 else 1)"
+)
+
+
 def _write_canonical_compose(
     project_dir: Path,
     name: str,
@@ -1006,8 +1020,7 @@ def _write_canonical_compose(
     with_traefik: bool = True,
     extra_labels: tuple[str, ...] = (),
     extra_env_lines: tuple[str, ...] = (),
-    healthcheck_kind: str = "http",  # "http" | "tcp" | "process:<pattern>"
-    process_pattern: str | None = None,
+    healthcheck_kind: str = "http",  # "http" | "tcp" | "heartbeat"
     memory: str = "512M",
     cpus: str = "0.5",
 ) -> None:
@@ -1030,7 +1043,7 @@ def _write_canonical_compose(
        label once reached Traefik verbatim, and a literal keeps the router
        port equal to the healthcheck's.
     5. Healthcheck shaped to the workload (HTTP for web services,
-       process probe for workers).
+       heartbeat age for workers).
 
     Args:
         project_dir: Project root; ``compose.yaml`` is written at the top.
@@ -1049,8 +1062,8 @@ def _write_canonical_compose(
         extra_env_lines: Additional ``- KEY=VALUE`` env entries appended
             verbatim under ``environment:``.
         healthcheck_kind: ``"http"`` (default), ``"tcp"``, or
-            ``"process"`` to use ``pgrep -f <process_pattern>``.
-        process_pattern: Pattern for the ``process`` healthcheck kind.
+            ``"heartbeat"`` to run ``FILE_WORKER_HEARTBEAT_CHECK`` (the file-worker's
+            heartbeat age). There is no pgrep kind: no image this scaffold emits has procps.
 
     Existing files are overwritten — type-specific scaffolders that
     historically wrote their own broken compose should call this last.
@@ -1061,10 +1074,8 @@ def _write_canonical_compose(
         hc_test = f'["CMD", "curl", "-f", "http://localhost:{port}{healthcheck_path}"]'
     elif healthcheck_kind == "tcp":
         hc_test = f'["CMD-SHELL", "(echo > /dev/tcp/localhost/{port}) >/dev/null 2>&1 || exit 1"]'
-    elif healthcheck_kind == "process":
-        if not process_pattern:
-            raise ValueError("process_pattern is required for healthcheck_kind='process'")
-        hc_test = f'["CMD-SHELL", "pgrep -f \\"{process_pattern}\\" || exit 1"]'
+    elif healthcheck_kind == "heartbeat":
+        hc_test = json.dumps(["CMD", "python", "-c", FILE_WORKER_HEARTBEAT_CHECK])
     else:
         raise ValueError(f"Unknown healthcheck_kind: {healthcheck_kind!r}")
 
@@ -1923,20 +1934,53 @@ def metrics_app():
     )
 
 
-def _scaffold_offline() -> bool:
-    """``FABRIK_SCAFFOLD_OFFLINE`` set to 1/true/yes/on: ``create_project`` writes every file but
-    creates no venv, installs nothing, probes or creates no local database, skips the hub registry
-    sync and the ``.mcp.json`` emitter. The venv and database steps print the command to run
-    instead. Read at CALL time. The test suite pins it for the whole session (tests/conftest.py):
-    those steps cost ~25 s per scaffold and rewrote the hub's registry from inside tests
-    (W-b0c1b4fc). It scopes ``create_project`` only — ``fabrik scaffold``'s own registry save, sync and
-    GitHub wiring around it are separate."""
+# Provisioning — the venv + pip install, the local dev database, the hub registry sync, the
+# ``.mcp.json`` emit and a deploy spec in the hub's tracked specs/services/ — happens only inside an
+# explicit opt-in: ``create_project(provision=True)`` (the ``fabrik scaffold`` CLI) or this context
+# manager. The default is False for every caller, and for every thread that does not copy the
+# caller's context (threading.Thread, a ThreadPoolExecutor worker), so a probe, a review seat or a
+# script that calls create_project or a scaffold step directly gets files only (W-e2f0b6e5: a seat's
+# direct call left two real databases on the WSL dev cluster).
+_PROVISION: contextvars.ContextVar[bool] = contextvars.ContextVar("_PROVISION", default=False)
+
+
+@contextlib.contextmanager
+def provisioning() -> Iterator[None]:
+    """Opt in to provisioning for the scaffold code run inside this block."""
+    token = _PROVISION.set(True)
+    try:
+        yield
+    finally:
+        _PROVISION.reset(token)
+
+
+def _scaffold_env_offline() -> bool:
     return os.environ.get("FABRIK_SCAFFOLD_OFFLINE", "").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+
+
+def _scaffold_offline() -> bool:
+    """True unless provisioning was opted in (``provisioning()`` / ``create_project(provision=True)``)
+    AND ``FABRIK_SCAFFOLD_OFFLINE`` is not set to 1/true/yes/on. Offline, scaffold code writes every
+    file but creates no venv, installs nothing, probes or creates no local database, skips the hub
+    registry sync and the ``.mcp.json`` emitter; the venv and database steps print the command to run
+    instead. Read at CALL time. The test suite pins the env switch for the whole session
+    (tests/conftest.py), so even an opted-in test stays offline unless it deletes the variable. It
+    scopes scaffold code only — ``fabrik scaffold``'s own registry save, sync and GitHub wiring
+    around create_project are separate."""
+    return _scaffold_env_offline() or _PROVISION.get() is not True
+
+
+def _offline_reason() -> str:
+    return (
+        "FABRIK_SCAFFOLD_OFFLINE is set"
+        if _scaffold_env_offline()
+        else "provisioning not requested"
+    )
 
 
 def _create_local_dev_database(db_name_dev: str) -> None:
@@ -1946,6 +1990,7 @@ def _create_local_dev_database(db_name_dev: str) -> None:
     if _scaffold_offline():
         click.echo(
             f"⏭  Offline scaffold: create the database with sudo -u postgres createdb {db_name_dev}"
+            f" ({_offline_reason()})"
         )
         return
     try:
@@ -2035,6 +2080,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "-r requirements.txt\n"
         "pytest>=8.3.0\n"
         "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"  # the pyproject sets timeout = 120 (W-046828fb)
         "ruff\n"
         "mypy\n"
         "bandit\n"
@@ -2153,6 +2199,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
         click.echo(
             "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -2219,6 +2266,16 @@ _SAAS_SERVER_REQUIREMENTS = (
     "redis>=5.0\n"  # jti denylist / instant revocation, and pause_state.py's client
     # --- vendored app-audit-log (libs/audit_log) — the scheduled jobs' sync connection ---
     "psycopg[binary]>=3.1\n"
+)
+
+# server/requirements-dev.txt — test deps only; never installed in the image (W-046828fb).
+_SAAS_SERVER_DEV_REQUIREMENTS = (
+    "# Backend test dependencies (the Dockerfile installs requirements.txt only). From server/:\n"
+    "#   pip install -r requirements-dev.txt && pytest tests\n"
+    "-r requirements.txt\n"
+    "pytest>=8.3.0\n"
+    "pytest-asyncio>=0.24.0\n"  # pyproject sets asyncio_mode = "auto"
+    "pytest-timeout>=2.3.0\n"  # pyproject sets timeout = 120
 )
 
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
@@ -3522,6 +3579,9 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
         return text.replace("__PKG__", package_name).replace("__NAME__", name)
 
     (server_dir / "requirements.txt").write_text(_SAAS_SERVER_REQUIREMENTS)
+    # Test-only deps are never installed in the image (the Dockerfile installs requirements.txt). The
+    # copied [tool.pytest.ini_options] sets asyncio_mode and timeout, which need these plugins.
+    (server_dir / "requirements-dev.txt").write_text(_SAAS_SERVER_DEV_REQUIREMENTS)
 
     # server/Dockerfile — mirror the python Dockerfile, entrypoint at <pkg>.main:app.
     # The saas backend serves /api/health (not /health), so retarget the image
@@ -4200,7 +4260,7 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
     ``compose config`` refuses a required one that is absent — W-6f690b90): the owner file is what carries
     ``DATABASE_URL_OWNER`` since the owner split (D-754) — compose ``environment:`` never
     holds it and the project ``.env`` no longer does. The image's
-    HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler replaces it with a
+    HEALTHCHECK probes the APP (HTTP or its worker's heartbeat), so the scheduler replaces it with a
     liveness probe (``kill -0 1``). Never ``disable: true``: ``compose up --wait`` fails a service
     whose healthcheck is disabled ("has no healthcheck configured"), measured on compose 2.40.3.
     """
@@ -4944,14 +5004,30 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             else:
                 new_lines.append(line)
         content = "".join(new_lines)
-        # Replace HEALTHCHECK to check process instead of HTTP
-        content = re.sub(
+        # The worker serves no HTTP: its HEALTHCHECK reads the heartbeat age instead (exec form, so the
+        # CMD must be a JSON list — anything else Docker runs through /bin/sh, never healthy). A callable
+        # replacement keeps re's template escapes out of the JSON; a template whose HEALTHCHECK drifted
+        # is refused, not shipped with the curl /health check a worker can never pass. The template's
+        # HTTP comment lines above it, when present, are replaced too.
+        healthcheck = (
+            "# Health check: the worker heartbeat was written in the last 120 s\n"
+            "# (fabrik.scaffold.FILE_WORKER_HEARTBEAT_CHECK; exec form, so CMD stays a JSON list)\n"
+            "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \\\n"
+            "    CMD " + json.dumps(["python", "-c", FILE_WORKER_HEARTBEAT_CHECK])
+        )
+        content, replaced = re.subn(
+            r"(?:# Health check \(customize port and endpoint\)\n)?"
+            r"(?:# Note: /health tests actual dependencies[^\n]*\n)?"
             r"HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\\n"
             r"    CMD curl -f http://localhost:\$\{PORT:-8000\}/health \|\| exit 1",
-            "HEALTHCHECK --interval=30s --timeout=5s --retries=3 \\\n"
-            '    CMD pgrep -f "python worker/main.py" || exit 1',
+            lambda _m: healthcheck,
             content,
         )
+        if replaced != 1:
+            raise ValueError(
+                f"{dockerfile_src}: expected one HTTP HEALTHCHECK to replace with the worker heartbeat "
+                f"check, found {replaced}"
+            )
         # Replace PYTHONPATH
         content = content.replace("ENV PYTHONPATH=/app/src", "ENV PYTHONPATH=/app")
         (project_dir / "Dockerfile").write_text(content)
@@ -4960,9 +5036,58 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     makefile_src = TEMPLATE_DIR / "docker" / "Makefile.python"
     if makefile_src.exists():
         content = makefile_src.read_text()
-        content = content.replace("myproject", name)
         # A file-worker keeps its code in worker/, not src/ (the template's lint/gate-lean type src).
         content = content.replace("mypy src", "mypy --explicit-package-bases worker")
+        # docker-smoke: the worker serves no HTTP, so the template's curl to /health could never pass (W-881752ec).
+        # Judge the smoke container by the image's own heartbeat check instead: after the template's 3 s sleep,
+        # up to 10 more tries a second apart (about 15-20 s in all) for the first beat — it follows boto3/supabase
+        # import and two client constructions — then the verdict. No port is published, the run has no network
+        # and carries WORKER_SMOKE=1 (beat, never claim — a smoke run against a real .env claimed production
+        # jobs and was stopped mid-run, W-807b73fd; without the network an image that ignored the flag fails
+        # loudly rather than claims). The container is named
+        # `$(PROJECT_NAME)-smoke`, not the template's shared `smoke-test` (another project's smoke run may own
+        # that name), and a leftover of our own is removed first — `docker run ... || true` would otherwise
+        # swallow the name clash and the leftover would be the one judged.
+        check = f'docker exec smoke-test python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
+        smoke = {
+            "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
+                "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
+                "\t@docker run -d --name smoke-test --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n"
+            ),
+            '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
+                f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {check} >/dev/null 2>&1 && break; sleep 1; done\n"
+                f'\t@{check} && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n'
+            ),
+        }
+        # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
+        # a rule, never an assignment (`:=`, `::=`, `:::=`) — or any template still carrying a smoke line, whatever its
+        # rule header looks like (`docker-smoke docker-x:`, `docker-smoke &:`, a leading space): the live-worker run
+        # line must never survive a header the regex cannot read (W-807b73fd)
+        has_smoke = re.search(r"(?m)^docker-smoke[ \t]*::?(?![:=])", content) is not None or any(
+            old in content for old in smoke
+        )
+        for old, new in smoke.items() if has_smoke else ():
+            if content.count(old) != 1:
+                raise ValueError(
+                    f"{makefile_src}: expected one docker-smoke line to replace, found {content.count(old)}: "
+                    f"{old.strip()!r}"
+                )
+            content = content.replace(old, new)
+        # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
+        live = [
+            ln.strip()
+            for ln in content.splitlines()
+            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
+        ]
+        if live:
+            raise ValueError(
+                f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"
+            )
+        if has_smoke:
+            content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
+        # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
+        # turn `PROJECT_NAME ?= x9-smoke-test` into a self-reference make refuses to load
+        content = content.replace("myproject", name)
         # Replace the dev target body: match any uvicorn invocation on the line
         # following the "dev:" target and replace it with the worker command.
         # This handles the actual template command regardless of exact arguments.
@@ -4994,6 +5119,21 @@ pypdf>=4.3.0
 redis>=5.0
 """
     )
+    # requirements-dev.txt — what the Makefile's setup-dev installs (W-046828fb: the file was referenced
+    # but never emitted). python-api's dev list: its lint targets run ruff and mypy, and the copied
+    # pytest config sets asyncio_mode and timeout, which need pytest-asyncio and pytest-timeout.
+    (project_dir / "requirements-dev.txt").write_text(
+        "-r requirements.txt\n"
+        "pytest>=8.3.0\n"
+        "pytest-asyncio>=0.24.0\n"
+        "pytest-timeout>=2.3.0\n"
+        "ruff\n"
+        "mypy\n"
+        "bandit\n"
+        "semgrep\n"
+        "sqlfluff\n"
+        "vulture\n"
+    )
 
     # f) Overwrite .env.example with worker-specific vars
     (project_dir / ".env.example").write_text(
@@ -5012,6 +5152,9 @@ R2_BUCKET=your-bucket-name
 
 # Service identity for structured logging
 SERVICE_NAME={name}
+
+# WORKER_SMOKE=1 (exactly "1") is set only by `make docker-smoke`: the worker beats and never claims a job.
+# Never set it here — a worker carrying it stays healthy while processing nothing.
 """
     )
 
@@ -5035,14 +5178,13 @@ SERVICE_NAME={name}
 
     # B20: Worker-style compose. file-worker has no HTTP surface, so no
     # Traefik labels — Coolify still manages the container via the
-    # ``fabrik`` network. Healthcheck probes the worker process by
-    # name (``python worker/main.py``) instead of HTTP.
+    # ``fabrik`` network. Healthcheck reads the worker's heartbeat age
+    # (FILE_WORKER_HEARTBEAT_CHECK), the same check the Dockerfile runs.
     _write_canonical_compose(
         project_dir,
         name,
         with_traefik=False,
-        healthcheck_kind="process",
-        process_pattern="python worker/main.py",
+        healthcheck_kind="heartbeat",
         port=8000,  # unused but required by signature
     )
 
@@ -6496,9 +6638,20 @@ ephemeral — never register in a bare global).
         f"    )\n"
     )
 
-    # requirements.txt (at root, for server)
+    # requirements.txt (at root, for server) is the image's install list: runtime deps only. The test
+    # deps live in requirements-dev.txt, which `make install` and the scaffold-time venv install
+    # (W-4d6a37c8; pytest-timeout backs the pytest.ini hang guard, W-046828fb).
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\nstructlog>=24.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\n"
+    )
+    (project_dir / "requirements-dev.txt").write_text(
+        "# Test dependencies (the Dockerfile installs requirements.txt only); `make install` installs this.\n"
+        "-r requirements.txt\npytest>=8.0.0\npytest-timeout>=2.3.0\n"
+    )
+    # pytest.ini — the config pytest reads for the ROOT tests/ (server/pyproject.toml is never read
+    # for a root run): the same hang guard the template's [tool.pytest.ini_options] sets (W-046828fb).
+    (project_dir / "pytest.ini").write_text(
+        "[pytest]\npythonpath = server/src\ntimeout = 120\nfaulthandler_timeout = 120\n"
     )
 
     # tests/test_health.py
@@ -6632,7 +6785,7 @@ release-ext:
 # Install all dependencies
 install:
 \tpython -m venv .venv
-\t.venv/bin/pip install -r requirements.txt
+\t.venv/bin/pip install -r requirements-dev.txt
 \tcd extension && pnpm install
 
 # Run tests
@@ -6736,7 +6889,8 @@ EXTENSION_LATEST_SHA256=
         import click
 
         click.echo(
-            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+            f" ({_offline_reason()})"
         )
         return
     venv_path = project_dir / ".venv"
@@ -6748,7 +6902,7 @@ EXTENSION_LATEST_SHA256=
         else venv_path / "Scripts" / "pip.exe"
     )
     result = subprocess.run(
-        [str(venv_pip), "install", "-r", "requirements.txt"],
+        [str(venv_pip), "install", "-r", "requirements-dev.txt"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -7735,7 +7889,10 @@ def _emit_mcp_config(project_dir: Path) -> None:
     Crash-safe by contract: a failed emission never breaks a scaffold — the repo is
     covered by the next hub-wide emission run instead. The emitter derives the set
     from the repo's ``project.yaml`` type + the roster-ruled overlay tables, so this
-    call must come AFTER the type patch."""
+    call must come AFTER the type patch. Offline (no opt-in, or FABRIK_SCAFFOLD_OFFLINE) it does
+    nothing: the emitter copies hub credentials into the repo (W-e2f0b6e5)."""
+    if _scaffold_offline():  # offline: the next hub-wide emission run covers it
+        return
     emitter = FABRIK_ROOT / "scripts/sysadmin/emit_mcp_project_config.py"
     try:
         r = subprocess.run(
@@ -7917,6 +8074,32 @@ def create_project(
     generate_spec: bool = True,
     preplan: object = None,  # T3-01: a fabrik.preplan.Preplan instance or None
     use_database: bool = False,
+    *,
+    provision: bool = False,
+) -> Path:
+    """Create a new project with full structure.
+
+    ``provision=True`` (the ``fabrik scaffold`` CLI) runs it inside ``provisioning()``: the venv,
+    the local dev database, the hub registry sync, the ``.mcp.json`` emit and a hub deploy spec for
+    an /opt project. Any other caller gets the files only, unless it already runs inside
+    ``provisioning()`` — ``provision=False`` is not an opt-out (W-e2f0b6e5).
+    """
+    args = (name, description, base, project_type, preset, generate_spec, preplan, use_database)
+    if provision is True:  # a truthy string such as "no" is not an opt-in
+        with provisioning():
+            return _create_project(*args)
+    return _create_project(*args)
+
+
+def _create_project(
+    name: str,
+    description: str,
+    base: Path,
+    project_type: str,
+    preset: str | None,
+    generate_spec: bool,
+    preplan: object,
+    use_database: bool,
 ) -> Path:
     """Create a new project with full structure.
 
@@ -8013,15 +8196,30 @@ def create_project(
 
     # MCP split (plan-3, D-028/D-029): emit the repo's ruled .mcp.json (gitignored)
     # so the FIRST Claude window opens with the correct per-type/overlay server set.
-    if not _scaffold_offline():  # offline: the next hub-wide emission run covers it
-        _emit_mcp_config(project_dir)
+    _emit_mcp_config(project_dir)  # offline (no opt-in): skipped inside
 
     # Auto-generate deployment spec for supported types.
     # ``use_database`` propagates the CLI ``--db`` flag through so the emitted
     # spec carries ``shape.needs_database: true`` and the postgres registrar
     # fires on ``fabrik apply``. Pre-fix (B1) the flag was silently dropped,
     # so DB-backed projects deployed without a VPS Postgres database.
-    if generate_spec and project_type in SPEC_ENABLED_TYPES:
+    in_scan_root = _in_sync_scan_root(project_dir)
+    if (
+        generate_spec
+        and project_type in SPEC_ENABLED_TYPES
+        and in_scan_root
+        and _PROVISION.get() is not True
+    ):
+        # Not opted in, under the hub's scan root: the hub's tracked specs/services/ belongs to the
+        # provisioning path, and a copy inside the new repo would land after its initial commit,
+        # leaving it dirty and switching on project-side spec checks (W-e2f0b6e5).
+        import click
+
+        click.echo(
+            "⏭  Deploy spec not written (provisioning not requested): `fabrik scaffold` writes it"
+            " to the hub's specs/services/"
+        )
+    elif generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             # Real /opt scaffolds write their deploy spec to the hub's specs/services/ (where
             # `fabrik apply` reads it). A scaffold to a NON-/opt base — tests (tmp_path), sandboxes —
@@ -8030,11 +8228,8 @@ def create_project(
             # `base`, so every full test-suite run rewrote all committed specs with whatever the
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
-            specs_dir = (
-                (FABRIK_ROOT if _in_sync_scan_root(project_dir) else Path(base))
-                / "specs"
-                / "services"
-            )
+            # Reaching here under the scan root means provisioning was opted in (the branch above).
+            specs_dir = (FABRIK_ROOT if in_scan_root else Path(base)) / "specs" / "services"
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(

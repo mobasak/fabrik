@@ -25,7 +25,10 @@ without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE lin
 `handoff` is the record's third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it.
 `<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL
 `/tmp` wipe and the worktree's removal), never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path
-phase 2 never wrote; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp).
+phase 2 never wrote; a linked-worktree session, whose Write tool refuses a main-checkout path, changes each
+file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back
+after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is
+`<scratchpad>/fabrik-task/<started_at>` (in /tmp).
 
 ## SIZE — phase 0 is the `start` itself
 
@@ -44,10 +47,11 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
 operator-named work (lane row 1b), declared here rather than found at phase 4.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
-purpose: **declare the grader you are about to write**; `ls` and grep every other path for the rule first, since
-a typo reads as that grader; a golden or snapshot that pins the output is declared too. Declare the CODE surface ONLY — the close
-excludes the Doc Sync Matrix destinations, the ledger files and `docs/CAPABILITIES.md`, so declaring
-`CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
+purpose: **declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it just
+before phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep
+every other path for the rule first, since a typo reads as that grader; a golden or snapshot that pins the output is
+declared too. Declare the CODE surface ONLY — the close excludes the Doc Sync Matrix destinations, the ledger files and
+`docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
 
 The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path may be a sibling's
 WIP — message the author, never stage it), or a LANE verdict naming where the work belongs. Read
@@ -81,12 +85,13 @@ once, a list read whole, never a sample — each by EXECUTING the real path on r
 the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
 source read or a proxy: the tests that drive it by subprocess, the completion gate's own command, a recipe's real
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
-what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
-parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field, with each hook
-output it grows sized against Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
-`python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
-the packs it prints.
+what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on
+non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for a parsed format, its operator-facing strings
+in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate's
+new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code's
+10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a
+deliberately broken input, since a pass proves nothing until it can fail. Then `python scripts/select_rules.py --changed
+<the declared paths>` — the path-scoped form — and READ the packs it prints.
 
 ## Phase 2 — DESIGN, where it will be minted
 
@@ -143,7 +148,9 @@ deleted file, other surfaces stating a changed claim, the gates that grade it �
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
 whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
-or stdout (grep its tests for `== {` and `len(`),
+or stdout (grep its tests for `== {` and `len(`), every Python reader of a name by an `ast.walk` census beside the
+grep, never `tree.body` alone (a function-local or `try:` import sits below it; a string-named import, `getattr` or
+subprocess argv is no import node, so the grep finds it),
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
 parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a
 repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the
@@ -175,7 +182,7 @@ Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped
 surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
 the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
-not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none. Give its seat briefs
+not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
@@ -214,7 +221,11 @@ The close re-measures every commit. At v1 an undeclared path is RECORDED as `ove
 never refused. *(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2's
 rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
-too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
+too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and
+in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line
+so its sha lands in `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a
+sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the
+`--restamp` form below):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
 --range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a

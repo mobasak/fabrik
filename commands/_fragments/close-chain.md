@@ -2,7 +2,7 @@
 each in its own call: the commit message with its Agent Provenance Trailers, each shared-ledger hunk, the
 `--evidence` and `--feedback` text. A measured figure an input states (a test total, a constant's size, a row count)
 is printed by its producing command, over the population the input names, when the input is written and copied from
-that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool's own total"). In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none. Then: (1) the artifact's own check — {{ARTIFACT_CHECK}}; (2) the commit — the
+that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool's own total"). In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none. In such a command, what an input says about the change — the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces. Then: (1) the artifact's own check — {{ARTIFACT_CHECK}}; (2) the commit — the
 artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`,
 `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the
 private-index recipe in ONE shell — the Doc Sync check reads only the STAGED diff, so a ledger committed first

@@ -152,7 +152,9 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
         "Valid one-off advice is rejected with `HELD:<subject>` first (D-711); a subject an earlier reject already "
         "holds is a recurrence, and is edited instead. Find it in the reason column of `python3 "
         "scripts/command_feedback_report.py --reasons <cmd>`, run without `--held` (an untagged reject is "
-        "still a final hold), because the `--queue` header's `held (all time):` line lists tags only and a "
+        "still final; it is an advice hold when its reason says the text lacks the advice but is not "
+        "wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and neither when "
+        "it is misfiled or refuted), because the `--queue` header's `held (all time):` line lists tags only and a "
         "near-synonym matches no tag; an audit seat gets that output pinned in its scratch and never runs it "
         "(D-837)."
     ) in kz
@@ -185,3 +187,16 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
     monkeypatch.setattr(cfr, "_HUB_PATH", hub)
     monkeypatch.chdir(wt)
     assert cfr._resolve_fabrik_root() == wt.resolve()
+
+
+def test_a_session_that_cannot_switch_model_runs_on_and_says_so() -> None:
+    """Row 1792283288 (kaizen, 2026-10-18): the Driver bullet ordered `/model`, a command only the operator types,
+    and named no path for a session that cannot switch itself."""
+    sec = " ".join(_drive_section().split())
+    assert (
+        "account percentages. A session the operator has not switched runs on Opus, or on Fable outside that RED,"
+        " and names its model in the commit body, or in its close when it commits nothing; on a seat model, or on"
+        " Fable at that RED, it takes the handoff close (§ Drive, Resilience) naming the model the run needs."
+    ) in sec
+    # row 1792284368: Terminal's no-edit and handoff closes make no commit, so the commit body is not always there
+    assert "An unnamed hub window names its role in the commit body, or in its close when it commits nothing." in sec

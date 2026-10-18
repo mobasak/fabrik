@@ -3683,3 +3683,46 @@ def test_pass_68_agent_description_is_a_key_and_a_closed_stdout_launch_is_green(
     )
     assert "its own wrapper is now the binding" not in proc.stdout, proc.stdout
     assert "left the process's stdout unusable" in proc.stdout, proc.stdout
+
+
+def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
+    """W-aeb35e3a: the rendered commands run from every repo on the box, where `commands/_fragments/`,
+    `commands/_sources/` and `commands/_agents/` do not exist (only the rendered output is installed), so a source,
+    fragment or seat file cites one of their files as `/opt/fabrik/commands/<dir>/<f>.md`. Red on the twelve relative
+    citations this item fixed. A citation is a path ending in `.md`, so a glob, a placeholder and a name without `.md`
+    never read as one (review rounds 2-5 kept patching a tail that matched `.md`-less names; the branch was deleted,
+    0 such names in the corpus). Flagged: a `./` or `../` prefix, a bare `_fragments/` path, `_` or capitals, and
+    any markup around it. Allowed: the absolute form, a `git show <ref>:commands/...` recipe and `{{include:...}}`."""
+    relative = re.compile(
+        r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+\.md\b"
+    )
+    for spelling in (
+        "`commands/_agents/x.md`",
+        "./commands/_fragments/a.md",
+        "../_fragments/a.md",
+        "`_fragments/a.md`",
+        "commands/_sources/Term_x.md",
+        "see commands/_fragments/a.md.",
+        "**commands/_fragments/a.md**",
+        "|commands/_fragments/a.md|",
+    ):
+        assert relative.search(spelling), spelling
+    for spelling in (
+        "/opt/fabrik/commands/_fragments/a.md",
+        "git show HEAD:commands/_fragments/a.md",
+        "{{include:term-coverage}}",
+        "the `commands/_fragments/` directory",
+        "ls commands/_sources/fabrik-*",
+        "ls commands/_sources/fabrik.*",
+        "`commands/_sources/<command>.md`",
+        "commands/_sources/x.py",
+    ):
+        assert not relative.search(spelling), spelling
+    hits = [
+        f"{path.relative_to(REPO)}:{n}"
+        for sub in ("_sources", "_fragments", "_agents")
+        for path in sorted((REPO / "commands" / sub).glob("*.md"))
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if relative.search(line)
+    ]
+    assert not hits, hits

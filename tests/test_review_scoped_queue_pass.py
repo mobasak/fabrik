@@ -620,3 +620,48 @@ def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_impor
             assert token in consts[name], (
                 f"{name} lost {token!r}, which the catalogue sentence names"
             )
+
+
+def test_a_shell_written_brief_quotes_its_backticks() -> None:
+    """Row 1792291162, the second sighting of HELD quote-heredoc-when-writing-briefs: a brief or Workflow args file
+    written through an unquoted heredoc runs its backticks, and an escaped backtick in a grep pattern is GNU grep's
+    start-of-text anchor, so it matches nothing mid-pattern and the wrong line at its start (round 1, Opus probe).
+    It sits beside the delta-brief clause, not between 'lacking a hash;' and 'before you adjudicate the pass'."""
+    src = _norm(SRC)
+    clause = (
+        "(01M236V84, 01M23ESF5); a brief or Workflow args file you write is written with the Write tool, or through a"
+        " quoted heredoc (`<<'EOF'`) where a shell must write it, so no backtick in it runs, and a check command it"
+        " hands a seat writes a backtick in a grep pattern unescaped inside single quotes (a pattern that also holds"
+        " `'` splices it in as `'\\''`), since GNU grep reads a backslash-backtick as a start-of-text anchor: escaped,"
+        " the pattern matches nothing mid-pattern and the wrong lines at its start; a delta seat's brief"
+    )
+    assert src.count(clause) == 1
+    assert "lacking a hash; before you adjudicate the pass" in src
+
+
+def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
+    """Row 1792288442 (and the answered rejects on this sentence before it): the lead hand-listed archive roots in a
+    brief it wrote; the rule now names where the roots are read from, subprocess-run scripts included (round 1, Opus:
+    imports and constants alone missed inline paths and a subprocess target), without restating the recipe."""
+    assert (
+        "derived from what the tests import, read or run, every path expression in the test files, the scripts they"
+        " run by subprocess and what those scripts read included, never a hand-listed path set"
+    ) in _norm(SRC)
+
+
+def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
+    """Row 1792294821, a third verdict on the archive-roots subject (1792228739, 1792229273): seats feared an editable
+    install's .pth shadowing a copied src; under PIN_IMPORT the copy sits ahead of it (probed), so the catalogue says
+    where the live src can still win instead of warning about a shadow that the recipe prevents."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    anchor = "never `/opt/fabrik` from a worktree."
+    start = iso.find(anchor)
+    end = iso.find("The pins line follows", start)
+    assert start != -1 and end != -1, "the worktree clause and the pins-line sentence still bound the note"
+    sentence = iso[start + len(anchor) : end].strip()
+    assert sentence == (
+        "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
+        " instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo"
+        " (`PYTEST_PINS`) and a child process started with its own `env=`, which resolves the `.pth` again."
+    ), sentence
+    assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"

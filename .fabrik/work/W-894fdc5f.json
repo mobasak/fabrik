@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:23:58.992586Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "2dd62367026d354cd12acf400885f0a92d16e8cc",
+  "id": "W-894fdc5f",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one /fabrik-task over src/fabrik/drivers/dns.py and ssh.py; the argv key first (it is the only exposure of the six)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH, security first within HIGH (D-958): the site-provisioner API key is visible in ps while a DNS call runs; six driver leftovers in two files",
+  "status": "done",
+  "tags": [
+    "security"
+  ],
+  "title": "DNS/SSH driver residue from the W-6a96f699 review: the site-provisioner API key rides the LOCAL ssh argv (visible in ps / /proc while the call runs — send it via curl -K - on stdin); _resolve_container_url swallows an ssh timeout into the public-URL fallback; scp_to_vps passes a local_path beginning with '-' as an option (no '--'); a very short SITE_PROVISIONER_API_KEY over-masks error text; an empty stderr ends 'failed (rc=N): '; a non-Warning banner line naming a host with a network word ('vps-unreachable') still reads network-shaped"
+}

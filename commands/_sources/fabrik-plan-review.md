@@ -94,7 +94,9 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids;
   the summary is what a convergence artifact can EMBED as proof. Findings the checker raises are
   review findings: fix them in the set,
-  don't route around the gate.
+  don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the
+  orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, outside any
+  docs/development/plans/ directory> --allow-external`, run from the repo root.
 - **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
   --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`
   flip, because the plan set is still editable here and is not editable after. It exits 0 on every
@@ -304,7 +306,7 @@ section's text read by two seats; the union IS the pass. Size and stamp it at TH
 slice's refuter counted by its model token (never dispatch past `SEATS: 0` — read its reason line for what binds,
 the box, a cap, or your own invocation, and re-run it once that clears), `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, then ONE
 `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
-surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no `SCRATCH:` line; only the seats' copies go under `scratch_dir`) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
+surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no line that begins `SCRATCH:`; only the seats' copies go under `scratch_dir`) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
 or the monolith], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a cited-fact
 slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): one fresh refuter per
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file

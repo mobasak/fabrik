@@ -23,6 +23,26 @@ def _section(start: str, end: str) -> str:
     return text[i : text.index(end, i + len(start))]
 
 
+def test_size_check_ignores_each_new_path() -> None:
+    """Row 1792293040, the second verdict on held new-file-must-git-added: a declared path that does not exist yet
+    fell under a `lib/` ignore rule and never reached the commit; SIZE now check-ignores and stages each new file."""
+    assert (
+        "**declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it"
+        " just before phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`);"
+        " `ls` and grep every other path for the rule first"
+    ) in _section("## SIZE", "## Phase 1")
+
+
+def test_measure_runs_a_codec_change_on_its_edge_inputs() -> None:
+    """Row 1792291304, the second verdict on held design-list-input-grammar: MEASURE runs the codec a change touches
+    on non-UTF-8 bytes, NUL and that codec's own escape before design.md is written."""
+    assert (
+        "the codec a change touches run on non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for"
+        " a parsed format"
+        in _section("## Phase 1", "## Phase 2")
+    )
+
+
 def test_size_checks_each_declared_path_before_declaring_it() -> None:
     """Rows 1790966184, 1791467990: a typo'd declared path is accepted silently as a grader."""
     assert "`ls` and grep every other path for the rule first, since a typo reads as that grader" in _section(
@@ -128,7 +148,14 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
     """Row 1791845646: the nested review learned the `--range` init only at phase 5's close."""
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     review = text[text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")]
-    assert "A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none." in review
+    assert (
+        "A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last"
+        " `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that"
+        " commit instead (`--restamp`, phase 5); a scoped one needs none."
+    ) in review
+    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
+    # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
+    assert "Its range tip must be the LAST `--commit`" in text and "then commit that receipt alone" in text
 
 
 def test_phase_three_formats_the_declared_paths_only() -> None:
@@ -219,4 +246,23 @@ def test_measure_greps_config_and_env_values_and_design_reads_a_copied_rule_firs
         "D-rows settled. Before such a copy, a rule another component already applies is tried as a read of its"
         " output (stdout, a record, an exported function); when the copy stays, DECISION says why the read cannot"
         " serve. Each input"
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole_ast() -> None:
+    """Row 1792327651 (a full review's fix commits read as outside the run, so the receipt range was rebuilt by hand
+    twice; row 1792309961's confusion read the tip rule the same way, after answered rejects 1792289109 and
+    1791923102 on that line) and row 1792303601, the second sighting of held ast-census-for-python-imports (a
+    `tree.body` scan missed a function-local import)."""
+    assert (
+        "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form"
+        " each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in"
+        " `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a sync-path"
+        " run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the"
+        " `--restamp` form below): after the last sha in"
+    ) in _section("## Phase 5", "## UPGRADE")
+    assert (
+        "every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a"
+        " function-local or `try:` import sits below it; a string-named import, `getattr` or subprocess argv is no"
+        " import node, so the grep finds it),"
     ) in _section("## Phase 2", "## Phase 3")

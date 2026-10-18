@@ -17,6 +17,32 @@ correct:
 - **A restated number in prose is the site that keeps yielding.** The child's docstring stated the alarm's margin;
   it was wrong after round 1, again after round 2 (`int()` truncates toward zero for a just-past deadline). The fix
   that ended it was deleting the number for a pointer to the code that owns it.
+## Fixing one side of an encoding mismatch moves the mismatch to the next reader of the same text (2026-10-18)
+
+W-7ae1169a (D-976): check_doc_index decoded `%20` in INDEX links on one side and compared raw paths on the other.
+- **Normalise the side you control, never re-encode the side you read.** My draft `quote()`d the doc path to meet the
+  INDEX text; both design critics executed it and it crashed on non-UTF-8 names and missed every escape a human writes
+  (`R&D%20notes.md`, lowercase hex). Decoding the INDEX text once accepts every valid spelling with one canonical form.
+- **Grep for every OTHER reader of the same text before calling the class closed.** check_doc_links scans the same
+  INDEX in the same gate run and also decoded only `%20`, so each new remedy would have been a "broken ref" one row
+  later. Then, widening that reader to decode EVERY link it scans broke two things the review seats found by
+  execution: a `%00` crashed the row, and a file whose real name holds `%XX` stopped resolving. A decoder over text
+  you do not own needs the raw spelling as a fallback and a guard for what decoding can manufacture (NUL, `%2F`).
+
+## `except ImportError` cannot tell a missing symbol from a missing module, and `Path.is_file()` can raise (2026-10-18)
+
+W-5feb6e9c (D-972): `check_synced_unmodified.py` guarded `from fabrik_synced_manifest import X` with `except ImportError`,
+meaning "the hub is not here". Executed on Python 3.12: a missing SYMBOL raises a plain `ImportError` whose `.name` is the
+MODULE's name — the same name an absent module carries — so only the exception TYPE (`ModuleNotFoundError`) discriminates,
+and a hub rename silently emptied two exemption lists in every project copy at once.
+- **Guard the case you mean by its own test.** "The file is absent" is `path.is_file()` before the load, never an
+  exception class caught after it; then every load failure is the producer's, and is named.
+- **The replacement guard had its own hole, found only by the review seats:** `Path.is_file()` swallows ENOENT-class
+  errors but RAISES `PermissionError` for a directory another uid owns, and `except Exception` does not catch `SystemExit`
+  (a manifest calling `sys.exit(0)` ended the gate GREEN). Enumerate the guard's input space, not just its happy and
+  absent paths.
+- **A grader's docstring is a claim too.** The repo-manifest test said it caught a non-stdlib import; a seat added
+  `import yaml` (installed in the hub venv) and it stayed green. A behaviour is graded only once a mutant of it reds.
 
 ## A fix that answers a finding's first half leaves its second half for the next round — read the whole row before closing it (2026-10-12)
 
@@ -7476,3 +7502,23 @@ document.
 - **Where it lives.** `scripts/kilo-benchmarks/tests/capture_golden.py` (`load_known_collapses`, `verify`),
   `tests/golden/known_collapses.json`, `docs/DECISIONS.md` (D-567),
   `docs/development/reviews/2026-10-05-golden-known-collapses-review.md`.
+
+## ssh reads `host:port` as a hostname, and never passes `-o` to a ProxyJump hop — a probe of a jump must speak ssh's own destination grammar (2026-10-18)
+
+- **What happened.** W-2b657bee added an opt-in `FABRIK_SSH_JUMP_<ALIAS>` and a reachability preflight that names the
+  dead leg. The first build probed the jump's first hop as `ssh … ops@vps2:2222 true`, the same `[user@]host[:port]`
+  string ProxyJump accepts. `ssh -G ops@vps2:2222` printed `hostname vps2:2222` and `port 22`, so the probe tested a
+  host that does not exist and blamed the wrong leg. Its advice printed the same wrong command, which survived until
+  the next round. The design also claimed `ConnectTimeout` cannot bound a banner-exchange hang. ssh_config(5) says it
+  bounds the connect and the handshake. What it cannot bound is a jump hop, because the hop's command line carries
+  only `-l -p -J -F -v`.
+- **Mechanism.** ProxyJump's hop grammar and the positional destination grammar are two grammars that look like one.
+  A value valid for one is silently wrong for the other. A fix that converts at the probe is only half done if the
+  advice text prints the original string.
+- **How to apply.** (1) A hop with a port is addressed as `ssh://[user@]host:port`, the one destination form ssh
+  parses a port from. (2) Bound a jumped probe with an outer `subprocess` timeout, not `ConnectTimeout` alone.
+  (3) Build every human-facing command in the message from the same destination the probe ran, never from the
+  input string.
+- **Where it lives.** `src/fabrik/drivers/preflight.py` (`_hop_destination`, `_probe`, `verify_host_reachable`),
+  `src/fabrik/drivers/ssh.py` (`parse_hop`, `jump_for`), `docs/DECISIONS.md` (D-973),
+  `docs/development/reviews/2026-10-18-ssh-jump-preflight-w2b657bee-review.md`.

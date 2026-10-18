@@ -22,9 +22,18 @@ from worker.logger import get_logger
 
 log = get_logger(__name__)
 
-# Heartbeat file for Docker HEALTHCHECK
-HEARTBEAT_FILE = Path("/app/.tmp/worker_heartbeat")
-HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+# Heartbeat file for the Dockerfile.j2/compose.yaml.j2 healthchecks: the project's own .tmp/ beside the
+# worker/ package — /app/.tmp/worker_heartbeat in the image (WORKDIR /app, COPY . .), the checkout's
+# .tmp/ in dev.
+# Nothing is created at import: _beat() makes the directory on the first heartbeat.
+HEARTBEAT_FILE = Path(__file__).resolve().parent.parent / ".tmp" / "worker_heartbeat"
+
+
+def _beat() -> None:
+    """Refresh the heartbeat the Dockerfile.j2/compose.yaml.j2 healthchecks read."""
+    HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    HEARTBEAT_FILE.touch()
+
 
 # Config
 WORKER_ID = os.getenv("WORKER_ID", "worker-1")
@@ -32,6 +41,9 @@ JOB_TYPES = os.getenv("JOB_TYPES", "transcribe,ocr,extract_text").split(",")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))
 MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT_JOBS", "2"))
 MAX_PROCESSING_TIME = int(os.getenv("MAX_PROCESSING_TIME", "3600"))
+# Set only by `make docker-smoke` (W-807b73fd): beat for the healthcheck, never claim a job — a smoke run against a
+# real .env would otherwise claim production jobs and be stopped mid-run. Exactly "1"; any other value is a worker.
+SMOKE = os.getenv("WORKER_SMOKE") == "1"
 
 # Clients
 supabase: Client = create_client(
@@ -261,13 +273,16 @@ def process_job(job: dict) -> None:
 def main():
     """Main worker loop."""
     log.info("worker_starting", worker_id=WORKER_ID, job_types=JOB_TYPES)
+    if SMOKE:
+        # a warning, so a production worker that somehow carries the flag shows up idle in log triage
+        log.warning("worker_smoke_mode", detail="WORKER_SMOKE=1: beating, never claiming a job")
 
     with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as executor:
         futures = {}
 
         while not shutdown_requested:
             # Update heartbeat for Docker HEALTHCHECK
-            HEARTBEAT_FILE.touch()
+            _beat()
 
             # Clean up completed futures
             done = [f for f in futures if f.done()]
@@ -279,7 +294,7 @@ def main():
                 del futures[f]
 
             # Claim new jobs if we have capacity
-            while len(futures) < MAX_CONCURRENT and not shutdown_requested:
+            while not SMOKE and len(futures) < MAX_CONCURRENT and not shutdown_requested:
                 job = claim_job()
                 if not job:
                     break

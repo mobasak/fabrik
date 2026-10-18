@@ -60,6 +60,7 @@ def test_archive_sources_are_excluded():
     assert not any(s.startswith("docs/archive/") for s in srcs)
     assert not any(s.startswith("docs/infrastructure/archive/") for s in srcs)
     assert "docs/LESSONS_LEARNT.md" not in srcs  # dated ledger exempt
+    assert "docs/DECISIONS.md" not in srcs  # immutable ledger exempt (W-e9c8a4df)
 
 
 def test_scaffold_templates_are_excluded_as_sources():
@@ -82,6 +83,41 @@ def test_scaffold_templates_are_excluded_as_sources():
 # in an empty-repo fixture this check scanned a single README with no links and still reported
 # "zero broken references in the live tree". True sentence, false impression. Exemplar to copy:
 # `check_traycer_chain: PASS - 0 files, all 3 classes clean`.
+
+
+def test_the_decision_ledger_is_not_a_link_source(tmp_path, capsys, monkeypatch):
+    """W-e9c8a4df: a D-row minted with a DRAFT plan cites files that do not exist yet, and rows are immutable, so
+    a broken cite there can never be fixed at the row; it redded every session's gate. The ledger is excluded as a
+    SOURCE beside LESSONS_LEARNT.md — through the real `_tracked_md_sources`, in a temp git repo — while the same
+    broken cite in any other docs file still reds (the control)."""
+    repo = tmp_path / "r"
+    (repo / "docs").mkdir(parents=True)
+    for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=15)
+    cite = "`docs/development/plans/2026-10-18-plan-9-not-yet.md`"
+    (repo / "docs" / "DECISIONS.md").write_text(
+        f"| D-1 | 2026-10-18 | x | y | z | {cite} |\n", encoding="utf-8"
+    )
+    (repo / "docs" / "a.md").write_text(f"see {cite}\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "docs"], check=True, timeout=15)
+    tracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "docs"], capture_output=True, text=True, timeout=15
+    ).stdout.split()
+    assert "docs/DECISIONS.md" in tracked, "an untracked ledger is no source on the base either"
+    assert not (
+        repo / ".fabrik" / "synced.lock"
+    ).exists()  # no lock exempts the ledger for another reason
+    monkeypatch.setattr(cdl, "REPO", repo)
+    # no main-checkout lock either: only the rule under test may exempt the ledger
+    monkeypatch.setattr(cdl, "_main_checkout", lambda: None)
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
+    monkeypatch.setattr(sys, "argv", ["check_doc_links.py"])
+    assert cdl.main() == 1
+    out = capsys.readouterr().out
+    assert (
+        "ERROR: docs/a.md: broken ref -> docs/development/plans/2026-10-18-plan-9-not-yet.md" in out
+    ), out
+    assert "docs/DECISIONS.md: broken ref" not in out, out
 
 
 def test_success_line_states_how_much_it_examined(tmp_path, capsys, monkeypatch):

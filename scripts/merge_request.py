@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, docs/reference/multi-agent-operating-model.md
+# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, docs/reference/multi-agent-operating-model.md
 """merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
 merges it through ONE data-safe path (stdlib-only).
 
@@ -961,9 +961,65 @@ def _remove_throwaway(ctx: _Ctx, wt: Path) -> None:
     _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
 
 
+# A work-item file: `work.py` writes one key per line in sorted order, so two sides changing DISJOINT
+# keys that sort side by side collide in git's line merge (W-5f3617e6); `work.py merge-item` merges
+# them key-wise against the base instead.
+MERGE_ITEM_CONFLICT_RC = 3  # `work.py merge-item`'s conflict exit (`MERGE_CONFLICT_RC` there)
+_WORK_ITEM_RE = re.compile(r"\.fabrik/work/W-[0-9a-f]{8}\.json")
+
+
+def _conflict_stages(wt: Path, path: str) -> dict[str, str]:
+    """``{stage: blob sha}`` of ``path``'s unmerged index entries (1 base, 2 ours, 3 theirs)."""
+    stages: dict[str, str] = {}
+    for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
+        meta, sep, _ = entry.partition("\t")
+        if sep:
+            _, sha, stage = meta.split()
+            stages[stage] = sha
+    return stages
+
+
+def _merge_work_item(wt: Path, path: str, base: str) -> None:
+    """Resolve one conflicted work-item file with ``work.py merge-item`` and stage it. A key both
+    sides changed to different values, or a file deleted on one side, is the REQUESTER's conflict
+    and refuses naming it; a merge-item that fails any other way is a refusal, never a guess —
+    including a synced repo whose ``work.py`` predates the verb (argparse exits 2), which refused
+    this conflict before as well; the two files travel on the same sync."""
+    stages = _conflict_stages(wt, path)
+    if "2" not in stages or "3" not in stages:
+        raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
+    with tempfile.TemporaryDirectory(prefix="fabrik-merge-item-") as tmp:
+        files = {}
+        for name, stage in (("base", "1"), ("ours", "2"), ("theirs", "3")):
+            files[name] = Path(tmp) / f"{name}.json"
+            files[name].write_bytes(_encode(_blob(wt, stages[stage]) if stage in stages else ""))
+        res = _run(
+            [sys.executable, str(WORK_PY), "merge-item", *(str(files[n]) for n in files)],
+            TOOL_TIMEOUT_S,
+            cwd=wt,
+        )
+        detail = (res.stderr.strip() or res.stdout.strip()).removeprefix("work: ")
+        if res.returncode == MERGE_ITEM_CONFLICT_RC:
+            raise ConflictError([path], f"{path}: {detail} — {_resend(base)}")
+        if res.returncode != 0:
+            raise RefusedError(f"{path}: work.py merge-item failed (rc {res.returncode}): {detail}")
+        merged = files["ours"].read_bytes()
+        try:
+            item_id = json.loads(merged).get("id")
+        except (ValueError, AttributeError):
+            item_id = None
+        if item_id != Path(path).stem:  # never stage an item whose id is not its file's name
+            raise RefusedError(
+                f"{path}: the merged item's id is {item_id!r}, not {Path(path).stem}"
+            )
+        (wt / path).write_bytes(merged)
+    _gitc(wt, "add", "--", path)
+
+
 def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     """(a)+(b): merge ``other`` into the throwaway's HEAD with ``message``; only pure-insertion
-    conflicts on the five ledgers are auto-resolved. Returns the merge commit."""
+    conflicts on the five ledgers and key-wise-mergeable work-item files are auto-resolved, and any
+    other conflicted path refuses first. Returns the merge commit."""
     res = _run(
         ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "-q", "-m", message, other],
         TOOL_TIMEOUT_S,
@@ -975,16 +1031,14 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
         ]
         if not conflicted:
             raise RefusedError(f"git merge failed: {res.stderr.strip() or res.stdout.strip()}")
-        others = sorted(p for p in conflicted if p not in LEDGERS)
+        items = [p for p in conflicted if _WORK_ITEM_RE.fullmatch(p)]
+        others = sorted(p for p in conflicted if p not in LEDGERS and p not in items)
         if others:
             raise ConflictError(others, f"conflict in {', '.join(others)} — {_resend(base)}")
-        for path in conflicted:
-            stages: dict[str, str] = {}
-            for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
-                meta, sep, _ = entry.partition("\t")
-                if sep:
-                    _, sha, stage = meta.split()
-                    stages[stage] = sha
+        for path in items:
+            _merge_work_item(wt, path, base)
+        for path in (p for p in conflicted if p in LEDGERS):
+            stages = _conflict_stages(wt, path)
             if "2" not in stages or "3" not in stages:
                 raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
             orig = _blob(wt, stages["1"]) if "1" in stages else ""
@@ -1116,13 +1170,26 @@ except ImportError:
 """
 
 
+# Both owner-test legs run BEFORE the merge lands, so before the merge owner's merge-time render of
+# the corpus into ~/.claude (`commands/assemble_commands.py`, run from merged master by hand — CLAUDE.md
+# § Behavior; this script renders nothing): this tells the tests so, and the hub's tests/conftest.py skips its `live_box` tests —
+# the ones comparing that installed corpus to the tree, which cannot match yet (W-c3177526). Inert
+# in a repo whose conftest does not read it.
+_MERGE_CHECK_ENV = {"FABRIK_MERGE_CHECK": "1"}
+
+
 def _fallback_env(wt: Path, shim: Path) -> dict:
     """The fallback's env: the shim ALONE on ``PYTHONPATH`` — the caller's entries would precede the
     stdlib and could name the main checkout's own ``src``, so the import root comes from the
     throwaway, never the caller. It is the throwaway's ``src``, or its root when ``src`` is itself
-    a package (imported as ``src.x``)."""
+    a package (imported as ``src.x``). ``FABRIK_MERGE_CHECK=1`` rides along (``_MERGE_CHECK_ENV``)."""
     root = wt if (wt / "src" / "__init__.py").exists() else wt / "src"
-    return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
+    return {
+        **os.environ,
+        **_MERGE_CHECK_ENV,
+        "PYTHONPATH": str(shim),
+        "FABRIK_MERGE_SRC": str(root),
+    }
 
 
 def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> str | None:
@@ -1193,7 +1260,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     whose ``src`` holds a stdlib-named package runs ``env -u PYTHONPATH …`` itself). Else pytest
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
-    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``)."""
+    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``),
+    and both run with ``FABRIK_MERGE_CHECK=1`` (``_MERGE_CHECK_ENV``)."""
     note = _copy_worktree_include(ctx, wt, old)
     if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
         ctx.notes.append(note)
@@ -1202,7 +1270,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
         )
-        env = {**os.environ, "PYTHONPATH": pythonpath}
+        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
         run = _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env)

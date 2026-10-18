@@ -20,14 +20,16 @@ five runs, each of which a reader can judge on its own.
 - **Caller.** A HUB window whose `CLAUDE_AGENT` is `kaizen` — the queues' `feedback_owner` (D-627) — or
   the distributor (`infra`) when `.fabrik/work/config.json` names no `feedback_owner` (`CLAUDE.md` § Autonomy). A fleet window or a project-repo agent does not run it: it files
   its verdict at its own close and the queue is worked from the hub. An unnamed hub window names
-  its role in the commit body.
-- **Driver.** The session running it is on Fable — `/model claude-fable-5-1` before phase 1 if it
-  is not. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
+  its role in the commit body, or in its close when it commits nothing.
+- **Driver.** The session running it is on Fable — the operator types `/model claude-fable-5-1` before
+  phase 1 if it is not. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
   `on this account's own Fable window` when the clamp binds), the run is driven on Opus
   (`/model claude-opus-5`), never on a seat model; AMBER on Fable is finish-what-you-started, not a
   switch. The Fable band is raised to this account's own Fable reading whenever that is hotter than
   the fleet's, because no relief flip reaches a Fable window (D-295): read the line, not the
-  account percentages.
+  account percentages. A session the operator has not switched runs on Opus, or on Fable outside that
+  RED, and names its model in the commit body, or in its close when it commits nothing; on a seat model,
+  or on Fable at that RED, it takes the handoff close (§ Drive, Resilience) naming the model the run needs.
 - **Seats.** Sized from the BOX by `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py`,
   from the units the SURFACE has — one source file is one unit (§ PHASE 4) — and priced by role
   (haiku 1× · sonnet 2× · opus 5× · fable 10×, D-190): Opus authoritative, Sonnet breadth, Haiku
@@ -61,7 +63,7 @@ five runs, each of which a reader can judge on its own.
   closes are the only closes, and no phase is skipped and no reviewed edit discarded to make the
   clock; it changes what the FEEDBACK line says, because what cost the time is a finding about
   this command.
-- **Resilience.** A seat that has not returned is governed by `commands/_fragments/term-coverage.md`
+- **Resilience.** A seat that has not returned is governed by `/opt/fabrik/commands/_fragments/term-coverage.md`
   (wait or re-dispatch; never close over an outstanding finder), not restated here; no corpus rule
   names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs, 2026-09-20),
   so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run that cannot
@@ -128,7 +130,7 @@ historical tail is almost entirely `unkeyed`. ⚠️ Do not trust any figure quo
 yourself over today's ledger, and note that the `unkeyed` bucket folds in every legitimate
 `change: none`, which carries no key by contract — separate them before you report a number. Rows written after the gate landed are
 all keyed and `bad-axis` should be empty — the close refuses both shapes now (the rule and its
-seven keys live in `commands/_fragments/close-feedback.md`, which this command also renders; it is
+seven keys live in `/opt/fabrik/commands/_fragments/close-feedback.md`, which this command also renders; it is
 not restated here). On the historical tail the axis column is near-constant and the grouping that
 matters is by SUBJECT; read those by what they SAY, not by their bucket.
 
@@ -173,26 +175,31 @@ on the post-commit hook. Make it only if it is correct for all of them, and say 
 one hub agent's verdict is not evidence about 46 projects.
 
 **What one row earns (D-711).** A one-off verdict is edited only when it shows the command text WRONG or MISLEADING;
-valid one-off advice is rejected with `HELD:<subject>` first in the reason, then the checked `path:line`, its
-quote and why that text is not wrong; to FIND that line, grep the rendered command
-(`~/.claude/commands/<command>.md`: every fragment, the appended close and every parameter), each file it
-points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
-it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
-/opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
-still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
-its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
-audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
-mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
-A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
-(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
-answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
-target resolved and lock-checked as below. An Opus seat audits the advice set
-for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
-reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
-loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
-command's current text). That rendered-copy grep is the lead's: the audit seat reads the command source and the
-fragments it includes, pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks
-any wording it proposes against the phases that rely on the sentence it would change.
+valid one-off advice is rejected with `HELD:<subject>` first in the reason, then the checked `path:line`, its quote
+and why that text is not wrong; to FIND that line, grep the rendered command (`~/.claude/commands/<command>.md`:
+every fragment, the appended close and every parameter), each file it points at for the rule, and the loaded
+`CLAUDE.md` for the row's subject, then cite the line in the file it renders from. Before rejecting, search earlier
+reject reasons for the subject: `python3 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without
+`--held` (an untagged reject is still final; it is an advice hold when its reason says the text lacks the advice but
+is not wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and
+neither when it is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`,
+reason), so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output
+into an audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for
+its mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one
+subject. A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still
+writes it (it warns only on an identical `HELD:` tag). The one exception is a recurrence whose edit PHASE 1 refuses
+as weakening: it is routed to the operator as a proposal, and its rows are rejected with a reason opening
+`HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken; `--reject`
+still prints its held warning for it, and a subject an earlier reason already routed cites that proposal's mail id
+instead of routing again. An answered reject (PHASE 1) stays final, but a line that three or more answered rejects on
+one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its target resolved and
+lock-checked as below. An Opus seat audits the advice set for misfiled text defects before any advice is rejected. A
+reject reason here cites a line the queue's command reaches — rendered into it, pointed at or run by it for that
+rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus (PHASE
+1's answered-row reject already cites the command's current text). That rendered-copy grep is the lead's: the audit
+seat reads the command source and the fragments it includes, pinned in its scratch, never the rendered `~/.claude`
+copy, which no seat opens, and checks any wording it proposes against the phases that rely on the sentence it would
+change.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -222,27 +229,27 @@ Three shapes are NOT yours to apply here, and each has a destination:
 
 ## PHASE 3 — Write the edit, then prove it renders
 
-**Read the command source whole before editing** — the overwhelming majority of "add a rule about X"
-edits belong INSIDE a section that already exists (CLAUDE.md § READ BEFORE YOU EDIT). An append that
-restates what the file already says creates two sources of truth in one document. Before a sentence is
-written, read what already governs its subject: the target's intro and guardrails (a new mode or term
-must not contradict them), the fragments it includes (§ Drive's consistency rule says where a shared
-rule lives), the target's own routing rules (state the overlap), its fan-out paragraph and the section
-whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
-contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
-binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot). The tests that pin a paragraph's sentences are read before
-a sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and the new text goes where no
+**Read the command source whole before editing** — the overwhelming majority of "add a rule about X" edits belong
+INSIDE a section that already exists (CLAUDE.md § READ BEFORE YOU EDIT). An append that restates what the file
+already says creates two sources of truth in one document. Before a sentence is written, read what already governs
+its subject: the target's intro and guardrails (a new mode or term must not contradict them), the fragments it
+includes (§ Drive's consistency rule says where a shared rule lives), the target's own routing rules (state the
+overlap), its fan-out paragraph and the section whose executor — lead, seat or fixer — acts on the sentence (place it
+where that reader looks, never contradicting who drives), every branch the sentence's subject can bind (a pronoun for
+"the review" binds each review the step can pick), and the --help and argument handling of any script the sentence
+works around (a mode may already cover the blind spot). The tests that pin a paragraph's sentences are read before a
+sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and the new text goes where no
 pinned span runs, the gap between two sentences one pin joins included; a pin that ends at a sentence's period also
-fails when that sentence is extended. A row that prescribes how the command works — a step, an
-order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
-mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
-self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
-what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in the others:
-`command grep -rln -E '<two or more phrases of the
-neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under
-`commands/_agents/`, the seat-brief lists in `fabrik-review.md` and `design-critique.md`,
-`convergence-prompts.md`, and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
+fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole, at its
+width and never past the next list marker, blank line or fence, by a script that asserts its words unchanged, before
+PHASE 4's first pin. A row that prescribes how the command works — a step, an order, a commit or a hand-off, not a
+wording — and contradicts a line that reading finds is a decision (a NEW mechanism still routes per PHASE 2), settled
+before the first draft in CLAUDE.md § Autonomy's order ("the self-service sources first", then the Opus + Fable
+panel), and the draft is that answer. An edit to what a SEAT may do lands everywhere seat rules live, since a rule in
+one home is not in force in the others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>'
+commands .claude/workflows .claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under
+`commands/_agents/`, the seat-brief lists in `fabrik-review.md` and `design-critique.md`, `convergence-prompts.md`,
+and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
@@ -254,7 +261,9 @@ paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corp
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
 VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets
-one sentence.
+one sentence. An edit that must describe what a script does states only the fact its reader acts on and points
+for the rest at the `docs/` file the script's `# AFTER-EDIT:` header names for that behaviour, else at the
+script by path — never restating the rest.
 
 **Check the claim, not the prose.** A sentence naming what a gate or script reads or refuses is checked against
 every branch of that function and every other path that filters or grades the same input, traced from the entry
@@ -278,15 +287,16 @@ quoted as it prints (a recipe is copied from the test or MATRIX row that already
 — a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
 handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
 synthetic file built to break it in a scratch repo (round zero's input classes in
-`commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
-sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
-in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. The run-before-review rule above holds for a sentence stating how a test or gate
-behaves: it is run on that test's or gate's own real cases before PHASE 4's review. A rule whose
-subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
-new subject, since a method that finds the old subject may find none of the new one. A sentence a
-`_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop
-or a round count) and binds no other.
+`/opt/fabrik/commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit
+subject and a sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a
+scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped in the hub and
+dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the script
+(`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. The run-before-review rule
+above holds for a sentence stating how a test or gate behaves: it is run on that test's or gate's own real cases
+before PHASE 4's review. A rule whose subject the edit widens is run before PHASE 4's first pin, through the rule's
+own search methods, on a sample of the new subject, since a method that finds the old subject may find none of the
+new one. A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for
+example a review loop or a round count) and binds no other.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
@@ -375,15 +385,15 @@ is a mail, and the mail id belongs in the FEEDBACK line; a route to `/fabrik-tas
 then open it yourself in this session, ahead of any re-run over another queue; it is dispatched,
 never parked in a `NEXT:` line (`CLAUDE.md` § FINAL OUTPUT).
 
-One edit committed (and rendered, in the main checkout; infra renders a worktree's at merge), with its
-trailer naming the rows it answers — **or** an explicit
-`no edit this run — the queue holds nothing that survives review`, which is a legitimate close and
-must name what you read and why it did not survive — **or**, when every row's write target is
-lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is
-lock-owned and mailed`, naming the lock file and the mail id — **or**, when the only surviving row
-was mechanism-shaped and ROUTED (PHASE 2), an explicit `no edit this run — the surviving row routed
-to /fabrik-task`, naming the row and the `/fabrik-task` this session opens next (the record cannot exist yet — the close
-comes first) — **or**, when the run cannot reach any of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
-unfinished run.
+One edit committed (and rendered, in the main checkout; infra renders a worktree's at merge), with its trailer naming
+the rows it answers — **or** an explicit `no edit this run — the queue holds nothing that survives review`, which is
+a legitimate close and must name what you read and why it did not survive — **or**, when every row's write target is
+lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is lock-owned and mailed`,
+naming the lock file and the mail id — **or**, when the only surviving row was mechanism-shaped and ROUTED (PHASE 2),
+an explicit `no edit this run — the surviving row routed to /fabrik-task`, naming the row and the `/fabrik-task` this
+session opens next (the record cannot exist yet — the close comes first) — **or**, when the only surviving row was a
+recurrence refused as weakening (PHASE 2), an explicit `no edit this run — the surviving row routed to the operator`,
+naming the row and the proposal's mail id — **or**, when the run cannot reach any of those (§ Drive, Resilience), a
+`handoff` close naming the resume artifact. Anything else is an unfinished run.
 
 {{include:close-chain}}

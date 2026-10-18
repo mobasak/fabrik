@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T23:46:16.104744Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-fa1a6218",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M562393BRKVEV7WD583E4WHX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "D-484's stay-in-place rule lost its link-check ground — the ledger is no longer a check_doc_links source (D-965); retire or keep the rule?"
+}

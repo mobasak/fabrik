@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T03:27:21.539943Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "236b6f565baed6deac38afc8a4e49038d9086481",
+  "id": "W-0bf1a37b",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "build the scaffolded file-worker image and run its HEALTHCHECK command; if pgrep is absent, install procps or switch the healthcheck to the heartbeat file's age",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: bug, scaffolded file-worker healthcheck ignores the heartbeat and pgrep may be absent; same healthcheck class as W-c384ff51, pair them",
+  "status": "done",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "Scaffolded file-worker healthcheck is pgrep-only and never reads the worker heartbeat; pgrep (procps) may be missing from the python:3.12-slim runtime stage of templates/scaffold/docker/Dockerfile.python, which would mark every file-worker container unhealthy forever (found by the W-2a2c5a08 review, unverified in an image)"
+}

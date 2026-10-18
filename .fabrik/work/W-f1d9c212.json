@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:43:13.203213Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "82ff998711cf7f5be044c00bf6cf0e24db2dcac2",
+  "id": "W-f1d9c212",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "In the /fabrik-command-improve fabrik-review pass: change commands/_sources/fabrik-review.md '(the seats' candidates and verdicts are already in the pass files there)' to name the seats' notes and files_read as well; update the pin at tests/test_review_queue_pass.py:741",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-956 kaizen work: one sentence in fabrik-review.md after intel's seat-notes fix (7d98637db)",
+  "status": "done",
+  "title": "fabrik-review.md: say the durable pass files hold the seats' reports too (intel 01M55Y7Y3S, after 577a31053 merged)"
+}
