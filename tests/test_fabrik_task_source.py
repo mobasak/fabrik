@@ -693,10 +693,11 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         ),
         (
             "`--commit` is the `fabrik-task` lane's flag on the three close verbs "
-            '(`nargs="+"` — SPACE-separated, never comma-joined) — REQUIRED on `done` there, '
-            "optional on `blocked`/`handoff` (which may close before any commit exists), "
-            "REFUSED on every other command;",
-            "`done --commit` SPACE-separated, never comma-joined",
+            '(`nargs="+"` — space-separated, or one comma-joined value, which is split: a sha '
+            "never holds a comma) — REQUIRED on `done` there, optional on `blocked`/`handoff` "
+            "(which may close before any commit exists), REFUSED on every other command;",
+            # 6cff7527c (kaizen 01M55GGMS5) made a comma-joined value legal and split it.
+            "`done --commit` space-separated or one comma-joined value, split",
         ),
         (
             "at lane v1 more than one is REFUSED (pass ONE).",
