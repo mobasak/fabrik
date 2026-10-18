@@ -961,6 +961,49 @@ def _remove_throwaway(ctx: _Ctx, wt: Path) -> None:
     _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
 
 
+# A work-item file: `work.py` writes one key per line in sorted order, so two sides changing DISJOINT
+# keys that sort side by side collide in git's line merge (W-5f3617e6); `work.py merge-item` merges
+# them key-wise against the base instead.
+_WORK_ITEM_RE = re.compile(r"\.fabrik/work/W-[0-9a-f]{8}\.json")
+
+
+def _conflict_stages(wt: Path, path: str) -> dict[str, str]:
+    """``{stage: blob sha}`` of ``path``'s unmerged index entries (1 base, 2 ours, 3 theirs)."""
+    stages: dict[str, str] = {}
+    for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
+        meta, sep, _ = entry.partition("\t")
+        if sep:
+            _, sha, stage = meta.split()
+            stages[stage] = sha
+    return stages
+
+
+def _merge_work_item(wt: Path, path: str, base: str) -> None:
+    """Resolve one conflicted work-item file with ``work.py merge-item`` and stage it. A key both
+    sides changed to different values, or a file deleted on one side, is the REQUESTER's conflict
+    and refuses naming it; a merge-item that fails any other way is a refusal, never a guess."""
+    stages = _conflict_stages(wt, path)
+    if "2" not in stages or "3" not in stages:
+        raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
+    with tempfile.TemporaryDirectory(prefix="fabrik-merge-item-") as tmp:
+        files = {}
+        for name, stage in (("base", "1"), ("ours", "2"), ("theirs", "3")):
+            files[name] = Path(tmp) / f"{name}.json"
+            files[name].write_bytes(_encode(_blob(wt, stages[stage]) if stage in stages else ""))
+        res = _run(
+            [sys.executable, str(WORK_PY), "merge-item", *(str(files[n]) for n in files)],
+            TOOL_TIMEOUT_S,
+            cwd=wt,
+        )
+        detail = (res.stderr.strip() or res.stdout.strip()).removeprefix("work: ")
+        if res.returncode == 1 and "both sides changed" in detail:
+            raise ConflictError([path], f"{path}: {detail} — {_resend(base)}")
+        if res.returncode != 0:
+            raise RefusedError(f"{path}: work.py merge-item failed (rc {res.returncode}): {detail}")
+        (wt / path).write_bytes(files["ours"].read_bytes())
+    _gitc(wt, "add", "--", path)
+
+
 def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     """(a)+(b): merge ``other`` into the throwaway's HEAD with ``message``; only pure-insertion
     conflicts on the five ledgers are auto-resolved. Returns the merge commit."""
@@ -975,16 +1018,14 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
         ]
         if not conflicted:
             raise RefusedError(f"git merge failed: {res.stderr.strip() or res.stdout.strip()}")
-        others = sorted(p for p in conflicted if p not in LEDGERS)
+        items = [p for p in conflicted if _WORK_ITEM_RE.fullmatch(p)]
+        others = sorted(p for p in conflicted if p not in LEDGERS and p not in items)
         if others:
             raise ConflictError(others, f"conflict in {', '.join(others)} — {_resend(base)}")
-        for path in conflicted:
-            stages: dict[str, str] = {}
-            for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
-                meta, sep, _ = entry.partition("\t")
-                if sep:
-                    _, sha, stage = meta.split()
-                    stages[stage] = sha
+        for path in items:
+            _merge_work_item(wt, path, base)
+        for path in (p for p in conflicted if p in LEDGERS):
+            stages = _conflict_stages(wt, path)
             if "2" not in stages or "3" not in stages:
                 raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
             orig = _blob(wt, stages["1"]) if "1" in stages else ""

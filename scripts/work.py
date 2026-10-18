@@ -899,7 +899,9 @@ def _paused_dir(repo: Path) -> Path:
     return _shared_dir(repo) / "paused"
 
 
-PAUSE_MARKER_MAX = 4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+PAUSE_MARKER_MAX = (
+    4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+)
 
 
 def _pause_record(raw: object) -> dict:
@@ -977,7 +979,9 @@ def _caller_pause(tree: Path, session: str) -> dict | None:
         coordinator = (
             str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
         )
-        name = _is_paused(paused, _caller_name(main, tree, workers, coordinator, session), tree, workers)
+        name = _is_paused(
+            paused, _caller_name(main, tree, workers, coordinator, session), tree, workers
+        )
         return {**paused[name], "name": name} if name else None
     except Exception:
         return None
@@ -3769,7 +3773,9 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
 
 VERDICT_TEXT_MAX = 200  # characters of the operator's words kept per verdict
 OPERATOR_ACCEPTED = "operator-accepted"  # informational: no code reads it (the hold it lifts does)
-_REVIEW_HOLD = "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+_REVIEW_HOLD = (
+    "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+)
 
 
 def _operator_only(verb: str) -> None:
@@ -3795,7 +3801,9 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     _operator_only("verdict")
     action = args.action
-    text = _one_line("".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX)
+    text = _one_line(
+        "".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX
+    )
     if action in ("reject", "comment") and not text:
         raise WorkError(f"verdict {action} needs --text <the operator's words>")
     via = _one_line(args.by or "", 40) or "cli"
@@ -3818,8 +3826,13 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
             _fence(repo, args.id, session, "verdict")
         log = item.get("comments", [])
         if not isinstance(log, list):
-            raise WorkError(f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand")
-        item["comments"] = [*log, {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text}]
+            raise WorkError(
+                f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand"
+            )
+        item["comments"] = [
+            *log,
+            {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text},
+        ]
         if action == "comment":
             path = _write_item(repo, item)
         elif awaiting:
@@ -3829,7 +3842,9 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
             path = _close(repo, item, session=session, note=note)
         elif action == "accept":
             raw = item.get("tags") or []
-            tags = set(raw) if isinstance(raw, list) else {str(raw)}  # a hand-edited string stays one tag
+            tags = (
+                set(raw) if isinstance(raw, list) else {str(raw)}
+            )  # a hand-edited string stays one tag
             item["tags"] = sorted((tags | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
             path = _write_item(repo, item)
         else:
@@ -4116,12 +4131,16 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
     actor, label = _pause_actor()
     distributor = str(_read_config(main).get("distributor") or "").strip()
     if actor and actor not in (name, distributor):
-        raise WorkError(f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
-                        f"or the operator's; this caller is {actor}")
+        raise WorkError(
+            f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
+            f"or the operator's; this caller is {actor}"
+        )
     known = set(_workers(main)) | {distributor, _feedback_owner(main)}
     if name not in known:
-        _warn(f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
-              "a window that resolves to that name; the floor and triage count worker trees")
+        _warn(
+            f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
+            "a window that resolves to that name; the floor and triage count worker trees"
+        )
     by = _one_line(args.by, 60) if not actor and args.by and args.by.strip() else label
     marker = _paused_dir(main) / f"{name}.json"
     with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="pause"):
@@ -4129,8 +4148,10 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
         held = _paused(main).get(name)  # re-read under the lock: a pause may have landed meanwhile
         if held is not None and actor and actor != distributor and held["actor"] != actor:
             # re-pausing over someone else's pause would make it this agent's own, and so liftable by it
-            raise WorkError(f"{name} is already paused by {held['by']}; only they, the distributor "
-                            f"({distributor or 'none'}) or the operator may change that pause")
+            raise WorkError(
+                f"{name} is already paused by {held['by']}; only they, the distributor "
+                f"({distributor or 'none'}) or the operator may change that pause"
+            )
         _paused_dir(main).mkdir(parents=True, exist_ok=True)
         rec = {"by": by, "actor": actor, "at": time.time(), "why": _one_line(args.why or "", 200)}
         _write_json(marker, rec)
@@ -4146,7 +4167,9 @@ def _refuse_odd_marker(marker: Path) -> None:
     except FileNotFoundError:
         return
     if not stat.S_ISREG(st.st_mode):
-        raise WorkError(f"{marker} is not a regular file — it pauses by presence; remove it by hand")
+        raise WorkError(
+            f"{marker} is not a regular file — it pauses by presence; remove it by hand"
+        )
 
 
 def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
@@ -4169,8 +4192,10 @@ def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
         _refuse_odd_marker(marker)
         if actor and actor != distributor and not (rec["actor"] and actor == rec["actor"]):
             setter = f"{rec['actor']}'s, " if rec["actor"] else ""
-            raise WorkError(f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
-                            f"({distributor or 'none'}) or the operator's; this caller is {actor}")
+            raise WorkError(
+                f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
+                f"({distributor or 'none'}) or the operator's; this caller is {actor}"
+            )
         try:
             marker.unlink()
         except FileNotFoundError:
@@ -6038,6 +6063,84 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+# ── merge-item: the key-wise 3-way merge of one item file (W-5f3617e6) ───────────────────────
+
+_ABSENT = object()
+
+
+def _merge_keys(base: object, ours: object, theirs: object, path: str, conflicts: list[str]):
+    """One value, 3-way: the side that changed it against the base wins, a change both sides made
+    identically merges, and two different changes are a conflict named by its key path. Objects
+    recurse key by key (``links`` edited on both sides merges per sub-key); ``_ABSENT`` is a
+    missing key, so a delete against a change conflicts and a delete on both sides deletes."""
+    if ours == theirs:
+        return ours
+    if ours == base:
+        return theirs
+    if theirs == base:
+        return ours
+    if all(isinstance(v, dict) for v in (base, ours, theirs)):
+        merged = {}
+        for key in sorted(set(base) | set(ours) | set(theirs)):
+            value = _merge_keys(
+                base.get(key, _ABSENT),
+                ours.get(key, _ABSENT),
+                theirs.get(key, _ABSENT),
+                f"{path}.{key}" if path else key,
+                conflicts,
+            )
+            if value is not _ABSENT:
+                merged[key] = value
+        return merged
+    conflicts.append(path or "(the whole item)")
+    return ours
+
+
+def merge_item(base: dict, ours: dict, theirs: dict) -> tuple[dict, list[str]]:
+    """The merged item and the key paths both sides changed to different values (empty = clean).
+
+    Why key-wise and not git's line merge: ``_dump`` writes one key per line in sorted order, so two
+    sides changing DISJOINT keys that sort next to each other (the coordinator's ``effort`` beside
+    the builder's ``evidence``, ``score_reason`` beside ``status``) collide as adjacent hunks — four
+    refused merge requests in one day (W-5f3617e6). Cobra check (D-253): the cheap way to make every
+    item merge "clean" is to pick a side on a real conflict; that would silently drop one agent's
+    status or score, so a key both sides changed differently is returned as a conflict, never
+    resolved here."""
+    conflicts: list[str] = []
+    merged = _merge_keys(base, ours, theirs, "", conflicts)
+    return (merged if isinstance(merged, dict) else ours), conflicts
+
+
+def cmd_merge_item(repo: Path, args: argparse.Namespace) -> int:
+    """``merge-item <base> <ours> <theirs>`` — git's merge-driver convention (``%O %A %B``): the
+    merged item is written into ``<ours>`` and the exit is 0; a conflict leaves ``<ours>`` untouched,
+    names every conflicting key on stderr and exits 1. An empty or missing base (an item both
+    sides added) merges against ``{}``."""
+    texts = {}
+    for name in ("base", "ours", "theirs"):
+        path = Path(getattr(args, name))
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raw = ""
+        if name == "base" and not raw.strip():
+            texts[name] = {}
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise WorkError(f"merge-item: {name} ({path}) is not a JSON object")
+        texts[name] = data
+    merged, conflicts = merge_item(texts["base"], texts["ours"], texts["theirs"])
+    if conflicts:
+        _warn(f"merge-item: both sides changed {', '.join(conflicts)} to different values")
+        return 1
+    _write_json(Path(args.ours), merged)
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="work.py", description=__doc__.split("\n", 1)[0])
     p.add_argument("--repo", default=".", help="any path inside the repo (default: cwd)")
@@ -6157,8 +6260,12 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("verdict", help="the operator's accept / reject / comment on one item")
     s.add_argument("id")
     s.add_argument("action", choices=("accept", "reject", "comment"))
-    s.add_argument("--text", default="", help="the operator's words (one line; reject and comment need it)")
-    s.add_argument("--by", default="", help="where the call came from (e.g. dashboard), kept as `via`")
+    s.add_argument(
+        "--text", default="", help="the operator's words (one line; reject and comment need it)"
+    )
+    s.add_argument(
+        "--by", default="", help="where the call came from (e.g. dashboard), kept as `via`"
+    )
     s.set_defaults(fn=cmd_verdict)
 
     s = sub.add_parser(
@@ -6171,6 +6278,15 @@ def _parser() -> argparse.ArgumentParser:
         "--check", action="store_true", required=True, help="required: the only sync mode"
     )
     s.set_defaults(fn=cmd_sync)
+
+    s = sub.add_parser(
+        "merge-item",
+        help="key-wise 3-way merge of one item file (git merge-driver convention: %O %A %B)",
+    )
+    s.add_argument("base", help="the merge base's copy (empty when both sides added the item)")
+    s.add_argument("ours", help="our copy — the merged item is written here on success")
+    s.add_argument("theirs", help="their copy")
+    s.set_defaults(fn=cmd_merge_item)
 
     s = sub.add_parser("render", help="regenerate the backlog's AUTO-GENERATED:BACKLOG block")
     s.set_defaults(fn=cmd_render)
