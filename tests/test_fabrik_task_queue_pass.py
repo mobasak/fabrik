@@ -247,3 +247,21 @@ def test_measure_greps_config_and_env_values_and_design_reads_a_copied_rule_firs
         " output (stdout, a record, an exported function); when the copy stays, DECISION says why the read cannot"
         " serve. Each input"
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole_ast() -> None:
+    """Row 1792327651 (a full review's fix commits read as outside the run, so the receipt range was rebuilt by hand
+    twice; row 1792309961's confusion read the tip rule the same way, after answered rejects 1792289109 and
+    1791923102 on that line) and row 1792303601, the second sighting of held ast-census-for-python-imports (a
+    `tree.body` scan missed a function-local import)."""
+    assert (
+        "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in this after-commit form each"
+        " commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in"
+        " `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a sync-path"
+        " run's fixes ride its one commit instead): after the last sha in"
+    ) in _section("## Phase 5", "## UPGRADE")
+    assert (
+        "every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a"
+        " function-local or `try:` import sits below it; a string-named import, `getattr` or subprocess argv is seen"
+        " by no AST),"
+    ) in _section("## Phase 2", "## Phase 3")
