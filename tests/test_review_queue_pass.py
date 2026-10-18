@@ -790,6 +790,8 @@ def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
     review ran the command the changed text described, unprompted; the brief now asks for it."""
     cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
     assert (
-        "every citation in a docs change, every command a changed sentence tells its reader to run (the brief asks the"
-        " seat to run it as the sentence words it), every cross-repo claim"
+        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of"
+        " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
+        " deploys or reaches a host stays the lead's — and probe"
     ) in cat
+    assert "every citation in a docs change, every cross-repo claim" in cat, "the Execute line stays the lead's"
