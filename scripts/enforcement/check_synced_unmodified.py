@@ -48,7 +48,7 @@ def _md5(path: Path) -> str:
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
 # check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names EVERY load
-# failure, SystemExit included, and refuses a present list of the wrong shape.
+# failure that raises, SystemExit included, and refuses a present list of the wrong shape.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -116,8 +116,10 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     man = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(man)
-    # Any load failure is the hub's and is NAMED, never swallowed — SystemExit too, which is no
-    # Exception: a manifest calling sys.exit(0) would otherwise end the check GREEN.
+    # Every load failure that RAISES is the hub's and is NAMED, never swallowed — SystemExit too,
+    # which is no Exception: a manifest calling sys.exit(0) would otherwise end the check GREEN.
+    # A manifest that kills the process (os._exit) or is interrupted (KeyboardInterrupt) is not
+    # caught: nothing in-process can catch the first, and the second is the operator's.
     except (Exception, SystemExit) as e:
         raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
     missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
