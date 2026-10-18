@@ -1814,7 +1814,8 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     — a seat (or the lead) that copied a whole tree instead of an archive or a clone. Every folder,
     not `seat-*` alone (W-3c60b7db): seats are named `seat2-opus`, `seat-p1-<pin>-A-haiku` and the
     like, and a hand-made pin of a whole tree is the same defect, so a name pattern let a third of
-    the live top-level folders escape. A symlink and a plain file are skipped. Runs AFTER the record lock
+    the live top-level folders escape. A symlink and a plain file are skipped (in a folder that cannot
+    be searched, every entry reads as unmeasured: its kind cannot be told). Runs AFTER the record lock
     drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
     a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
     read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
@@ -1832,8 +1833,8 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
                 continue
             # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an
             # archive extraction, the remedy this line recommends, never the defect. Known by its
-            # sibling's MANIFEST.json (a content test, not a name): an `x.base` with no
-            # `x/MANIFEST.json` beside it is measured; one beside a pins MANIFEST is trusted.
+            # sibling's MANIFEST.json — an existence test, not a content check: an `x.base` with no
+            # `x/MANIFEST.json` FILE beside it is measured; any such file exempts it.
             if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
                 continue
         except OSError:  # said, never silent: an entry the advisory cannot see is not "not large"
