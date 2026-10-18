@@ -82,7 +82,7 @@ def test_the_pin_paragraph_defers_the_pins_dir_root_to_d8() -> None:
 
 def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     """D8 names the commands that put the pins dir under `SCRATCH:`; each includes the fragment and says so itself,
-    and every includer whose own text names `pins_dir` is in D8's list, so no rendered command states two roots.
+    and every includer whose own text names `pins_dir` or `--pins-dir` is in D8's list, so no rendered command states two roots.
     Mutants: drop a source's sentence; drop its include; add an includer naming `pins_dir` but missing from D8."""
     core = _norm(CORE)
     m = re.search(
@@ -101,7 +101,8 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     includers = {
         p.stem
         for p in sources.glob("*.md")
-        if "{{include:subagents-core}}" in (src := _norm(p)) and "pins_dir" in src
+        if "{{include:subagents-core}}" in (src := _norm(p))
+        and ("pins_dir" in src or "--pins-dir" in src)
     }
     assert includers == named, includers ^ named
     loop = (
