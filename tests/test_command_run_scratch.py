@@ -1434,3 +1434,23 @@ def test_a_seat_with_an_unreadable_folder_inside_is_unmeasured_never_small(
     finally:
         locked.chmod(0o755)
     assert lines == ["seat-1: size unmeasured — cannot be examined"], lines
+
+
+def test_a_seat_removed_before_its_du_answers_no_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W-2dadedfd review pass 2 (Opus, executed): a seat folder removed between the listing and
+    `du` (the sweep, or the seat itself) is gone, not unmeasured — no line, as for a gone run
+    folder."""
+    import shutil
+
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    real_run = cr.subprocess.run
+
+    def vanish_then_du(argv, *a, **k):
+        shutil.rmtree(run / "seat-1")
+        return real_run(argv, *a, **k)
+
+    monkeypatch.setattr(cr.subprocess, "run", vanish_then_du)
+    assert cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0) == []

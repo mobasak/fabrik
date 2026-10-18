@@ -1859,8 +1859,11 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
             lines.append(f"{seat.name}: size unmeasured — over the deadline")
             continue
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
-            # said, never silent — an entry the advisory cannot measure is not "not large"
-            lines.append(f"{seat.name}: size unmeasured — cannot be examined")
+            # said, never silent — an entry the advisory cannot measure is not "not large"; one that
+            # was REMOVED between the listing and `du` (the sweep, the seat itself) is gone, not
+            # unmeasured: no line, as for a gone run folder
+            if os.path.lexists(seat):
+                lines.append(f"{seat.name}: size unmeasured — cannot be examined")
             continue
         if size > threshold:
             lines.append(
