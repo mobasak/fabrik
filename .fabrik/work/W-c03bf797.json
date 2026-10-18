@@ -22,8 +22,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — log level of one line",
   "status": "open",
   "tags": [
-    "deployer",
-    "waits-quota-reset"
+    "deployer"
   ],
   "title": "deployer: log the FIRST move of the owner key out of .env at WARNING, not the steady-state INFO line"
 }

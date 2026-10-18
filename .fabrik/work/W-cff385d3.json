@@ -20,8 +20,7 @@
   "status": "open",
   "tags": [
     "medium",
-    "needs-split",
-    "waits-quota-reset"
+    "needs-split"
   ],
   "title": "Watchdog cost-budget currency: retired default models, registrar-injected FABRIK_ANALYTICS_URL, cost_ledger GRANTs, zero-cap semantics, fleet re-vendor"
 }

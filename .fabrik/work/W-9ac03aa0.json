@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T18:11:04.213314Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9ac03aa0",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "let release accept a claim held by a session whose whoami binding is the same agent role and is no longer live, with a test for the post-/clear case",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: friction with a workaround (the lease lapses or a hand release under the old id); recurs after every window clear",
+  "status": "open",
+  "title": "work.py release (and merge_request.py request's item release) refuses a claim made by the same agent's pre-/clear session: after a ROTATE /clear the new session id cannot release its own role's claim, so requests exit PARTIAL and claims wait for lease expiry (intel W-c751bca6, infra W-d90fe030 on 2026-10-18)"
+}

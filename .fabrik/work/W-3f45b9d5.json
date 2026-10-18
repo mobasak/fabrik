@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — template stop_grace_period polish",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "Template-source composes (templates/<type>/compose.yaml.j2, 8 files + templates/saas-skeleton/compose.yaml) set no stop_grace_period and their Dockerfile.j2 CMDs are unchecked for SIGTERM delivery — the scaffold half was fixed in 132c4613f+"
 }

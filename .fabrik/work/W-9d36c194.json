@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:57:27.581281Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9d36c194",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "carry the same receipt clause into fabrik-docs-review's in-surface definition",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956); one-line wording gap mirroring W-c71703cb",
+  "status": "open",
+  "title": "fabrik-docs-review.md:200's 'in-surface' definition lacks the receipt rule W-c71703cb gave fabrik-review (a red naming the receipt counts as the surface)"
+}

@@ -1140,3 +1140,151 @@ def test_a_sweep_that_counted_an_error_exits_nonzero(monkeypatch, capsys):
     assert kc.main(["--sweep"]) == 3
     err = capsys.readouterr().err
     assert "counted 1 error(s)" in err and "OSError('home gone')" in err, err
+
+
+# ── W-6f46cebd: every sweep failure path counts an error, so --sweep exits 3 ────────────────────
+
+
+def _failing_emit(
+    monkeypatch: pytest.MonkeyPatch, event: str, closed_by: str | None = None
+) -> None:
+    """`kaizen_events.emit` returning False for ONE event only, so the death emit (counted since
+    W-4bd4ea3c) lands and the path under test is the one that fails."""
+    real = kaizen_events.emit
+
+    def emit(ev, *a, **k):
+        if ev == event and (closed_by is None or k.get("closed_by") == closed_by):
+            return False
+        return real(ev, *a, **k)
+
+    monkeypatch.setattr(kaizen_events, "emit", emit)
+
+
+def test_a_record_save_that_fails_counts_an_error(sources, monkeypatch):
+    """W-6f46cebd: `_command_run_save` returning False left the record running and counted
+    nothing, so the sweep exited 0; a retry recovers it, so it must exit 3."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+    monkeypatch.setattr(kc, "_command_run_save", lambda sid, rec: False)
+    report = kc.sweep(sources)
+    assert "record close for stale-1 not persisted" in report.errors, report.errors
+
+
+@pytest.mark.parametrize("case", ["ttl-session-end", "revival", "coroner-session-end"])
+def test_a_lost_event_counts_an_error(sources, monkeypatch, case):
+    """W-6f46cebd: an emit() returning False is a lost event (it returns False only on failure),
+    and the ttl session_end, the revival and the coroner session_end each counted nothing."""
+    if case == "ttl-session-end":
+        _write_record(sources, "stale-1", age_s=13 * 3600.0)
+        _failing_emit(monkeypatch, "session_end", closed_by="ttl")
+        expected = "ttl session_end emit failed for stale-1"
+    else:
+        _write_marker(sources, SID, "server_error")
+        if case == "revival":
+            sources.mesh_log.write_text(
+                "2026-08-20 04:30:00  arg=failure   event=StopFailure   "
+                f"verdict=autoresume-spawned error=server_error | cwd=/opt/fabrik sess={SID[:8]}\n"
+            )
+            _failing_emit(monkeypatch, "revival")
+            expected = f"revival emit failed for {kc._mesh_safe(SID)}"
+        else:
+            _failing_emit(monkeypatch, "session_end", closed_by="coroner")
+            expected = f"session_end emit failed for {kc._mesh_safe(SID)}"
+    report = kc.sweep(sources)
+    assert expected in report.errors, report.errors
+
+
+_ROOT = hasattr(os, "geteuid") and os.geteuid() == 0
+
+
+@contextlib.contextmanager
+def _unreadable(path: Path):
+    """`path` at mode 000 for the block, restored after (tmp_path cleanup needs it back)."""
+    path.chmod(0)
+    try:
+        yield
+    finally:
+        path.chmod(0o755)
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 dir")
+def test_an_unreadable_runs_dir_counts_an_error(sources):
+    """W-6f46cebd: `Path.glob` returns [] for an unreadable dir (it never raises), so a runs dir
+    the sweep could not list closed no record and counted nothing. A REAL mode-000 dir."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+    with _unreadable(sources.runs_dir):
+        report = kc.sweep(sources)
+    assert any(e.startswith("runs dir unreadable") for e in report.errors), report.errors
+
+
+@pytest.mark.skipif(_ROOT, reason="root searches a mode-000 dir")
+def test_a_transcripts_dir_under_an_unsearchable_parent_is_blind_and_still_repairs(
+    sources, tmp_path
+):
+    """W-6f46cebd review: `Path.exists()` RAISES PermissionError under an unsearchable parent,
+    which aborted the sweep before any record closed; the stale record still expires now, and
+    the blind reading is counted."""
+    parent = tmp_path / "locked"
+    (parent / "projects").mkdir(parents=True)
+    src = dataclasses.replace(sources, transcripts_dir=parent / "projects")
+    _write_record(src, "stale-1", age_s=13 * 3600.0)
+    with _unreadable(parent):
+        report = kc.sweep(src)
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+    assert "stale-1" in report.records_expired, report
+
+
+def test_a_transcripts_dir_under_a_regular_file_is_blind_not_absent(sources, tmp_path):
+    """ENOTDIR (`~/.claude` is a file) reads absent to `Path.exists()`; it is a broken
+    installation, so the blind reading is counted (W-6f46cebd review round 2)."""
+    blocker = tmp_path / "claude-is-a-file"
+    blocker.write_text("")
+    report = kc.sweep(dataclasses.replace(sources, transcripts_dir=blocker / "projects"))
+    assert report.holes_today is None
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+
+
+def test_a_dangling_transcripts_symlink_is_blind_not_absent(sources, tmp_path):
+    """A `~/.claude/projects` symlink to nothing is a broken installation, not no installation."""
+    link = tmp_path / "dangling-projects"
+    link.symlink_to(tmp_path / "nowhere")
+    report = kc.sweep(dataclasses.replace(sources, transcripts_dir=link))
+    assert report.holes_today is None
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+
+
+def test_a_missing_runs_dir_is_no_records_not_an_error(sources):
+    """The control: a box that has never run a command has no runs dir — no error."""
+    report = kc.sweep(dataclasses.replace(sources, runs_dir=sources.runs_dir / "never-made"))
+    assert not any("runs dir" in e for e in report.errors), report.errors
+
+
+def test_a_lost_sweep_line_counts_an_error(sources, tmp_path):
+    """W-6f46cebd: a sweep line that could not be written only warned, and the sweep exited 0."""
+    log_dir = tmp_path / "state" / "coroner-sweeps.jsonl"
+    log_dir.mkdir(parents=True)  # a directory where the log file should be
+    report = kc.sweep(dataclasses.replace(sources, sweeps_log=log_dir))
+    assert any(e.startswith("sweep log write failed") for e in report.errors), report.errors
+
+
+def test_a_blind_sweep_counts_an_error(sources, monkeypatch):
+    """W-6f46cebd: holes() returning None over a PRESENT transcripts dir (unreadable, or its own
+    error) marked the line blind but exited 0."""
+    monkeypatch.setattr(kc, "holes", lambda *a, **k: None)
+    report = kc.sweep(sources)
+    assert "holes() unmeasurable (blind)" in report.errors, report.errors
+
+
+def test_a_missing_transcripts_dir_is_not_an_error(sources):
+    """The control: a host with no ~/.claude/projects is not an installation to measure."""
+    gone = dataclasses.replace(sources, transcripts_dir=sources.transcripts_dir.parent / "absent")
+    report = kc.sweep(gone)
+    assert report.holes_today is None
+    assert "holes() unmeasurable (blind)" not in report.errors, report.errors
+
+
+def test_a_counted_sweep_error_exits_3_through_main(sources, monkeypatch, capsys):
+    """The real main() over a real sweep (tmp sources): a counted failure exits 3."""
+    monkeypatch.setattr(kc.Sources, "default", classmethod(lambda cls: sources))
+    monkeypatch.setattr(kc, "holes", lambda *a, **k: None)
+    assert kc.main(["--sweep"]) == 3
+    assert "holes() unmeasurable (blind)" in capsys.readouterr().err

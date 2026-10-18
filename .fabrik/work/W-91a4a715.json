@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "deploy",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Size CPU limits for the 23 vps1 containers that have none, from cAdvisor 7-day percentiles (container_cpu_usage_seconds_total) — the one-snapshot probe W-44734e3a found 23/33 unlimited; setting them is a deploy step that comes back to the coordinator"
 }

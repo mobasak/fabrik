@@ -23,8 +23,7 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — template docusaurus deploy cannot build",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-quota-reset"
+    "fleet"
   ],
   "title": "A template-sourced docusaurus deploy cannot build: the template ships no docs/, no src/css/ and no openapi plugin, so docusaurus.config.js and sidebars.js reference files TemplateRenderer never writes (2026-10-01, owner: fleet)"
 }

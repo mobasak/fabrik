@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T18:13:23.232204Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a14fd24f",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "count the lock-dir-unreadable blind reading in report.errors (a missing lock dir stays no-error), with a mode-000 test; or derive the exit from the sweep line's own blind flag",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare edge, an unreadable lock folder still exits 0; residue of D-1007",
+  "status": "open",
+  "title": "kaizen_coroner: an unreadable lock dir still exits 0 — _errparked_markers returns {} on OSError and the sweep line says blind: true with errors 0 (W-6f46cebd scoped review, Opus seat; declared OUT of that item)"
+}

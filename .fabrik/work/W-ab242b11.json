@@ -24,8 +24,7 @@
     "interim-mail-01m56g1kjw",
     "interim-mail-01m56g1kzf",
     "interim-mail-01m56g1mcz",
-    "security",
-    "waits-quota-reset"
+    "security"
   ],
   "title": "saas-skeleton /api/chat is unauthenticated: any visitor can stream completions on the app's own OPENROUTER_API_KEY (no middleware in templates/saas-skeleton; 7 scaffolded projects carry the same route) — needs a session/auth check and a rate limit before a scaffolded app goes public"
 }

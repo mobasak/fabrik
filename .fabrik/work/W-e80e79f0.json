@@ -19,8 +19,5 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — remedy text advises env_file that fails compose config for projects",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "app_role_check OWNER_HANDOFF_REMEDY (src/fabrik/app_role_check.py:124-129) tells project agents to write env_file [.env, {path: .env.owner, required: false}] — the short form makes .env required, so a fresh checkout fails docker compose config (the W-6f690b90 class); the text is also a _SENTENCE_PATTERNS key, so rewording it must check suppressions keyed on it"
 }

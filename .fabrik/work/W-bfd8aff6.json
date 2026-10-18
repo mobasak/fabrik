@@ -21,7 +21,6 @@
   "status": "open",
   "tags": [
     "waits-gate2",
-    "waits-quota-reset",
     "waits-tryton-ready"
   ],
   "title": "tryton-crm go-live, hub side (D-921): deploy the current release with fabrik apply specs/services/tryton-crm.yaml once the operator answers the project's Gate 2 (tryton-crm W-d595600e, waiting since 2026-09-29); before then, run fabrik plan read-only and list what apply would change"

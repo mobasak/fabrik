@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — vendored staleness detector idea",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "A VENDORED file has no staleness detector — the glitchtip scrubber moved 9 times in one day and every gap was silent (2026-09-05, owner: fleet)"
 }

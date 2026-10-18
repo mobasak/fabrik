@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "security",
-    "waits-quota-reset"
+    "security"
   ],
   "title": "Monitoring drivers stage configs under fixed /tmp names on the VPS: gatus.py (:202 /tmp/gatus-endpoint-<project>.yaml, :386), prometheus.py (:171 /tmp/prometheus.yml.staged), redis.py (:188 /tmp/redis-assignments.json) — a local user can pre-create or swap one before the sudo mv (W-719b2678 slice 2; integrity, no secrets)"
 }

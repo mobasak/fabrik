@@ -10,6 +10,33 @@ All notable changes to this project will be documented in this file.
 - Not covered: an URGENT preemption. The builder charters park the run with `handoff`, which `start --resume-from` cannot resume. That question went to infra (mail 01M581KDPM), and feedback row 1792329581 stays open. `fabrik-execute-plan` and `fabrik-review` don't include the fragment, so their own three-case wording is routed with W-8008e144 (the CLAUDE.md halt sentence).
 - Fixed: `tests/test_gate_check_canaries.py`'s `check_doc_index` canary was red on master, because 778c0cc37 rewrote the line it neuters. The anchor now names the rewritten line.
 
+### Fixed — the coroner's sweep exits 3 when it fails to save or emit, or is blind, instead of reporting a clean run (2026-10-18)
+`scripts/sysadmin/kaizen_coroner.py`: several sweep failures used to count nothing, so `--sweep` exited 0 and the daily job stamped the day done. They now each count a named error, so the job is FAILED and runs again:
+- a record save that returned False;
+- a lost ttl session_end, revival or coroner session_end event;
+- an unreadable runs folder;
+- a sweep log line that could not be written;
+- a blind `holes()` over a transcripts folder that exists.
+
+The runs folder is now listed with `os.listdir`, because `Path.glob` returns an empty list for a folder it cannot read and never raises. A missing runs or transcripts folder is still not an error, since that host has never run a command or Claude. A transcripts folder under an unsearchable parent, under a file where a folder should be, or behind a dangling symlink counts as blind (`os.lstat` decides: only a clean ENOENT reads as absent). The sweep still closes records in that case; before the review's fix, `Path.exists()` raised there and aborted every repair. A lost ttl session_end or revival is a one-shot signal, not a retry: no later sweep comes back to it. W-6f46cebd.
+
+### Fixed — the synced-file check no longer exits green when a manifest's exception has a hostile type name (2026-10-18)
+`scripts/enforcement/check_synced_unmodified.py`: when the hub manifest raises, the failure message reads the exception's type name inside its own guard, the way it already read the message. Both halves must be an exact `str`, so a str subclass's `__format__` can't run in the message either. The checker's own `ManifestError` now passes through only when its arguments are exact strs. One raised with a hostile argument is named instead of being printed, because printing it ran that argument's `__str__`. Before this, a metaclass `__name__` that called `sys.exit(0)` escaped `main()` and the check ended green over a drifted file. New tests cover a hostile type name, a GeneratorExit and a KeyboardInterrupt from the name read, a str subclass from either half, and the hostile-argument `ManifestError`. The test now fails an escaping `SystemExit` itself, because when pytest formatted the hostile exception, the whole session ended at rc 0. `tests/test_gate_check_canaries.py` re-derives the `check_doc_index` neuter anchor that 778c0cc37 moved. W-deb8eb0f.
+
+### Fixed — the saas-skeleton template no longer ships a public chat route (2026-10-18)
+
+`app/api/chat/route.ts` streamed OpenRouter completions on the app's own key for anyone who called it, with no
+session check and no limit. The route and its config are removed from the template, so new saas-skeleton, static-site
+and office-extension scaffolds no longer carry it. The README now says to wire `ChatUI` only to an authenticated,
+rate-limited endpoint; a backend chat route is the planned replacement.
+D-1005 (W-ab242b11 slice 1).
+
+### Fixed — the review checker accepts a Fable seat on a receipt's closing round (2026-10-18)
+`scripts/enforcement/check_review_coverage.py`: the V11 closing-row check refused a closing `Pass N` row whose only seat was `fable×N` as "names no finder seat", though a dispatched Fable seat re-verifies its own slice in the closing pass (`.windsurf/rules/core/62-using-subagents.md` § The orchestrator). `_MODEL_TOK` now knows `fable`; a spelled-out version (`Fable 5.1×1`) is still no token, as `opus 4×1` is not. Two red-first tests pin the token's near misses and drive `check_file` on a table, a prose and a spelled-out closing row (W-d90fe030).
+
+### Fixed — the synced-file check's post-load manifest tests now fail when their own guard regresses (2026-10-18)
+`tests/test_check_synced_unmodified_manifest.py`: each post-load param asserts the refusal its own guard prints, so a guard that regresses to `isinstance` or `==` can no longer pass behind the wide catch's `SystemExit` message. A new `metaclass-eq-entry` param covers an `==`/`!=` entry type test, which no param caught before. The KeyboardInterrupt-subclass param asserts its full refusal line instead of the letter `K`, and an escaping subclass now fails one param instead of aborting the session. The comments say how each regressed guard actually ends. W-73044efc; a checker hole found one hop out is W-deb8eb0f.
+
 ### Changed — /fabrik-review: a fix forced at the close re-opens a closing pass unless it edits the receipt alone (2026-10-18)
 
 - The close order said "flip back to `IN-PROGRESS`, fix it, and repeat the order" on a post-flip red, the pre-flip `IN-PROGRESS` run had no in-surface route, and the `GATE-SCOPE` paragraph said "fix it and re-run", so a fix the gate forced at the close shipped with no seat reading it. Both gate runs now share one rule: a red whose findings name this surface or its receipt is yours; fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the order. The `GATE-SCOPE` paragraph counts a finding that names the receipt as naming the surface, so a receipt-only red cannot be declared out-of-surface, and points at that rule. This closes W-c71703cb. `tests/test_review_queue_pass.py` pins all three sites.

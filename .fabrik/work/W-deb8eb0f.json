@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:53:04.224856Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "2ec76c60446e771e6643d4cb09892c60cad7c664",
+  "id": "W-deb8eb0f",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compute the type name inside the inner guard (fallback '<its type raised too>'), add an exc-type-name param to test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub (manifest: class Meta(type): __name__ = property(_exit0); class E(Exception, metaclass=Meta): pass; raise E('x')) — reproduced 2026-10-18 by the W-73044efc scoped review closing seat 2: SystemExit 0 escapes, pytest INTERNALERROR; enforcement + sync path, so the full /fabrik-review",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: security-class enforcement bug, a hostile manifest exits GREEN at check_synced_unmodified.py:168; one guard plus the full review it owes",
+  "status": "done",
+  "title": "check_synced_unmodified _manifest_lists: type(e).__name__ at :168 runs outside the inner guard, so a manifest exception whose metaclass __name__ calls sys.exit(0) escapes main() and ends the check GREEN over a drifted file (same class as the str(e) hole the inner try closes)"
+}

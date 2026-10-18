@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on legal-pages build",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships"
 }

@@ -22,8 +22,7 @@
   "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "refresh_infrastructure never sets ctx.target_vps (only deploy() resolves it, src/fabrik/orchestrator/__init__.py:147), so a registrar refresh of a spoke-targeted service runs every target-routed call against vps1 — latent while every spec targets vps1 (found by the plan-3 backrest-coverage plan-review, pass 2)"
 }

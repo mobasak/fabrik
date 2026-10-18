@@ -1,8 +1,10 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab242b11"
+  ],
   "created": "2026-10-18T14:28:41.115184Z",
   "creator": "infra",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-d146dd3c",
   "impact": "high",
@@ -13,11 +15,11 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-task (hook, fleet-synced → full /fabrik-review): a network-client class in seat_guard._scan beside kills and git writes, tests in tests/test_seat_guard.py for ssh -G pass, ssh/scp/sftp/rsync-remote deny, env/timeout-wrapped forms, and the stated limit (a script that shells out is not seen); one house-rule sentence in commands/_agents/fabrik-reviewer.md naming ssh -G as the only sanctioned form",
+  "next": "/fabrik-spec seeded with /opt/fabrik/.tmp/runs/7e6fef18-ef7b-4fc0-b940-07694d395af9/fabrik-task-2026-10-18T18-29-32-0330/seed.md — choose the approach (network namespace, deny-by-default git, token-anywhere deny) before any network class ships (D-1004)",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "HIGH, security first: reviewer seats made live ssh/scp connections; seat_guard.py network-client class",
+  "priority": 2,
+  "score_reason": "HIGH security, now spec-chain (UPGRADED: three approaches the build cannot settle; panel ruled B, D-1004): a major, held behind the major in flight W-ab242b11",
   "status": "open",
   "tags": [
     "enforcement"

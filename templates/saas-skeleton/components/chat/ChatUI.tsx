@@ -62,7 +62,7 @@ export function ChatUI({
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
 
-    // The system prompt is server-side (lib/config/chat.ts); only the message is sent.
+    // Posts only the message to the endpoint its caller passes; the template ships no chat endpoint.
     await startStream(endpoint, { message: userMessage.content });
   };
 

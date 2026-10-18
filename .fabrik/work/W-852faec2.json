@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: LOW — validator convergence",
   "status": "open",
   "tags": [
-    "i18n-kit",
-    "waits-quota-reset"
+    "i18n-kit"
   ],
   "title": "i18n-kit validator: converge the hub's Kilo-based validate_i18n.py on fabrik-lib's i18n module, or keep it and track SB-098 (JSON-output requests)"
 }

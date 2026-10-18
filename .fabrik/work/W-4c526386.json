@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T18:13:23.556247Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4c526386",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "tell an unreadable record (OSError) from a malformed or closed one in _close_records and count it in report.errors; a mode-000 record test",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare edge, an unreadable run record is skipped silently; residue of D-1007",
+  "status": "open",
+  "title": "kaizen_coroner: command_run.load returns {} for an unreadable record file, so a running record with mode 000 is skipped by _close_records as silently as a closed one (W-6f46cebd design critique, Opus seat, one hop out)"
+}

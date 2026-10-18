@@ -195,7 +195,11 @@ def test_a_manifest_that_exits_while_loading_fails_red(
         ('raise GeneratorExit("gen")', "GeneratorExit"),
         ('raise BaseExceptionGroup("g", [GeneratorExit()])', "BaseExceptionGroup"),
         ('raise BaseExceptionGroup("g", [KeyboardInterrupt()])', "BaseExceptionGroup"),
-        ("class K(KeyboardInterrupt):\n    pass\nraise K", "K"),
+        (
+            "class SubclassOfKeyboardInterrupt(KeyboardInterrupt):\n    pass\n"
+            "raise SubclassOfKeyboardInterrupt",
+            "failed to load or answer: SubclassOfKeyboardInterrupt:",
+        ),
         (
             "class X(Exception):\n    def __str__(self):\n        raise KI\n"
             "class KI(KeyboardInterrupt):\n    pass\nraise X",
@@ -223,7 +227,10 @@ def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
     construct and is named (a group names only itself, never its members)."""
     manifest = raise_line + "\n" + _FULL_MANIFEST
     files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
-    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    try:
+        rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    except KeyboardInterrupt:  # escaped as the operator's: fail this param, not the session
+        pytest.fail("the manifest's KeyboardInterrupt construct escaped as the operator's")
     out = capsys.readouterr().out
     assert rc == 1, out
     assert _HUB_WORDS in out and named in out, out
@@ -231,6 +238,33 @@ def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
 
 
 _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
+# The refusal each post-load param's OWN guard produces, by param id (W-73044efc). The last two
+# have no guard of their own: the exit fires inside the check's own read (a `__name__` while the
+# entry refusal's message is built, the `a not in names` lookup), so the wide catch IS what turns
+# it red, and they pin that. That the dict is taken BEFORE the load is pinned by
+# test_a_manifest_that_swaps_its_module_class_cannot_answer_through_it, not here.
+_POST_LOAD_REFUSAL = {
+    "module-getattr": "has no SEEDED_NOT_ENFORCED, RETIRED_VENDORED_DIRS",
+    "list-iter": "SEEDED_NOT_ENFORCED is a L, not a collection of paths",
+    "str-str": "SEEDED_NOT_ENFORCED holds a S, not a path",
+    "str-rstrip": "RETIRED_VENDORED_DIRS holds a S, not a path",
+    "class-property": "RETIRED_VENDORED_DIRS holds a P, not a path",
+    "tuple-getitem": "RETIRED_VENDORED_DIRS holds a T, not a path",
+    "repr": "SEEDED_NOT_ENFORCED holds a R, not a path",
+    "exc-str": "failed to load or answer: X: <its message raised too>",
+    "manifesterror-subclass": "failed to load or answer: F: <its message raised too>",
+    "list-iterates-differently": "RETIRED_VENDORED_DIRS is a L, not a collection of paths",
+    "metaclass-eq": "SEEDED_NOT_ENFORCED is a C, not a collection of paths",
+    "metaclass-eq-true": "RETIRED_VENDORED_DIRS is a C, not a collection of paths",
+    "metaclass-eq-entry": "RETIRED_VENDORED_DIRS holds a C, not a path",
+    "metaclass-name": "failed to load or answer: SystemExit: 0",
+    "colliding-dict-key": "failed to load or answer: SystemExit: 0",
+    "exc-type-name": "failed to load or answer: <its type name could not be read>: x",
+    "exc-type-name-generatorexit": "failed to load or answer: <its type name could not be read>: x",
+    "exc-name-str-subclass": "failed to load or answer: <its type name could not be read>: x",
+    "exc-str-str-subclass": "failed to load or answer: E: <its message raised too>",
+    "manifesterror-hostile-arg": "failed to load or answer: ManifestError: <its message raised too>",
+}
 
 
 @pytest.mark.parametrize(
@@ -257,9 +291,10 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         _EXIT0 + "import sys\nf = sys._getframe()\n"
         "while '_manifest_lists' not in f.f_globals:\n    f = f.f_back\n"
         "class F(f.f_globals['ManifestError']):\n    __str__ = _exit0\nraise F('x')\n",
-        # An isinstance shape check would iterate it clean once, and the second iteration would
-        # hand `main()` a str subclass whose `rstrip` exits; the exact-type check refuses the list
-        # subclass before iterating it.
+        # An isinstance shape check would admit the list subclass; the check copies it in ONE
+        # iteration (`_path_list`), which yields clean, so the run ends as drift blamed on the
+        # project — only a check that iterated it again would reach the `rstrip` exit. The identity
+        # test refuses the subclass before iterating it.
         _EXIT0 + "class S(str):\n    rstrip = _exit0\nclass L(list):\n    calls = 0\n"
         "    def __iter__(self):\n        L.calls += 1\n"
         "        return iter(['libs/x'] if L.calls == 1 else [S('libs/x')])\n"
@@ -267,13 +302,20 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         _EXIT0 + "class Meta(type):\n    __eq__ = _exit0\n    __hash__ = type.__hash__\n"
         "class C(metaclass=Meta):\n    pass\n"
         "SEEDED_NOT_ENFORCED = C()\nRETIRED_VENDORED_DIRS = []\n",
-        # A metaclass that answers `==` True for any class passes an `in`/`==` type test; its
-        # second iteration hands `main()` a str subclass whose `rstrip` exits.
+        # A metaclass that answers `==` True for any class passes an `in`/`==` type test; copied in
+        # one iteration it yields clean, so the run ends as drift blamed on the project (a second
+        # iteration would reach the `rstrip` exit). The identity test (`type(x) is T`) refuses the
+        # class before iterating it.
         _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
         "class Meta(type):\n    __eq__ = lambda c, o: True\n    __hash__ = type.__hash__\n"
         "class C(list, metaclass=Meta):\n    calls = 0\n    def __iter__(self):\n"
         "        C.calls += 1\n        return iter(['libs/x'] if C.calls == 1 else [S('libs/x')])\n"
         "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = C(['libs/x'])\n",
+        # The same metaclass on an ENTRY: an `==`/`!=` entry test (`!=` falls back to the inverted
+        # `__eq__`) admits it, and `main()` calls its `rstrip` outside the catch.
+        _EXIT0 + "class Meta(type):\n    __eq__ = lambda c, o: True\n    __hash__ = type.__hash__\n"
+        "class C(metaclass=Meta):\n    rstrip = _exit0\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [C()]\n",
         _EXIT0 + "class Meta(type):\n    __name__ = property(_exit0)\n"
         "class C(metaclass=Meta):\n    pass\n"
         "SEEDED_NOT_ENFORCED = [C()]\nRETIRED_VENDORED_DIRS = []\n",
@@ -284,6 +326,25 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         "    def __hash__(self):\n        return hash('SEEDED_NOT_ENFORCED')\n"
         "    def __eq__(self, other):\n        if K.armed:\n            _exit0()\n"
         "        return False\nglobals()[K()] = 1\n" + _FULL_MANIFEST + "K.armed = True\n",
+        # The raised exception's TYPE name, read while the failure's message is built (W-deb8eb0f):
+        # outside the inner guard it escaped `main()` as SystemExit(0), GREEN.
+        _EXIT0 + "class Meta(type):\n    __name__ = property(_exit0)\n"
+        "class E(Exception, metaclass=Meta):\n    pass\nraise E('x')\n",
+        # Any other BaseException from the name read is named the same way, never let through.
+        "def _gen_exit(*a, **k):\n    raise GeneratorExit\n"
+        "class Meta(type):\n    __name__ = property(_gen_exit)\n"
+        "class E(Exception, metaclass=Meta):\n    pass\nraise E('x')\n",
+        # Either half returned as a str SUBCLASS: its `__format__` would run in the f-string.
+        _EXIT0 + "class S(str):\n    __format__ = _exit0\n"
+        "class Meta(type):\n    __name__ = property(lambda c: S('E'))\n"
+        "class E(Exception, metaclass=Meta):\n    pass\nraise E('x')\n",
+        _EXIT0 + "class S(str):\n    __format__ = _exit0\n"
+        "class E(Exception):\n    def __str__(self):\n        return S('x')\nraise E('x')\n",
+        # The LIVE check's own exact ManifestError, raised with a hostile argument: passed through
+        # as the check's own refusal, `main()` printing it ran the argument's `__str__`.
+        _EXIT0 + "import sys\nf = sys._getframe()\n"
+        "while '_manifest_lists' not in f.f_globals:\n    f = f.f_back\n"
+        "class H:\n    __str__ = _exit0\nraise f.f_globals['ManifestError'](H())\n",
     ],
     ids=[
         "module-getattr",
@@ -298,14 +359,21 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         "list-iterates-differently",
         "metaclass-eq",
         "metaclass-eq-true",
+        "metaclass-eq-entry",
         "metaclass-name",
         "colliding-dict-key",
+        "exc-type-name",
+        "exc-type-name-generatorexit",
+        "exc-name-str-subclass",
+        "exc-str-str-subclass",
+        "manifesterror-hostile-arg",
     ],
 )
 def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    request: pytest.FixtureRequest,
     manifest: str,
 ) -> None:
     """W-3d6a6236 (Opus critique, review pass 1): the load's catch closed when `exec_module`
@@ -314,13 +382,30 @@ def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     manifest raises, a metaclass `__eq__` or `__name__`, or a globals key whose hash collides with a
     list's name runs the manifest's code later — each one a
     `sys.exit(0)` that ended the check GREEN over a drifted file. The check reads the module dict it
-    took before the load, inside the catch, and takes only exact built-in types."""
+    took before the load, inside the catch, and takes only exact built-in types.
+
+    Each param with a guard of its own asserts the refusal THAT guard produces (W-73044efc; see
+    `_POST_LOAD_REFUSAL` for the two that have none). A guard that regressed to
+    `getattr`/`isinstance`/`==` ends some other way — the wide catch's "failed to load or answer:
+    SystemExit", a SystemExit escaping `main()`, or drift blamed on the project — never with the
+    guard's own words.
+
+    An escaped SystemExit is failed HERE, by its plain code and outside the `except`, because
+    pytest formatting the hostile exception (W-deb8eb0f) re-runs its code and ends the whole
+    session at rc 0 — a regression that reads as a green suite."""
     files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
-    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    escaped: object = None
+    try:
+        rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    except SystemExit as exc:
+        escaped = repr(exc.code) if type(exc.code) in (int, type(None)) else "<non-int code>"
+    if escaped is not None:
+        pytest.fail(f"SystemExit({escaped}) escaped main(): GREEN in a real process", pytrace=False)
     out = capsys.readouterr().out
     assert rc == 1, out
     assert _HUB_WORDS in out, out
     assert _PROJECT_BLAME not in out, out
+    assert _POST_LOAD_REFUSAL[request.node.callspec.id] in out, out
 
 
 @pytest.mark.parametrize(
@@ -328,8 +413,11 @@ def test_manifest_code_run_after_the_load_still_fails_red_naming_the_hub(
     [
         "raise KeyboardInterrupt\n",
         "class X(Exception):\n    def __str__(self):\n        raise KeyboardInterrupt\nraise X\n",
+        "def _ki(*a, **k):\n    raise KeyboardInterrupt\n"
+        "class Meta(type):\n    __name__ = property(_ki)\n"
+        "class X(Exception, metaclass=Meta):\n    pass\nraise X\n",
     ],
-    ids=["at-load", "while-the-message-is-built"],
+    ids=["at-load", "while-the-message-is-built", "while-the-type-name-is-read"],
 )
 def test_a_keyboardinterrupt_while_loading_is_the_operators_never_named_the_hubs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, raise_code: str
