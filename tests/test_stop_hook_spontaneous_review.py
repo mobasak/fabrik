@@ -1184,6 +1184,27 @@ def test_a_running_reviews_range_surface_exempts_the_files_it_changed(tmp_path, 
         {**rec, "surface": f"{c3}..HEAD"}, {"b.py": 1, "e.py": 1, "d.py": 1}, root=tmp_path
     )
     assert got == {"b.py", "e.py"}, got
+    # a session started in a SUBDIRECTORY keys its edits from there (`_session_files`), so the
+    # range's files are named relative to that root, and a file outside it is not named at all
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "f.py").write_text("# f\n", encoding="utf-8")
+    sp.run(["git", "add", "sub/f.py"], cwd=tmp_path, check=True)
+    sp.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "sub"],
+        cwd=tmp_path,
+        check=True,
+    )
+    got = fgs._surface_reviewed(
+        {**rec, "surface": "HEAD~2..HEAD"}, {"f.py": 1, "e.py": 1}, root=tmp_path / "sub"
+    )
+    assert got == {"f.py"}, got
+    # ...and a stop whose surfaces carry no range runs no git call at all
+    sent: list[tuple[str, ...]] = []
+    monkeypatch.setattr(fgs, "_git_by", lambda r, d, *a: sent.append(a))
+    got = fgs._surface_reviewed(
+        {**rec, "surface": "scripts/a.py and tests/b.py, see W-1a2b3c4d."}, authored, root=tmp_path
+    )
+    assert got == set() and sent == [], (got, sent)
 
 
 def test_a_closed_reviews_range_surface_names_its_files(tmp_path, monkeypatch):
@@ -1281,6 +1302,9 @@ def test_range_resolution_is_cached_capped_and_on_one_deadline(tmp_path, monkeyp
     for _ in range(3):
         assert "x.py" in fgs._surface_tokens("aaaaaaa..bbbbbbb", root=tmp_path)
     assert len(calls) == 3, calls  # one rev-parse per side, one diff
+    # no side can reach git as an option: `--end-of-options` before each revision, `--` after the diff's
+    assert all(c[:4] == ("rev-parse", "--verify", "--quiet", "--end-of-options") for c in calls[:2])
+    assert calls[2][0] == "diff" and calls[2][-1] == "--" and "--relative" in calls[2], calls[2]
     for i in range(fgs._RANGE_CAP + 5):
         fgs._surface_tokens(f"{i:07x}..bbbbbbb", root=tmp_path)
     assert len(calls) == 3 * fgs._RANGE_CAP, len(calls)
@@ -1289,4 +1313,6 @@ def test_range_resolution_is_cached_capped_and_on_one_deadline(tmp_path, monkeyp
     # a spent budget resolves nothing more
     _fresh_ranges(monkeypatch)
     monkeypatch.setattr(fgs, "_RANGE_DEADLINE", [0.0])
+    before = len(calls)
     assert "x.py" not in fgs._surface_tokens("ddddddd..bbbbbbb", root=tmp_path)
+    assert len(calls) == before, "a spent budget reaches git no more"

@@ -1755,7 +1755,7 @@ def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
             if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
                 break
             shas.append(sha)
-        if len(shas) == 2 and time.monotonic() < deadline:
+        if len(shas) == 2:  # past the deadline here, `_git_by` floors the diff's timeout at 0.1 s
             r = _git_by(
                 root,
                 deadline,
@@ -1763,6 +1763,9 @@ def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
                 "--name-only",
                 "-z",
                 "--no-renames",
+                # authored paths are relative to `root`, the session's cwd (`_session_files`), and
+                # a plain diff prints them from the top level — a subdirectory session matched none
+                "--relative",
                 f"{shas[0]}{sep}{shas[1]}",
                 "--",
             )

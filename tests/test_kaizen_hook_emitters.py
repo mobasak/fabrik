@@ -428,15 +428,19 @@ def test_a_running_reviews_range_surface_stands_the_uncommitted_cause_down(tmp_p
         timeout=30,
         env={**os.environ, **old},
     )
+    (proj / "other.py").write_text("x\n", encoding="utf-8")  # a later commit of ANOTHER file
+    _git(proj, "add", "other.py")
+    _git(proj, "commit", "-qm", "other")
     (proj / "session_file.py").write_text(
         "v2 — a round-1 fix, not yet committed\n", encoding="utf-8"
     )
     tp = _transcript(proj, edited=["session_file.py"])
-    _running_review(tmp_path, "sidrange", "W-x the fix, range HEAD~1..HEAD (1 file)")
+    _running_review(tmp_path, "sidrange", "W-x the fix, range HEAD~2..HEAD~1 (1 file)")
     proc = _run_stop(proj, tmp_path, "sidrange", baseline=[], transcript=tp)
     reason = json.loads(proc.stdout).get("reason", "")
     assert "COMMAND STILL RUNNING" in reason and "DEFINITION OF DONE" not in reason, reason
-    _running_review(tmp_path, "sidrangectl", "W-x the base, range HEAD~1...HEAD~1")
+    # the control: a non-empty range that changed only other.py
+    _running_review(tmp_path, "sidrangectl", "W-x the other change, range HEAD~1..HEAD")
     proc = _run_stop(proj, tmp_path, "sidrangectl", baseline=[], transcript=tp)
     assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
 
