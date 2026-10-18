@@ -239,7 +239,8 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 > 1. **No self-authorized deferral.** You do **NOT** get to decide to skip, descope, defer, simplify away, or
 >    "leave for later" any step, task, or phase in the plan. There is **no** *optional / nice-to-have /
 >    out-of-scope-for-now / TODO-revisit / follow-up-PR / good-enough* bucket for plan work — **every step
->    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
+>    ships in THIS run**, or you halt with `blocked --wall` / `--paused` (the quota wall, a pause the operator
+>    ordered) or with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction) — a step the plan
 >    assigns to the operator under a § FINAL OUTPUT gate token excepted, which ends behind its gate DECISION (the
 >    halt rule below). *"I judged X

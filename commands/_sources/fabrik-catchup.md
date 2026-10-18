@@ -29,7 +29,8 @@ never the last MEASURE**; run Phase 0 again, unprompted, before you stop. Three 
 *run the re-measure now*: "the queue looked short," "that fix was trivial," "it's obviously caught up."
 Catchup owns only this outer loop — never the inner convergence loop of a routed command (that command's
 own termination contract governs its own no-op). **Context is never a reason to stop**: the harness
-auto-compacts and the run continues in the same invocation. The only legitimate early stop is a routed
+auto-compacts and the run continues in the same invocation. Besides the quota wall and the operator's pause
+§ Run record names, the only legitimate early stop is a routed
 command coming back `BLOCKED` after 3 consecutive attempts on the same item — pause that item, name it in
 the report, and keep working the rest of the queue.
 
