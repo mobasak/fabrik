@@ -188,7 +188,8 @@ its REASON column, since a near-synonym matches no tag; the orchestrator runs it
 audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
 mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
 A subject already held is a recurrence and is edited, never re-rejected — `--reject` warns on one but still writes it
-(it warns only on an identical `HELD:` tag). An answered reject (PHASE 1) stays final, but a line that three or more
+(it warns only on an identical `HELD:` tag). A recurrence whose edit PHASE 1 refuses as weakening is routed to the
+operator as a proposal instead, its rows rejected `ROUTED:` with the proposal's mail id. An answered reject (PHASE 1) stays final, but a line that three or more
 answered rejects on one subject cite is a line not followed: it is a candidate group for this phase's ONE edit, its
 target resolved and lock-checked as below. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
