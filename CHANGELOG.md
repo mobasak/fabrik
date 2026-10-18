@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec and /fabrik-spec-review: the orchestrator runs every shell-only check the research seat cannot (2026-10-18)
+
+- Phase 1c's division of labour gave the orchestrator only the status probe, because `fabrik-researcher` has no Bash. Both commands now add: "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback". The examples are a count over a fetched file, which you download and count yourself, and a seat's quote matched, whitespace normalised first, against your own raw fetch when the raw-fetch tools are down. The `WebFetch` fallback stays with the status probe alone, since the quote rule forbids quoting a `WebFetch` reply. /fabrik-spec's quote rule points at the duty, and /fabrik-spec-review's copy points at its own quote rule. This answers row 1792241971, the second sighting of the held subject researcher-no-shell-counts.
+- The queue's other row (a census count with no named row set) was rejected, because CLAUDE.md's "name the population you counted" rule already covers it.
+
 ### Changed — /fabrik-command-improve: a weakening recurrence routes to the operator; close-chain writes ledger prose after the closing pass (2026-10-18)
 
 - PHASE 2's "a recurrence is edited, never re-rejected" now names its one exception. A recurrence whose edit PHASE 1 refuses as weakening is routed to the operator as a proposal. Its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. A later sighting cites that proposal instead of routing again. Terminal gains the matching `no edit this run — the surviving row routed to the operator` close (row 1792329659).
