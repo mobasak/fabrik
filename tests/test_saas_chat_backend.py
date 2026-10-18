@@ -20,6 +20,7 @@ import ast
 import asyncio
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -496,6 +497,14 @@ def test_a_read_timeout_that_is_not_a_positive_finite_number_fails_at_start(mods
         mods["chat"].load_chat_settings({"CHAT_UPSTREAM_READ_TIMEOUT": value})
 
 
+def test_a_huge_integer_cap_is_accepted_not_an_overflow(mods):
+    # an int never overflows a finiteness check: only the float knob is checked for nan/inf
+    huge = "9" * 400
+    assert mods["chat"].load_chat_settings({"CHAT_MAX_BODY_BYTES": huge}).max_body_bytes == int(
+        huge
+    )
+
+
 # --- limiter -------------------------------------------------------------------------------
 
 
@@ -529,7 +538,7 @@ def test_retry_after_rounds_the_ttl_up(mods, redis_sock, sync_redis):
     user = str(uuid.uuid4())
     headers = _bearer(mods, user=user)
     assert _post(app, {"message": "hi"}, headers=headers).status_code == 200
-    sync_redis.pexpire(f"global:chat:user:{user}", 1500)
+    sync_redis.pexpire(f"global:chat:user:{user}", 1900)  # 900 ms of slack before "1"
     r = _post(app, {"message": "hi"}, headers=headers)
     assert r.status_code == 429 and r.headers["retry-after"] == "2"
 
@@ -812,7 +821,7 @@ def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
         for n in tree.body
         if isinstance(n, ast.FunctionDef) and n.name in ("_target", "_require_throwaway")
     ]
-    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url}
+    ns: dict[str, Any] = {"_APP_REDIS_URL": app_redis_url, "os": os}
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(emitted), "exec"), ns)  # noqa: S102
     return ns["_require_throwaway"]
 
@@ -825,11 +834,12 @@ def _emitted_redis_guard(project: Path, app_redis_url: str) -> Any:
         "redis://h:6379/00",
         "redis://h:6379/1?db=0",
         "unix:///tmp/r.sock",
-        "redis://app:6379/3/",  # the app's own DB, spelled differently
+        "redis://localhost:6379/3/",  # the app's own DB, spelled differently
+        "redis://127.0.0.1:6379/3",  # the same server under another name
     ],
 )
 def test_the_emitted_throwaway_guard_refuses_db_0_and_the_apps_db(project, url):
-    guard = _emitted_redis_guard(project, "redis://app:6379/3")
+    guard = _emitted_redis_guard(project, "redis://localhost:6379/3")
     with pytest.raises(RuntimeError):
         guard(url)
 
@@ -838,4 +848,4 @@ def test_the_emitted_throwaway_guard_refuses_db_0_and_the_apps_db(project, url):
     "url", ["redis://h:6379/1", "rediss://h:6379/1", "unix:///tmp/r.sock?db=2"]
 )
 def test_the_emitted_throwaway_guard_allows_another_db(project, url):
-    _emitted_redis_guard(project, "redis://app:6379/3")(url)
+    _emitted_redis_guard(project, "redis://localhost:6379/3")(url)

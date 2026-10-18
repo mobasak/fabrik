@@ -2936,7 +2936,7 @@ def _positive(environ: Mapping[str, str], name: str, default: str, kind: type = 
         value = kind(raw)
     except ValueError:
         value = None
-    if value is None or not math.isfinite(value) or value <= 0:
+    if value is None or (kind is float and not math.isfinite(value)) or value <= 0:
         raise ValueError(f"{name} must be a positive finite number, got {raw!r}")
     return value
 
@@ -3950,22 +3950,34 @@ _APP_REDIS_URL = os.environ.get(
 _TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "")
 
 
-def _target(url: str) -> tuple[object, object, object, int]:
-    """The server and logical DB a URL names, as redis-py itself reads it: ``/00``, a ``?db=``
-    query and a ``unix://`` socket URL all resolve the way the client will connect."""
+def _target(url: str) -> tuple[frozenset[object], int]:
+    """The server endpoints and logical DB a URL names, as redis-py itself reads it: ``/00``, a
+    ``?db=`` query and a ``unix://`` socket URL resolve the way the client will connect, and a
+    host is resolved to its addresses, so ``localhost`` and ``127.0.0.1`` are one server."""
+    import socket
+
     from redis.connection import parse_url
 
     kwargs = parse_url(url)
     db = int(kwargs.get("db") or 0)
-    return (kwargs.get("host", "localhost"), kwargs.get("port", 6379), kwargs.get("path"), db)
+    if kwargs.get("path"):
+        return frozenset({os.path.realpath(kwargs["path"])}), db
+    host, port = kwargs.get("host") or "localhost", int(kwargs.get("port") or 6379)
+    try:
+        found = {info[4][:2] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+    except OSError:
+        found = set()
+    return frozenset(found or {(host, port)}), db
 
 
 def _require_throwaway(url: str) -> None:
-    target = _target(url)
-    if target[3] == 0:
+    endpoints, db = _target(url)
+    if db == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
-    if _APP_REDIS_URL and target == _target(_APP_REDIS_URL):
-        raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
+    if _APP_REDIS_URL:
+        app_endpoints, app_db = _target(_APP_REDIS_URL)
+        if db == app_db and endpoints & app_endpoints:
+            raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
 
 
 pytestmark = pytest.mark.skipif(
