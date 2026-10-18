@@ -63,7 +63,7 @@ five runs, each of which a reader can judge on its own.
   closes are the only closes, and no phase is skipped and no reviewed edit discarded to make the
   clock; it changes what the FEEDBACK line says, because what cost the time is a finding about
   this command.
-- **Resilience.** A seat that has not returned is governed by `commands/_fragments/term-coverage.md`
+- **Resilience.** A seat that has not returned is governed by `/opt/fabrik/commands/_fragments/term-coverage.md`
   (wait or re-dispatch; never close over an outstanding finder), not restated here; no corpus rule
   names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs, 2026-09-20),
   so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run that cannot
@@ -130,7 +130,7 @@ historical tail is almost entirely `unkeyed`. ⚠️ Do not trust any figure quo
 yourself over today's ledger, and note that the `unkeyed` bucket folds in every legitimate
 `change: none`, which carries no key by contract — separate them before you report a number. Rows written after the gate landed are
 all keyed and `bad-axis` should be empty — the close refuses both shapes now (the rule and its
-seven keys live in `commands/_fragments/close-feedback.md`, which this command also renders; it is
+seven keys live in `/opt/fabrik/commands/_fragments/close-feedback.md`, which this command also renders; it is
 not restated here). On the historical tail the axis column is near-constant and the grouping that
 matters is by SUBJECT; read those by what they SAY, not by their bucket.
 
@@ -284,15 +284,16 @@ quoted as it prints (a recipe is copied from the test or MATRIX row that already
 — a recipe held in a template literal or an escaped string is pointed at by name for its reader to follow, never
 handed over to be pasted — and is run on a real artifact the command produces and on two fleet ones as well as a
 synthetic file built to break it in a scratch repo (round zero's input classes in
-`commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject and a
-sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
-in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
-script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. The run-before-review rule above holds for a sentence stating how a test or gate
-behaves: it is run on that test's or gate's own real cases before PHASE 4's review. A rule whose
-subject the edit widens is run before PHASE 4's first pin, through the rule's own search methods, on a sample of the
-new subject, since a method that finds the old subject may find none of the new one. A sentence a
-`_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop
-or a round count) and binds no other.
+`/opt/fabrik/commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit
+subject and a sibling commit inside the window the recipe scans, when it scans one); a verb is run end to end in a
+scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped in the hub and
+dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the script
+(`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line. The run-before-review rule
+above holds for a sentence stating how a test or gate behaves: it is run on that test's or gate's own real cases
+before PHASE 4's review. A rule whose subject the edit widens is run before PHASE 4's first pin, through the rule's
+own search methods, on a sample of the new subject, since a method that finds the old subject may find none of the
+new one. A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for
+example a review loop or a round count) and binds no other.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
