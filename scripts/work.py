@@ -470,6 +470,24 @@ def _read_item(repo: Path, item_id: str) -> dict:
     return data
 
 
+def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
+    """The item and the tree whose store holds it: this tree's store first, else the MAIN
+    checkout's — for the verbs that write only SHARED state (``claim``, ``release``: the claim lives
+    in the git common dir every tree reads). An item the coordinator created or scored on the main
+    checkout is absent from a builder's branch until a merge carries it, and refusing it there
+    left the claim held (W-98204c50: ``merge_request.py request --item`` printed PARTIAL). Only a
+    MISSING file falls back; a corrupt or mismatched one is this tree's own refusal, and an id in
+    neither store keeps this tree's ``no item`` message."""
+    try:
+        return _read_item(repo, item_id), repo
+    except WorkError:
+        if _item_path(repo, item_id).exists():
+            raise
+        main = _worktrees(repo)[0]
+        if main == repo.resolve() or not _item_path(main, item_id).is_file():
+            raise
+        return _read_item(main, item_id), main
+
 def _write_item(repo: Path, item: dict, *, create: bool = False) -> Path:
     """Write ``item`` to its file (caller holds the store lock); returns the path."""
     path = _item_path(repo, str(item.get("id", "")))
@@ -3483,7 +3501,7 @@ def _claim_record(
 
 def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)  # a missing id is named before anything else
+    _read_item_any(repo, args.id)  # a missing id is named before anything else
     session = _call_session(args)
     if not session:
         raise WorkError(
@@ -3491,9 +3509,9 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
             "was given (cron and plain shells cannot hold a lease)"
         )
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="claim"):
-        item = _read_item(repo, args.id)
+        item, store = _read_item_any(repo, args.id)
         _refuse_closed(repo, item, "claim")
-        _refuse_blocked(repo, item)
+        _refuse_blocked(store, item)  # its blockers are read from the store that holds it
         held = _claim_of(repo, args.id)
         taken = _claim_record(held, session, time.time())
         if taken is None:  # only a live claim held by ANOTHER session refuses
@@ -3507,7 +3525,7 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_release(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _read_item_any(repo, args.id)
     session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="release"):
         claim = _fence(repo, args.id, session, "release")

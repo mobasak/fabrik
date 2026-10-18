@@ -1036,3 +1036,77 @@ def test_a_marker_that_names_no_tree_is_never_crash_residue(tmp_path):
         assert marker.exists(), marker_tree
         r = run(["claim", item, "--session", "S"], env, repo)
         assert r.returncode != 0 and "another working tree" in r.stderr, r.stderr
+
+
+def test_release_from_a_worktree_finds_an_item_that_lives_only_in_the_main_store(tmp_path):
+    """W-98204c50: an item created in the main checkout after the worktree branched (a mail
+    claim, a coordinator assignment) is absent from the worktree's store, but its claim lives in
+    the SHARED git dir. `release` read the item from the worktree's store first and refused
+    ("no item ... in <worktree>"), so `merge_request.py request --item` printed PARTIAL and the
+    claim stayed held. It now falls back to the main checkout's store to validate the id."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    item = _add(repo, env)  # after the branch: the main store only
+    assert not _item_file(wt, item).exists()
+    _ok(["claim", item, "--session", "W"], env, repo)
+    _ok(["release", item, "--session", "W"], env, wt)
+    assert item in _ready_ids(repo, env)
+
+
+def test_release_from_a_worktree_still_fences_a_main_store_item(tmp_path):
+    """The fallback validates the id only; the fence still refuses another session's claim."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "A"], env, repo)
+    r = run(["release", item, "--session", "B"], env, wt)
+    assert r.returncode != 0 and "token mismatch" in r.stderr, r.stderr
+    assert _claim(repo, item)["session"] == "A"
+
+
+def test_release_of_an_id_in_no_store_still_names_it(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    r = run(["release", "W-00000000", "--session", "W"], env, wt)
+    assert r.returncode != 0 and "no item W-00000000" in r.stderr, r.stderr
+
+
+def test_claim_from_a_worktree_finds_an_item_that_lives_only_in_the_main_store(tmp_path):
+    """W-98204c50, the same class: `claim` only writes the SHARED claim, so an item the main
+    checkout holds and the worktree's branch does not yet carry is claimable from the worktree."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "W"], env, wt)
+    assert _claim(repo, item)["session"] == "W"
+
+
+def test_claim_of_a_main_store_item_reads_its_blockers_from_the_main_store(tmp_path):
+    """The blocker check runs against the store that holds the item: a main-only item blocked by
+    an open main-only item is refused naming it, and claimable once that blocker is done."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    blocker = _add(repo, env, "blocker")
+    item = _add(repo, env, "blocked")
+    path = _item_file(repo, item)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["blocked_by"] = [blocker]
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    r = run(["claim", item, "--session", "W"], env, wt)
+    assert r.returncode != 0 and f"blocked by {blocker}" in r.stderr, r.stderr
+    path = _item_file(repo, blocker)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["status"] = "done"
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _ok(["claim", item, "--session", "W"], env, wt)
