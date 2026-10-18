@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — remote ssh text reaches errors and logs masked and on one line (2026-10-18)
+
+`src/fabrik/drivers/ssh.py::_one_line` masks remote text with `_redact` and then `repr`-quotes it, so a CR, LF,
+NUL, U+2028 or U+0085 in ssh stderr or a reply can no longer forge a log line. `ssh()`, `scp_to_vps()`, the DNS
+client's container-resolve messages and its `_request_via_ssh` errors all use it. The container name `docker ps`
+prints must match Docker's name grammar, and the IP `docker inspect` prints must be a plain IPv4 address, or the
+resolve is a miss: a hostile reply can no longer reach the second remote command or become the request's target
+host. D-989 (W-9a560686).
+
 ### Fixed — file-worker healthchecks read the heartbeat's age (2026-10-18)
 
 Every file-worker healthcheck the hub emits now runs `scaffold.FILE_WORKER_HEARTBEAT_CHECK`, a stdlib `python -c`
