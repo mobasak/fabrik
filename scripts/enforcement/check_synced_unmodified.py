@@ -48,6 +48,7 @@ def _md5(path: Path) -> str:
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. Same rule as check_sync_trigger_coverage.py.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
+MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
 
 class ManifestError(Exception):
@@ -61,9 +62,13 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     dirs are the PROJECT'S now — deleting or editing them is the sanctioned action.
 
     Both are empty when the hub or its manifest FILE is absent (e.g. on a VPS) — a rare,
-    acceptable degradation. A manifest that is present but fails to load, or lacks either list,
-    raises ManifestError: a guessed empty list grades the wrong rule. Loaded by file location,
-    never `sys.path` + import, so no cached or shadowing module can answer for the hub's file.
+    acceptable degradation; `main()` then names the hub beside any drift it reports, because
+    under a present hub a moved manifest, not a project edit, may be the cause. A manifest that
+    is present but fails to load, or lacks either list, raises ManifestError: a guessed empty
+    list grades the wrong rule. Loaded by file location, never `sys.path` + import, so no cached
+    or shadowing module can answer for the hub's file; the manifest therefore imports only the
+    stdlib, which `tests/test_check_synced_unmodified_manifest.py` proves by loading the repo's
+    own manifest through this function.
 
     Why retired dirs exist (found 2026-09-08 by the independent closing pass of the D-196 retirement):
     this check iterates the project's `.fabrik/synced.lock`, which is a FROZEN SNAPSHOT rewritten
@@ -76,7 +81,7 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     their frozen locks matter here), both frozen since
     2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
     """
-    path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+    path = FABRIK_ROOT / MANIFEST_REL
     if not path.is_file():
         return set(), ()
     spec = importlib.util.spec_from_file_location("fabrik_synced_manifest", path)
@@ -187,6 +192,12 @@ def main() -> int:
         print("You edited a synced copy (it differs from what was distributed to this")
         print("project). Revert it (the next sync restores it), or make the change in")
         print("/opt/fabrik/<path> + re-sync if it's correct for ALL projects. Never fork here.")
+        manifest = FABRIK_ROOT / MANIFEST_REL
+        if FABRIK_ROOT.exists() and not manifest.is_file():
+            print()
+            print(f"⚠ The hub manifest {manifest} is missing, so the seeded and retired")
+            print("exemptions could not be applied: a hub-side move, not a project edit, may be")
+            print("the cause of some rows above — report it to /opt/fabrik (infra).")
         main_checkout = _main_checkout(project_root)
         if main_checkout is not None and changed:
             # W-800579be: in a linked worktree the copy may be STALE instead — the sync never
