@@ -6041,20 +6041,56 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
 # ── merge-item: the key-wise 3-way merge of one item file (W-5f3617e6) ───────────────────────
 
 _ABSENT = object()
+# `merge-item`'s conflict exit — distinct from 1 (a failure), so no caller parses stderr.
+MERGE_CONFLICT_RC = 3
+# The store's SET-valued lists (sorted, no duplicates): `assign` and `verdict` write `tags`, `assign
+# --blocked-by` writes `blocked_by`. Each merges as a set: the base, plus what either side added,
+# minus what either side removed — so two sides each adding a tag never conflict.
+_SET_KEYS = frozenset({"tags", "blocked_by"})
+
+
+def _merge_set(base: object, ours: list, theirs: list) -> list | None:
+    """The 3-way set merge of a list of strings, sorted; None when an entry is not a string (the
+    caller then treats the list as an ordinary value)."""
+    base_list = base if isinstance(base, list) else []
+    if not all(isinstance(x, str) for x in (*base_list, *ours, *theirs)):
+        return None
+    b, o, th = set(base_list), set(ours), set(theirs)
+    return sorted((b | (o - b) | (th - b)) - (b - o) - (b - th))
+
+
+def _merge_appended(base: object, ours: list, theirs: list) -> list | None:
+    """Two sides that only APPENDED to the base list (``comments``): the base, then every appended
+    entry, ordered by its ``at`` when every appended entry carries a numeric one (else ours, then
+    theirs), an entry both sides appended kept once. None when a side did anything but append."""
+    base_list = base if isinstance(base, list) else []
+    n = len(base_list)
+    if ours[:n] != base_list or theirs[:n] != base_list:
+        return None
+    added = list(ours[n:])
+    added += [x for x in theirs[n:] if x not in added]
+    stamps = [x.get("at") if isinstance(x, dict) else None for x in added]
+    if all(isinstance(s, (int, float)) and not isinstance(s, bool) for s in stamps):
+        added = [x for _, x in sorted(zip(stamps, added, strict=True), key=lambda pair: pair[0])]
+    return [*base_list, *added]
 
 
 def _merge_keys(base: object, ours: object, theirs: object, path: str, conflicts: list[str]):
     """One value, 3-way: the side that changed it against the base wins, a change both sides made
     identically merges, and two different changes are a conflict named by its key path. Objects
-    recurse key by key (``links`` edited on both sides merges per sub-key); ``_ABSENT`` is a
-    missing key, so a delete against a change conflicts and a delete on both sides deletes."""
+    recurse key by key (``links`` edited on both sides merges per sub-key — against ``{}`` when
+    the key is new on both sides); a list in ``_SET_KEYS`` merges as a set, any other list merges
+    when both sides only appended; ``_ABSENT`` is a missing key, so a delete against a change
+    conflicts and a delete on both sides deletes."""
     if ours == theirs:
         return ours
     if ours == base:
         return theirs
     if theirs == base:
         return ours
-    if all(isinstance(v, dict) for v in (base, ours, theirs)):
+    gone = base is _ABSENT
+    if isinstance(ours, dict) and isinstance(theirs, dict) and (gone or isinstance(base, dict)):
+        base = {} if gone else base
         merged = {}
         for key in sorted(set(base) | set(ours) | set(theirs)):
             value = _merge_keys(
@@ -6067,6 +6103,10 @@ def _merge_keys(base: object, ours: object, theirs: object, path: str, conflicts
             if value is not _ABSENT:
                 merged[key] = value
         return merged
+    if isinstance(ours, list) and isinstance(theirs, list) and (gone or isinstance(base, list)):
+        merged_list = (_merge_set if path in _SET_KEYS else _merge_appended)(base, ours, theirs)
+        if merged_list is not None:
+            return merged_list
     conflicts.append(path or "(the whole item)")
     return ours
 
@@ -6086,11 +6126,12 @@ def merge_item(base: dict, ours: dict, theirs: dict) -> tuple[dict, list[str]]:
     return (merged if isinstance(merged, dict) else ours), conflicts
 
 
-def cmd_merge_item(repo: Path, args: argparse.Namespace) -> int:
+def cmd_merge_item(repo: Path | None, args: argparse.Namespace) -> int:
     """``merge-item <base> <ours> <theirs>`` — git's merge-driver convention (``%O %A %B``): the
     merged item is written into ``<ours>`` and the exit is 0; a conflict leaves ``<ours>`` untouched,
-    names every conflicting key on stderr and exits 1. An empty or missing base (an item both
-    sides added) merges against ``{}``."""
+    names every conflicting key on stderr and exits ``MERGE_CONFLICT_RC``; an unreadable or
+    non-object side exits 1. An empty or missing base (an item both sides added) merges against
+    ``{}``. Needs no repo: ``main`` skips the git lookup for this verb."""
     texts = {}
     for name in ("base", "ours", "theirs"):
         path = Path(getattr(args, name))
@@ -6111,7 +6152,7 @@ def cmd_merge_item(repo: Path, args: argparse.Namespace) -> int:
     merged, conflicts = merge_item(texts["base"], texts["ours"], texts["theirs"])
     if conflicts:
         _warn(f"merge-item: both sides changed {', '.join(conflicts)} to different values")
-        return 1
+        return MERGE_CONFLICT_RC
     _write_json(Path(args.ours), merged)
     return 0
 
@@ -6272,7 +6313,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        repo = _repo_root(args.repo)
+        repo = None if args.fn is cmd_merge_item else _repo_root(args.repo)
         return int(args.fn(repo, args))
     except WorkError as exc:
         _warn(str(exc))

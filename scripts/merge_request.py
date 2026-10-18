@@ -964,6 +964,7 @@ def _remove_throwaway(ctx: _Ctx, wt: Path) -> None:
 # A work-item file: `work.py` writes one key per line in sorted order, so two sides changing DISJOINT
 # keys that sort side by side collide in git's line merge (W-5f3617e6); `work.py merge-item` merges
 # them key-wise against the base instead.
+MERGE_ITEM_CONFLICT_RC = 3  # `work.py merge-item`'s conflict exit (`MERGE_CONFLICT_RC` there)
 _WORK_ITEM_RE = re.compile(r"\.fabrik/work/W-[0-9a-f]{8}\.json")
 
 
@@ -996,17 +997,27 @@ def _merge_work_item(wt: Path, path: str, base: str) -> None:
             cwd=wt,
         )
         detail = (res.stderr.strip() or res.stdout.strip()).removeprefix("work: ")
-        if res.returncode == 1 and "both sides changed" in detail:
+        if res.returncode == MERGE_ITEM_CONFLICT_RC:
             raise ConflictError([path], f"{path}: {detail} — {_resend(base)}")
         if res.returncode != 0:
             raise RefusedError(f"{path}: work.py merge-item failed (rc {res.returncode}): {detail}")
-        (wt / path).write_bytes(files["ours"].read_bytes())
+        merged = files["ours"].read_bytes()
+        try:
+            item_id = json.loads(merged).get("id")
+        except (ValueError, AttributeError):
+            item_id = None
+        if item_id != Path(path).stem:  # never stage an item whose id is not its file's name
+            raise RefusedError(
+                f"{path}: the merged item's id is {item_id!r}, not {Path(path).stem}"
+            )
+        (wt / path).write_bytes(merged)
     _gitc(wt, "add", "--", path)
 
 
 def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     """(a)+(b): merge ``other`` into the throwaway's HEAD with ``message``; only pure-insertion
-    conflicts on the five ledgers are auto-resolved. Returns the merge commit."""
+    conflicts on the five ledgers and key-wise-mergeable work-item files are auto-resolved, and any
+    other conflicted path refuses first. Returns the merge commit."""
     res = _run(
         ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "-q", "-m", message, other],
         TOOL_TIMEOUT_S,

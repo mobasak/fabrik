@@ -11,6 +11,7 @@ line merge refuses adjacent hunks from two sides. The merge is now key-wise agai
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -127,3 +128,155 @@ def test_the_same_change_on_both_sides_merges_clean(world):  # noqa: F811
 
     assert world.run("merge") == 0
     assert _merged(world)["owner"] == "kaizen" and _merged(world)["status"] == "done"
+
+
+def _merge_item_cli(tmp_path, base: str, ours: str, theirs: str):
+    """`work.py merge-item` run directly on three files (git's %O %A %B shape)."""
+    paths = []
+    for name, text in (("base", base), ("ours", ours), ("theirs", theirs)):
+        p = tmp_path / f"{name}.json"
+        p.write_text(text, encoding="utf-8")
+        paths.append(str(p))
+    repo = Path(__file__).resolve().parent.parent
+    res = subprocess.run(
+        [sys.executable, str(repo / "scripts" / "work.py"), "merge-item", *paths],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    return res, Path(paths[1])
+
+
+def test_the_verb_merges_an_item_both_sides_added_against_an_empty_base(tmp_path):
+    res, ours = _merge_item_cli(tmp_path, "", _dump(BASE), _dump({**BASE, "status": "done"}))
+    assert res.returncode == 3 and "status" in res.stderr, res.stderr  # no base: both "changed" it
+    res, ours = _merge_item_cli(tmp_path, "", _dump(BASE), _dump(BASE))
+    assert res.returncode == 0, res.stderr
+    assert ours.read_text(encoding="utf-8") == _dump(BASE)
+
+
+def test_the_verb_refuses_a_side_that_is_not_a_json_object(tmp_path):
+    res, ours = _merge_item_cli(tmp_path, _dump(BASE), "[1, 2]\n", _dump(CLOSED))
+    assert res.returncode == 1 and "not a JSON object" in res.stderr, res.stderr
+    assert ours.read_text(encoding="utf-8") == "[1, 2]\n"
+
+
+def test_the_verb_leaves_ours_untouched_on_a_conflict_and_names_the_nested_key(tmp_path):
+    a = _dump({**BASE, "links": {**BASE["links"], "plan": "a.md"}})
+    b = _dump({**BASE, "links": {**BASE["links"], "plan": "b.md"}})
+    res, ours = _merge_item_cli(tmp_path, _dump(BASE), a, b)
+    assert res.returncode == 3 and "links.plan" in res.stderr, res.stderr
+    assert ours.read_text(encoding="utf-8") == a
+
+
+def test_set_lists_merge_as_sets_and_appended_lists_keep_both_sides_appends(tmp_path):
+    """Critique fold: `tags`/`blocked_by` are sets (base + each side's adds − each side's removes)
+    and `comments` is append-only, so two sides each adding an entry never conflict."""
+    base = {**BASE, "tags": ["a", "b"], "blocked_by": ["W-00000001"], "comments": [{"at": 1}]}
+    ours = {**base, "tags": ["a", "x"], "blocked_by": [], "comments": [{"at": 1}, {"at": 3}]}
+    theirs = {**base, "tags": ["a", "b", "y"], "comments": [{"at": 1}, {"at": 2}]}
+    res, out = _merge_item_cli(tmp_path, _dump(base), _dump(ours), _dump(theirs))
+    assert res.returncode == 0, res.stderr
+    merged = json.loads(out.read_text(encoding="utf-8"))
+    assert merged["tags"] == ["a", "x", "y"]  # ours removed b, both kept a, each added one
+    assert merged["blocked_by"] == []
+    assert merged["comments"] == [{"at": 1}, {"at": 2}, {"at": 3}]  # appends ordered by `at`
+
+
+def test_an_appended_list_rewritten_on_one_side_still_conflicts(tmp_path):
+    base = {**BASE, "comments": [{"at": 1}]}
+    ours = {**base, "comments": [{"at": 9}]}  # rewrote, not appended
+    theirs = {**base, "comments": [{"at": 1}, {"at": 2}]}
+    res, _ = _merge_item_cli(tmp_path, _dump(base), _dump(ours), _dump(theirs))
+    assert res.returncode == 3 and "comments" in res.stderr, res.stderr
+
+
+def test_a_links_object_added_on_both_sides_merges_per_sub_key(tmp_path):
+    ours = {k: v for k, v in BASE.items() if k != "links"} | {"links": {"plan": "p.md"}}
+    theirs = {k: v for k, v in BASE.items() if k != "links"} | {"links": {"spec": "s.md"}}
+    res, out = _merge_item_cli(tmp_path, _dump(BASE), _dump(ours), _dump(theirs))
+    assert res.returncode == 3, res.stderr  # base HAS links: each side deleted two sub-keys
+    base = {k: v for k, v in BASE.items() if k != "links"}
+    res, out = _merge_item_cli(tmp_path, _dump(base), _dump(ours), _dump(theirs))
+    assert res.returncode == 0, res.stderr
+    assert json.loads(out.read_text(encoding="utf-8"))["links"] == {"plan": "p.md", "spec": "s.md"}
+
+
+def test_the_verb_needs_no_git_repository(tmp_path):
+    """`merge-item` reads three files; run outside any repo it still merges (git driver shape)."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    paths = []
+    for name, data in (("base", BASE), ("ours", CLOSED), ("theirs", SCORED)):
+        p = outside / f"{name}.json"
+        p.write_text(_dump(data), encoding="utf-8")
+        paths.append(str(p))
+    work = Path(__file__).resolve().parent.parent / "scripts" / "work.py"
+    res = subprocess.run(
+        [sys.executable, str(work), "merge-item", *paths],
+        cwd=outside,
+        env={"PATH": "/usr/bin:/bin", "GIT_CEILING_DIRECTORIES": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    assert json.loads(Path(paths[1]).read_text(encoding="utf-8"))["owner"] == "kaizen"
+
+
+def test_an_item_conflict_beside_a_plain_file_conflict_still_refuses_on_the_plain_file(world):  # noqa: F811
+    _seed(world)
+    head = world.branch({ITEM: _dump(CLOSED), "README.md": "branch\n"})
+    world.write(ITEM, _dump(SCORED))
+    world.write("README.md", "base\n")
+    world.commit_main("score item and readme", ITEM, "README.md")
+    msg_id = world.send(head)
+    before = world.base()
+
+    assert world.run("merge") == 1
+    assert "conflict in README.md" in world.replies(msg_id)["fleet"]
+    assert world.base() == before
+
+
+def test_an_item_deleted_on_one_side_refuses(world):  # noqa: F811
+    _seed(world)
+    head = world.branch({ITEM: None})
+    world.write(ITEM, _dump(SCORED))
+    world.commit_main("score item", ITEM)
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 1
+    assert "deleted on one side" in world.replies(msg_id)["fleet"]
+
+
+def test_a_store_config_conflict_is_never_merged_key_wise(world):  # noqa: F811
+    cfg = ".fabrik/work/config.json"
+    world.write(cfg, _dump({"distributor": "intel"}))
+    world.commit_main("config", cfg)
+    _git(world.main, "push", "-q", "origin", "master")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    head = world.branch({cfg: _dump({"distributor": "intel", "autonomy": True})})
+    world.write(cfg, _dump({"distributor": "intel", "coordinator_mode": True}))
+    world.commit_main("config main", cfg)
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 1
+    assert f"conflict in {cfg}" in world.replies(msg_id)["fleet"]
+
+
+def test_a_merged_item_whose_id_is_not_its_file_name_is_never_staged(world):  # noqa: F811
+    """Critique fold: one side rewriting `id` merges key-wise, so the result is checked against
+    the file name before `git add`."""
+    _seed(world)
+    head = world.branch({ITEM: _dump({**CLOSED, "id": "W-ffffffff"})})
+    world.write(ITEM, _dump(SCORED))
+    world.commit_main("score item", ITEM)
+    msg_id = world.send(head)
+    before = world.base()
+
+    assert world.run("merge") == 1
+    assert "W-ffffffff" in world.replies(msg_id)["fleet"]
+    assert world.base() == before
