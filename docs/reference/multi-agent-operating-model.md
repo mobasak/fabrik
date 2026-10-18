@@ -175,6 +175,7 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
+python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose branch is unchanged
 ```
 
 `merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
@@ -194,7 +195,14 @@ hub's governance sync, and (h) the reply to requester and distributor, then `mai
 request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,
-staged or untracked owner file) is the owner's to clear and needs no change to the branch. A remote the
+staged or untracked owner file) is the owner's to clear and needs no change to the branch. An owner-tests
+refusal ends with what the same tests did on the base alone, one run and hedged: red too (likely the
+base's fault), green (the failure needs the branch's change, or is flaky), or not checked and why. A
+refusal the base caused is re-run by the OWNER with `retry <id>` once the base is fixed, never re-sent by
+the requester: it refuses while another request for the same branch or head is open, or the branch on
+the remote no longer points at the recorded head (the requester superseded it); otherwise it re-opens the
+mail (`mail.py requeue`, its `blocked` ack stripped), claims it again and runs every step from (a), and
+the new reply says which refused reply it supersedes (W-c751bca6). A remote the
 run cannot reach (a fetch that times out or fails for any reason but a missing ref) is no refusal: the
 request DEFERS — it stays claimed, nothing is replied, the next `merge` run retries it, and for the rest
 of that run every request on the same remote defers without another fetch while requests on other

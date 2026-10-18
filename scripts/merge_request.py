@@ -9,8 +9,9 @@ Spec: docs/superpowers/specs/2026-09-30-merge-request-loop-design.md § The delt
     merge_request.py request --review <path> [--item <W-id>] [--base <branch>]
     merge_request.py merge [<id>]        # the merge owner: the oldest request addressed to it
     merge_request.py resume <id>         # continue a request from its recorded phase
+    merge_request.py retry <id>          # re-run a REFUSED request whose branch is unchanged
 
-``merge`` and ``resume`` are documented at ``merge()`` below; ``request`` here.
+``merge``, ``resume`` and ``retry`` are documented at their functions below; ``request`` here.
 
 Run INSIDE a linked worktree, on a pushed branch. Every check below runs BEFORE anything is sent,
 and each failure refuses with exit 1:
@@ -1261,20 +1262,17 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
     refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``),
-    and both run with ``FABRIK_MERGE_CHECK=1`` (``_MERGE_CHECK_ENV``)."""
+    and both run with ``FABRIK_MERGE_CHECK=1`` (``_MERGE_CHECK_ENV``).
+
+    The refusal carries what ``_base_alone`` needs to run the same leg on the base by itself
+    (``base_alone``), or why it must not (``base_alone_skip``: a run that timed out or was killed
+    would only hold the merge lock as long again) — W-c751bca6."""
     note = _copy_worktree_include(ctx, wt, old)
     if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
         ctx.notes.append(note)
-    res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
-    if res.returncode == 0 and res.stdout.strip():
-        pythonpath = os.pathsep.join(
-            p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
-        )
-        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
-        argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
-        # the outer bound only catches a runner that itself hangs; the runner stops the tests first
-        run = _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env)
-    else:
+    script = _base_merge_tests(ctx, old)
+    touched: list[str] = []
+    if not script:
         touched = [
             p
             for status, p in merged
@@ -1285,23 +1283,97 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ]
         if not touched:
             return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
-        venv = ctx.main / ".venv" / "bin" / "python"
-        py = str(venv) if os.access(venv, os.X_OK) else sys.executable
-        label = f"pytest {' '.join(touched)} under {py}"
-        with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
-            Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
-            env = _fallback_env(wt, Path(shim))
-            run = _run(
-                _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
-                TEST_TIMEOUT_S + 60,
-                cwd=wt,
-                env=env,
-            )
+    try:
+        run, label = _run_owner_leg(ctx, wt, script, touched)
+    except TimedOutError as exc:
+        exc.base_old = old  # type: ignore[attr-defined]
+        exc.base_alone_skip = "the merged run timed out"  # type: ignore[attr-defined]
+        raise
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""
-        raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
+        red = RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
+        red.base_old = old  # type: ignore[attr-defined]
+        red.base_alone = {"script": script, "touched": touched}  # type: ignore[attr-defined]
+        if run.returncode in _KILLED_EXITS:
+            red.base_alone_skip = (  # type: ignore[attr-defined]
+                f"the merged run timed out or was killed (exit {run.returncode})"
+            )
+        raise red
     return f"{label}: green"
+
+
+# capped_run.sh's own verdicts: 124 its time limit, 137 its memory ceiling (scripts/capped_run.sh)
+_KILLED_EXITS = (124, 137)
+
+
+def _base_merge_tests(ctx: _Ctx, old: str) -> str:
+    """The base's ``.fabrik/merge-tests``, or "" when the base has none."""
+    res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
+    return res.stdout if res.returncode == 0 and res.stdout.strip() else ""
+
+
+def _run_owner_leg(
+    ctx: _Ctx, wt: Path, script: str, touched: list[str]
+) -> tuple[subprocess.CompletedProcess, str]:
+    """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
+    else pytest over ``touched``. Returns the finished process and its label."""
+    if script:
+        pythonpath = os.pathsep.join(
+            p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
+        )
+        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
+        argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
+        # the outer bound only catches a runner that itself hangs; the runner stops the tests first
+        return _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env), label
+    venv = ctx.main / ".venv" / "bin" / "python"
+    py = str(venv) if os.access(venv, os.X_OK) else sys.executable
+    label = f"pytest {' '.join(touched)} under {py}"
+    with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
+        Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
+        env = _fallback_env(wt, Path(shim))
+        run = _run(
+            _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
+            TEST_TIMEOUT_S + 60,
+            cwd=wt,
+            env=env,
+        )
+    return run, label
+
+
+def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
+    """The owner-tests refusal's verdict on the BASE by itself (W-c751bca6): the same leg, once,
+    in a fresh throwaway at ``old`` with nothing merged. "owner tests red" read the same for a red
+    base and a red branch, so the owner could not tell a request worth retrying from one the
+    requester must change. One run is weak evidence (a flaky test reads either way), so the
+    wording hedges. Never raises: a check that cannot run is the "not checked" clause, so it can
+    never change the refusal or the exit code."""
+    skip = getattr(red, "base_alone_skip", None)
+    if skip:
+        return f"; on base alone: not checked ({skip})"
+    spec = getattr(red, "base_alone", None) or {}
+    try:
+        with _throwaway(ctx, rec, old) as wt:
+            _copy_worktree_include(ctx, wt, old)
+            touched = [p for p in spec.get("touched", []) if (wt / p).is_file()]
+            if not spec.get("script") and not touched:
+                return "; on base alone: not checked (every failing test file is new in the branch)"
+            run, _label = _run_owner_leg(ctx, wt, spec.get("script", ""), touched)
+    except Exception as exc:  # noqa: BLE001 — a verdict that cannot be reached is said, never raised
+        return (
+            f"; on base alone: not checked (the check could not run: {' '.join(str(exc).split())})"
+        )
+    if run.returncode == 0:
+        return (
+            "; on base alone (one run): green — the failure needs the branch's change (or is flaky)"
+        )
+    if run.returncode in _KILLED_EXITS:
+        return f"; on base alone: not checked (the base run timed out or was killed, exit {run.returncode})"
+    tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
+    return (
+        f"; on base alone (one run): red too (exit {run.returncode}: {tail}) — likely a base-side "
+        f"fault: fix the base, then `merge_request.py retry {rec['id']}`"
+    )
 
 
 def _merge_into_base(
@@ -1552,6 +1624,11 @@ def _reply_body(rec: dict) -> str:
         f"branch: {rec.get('branch', '?')}",
         f"outcome: {rec['outcome']}",
     ]
+    retries = rec.get("retries") or []
+    if retries:  # a reader holding two replies `re:` one id tells the current one by this line
+        lines.append(
+            f"retry: {len(retries)} — supersedes the refused reply ({retries[-1].get('reason', '?')})"
+        )
     skipped = rec.get("not_carried", [])
     if rec["outcome"] == "merged":
         lines += [f"merge: {rec['merge_sha']}", f"base: {rec['base']}"]
@@ -1572,7 +1649,9 @@ def _reply_body(rec: dict) -> str:
         lines.append(
             "HOW — do what the reason names; when it names a change to your branch, make it, "
             "push, re-review, and run merge_request.py request again with the updated receipt — "
-            "never a rebase or a force-push: the branch is already pushed."
+            "never a rebase or a force-push: the branch is already pushed. When it says the base "
+            "alone is red too, change nothing and send nothing: the owner fixes the base and "
+            "runs merge_request.py retry on this request."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line
@@ -1722,9 +1801,16 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
                 f"({local[:12]}) — the owner pulls first"
             )
         step = "(a)-(d) build, preflight, tests, CAS"
-        old, new, snap, tests, on_base = _merge_into_base(
-            ctx, rec, rec["head"], _merge_message(ctx, rec), catch_up=False
-        )
+        try:
+            old, new, snap, tests, on_base = _merge_into_base(
+                ctx, rec, rec["head"], _merge_message(ctx, rec), catch_up=False
+            )
+        except RefusedError as exc:
+            # the request leg only: a catch-up's refusal parks for `resume`, so it gets no verdict;
+            # the merge throwaway is already removed here, so the base-alone one is never nested
+            if not hasattr(exc, "base_old") or isinstance(exc, UnreachableError):
+                raise
+            raise RefusedError(f"{exc}{_base_alone(ctx, rec, exc.base_old, exc)}") from exc
     except UnreachableError as exc:
         rec["deferred"] = f"{step}: {' '.join(str(exc).split())}"  # phase stays as it was
         _save(ctx, rec)
@@ -2191,6 +2277,142 @@ def _resume_locked(ctx: _Ctx, msg_id: str) -> int:
     return _drive(ctx, rec, resuming=True)
 
 
+def retry(args: argparse.Namespace) -> int:
+    """``retry <id>`` — re-run a REFUSED request from step (a), its branch unchanged (W-c751bca6).
+
+    A refusal the base caused (owner tests red on the base alone, a file the throwaway lacked)
+    used to cost the requester a re-send of an identical request: ``resume`` answers "already
+    replied" and ``merge`` finds nothing waiting. ``retry`` refuses, with the record and the mail
+    untouched, unless the record is ``replied`` with outcome ``refused``; no OTHER request for
+    the same branch or head waits in the inbox or holds a record short of ``replied`` (a re-sent
+    request supersedes this one — retrying it would merge the head and refuse the re-sent one
+    "already in base"); and the branch on the push remote, read by ``ls-remote`` and never a local
+    or tracking ref, still points at the recorded head (moved = superseded by the requester). An
+    unreachable remote is a refusal here, never a deferral: nothing is claimed to defer.
+
+    On pass the mail is re-opened with ``mail.py requeue`` (archive → inbox, its stale ``blocked``
+    ack stripped) and claimed afresh, so a retried merge is acked ``done --merge-sha`` and checked
+    like any other; the new record carries ``retries`` (each earlier refusal, timestamped) and the
+    reply says it supersedes the refused one. The record is written ``claiming`` BEFORE the
+    requeue, so a crash anywhere in between leaves a record the next run finishes.
+    Exit: as ``merge``. Cobra note (D-253): the cheap way to a green retry is to mark the record
+    merged; it runs every step from (a) and the ack's merge-SHA check runs on it."""
+    ctx = _context(Path.cwd())
+    with _merge_lock(ctx.common):
+        _sweep_throwaways(ctx)
+        try:
+            return _retry_locked(ctx, args.id)
+        finally:
+            _sweep_throwaways(ctx)
+
+
+def _retry_locked(ctx: _Ctx, msg_id: str) -> int:
+    rec = _load(ctx, msg_id)
+    if rec is None:
+        raise RefusedError(f"no record of request {msg_id} — nothing was refused to retry")
+    if rec.get("phase") not in DONE_PHASES or rec.get("outcome") != "refused":
+        raise RefusedError(
+            f"{msg_id} is {rec.get('phase', '?')} / {rec.get('outcome', 'no outcome')} — only a "
+            f"refused request is retried; one short of `replied` is `merge_request.py resume "
+            f"{msg_id}`, and a merged one has nothing to retry"
+        )
+    _validate_request(rec)  # its branch and head reach git argv below
+    other = _superseding_request(ctx, rec)
+    if other:
+        raise RefusedError(
+            f"request {other} for branch {rec['branch']} waits — a re-sent request supersedes "
+            f"{msg_id}: `merge_request.py merge {other}` instead"
+        )
+    remote = _remote_name(ctx.main, rec["base"])
+    tip = _remote_tip(ctx, remote, rec["branch"])
+    if tip is None:
+        raise RefusedError(
+            f"the branch {rec['branch']} is gone from {remote} — nothing to retry; the requester "
+            "sends a new request"
+        )
+    if tip != rec["head"]:
+        raise RefusedError(
+            f"the branch {rec['branch']} moved to {tip[:12]} on {remote} since request {msg_id} "
+            f"named {rec['head'][:12]}: the requester superseded it — they send a new request "
+            "with its receipt"
+        )
+    retries = [*rec.get("retries", []), {"at": _now(), "reason": rec.get("reason", "")}]
+    fresh = {
+        "id": msg_id,
+        "phase": "claiming",
+        **{k: rec.get(k, "") for k in ("branch", "head", "base", "item", "requester", "review")},
+        "retries": retries,
+        **_claimer(),
+    }
+    _save(ctx, fresh)  # BEFORE the requeue: a crash between the two is finished by the next run
+    res = _mail_cli(ctx, "requeue", msg_id, "--repo", ctx.mailbox)
+    if res.returncode != 0:
+        _save(ctx, rec)  # the mail never moved: the refused record is restored as it was
+        raise RefusedError(
+            f"mail.py requeue {msg_id} failed: {res.stderr.strip() or res.returncode}; nothing changed"
+        )
+    print(
+        f"merge_request: retrying {msg_id} — it was refused: {rec.get('reason', '?')}",
+        file=sys.stderr,
+    )
+    return _drive(ctx, _mail_claim(ctx, fresh), resuming=False)
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _superseding_request(ctx: _Ctx, rec: dict) -> str | None:
+    """The id of ANOTHER merge-request for ``rec``'s branch or head that is still open: waiting
+    in the inbox, or holding a record short of ``replied``. None when there is none."""
+
+    def same(fields: dict) -> bool:
+        return fields.get("branch") == rec["branch"] or fields.get("head") == rec["head"]
+
+    box = _mail_root() / ctx.mailbox / "inbox"
+    for fm in _owner_requests(ctx):
+        other = fm.get("id", "")
+        if other == rec["id"]:
+            continue
+        try:
+            text = (box / f"{other}.md").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # claimed by another run between the listing and the read: its record shows
+        if same(_split_message(text)[1]):
+            return other
+    for path in sorted(ctx.records.glob("*.json")) if ctx.records.is_dir() else []:
+        if path.stem == rec["id"]:
+            continue
+        try:
+            other = _load(ctx, path.stem)
+        except RefusedError:
+            continue
+        if other and other.get("phase") not in DONE_PHASES and same(other):
+            return path.stem
+    return None
+
+
+def _remote_tip(ctx: _Ctx, remote: str, branch: str) -> str | None:
+    """``refs/heads/<branch>`` on ``remote`` as the remote says it NOW (``ls-remote``), or None
+    when the remote has no such branch. Unreachable → a refusal: nothing is claimed yet."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
+    ref = HEADS + branch
+    try:
+        res = _run(["git", "ls-remote", remote, ref], REMOTE_TIMEOUT_S, cwd=ctx.main, env=env)
+    except TimedOutError as exc:
+        raise RefusedError(f"could not reach {remote} ({exc}); nothing changed") from exc
+    if res.returncode != 0:
+        raise RefusedError(
+            f"could not reach {remote} (git ls-remote: {res.stderr.strip() or res.returncode}); "
+            "nothing changed"
+        )
+    for line in res.stdout.splitlines():
+        sha, _, name = line.partition("\t")
+        if name == ref:
+            return sha
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="merge_request.py", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2202,8 +2424,10 @@ def main(argv: list[str] | None = None) -> int:
     pm.add_argument("id", nargs="?", help="a specific request id (keeps a plan's epic order)")
     pr = sub.add_parser("resume", help="continue a request from its recorded phase")
     pr.add_argument("id")
+    pt = sub.add_parser("retry", help="re-run a refused request whose branch is unchanged")
+    pt.add_argument("id")
     args = ap.parse_args(argv)
-    verb = {"request": request, "merge": merge, "resume": resume}[args.cmd]
+    verb = {"request": request, "merge": merge, "resume": resume, "retry": retry}[args.cmd]
     try:
         return verb(args)
     except RefusedError as exc:

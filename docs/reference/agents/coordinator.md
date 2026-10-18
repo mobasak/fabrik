@@ -90,7 +90,7 @@ drop on the operator's rule, answer awaiting items in the operator's words, rele
 `docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED`, archive move and stale plan lock, once no run is live on it and every
 ticket is merged; a spec's `Status:` line when its approval or retirement is recorded.
 
-**Do:** merges (`scripts/merge_request.py merge` / `resume <id>`), then `commands/assemble_commands.py` + `--check`
+**Do:** merges (`scripts/merge_request.py merge` / `resume <id>` / `retry <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
 exactly `infra`, `fleet`, `intel` or `kaizen`; fix a duplicate or missing role first.

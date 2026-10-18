@@ -1646,3 +1646,134 @@ def test_a_fabrik_lib_alias_of_the_main_checkout_links_to_the_throwaway(tmp_path
     ctx = mod._Ctx(main, main / ".git", "infra")
     with mod._throwaway(ctx, {"id": "01TESTALIAS"}, "master") as wt:
         assert (wt.parent / "fabrik-lib").resolve() == wt.resolve()
+
+
+# --- W-c751bca6: retry a request refused for a base-side fault; name it in the refusal ---------
+def _red_base_refusal(world) -> tuple[str, str]:
+    """A request refused because the BASE's owner tests are red, whatever the branch carries."""
+    world.write(".fabrik/merge-tests", 'python3 -c "import sys; sys.exit(3)"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    assert world.record(msg_id)["outcome"] == "refused"
+    return head, msg_id
+
+
+def _fix_base(world) -> None:
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("fix owner tests", ".fabrik/merge-tests")
+
+
+def _every_reply(world, msg_id: str, agent: str) -> list[str]:
+    """Every reply threaded on ``msg_id`` to ``agent`` (``World.replies`` keeps one per addressee)."""
+    out = []
+    for path in sorted((world.tmp / "mail" / "proj" / "inbox").glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        head = text.split("\n---", 1)[0]
+        if (
+            "kind: reply" in head
+            and f"re: {msg_id}" in head
+            and f"\nagent: {agent}\n" in head + "\n"
+        ):
+            out.append(text)
+    return out
+
+
+def test_retry_merges_a_request_refused_for_a_base_fault(world):
+    """A refusal the base caused cost the requester a re-send of an identical request: `resume`
+    answered "already replied" and `merge` found nothing waiting. The owner fixes the base and
+    retries; the branch is merged, the mail is acked done with the merge SHA (the check a stale
+    `blocked` ack would skip), and the requester can tell the current reply from the refusal."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+
+    assert world.run("retry", msg_id) == 0
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and rec["outcome"] == "merged", rec
+    assert _git(world.main, "merge-base", "--is-ancestor", head, world.base(), check=False) == ""
+    assert rec["retries"] and "owner tests red" in rec["retries"][0]["reason"], rec
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0] and rec["merge_sha"] in acks[0], acks
+    replies = _every_reply(world, msg_id, "fleet")
+    assert len(replies) == 2, replies
+    current = [r for r in replies if "outcome: merged" in r]
+    assert len(current) == 1 and "retry: 1 — supersedes the refused reply" in current[0], replies
+
+
+def test_retry_refuses_a_moved_branch_and_an_unrefused_request(world, capsys):
+    """A branch that moved means the requester superseded this request. A merged request, or an
+    id with no record, has nothing to retry. Each refusal changes nothing."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    moved = world.branch({"y.txt": "y\n"}, msg="more work")
+    capsys.readouterr()
+    before, archived = world.base(), world.archived(msg_id)
+
+    assert world.run("retry", msg_id) == 1
+    err = capsys.readouterr().err
+    assert f"moved to {moved[:12]}" in err and "superseded" in err, err
+    assert world.record(msg_id)["outcome"] == "refused" and world.base() == before
+    assert world.archived(msg_id) == archived and msg_id not in world.inbox()
+
+    ok_id = world.send(moved)
+    assert world.run("merge") == 0
+    capsys.readouterr()
+    assert world.run("retry", ok_id) == 1
+    assert "only a refused request is retried" in capsys.readouterr().err
+    assert world.run("retry", "01NOSUCHREQUEST00000000000") == 1
+
+
+def test_retry_refuses_while_a_resent_request_waits(world, capsys):
+    """The incident's own sequel: the requester already re-sent the same head. Retrying the first
+    id merged it and the re-sent one was then refused "already in master but no merge commit names
+    request" — telling the requester to change a merged branch. The retry names the waiting one."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    dup = world.send(head)
+    capsys.readouterr()
+
+    assert world.run("retry", msg_id) == 1
+    err = capsys.readouterr().err
+    assert dup in err and f"merge {dup}" in err, err
+    assert world.record(msg_id)["outcome"] == "refused" and dup in world.inbox()
+
+
+def test_a_red_base_is_named_in_the_refusal(world):
+    """ "owner tests red" read the same for a red base and a red branch, so neither side knew
+    whether to fix the branch or wait. The refusal runs the same tests on the base alone."""
+    _head, msg_id = _red_base_refusal(world)
+    reason = world.record(msg_id)["reason"]
+    assert reason.count("owner tests red (") == 1, reason
+    assert "on base alone (one run): red too (exit 3" in reason, reason
+    assert f"merge_request.py retry {msg_id}" in reason, reason
+    reply = world.replies(msg_id)["fleet"]
+    assert "change nothing and send nothing" in reply, reply
+
+
+def test_a_green_base_names_the_branch(world):
+    """A branch whose own change breaks the base's tests is told so, never sent to wait."""
+    world.write(".fabrik/merge-tests", "test ! -e BREAK.txt\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"BREAK.txt": "x\n"}))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "owner tests red" in reason and "on base alone (one run): green" in reason, reason
+
+
+def test_base_alone_not_checked_for_new_tests_or_a_timeout(world, monkeypatch):
+    """The fallback leg runs the tests the diff touched; when every one is new in the branch the
+    base has nothing to run. A merged run that timed out is not run a second time: that would
+    only double the time the merge lock is held. Both say so instead of guessing."""
+    head, _ = _shadow_branch(world, monkeypatch, test="def test_x():\n    assert False\n")
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "on base alone: not checked" in reason and "new in the branch" in reason, reason
+
+    world.write(".fabrik/merge-tests", "exit 124\n")
+    world.commit_main("owner tests time out", ".fabrik/merge-tests")
+    slow = world.send(world.branch({"z.txt": "z\n"}, msg="z"))
+    assert world.run("merge") == 1
+    reason = world.record(slow)["reason"]
+    assert "on base alone: not checked" in reason and "timed out" in reason, reason
