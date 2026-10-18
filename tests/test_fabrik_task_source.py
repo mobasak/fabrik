@@ -559,11 +559,11 @@ def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review(
         (review, "the review flavour by surface"),
     ):
         _assert_governs(text, sentence, why)
-    # the comma-joined form this ticket's review found and REMOVED — never resurfaces; T07-S3
-    # (a parser-level test of this syntax) belongs to T08, where the space-separated parser
-    # lives, and is deliberately NOT added here.
+    # The command source shows the space form only. Since 6cff7527c the parser also splits one
+    # comma-joined value (scripts/command_run.py, the `--commit a,b` comment), which the protocol
+    # doc describes in prose; parser-level tests live with the parser, not here.
     assert "sha1,sha2" not in text, (
-        'a comma-joined --commit example returned (nargs="+" is SPACE-separated)'
+        "a comma-joined --commit example entered the command source (it shows the space form)"
     )
 
 
@@ -641,7 +641,8 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
     """Behavior Contract row 2: every flag and feedback field named in T07's Scope is documented
     in `docs/reference/command-run-protocol.md`, matching T08's actual writer at `e6944534f`
     (`scripts/command_run.py`, read via `git show`, never checked out) — grounded, not guessed:
-    `--commit`/`--review` are SPACE-separated (`nargs="+"`); `step --appetite` is accepted on ANY
+    `--commit` is `nargs="+"` and, since 6cff7527c, also splits one comma-joined value; `--review`
+    takes one receipt; `step --appetite` is accepted on ANY
     command at lane v2, refused if non-positive regardless of version, ignored-with-note at v1;
     the `start` line matches the exact printed format. The Revision-2 field names (`parent`,
     `size`, `from_downgrade`, `design_amends`, `loc_added`, `over_appetite`, `upgrades`,
@@ -754,7 +755,10 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         "`phase_marks`",
     ):
         assert field in text, f"the protocol doc's feedback-field list drops {field}"
-    assert "sha>[,<sha>" not in text, "a comma-joined --commit/--review example returned"
+    assert "sha>[,<sha>" not in text, (
+        "a comma-joined synopsis entered the protocol doc (the synopsis keeps the space form "
+        "`<sha> [<sha>…]`; the comma form of --commit is described in prose)"
+    )
 
 
 def test_scope_growth_fragment_names_the_lane_variant() -> None:
