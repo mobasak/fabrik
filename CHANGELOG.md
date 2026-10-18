@@ -15,12 +15,12 @@ All notable changes to this project will be documented in this file.
   - A key both sides changed differently, or deleted on one side and changed on the other, still refuses. The refusal now names the key (exit 3).
 - The merged item's `id` must match its file name before it is staged (D-988, W-5f3617e6).
 
-### Fixed — kaizen_coroner --sweep exits 3 when it ran blind (2026-10-18)
+### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
 
-- `scripts/sysadmin/kaizen_coroner.py --sweep` exited 0 even when `kaizen_events` or `command_run` failed to import, or when the sweep counted an error. When that happened, it closed no records or emitted no events, and the daily `weekly_catchup.sh` job still stamped the day done, so nothing retried for 24 hours.
-- It now prints the report, names each failed import with its exception (plus the first counted error) on stderr, and exits 3. The job then retries every hour.
-- The import stays tolerant, so `kaizen_collect_v2` still loads the module (W-4bd4ea3c).
-- The deeper `sweep()` paths that count no error are tracked as W-6f46cebd.
+- `commands/_sources/fabrik-review.md`: after "apply the lines of the probe catalogue", the same sentence
+  `/fabrik-review-scoped` carries: § Seat isolation applies whole in every brief that runs tests or imports pinned
+  code, from an archive whose roots are derived from what the tests import, read or run. Two rows reported seats
+  staging a partial tree; three earlier answered rejects cited the catalogue line. A test pins both copies equal.
 
 ### Changed — /fabrik-repo-review keeps its batch pins in the durable SCRATCH: folder (2026-10-18)
 
@@ -46,6 +46,13 @@ All notable changes to this project will be documented in this file.
   `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
   both sentences.
 
+### Fixed — kaizen_coroner --sweep exits 3 when it ran blind (2026-10-18)
+
+- `scripts/sysadmin/kaizen_coroner.py --sweep` exited 0 even when `kaizen_events` or `command_run` failed to import, or when the sweep counted an error. When that happened, it closed no records or emitted no events, and the daily `weekly_catchup.sh` job still stamped the day done, so nothing retried for 24 hours.
+- It now prints the report, names each failed import with its exception (plus the first counted error) on stderr, and exits 3. The job then retries every hour.
+- The import stays tolerant, so `kaizen_collect_v2` still loads the module (W-4bd4ea3c).
+- The deeper `sweep()` paths that count no error are tracked as W-6f46cebd.
+
 ### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
 
 - `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
@@ -62,6 +69,15 @@ All notable changes to this project will be documented in this file.
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Fixed — file-worker healthchecks read the heartbeat's age (2026-10-18)
+
+Every file-worker healthcheck the hub emits now runs `scaffold.FILE_WORKER_HEARTBEAT_CHECK`, a stdlib `python -c`
+that is healthy only when `/app/.tmp/worker_heartbeat` was written in the last 120 s and not in the future.
+`templates/file-worker/{Dockerfile,compose.yaml}.j2` ran `find -mmin -2`, which exits 0 on a stale file, so a hung
+worker stayed healthy; `fabrik scaffold --type file-worker` wrote `pgrep`, which the slim image lacks, so a
+scaffolded worker was never healthy. `_write_canonical_compose`'s `process` kind became `heartbeat`, and the
+scaffold refuses a `Dockerfile.python` whose HEALTHCHECK drifted. D-987 (W-c384ff51, W-0bf1a37b).
 
 ### Fixed — the DNS SSH proxy's API key leaves the ssh argv; a dead container-resolve path is named (2026-10-18)
 
