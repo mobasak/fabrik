@@ -14,6 +14,14 @@ All notable changes to this project will be documented in this file.
   `%23` for `#` — and a file whose real name holds `%XX` still resolves by that name. Graders in
   `tests/test_check_doc_index_percent_encoding.py` (W-7ae1169a, D-976).
 
+### Changed — round zero rewrites a heuristic one-item picker at its first residue (2026-10-18)
+
+`commands/_fragments/term-coverage.md` rule (3): a function under review that picks ONE item from a list by
+heuristic is rewritten at the first delta round its site yields an own-fix defect, as the whole list filtered by
+a noise rule probed against its live population, with a `(round k)` class-rewrite cell; a second yield without
+the rewrite is the foundation error. Answers /fabrik-review row 1792289039; pinned in
+`tests/test_review_queue_pass.py`.
+
 ### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
 
 - 6cff7527c made `command_run.py`'s `--commit` accept one comma-joined value (split, since a sha never holds a comma)
