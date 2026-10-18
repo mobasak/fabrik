@@ -18,11 +18,12 @@
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-18T20:20:42+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "0694600fe3ec851b3089890e9575234d8356018d",
   "baseline_gate": {
     "tier": "lean",
     "status": "success",
     "red": []
-  }
+  },
+  "released_at": "2026-10-19"
 }

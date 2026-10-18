@@ -1,6 +1,6 @@
 # Plan — saas-skeleton chat that only a signed-in, rate-limited user can spend, slice 2 (W-ab242b11)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-19 — whole-plan review `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-review.md` (CONVERGED, 4 passes, 15→3→2→0)
 Profile: small
 **Owner:** fleet
 **Surface:** `git rev-parse HEAD` = 3974671ef at authoring (master, the CONVERGED spec merged).
@@ -258,7 +258,7 @@ Steps (the highest-risk behaviour first, test-first):
 - **Given** a client disconnect mid-stream, **When** the stream is open, **Then** the upstream `httpx` stream is closed (spec § Upstream).
 - **Given** a malformed `CHAT_RATE_*` value, **When** `load_chat_settings` reads the environment, **Then** it raises `ValueError`, so the app fails at start (spec § Limits).
 
-## Phase C — the template's chat client, then the whole-plan close
+## Phase C — the template's chat client, then the whole-plan close — ✅ EXECUTED 2026-10-19 (fe9a90850..a4a0386e2; /fabrik-review-scoped 3 rounds 18→7→0; whole-plan /fabrik-review 4 rounds; /fabrik-docs-review; fabrik-lib request 01M58ESKE9; D-1025 records the executed-client grader)
 Appetite: 120
 
 Implements spec § Chosen approach, Client, and spec § Validation, The template grader.
