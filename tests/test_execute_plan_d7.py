@@ -216,7 +216,8 @@ def test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_m
     ):
         assert phrase in text, phrase
     assert (
-        "a plan's whole-plan receipt takes `--out docs/development/reviews/<plan>-review.md` instead" in review
+        "a plan's whole-plan receipt takes `--out docs/development/reviews/<plan>-review.md` instead"
+        in review
     ), "/fabrik-review § Reporting points a plan's receipt at D7's naming"
     spec = importlib.util.spec_from_file_location(
         "cc_d7", _D7_SOURCE.parents[2] / "scripts" / "enforcement" / "check_convergence.py"
@@ -230,32 +231,45 @@ def test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_m
     )
 
 
-def test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_plan_to_the_merge_owner():
+def test_the_archive_step_never_edits_a_ledger_row_and_archives_a_cited_plan_at_once():
     """/fabrik-execute-plan queue: Finish step 6 ordered a repoint of existing `docs/DECISIONS.md` rows, which
     the ledger merge refuses when either side edits a line beside an insertion (LESSONS 2026-10-01). The step
-    now lists referrers BEFORE any move, never edits an existing row, and leaves a plan such a row cites to
-    the merge owner (D-484, a90b35a3b)."""
+    lists referrers BEFORE any move and never edits a ledger row; since D-975 (fleet, 2026-10-18, retiring
+    D-484's stay-in-place rule) a plan a row cites is archived at once and the row keeps its pre-archive path."""
     import importlib.util
 
     text = " ".join(_D7_SOURCE.read_text(encoding="utf-8").split())
     step6 = text[text.index("6. **Archive the plan") : text.index("7. **Gate, push, then name")]
     grep_at = step6.index("BEFORE any move, list the REFERRERS:")
-    assert grep_at < step6.index("git mv docs/development/plans/<plan>.md"), "the referrer list precedes the move"
+    assert grep_at < step6.index("git mv docs/development/plans/<plan>.md"), (
+        "the referrer list precedes the move"
+    )
     for phrase in (
-        "A `docs/DECISIONS.md` row already on `BASE` that cites a file of the plan by its pre-archive path "
-        "decides WHO archives",
-        "Never repoint that row: the ledger merge refuses any conflict where EITHER side edits an existing line",
-        "it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says the archive "
-        "is owed, and the hand-over names it — the merge request from an agent window, the OWED report, or, from "
-        "the main checkout, a work item or mail addressed to the repo's merge owner",
-        "`BASE` here is the branch your work finally merges into",
-        "The archive is the merge owner's, with every referrer in one commit, timed so no open request inserts "
-        "beside the rows it repoints",
-        "No such row → archive now",
+        "A `docs/DECISIONS.md` row that cites a file of the plan by its pre-archive path is never repointed**, "
+        "however recently it was minted",
+        "the ledger merge refuses any conflict where EITHER side edits an existing line",
+        "That row keeps its pre-archive path, and your Finish row cites the archived path (D-975). Archive now:",
+        "repoint every doc the grep named except the ledger, IN THIS SAME COMMIT",
     ):
         assert phrase in step6, phrase
-    assert "flip the plan and archive it as step 6 allows" in text, "step 4's OWED path defers to step 6"
-    assert "a plan an existing DECISIONS row cites stays EXECUTED for the merge owner to archive" in text
+    # the retired flow (D-484): the plan left in place, the archive owed and handed to the merge owner, and a
+    # ledger row repointed — a mutant restoring any of these must go red (review 2026-10-18, Opus seat)
+    for retired in (
+        "decides WHO archives",
+        "stays where it is with `Status: EXECUTED`",
+        "The archive is the merge owner's",
+        "not archived",
+        "archive is owed",
+        "to the merge owner",
+        "rows minted while the plan was in flight",
+        "already on `BASE`",
+    ):
+        assert retired not in step6, retired
+    assert "flip the plan and archive it as step 6 allows" in text, (
+        "step 4's OWED path defers to step 6"
+    )
+    assert "a DECISIONS row that cites it keeps its pre-archive path, never repointed" in text
+    assert "stays EXECUTED for the merge owner to archive" not in text
     spec = importlib.util.spec_from_file_location(
         "cdl_d7", _D7_SOURCE.parents[2] / "scripts" / "enforcement" / "check_doc_links.py"
     )
@@ -263,6 +277,8 @@ def test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_pla
     spec.loader.exec_module(cdl)
     ledger = cdl.REPO / "docs" / "DECISIONS.md"
     # W-e9c8a4df: the link check no longer reads the ledger (an immutable row's cite can never be repaired), so
-    # the stay-in-place rule rests on D-484 alone and the step must not claim a link-check reason for it
+    # the never-repoint rule rests on the ledger-merge reason alone (D-975) and the step claims no link-check ground
     assert ledger not in cdl._tracked_md_sources(), "the link check does not read the ledger"
-    assert "The link check reads `DECISIONS.md`" not in text, "step 6 names no link-check ground for the rule"
+    assert "The link check reads `DECISIONS.md`" not in text, (
+        "step 6 names no link-check ground for the rule"
+    )
