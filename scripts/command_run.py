@@ -7697,7 +7697,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         if parent is not None:
             print(
                 f"{_why}: the parent /{parent.get('command')} is live — close it too with `blocked {_flag}`; "
-                f"{_when}: reopen the PARENT first, then this run"
+                f"{_when}: resume the PARENT first, then this run"
             )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
