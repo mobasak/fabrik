@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review-scoped row 1792229873: the seat pin recipe has no layout for a scaffolding test (create_project)"
 }
