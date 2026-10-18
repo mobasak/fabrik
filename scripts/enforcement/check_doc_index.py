@@ -421,10 +421,11 @@ def main() -> int:
     # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
     # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
     # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
-    # Read LINE BY LINE, as check_doc_links reads the same file: the reader's opener rule looks
-    # for a `[` earlier in its input, and one `[` near the top must not turn a stray `](` on a
-    # later line into a link (W-dd091f0d review).
-    index_links = [t for line in index_text.splitlines() for t in link_targets(line)]
+    # The WHOLE text, not line by line: CommonMark link text may span a line break
+    # (`[Notes⏎](docs/gone.md)`), and a per-line read dropped that link unexamined. The cost,
+    # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
+    # read as a link, so it is graded — exactly what the pre-change regex did, and fail-closed.
+    index_links = list(link_targets(index_text))
     linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist

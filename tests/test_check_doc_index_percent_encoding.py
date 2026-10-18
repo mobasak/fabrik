@@ -293,19 +293,19 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
         assert broken == [f"INDEX.md: broken ref -> {missing}"], broken
 
 
-def test_index_links_are_read_line_by_line(monkeypatch, tmp_path, capsys) -> None:
-    """check_doc_index fed the WHOLE INDEX to the reader, so one `[` near the top made a stray `](`
-    on a later line a "link" — a missing-path red check_doc_links, reading line by line, never
-    raised. Both checks read the file line by line now."""
+def test_a_link_whose_text_spans_a_line_break_is_graded(monkeypatch, tmp_path, capsys) -> None:
+    """CommonMark link text may span a line break (`[Notes⏎](docs/gone.md)`). A line-by-line
+    read of INDEX.md (a review-pass fix, reverted) put the `[` and the `](` on different lines and
+    passed the missing doc; direction (a) reads the whole text, as the pre-change regex did."""
     rc, out = _run(
         monkeypatch,
         tmp_path,
         capsys,
         ["docs/a.md"],
-        "- [A](docs/a.md)\nplain ](docs/gone.md) text\n",
+        "- [Notes\n](docs/gone.md)\n- [A](docs/a.md)\n",
     )
-    assert rc == 0, out
-    assert "docs/gone.md" not in out, out
+    assert rc == 1, out
+    assert "INDEX.md names missing path: docs/gone.md" in out, out
 
 
 def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
