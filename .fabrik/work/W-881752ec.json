@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T06:46:46.058171Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-881752ec",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in _scaffold_file_worker's Makefile patch, rewrite the health target to run FILE_WORKER_HEARTBEAT_CHECK against the dev heartbeat (.tmp/worker_heartbeat), with a grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "file-worker scaffold: Makefile 'make health' curls http://localhost:$(PORT)/health (templates/scaffold/docker/Makefile.python:60) — a file-worker serves no HTTP, so the target always reports Health FAILED"
+}

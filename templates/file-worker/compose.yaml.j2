@@ -47,7 +47,8 @@ services:
           cpus: '{{ resources.cpu }}'
 
     healthcheck:
-      test: ["CMD", "find", "/app/.tmp/worker_heartbeat", "-mmin", "-2"]
+      # fabrik.scaffold.FILE_WORKER_HEARTBEAT_CHECK: the heartbeat was written in the last 120 s. No `$` (compose interpolates it here).
+      test: ["CMD", "python", "-c", "import os,sys,time; p='/app/.tmp/worker_heartbeat'; sys.exit(0 if os.path.exists(p) and 0 <= time.time() - os.path.getmtime(p) < 120 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
