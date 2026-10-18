@@ -60,7 +60,7 @@ Slice 2 ships the safe endpoint, so the default is right:
 - **CSRF.** `CsrfOriginMiddleware` gates every cookie-borne non-bearer mutation app-wide. It requires the double-submit token (cookie == `X-CSRF-Token` header) and an Origin or Referer in `allowed_origin_set` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py:202-231`, `:307-324`).
 - **Middleware.** It wraps every route, in request order: CORS (when origins are set), Csrf, Correlation, SecurityHeaders, Tenant (`src/fabrik/scaffold.py:3179-3196`). The last four are `BaseHTTPMiddleware`.
   - Executed in this run: a `StreamingResponse` of `text/event-stream` passed through four `BaseHTTPMiddleware` layers with its media type and all three frames intact (Starlette 1.6.0; probe below).
-- **Rate limiting.** None exists outside passwordless login, whose atomic counter is internal to `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-178`. fabrik-lib has no general limiter. `client_ip(request, trusted_proxy_hops)` lives at `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/router.py:139` and is not exported.
+- **Rate limiting.** None exists outside passwordless login, whose atomic counter is internal to `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-181`. fabrik-lib has no general limiter. `client_ip(request, trusted_proxy_hops)` lives at `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/router.py:139` and is not exported.
 - **Env.** web, api and worker all read the ONE root `.env` (`src/fabrik/scaffold.py:3336-3417`). Every backend secret (`DATABASE_URL`, `JWT_SECRET`) therefore already sits in the Next container's environment. Only the audit-jobs companion gets a second file, `.env.owner`.
 - **Tests.** The hub `.venv` cannot import the emitted backend whole: argon2, uuid_utils, redis, asyncpg and email-validator are absent. The hub loads vendored modules by path into a bare Starlette app (`tests/test_scaffold_saas_web_wiring.py:121-135`). The emitted backend ships `server/tests/` and `server/requirements-dev.txt` (`src/fabrik/scaffold.py:2271-2278`, `:3621-3622`).
 - **Error mapping.** The emitted app maps `RequestValidationError` to 422 (`src/fabrik/scaffold.py:3215-3217`).
@@ -81,7 +81,7 @@ $ .venv/bin/python <run scratch>/probe_stream.py
 | C5 | "Rate-limit per tenant so a noisy neighbour cannot exhaust the VPS — counters keyed by tenant id, applied in middleware before business logic, limits from the plan tier" | .windsurf/rules/saas/95-multi-tenant-saas.md:166 |
 | C6 | "Redis keys carry the tenant: `t:{tenant_id}:settings`; unprefixed keys are reserved for explicitly global data (`global:`)." | .windsurf/rules/saas/95-multi-tenant-saas.md:161 |
 
-C4 governs the routes fastapi-user-auth mounts (`/auth/*`). It is cited here for the limiter's storage (Redis-backed), not as a mandate on `/api/v1/chat`. Its shape, token buckets, is not followed: this slice uses fixed windows, a recorded departure (§ Decisions taken). C5's "limits from the plan tier" is a deviation this slice records too. C6's key form is followed inside an app namespace, because redis-main's DB 0 is shared by every app (`REDIS_URL=redis://redis-main:6379/0`, `src/fabrik/scaffold.py:1478`).
+C4 governs the routes fastapi-user-auth mounts (`/auth/*`). It is cited here for the limiter's storage (Redis-backed), not as a mandate on `/api/v1/chat`. Its shape, token buckets, is not followed: this slice uses fixed windows, a recorded departure (§ Decisions taken). C5's "limits from the plan tier" is a deviation this slice records too. C6's key form is followed as written. Apps do not share a Redis keyspace: `fabrik apply` reserves each `needs_cache` app its own logical DB (1-15) and injects that `REDIS_URL` (`src/fabrik/orchestrator/infrastructure.py:1424-1454`, `src/fabrik/spec_loader.py:331-337`).
 
 ## Chosen approach — A: a backend chat route
 
@@ -105,11 +105,11 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - For each key it reads the count. If any count is at its limit, it increments nothing and returns that bucket's name and its `PTTL`.
   - Otherwise it `INCR`s every key, and `EXPIRE`s each key whose count became 1.
   - So a request refused on one bucket spends no other bucket. One user looping at 429 cannot drain their tenant's or their NAT neighbours' budget.
-  - This is the pattern of the vendored passwordless limiter (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-180`), widened to several keys. It needs no Redis 7 feature, and there is no non-atomic INCR-then-EXPIRE (F14).
-  - Every key starts with the project id, which the scaffold writes into `chat.py` as a constant, because DB 0 is shared by every app on redis-main. The buckets, all of which must pass:
-    - `<project>:t:{tenant_id}:chat:rate`, when `tenant_id` is set (C6);
-    - `<project>:global:chat:user:{user_id}`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
-    - `<project>:global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:155-156`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
+  - It takes the atomic INCR+EXPIRE of passwordless's `_RATE_LUA` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-181`) and reorders it to check every key first; `_RATE_LUA` itself increments before it compares. It needs no Redis 7 feature, and there is no non-atomic INCR-then-EXPIRE (F14).
+  - The buckets, in C6's key form (the app's own logical DB is its namespace), all of which must pass:
+    - `t:{tenant_id}:chat:rate`, when `tenant_id` is set;
+    - `global:chat:user:{user_id}`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
+    - `global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:153-154`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
   - Each bucket is `<count>/<seconds>` from `CHAT_RATE_TENANT` (default `600/3600`), `CHAT_RATE_USER` (`60/3600`) and `CHAT_RATE_IP` (`120/3600`). A malformed value fails the app at start.
   - A full bucket returns 429 with `Retry-After` set to that key's remaining TTL, rounded up to whole seconds.
   - A Redis error returns 503, closed.
@@ -126,7 +126,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - The client has an explicit `httpx.Timeout` (connect 10 s; read 60 s between chunks, from `CHAT_UPSTREAM_READ_TIMEOUT`). A timeout gives an `error` frame, so a stalled provider cannot hold a connection open without bound.
   - A non-2xx upstream gives an `error` frame.
   - A client disconnect cancels the upstream stream. The generator's close closes the `httpx` stream (E7). OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
-- **Observability.** One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
+- **Observability.** The route's first dependency is a small wrapper around `chat_user` that logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
 - **Key placement.** `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read only by `chat.py`. They live in the root `.env`, like every other backend secret, so they are present in the Next container's environment as `DATABASE_URL` and `JWT_SECRET` already are. Per-service env files are a fleet-wide hardening, not this slice (§ Rejected alternatives; F8).
 - **Client.** `SSEStream` sends `credentials: "same-origin"` and the `X-CSRF-Token` header. The README example uses `endpoint="/api/v1/chat"`.
 
@@ -143,7 +143,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 ## Lifecycle
 
 - **Adoption:** new scaffolds get the route when slice 2 merges. The coordinator then files one adoption item per live project.
-- **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9).
+- **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9). It must first settle the blocker the verdict row names: `reserve()` takes a `tenant_id` and a synchronous `pg_conn` (`/opt/fabrik-lib/cost-budget/cost_reservations.py:180-188`), so a tenantless user needs a tenant of its own (for example, one per user) before the reservation can admit them.
 - **Growth trigger, from counters this slice ships:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
 - **Degradation:**
   - Redis down gives 503 (denylist and limiter both).
@@ -176,6 +176,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 | Rate limiting, the two existing modules | reject | `abuse-prevention/` (README:16), `api-auth/` (README:20) | `abuse-prevention`'s per-IP limit is DB-backed, registration-only and fails open (`abuse_detection.py:117-148`). `api-auth`'s per-tier limit counts usage in the DB, keyed on an API key (`auth.py:66-135`). Neither keys on a session user or fails closed |
 | USD spend cap | defer (recorded deviation) | `cost-budget/` (README:28; the rule at README:175: "Any project that … calls paid LLM/AI APIs needs `cost-budget/`") | Its fail-closed `reserve()` admits a run against a per-tenant daily cap and an app-global monthly USD budget. It needs a tenant on every call, which passwordless users lack (`router.py:53`), and a USD estimate per call. This slice bounds spend by request count × `CHAT_MAX_TOKENS` instead, plus E3's key limit. Adopting it is a Growth path below |
 | OpenRouter streaming | build | — | The deleted Next route's logic, ported to the backend. `ai-consult/` (README:18) is an OpenRouter client built for long consults with a durable JSONL store; a chat relay needs none of that |
+| Upstream rate-limit tracking | defer (recorded deviation) | `api-quota/` (README:68; the rule at README:175) | It tracks an upstream's X-RateLimit headers and rotates keys. A chat route on one OpenRouter key has no key pool, and an upstream 429 already becomes an `error` frame. Adopt it when a project runs several keys |
 | Upstream HTTP pool | build (a module-level `httpx.AsyncClient`) | `async-http-client/` (README:23; the rule at README:175) | Its circuit breaker would also suit this route. Not vendored by this slice: one upstream and one route, where a timeout plus an error frame cover provider death. Recorded as a deviation from the README:175 rule |
 
 ## Shape and infra implications
@@ -197,7 +198,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 
 ## Validation
 
-- **The slice-1 graders change with it.** `tests/test_saas_skeleton_chat_system_prompt.py` bans "openrouter" from the emitted `.env.example` and from every template file. Slice 2 needs the key in `.env.example`. So the `.env.example` assertion narrows to forbidding `NEXT_PUBLIC_OPENROUTER`. The template-file scan keeps its ban on `templates/saas-skeleton/app/**`. A new assertion requires that the only emitted file reading `OPENROUTER_API_KEY` is `server/src/<pkg>/chat.py`. The Next side stays guarded, and no assertion is deleted.
+- **The slice-1 graders change with it.** `tests/test_saas_skeleton_chat_system_prompt.py` bans "openrouter" from the emitted `.env.example` and from every template file. Slice 2 needs the key in `.env.example`. So the `.env.example` assertion narrows to forbidding `NEXT_PUBLIC_OPENROUTER`. The template-file scan keeps the whole template tree (`app/`, `components/`, `lib/` and the rest). It exempts only the files that must name the key, the template's `.env.example` and `README.md`, through an allowlist, and those files are still scanned for `NEXT_PUBLIC_OPENROUTER` and for `api/chat`. A new assertion requires that the only emitted file reading `OPENROUTER_API_KEY` is `server/src/<pkg>/chat.py`. The Next side stays guarded, and no assertion is deleted.
 - **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is an in-process fake of the client calls the route makes; OpenRouter is an `httpx.MockTransport`. The fake cannot prove the Lua itself, so the limiter script has its own test:
   - `tests/test_saas_chat_limiter_lua.py` starts a throwaway `redis-server` on a unix socket in `tmp_path` (the box has `/usr/bin/redis-server`; the hub `.venv` has no redis client, so it drives the server with `redis-cli --eval` on the emitted script text).
   - It proves against real Redis that a refused request leaves every other key unchanged, that the first increment sets the TTL, and that the refusal returns the bucket and its `PTTL`.
@@ -211,7 +212,7 @@ The cases:
   - cookie without token, or without an allowed Origin: 403 (each tested separately, so neither passes for the other's reason);
   - each bucket full: 429 plus `Retry-After`;
   - a request refused on the user bucket leaves the tenant and IP counts unchanged;
-  - every key starts with the project id;
+  - each refusal and the success increment `chat_requests_total` with their outcome, `unauthenticated` included;
   - an empty client IP: no IP key touched;
   - a body refused with 400: no bucket touched;
   - a tenantless user: no `t:` key touched;
@@ -238,8 +239,7 @@ The cases:
   - C5's plan-tier limits (env defaults until the Growth trigger);
   - the key in the shared `.env` (the fleet-wide per-service env hardening is filed separately);
   - C4's token-bucket shape (fixed windows instead);
-  - C6's key form inside a `<project>:` namespace, because DB 0 is shared;
-  - README:175's `cost-budget/` and `async-http-client/` (request count × `max_tokens`, and a timeout, instead; each has its Growth path).
+  - README:175's `cost-budget/`, `async-http-client/` and `api-quota/` (request count × `max_tokens`, a timeout, and one key, instead; each has its adoption trigger in its verdict row).
 
 ## Open / blocking unknowns
 
@@ -250,7 +250,7 @@ The cases:
   - the tenantless rule;
   - outage fail-closed;
   - the hub test pattern.
-- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time. The same mail reports that passwordless's default `key_prefix="auth:pwdless:"` (`passwordless.py:187`) carries no app namespace on a Redis DB that apps share. Until it lands, `chat.py` imports it from `fastapi_user_auth.router` (vendored, so the import is pinned per scaffold).
+- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time. Until it lands, `chat.py` imports it from `fastapi_user_auth.router` (vendored, so the import is pinned per scaffold).
 - **Open: the default bucket sizes** (600/60/120 per hour). Resolution step: the plan's D-row derives them from `OPENROUTER_MODEL`'s per-token price and a stated daily budget. They stay env-overridable.
 
 ## Intake Inventory
