@@ -1,7 +1,7 @@
 # Review — w3d6a6236-manifest-baseexception
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = a9fd0233f501f7ee0005379108a7e3831cef2d90; range tip a9fd0233f501f7ee0005379108a7e3831cef2d90; `git diff d09ee027a..HEAD -- scripts/enforcement/check_synced_unmodified.py tests/test_check_synced_unmodified_manifest.py` md5 3ad50ebf3aa647151259eeb96d1284ed (9960 bytes)
+**Surface:** `git rev-parse HEAD` = 0a15fe97857daa5a33a9fe4cca7b0bb6194b4ac7; range tip e05a6dba50af13ac67a68925631f4cf6fc365d23; `git diff d09ee027a..e05a6dba5 -- scripts/enforcement/check_synced_unmodified.py tests/test_check_synced_unmodified_manifest.py` md5 10adb76c186bce4a1999002c776e4768 (20522 bytes)
 **Lane:** fabrik-task
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_synced_unmodified.py`, `tests/test_check_synced_unmodified_manifest.py`
 
