@@ -13,7 +13,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
   },
-  "next": "send test-saas-platform a request mail (mail.py send --to test-saas-platform --kind finding) naming the route, the spec and the template change; ack when test-saas-platform replies it is removed",
+  "next": "await test-saas-platform's reply removing app/api/chat (it spawns kilo run for anonymous callers = RCE if served). NOT deployed as of 2026-10-19 (fleet: DNS unresolved, 0 of 33 vps1 containers, no Traefik router). It MUST be fixed before any fabrik apply of specs/services/test-saas-platform.yaml; close on the repo's reply naming the commit",
   "note": "",
   "owner": "fleet",
   "priority": 1,
