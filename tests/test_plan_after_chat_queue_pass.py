@@ -269,7 +269,7 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
     end = text.find("a step that relies on what a script DOES", start)
     assert start != -1 and end != -1, "both neighbouring clauses are still there"
     assert text[start + len(anchor) : end].strip() == (
-        "a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against near-miss"
-        " inputs (a run of its metacharacter, the guards in another order), its command and output cited in the"
-        " plan's Evidence;"
+        "a pattern or guard the plan writes new (a regex, a parser condition) is run once on a scratch copy of the"
+        " file it goes into against near-miss inputs (a run of the character it matches, e.g. `***`; the same guards"
+        " in another order), its command and output cited in the plan's Evidence;"
     )
