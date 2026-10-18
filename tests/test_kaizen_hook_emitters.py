@@ -411,6 +411,36 @@ def test_a_running_reviews_surface_stands_the_uncommitted_cause_down(tmp_path: P
     assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
 
 
+def test_a_running_reviews_range_surface_stands_the_uncommitted_cause_down(tmp_path: Path) -> None:
+    """W-42ddde8f: the same stand-down when the running review's surface names a commit RANGE that
+    changed the file and no path — the uncommitted cause reads the surface with the repo root, as
+    the sixth cause does, so the two causes never disagree on what one surface names. The control
+    is a range that did not touch the file."""
+    proj = _project(tmp_path)
+    (proj / "session_file.py").write_text("v1\n", encoding="utf-8")
+    _git(proj, "add", "session_file.py")
+    # an hour old, so the transcript's edit is newer than the file's last commit (`_own_uncommitted`)
+    old = {"GIT_COMMITTER_DATE": f"@{int(time.time()) - 3600} +0000"}
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "the fix"],
+        cwd=proj,
+        check=True,
+        timeout=30,
+        env={**os.environ, **old},
+    )
+    (proj / "session_file.py").write_text(
+        "v2 — a round-1 fix, not yet committed\n", encoding="utf-8"
+    )
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidrange", "W-x the fix, range HEAD~1..HEAD (1 file)")
+    proc = _run_stop(proj, tmp_path, "sidrange", baseline=[], transcript=tp)
+    reason = json.loads(proc.stdout).get("reason", "")
+    assert "COMMAND STILL RUNNING" in reason and "DEFINITION OF DONE" not in reason, reason
+    _running_review(tmp_path, "sidrangectl", "W-x the base, range HEAD~1...HEAD~1")
+    proc = _run_stop(proj, tmp_path, "sidrangectl", baseline=[], transcript=tp)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+
+
 def test_the_stale_opt_out_takes_the_stand_down_with_the_fifth_cause(tmp_path: Path) -> None:
     """`COMMAND_RUN_STALE_H=0` turns the fifth cause off, so main() must read the FRESH record
     (None here), never the raw one — or the running review's file is ordered by neither cause

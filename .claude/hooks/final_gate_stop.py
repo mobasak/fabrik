@@ -1627,7 +1627,9 @@ def _review_exempts_commit(sid: str, transcript_p: str) -> dict | None:
     return run if decide_stall(True, run_attempts)[0] == "block_stall" else None
 
 
-def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
+def _surface_reviewed(
+    rec: object, authored: dict[str, int], sid: str | None = None, root: Path | None = None
+) -> set[str]:
     """The authored paths a RUNNING review-family record already names as its `--surface`.
 
     T5.2 (01M28YN1F): the sixth cause fired on exactly those files. A review's window opens at its
@@ -1698,15 +1700,112 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     if not surfaces and not tokens:
         return set()
     for s in surfaces:
-        tokens |= _surface_tokens(s)
+        tokens |= _surface_tokens(s, root)
     return {f for f in authored if f in tokens}
 
 
-def _surface_tokens(surface: str) -> set[str]:
+# W-42ddde8f (mail 01M55CM91H): a commit RANGE in a surface — `<rev>..<rev>` or `<rev>...<rev>` —
+# matched on the RAW surface, because `_SURFACE_SPLIT` cuts the revision grammar the hub's own
+# commands prescribe (`@{upstream}...HEAD`, `HEAD~3..HEAD`) into half-tokens. A side is revision
+# characters and never starts with `-`, so nothing reaches git as an option; git resolves each side
+# (`_range_files`), so a half-token can never resolve to a different range.
+_RANGE_RAW = re.compile(
+    r"(?<![\w@{}~^./-])([\w@{}~^./][\w@{}~^./-]*?)(\.\.\.?)([\w@{}~^/][\w@{}~^./-]*)"
+)
+# A side a CLOSED record may resolve: an abbreviated or full commit id, which names the same commit
+# forever. A ref, `HEAD` or `@{u}` names whatever it points at NOW, so a closed `<a>..HEAD` would
+# grow after the close and clear a file committed later that the review never saw (design critique,
+# both seats executed it) — a closed record resolves only immutable sides.
+_RANGE_FIXED_SIDE = re.compile(r"[0-9a-fA-F]{7,40}")
+# (root, range) -> the paths it changed, for this process (one stop). Capped and on ONE shared
+# deadline, because a stop reads every closed review's surface: past `_RANGE_CAP` distinct ranges, or
+# past the deadline, a range names nothing.
+_RANGE_FILES: dict[tuple[str, str], frozenset[str]] = {}
+_RANGE_CAP = 16
+_RANGE_BUDGET_S = 3.0
+_RANGE_DEADLINE: list[float] = []  # set at the first resolution of this process
+
+
+def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
+    """The paths a range changed in `root`: each side resolved by `git rev-parse <side>^{commit}`
+    (so a tree id — the empty-tree constant — or a blob is refused), then `git diff --name-only
+    --no-renames <sha><sep><sha> --`, so a rename names both its paths. A git failure, a timeout,
+    a repo that lacks the commits, the cap or the spent budget → nothing: the pre-change behaviour
+    (the file stays blocked until the review closes), never a disarm."""
+    key = (str(root), f"{left}{sep}{right}")
+    if key in _RANGE_FILES:
+        return _RANGE_FILES[key]
+    if len(_RANGE_FILES) >= _RANGE_CAP:
+        return frozenset()
+    if not _RANGE_DEADLINE:
+        _RANGE_DEADLINE.append(time.monotonic() + _RANGE_BUDGET_S)
+    deadline = _RANGE_DEADLINE[0]
+    files: frozenset[str] = frozenset()
+    try:
+        shas: list[str] = []
+        for side in (left, right):
+            # `--verify` takes ONE revision; without it `rev-parse` echoes `--end-of-options` back
+            if time.monotonic() >= deadline:
+                break
+            rp = _git_by(
+                root, deadline, "rev-parse", "--verify", "--quiet", "--end-of-options",
+                f"{side}^{{commit}}",
+            )  # fmt: skip
+            sha = rp.stdout.strip() if rp.returncode == 0 else ""
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
+                break
+            shas.append(sha)
+        if len(shas) == 2 and time.monotonic() < deadline:
+            r = _git_by(
+                root,
+                deadline,
+                "diff",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                f"{shas[0]}{sep}{shas[1]}",
+                "--",
+            )
+            if r.returncode == 0:
+                files = frozenset(p for p in r.stdout.split("\0") if p)
+    except (OSError, subprocess.SubprocessError, ValueError):  # ValueError: a non-UTF-8 path
+        pass
+    _RANGE_FILES[key] = files
+    return files
+
+
+def _surface_range_files(surface: str, root: Path, moving: bool) -> set[str]:
+    """Every path the commit ranges in `surface` changed. `moving=False` (a CLOSED record) resolves
+    only ranges whose both sides are commit ids — `_RANGE_FIXED_SIDE`."""
+    out: set[str] = set()
+    for m in _RANGE_RAW.finditer(surface):
+        left, sep, right = m.group(1), m.group(2), m.group(3).rstrip(".")
+        if not right:
+            continue
+        if not moving and not (
+            _RANGE_FIXED_SIDE.fullmatch(left) and _RANGE_FIXED_SIDE.fullmatch(right)
+        ):
+            continue
+        out |= _range_files(root, left, sep, right)
+    return out
+
+
+def _surface_tokens(surface: str, root: Path | None = None, moving: bool = True) -> set[str]:
     """The whole-token path names a free-text `--surface` carries — ONE parse for the running
     review's exemption and the closed reviews' record (W-bdcff87a), so the two cannot disagree on
-    what a surface names."""
-    tokens: set[str] = set()
+    what a surface names. With `root`, a commit range also names every path it changed
+    (`_surface_range_files`): a right-now fix is committed BEFORE its review starts, and a surface
+    written as `range <a>..<b>` spelled no path at all (W-42ddde8f). A closed record passes
+    `moving=False`: only a range between two commit ids, which cannot grow after the close.
+
+    STATED COST: a running review's range wider than the fix (`<a>..HEAD`, `@{u}..HEAD`, HEAD
+    advancing) names every file committed in it, a sibling's included — the grant a surface listing
+    those paths already makes, and only while the record runs; a push that empties `@{u}..HEAD`
+    takes the exemption back. A closed record's `<a>..HEAD` names nothing (fails closed).
+    ⚠️ COBRA (D-253): the cheapest way past the sixth cause is a trivial running review whose
+    surface is `<first commit>..HEAD`; it still owes its rounds to reach `done`, as naming every path
+    does, and the block names the files."""
+    tokens: set[str] = _surface_range_files(surface, root, moving) if root is not None else set()
     for raw in _SURFACE_SPLIT.split(surface):
         if not raw:
             continue
@@ -1723,7 +1822,7 @@ def _surface_tokens(surface: str) -> set[str]:
 
 
 def _closed_review_named(
-    rec: object, authored: dict[str, int], committed: dict[str, int]
+    rec: object, authored: dict[str, int], committed: dict[str, int], root: Path | None = None
 ) -> set[str]:
     """The paths a CLOSED `done` review of this session NAMED after they were last touched
     (W-bdcff87a, site-provisioner 01M49X4BZT): `command_run.py` records `{surface, adds, closed}` in
@@ -1761,7 +1860,8 @@ def _closed_review_named(
             if not isinstance(closed, (int, float)) or closed > ceiling:
                 continue
             surface, adds = e.get("surface"), e.get("adds")
-            tokens = _surface_tokens(surface) if isinstance(surface, str) else set()
+            # moving=False: a closed `<a>..HEAD` would grow after the close (W-42ddde8f)
+            tokens = _surface_tokens(surface, root, False) if isinstance(surface, str) else set()
             tokens |= {a for a in adds if isinstance(a, str)} if isinstance(adds, list) else set()
             for f in tokens:
                 # a touch of 0 is an UNREADABLE time — no proof of order, so never cleared
@@ -1886,10 +1986,11 @@ def _unreviewed_spontaneous_files(
     # through Bash, so the Edit scan never saw them. Read first, so a running review's `--surface`
     # exempts them by name exactly as it exempts an Edit-written file (T5.2).
     committed = _commit_files(root, commits, floor) if commits and root is not None else {}
-    named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
+    # `root` resolves a surface's commit-range tokens to the files they changed (W-42ddde8f)
+    named = _surface_reviewed(rec, {**committed, **authored}, sid, root)  # once per stop
     # the FLOORED edits: an edit older than the floor is not this session's work, so a fresh commit
     # of that path is judged by the commit leg, never shielded by a review of the old edit (C2)
-    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed)
+    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed, root)
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:
@@ -5118,7 +5219,9 @@ def main(argv: list[str]) -> int:
             everything = _own_uncommitted(root, authored)
             exempting = _review_exempts_commit(sid, transcript)
             own_uncommitted = (
-                everything - _surface_reviewed(exempting, authored, sid) if exempting else everything
+                everything - _surface_reviewed(exempting, authored, sid, root)
+                if exempting
+                else everything
             )
             if everything - own_uncommitted:
                 _kaizen(
