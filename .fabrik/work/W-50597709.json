@@ -3,7 +3,7 @@
   "created": "2026-10-12T18:04:45.080514Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2249a3d1c163b0fd7a2f26c9e653ab24263f8aff",
   "id": "W-50597709",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — quota hold blocks mandated provenance-trailer commit; blocks agents",
-  "status": "open",
+  "status": "done",
   "title": "quota hold Bash allow-list accepts a git commit carrying a body (multi-line -m or heredoc), since a commit without provenance trailers is a hard stop (1788733694) — kaizen mail 01M4PHYRB6"
 }
