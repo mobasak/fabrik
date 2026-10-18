@@ -510,6 +510,9 @@ def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -
     lengthened catalogue bullet pushed the overflow down a line twice before a script rewrapped it whole."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole"
-        " by a script that asserts its words unchanged, before the first test run. A row that prescribes" in p3
+        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole,"
+        " at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
+        " unchanged, before PHASE 4's first pin. A row that prescribes" in p3
     )
+    # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
+    # fence, into one paragraph while its assert passed — so the rule bounds the rewrap at markers, blanks and fences
