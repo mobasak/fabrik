@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.703521Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "28c51a74380061e6c17e4fdf0ad81bf623798e73",
   "id": "W-51eee9fd",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — read-ban rule keyed wrongly; subagent hang; rule wording",
-  "status": "open",
+  "status": "done",
   "tags": [
     "handoff-2026-10-06"
   ],

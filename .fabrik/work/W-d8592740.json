@@ -3,7 +3,7 @@
   "created": "2026-10-17T16:24:22.668683Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "471a9d123a4e1a3f9111a065ce274bfb3dd2a012",
   "id": "W-d8592740",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing test on scratch sweep held rule",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],
