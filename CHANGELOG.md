@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the four review loops name the start line that BEGINS `SCRATCH:` for their pins root (2026-10-18)
+
+- `fabrik-review.md`, `fabrik-review-scoped.md`, `fabrik-plan-review.md`, `fabrik-spec-review.md`: "the path after
+  `SCRATCH: ` on the line `start` printed" also matched inside the `RUN-SCRATCH: ` line, so a literal reader could
+  pin under the disposable folder; each now says "the path on the line `start` printed that begins `SCRATCH:`", as
+  `/fabrik-repo-review` does. `SCRATCH_HOME_CLAUSE` in `tests/test_review_loop_workflow.py` pins it (W-49adc7a7).
+
 ### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
 
 - `commands/_sources/fabrik-review.md`: after "apply the lines of the probe catalogue", the same sentence

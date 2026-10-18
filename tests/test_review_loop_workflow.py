@@ -2462,7 +2462,7 @@ def test_each_review_command_carries_the_run_scratch_clause() -> None:
 
 SCRATCH_HOME_CLAUSE = (
     "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the "
-    "run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk "
+    "run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk "
     "across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session "
     "scratchpad when `start` printed no `SCRATCH:` line"
 )
