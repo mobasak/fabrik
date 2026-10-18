@@ -14,14 +14,12 @@ interface Message {
 interface ChatUIProps {
   endpoint: string;
   placeholder?: string;
-  systemPrompt?: string;
   className?: string;
 }
 
 export function ChatUI({
   endpoint,
   placeholder = "Type a message...",
-  systemPrompt,
   className,
 }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -64,10 +62,8 @@ export function ChatUI({
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
 
-    await startStream(endpoint, {
-      message: userMessage.content,
-      systemPrompt,
-    });
+    // The system prompt is server-side (lib/config/chat.ts); only the message is sent.
+    await startStream(endpoint, { message: userMessage.content });
   };
 
   return (

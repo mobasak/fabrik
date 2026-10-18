@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+import { CHAT_SYSTEM_PROMPT } from "@/lib/config/chat";
+
 // AI chat backed by OpenRouter (https://openrouter.ai/api/v1) — one API key,
 // every provider. Per `.windsurf/rules/core/65-rag-search.md` + `cost-budget.md`,
 // application LLM calls go through the OpenRouter HTTP API (no vendor SDKs, no
@@ -10,9 +12,12 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.6";
 
 export async function POST(request: NextRequest) {
-  const { message, systemPrompt } = await request.json();
+  // Only `message` is read from the body, and only as a non-empty string: the system prompt
+  // is server code (lib/config/chat.ts), so no visitor can rewrite the model's instructions
+  // or ship content-part arrays upstream on the app's key.
+  const { message } = await request.json();
 
-  if (!message) {
+  if (typeof message !== "string" || !message.trim()) {
     return new Response(JSON.stringify({ error: "Message required" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
@@ -29,7 +34,8 @@ export async function POST(request: NextRequest) {
   }
 
   const messages: Array<{ role: string; content: string }> = [];
-  if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+  const instructions = CHAT_SYSTEM_PROMPT.trim();
+  if (instructions) messages.push({ role: "system", content: instructions });
   messages.push({ role: "user", content: message });
 
   const encoder = new TextEncoder();
