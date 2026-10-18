@@ -20,6 +20,12 @@ All notable changes to this project will be documented in this file.
   `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
   both sentences.
 
+### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
+
+- `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
+- It says `POST /auth/passwordless/request` is already capped per email and per IP by the library. Tune that cap; add no second limiter and never answer 429, because a 429 would reveal accounts.
+- It marks the two token-only routes as IP-only limits and tells Pattern B to configure Supabase Auth's own limits (W-51994793).
+
 ### Fixed — the sync's synced lists and .gitignore block come from HEAD's manifest, never the working tree (2026-10-18)
 
 - `scripts/sync_enforcement_to_projects.py` already shipped tracked files from HEAD (T12.17), but WHAT it ships and the `.gitignore` block it computes came from the manifest imported off disk, so a sibling's uncommitted manifest edit patched ~46 repos with no drift line.
