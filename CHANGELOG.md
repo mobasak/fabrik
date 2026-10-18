@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — /fabrik-task tells a worktree session to write its durable files from the shell (2026-10-18)
+### Changed — /fabrik-task tells a worktree session how to write its durable files (2026-10-18)
 
-- `commands/_sources/fabrik-task.md`: the `<durable>` paragraph says a linked-worktree session writes the
-  `SCRATCH:` path from the shell (a quoted heredoc), since its Write tool refuses a main-checkout path (D-984).
-  `SIZE_CAP` 22662 -> 22797; `tests/test_fabrik_task_source.py` pins the sentence.
+- `commands/_sources/fabrik-task.md`: the `<durable>` paragraph says a linked-worktree session, whose Write tool
+  refuses a main-checkout path, writes or revises each file in its scratchpad and copies it there (`cp`; `cat
+  <it> >>` to append) (D-984). `SIZE_CAP` 22662 -> 22874; `tests/test_fabrik_task_source.py` pins the sentence.
 
 ### Changed — seat briefs state one root for the pins dir, with the review loops' SCRATCH: exception (2026-10-18)
 

@@ -25,9 +25,9 @@ without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE lin
 `handoff` is the record's third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it.
 `<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL
 `/tmp` wipe and the worktree's removal), never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path
-phase 2 never wrote; a linked-worktree session writes there from the shell (a quoted `<<'EOF'` heredoc), since
-its Write tool refuses a main-checkout path; with no `SCRATCH:` line, it is
-`<scratchpad>/fabrik-task/<started_at>` (in /tmp).
+phase 2 never wrote; a linked-worktree session, whose Write tool refuses a main-checkout path, writes or
+revises each file in its scratchpad and copies it there (`cp`; `cat <it> >>` to append), which keeps any
+content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp).
 
 ## SIZE — phase 0 is the `start` itself
 
