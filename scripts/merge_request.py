@@ -1116,8 +1116,9 @@ except ImportError:
 """
 
 
-# Both owner-test legs run BEFORE the merge lands, so before the merge owner renders the corpus into
-# ~/.claude: this tells the tests so, and the hub's tests/conftest.py skips its `live_box` tests —
+# Both owner-test legs run BEFORE the merge lands, so before the merge owner's merge-time render of
+# the corpus into ~/.claude (`commands/assemble_commands.py`, run from merged master by hand — CLAUDE.md
+# § Behavior; this script renders nothing): this tells the tests so, and the hub's tests/conftest.py skips its `live_box` tests —
 # the ones comparing that installed corpus to the tree, which cannot match yet (W-c3177526). Inert
 # in a repo whose conftest does not read it.
 _MERGE_CHECK_ENV = {"FABRIK_MERGE_CHECK": "1"}
@@ -1127,7 +1128,7 @@ def _fallback_env(wt: Path, shim: Path) -> dict:
     """The fallback's env: the shim ALONE on ``PYTHONPATH`` — the caller's entries would precede the
     stdlib and could name the main checkout's own ``src``, so the import root comes from the
     throwaway, never the caller. It is the throwaway's ``src``, or its root when ``src`` is itself
-    a package (imported as ``src.x``)."""
+    a package (imported as ``src.x``). ``FABRIK_MERGE_CHECK=1`` rides along (``_MERGE_CHECK_ENV``)."""
     root = wt if (wt / "src" / "__init__.py").exists() else wt / "src"
     return {
         **os.environ,

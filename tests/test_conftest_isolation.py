@@ -452,6 +452,10 @@ def _tmp_render(tmp_path):
     return asm.agent_drift(tmp_path)
 
 
+def _other_receiver(proc):
+    return proc.OUT, proc.AGENTS
+
+
 def _inequality_pin(monkeypatch):
     import commands.assemble_commands as asm
 
@@ -508,7 +512,7 @@ def test_the_installed_corpus_detector_counts_reads_not_mentions():
             test_vision_reads_work_stores.test_assemble_commands_check_reports_no_render_error_and_only_expected_drift
         )
     )
-    for quiet in (_mentions_only, _tmp_render, _inequality_pin):
+    for quiet in (_mentions_only, _tmp_render, _inequality_pin, _other_receiver):
         assert not reads(_BoxItem(quiet)), quiet.__name__
 
 
@@ -546,6 +550,8 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
     assert inside.stdout.count("FABRIK_MERGE_CHECK") >= 2, inside.stdout  # each skip names why
     outside = run(base)
     assert outside.returncode == 1 and "2 failed" in outside.stdout, outside.stdout + outside.stderr
+    assert "drifted from commands/_agents" in outside.stdout, outside.stdout
+    assert "drift outside the two edited sources" in outside.stdout, outside.stdout
 
 
 def test_no_test_opts_itself_into_a_merge_check():
