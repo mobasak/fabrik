@@ -187,3 +187,14 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
     monkeypatch.setattr(cfr, "_HUB_PATH", hub)
     monkeypatch.chdir(wt)
     assert cfr._resolve_fabrik_root() == wt.resolve()
+
+
+def test_a_session_that_cannot_switch_model_runs_on_and_says_so() -> None:
+    """Row 1792283288 (kaizen, 2026-10-18): the Driver bullet ordered `/model`, a command only the operator types,
+    and named no path for a session that cannot switch itself."""
+    sec = " ".join(_drive_section().split())
+    assert (
+        "account percentages. A session the operator has not switched runs on Opus, or on Fable outside that RED,"
+        " and names its model in the commit body; on a seat model, or on Fable at that RED, it takes the handoff"
+        " close (§ Drive, Resilience) naming the model the run needs."
+    ) in sec
