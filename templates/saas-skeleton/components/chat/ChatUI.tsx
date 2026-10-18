@@ -17,6 +17,15 @@ interface ChatUIProps {
   className?: string;
 }
 
+/** Fill the pending assistant message with the finished reply, or drop it when nothing came back
+ * (a refusal or an error shows its message instead, never an empty reply). */
+export function settleReply(prev: Message[], fullText: string): Message[] {
+  const last = prev[prev.length - 1];
+  if (last?.role !== "assistant") return prev;
+  if (!fullText) return prev.slice(0, -1);
+  return [...prev.slice(0, -1), { ...last, content: fullText }];
+}
+
 export function ChatUI({
   endpoint,
   placeholder = "Type a message...",
@@ -28,16 +37,7 @@ export function ChatUI({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { isStreaming, streamText, toolCalls, startStream } = useSSEStream({
-    onComplete: (fullText) => {
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant") {
-          last.content = fullText;
-        }
-        return updated;
-      });
-    },
+    onComplete: (fullText) => setMessages((prev) => settleReply(prev, fullText)),
     onError: (message) => setError(message),
   });
 

@@ -20,13 +20,14 @@ interface UseSSEStreamOptions {
 // The backend's double-submit CSRF cookie: `__Host-csrf_token` over HTTPS, `csrf_token` otherwise.
 const CSRF_COOKIES = ["__Host-csrf_token", "csrf_token"];
 
-/** The CSRF token, read afresh on every call: a cookie-borne refresh rotates it. */
+/** The CSRF token, read afresh on every call: a cookie-borne refresh rotates it. The raw value,
+ * as the server compares it (quotes stripped, never URL-decoded). */
 function csrfToken(): string {
   if (typeof document === "undefined") return "";
   const cookies = document.cookie.split(";").map((c) => c.trim());
   for (const name of CSRF_COOKIES) {
     const hit = cookies.find((c) => c.startsWith(`${name}=`));
-    if (hit) return decodeURIComponent(hit.slice(name.length + 1));
+    if (hit) return hit.slice(name.length + 1).replace(/^"|"$/g, "");
   }
   return "";
 }
@@ -40,22 +41,25 @@ function send(url: string, body: Record<string, unknown>): Promise<Response> {
   });
 }
 
-async function refreshSession(): Promise<boolean> {
-  const response = await fetch("/auth/refresh", {
+// One refresh at a time for the whole page: the backend rotates a refresh token once, so a second
+// concurrent refresh would lose and sign the user out.
+let refreshing: Promise<boolean> | null = null;
+
+function refreshSession(): Promise<boolean> {
+  refreshing ??= fetch("/auth/refresh", {
     method: "POST",
     credentials: "same-origin",
     headers: { "X-CSRF-Token": csrfToken() },
-  });
-  return response.ok;
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
 }
 
-/** The message a refused request shows: problem+json `detail`, else the CSRF middleware's `{detail}`. */
-async function refusal(response: Response): Promise<string> {
-  if (response.status === 401) return "You are signed out. Sign in to chat.";
-  if (response.status === 429) {
-    const wait = response.headers.get("Retry-After");
-    return wait ? `Too many messages. Try again in ${wait} seconds.` : "Too many messages. Try again later.";
-  }
+async function readDetail(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json();
     if (body && typeof body === "object" && "detail" in body) {
@@ -63,9 +67,33 @@ async function refusal(response: Response): Promise<string> {
       if (typeof detail === "string" && detail) return detail;
     }
   } catch {
-    // not JSON: fall through to the status line
+    // not JSON
   }
-  return `The chat request failed (HTTP ${response.status}).`;
+  return null;
+}
+
+function isStreamEvent(value: unknown): value is StreamEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  return (
+    typeof event.type === "string" &&
+    (event.text === undefined || typeof event.text === "string") &&
+    (event.error === undefined || typeof event.error === "string") &&
+    (event.tool === undefined || typeof event.tool === "string")
+  );
+}
+
+/** The message a refused request shows: problem+json `detail`, else the CSRF middleware's `{detail}`. */
+async function refusal(response: Response): Promise<string> {
+  if (response.status === 401) return "You are signed out. Sign in to chat.";
+  const detail = await readDetail(response);
+  if (response.status === 429) {
+    // the detail names the bucket: a full tenant or app bucket is a shared budget, not the user's own
+    const wait = response.headers.get("Retry-After");
+    const limit = detail ?? "Too many messages.";
+    return wait ? `${limit} Try again in ${wait} seconds.` : `${limit} Try again later.`;
+  }
+  return detail ?? `The chat request failed (HTTP ${response.status}).`;
 }
 
 export function useSSEStream(options: UseSSEStreamOptions = {}) {
@@ -96,12 +124,9 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
             }
             break;
           case "tool_result":
-            setToolCalls((prev) => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last) last.status = "done";
-              return updated;
-            });
+            setToolCalls((prev) =>
+              prev.map((call, i) => (i === prev.length - 1 ? { ...call, status: "done" } : call))
+            );
             break;
           case "error":
             options.onError?.(event.error || "The chat stream reported an error.");
@@ -113,19 +138,24 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
 
       const dispatch = (line: string) => {
         if (!line.startsWith("data: ")) return;
-        let event: StreamEvent;
+        let event: unknown;
         try {
-          event = JSON.parse(line.slice(6)) as StreamEvent;
+          event = JSON.parse(line.slice(6));
         } catch {
+          event = undefined;
+        }
+        if (!isStreamEvent(event)) {
           options.onError?.("The chat stream sent a malformed frame.");
           return;
         }
         handle(event);
       };
 
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
         let response = await send(url, body);
         if (response.status === 401 && (await refreshSession())) {
+          await response.body?.cancel();
           response = await send(url, body); // once: the retry reads the rotated CSRF cookie
         }
         if (!response.ok) {
@@ -133,7 +163,7 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
           return;
         }
 
-        const reader = response.body?.getReader();
+        reader = response.body?.getReader();
         if (!reader) throw new Error("The chat response had no body.");
 
         const decoder = new TextDecoder();
@@ -151,6 +181,8 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
       } catch (error) {
         options.onError?.(error instanceof Error ? error.message : "The chat stream failed.");
       } finally {
+        // an early exit (a throwing handler) must not leave the backend relaying to max_tokens
+        await reader?.cancel().catch(() => undefined);
         setIsStreaming(false);
         options.onComplete?.(fullText);
       }
