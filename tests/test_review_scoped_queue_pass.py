@@ -647,3 +647,21 @@ def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
         "derived from what the tests import, read or run, every path expression in the test files, the scripts they"
         " run by subprocess and what those scripts read included, never a hand-listed path set"
     ) in _norm(SRC)
+
+
+def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
+    """Row 1792294821, a third verdict on the archive-roots subject (1792228739, 1792229273): seats feared an editable
+    install's .pth shadowing a copied src; under PIN_IMPORT the copy sits ahead of it (probed), so the catalogue says
+    where the live src can still win instead of warning about a shadow that the recipe prevents."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    anchor = "never `/opt/fabrik` from a worktree."
+    start = iso.find(anchor)
+    end = iso.find("The pins line follows", start)
+    assert start != -1 and end != -1, "the worktree clause and the pins-line sentence still bound the note"
+    sentence = iso[start + len(anchor) : end].strip()
+    assert sentence == (
+        "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
+        " instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo"
+        " (`PYTEST_PINS`) and a child process started with its own `env=`, which resolves the `.pth` again."
+    ), sentence
+    assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"

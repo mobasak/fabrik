@@ -3,7 +3,7 @@
   "created": "2026-09-30T08:43:55.761290Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ff031685c0eabaca4b7ee9fc87ed1829e1389548",
   "id": "W-46afa9c4",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — client-supplied systemPrompt on app key, injection/abuse in emitted template",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

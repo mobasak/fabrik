@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
+
+Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
+near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
+plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
+
+`commands/_sources/fabrik-review.md` Phase 2: a fix the lead routes to another seat is written in the pass's fix
+list as the invariant it must hold plus the shapes the replaced form held and the reproduction it answers, never as
+the patch alone. `commands/_fragments/review-probe-catalogue.md` Sweep: the doc lines a fix outdates include
+comments. Answers /fabrik-review rows 1792291617 and 1792294458 (recurrences of held subjects).
+
+### Changed — review rewrites ask whether the yielding branch can go; seat isolation names where the editable .pth sits (2026-10-18)
+
+`commands/_fragments/term-coverage.md` rule (3): the forced rewrite first asks whether the yielding branch can be
+deleted outright. `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a copy the recipe places sits
+ahead of the editable install's `.pth` path, so the live `src` wins only when the copy is appended. Answers
+/fabrik-review-scoped rows 1792293982 and 1792294821 (recurrences of held subjects).
+
+### Changed — /fabrik-task checks new paths against ignore rules and runs a codec change on its edge inputs (2026-10-18)
+
+SIZE runs `git check-ignore -v` on each new file path it declares and stages it just before phase 5's pathspec commit;
+MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape before `design.md`.
+Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
+22662 (D-979).
+
 ### Fixed — check_doc_index and check_doc_links read every CommonMark inline-link shape (2026-10-18)
 
 - `scripts/enforcement/check_doc_index.py` and `scripts/enforcement/check_doc_links.py` read links with a regex that stopped at the first `)` or space. A balanced-paren link (`docs/a(b).md`) was truncated and reported missing, and a titled or `<angle>` link to a missing doc was never examined by either check. Both now share one `link_targets()` scanner, each file carrying its own copy, pinned equal by a test. It handles balanced parens, titles, angle destinations, escapes and fragments.
@@ -23,6 +50,16 @@ All notable changes to this project will be documented in this file.
   - the exception's own `__str__`.
 
   The module dict is taken before the load, every list read shares the load's catch, only exact built-in types are accepted, and the message is built safely (W-3d6a6236, D-980).
+
+### Fixed — ssh hosts are aliases; the DNS SSH proxy quotes its command and hides its key (2026-10-18)
+
+- `drivers/ssh.py` refuses a `FABRIK_VPS_SSH_HOST` that is not an ssh alias (`[user@]host`, the jump-hop grammar without
+  the port) with `SshHostError` before any argv, and `audit._ssh_check` does the same for `FABRIK_AUDIT_VPS`; a
+  `user@host` alias now takes its host's `FABRIK_SSH_JUMP_<ALIAS>`. `drivers/dns.py`'s SSH proxy shell-quotes every word
+  of the remote curl command (a `'` in a domain ran the rest on the VPS), names the host and jump in its errors, and
+  never carries the site-provisioner API key in an error or a timeout. The preflight reason keeps a cause-bearing
+  `Warning:` line and the changed-host-key headline. New graders cover the test suite's `FABRIK_SSH_JUMP_*` scrub and
+  the reachability-preflight stub (W-6a96f699, D-981). Residue: W-894fdc5f.
 
 ### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
 

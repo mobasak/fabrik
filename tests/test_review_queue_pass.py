@@ -698,11 +698,12 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
     assert "and of each field a fix writes, named before the closing round." in cat
     assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring and"
-        " `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
+        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring,"
+        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates);"
+        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
+        " a paraphrase names neither the verb nor a removed name;"
     ) in cat
 
 
@@ -808,8 +809,8 @@ def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
     clause = (
         "goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason"
         " line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields"
-        " an own-fix defect, recast as the whole list filtered by a noise rule probed against the list's live population"
-        " like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
+        " an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the"
+        " list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
         " row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the"
         " rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass"
         " without a rewrite"
@@ -819,3 +820,34 @@ def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
         "the deletion clause keeps its antecedent"
     )
     assert "a heuristic that SELECTS" not in text
+
+
+def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
+    """Row 1792293982, a recurrence of held 1791980043 (delete rather than re-cut a residue site): four rounds patched
+    one regex tail before its yielding branch was deleted, which ended the residue the patches kept regenerating."""
+    clause = (
+        " first asking whether the yielding site, or a {} in it, can be deleted outright (a deletion is that rewrite),"
+        " since a deletion ends the residue and a re-cut restarts it,"
+    )
+    for name, unit in (("term-coverage.md", "branch or clause"), ("term-edit.md", "clause")):
+        text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
+        start = text.index("in ONE batch instead of a third patch,") + len("in ONE batch instead of a third patch,")
+        span = text[start : text.index(" and the row's method cell APPENDS", start)]
+        assert span == clause.format(unit), (name, span)
+    picker = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
+
+
+def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
+    """Row 1792291617, a recurrence of held reproduction-verbatim-in-fix-brief (1791058267): the lead routed a fix to
+    a coder as a patch, and the coder's version held for the reported shape only. The fix list now carries the
+    invariant, the shapes the replaced form held and the reproduction, right after the shapes are enumerated."""
+    text = _norm(SRC)
+    start = text.index("asked here of every replaced form)?") + len("asked here of every replaced form)?")
+    end = text.find("A **wrong fix to a real finding is itself a defect**", start)
+    assert end != -1, "the wrong-fix sentence still follows"
+    assert text[start:end].strip() == (
+        "A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it"
+        " must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively,"
+        " its failure scenario), never as the patch alone."
+    )

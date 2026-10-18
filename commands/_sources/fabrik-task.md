@@ -44,10 +44,11 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
 operator-named work (lane row 1b), declared here rather than found at phase 4.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
-purpose: **declare the grader you are about to write**; `ls` and grep every other path for the rule first, since
-a typo reads as that grader; a golden or snapshot that pins the output is declared too. Declare the CODE surface ONLY — the close
-excludes the Doc Sync Matrix destinations, the ledger files and `docs/CAPABILITIES.md`, so declaring
-`CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
+purpose: **declare the grader you are about to write**, `git check-ignore -v` each new file path and `git add` it just
+before phase 5's pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep
+every other path for the rule first, since a typo reads as that grader; a golden or snapshot that pins the output is
+declared too. Declare the CODE surface ONLY — the close excludes the Doc Sync Matrix destinations, the ledger files and
+`docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
 
 The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path may be a sibling's
 WIP — message the author, never stage it), or a LANE verdict naming where the work belongs. Read
@@ -81,12 +82,13 @@ once, a list read whole, never a sample — each by EXECUTING the real path on r
 the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
 source read or a proxy: the tests that drive it by subprocess, the completion gate's own command, a recipe's real
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
-what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
-parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field, with each hook
-output it grows sized against Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
-`python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
-the packs it prints.
+what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on
+non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for a parsed format, its operator-facing strings
+in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate's
+new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code's
+10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a
+deliberately broken input, since a pass proves nothing until it can fail. Then `python scripts/select_rules.py --changed
+<the declared paths>` — the path-scoped form — and READ the packs it prints.
 
 ## Phase 2 — DESIGN, where it will be minted
 

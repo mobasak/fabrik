@@ -51,25 +51,33 @@ host still reaches it (the case that motivated it: W-2b657bee).
 
 **What it does:** `FABRIK_SSH_JUMP_VPS=vps2` adds `-o ProxyJump=vps2` to the ssh/scp that the SSH
 driver (`src/fabrik/drivers/ssh.py`), the DNS client's SSH proxy and the audit probes run against
-the `vps` alias. Not covered: the Vultr provisioning and drill calls (fresh hosts by IP), the
+the `vps` alias (the audit probes' alias is `FABRIK_AUDIT_VPS`, default `vps`). Not covered: the Vultr provisioning and drill calls (fresh hosts by IP), the
 watchdog's redeploy command (it runs on the VPS), the alerting library's ssh leg, and any script
 under `scripts/` that runs `ssh` itself rather than through the driver. The key is the
-host string upper-cased with every non-alphanumeric turned into `_` (`vps2` →
-`FABRIK_SSH_JUMP_VPS2`; `vps-1` and `vps_1` share one). The value is one or more comma-separated
+host part of the alias (after any `user@`) upper-cased with every non-alphanumeric turned into `_`
+(`vps2` → `FABRIK_SSH_JUMP_VPS2`; `deploy@vps` reads `FABRIK_SSH_JUMP_VPS`; `vps-1` and `vps_1`
+share one). The value is one or more comma-separated
 `[user@]host[:port]` hops, port 1-65535; anything else (a leading `-`, a space, an IPv6 literal, a
 hop host of `none`) is refused with an error naming the variable. Unset, the argv is exactly what
 it was before — nothing reroutes automatically.
 
 **How it is checked:** `fabrik apply` probes the hub alias, and the target alias for a spoke,
-before anything touches the fleet (`DeploymentOrchestrator._verify_reachable`,
+right after the spec is validated and before any step touches the fleet
+(`DeploymentOrchestrator._verify_reachable`,
 `drivers/preflight.py::verify_host_reachable`); a dead path fails the run in validation with the
 reason and the next step, naming the dead leg when a jump is set. A dry run probes nothing but
 still refuses a malformed value.
 
 **Where:** any `.env` or environment the `fabrik` process sees — `src/fabrik/config.py` loads the
-first `.env` found walking up from its own directory (`src/fabrik/`) and never overrides a variable
-already set (`FABRIK_NO_AUTOLOAD=1` skips the load). For the main checkout's install that is
-`/opt/fabrik/.env`.
+first `.env` found walking up from its own directory (`src/fabrik/`; under a debugger or an
+interactive interpreter python-dotenv walks up from the current directory instead) and never
+overrides a variable already set (`FABRIK_NO_AUTOLOAD=1` skips the load). For the main checkout's
+install that is `/opt/fabrik/.env`.
+
+The ssh host itself — `FABRIK_VPS_SSH_HOST` (default `vps`) and the audit's `FABRIK_AUDIT_VPS` — must
+be an ssh alias, `[user@]host`: each part a letter, digit or `_` followed by letters, digits, `_`,
+`.` or `-` — no port, no IPv6 literal, no other character (the same grammar as a jump hop, without
+the port). Any other value is refused before ssh runs (W-6a96f699).
 
 <!--
 Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
