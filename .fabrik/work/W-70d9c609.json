@@ -3,7 +3,7 @@
   "created": "2026-10-17T09:08:50.295339Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d74c81bb017d8628658e08c30e27e036077f281",
   "id": "W-70d9c609",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — fresh chrome-extension scaffold can lint red",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],

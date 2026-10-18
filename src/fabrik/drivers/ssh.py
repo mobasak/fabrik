@@ -24,7 +24,9 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shlex
 import subprocess
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -281,3 +283,33 @@ def scp_to_vps(
             f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
             f"{_one_line(result.stderr)}"
         )
+
+
+# The only answer `remote_mktemp` accepts — a validation pattern, no file is created from it.
+_MKTEMP_PATH_RE = re.compile(r"/tmp/fabrik-[A-Za-z0-9]{10}")  # nosec B108
+
+
+def remote_mktemp(ssh_fn: Callable[..., str], *, directory: bool = False) -> str:
+    """Make a private staging file (0600) or dir (0700) on the VPS with ``mktemp`` and return its path.
+
+    A fixed or pid-derived ``/tmp`` name lets another local VPS user pre-create, swap or read what
+    is staged there (W-8dd25072, W-719b2678); ``mktemp`` picks a random name with O_EXCL, owned by the
+    ssh user. ``ssh_fn`` is the caller's own ssh callable, so a test that patches the caller's
+    ``ssh`` name still intercepts this call. Only the LAST line of the answer is the path (a login
+    shell may print before it); anything else fails closed with RuntimeError, after removing a
+    path-shaped line mktemp did create (a shell that printed AFTER the path).
+    """
+    # str(): a None or non-text answer is refused below, never a TypeError past a caller's handler
+    answer = str(ssh_fn(f"mktemp {'-d ' if directory else ''}/tmp/fabrik-XXXXXXXXXX", timeout=10))  # nosec B108 — the REMOTE mktemp template: a random O_EXCL name, the fix for predictable /tmp paths
+    lines = answer.strip().splitlines()
+    path = lines[-1].strip() if lines else ""
+    if _MKTEMP_PATH_RE.fullmatch(path):
+        return path
+    rm = "rm -rf" if directory else "rm -f"
+    for line in lines:
+        if _MKTEMP_PATH_RE.fullmatch(line.strip()):
+            try:
+                ssh_fn(f"{rm} {shlex.quote(line.strip())}", timeout=5)
+            except Exception:  # noqa: BLE001, S110 — best-effort; the refusal below is the error
+                pass
+    raise RuntimeError(f"remote mktemp returned an unexpected path: {path!r}")

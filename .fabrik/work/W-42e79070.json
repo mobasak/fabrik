@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:19:06.940928Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-42e79070",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "route each through drivers.ssh.remote_mktemp(ssh_fn) as W-719b2678 slice 1 did for the watchdog driver",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "security"
+  ],
+  "title": "Monitoring drivers stage configs under fixed /tmp names on the VPS: gatus.py (:202 /tmp/gatus-endpoint-<project>.yaml, :386), prometheus.py (:171 /tmp/prometheus.yml.staged), redis.py (:188 /tmp/redis-assignments.json) — a local user can pre-create or swap one before the sudo mv (W-719b2678 slice 2; integrity, no secrets)"
+}
