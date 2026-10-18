@@ -899,7 +899,9 @@ def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> Non
     after the closing seats had read the surface."""
     text = _norm(SRC)
     sentence = (
-        "Run `final_gate.py --check --json` once before the closing pass's pin too, so a fix the gate forces is in the"
-        " surface the closing seats read, never landing after them. Close in this ORDER: stage your own files"
+        "Before the pin of every pass that follows a fix (any of them may be the closing pass), stage your own files"
+        " and run `final_gate.py --check --json` too, so a fix the gate forces is in the surface that pass's seats read;"
+        " a red outside the surface forces no fix (measure it as the `GATE-SCOPE` paragraph below does, and pin"
+        " unchanged). Close in this ORDER: stage your own files"
     )
     assert sentence in text
