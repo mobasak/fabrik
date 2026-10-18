@@ -1,0 +1,26 @@
+{
+  "block_digest": "949bb32255c3eab78825ac09b0bd40cf4697f5f24fcbb83ee0da5db46122deea",
+  "blocked_by": [],
+  "created": "2026-10-18T22:37:07.524176Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-af0c8157",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "8a5f87617b044cc4bf2b9cc2c871f2a022c59769145a7d642b711229a645df3e"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run `/login` once for the can account, so the fleet can resume when can's weekly window resets today at 13:30?",
+  "status": "awaiting-operator",
+  "title": "Will you run `/login` once for the can account, so the fleet can resume when can's weekly window resets today at 13:30?"
+}
