@@ -106,3 +106,57 @@ def test_delete_record_propagates_unrelated_ssh_errors(monkeypatch):
     with patch.object(client, "_request", side_effect=_real_failure):
         with pytest.raises(RuntimeError, match="connection refused"):
             client.delete_record("ocoron.com", "A", "vps4")
+
+
+class TestRequestViaSsh:
+    """W-6a96f699 (review P2-13): the SSH proxy's failure and timeout text."""
+
+    KEY = "s3cr3tvalue-api-key"
+
+    def _client(self, monkeypatch):
+        monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
+        return DNSClient(api_key=self.KEY, ssh_host="vps")
+
+    def test_failure_names_host_and_jump_and_leaks_no_secret(self, monkeypatch):
+        """The remote shell echoes a broken command line — `-H "X-API-Key: …"` included — and
+        `_redact` cannot mask a header; the jump named is the one the call used."""
+        import os
+        from unittest.mock import MagicMock
+
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        client = self._client(monkeypatch)
+        stderr = (
+            "bash: -c: line 1: syntax error near unexpected token `)'\n"
+            f'bash: -c: line 1: `curl -s -X GET -H "X-API-Key: {self.KEY}" )\'\n'
+            "DB_PASSWORD=hunter2secret\n"
+        )
+
+        def run(argv, **_kw):
+            os.environ["FABRIK_SSH_JUMP_VPS"] = "vps3"  # a later read would name vps3
+            return MagicMock(returncode=1, stdout="", stderr=stderr)
+
+        with patch("subprocess.run", side_effect=run) as mock_run:
+            with pytest.raises(RuntimeError) as info:
+                client._request_via_ssh("GET", "http://x/y")
+        assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
+        msg = str(info.value)
+        assert "'vps'" in msg and "via jump 'vps2'" in msg and "rc=1" in msg
+        assert self.KEY not in msg and "hunter2secret" not in msg
+        assert "syntax error" in msg  # the cause survives the cleaning
+
+    def test_a_timeout_carries_no_command(self, monkeypatch):
+        import subprocess
+
+        client = self._client(monkeypatch)
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+
+        def run(argv, **kw):
+            raise subprocess.TimeoutExpired(argv, kw.get("timeout", 30))
+
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(subprocess.TimeoutExpired) as info:
+                client._request_via_ssh("GET", "http://x/y")
+        e = info.value
+        assert self.KEY not in str(e) and self.KEY not in repr(e)
+        assert e.__context__ is None and e.__cause__ is None
+        assert e.cmd == ["ssh", "vps", "<command redacted>"]

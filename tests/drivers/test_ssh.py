@@ -265,3 +265,68 @@ class TestJump:
             mock_run.assert_not_called()
             ok, msg = audit._ssh_check("true")
             assert ok is False and "FABRIK_SSH_JUMP_VPS" in msg
+
+
+_HOSTILE_HOSTS = [
+    "",
+    "-oProxyCommand=x",
+    "x@-J",
+    "a@b@c",
+    "a b",
+    "a;b",
+    "$(x)",
+    "a\nb",
+    "vps:22",
+    "ssh://vps",
+]
+_VALID_HOSTS = ["vps", "deploy@vps", "10.0.0.1", "vps-2.x_y"]
+
+
+class TestSshHostAlias:
+    """W-6a96f699 (review P1-08): the host from FABRIK_VPS_SSH_HOST / FABRIK_AUDIT_VPS lands in ssh's
+    argv, so it must be an ssh alias — the `[user@]host` half of the ProxyJump hop grammar."""
+
+    @pytest.mark.parametrize("host", _VALID_HOSTS)
+    def test_an_alias_reaches_the_argv(self, host, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", host)
+        monkeypatch.delenv(ssh_mod.jump_env_name(host), raising=False)
+        assert ssh_mod.is_alias(host)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+            ssh("true")
+            assert mock_run.call_args[0][0] == ["ssh", host, "true"]
+            scp_to_vps("/tmp/a", "/tmp/b")
+            assert mock_run.call_args[0][0] == ["scp", "/tmp/a", f"{host}:/tmp/b"]
+
+    @pytest.mark.parametrize("host", _HOSTILE_HOSTS)
+    def test_a_non_alias_never_reaches_a_subprocess(self, host, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", host)
+        assert not ssh_mod.is_alias(host)
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(ssh_mod.SshHostError, match="FABRIK_VPS_SSH_HOST"):
+                ssh("true")
+            with pytest.raises(ssh_mod.SshHostError, match="FABRIK_VPS_SSH_HOST"):
+                scp_to_vps("/tmp/a", "/tmp/b")
+            mock_run.assert_not_called()
+
+    def test_the_refusal_is_never_read_as_an_ssh_failure(self):
+        """`except RuntimeError` sites read an ssh failure as "absent" (destroyer `not_found`,
+        `find_existing` → None); a bad host must pass through them, like JumpConfigError."""
+        assert issubclass(ssh_mod.SshHostError, ValueError)
+        assert not issubclass(ssh_mod.SshHostError, RuntimeError)
+
+    def test_a_dry_run_checks_nothing_and_runs_nothing(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "-oProxyCommand=x")
+        with patch("subprocess.run") as mock_run:
+            assert ssh("true", dry_run=True) == ""
+            mock_run.assert_not_called()
+
+    @pytest.mark.parametrize("host", _HOSTILE_HOSTS)
+    def test_the_audit_probe_refuses_a_non_alias_without_raising(self, host, monkeypatch):
+        from fabrik import audit
+
+        monkeypatch.setenv("FABRIK_AUDIT_VPS", host)
+        with patch("subprocess.run") as mock_run:
+            ok, msg = audit._ssh_check("true")
+            mock_run.assert_not_called()
+        assert ok is False and "FABRIK_AUDIT_VPS" in msg and "not an ssh alias" in msg

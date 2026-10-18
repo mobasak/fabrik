@@ -569,3 +569,70 @@ class TestVerifyHostReachable:
                 with patch("subprocess.run", side_effect=run):
                     preflight.verify_host_reachable("vps")
             assert "direct path" not in caplog.text
+
+
+# The full banner ssh prints for a changed host key (OpenSSH 9.x), BatchMode on.
+_REAL_CHANGED_KEY_BANNER = (
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+    "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+    "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n"
+    "Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n"
+    "It is also possible that a host key has just been changed.\n"
+    "The fingerprint for the ED25519 key sent by the remote host is\n"
+    "SHA256:0pQ1kX9vJm2HcQyLrT7sWbA3eN5uD8fG4iK6oZ1xYc0.\n"
+    "Please contact your system administrator.\n"
+    "Add correct host key in /home/ops/.ssh/known_hosts to get rid of this message.\n"
+    "Offending ED25519 key in /home/ops/.ssh/known_hosts:3\n"
+    "  remove with:\n"
+    "  ssh-keygen -f '/home/ops/.ssh/known_hosts' -R 'vps'\n"
+    "Host key for vps has changed and you have requested strict checking.\n"
+    "Host key verification failed.\n"
+)
+
+
+class TestProbeReason:
+    """W-6a96f699 (review P5-01..03): the reason keeps what says why, and only that."""
+
+    def _reason(self, stderr):
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            return preflight._probe(["ssh", "vps", "true"], 5)
+
+    def test_the_real_banner_leads_with_its_headline_and_ends_with_the_failure(self):
+        ok, network, reason = self._reason(_REAL_CHANGED_KEY_BANNER)
+        assert ok is False and network is False
+        assert reason.startswith("WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!")
+        assert reason.endswith("Host key verification failed")
+        assert "@" not in reason and len(reason) <= preflight._REASON_MAX + 80
+
+    def test_a_cause_bearing_warning_is_kept_and_never_network_shaped(self):
+        stderr = (
+            "Warning: the ECDSA host key for 'vps-unreachable' differs from the key for the IP "
+            "address '203.0.113.7'\n"
+            "Offending key for IP in /home/ops/.ssh/known_hosts:5\n"
+            "Host key verification failed.\n"
+        )
+        ok, network, reason = self._reason(stderr)
+        assert "differs from the key for the IP address" in reason
+        assert network is False  # 'unreachable' sits inside a Warning: line
+
+    def test_the_known_hosts_notice_is_still_dropped(self):
+        stderr = (
+            "Warning: Permanently added 'vps' (ED25519) to the list of known hosts.\n"
+            "Permission denied (publickey).\n"
+        )
+        assert self._reason(stderr)[2] == "Permission denied (publickey)"
+
+    @pytest.mark.parametrize(
+        "stderr, reason",
+        [
+            (".\n", "rc=255, no stderr"),
+            (
+                "Connection closed by 203.0.113.7 port 22\n.\n",
+                "Connection closed by 203.0.113.7 port 22",
+            ),
+        ],
+    )
+    def test_a_lone_period_never_empties_the_reason(self, stderr, reason):
+        assert self._reason(stderr)[2] == reason

@@ -73,15 +73,32 @@ JUMP_ENV_PREFIX = "FABRIK_SSH_JUMP_"
 automatic reroute: a dead path is named by ``preflight.verify_host_reachable`` instead.
 """
 
+# An ssh destination as fabrik names one: ``[user@]host``. It lands in ssh's argv, so a leading
+# ``-``, a space or a shell character is refused rather than passed; IPv6 literals too (name the
+# host by an alias). The alias of FABRIK_VPS_SSH_HOST and every ProxyJump hop share it (W-6a96f699).
+_USER_HOST = r"(?:(?P<user>[A-Za-z0-9_][A-Za-z0-9_.-]*)@)?(?P<host>[A-Za-z0-9_][A-Za-z0-9_.-]*)"
+_ALIAS = re.compile(_USER_HOST)
 # One ProxyJump hop is ``[user@]host[:port]``; several are comma-separated (OpenSSH's own
-# -J syntax). Strict on purpose, checked per hop with fullmatch: the value lands in ssh's
-# argv, so a leading ``-``, a space or a shell character is refused rather than passed; so
-# are IPv6 literals (name the hop by an alias) and ``none``, ProxyJump's disable keyword,
-# which would silently mean "direct" while every message said "via jump".
-_JUMP_HOP = re.compile(
-    r"(?:(?P<user>[A-Za-z0-9_][A-Za-z0-9_.-]*)@)?(?P<host>[A-Za-z0-9_][A-Za-z0-9_.-]*)"
-    r"(?::(?P<port>[1-9][0-9]{0,4}))?"
-)
+# -J syntax). Checked per hop with fullmatch; ``none``, ProxyJump's disable keyword, is refused
+# by parse_hop, since it would silently mean "direct" while every message said "via jump".
+_JUMP_HOP = re.compile(_USER_HOST + r"(?::(?P<port>[1-9][0-9]{0,4}))?")
+
+
+class SshHostError(ValueError):
+    """The ssh host from the environment is not an ssh alias, so it never reaches argv. A
+    ``ValueError`` like :class:`JumpConfigError`: the ``except RuntimeError`` sites read an ssh
+    failure as "absent" (``find_existing`` → ``None``), and a config error must not pass as that."""
+
+
+def is_alias(host: str) -> bool:
+    """True when *host* is ``[user@]host`` in the grammar above — safe as an ssh argv element."""
+    return _ALIAS.fullmatch(host) is not None
+
+
+def _checked(host: str, var: str = "FABRIK_VPS_SSH_HOST") -> str:
+    if not is_alias(host):
+        raise SshHostError(f"{var}={host!r} is not an ssh alias — refused before ssh ran")
+    return host
 
 
 class JumpConfigError(ValueError):
@@ -162,6 +179,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
             in the exception message for quick diagnosis.
         subprocess.TimeoutExpired: The SSH call exceeded ``timeout`` seconds.
         JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
+        SshHostError: ``FABRIK_VPS_SSH_HOST`` is not an ssh alias.
 
     Example:
         >>> ssh("uname -m")  # doctest: +SKIP
@@ -171,7 +189,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         logger.info("[DRY RUN] SSH: %s", cmd)
         return ""
 
-    host = _ssh_host()
+    host = _checked(_ssh_host())
     jump = jump_for(host)  # read once: the argv and the error text name the same jump
     logger.debug("SSH %s: %s", host, _redact(cmd))
     try:
@@ -220,6 +238,7 @@ def scp_to_vps(
         RuntimeError: ``scp`` returned a non-zero exit code.
         subprocess.TimeoutExpired: The copy exceeded ``timeout`` seconds.
         JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
+        SshHostError: ``FABRIK_VPS_SSH_HOST`` is not an ssh alias.
 
     Example:
         >>> scp_to_vps("/tmp/config.yml", "/opt/svc/config.yml")  # doctest: +SKIP
@@ -228,7 +247,7 @@ def scp_to_vps(
         logger.info("[DRY RUN] SCP: %s -> vps:%s", local_path, remote_path)
         return
 
-    host = _ssh_host()
+    host = _checked(_ssh_host())
     jump = jump_for(host)
     logger.debug("SCP %s -> %s:%s", local_path, host, remote_path)
     result = subprocess.run(
