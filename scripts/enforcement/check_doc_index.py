@@ -28,6 +28,7 @@ import stat as stat_module
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -326,10 +327,18 @@ def main() -> int:
         # still tracebacked past the guard above. Catch the class, not the instance.
         return _fail(f"INDEX.md could not be read ({exc.__class__.__name__}): {exc}")
     problems: list[str] = []
+    # INDEX.md percent-decoded ONCE, for (b): a doc counts as indexed when its raw path or
+    # basename appears in the text as written OR as decoded, so any valid escaping an author
+    # writes (`R&D%20notes.md`, lowercase hex, a `%E9` byte) agrees with (a). surrogateescape on
+    # both sides because paths are read that way (`_printable`), and a strict decode would raise.
+    index_unq = unquote(index_text, errors="surrogateescape")
 
     # (a) INDEX targets exist
     for m in re.finditer(r"\]\((docs/[^)#\s]+?)(?:#[^)]*)?\)", index_text):
-        t = m.group(1).replace("%20", " ").rstrip("/")
+        # Percent-DECODED, all of it (W-7ae1169a): `%20` alone left every other escape — a
+        # literal `%` (`%25`), a `#` (`%23`), a UTF-8 name — with no link spelling direction (b)
+        # could agree with. (b) reads the same contract through `index_unq`.
+        t = unquote(m.group(1), errors="surrogateescape").rstrip("/")
         state = _target_state(REPO / t)
         if state == "absent":
             problems.append(f"INDEX.md names missing path: {t}")
@@ -463,9 +472,9 @@ def main() -> int:
         tag = (
             " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
         )
-        if p in index_text:
+        if p in index_text or p in index_unq:
             continue
-        if base not in index_text:
+        if base not in index_text and base not in index_unq:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
             continue
         others = [o for o in names.get(base, []) if o != p]
