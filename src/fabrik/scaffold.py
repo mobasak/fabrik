@@ -2647,21 +2647,35 @@ def _engine() -> Any:
 
 
 @lru_cache
+def redis_client() -> Any:
+    """The one async Redis client this module owns, or None when REDIS_URL is unset. The
+    jti denylist and the chat limiter share it, and aclose() closes it on shutdown."""
+    settings = get_settings()
+    if not settings.redis_url:
+        return None
+    import redis.asyncio as aioredis
+
+    return aioredis.from_url(settings.redis_url)
+
+
+@lru_cache
 def _denylist() -> Any:
     """Shared jti denylist for instant revocation (35 §Token Revocation). Redis-backed
     when REDIS_URL is set; otherwise NullDenylist — which SILENTLY disables revocation,
     so we log a loud warning (a missing REDIS_URL is a security downgrade, not a default)."""
-    settings = get_settings()
-    if settings.redis_url:
-        import redis.asyncio as aioredis
-
-        return RedisDenylist(aioredis.from_url(settings.redis_url))
+    client = redis_client()
+    if client is not None:
+        return RedisDenylist(client)
     logging.getLogger("__NAME__.auth").warning(
         "REDIS_URL is unset — jti token revocation is DISABLED (NullDenylist). Logout / "
         "revoked access tokens stay valid until they expire. Set REDIS_URL (redis-main) "
         "to enable instant revocation."
     )
     return NullDenylist()
+
+
+# The public name the chat module's wiring uses; _denylist keeps its name for its callers here.
+denylist = _denylist
 
 
 class _LogEmailSender:
@@ -2726,7 +2740,7 @@ async def aclose() -> None:
     """Dispose the shared engine + Redis client on shutdown (called from main.py lifespan)
     so the SQLAlchemy pool and the aioredis connection close cleanly."""
     await _engine().dispose()
-    client = getattr(_denylist(), "_client", None)
+    client = redis_client()
     if client is not None:
         closer = getattr(client, "aclose", None) or getattr(client, "close", None)
         if closer is not None:
@@ -3150,11 +3164,19 @@ class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
-def _problem(status: int, title: str, detail: str, request: Request) -> JSONResponse:
-    """RFC 9457 problem+json response."""
+def _problem(
+    status: int,
+    title: str,
+    detail: str,
+    request: Request,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """RFC 9457 problem+json response. ``headers`` carries an HTTPException's own headers
+    (a 429's ``Retry-After``, a 405's ``Allow``) so rebuilding the body never drops them."""
     return JSONResponse(
         status_code=status,
         media_type=PROBLEM_JSON,
+        headers=headers,
         content={
             "type": "about:blank",
             "title": title,
@@ -3207,7 +3229,7 @@ app.mount("/metrics", metrics_app())
 @app.exception_handler(StarletteHTTPException)
 async def _http_exc(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     detail = exc.detail if isinstance(exc.detail, str) else "Error"
-    return _problem(exc.status_code, detail, detail, request)
+    return _problem(exc.status_code, detail, detail, request, getattr(exc, "headers", None))
 
 
 @app.exception_handler(RequestValidationError)
