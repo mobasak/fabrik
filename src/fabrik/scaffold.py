@@ -5041,7 +5041,10 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         # docker-smoke: the worker serves no HTTP, so the template's curl to /health could never pass (W-881752ec).
         # Judge the smoke container by the image's own heartbeat check instead: after the template's 3 s sleep,
         # up to 10 more tries a second apart (about 15-20 s in all) for the first beat — it follows boto3/supabase
-        # import and two client constructions — then the verdict. No port is published. The container is named
+        # import and two client constructions — then the verdict. No port is published, the run has no network
+        # and carries WORKER_SMOKE=1 (beat, never claim — a smoke run against a real .env claimed production
+        # jobs and was stopped mid-run, W-807b73fd; without the network an image that ignored the flag fails
+        # loudly rather than claims). The container is named
         # `$(PROJECT_NAME)-smoke`, not the template's shared `smoke-test` (another project's smoke run may own
         # that name), and a leftover of our own is removed first — `docker run ... || true` would otherwise
         # swallow the name clash and the leftover would be the one judged.
@@ -5049,7 +5052,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         smoke = {
             "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
                 "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
-                "\t@docker run -d --name smoke-test --env-file .env $(PROJECT_NAME) || true\n"
+                "\t@docker run -d --name smoke-test --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n"
             ),
             '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
                 f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {check} >/dev/null 2>&1 && break; sleep 1; done\n"
@@ -5057,9 +5060,12 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             ),
         }
         # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
-        has_smoke = (
-            re.search(r"(?m)^docker-smoke[ \t]*::?(?!=)", content) is not None
-        )  # a rule, never `:=`
+        # a rule, never an assignment (`:=`, `::=`, `:::=`) — or any template still carrying a smoke line, whatever its
+        # rule header looks like (`docker-smoke docker-x:`, `docker-smoke &:`, a leading space): the live-worker run
+        # line must never survive a header the regex cannot read (W-807b73fd)
+        has_smoke = re.search(r"(?m)^docker-smoke[ \t]*::?(?![:=])", content) is not None or any(
+            old in content for old in smoke
+        )
         for old, new in smoke.items() if has_smoke else ():
             if content.count(old) != 1:
                 raise ValueError(
@@ -5067,6 +5073,16 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                     f"{old.strip()!r}"
                 )
             content = content.replace(old, new)
+        # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
+        live = [
+            ln.strip()
+            for ln in content.splitlines()
+            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
+        ]
+        if live:
+            raise ValueError(
+                f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"
+            )
         if has_smoke:
             content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
         # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
@@ -5136,6 +5152,9 @@ R2_BUCKET=your-bucket-name
 
 # Service identity for structured logging
 SERVICE_NAME={name}
+
+# WORKER_SMOKE=1 (exactly "1") is set only by `make docker-smoke`: the worker beats and never claims a job.
+# Never set it here — a worker carrying it stays healthy while processing nothing.
 """
     )
 
