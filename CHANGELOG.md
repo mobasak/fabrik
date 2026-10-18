@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review seats cannot open a network connection: the seat guard refuses ssh, scp, sftp, a remote rsync and a remote git URL (2026-10-18)
+`.claude/hooks/seat_guard.py` gains a third class beside pattern kills and git writes outside scratch: a `fabrik-reviewer` seat's network client in command position is refused — the first word, a launcher's command slot (env, sudo, timeout, xargs, setsid, stdbuf, flock, strace, `script -c`, `su -c`, watch, `find -exec`, `capped_run.sh --` and the rest of `_LAUNCHERS`) or a re-scanned command string. scp, sftp, ssh-copy-id, ssh-keyscan, sshpass, autossh, mosh, sshfs and sshuttle are always refused; ssh and slogin pass only as `-V` or `-G` without `-F` (a seat-written `-F` config runs `Match exec`); rsync is refused with a remote end and git's network verbs with a remote URL or an ssh override, so local copies, clones and fetches still pass. Two seats had opened real connections the brief forbade (fleet 01M56C2E4F). Replayed over 95,338 seat calls from the last 14 days, the class newly refuses 10: the incident calls and a `-G -F` probe, plus 2 untokenisable commands naming a client. Docs: `docs/workstation/hooks-index.md`; D-row in `docs/DECISIONS.md`.
+
 ### Fixed — The project contract states the hub-addressee exemption as `mail.py` enforces it (2026-10-18)
 `templates/governance/CLAUDE.md` said "threaded `--re` replies are exempt" from `--to-agent` on a hub send; `mail.py` exempts only `--kind reply` carrying a non-empty `--re` (`is_thread_reply`), so a `finding`, `request`, `relay` or `upstream-feedback` with `--re` is still refused unaddressed. The sentence now says "only a `--kind reply` carrying `--re` is exempt" (W-79342704, tryton-crm 01M3PJXN).
 

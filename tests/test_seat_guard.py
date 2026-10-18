@@ -391,3 +391,217 @@ def test_malformed_seat_payloads_produce_nothing() -> None:
     base = {"tool_name": "Bash", "agent_id": "a", "agent_type": "fabrik-reviewer"}
     for ti in ("notadict", None, {"command": None}, {"command": ["ls"]}, {}):
         assert _run("", raw=json.dumps({**base, "tool_input": ti})) == "", ti
+
+
+# ------------------------------------------------------------------ network clients (W-d146dd3c)
+# fleet mail 01M56C2E4F: two seats made live ssh/scp connections although the brief forbade it.
+# The incident commands, verbatim apart from the scratch path.
+_SSH_INCIDENT = (
+    "env PATH=/tmp/claude-1000/-opt-x/sid-seat/scratchpad/bin:/usr/bin:/bin /usr/bin/ssh "
+    "-o ProxyJump=vps2 -o BatchMode=yes -o ConnectTimeout=15 vps true"
+)
+_SCP_INCIDENT = (
+    "scp -o ProxyJump=vps2 -o ConnectTimeout=1 -o BatchMode=yes -o ProxyCommand=false "
+    "/dev/null vps:/dev/null"
+)
+
+
+def _refused(command: str) -> bool:
+    return _denied(_run(command))
+
+
+def test_a_seat_ssh_to_a_host_is_refused_whatever_its_options() -> None:
+    """The ssh incident and the option spellings that keep a connection behind a print-only flag."""
+    for cmd in (
+        _SSH_INCIDENT,
+        "ssh vps true",
+        "ssh -o ProxyCommand=false vps",
+        "/usr/local/bin/ssh vps",
+        "./ssh vps",
+        "\\ssh vps",
+        "'ssh' vps",
+        "slogin vps",
+        "ssh -B G vps true",  # -B takes an argument: G is the interface, not print-config
+        "ssh -BG vps true",
+        "ssh -G -F /tmp/claude-1000/-opt-x/sid-seat/scratchpad/cfg vps",  # Match exec runs
+        "ssh -GF /tmp/claude-1000/-opt-x/sid-seat/scratchpad/cfg vps",
+        "ssh -- -G vps",  # after --, -G is the destination
+        "ssh vps ls -G",  # -G after the remote command is the command's
+        "ssh -Q cipher",
+        "ssh",
+    ):
+        assert _refused(cmd), cmd
+    out = _run(_SSH_INCIDENT)
+    reason = json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "ssh -G" in reason and "network" in reason, reason
+
+
+def test_ssh_print_config_and_version_pass_and_nothing_else_does() -> None:
+    """`ssh -G` (resolved config, no connection) and `ssh -V` (version) are the safe forms."""
+    for cmd in (
+        "ssh -G vps",
+        "ssh -G ops@vps2",
+        "ssh -G -o ProxyJump=vps2 vps",
+        "ssh -qG vps",
+        "ssh vps -G",  # OpenSSH reads options after the destination (executed on 9.6p1)
+        "ssh -G -p 2222 vps",
+        "ssh -V",
+        "ssh -V -F /tmp/claude-1000/-opt-x/sid-seat/scratchpad/cfg",  # -V exits while parsing options
+        "timeout 10 ssh -G vps",
+    ):
+        assert not _refused(cmd), cmd
+
+
+def test_every_network_client_is_refused_through_every_launcher() -> None:
+    """Every client, and the ssh incident reached through each launcher and re-scanned string."""
+    for client in (
+        "scp a vps:b",
+        "sftp vps",
+        "ssh-copy-id vps",
+        "ssh-keyscan vps",
+        "sshpass -p x ssh vps",
+        "autossh -M 0 vps",
+        "mosh vps",
+        "sshfs vps:/ /tmp/m",
+        "sshuttle -r vps 0/0",
+        _SCP_INCIDENT,
+    ):
+        assert _refused(client), client
+    for wrapped in (
+        "timeout -k 5 10 ssh vps true",
+        "nice -n 5 ssh vps",
+        "sudo -u root ssh vps",
+        "nohup ssh vps &",
+        "exec -a foo /usr/bin/ssh vps true",
+        "command -p ssh vps true",
+        'env -S "ssh vps true"',
+        "xargs ssh vps",
+        "echo vps | xargs -I{} ssh {} true",
+        "stdbuf -oL ssh vps",
+        "ionice -c3 ssh vps",
+        "setsid ssh vps",
+        "chrt -i 0 ssh vps",
+        "taskset 1 ssh vps",
+        "flock /tmp/l ssh vps",
+        "unbuffer ssh vps",
+        "strace -f ssh vps",
+        "ltrace ssh vps",
+        'script -qc "ssh vps true" /dev/null',
+        'su -c "ssh vps true" root',  # the command string comes BEFORE su's user positional
+        'su -lc "ssh vps true" root',  # ... and as the last letter of a short-option cluster
+        'watch -n 5 "ssh vps true"',
+        "parallel ssh {} ::: vps",
+        "find /tmp -maxdepth 0 -exec ssh vps true \\;",
+        "ssh-agent ssh vps true",
+        "/opt/fabrik/scripts/capped_run.sh -- ssh vps true",
+        "time ssh vps",
+        "bash -c 'ssh vps true'",
+        "echo $(ssh vps hostname)",
+        "ls; ssh vps",
+    ):
+        assert _refused(wrapped), wrapped
+
+
+def test_rsync_is_refused_only_with_a_remote_end() -> None:
+    """A local copy (30 of the measured seat calls) passes; any remote end the way rsync parses one is refused."""
+    for local in (
+        "rsync -a --exclude node_modules --exclude dist /opt/x/templates/site /tmp/claude-1000/-opt-x/sid-seat/scratchpad/ex",
+        "rsync -a --delete sites/bhdtrade/ /tmp/claude-1000/-opt-x/sid-seat/scratchpad/e",
+        "rsync -a ./a:b /tmp/claude-1000/-opt-x/sid-seat/scratchpad/",
+        "rsync -a --chown root:root /a /tmp/claude-1000/-opt-x/sid-seat/scratchpad/",
+        "rsync -a --out-format %n:%i /a /tmp/claude-1000/-opt-x/sid-seat/scratchpad/",
+        "rsync -e ssh /a /tmp/claude-1000/-opt-x/sid-seat/scratchpad/",
+    ):
+        assert not _refused(local), local
+    for remote in (
+        "rsync -a /a vps:/b",
+        "rsync -a ops@vps:/a /tmp/b",
+        "rsync -a vps::module /tmp/b",
+        "rsync rsync://vps/m /tmp/b",
+        "rsync -ave ssh /a vps:",
+        "rsync -a --exclude /x /a vps:/b",
+        "timeout 60 rsync -a /a vps:/b",
+    ):
+        assert _refused(remote), remote
+
+
+def test_git_network_verbs_are_refused_only_with_a_remote_end() -> None:
+    """Seats clone and fetch local repos (63 measured calls, all local); a remote URL or an ssh override is refused."""
+    for local in (
+        "git clone --shared --no-checkout /opt/x /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c",
+        "git -C /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c fetch -q",
+        "git -C /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c fetch . a:refs/heads/b",
+        "git clone file:///opt/x /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c",
+        "git ls-remote /opt/x",
+    ):
+        assert not _refused(local), local
+    for remote in (
+        "git clone vps:repo /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c",
+        "git clone ssh://vps/repo /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c",
+        "git clone https://github.com/x/y /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c",
+        "git ls-remote vps:repo",
+        "git ls-remote git@github.com:x/y.git",
+        "git archive --remote=vps:repo HEAD",
+        'GIT_SSH_COMMAND="ssh -o ProxyJump=vps2" git -C /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c fetch -q',
+        "git -c core.sshCommand=ssh -C /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c fetch -q",
+        "git -C /tmp/claude-1000/-opt-x/sid-seat/scratchpad/c fetch ssh://vps/repo",
+    ):
+        assert _refused(remote), remote
+
+
+def test_a_hidden_or_untokenisable_client_is_refused_and_the_lead_is_untouched() -> None:
+    """A head the guard cannot read fails closed when it names a client; readers and the lead are never touched."""
+    for hidden in (
+        "/usr/bin/ss[h] vps true",
+        "$(command -v ssh) vps true",
+        "S=ssh; $S vps",
+        "echo 'unbalanced; ssh vps",
+    ):
+        assert _refused(hidden), hidden
+    for reader in (
+        "command -v ssh",
+        "which ssh",
+        "man ssh",
+        "grep -n ssh /tmp/x",
+        "ls ~/.ssh",
+        "cat /etc/ssh/ssh_config",
+        "ssh-keygen -l -f /tmp/k.pub",
+        "echo 'unbalanced; ls",
+        # false reds the 14-day corpus replay found in the first build: a `case` pattern tokenises as a head
+        "bash -c 'case B in [a-c]) echo m;; *) echo n;; esac'",
+        'for v in 0 x; do case "$v" in *[!0-9]*) echo f;; *) echo k;; esac; done',
+        # ... and a variable holding a reader, expanded from this command's own assignment
+        "G=\"timeout 120 /usr/bin/grep\"; $G -n -i 'cp \\|rsync' /tmp/x",
+        "$PY -m pytest -q; rsync -a /a /tmp/claude-1000/-opt-x/sid-seat/scratchpad/",
+    ):
+        assert not _refused(reader), reader
+    for cmd in (_SSH_INCIDENT, _SCP_INCIDENT, "rsync -a /a vps:/b"):
+        assert _run(cmd, agent_type=None) == ""  # the lead
+        assert not _denied(_run(cmd, agent_type="general-purpose"))
+
+
+def test_the_measured_seat_corpus_refuses_exactly_the_incident_calls() -> None:
+    """The 14-day corpus's command-head shapes (measure.md): 4 incident calls refused, the 50 legitimate allowed."""
+    legit = (
+        [
+            "rsync -a --exclude node_modules --exclude dist --exclude .astro /opt/w/templates/catalogue-site /tmp/claude-1000/-opt-x/sid-seat/scratchpad/ex"
+        ]
+        * 30
+        + [
+            "ssh -G ops@vps2:2222",
+            "ssh -G ssh://ops@vps2:2222",
+            "ssh -G -o ProxyJump=vps2 vps",
+            "ssh -G -o ProxyJump=a,-oProxyCommand=touch_x vps",
+            "ssh -G -o ProxyJump=none vps2 -o",
+        ]
+        * 2
+        + ["ssh -G -o ProxyJump=vps2 vps"] * 2
+        + ["ssh -V"] * 8
+    )
+    incidents = [
+        "scp -S /tmp/claude-1000/-opt-x/sid-seat/scratchpad/fakessh.sh -o ProxyJump=vps2 /dev/null vps:/dev/null",
+        _SCP_INCIDENT,
+    ] * 2
+    assert len(legit) == 50 and len(incidents) == 4
+    assert [c for c in legit if _refused(c)] == []
+    assert all(_refused(c) for c in incidents)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: tests/test_seat_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
-"""PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside scratch.
+"""PreToolUse (Bash) seat guard — refuse a review seat's pattern kills, its git writes outside scratch and its network clients.
 
 Review seats (``agent_type`` in ``SEAT_TYPES``) run Bash in the LEAD's shared tree, and their
 isolation used to be brief prose only. Two incident classes hit live repos: a seat's
@@ -16,8 +16,9 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     simple commands at ``;`` ``&&`` ``||`` ``|`` ``&`` ``(`` ``)`` and newlines, so quoted data — a
     commit message, a printf payload — is never read as a command. Shell keywords and brace
     groups are skipped; ``bash|sh|zsh|dash`` with any flag cluster containing ``c`` is followed
-    into its script (depth 3); wrappers are unwrapped: env (``-C dir``, ``-u``, ``-i``), sudo,
-    nice, timeout, nohup, exec, command, xargs.
+    into its script (depth 3); for the kill and git classes these wrappers are unwrapped: env
+    (``-C dir``, ``-u``, ``-i``), sudo, nice, timeout, nohup, exec, command (``xargs`` is not —
+    only ``xargs kill`` is read, below).
   * Kills: ``pkill`` and ``killall`` are denied anywhere, ``xargs kill`` too (its pids come from a
     pattern); ``kill`` may name only positive pids > 1 or ``%jobs`` after at most one signal
     (``-9``, ``-TERM``, ``-term``, ``-s SIG``, ``-0``); ``-l``/``-L`` lists signals and passes.
@@ -33,8 +34,25 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     ``/tmp/claude-<uid>/<slug>/<sid>/`` whose ``<sid>`` is not this payload's ``session_id``
     (a sibling session's probe worktree is not this seat's scratch) — plus the payload's
     ``scratchpad_dir`` when present.
-  * Fail-CLOSED for a seat whose command cannot be tokenised AND mentions a git write verb or a
-    kill word; otherwise fail-open (any error, a malformed payload) with exit 0 and no output.
+  * Network (W-d146dd3c; fleet 01M56C2E4F — two seats made live ssh/scp connections the brief
+    forbade; a PATH shim misses ProxyJump's absolute-path hop, ProxyJump outranks a later
+    ProxyCommand): a client in COMMAND POSITION — the first word after assignments, or the
+    command slot of a launcher in ``_LAUNCHERS`` (its value options and positionals skipped, a
+    command-string option or a whitespace-holding word re-scanned) or of ``find -exec`` — is
+    refused: ``scp sftp ssh-copy-id ssh-keyscan sshpass autossh mosh sshfs sshuttle`` always;
+    ``ssh``/``slogin`` unless OpenSSH's options carry ``-V`` or ``-G`` without ``-F`` (``-F`` lets
+    a seat-written config run ``Match exec``); ``rsync`` with a remote end as rsync parses one;
+    git's network verbs with a remote URL, an scp-like repository or an ssh override
+    (``GIT_SSH``/``GIT_SSH_COMMAND``/``core.sshCommand``). A ``$VAR`` head resolves from this
+    command's own assignments; a substitution head, or a glob that can only be a client, refuses
+    when it hides one. Replayed over 95,240 seat Bash calls (14 days, 2026-10-18): 10 newly
+    refused — the incident calls and a ``-G -F`` probe, plus 2 untokenisable commands naming a
+    client (fail-closed). Limits, stated: other socket clients (curl, wget, nc), a ``git fetch
+    <remote-name>`` whose URL is only in config, ``Match exec`` in ``~/.ssh/config``, a ``$VAR``
+    set outside the command, and a reader word after a launcher (``xargs grep ssh`` is refused).
+  * Fail-CLOSED for a seat whose command cannot be tokenised AND mentions a git write verb, a
+    kill word or a network client; otherwise fail-open (any error, a malformed payload) with exit
+    0 and no output.
   * Dotenv: an allowed seat call is rewritten (``updatedInput``, no ``permissionDecision`` — it
     still goes through the normal permission flow) to start with ``export
     PYTHON_DOTENV_DISABLED=1``, so a probe that imports a live tree's app loads no ``.env``
@@ -52,6 +70,7 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import re
@@ -91,11 +110,196 @@ STORE_VERBS = frozenset(
     {"update-ref", "symbolic-ref", "push", "fetch", "gc", "prune", "repack", "replace"}
 )
 _KILL_SIGNAL = re.compile(r"^-(\d+|[A-Za-z]+|SIG[A-Za-z]+)$")
+# Network clients (W-d146dd3c, fleet 01M56C2E4F): a seat's ssh/scp/... reaches a real host whatever its
+# options — a PATH shim misses ProxyJump's absolute-path hop, ProxyJump outranks a later ProxyCommand.
+NET_CLIENTS = frozenset(
+    {
+        "ssh",
+        "slogin",
+        "scp",
+        "sftp",
+        "ssh-copy-id",
+        "ssh-keyscan",
+        "sshpass",
+        "autossh",
+        "mosh",
+        "sshfs",
+        "sshuttle",
+    }
+)
+_SSH_ARG_LETTERS = frozenset(
+    "BbcDEeFIiJLlmOoPpQRSWw"
+)  # OpenSSH 9.6p1 getopt letters that take a value
+# A launcher runs the command named in its command slot. Per launcher: the options whose value is the NEXT word,
+# the options whose value is a command STRING (re-scanned), and how many positional words precede the command.
+_LAUNCHERS: dict[str, tuple[frozenset, frozenset, int]] = {
+    "env": (frozenset({"-u", "--unset", "-C", "--chdir"}), frozenset({"-S", "--split-string"}), 0),
+    "sudo": (frozenset({"-u", "-g", "-C", "-p", "-h", "-r", "-t", "-U", "-D"}), frozenset(), 0),
+    "doas": (frozenset({"-u", "-C"}), frozenset(), 0),
+    "nice": (frozenset({"-n", "--adjustment"}), frozenset(), 0),
+    "ionice": (frozenset({"-c", "-n", "-p", "-t", "--class", "--classdata"}), frozenset(), 0),
+    "chrt": (frozenset({"-T", "-P", "-D"}), frozenset(), 1),
+    "taskset": (frozenset({"-c", "--cpu-list"}), frozenset(), 1),
+    "timeout": (frozenset({"-s", "-k", "--signal", "--kill-after"}), frozenset(), 1),
+    "nohup": (frozenset(), frozenset(), 0),
+    "setsid": (frozenset(), frozenset(), 0),
+    "stdbuf": (frozenset({"-i", "-o", "-e"}), frozenset(), 0),
+    "unbuffer": (frozenset({"-p"}), frozenset(), 0),
+    "flock": (
+        frozenset({"-w", "-E", "--timeout", "--conflict-exit-code"}),
+        frozenset({"-c", "--command"}),
+        1,
+    ),
+    "strace": (
+        frozenset({"-e", "-o", "-p", "-s", "-u", "-E", "-I", "-b", "-a", "-O", "-S", "-X", "-P"}),
+        frozenset(),
+        0,
+    ),
+    "ltrace": (
+        frozenset({"-e", "-o", "-p", "-s", "-u", "-n", "-a", "-A", "-D", "-F", "-l", "-x"}),
+        frozenset(),
+        0,
+    ),
+    "time": (frozenset({"-f", "-o", "--format", "--output"}), frozenset(), 0),
+    "exec": (frozenset({"-a"}), frozenset(), 0),
+    "command": (frozenset(), frozenset(), 0),
+    "builtin": (frozenset(), frozenset(), 0),
+    "xargs": (
+        frozenset(
+            {
+                "-I",
+                "-i",
+                "-n",
+                "-P",
+                "-L",
+                "-l",
+                "-s",
+                "-d",
+                "-E",
+                "-e",
+                "-a",
+                "--arg-file",
+                "--delimiter",
+            }
+        ),
+        frozenset(),
+        0,
+    ),
+    "parallel": (
+        frozenset({"-j", "--jobs", "-S", "--sshlogin", "--joblog", "--results"}),
+        frozenset(),
+        0,
+    ),
+    "watch": (frozenset({"-n", "--interval", "-d"}), frozenset(), 0),
+    "script": (
+        frozenset(
+            {"-T", "-t", "-I", "-O", "-B", "-E", "-m", "--log-timing", "--log-in", "--log-out"}
+        ),
+        frozenset({"-c", "--command"}),
+        0,
+    ),
+    "su": (
+        frozenset({"-s", "-g", "-G", "-w", "--shell", "--group"}),
+        frozenset({"-c", "--command"}),
+        1,
+    ),
+    "runuser": (
+        frozenset({"-s", "-g", "-G", "-u", "-w", "--shell", "--group", "--user"}),
+        frozenset({"-c", "--command"}),
+        1,
+    ),
+    "sg": (frozenset(), frozenset({"-c"}), 1),
+    "chroot": (frozenset({"--userspec", "--groups"}), frozenset(), 1),
+    "unshare": (frozenset({"-S", "-G", "--setuid", "--setgid", "--root", "--wd"}), frozenset(), 0),
+    "nsenter": (frozenset({"-t", "--target", "-S", "-G", "--root", "--wd"}), frozenset(), 0),
+    "firejail": (frozenset(), frozenset(), 0),
+    "ssh-agent": (frozenset({"-a", "-E", "-P", "-t"}), frozenset(), 0),
+    "capped_run.sh": (frozenset(), frozenset(), 0),
+    "rund": (frozenset(), frozenset(), 0),
+}
+_DASHDASH_LAUNCHERS = frozenset({"capped_run.sh", "rund"})  # their command follows `--`
+# a glob head is a client only when it cannot name an ordinary command: `ss[h]` is, a `case` pattern's `*)` is not
+_GLOB_CONTROL = ("ls", "cat", "echo", "grep", "sed", "python3", "bash", "true", "test")
+_FIND_EXEC = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+_DURATION = re.compile(r"^\d+(\.\d+)?[smhd]?$")
+# rsync's value-taking options a separate value can follow (rsync(1): each documented as `--opt=VALUE`)
+_RSYNC_VALUE_OPTS = frozenset(
+    {
+        "-e",
+        "--rsh",
+        "-f",
+        "--filter",
+        "-T",
+        "--temp-dir",
+        "-M",
+        "--remote-option",
+        "-B",
+        "--block-size",
+        "--rsync-path",
+        "--exclude",
+        "--include",
+        "--exclude-from",
+        "--include-from",
+        "--files-from",
+        "--chown",
+        "--chmod",
+        "--usermap",
+        "--groupmap",
+        "--out-format",
+        "--log-file",
+        "--log-file-format",
+        "--partial-dir",
+        "--backup-dir",
+        "--suffix",
+        "--compare-dest",
+        "--copy-dest",
+        "--link-dest",
+        "--password-file",
+        "--iconv",
+        "--checksum-choice",
+        "--compress-choice",
+        "--compress-level",
+        "--skip-compress",
+        "--max-size",
+        "--min-size",
+        "--max-delete",
+        "--max-alloc",
+        "--modify-window",
+        "--bwlimit",
+        "--timeout",
+        "--contimeout",
+        "--port",
+        "--sockopts",
+        "--address",
+        "--stop-at",
+        "--stop-after",
+        "--info",
+        "--debug",
+        "--outbuf",
+        "--write-batch",
+        "--only-write-batch",
+        "--read-batch",
+        "--protocol",
+        "--early-input",
+        "--copy-as",
+    }
+)
+_GIT_NET_VERBS = frozenset(
+    {"clone", "fetch", "pull", "push", "ls-remote", "archive", "submodule", "remote"}
+)
+_REMOTE_URL = re.compile(r"^(ssh|git|https?|rsync|git\+ssh|ssh\+git)://", re.IGNORECASE)
+_GIT_SSH_ENV = frozenset({"GIT_SSH", "GIT_SSH_COMMAND"})
+# a client word in raw text — `/usr/bin/ssh` counts, `~/.ssh`, `ssh-keygen` and `ssh_config` do not
+_CLIENT_WORD = re.compile(
+    r"(?<![\w.-])(ssh|slogin|scp|sftp|ssh-copy-id|ssh-keyscan|sshpass|autossh|mosh|sshfs|sshuttle|rsync)(?![\w./-])"
+)
 _TMP_SESSION = re.compile(r"^/tmp/claude-\d+/[^/]+/([^/]+)(/|$)")
 _SAFE = (
     "run a git write only as `git -C <absolute repo under your scratch dir>` (a probe worktree "
     "of the main repo may not stash, branch, tag or push — those land in the shared store); "
-    "never kill by pattern — kill a numeric pid you started"
+    "never kill by pattern — kill a numeric pid you started; "
+    "never ssh, scp, sftp, a remote rsync or a remote git URL — `ssh -G <host>` prints the resolved config "
+    "without connecting"
 )
 
 
@@ -501,6 +705,234 @@ def _git_reason(words: list[str], ctx: dict) -> str:
     return ""
 
 
+def _ssh_reason(name: str, args: list[str]) -> str:
+    """ssh/slogin are local only as `-V` (version, exits while parsing) or `-G` without `-F` (print config).
+
+    Options are read as OpenSSH 9.6p1 reads them: up to the second non-option word (destination, then the
+    remote command), `--` ending them, a short-option cluster letter by letter, a value-taking letter
+    consuming the rest of its word or the next word. `-F` with `-G` is refused: a config file a seat wrote
+    runs `Match exec` while `-G` resolves it."""
+    letters: set[str] = set()
+    positional = 0
+    i = 0
+    while i < len(args) and positional < 2:
+        a = args[i]
+        if a == "--":
+            break
+        if a.startswith("-") and len(a) > 1:
+            for k, ch in enumerate(a[1:], start=1):
+                letters.add(ch)
+                if ch in _SSH_ARG_LETTERS:
+                    if k == len(a) - 1:
+                        i += 1  # the value is the next word
+                    break
+        else:
+            positional += 1
+        i += 1
+    if "V" in letters or ("G" in letters and "F" not in letters):
+        return ""
+    return f"`{name}` opens a network connection whatever its options"
+
+
+def _rsync_reason(args: list[str]) -> str:
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _RSYNC_VALUE_OPTS:
+            i += 2
+            continue
+        if not a.startswith("-"):
+            head = a.split(":", 1)[0]
+            if _REMOTE_URL.match(a) or "::" in a or (":" in a and "/" not in head):
+                return f"`rsync` to `{a}` reaches a remote host"
+        i += 1
+    return ""
+
+
+def _remote_git_arg(a: str) -> bool:
+    """A git repository argument naming a remote end: a network URL or scp-like `[user@]host:path`."""
+    if _REMOTE_URL.match(a):
+        return True
+    if a.lower().startswith("file:") or a.startswith(("-", ".", "/", "~")):
+        return False
+    head = a.split(":", 1)[0]
+    return ":" in a and bool(head) and "/" not in head
+
+
+# fetch/pull/push take refspecs (`src:dst`) after the repository, so only the repository counts there
+_GIT_REFSPEC_VERBS = frozenset({"fetch", "pull", "push"})
+_GIT_FETCH_VALUE_OPTS = frozenset(
+    {
+        "--depth",
+        "-j",
+        "--jobs",
+        "--upload-pack",
+        "--receive-pack",
+        "-o",
+        "--server-option",
+        "--shallow-since",
+        "--shallow-exclude",
+        "--negotiation-tip",
+        "--refmap",
+        "--recurse-submodules-default",
+        "--exec",
+    }
+)
+
+
+def _git_net_reason(args: list[str], env: set[str]) -> str:
+    """git's network verbs are refused when the command shows a remote end or an ssh override."""
+    i, override = 0, bool(env & _GIT_SSH_ENV)
+    while i < len(args) and args[i].startswith("-"):
+        if args[i] == "-c" and i + 1 < len(args):
+            override |= args[i + 1].split("=", 1)[0].lower() == "core.sshcommand"
+            i += 2
+        elif args[i] in (
+            "-C",
+            "--git-dir",
+            "--work-tree",
+            "--exec-path",
+            "--namespace",
+        ) and i + 1 < len(args):
+            i += 2
+        else:
+            i += 1
+    verb, rest = (args[i], args[i + 1 :]) if i < len(args) else ("", [])
+    if verb not in _GIT_NET_VERBS:
+        return ""
+    if verb == "archive" and not any(a.startswith("--remote") for a in rest):
+        return ""
+    if verb in _GIT_REFSPEC_VERBS:
+        candidates: list[str] = []
+        k = 0
+        while k < len(rest):
+            if rest[k] in _GIT_FETCH_VALUE_OPTS:
+                k += 2
+            elif rest[k].startswith("-"):
+                k += 1
+            else:
+                candidates = [rest[k]]  # the repository; what follows are refspecs
+                break
+    else:
+        candidates = [a.split("=", 1)[1] if a.startswith("--remote=") else a for a in rest]
+    if override or any(_remote_git_arg(a) for a in candidates):
+        return f"`git {verb}` reaches a remote host"
+    return ""
+
+
+def _client_reason(words: list[str], env: set[str]) -> str | None:
+    """The verdict for a client word at words[0]: a reason, "" (a client, allowed), or None (no client)."""
+    name = os.path.basename(words[0])
+    if name in ("ssh", "slogin"):
+        return _ssh_reason(name, words[1:])
+    if name in NET_CLIENTS:
+        return f"`{name}` opens a network connection"
+    if name == "rsync":
+        return _rsync_reason(words[1:])
+    if name == "git":
+        return _git_net_reason(words[1:], env)
+    return None
+
+
+def _net_reason(raw: list[str], ctx: dict, raw_command: str, depth: int) -> str:
+    """A network client in command position — the first word, or a launcher's command slot."""
+    env: set[str] = set()
+    variables = ctx.setdefault("vars", {})
+    i = 0
+    if raw[:1] == ["export"]:
+        i = 1
+    while i < len(raw) and (raw[i] in _KEYWORDS or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", raw[i])):
+        if "=" in raw[i]:
+            key, value = raw[i].split("=", 1)
+            env.add(key)
+            variables[key] = value  # a later `$key` head in the same command resolves to it
+        i += 1
+    while i < len(raw):
+        w = raw[i]
+        var = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", w)
+        if var:
+            value = variables.get(var.group(1))
+            if not value:
+                return ""  # set outside this command: a stated limit
+            try:
+                expanded = shlex.split(value)
+            except ValueError:
+                expanded = [value]
+            return (
+                _net_reason(expanded + raw[i + 1 :], {**ctx, "vars": {}}, raw_command, depth + 1)
+                if depth < 3
+                else ""
+            )
+        if SUBST in w:
+            if _CLIENT_WORD.search(raw_command):
+                return f"a command named by a substitution (`{w}`) next to a network client"
+            return ""
+        if "$" in w:
+            return ""
+        if any(c in w for c in "*?["):
+            base = os.path.basename(w)
+            if any(fnmatch.fnmatchcase(c, base) for c in NET_CLIENTS | {"rsync"}) and not any(
+                fnmatch.fnmatchcase(c, base) for c in _GLOB_CONTROL
+            ):
+                return f"a command named by a glob (`{w}`) that can only be a network client"
+            return ""
+        verdict = _client_reason(raw[i:], env)
+        if verdict is not None:
+            return verdict
+        name = os.path.basename(w)
+        if name == "find":
+            for k in range(i + 1, len(raw)):
+                if raw[k] in _FIND_EXEC and k + 1 < len(raw):
+                    v = _client_reason(raw[k + 1 :], env)
+                    if v:
+                        return v
+            return ""
+        spec = _LAUNCHERS.get(name)
+        if spec is None:
+            return ""
+        value_opts, string_opts, positionals = spec
+        i += 1
+        if name == "command" and i < len(raw) and raw[i] in ("-v", "-V"):
+            return ""  # a lookup, not a run
+        if name in _DASHDASH_LAUNCHERS:
+            while i < len(raw) and raw[i] != "--":
+                i += 1
+            i += 1
+            continue
+        if name == "taskset":
+            positionals = 0 if any(a in ("-c", "--cpu-list") for a in raw[i:]) else positionals
+        while i < len(raw):
+            a = raw[i]
+            if a.startswith("-") and not a.startswith("--") and len(a) > 2:
+                # a short-option cluster (`-qc`): its LAST letter may take the next word
+                tail = "-" + a[-1]
+                if tail in string_opts or tail in value_opts:
+                    a = tail
+            if a in string_opts and i + 1 < len(raw):
+                if depth < 3:
+                    reason = _scan(raw[i + 1], {**ctx, "targets": [], "dirs": []}, depth + 1)
+                    if reason:
+                        return reason
+                i += 2
+            elif a in value_opts and i + 1 < len(raw):
+                i += 2
+            elif a.startswith("-"):
+                i += 1
+            elif "=" in a and name == "env":
+                env.add(a.split("=", 1)[0])
+                i += 1
+            elif positionals and (_DURATION.match(a) or name not in ("timeout",)):
+                positionals -= 1
+                i += 1
+            else:
+                break
+        if i < len(raw) and depth < 3 and any(ch.isspace() for ch in raw[i]):
+            reason = _scan(raw[i], {**ctx, "targets": [], "dirs": []}, depth + 1)
+            if reason:
+                return reason
+    return ""
+
+
 def _scan(command: str, ctx: dict, depth: int) -> str:
     raw_command = command
     try:
@@ -514,6 +946,8 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
         # any git … <write verb> on one command line, flags in between included; any kill word
         if re.search(rf"\bgit\b[^;&|\n]*?\s({writes})\b|\b(pkill|killall|kill)\b", raw_command):
             return "the command cannot be tokenised and names a git write or a kill"
+        if _CLIENT_WORD.search(raw_command):
+            return "the command cannot be tokenised and names a network client"
         return ""
     if depth < 3:
         for sub in inner:
@@ -530,6 +964,9 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
                 ctx["cwd"], ctx["dirs"] = scopes.pop()  # a subshell's cd and pushd die with it
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"] = [], False, False
+        reason = _net_reason(raw, ctx, raw_command, depth)
+        if reason:
+            return reason
         words = _strip(raw, ctx)
         if not words:
             continue
