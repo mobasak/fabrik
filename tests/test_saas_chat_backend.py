@@ -189,9 +189,11 @@ class Upstream:
             "data: [DONE]",
         ]
         self.raise_exc: Exception | None = None
+        self.calls: list[tuple[str, str | None]] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(json.loads(request.content))
+        self.calls.append((str(request.url), request.headers.get("authorization")))
         if self.raise_exc is not None:
             raise self.raise_exc
         body = "\n".join(self.lines) + "\n"
@@ -208,12 +210,13 @@ class _RaisingRedis:
         raise redis.ConnectionError("redis is down")
 
 
-def _settings(mods: dict[str, types.ModuleType]) -> Any:
+def _settings(mods: dict[str, types.ModuleType], **extra: Any) -> Any:
     return mods["settings"].Settings(
         database_url="postgresql://u:p@localhost/x",
         jwt_secret=SECRET,
         allowed_origins=ORIGIN,
         session_cookie_secure=True,
+        **extra,
     )
 
 
@@ -225,6 +228,7 @@ def _app(
     env: dict[str, str] | None = None,
     redis_override: Any = None,
     denylist_override: Any = None,
+    settings_extra: dict[str, Any] | None = None,
 ) -> FastAPI:
     chat = mods["chat"]
     environ = {"OPENROUTER_API_KEY": "sk-test", "OPENROUTER_MODEL": MODEL}
@@ -233,7 +237,7 @@ def _app(
     denylist = (
         mods["tokens"].NullDenylist() if client is None else mods["tokens"].RedisDenylist(client)
     )
-    settings = _settings(mods)
+    settings = _settings(mods, **(settings_extra or {}))
     router = chat.build_chat_router(
         chat_settings=chat.load_chat_settings(environ),
         auth_settings=settings,
@@ -411,6 +415,27 @@ def test_every_bad_body_is_400_and_spends_nothing(mods, redis_sock, sync_redis, 
 def test_a_message_over_the_character_cap_is_400(mods, redis_sock, sync_redis):
     app = _app(mods, redis_sock, Upstream(), env={"CHAT_MAX_MESSAGE_CHARS": "10"})
     assert _post(app, {"message": "x" * 11}, headers=_bearer(mods)).status_code == 400
+    assert _post(app, {"message": "x" * 10}, headers=_bearer(mods)).status_code == 200
+
+
+def test_a_body_exactly_at_the_byte_cap_is_accepted(mods, redis_sock, sync_redis):
+    body = json.dumps({"message": "hi"}).encode()
+    app = _app(mods, redis_sock, Upstream(), env={"CHAT_MAX_BODY_BYTES": str(len(body))})
+    assert _post(app, raw=body, headers=_bearer(mods)).status_code == 200
+
+    def chunks():
+        yield body[:5]
+        yield body[5:]
+
+    r = _client(app).post("/api/v1/chat", content=chunks(), headers=_bearer(mods))
+    assert r.status_code == 200
+
+
+def test_an_invalid_content_length_is_400(mods, redis_sock, sync_redis):
+    app = _app(mods, redis_sock, Upstream())
+    headers = {**_bearer(mods), "Content-Length": "twelve"}
+    r = _post(app, raw=b'{"message": "hi"}', headers=headers)
+    assert r.status_code == 400 and _keys(sync_redis) == set()
 
 
 def test_a_body_over_the_byte_cap_is_413_with_or_without_content_length(
@@ -477,13 +502,48 @@ def test_a_set_system_prompt_is_sent_first_verbatim(mods, redis_sock, sync_redis
     ]
 
 
-@pytest.mark.parametrize("env", [{"OPENROUTER_API_KEY": ""}, {"OPENROUTER_MODEL": "  "}])
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"OPENROUTER_API_KEY": ""},
+        {"OPENROUTER_API_KEY": "  "},
+        {"OPENROUTER_MODEL": ""},
+        {"OPENROUTER_MODEL": "  "},
+    ],
+)
 def test_the_key_or_model_unset_is_503_with_a_token_and_401_without(
     mods, redis_sock, sync_redis, env
 ):
-    app = _app(mods, redis_sock, Upstream(), env=env)
+    up = Upstream()
+    app = _app(mods, redis_sock, up, env=env)
     assert _post(app, {"message": "hi"}, headers=_bearer(mods)).status_code == 503
     assert _post(app, {"message": "hi"}, headers={}).status_code == 401
+    # the config check comes before the limiter: an unconfigured app spends no bucket
+    assert _keys(sync_redis) == set() and up.requests == []
+
+
+def test_identity_is_checked_before_the_body_and_the_body_before_the_config(
+    mods, redis_sock, sync_redis
+):
+    app = _app(mods, redis_sock, Upstream(), env={"OPENROUTER_API_KEY": ""})
+    assert _post(app, raw=b"{not json", headers={}).status_code == 401
+    assert _post(app, raw=b"{not json", headers=_bearer(mods)).status_code == 400
+
+
+def test_the_app_key_goes_only_to_openrouter(mods, redis_sock, sync_redis):
+    up = Upstream()
+    _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
+    assert up.calls == [("https://openrouter.ai/api/v1/chat/completions", "Bearer sk-test")]
+
+
+def test_chat_max_tokens_reaches_the_upstream(mods, redis_sock, sync_redis):
+    up = Upstream()
+    _post(
+        _app(mods, redis_sock, up, env={"CHAT_MAX_TOKENS": "77"}),
+        {"message": "hi"},
+        headers=_bearer(mods),
+    )
+    assert up.requests[0]["max_tokens"] == 77
 
 
 def test_a_malformed_rate_fails_at_start(mods):
@@ -567,6 +627,19 @@ def test_a_refusal_on_the_user_bucket_spends_no_bucket(mods, redis_sock, sync_re
         assert sync_redis.get(key) == b"1", key
 
 
+def test_the_route_arms_each_bucket_with_its_full_window(mods, redis_sock, sync_redis):
+    user = str(uuid.uuid4())
+    _post(_app(mods, redis_sock, Upstream()), {"message": "hi"}, headers=_bearer(mods, user=user))
+    # CHAT_RATE_USER defaults to 60/3600: an hour, in milliseconds
+    assert 3_590_000 <= sync_redis.pttl(f"global:chat:user:{user}") <= 3_600_000
+
+
+def test_the_ip_bucket_honours_trusted_proxy_hops(mods, redis_sock, sync_redis):
+    app = _app(mods, redis_sock, Upstream(), settings_extra={"trusted_proxy_hops": 2})
+    _post(app, {"message": "hi"}, headers=_bearer(mods, ip="198.51.100.4, 203.0.113.9"))
+    assert "global:chat:ip:198.51.100.4" in _keys(sync_redis)
+
+
 def test_a_tenantless_user_touches_no_tenant_key(mods, redis_sock, sync_redis):
     _post(_app(mods, redis_sock, Upstream()), {"message": "hi"}, headers=_bearer(mods, tenant=None))
     assert not any(k.startswith("t:") for k in _keys(sync_redis))
@@ -617,11 +690,35 @@ def test_a_redis_error_in_the_limiter_is_503(mods, redis_sock, sync_redis):
 # --- upstream ------------------------------------------------------------------------------
 
 
-def test_a_non_2xx_upstream_is_an_error_frame(mods, redis_sock, sync_redis):
+@pytest.mark.parametrize("status", [301, 401, 429, 502])
+def test_a_non_2xx_upstream_is_an_error_frame(mods, redis_sock, sync_redis, status):
     up = Upstream()
-    up.status = 502
+    up.status = status
     r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
     assert [f["type"] for f in _frames(r.text)] == ["error"]
+
+
+def test_an_error_chunk_mid_stream_ends_with_an_error_frame(mods, redis_sock, sync_redis):
+    up = Upstream()
+    up.lines = [
+        'data: {"choices":[{"delta":{"content":"par"}}]}',
+        'data: {"error":{"message":"provider overloaded"}}',
+        "data: [DONE]",
+    ]
+    before = _count(mods, "upstream_error")
+    r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
+    assert _frames(r.text) == [
+        {"type": "text_delta", "text": "par"},
+        {"type": "error", "error": "The model service reported an error"},
+    ]
+    assert _count(mods, "upstream_error") == before + 1
+
+
+def test_an_empty_content_delta_sends_no_frame(mods, redis_sock, sync_redis):
+    up = Upstream()
+    up.lines = ['data: {"choices":[{"delta":{"content":""}}]}', "data: [DONE]"]
+    r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers=_bearer(mods))
+    assert _frames(r.text) == [{"type": "done"}]
 
 
 @pytest.mark.parametrize(

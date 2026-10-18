@@ -136,6 +136,14 @@ def test_the_first_increment_sets_the_window(client, lua):
     assert 0 < client.pttl("a") <= WINDOW_MS
 
 
+def test_a_later_increment_never_re_arms_the_window(client, lua):
+    # a fixed window: steady traffic must not keep pushing the reset away
+    _call(client, lua, [("a", 5)])
+    client.pexpire("a", 5_000)
+    _call(client, lua, [("a", 5)])
+    assert client.get("a") == b"2" and 0 < client.pttl("a") <= 5_000
+
+
 def test_a_refusal_returns_its_bucket_and_a_ttl_of_at_least_one_second(client, lua):
     _call(client, lua, [("a", 1)])
     index, ttl_ms = _call(client, lua, [("a", 1)])

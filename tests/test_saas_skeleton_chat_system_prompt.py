@@ -61,7 +61,9 @@ def _template_files() -> list[Path]:
     return [
         p
         for p in TEMPLATE.rglob("*")
-        if p.is_file() and not _BUILD_DIRS.intersection(p.relative_to(TEMPLATE).parts)
+        # only a top-level build or dependency directory is skipped: a source file under lib/build/
+        # is still the template's code
+        if p.is_file() and p.relative_to(TEMPLATE).parts[0] not in _BUILD_DIRS
     ]
 
 
@@ -118,7 +120,7 @@ def test_a_fresh_scaffold_ships_no_chat_route(project_type, tmp_path):
 # Paths a key-name scan of an emitted project skips: the emitted tests, the fleet-synced scripts
 # (scripts/rivals_run.py names the key for its own use), docs and every markdown file, .env.example,
 # which documents it, and the vendored fastapi-user-auth package (its _dotenv.py docstring names the
-# key in prose about fabrik-lib's pool; vendored code is not the app's).
+# key in prose about fabrik-lib's pool; vendored code is not the app's). Dotfiles are not skipped.
 _SCAN_SKIP_DIRS = ("server/tests/", "scripts/", "docs/", "server/src/fastapi_user_auth/")
 
 
@@ -142,13 +144,11 @@ def test_only_the_backend_chat_module_names_the_key(project_type, tmp_path):
     hits = []
     for p in project.rglob("*"):
         rel = p.relative_to(project).as_posix()
-        if not p.is_file() or _BUILD_DIRS.intersection(p.relative_to(project).parts):
+        if not p.is_file() or p.relative_to(project).parts[0] in _BUILD_DIRS:
             continue
-        if (
-            rel.startswith(_SCAN_SKIP_DIRS)
-            or "/." in f"/{rel}"
-            or rel.endswith((".md", ".env.example"))
-        ):
+        # dotfiles are scanned too (a workflow under .github/ could carry the key); the synced
+        # .windsurf/ copies that name it are all markdown, skipped by suffix like every .md
+        if rel.startswith(_SCAN_SKIP_DIRS) or rel.endswith((".md", ".env.example")):
             continue
         if "OPENROUTER_API_KEY" in p.read_text(errors="ignore"):
             hits.append(rel)
