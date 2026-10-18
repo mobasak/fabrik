@@ -1,6 +1,6 @@
 # Review — reply-exemption-wording
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 51c4f433eee214fe0068be170077a95fd55d4f2c; `git diff HEAD -- templates/governance/CLAUDE.md` md5 5943dd5d2d901ac3e9ce0dc865c8ad22 (1104 bytes)
 **Command:** /fabrik-review · **Changed:** `templates/governance/CLAUDE.md`
 
@@ -144,7 +144,18 @@ One sentence of the fleet project contract reworded to the guard's real rule (`m
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 67,
+  "failed": 0,
+  "skipped": 3,
+  "skipped_checks": [
+    "semgrep",
+    "pytest",
+    "sqlfluff"
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
