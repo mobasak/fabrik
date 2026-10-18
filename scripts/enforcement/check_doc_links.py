@@ -100,6 +100,7 @@ _TITLE_CLOSE_RE = re.compile(
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
+_OPENER_RE = re.compile(r"(?<!\\)\[")
 _BARE_RE = re.compile(
     r"(?<![\w/-])((?:docs|scripts|src|specs|configs|templates|\.windsurf)/"
     r"[A-Za-z0-9_./-]+?\.(?:md|py|sh|yaml|yml|json|txt))(?![\w.-])"
@@ -190,8 +191,18 @@ def link_targets(text: str):
     carries the same function (no enforcement check imports a sibling); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
+    first_open = _OPENER_RE.search(text)
+    opened_at = first_open.start() if first_open else n
     i = text.find("](")
     while i != -1:
+        # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
+        # anywhere before it — accepting one would consume a real link inside its "title".
+        b = i
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (i - b) % 2 or opened_at > i:
+            i = text.find("](", i + 2)
+            continue
         j = i + 2
         while j < n and text[j] in " \t":
             j += 1
@@ -209,7 +220,8 @@ def link_targets(text: str):
                 if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
                     k += 2
                     continue
-                if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
+                # Any str.isspace() char ends it (NBSP-class too, OUT); a NUL stays and is reported.
+                if c.isspace():
                     break
                 if c == "(":
                     depth += 1
@@ -452,9 +464,9 @@ def main() -> int:
                 target.startswith(("http", "#", "mailto:")) or "." not in target
             ):
                 continue
-            if kind == "link" and not re.search(
-                r"\.(md|py|sh|yaml|yml|json|txt)$", target.split("#")[0]
-            ):
+            # `link_targets` already cut the fragment and undid `\#`; splitting again at `#` would
+            # cut a literal `#` in the name and skip the link unexamined (W-dd091f0d review).
+            if kind == "link" and not re.search(r"\.(md|py|sh|yaml|yml|json|txt)$", target):
                 continue
             refs_checked += 1
             if not _resolves(target, src, extra_bases=bases):

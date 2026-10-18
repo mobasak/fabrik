@@ -137,6 +137,7 @@ _TITLE_CLOSE_RE = re.compile(
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
+_OPENER_RE = re.compile(r"(?<!\\)\[")
 
 
 def link_targets(text: str):
@@ -144,8 +145,18 @@ def link_targets(text: str):
     check_doc_links.link_targets (its docstring carries the why, W-dd091f0d; a test pins the two
     to one output)."""
     n = len(text)
+    first_open = _OPENER_RE.search(text)
+    opened_at = first_open.start() if first_open else n
     i = text.find("](")
     while i != -1:
+        # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
+        # anywhere before it — accepting one would consume a real link inside its "title".
+        b = i
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (i - b) % 2 or opened_at > i:
+            i = text.find("](", i + 2)
+            continue
         j = i + 2
         while j < n and text[j] in " \t":
             j += 1
@@ -163,7 +174,8 @@ def link_targets(text: str):
                 if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
                     k += 2
                     continue
-                if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
+                # Any str.isspace() char ends it (NBSP-class too, OUT); a NUL stays and is reported.
+                if c.isspace():
                     break
                 if c == "(":
                     depth += 1

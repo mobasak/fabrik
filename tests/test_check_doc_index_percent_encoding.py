@@ -255,6 +255,7 @@ def _links(monkeypatch, tmp_path, capsys) -> list[str]:
         (["docs/a_b.md"], "- [E](docs/a\\_b.md)\n", None),
         (["docs/a_b c.md"], "- [E](docs/a\\_b%20c.md)\n", None),
         (["docs/a_b%41.md"], "- [E](docs/a\\_b%41.md)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](docs/g\\#x.md)\n", "docs/g#x.md"),
     ],
     ids=[
         "paren-live",
@@ -268,6 +269,7 @@ def _links(monkeypatch, tmp_path, capsys) -> list[str]:
         "escaped-live",
         "escaped-and-encoded-live",
         "escaped-with-a-literal-percent-live",
+        "escaped-hash-missing",
     ],
 )
 def test_every_commonmark_link_shape_is_graded_by_both_checks(
@@ -338,6 +340,8 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         r"[s](docs/a\ b.md) [h](docs/a\#b.md#frag) [w](docs/x](docs/gone.md).md)",
         r"[e](docs/a\_b.md) [g](docs/g(o)ne.md) [t](docs/x.md \"see ](docs/gone.md)\")",
         "[a](docs/a(b.md ) [n](<docs/a\nb.md>) " + r"[q](<docs/a\>b.md>) [c](docs/a\).md)",
+        "plain ](docs/stray.md) " + r'\](docs/a.md "see [x](docs/gone.md)") [a] \](docs/g.md)',
+        "[![i](docs/i.png)](docs/x.md)",
         "",
     ]:
         assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
@@ -358,6 +362,11 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         (r"[a](<docs/a\>b.md>)", ["docs/a>b.md"]),  # `\>` stays inside the angle form
         (r"[e](docs/e\(x\).md)", ["docs/e(x).md"]),
         (r"[e](docs/a\).md)", ["docs/a).md"]),  # an escaped `)` neither closes nor counts
+        ("plain ](docs/stray.md) text", []),  # no `[` before it: not a link
+        (r"\](docs/a.md)", []),  # an escaped `]` closes nothing
+        (r"[a] \](docs/gone.md)", []),  # ... even after an opener
+        (r'- \](docs/a.md "see [x](docs/gone.md)")', ["docs/gone.md"]),  # the real link survives
+        ("[![i](docs/i.png)](docs/x.md)", ["docs/i.png", "docs/x.md"]),  # an image inside a link
     ],
     ids=[
         "escaped-space",
@@ -372,6 +381,11 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "escaped-angle-close",
         "escaped-parens",
         "escaped-unbalanced-close",
+        "no-opener",
+        "escaped-closer",
+        "escaped-closer-after-an-opener",
+        "stray-closer-before-a-real-link",
+        "image-inside-a-link",
     ],
 )
 def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
