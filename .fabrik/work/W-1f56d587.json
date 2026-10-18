@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:48:14.100939Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1f56d587",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M58GBTZ07PH1M3CYDRDX5BHH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "VPS SCRIPT DRIFT check cannot reach vps"
+}
