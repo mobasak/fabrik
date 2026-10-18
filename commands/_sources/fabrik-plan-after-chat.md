@@ -233,8 +233,10 @@ Treat every intended step as unproven until verified against the real code/schem
 - Hunt, before they reach the plan: unstated assumptions, missing edge cases/failure modes, and any step
   whose validation would be vague or unrunnable. A behavioural claim the plan rests on (a render, a state
   transition, a suite count after the core edit) is EXECUTED once against a copy, never inferred from anchors;
-  a step that relies on what a script DOES names the script and quotes the function that does it (`path::function`
-  and the code in it that does it), not the file.
+  a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against near-miss
+  inputs (a run of its metacharacter, the guards in another order), its command and output cited in the plan's
+  Evidence; a step that relies on what a script DOES names the script and quotes the function that does it
+  (`path::function` and the code in it that does it), not the file.
 
 **Parallelism — UNCONDITIONAL, every run.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per unit (the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->), an Opus
 `fabrik-researcher` for the authoritative verify-sample — run them **in parallel**, then merge + dedupe —
