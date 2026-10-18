@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — file-worker healthchecks read the heartbeat's age (2026-10-18)
+
+Every file-worker healthcheck the hub emits now runs `scaffold.FILE_WORKER_HEARTBEAT_CHECK`, a stdlib `python -c`
+that is healthy only when `/app/.tmp/worker_heartbeat` was written in the last 120 s and not in the future.
+`templates/file-worker/{Dockerfile,compose.yaml}.j2` ran `find -mmin -2`, which exits 0 on a stale file, so a hung
+worker stayed healthy; `fabrik scaffold --type file-worker` wrote `pgrep`, which the slim image lacks, so a
+scaffolded worker was never healthy. `_write_canonical_compose`'s `process` kind became `heartbeat`, and the
+scaffold refuses a `Dockerfile.python` whose HEALTHCHECK drifted. D-987 (W-c384ff51, W-0bf1a37b).
+
 ### Fixed — the DNS SSH proxy's API key leaves the ssh argv; a dead container-resolve path is named (2026-10-18)
 
 `src/fabrik/drivers/dns.py`: `_request_via_ssh` sends `X-API-Key` and the request body to the remote curl as a

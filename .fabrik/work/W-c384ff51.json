@@ -3,7 +3,7 @@
   "created": "2026-10-18T03:34:41.288419Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "236b6f565baed6deac38afc8a4e49038d9086481",
   "id": "W-c384ff51",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: bug, a hung file-worker reads healthy (find exits 0 on a stale heartbeat); one template healthcheck",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],

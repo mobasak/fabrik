@@ -3,7 +3,7 @@
   "created": "2026-10-18T03:27:21.539943Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "236b6f565baed6deac38afc8a4e49038d9086481",
   "id": "W-0bf1a37b",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: bug, scaffolded file-worker healthcheck ignores the heartbeat and pgrep may be absent; same healthcheck class as W-c384ff51, pair them",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],
