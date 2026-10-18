@@ -3683,3 +3683,19 @@ def test_pass_68_agent_description_is_a_key_and_a_closed_stdout_launch_is_green(
     )
     assert "its own wrapper is now the binding" not in proc.stdout, proc.stdout
     assert "left the process's stdout unusable" in proc.stdout, proc.stdout
+
+
+def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
+    """W-aeb35e3a: the rendered commands run from every repo on the box, where `commands/_fragments/<f>.md` resolves
+    nowhere (fragments are not installed), so a source, fragment or seat file cites one as
+    `/opt/fabrik/commands/_fragments/<f>.md`, as the other citations already did. Red on the five relative citations
+    this item fixed."""
+    relative = re.compile(r"(?<![/\w.-])commands/_fragments/[a-z0-9-]+\.md")
+    hits = [
+        f"{path.relative_to(REPO)}:{n}"
+        for sub in ("_sources", "_fragments", "_agents")
+        for path in sorted((REPO / "commands" / sub).glob("*.md"))
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if relative.search(line)
+    ]
+    assert not hits, hits

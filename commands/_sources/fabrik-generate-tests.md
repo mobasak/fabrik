@@ -57,7 +57,7 @@ diagnosis.
 {{include:test-generation-loop}}
 
 The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here.
-⚠️ The five-step list above renders from `commands/_fragments/test-generation-loop.md`, which
+⚠️ The five-step list above renders from `/opt/fabrik/commands/_fragments/test-generation-loop.md`, which
 `/fabrik-review` renders too — it is the ONE place the shape is defined. **Edit the fragment, not the
 copy**, or the reviewer's view of this pipeline silently stops matching the pipeline.
 
