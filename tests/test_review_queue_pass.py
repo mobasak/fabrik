@@ -698,7 +698,9 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
     assert "and of each field a fix writes, named before the closing round." in cat
     assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring,"
+        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
+        " states a rule another command or fragment already holds found at that source by its key term and replaced by"
+        " a pointer or the clause quoted whole (`/fabrik-review-scoped` step 3); every doc line, docstring,"
         " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"

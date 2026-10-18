@@ -161,16 +161,18 @@ it, or name in the brief why the shape does not have it.
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
   are marked before they are rewritten.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
-  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; every doc line,
-  docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
-  that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
-  the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
-  every comment and docstring of a function whose behaviour a fix changes re-read whole, since a paraphrase names
-  neither the verb nor a removed name; every statement of a changed number or count in the whole file; same-subject
-  lines in the pack, doc summary rows and artifact generators that restate it; residue words of a flipped decision; a
-  cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by
-  CONTENT in one script over every doc that cites the file (find the symbol the prose names, compare it with the target
-  line), never renumbered by hand.
+  wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
+  writes that states a rule another command or fragment already holds found at that source by its key term and replaced
+  by a pointer or the clause quoted whole (`/fabrik-review-scoped` step 3); every doc line, docstring, comment and
+  `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no longer exists),
+  found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in the round the fix lands
+  (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and every comment and
+  docstring of a function whose behaviour a fix changes re-read whole, since a paraphrase names neither the verb nor a
+  removed name; every statement of a changed number or count in the whole file; same-subject lines in the pack, doc
+  summary rows and artifact generators that restate it; residue words of a flipped decision; a cross-pack citation's
+  terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script
+  over every doc that cites the file (find the symbol the prose names, compare it with the target line), never
+  renumbered by hand.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
