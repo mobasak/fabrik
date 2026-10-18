@@ -155,7 +155,7 @@ Steps:
 **Behavior Contract.**
 - **Given** the hub venv after Phase A, **When** `tests/test_scaffold_saas_web_wiring.py` runs, **Then** all 21 tests pass, including the four CSRF origin cases that fail today on `settings.py:13` (W-0ae9b7e1).
 
-## Phase B — the backend chat route, its limiter and its tests
+## Phase B — the backend chat route, its limiter and its tests — ✅ EXECUTED 2026-10-19 (8536dff52..a00f69ea5; /fabrik-review-scoped fixes 17e2f0da6, f3640a1fb, 70df52533; D-1022 records the step-9 defaults and the deviations; gate set 148 passed)
 Appetite: 180
 
 Implements spec § Chosen approach (Identity, CSRF, The order of checks, Limits, Body, The system prompt, Upstream, Observability, Key placement) and spec § Validation (Hub tests, the limiter test, the emitted tests, the slice-1 graders).
