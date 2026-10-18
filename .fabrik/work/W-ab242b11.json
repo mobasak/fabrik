@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T02:19:57.886448Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-ab242b11",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "fleet: design the auth hook against the template's auth story (fastapi-user-auth / D-xxx), then /fabrik-task or /fabrik-spec",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
+  "score_reason": "HIGH, security first within HIGH (D-958): an unauthenticated route spends the app's OpenRouter key; effort low = a session check plus rate limit on one template route; fleet re-scores high if it needs a spec",
   "status": "open",
   "tags": [
     "security"
