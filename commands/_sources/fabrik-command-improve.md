@@ -179,7 +179,9 @@ quote and why that text is not wrong; to FIND that line, grep the rendered comma
 points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
 it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
 /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
-still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
+still final; per D-952 it is an advice hold when its reason says the text lacks the advice but is not
+wrong, an answered reject when it says the text already states it or never said it, and neither when it
+is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
 its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
 audit seat's scratch, never the seat. Grep it for the subject, for what the row asks the author to DO and for its
 mechanism words (such as a guard, both sides, a false green), since one step asked under three nouns is one subject.
