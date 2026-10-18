@@ -1184,8 +1184,8 @@ def test_a_running_reviews_range_surface_exempts_the_files_it_changed(tmp_path, 
         {**rec, "surface": f"{c3}..HEAD"}, {"b.py": 1, "e.py": 1, "d.py": 1}, root=tmp_path
     )
     assert got == {"b.py", "e.py"}, got
-    # a session started in a SUBDIRECTORY keys its edits from there (`_session_files`), so the
-    # range's files are named relative to that root, and a file outside it is not named at all
+    # a session started in a SUBDIRECTORY keys its edits from there (`_session_files`) but its
+    # commits from the top level (`_commit_files`), so the range names both forms of each path
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "f.py").write_text("# f\n", encoding="utf-8")
     sp.run(["git", "add", "sub/f.py"], cwd=tmp_path, check=True)
@@ -1195,9 +1195,11 @@ def test_a_running_reviews_range_surface_exempts_the_files_it_changed(tmp_path, 
         check=True,
     )
     got = fgs._surface_reviewed(
-        {**rec, "surface": "HEAD~2..HEAD"}, {"f.py": 1, "e.py": 1}, root=tmp_path / "sub"
+        {**rec, "surface": "HEAD~1..HEAD"},
+        {"f.py": 1, "sub/f.py": 1, "e.py": 1},
+        root=tmp_path / "sub",
     )
-    assert got == {"f.py"}, got
+    assert got == {"f.py", "sub/f.py"}, got
     # ...and a stop whose surfaces carry no range runs no git call at all
     sent: list[tuple[str, ...]] = []
     monkeypatch.setattr(fgs, "_git_by", lambda r, d, *a: sent.append(a))
@@ -1301,13 +1303,14 @@ def test_range_resolution_is_cached_capped_and_on_one_deadline(tmp_path, monkeyp
     monkeypatch.setattr(fgs, "_git_by", fake)
     for _ in range(3):
         assert "x.py" in fgs._surface_tokens("aaaaaaa..bbbbbbb", root=tmp_path)
-    assert len(calls) == 3, calls  # one rev-parse per side, one diff
+    assert len(calls) == 4, calls  # one rev-parse per side, one diff, one --show-prefix
     # no side can reach git as an option: `--end-of-options` before each revision, `--` after the diff's
     assert all(c[:4] == ("rev-parse", "--verify", "--quiet", "--end-of-options") for c in calls[:2])
-    assert calls[2][0] == "diff" and calls[2][-1] == "--" and "--relative" in calls[2], calls[2]
+    assert calls[2][0] == "diff" and calls[2][-1] == "--", calls[2]
+    assert calls[3] == ("rev-parse", "--show-prefix"), calls[3]
     for i in range(fgs._RANGE_CAP + 5):
         fgs._surface_tokens(f"{i:07x}..bbbbbbb", root=tmp_path)
-    assert len(calls) == 3 * fgs._RANGE_CAP, len(calls)
+    assert len(calls) == 4 * fgs._RANGE_CAP, len(calls)
     assert "x.py" not in fgs._surface_tokens("cccccc0..bbbbbbb", root=tmp_path)
     assert len(set(deadlines)) == 1, "every git call of a stop shares one deadline"
     # a spent budget resolves nothing more

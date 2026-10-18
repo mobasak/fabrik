@@ -1763,14 +1763,20 @@ def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
                 "--name-only",
                 "-z",
                 "--no-renames",
-                # authored paths are relative to `root`, the session's cwd (`_session_files`), and
-                # a plain diff prints them from the top level — a subdirectory session matched none
-                "--relative",
                 f"{shas[0]}{sep}{shas[1]}",
                 "--",
             )
-            if r.returncode == 0:
-                files = frozenset(p for p in r.stdout.split("\0") if p)
+            top = [p for p in r.stdout.split("\0") if p] if r.returncode == 0 else []
+            # The hook keys its two authorship legs from different bases: an Edit from the
+            # session's cwd (`_session_files`), a commit from the top level (`_commit_files`,
+            # `git log --name-only`). In a subdirectory session the range must name BOTH forms, or
+            # one leg matches nothing (review round 1 and its closing pass, both executed).
+            # RESIDUE, stated: there a top-level `x.py` the range changed also names `<cwd>/x.py`.
+            pre = _git_by(root, deadline, "rev-parse", "--show-prefix") if top else None
+            prefix = pre.stdout.strip() if pre is not None and pre.returncode == 0 else ""
+            files = frozenset(top) | frozenset(
+                p[len(prefix) :] for p in top if prefix and p.startswith(prefix)
+            )
     except (OSError, subprocess.SubprocessError, ValueError):  # ValueError: a non-UTF-8 path
         pass
     _RANGE_FILES[key] = files
