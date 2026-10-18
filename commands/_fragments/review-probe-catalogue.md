@@ -221,7 +221,7 @@ it, or name in the brief why the shape does not have it.
   ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache`
   in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id, and a
   brief over changed code names the tests that load each changed module (by import, or by path through a loader or a
-  stub — found by grepping `tests/` for each changed file's name) for every seat to run by the
+  stub — found by grepping `tests/` for each changed file's stem, its name without `.py`) for every seat to run by the
   `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed
   loader reds in the pass. A script a seat runs is run from its archive copy with every path argument under scratch (a
   script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are repo
