@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -195,3 +196,64 @@ def test_a_drifted_dockerfile_healthcheck_fails_the_scaffold(
     with pytest.raises(ValueError, match=rf"expected one HTTP HEALTHCHECK .* found {found}$"):
         scaffold._scaffold_file_worker(project, "fw-drift", "drift")
     assert not (project / "Dockerfile").exists()  # refused before anything was written
+
+
+# W-881752ec: a file-worker's `make docker-smoke` curled /health, which it never serves, so the smoke test always
+# printed "Health FAILED"; it now runs FILE_WORKER_HEARTBEAT_CHECK inside the smoke container.
+def _smoke_recipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, str]:
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", _ROOT / "templates" / "scaffold")
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    create_project(name="fw-smoke", project_type="file-worker", description="smoke", base=tmp_path)
+    project = tmp_path / "fw-smoke"
+    makefile = (project / "Makefile").read_text()
+    start = makefile.index("docker-smoke:")
+    return project, makefile[start : makefile.index("\n\n", start)]
+
+
+def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypatch):
+    _, recipe = _smoke_recipe(tmp_path, monkeypatch)
+    assert "curl" not in recipe and "/health" not in recipe, recipe
+    assert "-p $(PORT)" not in recipe, recipe  # a worker publishes nothing
+    lines = recipe.splitlines()
+    rm = next(i for i, ln in enumerate(lines) if "docker rm -f smoke-test" in ln)
+    run = next(i for i, ln in enumerate(lines) if "docker run -d --name smoke-test" in ln)
+    assert rm < run, recipe  # a leftover container is never the one judged
+    assert "docker exec smoke-test python -c" in recipe and "Health OK" in recipe, recipe
+
+
+def test_make_hands_the_smoke_check_to_python_intact(tmp_path, monkeypatch):
+    if shutil.which("make") is None:
+        pytest.skip("GNU make is not on PATH")
+    project, _ = _smoke_recipe(tmp_path, monkeypatch)
+    out = subprocess.run(
+        ["make", "-n", "-C", str(project), "docker-smoke"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout
+    checks = []
+    for line in out.splitlines():
+        argv = shlex.split(line) if "docker exec smoke-test python -c" in line else []
+        checks += [
+            argv[i + 1] for i, word in enumerate(argv) if word == "-c" and argv[i - 1] == "python"
+        ]
+    assert len(checks) >= 2, out  # the bounded wait and the verdict
+    assert all(c == FILE_WORKER_HEARTBEAT_CHECK for c in checks), checks
+
+
+@pytest.mark.parametrize("line", ["curl", "run"])
+def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    old = "curl -sf http://localhost" if line == "curl" else "docker run -d --name smoke-test -p"
+    assert old in src
+    mk.write_text(src.replace(old, old.replace("-", "--", 1)))
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-drift"
+    project.mkdir()
+    with pytest.raises(ValueError, match="docker-smoke"):
+        scaffold._scaffold_file_worker(project, "fw-drift", "drift")

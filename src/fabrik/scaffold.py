@@ -5039,6 +5039,30 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         content = content.replace("myproject", name)
         # A file-worker keeps its code in worker/, not src/ (the template's lint/gate-lean type src).
         content = content.replace("mypy src", "mypy --explicit-package-bases worker")
+        # docker-smoke: the worker serves no HTTP, so the template's curl to /health could never pass (W-881752ec).
+        # Judge the smoke container by the image's own heartbeat check instead: wait up to 10 s for the first
+        # beat (it follows boto3/supabase import and two client constructions), then the verdict. No port is
+        # published, and a `smoke-test` left by an interrupted run is removed first — `docker run ... || true`
+        # would otherwise swallow the name clash and the leftover would be the one judged.
+        check = f'docker exec smoke-test python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
+        smoke = {
+            "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
+                "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
+                "\t@docker run -d --name smoke-test --env-file .env $(PROJECT_NAME) || true\n"
+            ),
+            '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
+                f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {check} >/dev/null 2>&1 && break; sleep 1; done\n"
+                f'\t@{check} && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n'
+            ),
+        }
+        # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
+        for old, new in smoke.items() if "\ndocker-smoke:" in content else ():
+            if content.count(old) != 1:
+                raise ValueError(
+                    f"{makefile_src}: expected one docker-smoke line to replace, found {content.count(old)}: "
+                    f"{old.strip()!r}"
+                )
+            content = content.replace(old, new)
         # Replace the dev target body: match any uvicorn invocation on the line
         # following the "dev:" target and replace it with the worker command.
         # This handles the actual template command regardless of exact arguments.
