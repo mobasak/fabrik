@@ -358,8 +358,8 @@ def test_a_phase_2_critique_naming_an_unsettled_second_approach_is_the_upgrade_c
 
 def test_build_re_runs_the_population_measurement_for_a_changed_check_or_guard() -> None:
     """Row 1792352977 (a recurrence of held resweep-corpus-on-widened-guard): MEASURE's population was measured only
-    at design time, so a check widened by the build shipped with a fire rate nobody re-measured on what ships."""
+    at design time, so a check the build changed shipped with a fire rate nobody re-measured on what ships."""
     assert (
-        "before phase 4, MEASURE's test slice re-runs on the built tree, and so does its population measurement when the"
-        " change adds or widens a check or guard."
+        "before phase 4, MEASURE's test slice re-runs on the built tree, and so does MEASURE's population measurement when the"
+        " change adds, changes or removes a check, guard or threshold."
     ) in _norm(SRC)

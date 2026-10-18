@@ -123,7 +123,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # seat's claim is executed and holding (review round 2 on rows 1792348018, 1792339442).
 # D-1021 (kaizen, 2026-10-19): 24260 -> 24348 — BUILD re-runs MEASURE's population measurement on the built tree
 # when the change adds or widens a check or guard (row 1792352977, a recurrence of held resweep-corpus-on-widened-guard).
-SIZE_CAP = 24348
+# D-1023 (kaizen, 2026-10-19): 24348 -> 24375 — supersedes D-1021's trigger: the re-measure fires when the change adds,
+# changes or removes a check, guard or threshold, and names MEASURE, since narrowing, re-thresholding or removing one moves a fire rate too (review round 1).
+SIZE_CAP = 24375
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
