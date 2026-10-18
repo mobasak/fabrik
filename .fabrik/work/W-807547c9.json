@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:36.768045Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-807547c9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5602897KYPTQJ6G67NCT4Z6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-plan-review pass 1 should run check_rule_grounding.py --all (new flag, W-592f5fe4)"
+}

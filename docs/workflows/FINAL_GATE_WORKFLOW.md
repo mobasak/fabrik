@@ -247,7 +247,7 @@ The arming condition is a conjunction — `tests/` exists AND (`.fabrik/run-pyte
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
   - WARNs when an ACTIVE plan lock's window declares Behavior-Contract rows and ships lock-owned source with zero test changes
-- **Doc Link Integrity (live tree)** - `check_doc_links.py` (every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; in a PROJECT the Fabrik-synced docs named by `.fabrik/synced.lock` are exempt as sources, a linked worktree without its own lock reading the main checkout's; blocking)
+- **Doc Link Integrity (live tree)** - `check_doc_links.py` (every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS and DECISIONS ledgers (D-965)/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; in a PROJECT the Fabrik-synced docs named by `.fabrik/synced.lock` are exempt as sources, a linked worktree without its own lock reading the main checkout's; blocking)
 - **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (INDEX targets exist + every live doc indexed by path, or by a basename no other Markdown file shares — a doc riding a SHARED basename is an advisory `⚠` line until the flip, W-c256027a; blocking; the lean tier additionally runs `--untracked-only` as a warn_only row that reports ONLY untracked live docs and always exits 0, so the run that creates a doc hears about its INDEX row while it still holds the file; an UNTRACKED doc counts as live — except the hub-seeded `docs/DECISIONS.md`, exempt while its bytes are still the distributed seed and owed the moment the repo writes its first decision, D-227 superseding D-225; a missing or unreadable INDEX.md is a named finding, not a traceback)
 - **Retired-Tech Tripwire** - `check_retired_terms.py` *(ADVISORY row)* (WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing; it advises rather than blocks on the measured basis in § Advisory rows)
 - **Stage-Skip Artifact Gate** - `check_stage_artifacts.py`
@@ -489,7 +489,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_review_hygiene.py` — Review hygiene (every tier; ADVISORY row, `--strict` — a text-losing receipt overflow BLOCKS)
 - `check_rivals_dossier.py` — Rivals dossier (every tier; advisory — `warn_only`, never blocks)
 - `check_routing_policy.py` — Routing Policy (operator deny + allowlist) (every tier; advisory — `warn_only`, never blocks)
-- `check_rule_grounding.py` — Rule grounding (plans) (every tier; advisory — `warn_only`, never blocks)
+- `check_rule_grounding.py` — Rule grounding (plans) (every tier; advisory — `warn_only`, never blocks). The gate's row shows a budgeted few findings; a reviewer runs `python3 scripts/enforcement/check_rule_grounding.py --all` to see every finding in full
 - `check_schema_sync.py` — Schema Sync (DB Models) (Tier 1/2; ADVISORY row)
 - `check_script_headers.py` — Script Coupling Header (Tier 1/2; advisory — `warn_only`, never blocks)
 - `check_secrets.py` — Secrets (Zero Hardcoding) (Tier 1/2; BLOCKING)
