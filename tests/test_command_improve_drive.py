@@ -152,7 +152,8 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
         "Valid one-off advice is rejected with `HELD:<subject>` first (D-711); a subject an earlier reject already "
         "holds is a recurrence, and is edited instead. Find it in the reason column of `python3 "
         "scripts/command_feedback_report.py --reasons <cmd>`, run without `--held` (an untagged reject is "
-        "still a final hold), because the `--queue` header's `held (all time):` line lists tags only and a "
+        "still final; per D-952 it is an advice hold when its reason says the text is not wrong, and otherwise "
+        "an answered reject), because the `--queue` header's `held (all time):` line lists tags only and a "
         "near-synonym matches no tag; an audit seat gets that output pinned in its scratch and never runs it "
         "(D-837)."
     ) in kz

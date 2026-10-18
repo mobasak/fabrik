@@ -260,7 +260,8 @@ def test_the_held_subject_search_reads_the_reasons_view() -> None:
     assert (
         "Before rejecting, search earlier reject reasons for the subject: `python3"
         " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
-        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " is still final; per D-952 it is an advice hold when its reason says the text is not wrong, and"
+        " otherwise PHASE 1's answered reject), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
         " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
         " output into an audit seat's scratch, never the seat."
     ) in text
