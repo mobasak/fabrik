@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review seat can run a scaffold test against its pins: fabrik-lib is linked beside the archive, never copied (2026-10-18)
+
+- `.claude/workflows/fabrik-review-loop.js` (W-393ffefa, D-1001): `PIN_IMPORT` tells a seat whose subject reads the sibling repo through the hub root to run `ln -sfn /opt/fabrik-lib SCRATCH/fabrik-lib` before any probe (a repeated plain `ln -s` follows the link and writes inside fabrik-lib) (the scaffold looked for fabrik-lib beside the archive and found nothing; the docs-site test skipped silently), to treat every fabrik-lib result as UNPINNED, and to keep a scaffold probe offline and in SCRATCH; `PYTEST_PINS` skips a test that starts a database container (`scratch_pg`, `_real_pg`, or a `docker run`/`docker compose` the test itself executes — a bare `docker` hit is not one). Graders in `tests/test_review_loop_workflow.py`.
+
 ### Fixed — the quota hold allows a read-only `git -C`, a `cd` home before a close and a piped `mail.py send`, and its veto no longer reads `-C` as git's verb (2026-10-18)
 
 - `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;` (resolved as bash's logical `cd`, target absolute or `./`/`../`-relative), every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Two older holes in the same allow-list close with it: unquoted brace expansion (`git push origin {+,}master` was a force push, `git add {.,}` a sweep) and a read tool matched before a `-` (`ls-evil`). Grader: `tests/test_quota_stop_verb_resolver.py`.
