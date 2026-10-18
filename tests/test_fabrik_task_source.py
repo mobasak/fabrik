@@ -104,9 +104,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-979 (kaizen, 2026-10-18): 22410 -> 22662 — SIZE check-ignores each new file path and stages it just before the
 # pathspec commit; MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape (rows
 # 1792293040, 1792291304; two held-subject recurrences).
-# D-984 (kaizen, 2026-10-18): 22662 -> 22874 — a linked-worktree session stages <durable> files in its scratchpad
-# and copies them there, since its Write tool refuses a main-checkout path (row 1792298605, a fourth sighting).
-SIZE_CAP = 22874
+# D-984 (kaizen, 2026-10-18): 22662 -> 22917 — a linked-worktree session changes <durable> files as a scratchpad
+# copy cp'd back whole, since its Write tool refuses a main-checkout path (row 1792298605, a fourth sighting).
+SIZE_CAP = 22917
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -868,15 +868,16 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     assert (
         "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
     )
-    # D-984: the Write tool refuses a main-checkout path from a linked worktree; staging + cp keeps every byte (a
-    # heredoc stops at a content line equal to its delimiter)
+    # D-984: the Write tool refuses a main-checkout path from a linked worktree; a scratchpad copy cp'd back whole
+    # keeps every byte (a heredoc stops at a content line equal to its delimiter; `cat >>` of a revised copy
+    # duplicates it)
     assert (
         "never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; a linked-worktree"
-        " session, whose Write tool refuses a main-checkout path, writes or revises each file in its scratchpad and"
-        " copies it there (`cp`; `cat <it> >>` to append), which keeps any content byte for byte; with no"
-        " `SCRATCH:` line"
+        " session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp`"
+        " it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any"
+        " content byte for byte; with no `SCRATCH:` line"
     ) in text
-    assert "heredoc" not in raw
+    assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     assert raw.count("<durable>") == 9
     for site in (
