@@ -155,7 +155,7 @@ archive roots are derived from what the tests import, read or run, every path ex
 scripts they run by subprocess and what those scripts read included, never a hand-listed path set — the recipe is
 the seat prompt's `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo's
 `.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the
-pytest config with the roots); it is not restated here.
+pytest config with the roots).
 
 **Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
 (D4): `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface>

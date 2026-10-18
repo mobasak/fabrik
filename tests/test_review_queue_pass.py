@@ -863,20 +863,23 @@ def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
 
 def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> None:
     """Rows 1792303600, 1792302600 (three earlier answered rejects on seat staging): /fabrik-review's brief pointer to
-    the probe catalogue now carries review-scoped's § Seat isolation sentence word for word, so a lead copying either
-    command's brief stages the whole archive. Mutant: drop or reword it in either source."""
+    the probe catalogue carries review-scoped's § Seat isolation sentence word for word up to its recipe's roots, so a
+    lead copying either command's brief stages the whole archive. review-scoped's 'it is not restated here' is left out
+    of fabrik-review, whose brief list restates `PIN_IMPORT`. Mutant: drop or reword it in either source."""
     src = ROOT / "commands" / "_sources"
     flat = {
         n: " ".join((src / f"{n}.md").read_text().split())
         for n in ("fabrik-review", "fabrik-review-scoped")
     }
+    tail = "the pytest config with the roots)"
     start = flat["fabrik-review-scoped"].find("Its § Seat isolation applies whole")
     assert start >= 0
-    end = flat["fabrik-review-scoped"].find("it is not restated here.", start)
+    end = flat["fabrik-review-scoped"].find(tail, start)
     assert end > start
-    sentence = flat["fabrik-review-scoped"][start : end + len("it is not restated here.")]
+    sentence = flat["fabrik-review-scoped"][start : end + len(tail)]
     assert flat["fabrik-review"].count(sentence) == 1
     assert (
-        "isolation and bookkeeping steps earlier runs found missing. " + sentence
+        "isolation and bookkeeping steps earlier runs found missing. " + sentence + "."
         in flat["fabrik-review"]
     )
+    assert "it is not restated here" not in flat["fabrik-review"]
