@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the synced-file check's post-load manifest tests now fail when their own guard regresses (2026-10-18)
+`tests/test_check_synced_unmodified_manifest.py`: each post-load param asserts the refusal its own guard prints, so a guard that regresses to `isinstance` or `==` can no longer pass behind the wide catch's `SystemExit` message. A new `metaclass-eq-entry` param covers an `==`/`!=` entry type test, which no param caught before. The KeyboardInterrupt-subclass param asserts its full refusal line instead of the letter `K`, and an escaping subclass now fails one param instead of aborting the session. The comments say how each regressed guard actually ends. W-73044efc; a checker hole found one hop out is W-deb8eb0f.
+
 ### Changed — /fabrik-review: stage and run the gate before the pin of every pass that follows a fix, so a gate-forced fix is reviewed (2026-10-18)
 
 - The close used to run `final_gate.py --check --json` only after the closing pass, so a fix the gate forced landed after the closing seats had read the surface. A sentence before "Close in this ORDER" now has the reader stage their own files and run the gate before the pin of every pass that follows a fix, since any of them may be the closing pass. A red outside the surface forces no fix; it is measured as the `GATE-SCOPE` paragraph does, and the pass is pinned unchanged. This answers row 1792335517, the second sighting of the held subject final-gate-before-closing-pass. `tests/test_review_queue_pass.py` pins the sentence.
