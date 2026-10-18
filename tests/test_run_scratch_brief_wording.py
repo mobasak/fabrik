@@ -119,7 +119,7 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     )
     assert (
         "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on"
-        " the line `start` printed (a trailing `(adopted from …)` is not part of it)"
+        " the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing)"
     ) in batch
     assert (
         "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
@@ -186,7 +186,7 @@ def test_deploy_plan_review_names_scratch_dir_and_the_pins_root() -> None:
     assert "{{include:subagents-core}}" not in src
     assert (
         "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the"
-        " line `start` printed (a trailing `(adopted from …)` is not part of it)"
+        " line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing)"
     ) in src
     assert (
         "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
