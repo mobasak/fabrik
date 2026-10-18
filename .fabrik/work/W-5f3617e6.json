@@ -15,7 +15,7 @@
   },
   "next": "auto-resolve a work-item-file conflict at merge: the branch's status/closed/evidence fields win, master's score fields (impact, effort, why, priority, owner) win, with a test per field class",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: a bug blocking other agents' merges, 4 refused resend rounds today; one script plus tests",
   "status": "open",
