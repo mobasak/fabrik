@@ -503,3 +503,16 @@ def test_a_script_description_points_at_the_doc_that_owns_the_script() -> None:
     fix that restated work.py's behaviour seeded a new edge case each round until it pointed at work-tracking.md."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert "so a one-sentence row gets one sentence. " + SCRIPT_POINTER_RULE in p3
+
+
+def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -> None:
+    """Row 1792287785 (2026-10-18), recurring held rewrap-pinned-bullet-by-script (1792268556): hand-rewrapping a
+    lengthened catalogue bullet pushed the overflow down a line twice before a script rewrapped it whole."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole,"
+        " at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
+        " unchanged, before PHASE 4's first pin. A row that prescribes" in p3
+    )
+    # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
+    # fence, into one paragraph while its assert passed — so the rule bounds the rewrap at markers, blanks and fences
