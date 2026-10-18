@@ -46,7 +46,11 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     # the three consequences ride the same paragraph: nothing durable, the pins dir, the only staging
     assert "so nothing durable is written there (resume artifacts go to `SCRATCH:`)" in d8
     assert "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead" in d8
-    assert "the pins dir (the PIN paragraph below) sits under the same root" in d8
+    assert (
+        "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
+        " under the run's durable `SCRATCH:` folder (D-836), as the partitioned review loops do so an interrupted"
+        " pass resumes;" in d8
+    )
     assert (
         "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the"
         " pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout" in d8
@@ -57,10 +61,12 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
 
 
 def test_the_pin_paragraph_puts_the_pins_dir_under_the_run_scratch() -> None:
-    """The pins dir is bulky too (whole test trees); it goes under the same root, said beside the pin command."""
+    """The pin command points at D8 for the pins dir's root, so the root and its review-loop exception are stated
+    once (W-7bd671f6: a second statement here said `<run scratch>` while four review loops say `SCRATCH:`)."""
     pin = _section(_norm(CORE), "**PIN the subject before you dispatch", "<!-- POOL OFF (D-181) — pool-grounder")
     assert "--pins-dir <a NEW dir per pass>" in pin
-    assert "the dir sits under `<run scratch>`, the seat-folder root the D8 paragraph names" in pin
+    assert "the dir sits where the D8 paragraph puts the pins dir" in pin
+    assert "<run scratch>" not in pin
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
