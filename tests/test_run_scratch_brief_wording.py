@@ -53,8 +53,8 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     )
     assert (
         "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
-        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review` and"
-        " `/fabrik-spec-review` do so an interrupted pass resumes;" in d8
+        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`,"
+        " `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass resumes;" in d8
     )
     assert (
         "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the"
@@ -89,6 +89,13 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
             "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's"
             " `SCRATCH:` folder" in src
         ), name
+    # W-27a0dc32: repo-review has no `<scratch>` ledger calls; its batch pin names the same root
+    repo = _norm(ROOT / "commands" / "_sources" / "fabrik-repo-review.md")
+    assert "{{include:subagents-core}}" in repo
+    assert (
+        "(`pins_dir` goes under the run's `SCRATCH:` folder, kept on disk across a WSL shutdown (D-836), or the"
+        " session scratchpad when `start` printed no `SCRATCH:` line);" in repo
+    )
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
