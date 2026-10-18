@@ -647,3 +647,14 @@ def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
         "derived from what the tests import, read or run, every path expression in the test files, the scripts they"
         " run by subprocess and what those scripts read included, never a hand-listed path set"
     ) in _norm(SRC)
+
+
+def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
+    """Row 1792294821, a third verdict on the archive-roots subject (1792228739, 1792229273): seats feared an editable
+    install's .pth shadowing a copied src; under PIN_IMPORT the copy sits ahead of it (probed), so the catalogue says
+    where the live src can still win instead of warning about a shadow that the recipe prevents."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "runs `scripts/` by subprocess is a false red without it; a copy the recipe places sits ahead of the editable"
+        " install's `.pth` path, so the live `src` wins only when the copy is appended to `sys.path`)"
+    ) in iso

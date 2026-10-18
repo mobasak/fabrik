@@ -198,26 +198,27 @@ it, or name in the brief why the shape does not have it.
   add, and the brief carries no import or pytest recipe of the lead's own (a pins dir on `sys.path` alone, or pytest's
   `--rootdir` at a copy, imports the live checkout's installed package). The recipe names its roots by what the tests
   import, so the brief extends it to every top-level path the tests import, read or run (a test that renders
-  `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red without it) and names the live repo
-  as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree. The pins line follows
-  the real layout and the digest is the pin authority. A SEAT never runs `git worktree add` on the live repo (its
-  metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
+  `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red without it; a copy the recipe places
+  sits ahead of the editable install's `.pth` path, so the live `src` wins only when the copy is appended to `sys.path`)
+  and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree.
+  The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree add` on the
+  live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
   `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
-  `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git history or
-  the tracked set (`git ls-files`: neither the archive nor a pin copy has a `.git`) runs in a clone the seat makes
-  with `git -C <scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone
-  checkout -q <the pass's base SHA>` (until then its status reads every file deleted), with its push to `origin`
-  disabled at once (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: `origin` is the live
-  repo, so a push writes its `.git`; no other remote is ever pushed to) and the pins laid over it, committed in the
-  clone when the test reads HEAD, a diff, the status or the tracked set; that test's red-on-revert overlays the revert
-  on the clone. Branch, worktree and stash state the test creates lands in the clone's own `.git`; only a test that
-  reads the live checkout's own branches, worktrees or stash runs in the lead's throwaway worktree. Ruff and mypy run
-  from the repo root with the repo's own config (on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy
-  `--config-file` with the same path; ruff writes `.ruff_cache` in its working directory and fails inside a read-only
-  pin without `--no-cache`); tests run by exact node id. A script a seat runs is run from its archive copy with every
-  path argument under scratch (a script may treat any argument as a write path), and the pin carries the changed
-  files' one-hop callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is
-  missing, a symlink or outside the repo root).
+  `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git history or the
+  tracked set (`git ls-files`: neither the archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git
+  -C <scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone checkout -q
+  <the pass's base SHA>` (until then its status reads every file deleted), with its push to `origin` disabled at once
+  (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: `origin` is the live repo, so a push
+  writes its `.git`; no other remote is ever pushed to) and the pins laid over it, committed in the clone when the test
+  reads HEAD, a diff, the status or the tracked set; that test's red-on-revert overlays the revert on the clone. Branch,
+  worktree and stash state the test creates lands in the clone's own `.git`; only a test that reads the live checkout's
+  own branches, worktrees or stash runs in the lead's throwaway worktree. Ruff and mypy run from the repo root with the
+  repo's own config (on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same
+  path; ruff writes `.ruff_cache` in its working directory and fails inside a read-only pin without `--no-cache`); tests
+  run by exact node id. A script a seat runs is run from its archive copy with every path argument under scratch (a
+  script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are repo
+  files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo
+  root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word

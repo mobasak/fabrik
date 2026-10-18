@@ -819,3 +819,13 @@ def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
         "the deletion clause keeps its antecedent"
     )
     assert "a heuristic that SELECTS" not in text
+
+
+def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
+    """Row 1792293982, a recurrence of held 1791980043 (delete rather than re-cut a residue site): four rounds patched
+    one regex tail before its yielding branch was deleted, which ended the residue the patches kept regenerating."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "in ONE batch instead of a third patch, first asking whether the yielding branch can be deleted outright, since a"
+        " deletion ends the residue and a re-cut restarts it, and the row's method cell APPENDS"
+    ) in text

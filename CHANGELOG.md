@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review rewrites ask whether the yielding branch can go; seat isolation names where the editable .pth sits (2026-10-18)
+
+`commands/_fragments/term-coverage.md` rule (3): the forced rewrite first asks whether the yielding branch can be
+deleted outright. `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a copy the recipe places sits
+ahead of the editable install's `.pth` path, so the live `src` wins only when the copy is appended. Answers
+/fabrik-review-scoped rows 1792293982 and 1792294821 (recurrences of held subjects).
+
 ### Changed — /fabrik-task checks new paths against ignore rules and runs a codec change on its edge inputs (2026-10-18)
 
 SIZE runs `git check-ignore -v` on each new file path it declares and stages it just before phase 5's pathspec commit;
