@@ -892,3 +892,14 @@ def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> No
         "isolation and bookkeeping steps earlier runs found missing. " + sentence + "."
     )
     assert "it is not restated here" not in flat["fabrik-review"]
+
+
+def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> None:
+    """Row 1792335517, the second sighting of held final-gate-before-closing-pass: a fix final_gate forced landed
+    after the closing seats had read the surface."""
+    text = _norm(SRC)
+    sentence = (
+        "Run `final_gate.py --check --json` once before the closing pass's pin too, so a fix the gate forces is in the"
+        " surface the closing seats read, never landing after them. Close in this ORDER: stage your own files"
+    )
+    assert sentence in text
