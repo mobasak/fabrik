@@ -23,8 +23,10 @@ Invoking a `/fabrik-*` command means opening a run record and keeping it current
   --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`** at every phase;
   **`round --findings <N> --confirmed <N> --classes-swept a,b --classes-new c,d`** per convergence pass;
   **`done --command <name> --evidence "<proof>"`** only when the terminal condition is met, or **`blocked
-  --command <name> --reason "<one of the three BLOCKED cases>"`**. **Closing names the run you are closing; a
-  name that is not the live one is refused.** Closing an already-closed record is a warned no-op.
+  --command <name> --reason "<one of the three BLOCKED cases>"`**, or `blocked --wall` / `blocked --paused` at
+  the quota wall or an operator's pause (§ Behavior, the plan-execution override). **Closing names the run you
+  are closing; a name that is not the live one is refused.** Closing an already-closed record is a warned
+  no-op.
 - **While a run is active, every response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce it with
   `python3 scripts/command_run.py line` and paste it verbatim: `RUN: /<command> · phase <c>/<t> (<title>) · round
   <r> · terminal: <condition>`. **When no run is active the command prints nothing and the line is omitted.**
@@ -129,7 +131,7 @@ In the hub, the operator's rulings D-874, D-880, D-882 and D-885 refine this par
   when a self-service source can settle it. The ONLY legitimate halts are the three BLOCKED cases (3 consecutive
   same-test failures, missing infra, or an unresolvable spec contradiction — format
   `BLOCKED: <what> — searched: <sources> — missing: <need>`) and the two stops that close `blocked` beside them: the
-  quota wall (`blocked --wall`, at § Pointers' RED band) and a pause the operator ordered (`blocked --paused`,
+  quota wall (`blocked --wall`, at § Pointers' RED band) and a pause the operator ordered (`blocked --paused`, hub
   D-993). Anything short of those: keep going. A step the plan assigns to the operator under a § FINAL OUTPUT gate
   token is no halt and no deferral: the run ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its
   `## RESUME` naming the next phase (the bar on deferring a step to "the operator" covers the steps an agent can do).

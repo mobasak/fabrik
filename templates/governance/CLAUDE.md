@@ -14,8 +14,10 @@ Invoking a `/fabrik-*` command means opening a run record and keeping it current
   --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`** at every phase;
   **`round --findings <N> --confirmed <N> --classes-swept a,b --classes-new c,d`** per convergence pass;
   **`done --command <name> --evidence "<proof>"`** only when the terminal condition is met, or **`blocked
-  --command <name> --reason "<one of the three BLOCKED cases>"`**. **Closing names the run you are closing; a
-  name that is not the live one is refused.** Closing an already-closed record is a warned no-op.
+  --command <name> --reason "<one of the three BLOCKED cases>"`**, or `blocked --wall` / `blocked --paused` at
+  the quota wall or an operator's pause (§ Behavior, the plan-execution override). **Closing names the run you
+  are closing; a name that is not the live one is refused.** Closing an already-closed record is a warned
+  no-op.
 - **While a run is active, every response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce it with
   `python3 scripts/command_run.py line` and paste it verbatim: `RUN: /<command> · phase <c>/<t> (<title>) · round
   <r> · terminal: <condition>`. **When no run is active the command prints nothing and the line is omitted.**
@@ -114,9 +116,9 @@ window — say so.
   legitimate halts are the three BLOCKED cases (3 consecutive same-test failures, missing infra, or an unresolvable
   spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`) and the two stops that close
   `blocked` beside them: the quota wall (`blocked --wall`, at § Pointers' RED band) and a pause the operator ordered
-  (`blocked --paused`, D-993). A step the plan assigns to the operator under a § FINAL OUTPUT gate token is no halt
-  and no deferral: the run ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming
-  the next phase (the bar on deferring a step to "the operator" covers the steps an agent can do).
+  (`blocked --paused`, hub D-993). A step the plan assigns to the operator under a § FINAL OUTPUT gate token is no
+  halt and no deferral: the run ends behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME`
+  naming the next phase (the bar on deferring a step to "the operator" covers the steps an agent can do).
 - **Invoked command = loaded command:** when the operator invokes `/command`, INVOKE the skill — never execute
   from memory of what it involves. The invoked command is the deliverable: a prerequisite discovered mid-run is
   fixed minimally (or BLOCKED as a pre-start finding) and you RETURN to the invoked command in the same run.

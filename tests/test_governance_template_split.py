@@ -2051,13 +2051,21 @@ def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause
         "The ONLY legitimate halts are the three BLOCKED cases (3 consecutive same-test failures, missing infra, or an"
         " unresolvable spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`) and the"
         " two stops that close `blocked` beside them: the quota wall (`blocked --wall`, at § Pointers' RED band) and a"
-        " pause the operator ordered (`blocked --paused`, D-993)."
+        " pause the operator ordered (`blocked --paused`, hub D-993)."
     )
     for rel in ("CLAUDE.md", TEMPLATE_REL):
         text = _normalised(FABRIK / rel)
         assert sentence in text, rel
         assert "## Pointers" in text and "`blocked --wall`" in text[text.index("## Pointers") :], rel
-    assert "Anything short of those three" not in _normalised(FABRIK / "CLAUDE.md")
+    hub = _normalised(FABRIK / "CLAUDE.md")
+    assert "Anything short of those three" not in hub
+    assert "hub D-993). Anything short of those: keep going. A step the plan assigns" in hub
+    close = (
+        "--reason \"<one of the three BLOCKED cases>\"`**, or `blocked --wall` / `blocked --paused` at the quota"
+        " wall or an operator's pause (§ Behavior, the plan-execution override)."
+    )
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        assert close in _normalised(FABRIK / rel), rel
 
 
 def test_coordinator_job_7_carries_the_charters_once_no_run_is_live_condition_in_both_contracts() -> None:
