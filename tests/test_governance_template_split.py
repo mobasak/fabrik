@@ -2069,11 +2069,11 @@ def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause
         assert close in _normalised(FABRIK / rel), rel
 
 
-def test_coordinator_job_7_carries_the_charters_once_no_run_is_live_condition_in_both_contracts() -> None:
+def test_coordinator_job_7_carries_the_charters_builder_confirms_condition_in_both_contracts() -> None:
     """W-77812e10 (feedback row 1792345477, tryton-crm): job (7) gave the coordinator a finished plan's EXECUTED flip
     and archive move with no condition, so a project agent read the flip as the coordinator's alone while
     /fabrik-execute-plan's Finish step 5 gives it to the live run. The paragraph now carries coordinator.md's
-    condition (its builder confirms no run will resume it, coordinator ruling D-1026), byte-identically in both files (D-888)."""
+    condition (its builder confirms no run will resume it, coordinator rulings D-1026 and D-1027), byte-identically in both files (D-888)."""
     clause = (
         "a finished plan's `Status: EXECUTED` and archive move once every ticket is merged and its builder confirms no run will resume it,"
         " spec `Status:` lines"
