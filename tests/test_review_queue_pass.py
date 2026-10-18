@@ -358,13 +358,14 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         r"<!--.*?-->", "", _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
     )
     assert (
-        "before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: a `git archive`"
-        " pin has no `.git`) runs in a clone the seat makes with `git -C "
+        "before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: neither the"
+        " archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C "
         "<scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone "
         "checkout -q <the pass's base SHA>` (until then its status reads every file deleted), with its push to "
         "`origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: "
         "`origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and the pins laid"
-        " over it, committed in the clone when the test reads HEAD, a diff or the status; that test's red-on-revert "
+        " over it, committed in the clone when the test reads HEAD, a diff, the status or the tracked set; that test's"
+        " red-on-revert "
         "overlays the revert on the clone. Branch, worktree and stash state the test creates lands in the clone's own"
         " `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the lead's "
         "throwaway worktree. Ruff" in iso
