@@ -188,6 +188,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native fable×1 + sonnet×4 + haiku×2 | found: 45, new: 45, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation; shape: agent-tool (D-961); slices A (T04 runtime: fable, sonnet, haiku), B (T04 tests: sonnet, haiku), C (T01–T03 core: sonnet, haiku), D (cross-ticket tests + docs: sonnet, haiku) over the pin `e2bc1bcc6`; box cap 3 → four waves; seats: A-fable 6/7 · A-sonnet 3/4 · AB-haiku 3/7 · B-sonnet 4/9 · C-sonnet 0/6 · D-sonnet 2/4 · CD-haiku 0/8 (confirmed/raised, duplicates credited to each raiser); every candidate executed or re-read by the lead against the pin; full suite on the integrated tree 1,232 passed + 3 chain reds that are the scratch tree's missing `.venv` (61/61 with the link); stop: confirmed 12; fix: one fixup coder, findings F1–F12 below |
 | Pass 2 | native fable×1 + sonnet×2 | found: 6, new: 6, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); delta over the round-1 fix `e2bc1bcc6..557344551` pinned as PIN2; the round-1 owners re-executed their slice claims: A (fable) F1–F7 HOLD, 4 new tests red on a reverted copy (`7 failed, 18 passed` vs `25 passed`); B (sonnet) F8–F11 HOLD, every new or changed test red-on-revert; D (sonnet) F11–F12 HOLD, `588 passed`; C restated 6/6 (no hunk); round-zero probe before the pin: the round-1 path comment measured wrong (`['r0', 'sysadmin', …]`) and corrected in `557344551`, the F11 skip path executed (147 skipped, 0 errors, empty `PLAYWRIGHT_BROWSERS_PATH`); full suite on PIN2's tree 1,241 passed, 20 skipped (registry write opt-ins); own-fix: round 1 for all three (F13–F15); stop: confirmed 3; fix: round-2 coder |
+| Pass 3 | native fable×1 + sonnet×1 | found: 3, new: 3, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation; shape: agent-tool (D-961); delta over round 2's fix `557344551..af0baa4c3` pinned as PIN3; A (fable) F13 HOLDS on 26 `_epoch` inputs and 34 outcome rows, F14 red on the alarm-removed copy, F15 false for a 0–1 s-past deadline (F16); B (sonnet) F13's two new rows red on the reverted `_epoch`, F14 red on both the alarm-removed and the fast-fail mutant, `227 passed`; C and D restated (no hunk); lead round-zero probe: F14 red executed on a throwaway worktree (`1 failed, 21 passed`); own-fix: round 2; site `inventory_read.py` docstring alarm sentence yielded in rounds 2 and 3 → class rewrite by deletion (rule 3); `round` printed SCOPE GROWTH (12/0 → 3/3 → 1/1) → the fixed set alone re-verified in pass 4; stop: scope-growth advisory; fix: +2 −2 lines for 1 confirmed |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -243,6 +244,19 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 | F13 | `quota_dashboard.py` `_inventory_outcome`: a 400-digit integer `synced_at` makes the round-1 `math.isfinite` raise `OverflowError` instead of returning `ReadFailed: exit status 0` (Fable probe `OUTCOME bigint RAISED OverflowError`); own-fix: round 1 |
 | F14 | `test_the_real_child_bounds_itself…`: `returncode != 0` passes on any fast failure, not only the alarm (measured exit −14); own-fix: round 1 |
 | F15 | `inventory_read.py` docstring: "a margin of 1-2 s" is false for a past deadline (measured flat 1.02 s); own-fix: round 1 |
+
+### Confirmed in pass 3 (own-fix of round 2, fixed in round 3)
+
+| Id | Finding |
+|---|---|
+| F16 | `inventory_read.py` docstring (round 2's wording): "a SIGALRM 1-2 s past ``--deadline`` (never under 1 s from now)" is false for a deadline 0–1 s past at the child's first clock read — `int()` truncates toward zero and the alarm fires 2.01–2.999 s past (Fable probe `remaining -0.5 … fires_past_deadline_by 2.5`); own-fix: round 2; site: the docstring's alarm sentence, class rewrite — the number deleted, a pointer to `_read` kept |
+
+### Recorded in pass 3
+
+| Id | Verdict |
+|---|---|
+| R27 | RECORDED — measured (two `_epoch` helpers with different bounds: the board's admits 1e308 as a fresh read that `inventory.py`'s refuses and renders "never synced" — PIN2 already accepted it; one hop out, filed to W-da612c6e) |
+| R28 | RECORDED — measured (`_epoch(-0.0)` passes `-0.0` through; non-negative per the contract, cosmetic in JSON; filed to W-da612c6e) |
 
 ### Refuted and recorded in pass 2
 
