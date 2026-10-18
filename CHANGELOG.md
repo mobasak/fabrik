@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: BUILD re-runs MEASURE's population measurement on the built tree for a changed check, guard or threshold (2026-10-19)
+
+- MEASURE measured the population a change writes or thresholds only at design time. A check changed during the build therefore shipped with a fire rate nobody re-measured. BUILD now re-runs that population measurement on the built tree, beside the test slice, when the change adds, changes or removes a check, guard or threshold. This answers row 1792352977, a recurrence of the held subject resweep-corpus-on-widened-guard (D-1021, refined by D-1023 in review; `SIZE_CAP` 24260 → 24375).
+- The same queue pass rejected four rows: three already stated (1792350346, 1792356869, 1792357566) and one held as advice (1792352429, `gate-dirty-path-rule-before-writing-checkout`).
+
 ### Changed — /fabrik-execute-plan: a worktree's gate does not grade a shared runtime's code; Finish step 5 says the run flips and archives its own plan (2026-10-18)
 
 - In a linked worktree, a gate or live request served by a shared runtime runs the main checkout's code. Step 8's isolation bullet now says this and points at `docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated for how to prove the tree's own code. D7's live-request rule points a worktree reader at it. How a worktree run meets D7's live request is filed as W-1c8b3ebd for a panel decision. This answers row 1792337134, a recurrence of the held subject clone-proof-uses-docker-run.
