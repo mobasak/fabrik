@@ -358,7 +358,8 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         r"<!--.*?-->", "", _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
     )
     assert (
-        "before its first gate. A seat test that reads git history runs in a clone the seat makes with `git -C "
+        "before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: a `git archive`"
+        " pin has no `.git`) runs in a clone the seat makes with `git -C "
         "<scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone "
         "checkout -q <the pass's base SHA>` (until then its status reads every file deleted), with its push to "
         "`origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: "

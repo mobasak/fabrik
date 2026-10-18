@@ -203,8 +203,9 @@ it, or name in the brief why the shape does not have it.
   add` on the live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its
   archive copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway
   worktree, never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads
-  git history runs in a clone the seat makes with `git -C <scratch> clone --shared --no-checkout <live checkout> clone`,
-  checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until then its status reads every file
+  git history or the tracked set (`git ls-files`: a `git archive` pin has no `.git`) runs in a clone the seat
+  makes with `git -C <scratch> clone --shared --no-checkout <live checkout> clone`, checks out at
+  `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until then its status reads every file
   deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl
   /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and
   the pins laid over it, committed in the clone when the test reads HEAD, a diff or the status; that test's
