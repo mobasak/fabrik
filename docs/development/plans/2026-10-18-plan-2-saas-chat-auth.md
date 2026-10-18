@@ -125,7 +125,7 @@ Every selection below cites a row or is unconstrained:
 
 🆕 fabrik-lib candidate: none new. The spec's upstream note asks for a general Redis limiter module (spec § fabrik-lib verdict, Rate limiting). Phase C step 6 sends it with the `client_ip` export request.
 
-## Phase A — the hub venv can load the vendored auth modules (W-0ae9b7e1)
+## Phase A — the hub venv can load the vendored auth modules (W-0ae9b7e1) — ✅ EXECUTED 2026-10-19 (7a1ef3cf2, spec note 95522811c; the shared-venv install was the narrower `uv pip install` of the three lock pins, coordinator-approved, after the `uv sync` dry run showed it would repoint the fabrik editable install; wiring tests 21 passed)
 Appetite: 30
 
 Implements: W-0ae9b7e1 and the spec § Validation precondition ("Fleet's open item W-0ae9b7e1 … the slice-2 plan sequences it before the hub chat test").
