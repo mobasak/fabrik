@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:51.405477Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4ade3d7e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "send both mails' text verbatim to whatsapp-agent via mail.py send --to whatsapp-agent, then ack both",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "another repo's request (tryton-crm asks the hub to relay); a two-mail forward",
+  "status": "open",
+  "tags": [
+    "mail-01m57jjrgwx1hjw62hh81rzvgq",
+    "mail-01m57jsx52mppvenx4mx70c91x"
+  ],
+  "title": "relay tryton-crm's reply 01M57JJRGWX1HJW62HH81RZVGQ and its correction 01M57JSX52MPPVENX4MX70C91X to whatsapp-agent (answer to hub relay 01M4SQYRSD, the whatsapp-agent bridge contract)"
+}

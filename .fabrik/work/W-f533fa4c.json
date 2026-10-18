@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:02.938216Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f533fa4c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M5861CMYZ8P9624VY6EBSC6J in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "clean-up: review_receipt.py --init Pass Ledger marker",
+  "status": "open",
+  "tags": [
+    "mail-01m5861cmyz8p9624vy6ebsc6j"
+  ],
+  "title": "mail 01M5861CMYZ8P9624VY6EBSC6J: review_receipt.py --init: emit the Pass Ledger with an explicit marker the fill can target, so the example fence never shadows it (/fabrik-review feedback row 1792346060)"
+}

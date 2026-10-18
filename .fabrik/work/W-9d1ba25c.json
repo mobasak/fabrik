@@ -22,7 +22,8 @@
   "score_reason": "spec-sized per infra's measure: new session-alias mechanism shared by 4 readers on governance-sync paths, trade-off first = a major; held behind W-ab242b11",
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "mail-01m586az2zymn2493d249zv846"
   ],
   "title": "command_run.py: a running record follows the window across /clear (Stop hook, seat counts, work-item claims key on the pre-clear session id)"
 }

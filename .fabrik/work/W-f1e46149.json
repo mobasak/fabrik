@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:56.022517Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f1e46149",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M53C17AKMZ94H9FJ7MW7QZHR in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "agent request (kaizen, feedback rows needing code); one script set, one session",
+  "status": "open",
+  "tags": [
+    "mail-01m53c17akmz94h9fj7mw7qzhr",
+    "mail-01m53cf7ptd3nszx77sjjgcj20"
+  ],
+  "title": "mail 01M53C17AKMZ94H9FJ7MW7QZHR: /fabrik-task feedback asking for code: four rows routed to infra (commit-sha capture by subject, handoff-seed resume, transcript-size block, claim owner from master)"
+}

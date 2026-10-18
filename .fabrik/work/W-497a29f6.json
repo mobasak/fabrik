@@ -21,6 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m4yvav7h9t40a32dmbbkf30z",
+    "mail-01m567zhpvm8853zx8snb3am0a",
     "medium"
   ],
   "title": "handoff keeps a .md seed that start --resume-from cannot read (it reads JSON only) (mail 01M4YVAV7H9T40A32DMBBKF30Z)"

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:19.533668Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-86210f99",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57RTZM47DK7322JN2FPA174",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "check_review_coverage.py's _MODEL_TOK has no fable token, so a receipt whose closing Pass row names only a Fable seat is refused"
+}
