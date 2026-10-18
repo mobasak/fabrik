@@ -552,10 +552,11 @@ def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
         "and the draft is that answer. Before an edit widens a sentence's subject, splits the sentence or places text"
-        ' between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in that'
-        " sentence and in each later sentence or item pointing back into that sentence — is read against what that"
-        " clause will bind once the edit lands, since a trailing clause written for one item can attach to every item"
-        " a widening adds. An edit to what a SEAT may do"
+        ' between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the'
+        " sentence edited, in the sentence holding the pronoun, and in each later sentence or item pointing back into"
+        " either — is read against what that clause will bind once the edit lands, since a clause written for one"
+        " subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed"
+        " text puts nearer. An edit to what a SEAT may do"
     ) in p3
     assert (
         'every branch the sentence\'s subject can bind (a pronoun for "the review" binds each review the step can pick), and'
