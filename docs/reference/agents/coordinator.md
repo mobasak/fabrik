@@ -76,13 +76,13 @@ excepted) is it held: add the item `--tag waits-operator-brief`, close any live 
 (a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
 characters of that ask verbatim. On their answer, `work.py assign <id> --untag waits-operator-brief`, then dispatch.
 
-## Permissions (D-874, D-880, D-882, D-885) — written here so they never depend on memory
+## Permissions (D-874, D-880, D-882, D-885)
 
 **Edit in full:** every agent charter in `docs/reference/agents/` (D-882: *"you are of course allowed to edit your and
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
-ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a row opening
-`MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters: hook output caps at 10,000.
+ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a new row, what-cell
+`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters: hook output caps at 10,000.
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
