@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs_updater's link check reads links as CommonMark does, and check_doc_links no longer grades links inside code fences (2026-10-18)
+`scripts/docs_updater.py`: the advisory link check now reads destinations through the gate's own `link_targets`, imported from `scripts/enforcement/check_doc_links.py` (the old regex is the fallback, and it says when it runs). So a titled or `<angle>` link to a live doc is no longer reported broken, and an escaped, `#`-holding or balanced-paren name is checked by its real path. A URI scheme such as `javascript:` or `tel:` is never read as a file. Across 44 `/opt` repos it went from 1298 issues to 1125: 152 false positives gone, 10 newly graded.
+
+`scripts/enforcement/check_doc_links.py`: a link inside a ``` fence is a code example and is no longer graded, matching how fenced bare paths are already treated. A line-leading inline span such as ```` ```x``` ```` no longer opens a fence. The fleet diff for this was 0 findings removed or added; 3 fenced example links are no longer examined.
+
+`scripts/enforcement/check_doc_index.py`: the whole-text comment now says what the reader skips. W-f11e740e.
+
 ### Fixed — the coroner's sweep exits 3 when it fails to save or emit, or is blind, instead of reporting a clean run (2026-10-18)
 `scripts/sysadmin/kaizen_coroner.py`: several sweep failures used to count nothing, so `--sweep` exited 0 and the daily job stamped the day done. They now each count a named error, so the job is FAILED and runs again:
 - a record save that returned False;

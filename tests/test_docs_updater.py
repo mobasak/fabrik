@@ -768,3 +768,54 @@ def test_work_open_plans_reads_the_shared_done_set(tmp_path):
     out = work._open_plans(tmp_path)
     assert any("plan-b" in line for line in out), out
     assert not any("plan-a" in line for line in out), out
+
+
+class TestLinkCheckReadsCommonMarkLinks:
+    """W-f11e740e: check_link_integrity read links with its own `\\[..\\]\\(([^)]+)\\)` regex, so a
+    titled or <angle> link to a live doc was reported broken and an escaped or paren name was
+    skipped unexamined; it now reads destinations through check_doc_links.link_targets."""
+
+    @staticmethod
+    def _issues(tmp_path, monkeypatch, body: str, files=("live.md", "a_b.md", "a(b).md", "a#b.md")):
+        import docs_updater as du
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        for name in files:
+            (docs / name).write_text("# x\n")
+        (docs / "src.md").write_text(body)
+        monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(du, "_gitignored", lambda paths: set())
+        return [i for i in du.check_link_integrity() if "src.md" in i]
+
+    def test_a_commonmark_link_to_a_live_doc_is_not_broken(self, tmp_path, monkeypatch):
+        body = '[t](live.md "a title")\n[a](<live.md>)\n[e](a\\_b.md)\n[p](a(b).md)\n[plain](live.md)\n'
+        assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_a_commonmark_link_to_a_missing_doc_names_its_real_path(self, tmp_path, monkeypatch):
+        body = '[t](gone.md "a title")\n[a](<gone2.md>)\n[p](g(o)ne.md)\n'
+        issues = self._issues(tmp_path, monkeypatch, body)
+        assert any(i.endswith(": gone.md") for i in issues), issues
+        assert any(i.endswith(": gone2.md") for i in issues), issues
+        assert any(i.endswith(": g(o)ne.md") for i in issues), issues
+
+    def test_an_escaped_hash_in_a_name_is_not_cut(self, tmp_path, monkeypatch):
+        """link_targets already dropped the fragment and undid `\\#`; a second cut checked `a`."""
+        assert self._issues(tmp_path, monkeypatch, "[h](a\\#b.md)\n") == []
+
+    def test_the_link_check_falls_back_to_the_regex_and_says_so(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """With both import names gone the advisory row still runs, on today's regex."""
+        monkeypatch.setitem(sys.modules, "enforcement.check_doc_links", None)
+        monkeypatch.setitem(sys.modules, "scripts.enforcement.check_doc_links", None)
+        issues = self._issues(tmp_path, monkeypatch, "[g](gone.md)\n")
+        assert any("gone.md" in i for i in issues), issues
+        assert "link_targets unavailable" in capsys.readouterr().out
+
+    def test_a_uri_scheme_link_is_not_a_file(self, tmp_path, monkeypatch):
+        """A paren is now a path character, so `javascript:alert(1)` stopped being skipped as
+        regex-ish and was checked as a file (4 fleet docs, the after-diff): any URI scheme is
+        external, not only http(s)/mailto/file."""
+        body = "[x](javascript:alert(1))\n[t](tel:+15550100)\n[d](data:text/plain,hi)\n"
+        assert self._issues(tmp_path, monkeypatch, body) == []

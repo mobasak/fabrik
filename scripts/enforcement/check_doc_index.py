@@ -424,7 +424,9 @@ def main() -> int:
     # The WHOLE text, not line by line: CommonMark link text may span a line break
     # (`[Notes⏎](docs/gone.md)`), and a per-line read dropped that link unexamined. The cost,
     # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
-    # read as a link, so it is graded — exactly what the pre-change regex did, and fail-closed.
+    # read as a link, so it is graded, as the pre-change regex did (fail-closed). A stray `](` with
+    # no unescaped `[` anywhere before it, or an escaped `\](`, is not a link and is skipped
+    # (fail-open), where the pre-change regex graded both (W-f11e740e).
     index_links = list(link_targets(index_text))
     linked = {s for t in index_links for s in (t, _pct_decode(t))}
 

@@ -260,10 +260,17 @@ def link_targets(text: str):
 
 
 def _iter_refs(text: str):
-    """Yield (target, kind) pairs, skipping fenced code blocks for bare paths."""
+    """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
+
+    A fenced link is a code EXAMPLE, so it is not graded (W-f11e740e; measured over 44 /opt repos:
+    it removed none of the 315 findings and stopped examining 3 resolving example links). A line
+    opens or closes a fence only when it starts with ``` and holds no further backtick, so a
+    line-leading inline span (```` ```x``` ````) is not a fence. Cost, stated: a fence that is never
+    closed stops grading to the end of the file, as it already did for bare paths."""
     in_fence = False
     for line in text.splitlines():
-        if line.lstrip().startswith("```"):
+        stripped = line.lstrip()
+        if stripped.startswith("```") and "`" not in stripped[3:]:
             in_fence = not in_fence
             continue
         # documented-stale convention: a line carrying the warning marker or an
@@ -278,9 +285,9 @@ def _iter_refs(text: str):
             or "does not exist" in line
         ):
             continue
-        for target in link_targets(line):
-            yield target, "link"
         if not in_fence:
+            for target in link_targets(line):
+                yield target, "link"
             for m in _BARE_RE.finditer(line):
                 yield m.group(1), "bare"
 
