@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-10-19T02:18 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-10-19T02:20 -->
 <!-- Phase: epic rows = the epic's phase in its `depends_on` order (1 = no upstream dependency; `cycle` = a dependency cycle); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: coordinator | source: D-874 -->
 | Epic/Plan | Owner | Status | Phase |
@@ -42,7 +42,6 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-10-15-plan-2-apply-template-defaults-parity.md](plans/2026-10-15-plan-2-apply-template-defaults-parity.md) | fleet | EXECUTED | 0/4 |
 | [2026-10-15-plan-2-review-seat-write-isolation.md](plans/2026-10-15-plan-2-review-seat-write-isolation.md) | intel | DRAFT | 0/1 |
 | [2026-10-17-plan-1-merge-owner-grammar.md](plans/2026-10-17-plan-1-merge-owner-grammar.md) | intel | EXECUTED | 0/1 |
-| [2026-10-18-plan-2-saas-chat-auth.md](plans/2026-10-18-plan-2-saas-chat-auth.md) | fleet | EXECUTED | 0/4 |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---
