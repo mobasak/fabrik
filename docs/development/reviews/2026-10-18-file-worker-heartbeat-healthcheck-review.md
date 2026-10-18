@@ -1,6 +1,6 @@
 # Review — file-worker-heartbeat-healthcheck
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 65b43eca33a8b8720fc053fc524c040897f36c09; range tip 65b43eca33a8b8720fc053fc524c040897f36c09; `git diff af7f1dd61..HEAD -- src/fabrik/scaffold.py templates/file-worker/Dockerfile.j2 templates/file-worker/compose.yaml.j2 tests/test_file_worker_heartbeat_healthcheck.py tests/test_file_worker_heartbeat_path.py tests/test_scaffold_compose_env_file.py tests/test_scaffold_compose_traefik.py` md5 962cbeccacde64936fa32a7b8dd922e1 (20072 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/scaffold.py`, `templates/file-worker/Dockerfile.j2`, `templates/file-worker/compose.yaml.j2`, `tests/test_file_worker_heartbeat_healthcheck.py`, `tests/test_file_worker_heartbeat_path.py`, `tests/test_scaffold_compose_env_file.py`, `tests/test_scaffold_compose_traefik.py`
 
@@ -265,7 +265,17 @@ Two passes: 4 confirmed and fixed in pass 1 (65b43eca3), the closing delta pass 
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 57,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ],
+  "failures": []
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
