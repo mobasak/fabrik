@@ -3,7 +3,7 @@
   "created": "2026-10-18T13:27:37.359281Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "22d78bf8dd9ee37d622b2029027dc7410d019432",
   "id": "W-ab66af6f",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "LOW: a rare-edge regex in the scaffold drift guard; one-character fix",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

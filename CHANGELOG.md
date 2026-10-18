@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a scaffolded file-worker's `make docker-smoke` never claims a production job (2026-10-18)
+
+The smoke run started the worker with the project's real `.env`, and the worker claims a job on every poll, so a
+smoke run could claim a production job and be stopped mid-run seconds later. The recipe now runs the container with
+`--network none -e WORKER_SMOKE=1`, and the worker beats but never claims when `WORKER_SMOKE` is exactly `1`. The
+scaffold refuses a template that would still run a live worker, and a GNU make `::=` assignment no longer reads as a
+`docker-smoke` rule. D-994 (W-807b73fd, W-ab66af6f).
+
 ### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
 
 - In a linked worktree, `work.py claim` and `release` refused an item whose file the branch did not yet carry. The claim itself is shared state, and items the coordinator makes on the main checkout reach a branch only with a merge.
