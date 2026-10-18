@@ -373,18 +373,36 @@ def _worded(node: ast.AST, bound: dict[str, list[ast.AST]] | None = None) -> lis
     return []
 
 
-def _literal_bindings(tree: ast.AST) -> dict[str, list[ast.AST]]:
-    """Every `name = <string literal>` (or f-string) in the module, any scope: the values a name
-    passed to a text slot may carry."""
+def _literal_bindings(tree: ast.AST, grown: bool = False) -> dict[str, list[ast.AST]]:
+    """Every literal a module name is given, any scope: `name = <literal>` — the values a name passed
+    to a text slot may carry. With ``grown`` also `name += <literal>`, `name.extend(<literal>)`,
+    `name.append(<literal>)` and `for name in <literal list>`: the options scan wants these, the other
+    slots do not (a `rows.append([... f"{n}x"])` suffix is a unit, not a hard-coded word)."""
+    literal = (ast.Constant, ast.JoinedStr, ast.List, ast.Tuple, ast.Dict)
     out: dict[str, list[ast.AST]] = {}
+
+    def bind(name: ast.AST, value: ast.AST | None) -> None:
+        if isinstance(name, ast.Name) and isinstance(value, literal):
+            out.setdefault(name.id, []).append(value)
+
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(
-            node.value, (ast.Constant, ast.JoinedStr, ast.List, ast.Tuple, ast.Dict)
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and (
+            grown or not isinstance(node, ast.AugAssign)
         ):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for t_ in targets:
-                if isinstance(t_, ast.Name):
-                    out.setdefault(t_.id, []).append(node.value)
+                bind(t_, node.value)
+        elif grown and (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("extend", "append")
+            and node.args
+        ):
+            arg = node.args[0]
+            bind(node.func.value, ast.List(elts=[arg]) if node.func.attr == "append" else arg)
+        elif grown and isinstance(node, ast.For) and isinstance(node.iter, (ast.List, ast.Tuple)):
+            for elt in node.iter.elts:
+                bind(node.target, elt)
     return out
 
 
@@ -394,6 +412,7 @@ def _view_literals(src: str) -> list[str]:
     bad: list[str] = []
     tree = ast.parse(src)
     bound = _literal_bindings(tree)
+    grown = _literal_bindings(tree, grown=True)
     aliases = _component_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -418,37 +437,57 @@ def _view_literals(src: str) -> list[str]:
             if name == "select" and kw.arg == "value":
                 continue  # an option KEY, not displayed text
             if name == "select" and kw.arg == "options":
-                bad += _option_labels(kw.value, bound)  # the LABEL of each pair is displayed text
+                bad += _option_labels(kw.value, grown)  # the LABEL of each pair is displayed text
             elif kw.arg in kws or (kw.arg is not None and kw.arg not in _NON_TEXT_KWS):
                 bad += _worded(kw.value, bound)
     return bad
 
 
-def _option_labels(
+def _is_pair(node: ast.AST) -> bool:
+    return isinstance(node, (ast.Tuple, ast.List)) and len(node.elts) == 2
+
+
+def _options_of(
     node: ast.AST, bound: dict[str, list[ast.AST]], seen: frozenset[str] = frozenset()
-) -> list[str]:
-    """Every word-bearing string constant in an ``options`` expression, whatever builds the list
-    (a literal, ``+``, a comprehension, a splat, ``list(...)``, a name the module binds), except
-    element 0 of a two-element tuple or list — the option's KEY — and anything under a ``t(...)``
-    catalogue call."""
-    if isinstance(node, ast.Name):
-        if node.id in seen:
-            return []
+) -> list[ast.AST]:
+    """The option pairs an ``options`` expression yields. An option is a two-element tuple or list that
+    is an ITEM of the expression: an element of a list, tuple or set literal, the element of a
+    comprehension, an item reached through ``*``, or an item of a collection a bound name, ``+``,
+    ``list``, ``tuple`` or ``sorted`` builds. The expression itself is a collection, never an option."""
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return [o for e in node.elts for o in ([e] if _is_pair(e) else _options_of(e, bound, seen))]
+    if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        return [node.elt] if _is_pair(node.elt) else []
+    if isinstance(node, ast.Starred):
+        return _options_of(node.value, bound, seen)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _options_of(node.left, bound, seen) + _options_of(node.right, bound, seen)
+    if isinstance(node, ast.IfExp):
+        return _options_of(node.body, bound, seen) + _options_of(node.orelse, bound, seen)
+    if isinstance(node, ast.Name) and node.id not in seen:
+        # a name bound to ONE pair (a loop variable) is an option; one bound to a collection is not
         return [
-            w for v in bound.get(node.id, []) for w in _option_labels(v, bound, seen | {node.id})
+            o
+            for v in bound.get(node.id, [])
+            for o in (
+                [v]
+                if _is_pair(v) and not any(_is_pair(x) for x in v.elts)
+                else _options_of(v, bound, seen | {node.id})
+            )
         ]
-    if isinstance(node, ast.Constant):
-        ok = isinstance(node.value, str) and re.search("[A-Za-z]", node.value)
-        return [node.value] if ok else []
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "t":
-        return []
-    key = node.elts[0] if isinstance(node, (ast.Tuple, ast.List)) and len(node.elts) == 2 else None
-    return [
-        w
-        for child in ast.iter_child_nodes(node)
-        if child is not key
-        for w in _option_labels(child, bound, seen)
-    ]
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in ("list", "tuple", "sorted")
+    ):
+        return [o for a in node.args for o in _options_of(a, bound, seen)]
+    return []
+
+
+def _option_labels(node: ast.AST, bound: dict[str, list[ast.AST]]) -> list[str]:
+    """The word-bearing literals in the LABEL (element 1) of each option in an ``options`` expression;
+    an option's key (element 0) and everything that is not a label are never read."""
+    return [w for opt in _options_of(node, bound) for w in _worded(opt.elts[1], bound)]
 
 
 def test_no_view_module_hands_a_component_a_literal_word():
@@ -948,3 +987,53 @@ def test_the_view_literal_scan_reads_the_label_and_not_the_value_of_a_select_opt
         )
         == []
     )
+
+
+def _labels(src: str) -> list[str]:
+    tree = ast.parse(src)
+    (call,) = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "select"
+    ]
+    (opts,) = [k.value for k in call.keywords if k.arg == "options"]
+    return _option_labels(opts, _literal_bindings(tree, grown=True))
+
+
+@pytest.mark.parametrize(
+    "options,expected",
+    [
+        ('[("", "All"), ("paid", "Paid")]', ["All", "Paid"]),
+        ('(("a", "Paid"), ("b", "Free"))', ["Paid", "Free"]),
+        ('[("a", "Paid")]', ["Paid"]),
+        ('[("a", "One"), ("b", "Two"), ("c", "Three")]', ["One", "Two", "Three"]),
+        ('[("", t("x"))] + [("p", "Paid")]', ["Paid"]),
+        ("OPTS", ["Paid"]),
+        ('[*[(v, "Paid") for v in vs]]', ["Paid"]),
+        ('list((("p", "Paid"),))', ["Paid"]),
+        ('sorted(OPTS) + [("q", "Free")]', ["Paid", "Free"]),
+        ('[("p", f"{n:d} x")]', [" x"]),
+        ('[(v, t("x")) for v in vs if v != "none"]', []),
+        ('[(v, t("x")) for v in ("a", "b")]', []),
+        ('[("p", t("paid"))]', []),
+        ('[("paid", t("x"))]', []),
+        ('[("p", "Paid" if x else t("y"))]', ["Paid"]),
+    ],
+)
+def test_the_option_label_scan_reports_exactly_the_words_in_option_labels(options, expected):
+    src = f"OPTS = [('p', 'Paid')]\nui.select(t('a'), name='c', id='i', options={options})\n"
+    assert _labels(src) == expected
+
+
+@pytest.mark.parametrize(
+    "prelude,options",
+    [
+        ("OPTS = []\nOPTS += [('p', 'Paid')]\n", "OPTS"),
+        ("OPTS = []\nOPTS.extend([('p', 'Paid')])\n", "OPTS"),
+        ("OPTS = []\nOPTS.append(('p', 'Paid'))\n", "OPTS"),
+        ("for o in [('p', 'Paid')]:\n    pass\n", "[o]"),
+    ],
+)
+def test_the_option_label_scan_follows_a_name_grown_after_its_first_binding(prelude, options):
+    src = f"{prelude}ui.select(t('a'), name='c', id='i', options={options})\n"
+    assert _labels(src) == ["Paid"]

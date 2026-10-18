@@ -117,7 +117,7 @@ def _escapes(x):
         ("select.options", lambda: ui.select("l", name="n", id="i", options=[("a", x)])),
         ("select.options#value", lambda: ui.select("l", name="n", id="i", options=[(x, "A")])),
         ("select.value", lambda: ui.select("l", name="n", id="i", options=[(x, "A")], value=x)),
-        ("select.data", lambda: ui.select("l", name="n", id="i", options=[], data={"filter": x})),
+        ("select.data", lambda: ui.select("l", name="n", id="i", options=[("", "All")], data={"filter": x})),
         ("status_text.text", lambda: ui.status_text(x)),
         ("status_text.data", lambda: ui.status_text("t", data={"filter-status": x})),
         ("button.label", lambda: ui.button(x)),
@@ -1299,3 +1299,23 @@ def test_a_positional_table_call_accepts_any_iterable_of_headers():
     out = ui.table("t", "T", (h for h in ["a", "b"]), [["1", "2"]], align=[None, "right"])
     heads = find_all(parse(out), "th", scope="col")
     assert [h.attrs.get("data-align") for h in heads] == [None, "right"]
+
+
+# ---------------------------------------------------------------- review pass 3: two contracts at the component
+def test_a_filter_section_disclosure_needs_an_id():
+    with pytest.raises(ValueError):
+        ui.disclosure("s", "b", data={"filter-section": ""})
+    out = ui.disclosure("s", "b", data={"filter-section": ""}, id="sec-a")
+    assert 'id="sec-a"' in out and "data-filter-section" in out
+    assert "<details" in ui.disclosure("s", "b")  # an ordinary disclosure still needs none
+
+
+def test_a_filter_select_always_offers_the_empty_all_option():
+    for options in ([], [("free", "Free")], [(None, "x"), ("a", "A")][1:]):
+        with pytest.raises(ValueError):
+            ui.select("c", name="c", id="i", options=options, data={"filter": "cost"})
+    for options in ([("", "All"), ("free", "Free")], [(None, "All")]):
+        out = ui.select("c", name="c", id="i", options=options, data={"filter": "cost"})
+        assert "data-filter" in out
+    # a select that is no filter control has no such obligation
+    assert "<select" in ui.select("c", name="c", id="i", options=[("free", "Free")])

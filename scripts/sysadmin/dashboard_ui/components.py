@@ -289,9 +289,12 @@ def select(
     equals ``value`` is selected."""
     id = _id(id, "select id")  # noqa: A001
     want = "" if value is None else str(value)
+    pairs = [("" if v is None else str(v), text) for v, text in options]
+    if data and "filter" in data and not any(ov == "" for ov, _ in pairs):
+        raise ValueError("a filter select must offer an option whose value is '' (no filter)")
     opts = "".join(
         f"<option{_attr('value', ov)}{' selected' if ov == want else ''}>{_esc(text)}</option>"
-        for ov, text in (("" if v is None else str(v), text) for v, text in options)
+        for ov, text in pairs
     )
     common = f"{_attr('id', id)}{_attr('name', '' if name is None else name)}{_data(data)}"
     return Safe(
