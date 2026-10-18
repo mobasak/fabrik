@@ -222,7 +222,8 @@ def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypa
     lines = recipe.splitlines()
     rm = lines.index("\t@docker rm -f $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
     run = lines.index(
-        "\t@docker run -d --name $(PROJECT_NAME)-smoke --env-file .env $(PROJECT_NAME) || true"
+        "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1"
+        " --env-file .env $(PROJECT_NAME) || true"
     )
     assert rm < run, recipe  # a leftover container is never the one judged
     wait = f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {_SMOKE_EXEC} >/dev/null 2>&1 && break; sleep 1; done"

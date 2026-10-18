@@ -21,6 +21,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from fabrik import scaffold
 from fabrik.scaffold import create_project
 
@@ -86,3 +88,58 @@ def test_the_j2_healthchecks_read_the_path_the_worker_writes_in_the_image():
     assert "WORKDIR /app" in dockerfile and "COPY . ." in dockerfile
     assert "/app/.tmp/worker_heartbeat" in dockerfile
     assert "/app/.tmp/worker_heartbeat" in compose
+
+
+# W-807b73fd: `make docker-smoke` runs the image with the project's `.env`, so a smoke run against real credentials
+# claimed production jobs and `docker stop` killed them mid-run. WORKER_SMOKE=1 (set only by the recipe) beats, never claims.
+_LOOP_PROBE = """
+import json, sys, types, worker.main as m
+calls = []
+class _Rpc:
+    def execute(self):
+        calls.append(1)
+        return types.SimpleNamespace(data=None)
+m.supabase = types.SimpleNamespace(rpc=lambda name, args: _Rpc())
+polls = {"n": 0}
+def _sleep(_s):
+    polls["n"] += 1
+    if polls["n"] >= 2:
+        m.shutdown_requested = True
+m.time.sleep = _sleep
+m.main()
+print(json.dumps({"claims": len(calls), "beat": m.HEARTBEAT_FILE.exists()}))
+"""
+
+
+@pytest.mark.parametrize(
+    "smoke, claims",
+    [(None, 2), ("0", 2), ("true", 2), ("", 2), ("1", 0)],
+    ids=["unset", "0", "true", "empty", "1"],
+)
+def test_a_smoke_run_beats_but_never_claims(smoke, claims, tmp_path, monkeypatch):
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _TEMPLATE)
+    create_project(
+        name="fw-smoke-claim", project_type="file-worker", description="smoke", base=tmp_path
+    )
+    project = tmp_path / "fw-smoke-claim"
+    env = {
+        **_ENV,
+        "HOME": str(tmp_path),
+        "TMPDIR": str(tmp_path),
+        "PYTHONPATH": str(project),
+        "POLL_INTERVAL": "0",
+    }
+    if smoke is not None:
+        env["WORKER_SMOKE"] = smoke
+    r = subprocess.run(
+        [sys.executable, "-c", _LOOP_PROBE],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out == {"claims": claims, "beat": True}, out  # two polls: a normal worker claims on each
