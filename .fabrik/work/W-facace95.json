@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:08.152683Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-facace95",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M508TQKVQGPMRNXAPNBHZ45W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "W-f0fd555a: RES_OPTIONS=edns0 unblocks pnpm until the resolv.conf fix lands"
+}

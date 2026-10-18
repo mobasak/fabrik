@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:14.990734Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3edd11a0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53MC07FBHZKCSYCXTEAKXKH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: closing-round design decided (D-911) — term-edit now states D-335's reason, quoted from § 4.7 (worktree-kaizen db331214f + ed312c0c5)"
+}
