@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T19:02:48.271392Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4b09fe47",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add case {**X} / case [*X] / def f[X] shapes to test_a_graded_regex_is_one_re_compile_binding's refused tuple and count ast.TypeVar/ParamSpec/TypeVarTuple in _compile_call",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "test_identifier_checks_fullmatch: the binding scan's MatchMapping/MatchStar clauses have no test, and PEP 695 type parameters are not counted (scoped-review remainder round, recorded under the scope-growth stop)"
+}
