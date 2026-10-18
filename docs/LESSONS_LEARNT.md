@@ -7478,4 +7478,4 @@ document.
   input string.
 - **Where it lives.** `src/fabrik/drivers/preflight.py` (`_hop_destination`, `_probe`, `verify_host_reachable`),
   `src/fabrik/drivers/ssh.py` (`parse_hop`, `jump_for`), `docs/DECISIONS.md` (D-973),
-  `docs/development/reviews/2026-10-18-ssh-jump-preflight-review.md`.
+  `docs/development/reviews/2026-10-18-ssh-jump-preflight-w2b657bee-review.md`.
