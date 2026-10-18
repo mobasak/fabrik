@@ -48,9 +48,9 @@ def _md5(path: Path) -> str:
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
 # check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names anything the
-# manifest raises while it loads except a bare KeyboardInterrupt (the operator's), SystemExit and
-# GeneratorExit included, runs none of the manifest's code after the load, and refuses a present
-# list of the wrong shape.
+# manifest raises while it loads or while its lists are read, except a bare KeyboardInterrupt (the
+# operator's), SystemExit and GeneratorExit included, runs none of the manifest's code once the
+# lists are read, and refuses a present list of the wrong shape.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -83,7 +83,7 @@ def _path_list(path: Path, name: str, value: object, *, tuple_entries: bool) -> 
     for item in value:
         head = item[0] if tuple_entries and type(item) is tuple and item else item
         if type(head) is not str:
-            raise ManifestError(f"{path}: {name} holds a {type(item).__name__}, not a path")
+            raise ManifestError(f"{path}: {name} holds a {type(head).__name__}, not a path")
     return list(value)
 
 
@@ -109,8 +109,8 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     but a lock row whose file is absent is a hard failure here — so in any target the sync no
     longer reaches, following that instruction reds `final_gate` forever with no way to clear it.
     Measured: 2 of 47 locks under /opt still carry the 26 `libs/subagents` rows, both in
-    worktree-shaped repos that the SYNC skips by design (`sync_enforcement_to_projects.py:2269`,
-    `.git` is a file — this `main()` has no such check and processes them, which is exactly why
+    worktree-shaped repos that the SYNC skips by design (`scripts/sync_enforcement_to_projects.py`
+    `main()`, `.git` is a file — this `main()` has no such check and processes them, which is why
     their frozen locks matter here), both frozen since
     2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
     """
@@ -121,37 +121,47 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     if spec is None or spec.loader is None:
         raise ManifestError(f"cannot load {path}")
     man = importlib.util.module_from_spec(spec)
+    # The module's own dict, taken BEFORE any manifest code runs: the lists are read from it, never
+    # through the module object, whose class the manifest can swap (a `__dict__` property) and
+    # whose `__getattr__` it can define.
+    names = man.__dict__
+    # Anything the manifest raises while it loads, or while its lists are read, is the hub's and is
+    # NAMED, never swallowed — SystemExit too (a manifest calling sys.exit(0) would otherwise end
+    # the check GREEN), and GeneratorExit or any other BaseException (a bare traceback named
+    # nothing; W-3d6a6236). Only a bare KeyboardInterrupt (exactly that type) is let through: it is
+    # the operator's. The exception's own `str()` is the manifest's code too and could exit 0 from
+    # inside this handler, so it gets the same guard. What the catch cannot reach: a manifest that
+    # ends the process (os._exit) or installs a side effect that outlives its load (an atexit hook,
+    # sys.excepthook, a signal handler) — it is the hub's own stdlib-only file, not a sandboxed one.
     try:
         spec.loader.exec_module(man)
-    # Anything the manifest raises while it loads is the hub's and is NAMED, never swallowed —
-    # SystemExit too (a manifest calling sys.exit(0) would otherwise end the check GREEN), and
-    # GeneratorExit or any other BaseException (a bare traceback named nothing; W-3d6a6236). Only a
-    # bare KeyboardInterrupt is let through: it is the operator's. A manifest that kills the
-    # process (os._exit) is not caught: nothing in-process can. The exception's own `str()` is the
-    # manifest's code too and could exit 0 from inside this handler, so it gets the same guard.
-    except KeyboardInterrupt:
-        raise
+        missing = [a for a in REQUIRED_MANIFEST_ATTRS if a not in names]
+        if missing:
+            raise ManifestError(
+                f"{path} has no {', '.join(missing)} — renamed or removed in the hub?"
+            )
+        seeded = _path_list(
+            path, "SEEDED_NOT_ENFORCED", names["SEEDED_NOT_ENFORCED"], tuple_entries=False
+        )
+        retired = _path_list(
+            path, "RETIRED_VENDORED_DIRS", names["RETIRED_VENDORED_DIRS"], tuple_entries=True
+        )
+        # Exact built-in strs and tuples only past this line, so nothing below runs manifest code.
+        return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
     except BaseException as e:
+        # This check's own refusal passes as raised; an exact type with a plain-str message is the
+        # test, because a manifest can reach this module and raise a ManifestError subclass whose
+        # `__str__` would run when `main()` prints it.
+        ours = type(e) is ManifestError and len(e.args) == 1 and type(e.args[0]) is str
+        if ours or type(e) is KeyboardInterrupt:
+            raise
         try:
             detail = str(e)
-        except KeyboardInterrupt:
-            raise
-        except BaseException:
+        except BaseException as inner:
+            if type(inner) is KeyboardInterrupt:
+                raise
             detail = "<its message raised too>"
         raise ManifestError(f"{path} failed to load: {type(e).__name__}: {detail}") from e
-    # After the load no manifest code may run: the lists are read from the module's own dict (a
-    # module `__getattr__` never answers) and `_path_list` takes only exact built-in types.
-    names = vars(man)
-    missing = [a for a in REQUIRED_MANIFEST_ATTRS if a not in names]
-    if missing:
-        raise ManifestError(f"{path} has no {', '.join(missing)} — renamed or removed in the hub?")
-    seeded = _path_list(
-        path, "SEEDED_NOT_ENFORCED", names["SEEDED_NOT_ENFORCED"], tuple_entries=False
-    )
-    retired = _path_list(
-        path, "RETIRED_VENDORED_DIRS", names["RETIRED_VENDORED_DIRS"], tuple_entries=True
-    )
-    return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
 
 
 def _main_checkout(project_root: Path) -> Path | None:
@@ -226,8 +236,8 @@ def main() -> int:
         # and neither can ever be cleared by a sync that no longer reaches it. The first version
         # skipped only the deletion, so a project that kept the dir and changed one line reds
         # `final_gate` forever, under a remedy text ("the next sync restores it") that is false
-        # for a retired path. `startswith(())` is False, so an empty tuple (manifest unimportable)
-        # degrades to the old behaviour with no special case — verified, not assumed.
+        # for a retired path. `startswith(())` is False, so an empty tuple (a hub or manifest file
+        # that is absent or cannot be examined) degrades to the old behaviour with no special case — verified, not assumed.
         if rel.startswith(retired):
             continue
         if not dest.exists():
