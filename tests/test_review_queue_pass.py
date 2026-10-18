@@ -702,7 +702,8 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
         " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates);"
+        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
+        " a paraphrase names neither the verb nor a removed name;"
     ) in cat
 
 
@@ -846,6 +847,7 @@ def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
     end = text.find("A **wrong fix to a real finding is itself a defect**", start)
     assert end != -1, "the wrong-fix sentence still follows"
     assert text[start:end].strip() == (
-        "A fix the lead routes to another seat is written in the pass's fix list as the invariant it must hold plus"
-        " those shapes and the reproduction it answers, never as the patch alone."
+        "A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it"
+        " must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively,"
+        " its failure scenario), never as the patch alone."
     )
