@@ -452,23 +452,25 @@ def test_a_commit_of_already_staged_content_is_not_served_from_the_cache(tmp_pat
     assert mod._head_source(f)[0] == b"B\n", "served the pre-commit bytes from the cache"
 
 
-_STUB_MANIFEST = '''"""A stub hub manifest: every name the sync imports, an empty synced set."""
+_STUB_MANIFEST = '''"""A stub hub manifest: every name the sync imports; it ships CORE_SCRIPTS only."""
 AGENT_HOOK_FILES = ()
-CORE_SCRIPTS = ()
+CORE_SCRIPTS = (CORE-MARK)
 GOVERNANCE_DIRS = ()
 GOVERNANCE_FILES = ()
 GOVERNANCE_TEMPLATES = ()
 REFERENCE_DOCS = ()
 RETIRED_CORE_SCRIPTS = ()
 RETIRED_GOVERNANCE_FILES = ()
+RETIRED_VENDORED_DIRS = ()
 RUN_SCRIPTS = ()
 RUN_SCRIPTS_SRC_DIR = "scripts/run"
 SEED_IF_MISSING = ()
 VENDORED_DIRS = ()
 
 
-def iter_synced_pairs(*_a, **_k):
-    return iter(())
+def iter_synced_pairs(project_root, fabrik_root):
+    for name in CORE_SCRIPTS:
+        yield fabrik_root / "scripts" / name, project_root / "scripts" / name
 
 
 def worktreeinclude_text():
@@ -492,10 +494,10 @@ def test_the_gitignore_block_ships_from_heads_manifest_not_the_working_tree(
     names a drifted manifest in the drift report, the contract every copied file already has."""
     mod, hub_root, _committed, _untracked = hub
     manifest = hub_root / "scripts" / "fabrik_synced_manifest.py"
-    manifest.write_text(_STUB_MANIFEST.replace("BLOCK-MARK", "HEAD-BLOCK"), encoding="utf-8")
+    manifest.write_text(_stub("HEAD-BLOCK"), encoding="utf-8")
     subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "manifest"], check=True)
-    manifest.write_text(_STUB_MANIFEST.replace("BLOCK-MARK", "TREE-BLOCK"), encoding="utf-8")
+    manifest.write_text(_stub("TREE-BLOCK"), encoding="utf-8")
     opt = tmp_path / "opt"
     project = opt / "proj"
     project.mkdir(parents=True)
@@ -509,3 +511,114 @@ def test_the_gitignore_block_ships_from_heads_manifest_not_the_working_tree(
     assert "HEAD-BLOCK" in written, written
     assert "TREE-BLOCK" not in written, written
     assert "scripts/fabrik_synced_manifest.py" in out, out  # the drift line names the manifest
+
+
+def _stub(block: str, core: str = "") -> str:
+    return _STUB_MANIFEST.replace("BLOCK-MARK", block).replace("CORE-MARK", core)
+
+
+def _manifest_hub(hub_root: Path, head: str, tree: str | None) -> None:
+    """Commit `head` as the hub manifest; leave `tree` (if any) as an uncommitted edit on top."""
+    manifest = hub_root / "scripts" / "fabrik_synced_manifest.py"
+    manifest.write_text(head, encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "manifest"], check=True)
+    if tree is not None:
+        manifest.write_text(tree, encoding="utf-8")
+
+
+def _one_project(tmp_path: Path, monkeypatch, mod) -> Path:
+    opt = tmp_path / "opt"
+    project = opt / "proj"
+    project.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".gitignore").write_text(".env\n.venv/\n__pycache__/\n", encoding="utf-8")
+    monkeypatch.setattr(mod, "OPT_ROOT", opt)
+    monkeypatch.setattr(sys, "argv", ["sync"])
+    return project
+
+
+def test_the_synced_lists_ship_from_heads_manifest_not_the_working_tree(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """WHAT ships comes from HEAD's manifest too, not only the block: HEAD lists `head_only.py`,
+    the uncommitted edit lists `tree_only.py`, and only HEAD's file lands."""
+    mod, hub_root, _committed, _untracked = hub
+    for name in ("head_only.py", "tree_only.py"):
+        (hub_root / "scripts" / name).write_text(f"# {name}\n", encoding="utf-8")
+    _manifest_hub(hub_root, _stub("B", '"head_only.py",'), _stub("B", '"tree_only.py",'))
+    project = _one_project(tmp_path, monkeypatch, mod)
+    assert mod.main() == 0, capsys.readouterr().out
+    assert (project / "scripts" / "head_only.py").exists()
+    assert not (project / "scripts" / "tree_only.py").exists()
+
+
+def test_the_drift_line_says_the_manifest_governs_what_ships(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """The manifest is a hub file, never a synced one: the drift line names what it governs."""
+    mod, hub_root, _committed, _untracked = hub
+    _manifest_hub(hub_root, _stub("HEAD-BLOCK"), _stub("TREE-BLOCK"))
+    _one_project(tmp_path, monkeypatch, mod)
+    mod.main()
+    out = capsys.readouterr().out
+    assert "hub file(s) differ" in out and "synced file(s) differ" not in out, out
+    assert "is the manifest itself: what ships and the .gitignore block" in out, out
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        _STUB_MANIFEST.replace("CORE-MARK", "").replace("BLOCK-MARK", "B")
+        + "raise RuntimeError('x')\n",
+        _STUB_MANIFEST.replace("CORE-MARK", "")
+        .replace("BLOCK-MARK", "B")
+        .replace("RETIRED_VENDORED_DIRS = ()\n", ""),
+    ],
+    ids=["raises-on-exec", "lacks-a-name"],
+)
+def test_an_unusable_head_manifest_is_a_named_refusal_never_a_tree_fallback(
+    hub, tmp_path: Path, monkeypatch, capsys, head: str
+) -> None:
+    """Falling back to the working tree would ship uncommitted bytes, the incident this closes; a
+    traceback would name nothing. The run stops with the reason and writes nothing."""
+    mod, hub_root, _committed, _untracked = hub
+    _manifest_hub(hub_root, head, _stub("TREE-BLOCK"))
+    project = _one_project(tmp_path, monkeypatch, mod)
+    assert mod.main() == 1
+    out = capsys.readouterr().out
+    assert "HEAD's scripts/fabrik_synced_manifest.py cannot be bound" in out, out
+    assert (project / ".gitignore").read_text(encoding="utf-8") == ".env\n.venv/\n__pycache__/\n"
+
+
+def test_no_head_manifest_restores_the_import_time_binding(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A run against a hub whose manifest is untracked must not inherit an EARLIER in-process run's
+    HEAD binding: the import-time binding comes back."""
+    mod, hub_root, _committed, _untracked = hub
+    imported = mod.gitignore_block_text
+    _manifest_hub(hub_root, _stub("HEAD-BLOCK"), None)
+    assert mod._bind_manifest_from_head() is None
+    assert "HEAD-BLOCK" in mod.gitignore_block_text()
+    other = tmp_path / "other-hub"
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    monkeypatch.setattr(mod, "FABRIK_ROOT", other)
+    assert mod._bind_manifest_from_head() is None
+    assert mod.gitignore_block_text is imported
+
+
+def test_the_rebound_names_are_exactly_the_modules_manifest_imports(hub) -> None:
+    """A name imported from the manifest but missing from `_MANIFEST_NAMES` would stay bound to the
+    working tree, silently; so would a second, function-local import (one at :2627 did)."""
+    import ast
+
+    mod = hub[0]
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    imports = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "fabrik_synced_manifest"
+    ]
+    assert len(imports) == 1, [n.lineno for n in imports]
+    assert {a.name for a in imports[0].names} == set(mod._MANIFEST_NAMES)

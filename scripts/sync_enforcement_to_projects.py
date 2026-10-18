@@ -51,6 +51,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     REFERENCE_DOCS,
     RETIRED_CORE_SCRIPTS,
     RETIRED_GOVERNANCE_FILES,
+    RETIRED_VENDORED_DIRS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
     SEED_IF_MISSING,
@@ -1866,6 +1867,7 @@ _MANIFEST_NAMES = (
     "REFERENCE_DOCS",
     "RETIRED_CORE_SCRIPTS",
     "RETIRED_GOVERNANCE_FILES",
+    "RETIRED_VENDORED_DIRS",
     "RUN_SCRIPTS",
     "RUN_SCRIPTS_SRC_DIR",
     "SEED_IF_MISSING",
@@ -1874,9 +1876,12 @@ _MANIFEST_NAMES = (
     "iter_synced_pairs",
     "worktreeinclude_text",
 )
+# The import-time (working-tree) binding, restored when there is no HEAD to bind from, so a run
+# never inherits an EARLIER in-process run's HEAD binding.
+_IMPORTED_MANIFEST = {name: globals()[name] for name in _MANIFEST_NAMES}
 
 
-def _bind_manifest_from_head() -> None:
+def _bind_manifest_from_head() -> str | None:
     """Rebind every manifest name this module uses from the hub's COMMITTED manifest (W-8c57e84a).
 
     `_head_source` keeps the files the sync COPIES to HEAD's bytes (T12.17), but what it copies —
@@ -1886,17 +1891,33 @@ def _bind_manifest_from_head() -> None:
     ran on it). Reading it through `_head_source` gives it the copied files' contract: HEAD's bytes
     ship, and a drifted manifest is recorded in `_head_drift` and named in the run's report.
 
-    An untracked manifest, or a hub git cannot read, has no HEAD to bind from; the imported working
-    tree stays, as `_head_source` does for any untracked file. All fifteen names are read inside
-    functions, never at module level, so rebinding them here reaches every use.
+    An untracked manifest, or a hub git cannot read, has no HEAD to bind from: the import-time
+    working-tree binding is restored, silently, as `_head_source` treats any untracked file. Every
+    name in `_MANIFEST_NAMES` is the module's only manifest import (a test pins the two equal) and
+    is read inside functions only, so rebinding them here reaches every use. A name a caller set on
+    the module before `main()` is replaced, so patch the hub's HEAD instead.
+
+    Returns None, or a refusal when HEAD's manifest cannot be bound — it raises on exec or lacks a
+    name the sync imports (a manifest and a sync edited together and committed apart). Falling
+    back to the working tree there would ship uncommitted bytes, the incident this closes; nothing
+    is rebound and `main()` stops with the reason.
     """
     path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
     head = _head_source(path)
     if head is None:
-        return
+        globals().update(_IMPORTED_MANIFEST)
+        return None
     committed = types.ModuleType("fabrik_synced_manifest_at_head")
-    exec(compile(head[0], str(path), "exec"), committed.__dict__)  # noqa: S102 — the hub's own file
-    globals().update({name: getattr(committed, name) for name in _MANIFEST_NAMES})
+    try:
+        exec(compile(head[0], str(path), "exec"), committed.__dict__)  # noqa: S102 — the hub's own
+        bound = {name: getattr(committed, name) for name in _MANIFEST_NAMES}
+    except Exception as exc:  # noqa: BLE001 — any failure is a refusal, never a tree fallback
+        return (
+            f"HEAD's scripts/fabrik_synced_manifest.py cannot be bound ({type(exc).__name__}: "
+            f"{exc}); commit the manifest and the sync together, then re-run"
+        )
+    globals().update(bound)
+    return None
 
 
 def _shipped_hash(source: Path) -> str:
@@ -2623,9 +2644,9 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
     # both `libs/subagents` copies, so when D-196 delisted that dir the diagnostic silently
     # stopped reporting them — a load-bearing check quietly losing its only known subjects.
     # A retired dir is exactly when an unreachable copy matters MOST: nothing syncs it any
-    # more, so a stray is now permanently stale rather than merely mis-placed.
-    from fabrik_synced_manifest import RETIRED_VENDORED_DIRS, VENDORED_DIRS
-
+    # more, so a stray is now permanently stale rather than merely mis-placed. Both lists are the
+    # module globals `main()` rebinds from HEAD (W-8c57e84a) — never a local import, which read the
+    # working-tree module out of `sys.modules`.
     found: list[str] = []
     for project_dir in projects:
         # dict.fromkeys: order-preserving dedup. A name in BOTH lists is an incoherent state a
@@ -2683,7 +2704,8 @@ def main() -> int:
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
-    _bind_manifest_from_head()  # what ships and the .gitignore block come from HEAD (W-8c57e84a)
+    _HUB_SOURCES.clear()  # both derive from the manifest, which is now rebound per run
+    _HUB_BLOBS.clear()
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
     # this run's final summary line.
@@ -2692,6 +2714,12 @@ def main() -> int:
     _GITIGNORE_PATCHED.clear()
     """Sync scripts to all /opt projects (excluding _* folders)."""
     args = parse_args()
+    # What ships and the .gitignore block come from HEAD's manifest (W-8c57e84a); after argparse,
+    # so `--help` never depends on the manifest.
+    refusal = _bind_manifest_from_head()
+    if refusal:
+        print(f"❌ {refusal}")
+        return 1
 
     if args.dry_run:
         print("DRY-RUN MODE: No files will be written\n")
@@ -2802,10 +2830,17 @@ def main() -> int:
             if args.dry_run
             else "wherever this run wrote, it wrote the COMMITTED bytes, not what is on disk"
         )
+        # The manifest is a hub file, never a synced one: name what it governs (W-8c57e84a review).
+        manifest_note = (
+            " (scripts/fabrik_synced_manifest.py is the manifest itself: what ships and the "
+            ".gitignore block were computed from HEAD's copy)"
+            if "scripts/fabrik_synced_manifest.py" in names
+            else ""
+        )
         print(
-            f"\n⚠️  {len(names)} synced file(s) differ between the hub's WORKING TREE and HEAD; "
+            f"\n⚠️  {len(names)} hub file(s) differ between the hub's WORKING TREE and HEAD; "
             f"{verb} (T12.17 — an uncommitted edit used to ship to every project, 48 copies on "
-            f"2026-09-07). Commit them and re-run to distribute: {shown}"
+            f"2026-09-07). Commit them and re-run to distribute: {shown}{manifest_note}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
