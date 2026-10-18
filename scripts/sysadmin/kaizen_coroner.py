@@ -100,13 +100,13 @@ _IMPORT_ERRORS: dict[str, str] = {}
 
 try:
     import kaizen_events  # T01 emitter — same directory
-except Exception as _exc:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # a box mid-sync
     kaizen_events = None  # type: ignore[assignment]
     _IMPORT_ERRORS["kaizen_events"] = f"{type(_exc).__name__}: {_exc}"
 
 try:
     import command_run  # scripts/command_run.py — the record load/save API
-except Exception as _exc:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # a box mid-sync
     command_run = None  # type: ignore[assignment]
     _IMPORT_ERRORS["command_run"] = f"{type(_exc).__name__}: {_exc}"
 
@@ -1110,9 +1110,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.sweep:
         report = sweep()
         print(json.dumps(dataclasses.asdict(report), indent=1))
-        # Without `command_run` no record closes; without `kaizen_events` no event is emitted. The
-        # sweep line already says so (`errors`, `blind`); the exit code must too, or weekly_catchup
-        # (OK_MAX=0) stamps the day and nothing retries until tomorrow (W-4bd4ea3c).
+        # A sweep that did not do its whole job exits 3, or weekly_catchup (OK_MAX=0) stamps the
+        # day and nothing retries until tomorrow (W-4bd4ea3c). Two causes, both already counted
+        # in the sweep line's `errors` (which the collector reads), never in the exit code: a
+        # failed import (no `command_run` → no record closes; no `kaizen_events` → no event), and
+        # any error the sweep itself counted (a crashed pass, a record close that raised). The
+        # sweep is idempotent, so the hourly retry is safe; an error that persists keeps the job
+        # FAILED in its log every hour until it is fixed, which is the signal, not noise.
+        # Cobra check (D-253): the cheap way to turn this green without a working sweep is to
+        # stop appending to `report.errors` — the sweep line's `errors` count then lies too, and
+        # the collector's coverage reading (kaizen_collect_v2._coroner_swept) reads it.
         missing = [
             n
             for n, m in (("kaizen_events", kaizen_events), ("command_run", command_run))
@@ -1124,7 +1131,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"({_IMPORT_ERRORS.get(name, 'import failed')}); exiting 3 so the job retries",
                 file=sys.stderr,
             )
-        return 3 if missing else 0
+        if report.errors:
+            print(
+                f"kaizen_coroner: --sweep counted {len(report.errors)} error(s), first: "
+                f"{report.errors[0]}; exiting 3 so the job retries",
+                file=sys.stderr,
+            )
+        return 3 if missing or report.errors else 0
     ap.print_usage()
     return 2
 
