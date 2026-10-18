@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — command_run.py: `blocked --paused` for an operator pause, and `round --command` (2026-10-18)
+
+- `blocked --paused --reason "<the operator's words>"` closes a run for an operator pause.
+  - Before, there was no honest exit: the Stop hook blocked every turn end until the session invented `done` or a fake BLOCKED cause.
+  - It keeps the same resume seed `--wall` keeps, so `start --resume-from` reopens the run with its rounds.
+  - Its ledger row and close event read `wall: paused`, never `quota`. It cannot be combined with `--wall`.
+- `round --command <name>` is optional and is refused when it does not name the live run, the check the close verbs already make (D-993, W-79638b4a, from kaizen's two feedback verdicts in mail 01M4X6XQH0).
+
 ### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
 
 - In a linked worktree, `work.py claim` and `release` refused an item whose file the branch did not yet carry. The claim itself is shared state, and items the coordinator makes on the main checkout reach a branch only with a merge.
