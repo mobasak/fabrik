@@ -1,6 +1,22 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A record written before a move needs a recovery path that knows which move it was waiting on (2026-10-19)
+
+W-c751bca6 added `merge_request.py retry <id>`, which writes a fresh `claiming` record and then re-opens the mail.
+- **The crash window was safe by construction for the old flows and unsafe for the new one.** `_continue_claiming`
+  read "message in the archive" as "the claim landed". For a retry, the message is ALSO in the archive before the
+  requeue, still carrying the refusal's ack, so a resumed retry merged and then skipped its own ack: a stale line read
+  as "already acked". Both Slice A seats found it; one drove it end to end with an interrupt at the requeue. When a new
+  flow reuses a recovery path, list the states the old path inferred from file locations and check each one still
+  means the same thing.
+- **The design critiques found the incident's own sequel, the re-sent duplicate.** Merging the first id of a request
+  that was already re-sent makes the second one look like it was never merged. The gate that refuses it existed in
+  neither the mail nor the first design.
+- **A split panel can be settled on the code, not on the votes.** Fable's case for leaving the ack rested on
+  "`mail.py` refuses a second ack"; `mail.py requeue` exists to re-open exactly such a message, and Opus had run it to
+  a verified `done --merge-sha`. One seat's premise was false, so there was nothing left to split on.
+
 ## An exit code that "means" a state is a guess until each sibling state is executed (2026-10-19)
 
 W-ba306861 taught the governance sync to tell an untracked file from a hub git that cannot answer.
