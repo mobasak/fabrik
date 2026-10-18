@@ -661,7 +661,7 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
     sentence = iso[start + len(anchor) : end].strip()
     assert sentence == (
         "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
-        " instead of the pin through a `PYTHONPATH` entry or a pytest run from the live repo (both in `PIN_IMPORT` and"
-        " `PYTEST_PINS`) and in a child process started with its own `env=`, which resolves the `.pth` again."
+        " instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo"
+        " (`PYTEST_PINS`) and a child process started with its own `env=`, which resolves the `.pth` again."
     ), sentence
     assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"
