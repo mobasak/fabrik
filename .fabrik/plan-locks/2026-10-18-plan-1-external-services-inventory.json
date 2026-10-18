@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+  "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
   "owned_paths": [
     "scripts/sysadmin/dashboard_ui/components.py",
     "scripts/sysadmin/dashboard_ui/static/app.js",
@@ -32,7 +32,7 @@
   ],
   "branch": "worktree-infra",
   "started_at": "2026-10-18T00:58:55Z",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "4cde3f547",
   "baseline_gate": {
     "status": "success",
@@ -72,5 +72,7 @@
       "started_at": "2026-10-18T05:28:35Z",
       "head": "89fdcf104"
     }
-  }
+  },
+  "completed_at": "2026-10-18T14:08:31Z",
+  "final_commit": "e660340bf"
 }

@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
     "spec": ""
   },
   "next": "extend tests/test_quota_dashboard_page_layer.py::_option_labels to read the values of a dict literal passed through .items(), or refuse a non-pair options constructor in views; parametrised red-first test",

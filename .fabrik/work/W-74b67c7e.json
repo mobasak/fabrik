@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-18-plan-1-external-services-inventory",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory",
     "spec": ""
   },
   "next": "give inventory.py a public epoch alias and point gen_dashboard at it; settle the static heading outline in T04's accessibility smoke; name the render failure in main()'s typed line (its F3 test asserts today's wording)",

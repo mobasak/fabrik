@@ -1,6 +1,7 @@
 # Plan — the external-services inventory, rendered by one page-layer function into the board and the chain's file (W-3e9e2f4c)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-18
+Whole-plan review: docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md
 **Owner:** infra
 
 Spec: `docs/superpowers/specs/2026-10-18-external-services-page-design.md` — CONVERGED, approved by the Opus + Fable panel
@@ -298,6 +299,36 @@ The grounding seats' findings this plan settles (each read from source, the seat
 - `page_layer.py:784` builds its INVENTORY at import through `K("services.ext.age")`, so the key removal and that row's
   rewrite share T04's commit — the Opus seat.
 - The `components.py:205` anchor in the spec's § Risks is `:206` — the unit-B mechanical seat; the plan cites `:206`.
+
+### Execution (2026-10-18)
+
+Merged on `worktree-infra`: T01 `5d7f1057c`, T02 `a4647e46e`, T03 `4bddb47d2`, T04 `e660340bf` (the T04 coder's
+`4a11504c1` plus the whole-plan validation's four fix commits). Whole-plan validation:
+`docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md` — CONVERGED, five passes, confirmed
+12 → 3 → 1 → 0 → 0, sixteen findings fixed (F1–F16). Every ticket's suite plus the seam suites on the integrated tree
+`89fdcf104` (`capped_run.sh -- .venv/bin/python -m pytest` over the chain, inventory, registry-sync and the thirteen
+board files): `1243 passed, 20 skipped in 241.72s` — the 20 are `scripts/tests/test_registry_sync.py`'s live-registry
+write cases, opt-in by `REGISTRY_WRITE_TESTS=1`.
+
+The live request (D7): the merged board served from this worktree on port 5097 with an empty HOME (no accounts to
+probe); the inventory child read the real registry over the peer-auth socket. Verbatim:
+
+```
+$ curl -s -i http://127.0.0.1:5097/external-services.html | head -8
+HTTP/1.0 303 See Other
+Server: quota-dashboard Python/3.12.3
+Date: Sun, 18 Oct 2026 14:07:33 GMT
+Location: /#services
+Content-Length: 0
+Cache-Control: no-store
+$ curl -s -i http://127.0.0.1:5097/v/services -o live-services.html -w '%{http_code} %{size_download} bytes %{time_total}s\n'
+200 217042 bytes 0.309624s
+$ grep -o '[0-9,]* providers' live-services.html | head -2
+466 providers
+331 providers
+$ grep -c 'could not be read' live-services.html
+0
+```
 
 ## Self-audit
 
