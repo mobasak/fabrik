@@ -329,7 +329,7 @@ Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scr
 
 ## Rate Limiting
 
-- Hard rate limits on `/auth/login`, `/auth/register`, `/auth/reset` endpoints using **Redis-backed** token buckets. In-memory buckets are per-process and bypassable behind multiple workers — single-process services only.
+- Hard rate limits on every route `fastapi-user-auth` mounts under `/auth` that accepts a credential, a code or an address: `POST /auth/login` and `/auth/login/web`, `/auth/signup`, `/auth/password-reset/request` and `/auth/password-reset/confirm`, `/auth/passwordless/request` (it sends email) and `/auth/passwordless/verify` (a guessable code) — using **Redis-backed** token buckets. A project on another IdP limits its own equivalents. In-memory buckets are per-process and bypassable behind multiple workers — single-process services only.
 - Apply limits on **both** axes: per-IP (brute force) and per-account (credential stuffing).
 - Credential stuffing and brute-force attacks are the primary threats these limits address.
 
