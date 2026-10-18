@@ -611,7 +611,14 @@ def test_request_errors_carry_remote_text_on_one_line(where, monkeypatch):
 
 @pytest.mark.parametrize(
     "ip",
-    ["10.0.0.5\nFORGED evil.example", "attacker.example/x?", "10.0.0.5:9999", "10.0.0.5 extra"],
+    [
+        "10.0.0.5\nFORGED evil.example",
+        "attacker.example/x?",
+        "10.0.0.5:9999",
+        "10.0.0.5 extra",
+        "fe80::1%@attacker.example",  # a scope id ip_address() accepts
+        "fd00::5",  # the IPv4-only field never holds one; unbracketed it is no URL
+    ],
 )
 def test_an_inspect_reply_that_is_not_an_ip_is_a_miss_never_a_target(ip, monkeypatch, caplog):
     """The IP docker printed became the request's target host (`attacker.example/x?` sent the key there)."""
@@ -628,11 +635,12 @@ def test_an_inspect_reply_that_is_not_an_ip_is_a_miss_never_a_target(ip, monkeyp
     with patch("subprocess.run", side_effect=replies):
         assert client._resolve_container_url() is None
     assert client._resolved_url_cache is None
-    assert all(len(r.getMessage().splitlines()) == 1 for r in caplog.records)
+    warnings = [r.getMessage() for r in caplog.records if "printed no IP address" in r.getMessage()]
+    assert len(warnings) == 1 and len(warnings[0].splitlines()) == 1, warnings
 
 
 @pytest.mark.parametrize(
-    "ip, url", [("10.0.0.5", "http://10.0.0.5:"), ("fd00::5", "http://fd00::5:")]
+    "ip, url", [("10.0.0.5", "http://10.0.0.5:8001"), ("172.18.0.12", "http://172.18.0.12:8001")]
 )
 def test_an_inspect_reply_that_is_an_ip_still_resolves(ip, url, monkeypatch):
     from unittest.mock import MagicMock

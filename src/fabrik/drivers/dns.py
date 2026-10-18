@@ -28,9 +28,14 @@ _DOCKER_NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]+")
 
 
 def _is_ip(text: str) -> bool:
-    """True only for a bare IPv4/IPv6 address — what `docker inspect` prints for a container's network."""
+    """True only for a bare dotted-quad IPv4 address — what `.NetworkSettings.Networks.<net>.IPAddress` prints.
+
+    IPv4 only, on purpose: `ipaddress.ip_address` accepts an IPv6 scope id, so `fe80::1%@attacker.example` passed
+    and became `http://fe80::1%@attacker.example:<port>` — host `attacker.example`, where the request and its
+    key would go; and that field never holds an IPv6 address, which the URL would need bracketed anyway.
+    """
     try:
-        ipaddress.ip_address(text)
+        ipaddress.IPv4Address(text)
     except ValueError:
         return False
     return True
