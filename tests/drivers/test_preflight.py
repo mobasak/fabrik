@@ -474,7 +474,36 @@ class TestVerifyHostReachable:
         with patch("subprocess.run", side_effect=run):
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
-        assert "administratively prohibited" in str(info.value)
+        assert "stdio forwarding failed" in str(info.value)
+        assert "Connection closed" not in str(info.value)
+
+    @pytest.mark.parametrize(
+        "stderr, cause",
+        [
+            (
+                "Warning: Permanently added 'vps' (ED25519) to the list of known hosts.\n"
+                "Permission denied (publickey).\n",
+                "Permission denied (publickey)",
+            ),
+            (
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+                "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+                "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n"
+                "Host key verification failed.\n",
+                "Host key verification failed",
+            ),
+        ],
+    )
+    def test_reason_is_the_failure_not_a_leading_warning_or_banner(
+        self, stderr, cause, monkeypatch
+    ):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert f"(as ssh config resolves it): {cause}." in str(info.value)
 
     @pytest.mark.parametrize("alias", ["-oProxyCommand=x", "a b", "a;b"])
     def test_non_alias_host_is_refused_before_any_probe(self, alias):

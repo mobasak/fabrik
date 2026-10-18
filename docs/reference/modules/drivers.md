@@ -34,7 +34,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `redis.py` | 293 | `acquire_db_index()`, `release_db_index()` — per-service Redis DB index on `redis-main` via `assignments.json`; registrar injects `REDIS_URL` | `shape.needs_cache` |
 | `prometheus.py` | 521 | `add_scrape_target()`, `remove_scrape_target()` — scrape config for `/metrics` | `shape.exposes_metrics` + `domain` |
 | `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
-| `preflight.py` | 497 | Readiness probes (compose declares `platform: linux/amd64`, DNS resolves from the VPS and the public internet, Traefik API is reachable) plus `restart_traefik_and_wait()`, which restarts Traefik on the VPS — no command calls those; and `verify_host_reachable()`, the ssh reachability probe `fabrik apply` runs first (W-2b657bee) | `fabrik apply` |
+| `preflight.py` | 499 | Readiness probes (compose declares `platform: linux/amd64`, DNS resolves from the VPS and the public internet, Traefik API is reachable) plus `restart_traefik_and_wait()`, which restarts Traefik on the VPS — no command calls those; and `verify_host_reachable()`, the ssh reachability probe `fabrik apply` runs first (W-2b657bee) | `fabrik apply` |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
 | ~~`wordpress.py`~~ | — | **Removed** — WP-CLI client extracted to `/opt/wpf/` (May 2026) | WordPress sites (legacy) |

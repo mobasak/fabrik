@@ -332,7 +332,8 @@ _NETWORK_STDERR = re.compile(
     r"|network is down|could not resolve|name or service not known",
     re.I,
 )
-_GENERIC_CLOSE = re.compile(r"connection (closed|to \S+ closed)", re.I)
+# ssh's generic sign-off, which says nothing of why the connection failed
+_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)", re.I)
 # an ssh alias as fabrik names one; anything else (a leading "-") never reaches the argv
 _ALIAS = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]*")
 
@@ -363,8 +364,9 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
     lines = [ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()]
     # the line that says WHY (a jumped refusal ends on a generic "Connection closed …")
     cause = next((ln for ln in lines if _NETWORK_STDERR.search(ln)), None)
-    # else the first line that is not ssh's generic sign-off, which says nothing of why
-    specific = next((ln for ln in lines if not _GENERIC_CLOSE.match(ln)), None)
+    # else the LAST line that is not the sign-off: ssh prints the failure last, after any
+    # `Warning:` line or `@`-ruled host-key banner and before its generic sign-off
+    specific = next((ln for ln in reversed(lines) if not _SSH_NOISE.match(ln)), None)
     fallback = specific or (lines[-1] if lines else f"rc={r.returncode}, no stderr")
     reason = (cause or fallback).rstrip(".")
     return False, cause is not None, reason
