@@ -146,6 +146,7 @@ class Upstream:
         self.status = 200
         self.lines = [
             ": OPENROUTER PROCESSING",
+            ':    {"choices":[{"delta":{"content":"NOT SENT"}}]}',  # a comment whose tail is JSON
             'data: {"choices":[{"delta":{"content":"Hel"}}]}',
             'data: {"choices":[{"delta":{"content":"lo"}}]}',
             'data: {"choices":[],"usage":{"total_tokens":3}}',
@@ -318,7 +319,9 @@ def test_a_revoked_token_is_401(mods, redis_sock, sync_redis):
 
 def test_redis_unset_is_503_with_a_token_and_401_without(mods, sync_redis):
     app = _app(mods, None, Upstream())
-    assert _post(app, {"message": "hi"}, headers=_bearer(mods)).status_code == 503
+    r = _post(app, {"message": "hi"}, headers=_bearer(mods))
+    assert r.status_code == 503
+    assert r.json()["detail"] == "Revocation check unavailable", "the identity check refuses, before the limiter"
     assert _post(app, {"message": "hi"}, headers={}).status_code == 401
 
 
@@ -329,7 +332,8 @@ class _DownDenylist:
 
 def test_a_denylist_outage_is_503_never_a_pass(mods, redis_sock, sync_redis):
     app = _app(mods, redis_sock, Upstream(), denylist_override=_DownDenylist())
-    assert _post(app, {"message": "hi"}, headers=_bearer(mods)).status_code == 503
+    r = _post(app, {"message": "hi"}, headers=_bearer(mods))
+    assert r.status_code == 503 and r.json()["detail"] == "Revocation check unavailable"
 
 
 # --- body ----------------------------------------------------------------------------------
