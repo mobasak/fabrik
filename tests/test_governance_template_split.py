@@ -2073,12 +2073,12 @@ def test_coordinator_job_7_carries_the_charters_once_no_run_is_live_condition_in
     """W-77812e10 (feedback row 1792345477, tryton-crm): job (7) gave the coordinator a finished plan's EXECUTED flip
     and archive move with no condition, so a project agent read the flip as the coordinator's alone while
     /fabrik-execute-plan's Finish step 5 gives it to the live run. The paragraph now carries coordinator.md's
-    condition (its last run closed `done`, coordinator ruling D-1024), byte-identically in both files (D-888)."""
+    condition (its builder confirms no run will resume it, coordinator ruling D-1026), byte-identically in both files (D-888)."""
     clause = (
-        "a finished plan's `Status: EXECUTED` and archive move once its last run closed `done` and every ticket is merged,"
+        "a finished plan's `Status: EXECUTED` and archive move once every ticket is merged and its builder confirms no run will resume it,"
         " spec `Status:` lines"
     )
     for rel in ("CLAUDE.md", TEMPLATE_REL):
         assert clause in _normalised(FABRIK / rel), rel
     charter = _normalised(FABRIK / "docs" / "reference" / "agents" / "coordinator.md")
-    assert "once its last run closed `done` and every ticket is merged" in charter
+    assert "once every ticket is merged and its builder confirms no run will resume it" in charter
