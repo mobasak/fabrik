@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T19:51:50.251827Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-77812e10",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add coordinator.md's condition to job (7) in both files byte-identically (D-888, tests/test_governance_template_split.py); governance-sync surface: full /fabrik-review, one commit",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "CLAUDE.md and templates/governance/CLAUDE.md coordinator job (7) give the coordinator a finished plan's Status: EXECUTED and archive move with no condition; docs/reference/agents/coordinator.md:90 conditions it 'once no run is live on it and every ticket is merged', so a project agent reads the flip as the coordinator's alone (feedback row 1792345477, tryton-crm)"
+}

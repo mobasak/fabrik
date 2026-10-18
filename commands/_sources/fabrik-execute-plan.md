@@ -755,9 +755,8 @@ run in a fresh orchestrator context (spine + lock are the durable handoff).
 
 **⚠️ A plan that shipped HTTP surface does not reach a terminal state on green suites alone — it owes
 at least one LIVE REQUEST.** When any merged ticket added or changed a route, endpoint, or client
-call, validation requires ≥1 real request issued against the running service (from a linked worktree, a
-shared service runs MAIN's code until the merge owner's reload, so the request waits for that reload, which the
-plan budgets — Before You Start step 8), with its actual
+call, validation requires ≥1 real request issued against the running service (from a linked worktree, read
+Before You Start step 8 first), with its actual
 response pasted verbatim into the spine's `## Evidence`. A passing suite proves the code the tests
 call; only a live request proves the route EXISTS at the path the caller uses. Measured (transdoc,
 2026-08-25): six verification layers were simultaneously green — the governing rule pack unreachable,

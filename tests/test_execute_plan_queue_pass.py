@@ -257,9 +257,8 @@ def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
         " `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says."
         " - **Verify your owned paths are clean:**"
     ) in _norm()
-    assert "issued against the running service (from a linked worktree, a shared service runs MAIN's code until the" \
-        " merge owner's reload, so the request waits for that reload, which the plan budgets — Before You Start step 8)," \
-        " with its actual" in _norm()
+    assert "issued against the running service (from a linked worktree, read Before You Start step 8 first), with" \
+        " its actual" in _norm()
     doc = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "multi-agent-operating-model.md").read_text())
     assert "## The shared runtime is NOT isolated" in doc
     assert "running the worktree's code in-process against a throwaway database clone" in doc
