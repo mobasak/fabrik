@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the saas-skeleton template no longer ships a public chat route (2026-10-18)
+
+`app/api/chat/route.ts` streamed OpenRouter completions on the app's own key for anyone who called it, with no
+session check and no limit. The route and its config are removed from the template, so new saas-skeleton, static-site
+and office-extension scaffolds no longer carry it. The README now says to wire `ChatUI` only to an authenticated,
+rate-limited endpoint; a backend chat route is the planned replacement.
+D-1005 (W-ab242b11 slice 1).
+
 ### Fixed — the synced-file check's post-load manifest tests now fail when their own guard regresses (2026-10-18)
 `tests/test_check_synced_unmodified_manifest.py`: each post-load param asserts the refusal its own guard prints, so a guard that regresses to `isinstance` or `==` can no longer pass behind the wide catch's `SystemExit` message. A new `metaclass-eq-entry` param covers an `==`/`!=` entry type test, which no param caught before. The KeyboardInterrupt-subclass param asserts its full refusal line instead of the letter `K`, and an escaping subclass now fails one param instead of aborting the session. The comments say how each regressed guard actually ends. W-73044efc; a checker hole found one hop out is W-deb8eb0f.
 
