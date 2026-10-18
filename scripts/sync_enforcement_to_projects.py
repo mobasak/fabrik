@@ -1749,13 +1749,19 @@ def create_backup(path: Path) -> Path:
 
 
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
+# W-ba306861: why a path is in `_head_drift` when it is not a byte difference (an unreadable copy),
+# and the hub sources git could NOT read from HEAD, so the working tree shipped for them. Both were
+# silent: an unreadable copy recorded no drift, and a git that cannot answer returned None exactly as
+# an untracked file does. Display-only beside `_head_drift`'s bare names; reset in `main()` with it.
+_head_drift_why: dict[str, str] = {}
+_head_unread: dict[str, str] = {}
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
 # the manifest against the 47 repos carrying `.fabrik/synced.lock` that is tens of seconds of
 # pure re-asking, on a post-commit hook three sessions trigger. Keyed on the stat so an edit
 # DURING a run is never served stale; cleared in `main()` beside `_head_drift`.
-_head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool] | None] = {}
+_head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool]] = {}
 
 
 def _head_source(source: Path) -> tuple[bytes, int] | None:
@@ -1798,13 +1804,31 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # repo in the 47-repo walk was served the pre-commit bytes. Reading HEAD's own tree keys
         # the memo on what the function actually returns, at the same one-subprocess cost, and
         # takes the MODE from HEAD too (the index's mode is as stale as its SHA).
+        # `--literal-pathspecs`: a file named `:(…` is pathspec MAGIC to git and `ls-tree` exits 128
+        # on it, which would read as a git that cannot answer (W-ba306861 critique).
+        step = "ls-tree"
         ls = subprocess.run(
-            ["git", "ls-tree", "HEAD", "--", rel],
+            ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
             cwd=FABRIK_ROOT,
             capture_output=True,
             check=False,
         )
-        if ls.returncode != 0 or not ls.stdout.strip():
+        if ls.returncode != 0:
+            # A git that cannot ANSWER is not an untracked file (W-ba306861): a corrupt tree, a
+            # non-repo hub, dubious ownership. Only an unborn HEAD (`rev-parse` rc 1 — a hub with no
+            # commit yet, which a post-commit hook never sees) has nothing in HEAD to read, like an
+            # untracked file; every other failure is named, and the working tree ships for it.
+            step = "rev-parse"
+            born = subprocess.run(
+                ["git", "rev-parse", "--verify", "-q", "HEAD"],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                check=False,
+            )
+            if born.returncode != 1:
+                _head_unread[rel] = f"git ls-tree exited {ls.returncode}: {_first_line(ls.stderr)}"
+            return None
+        if not ls.stdout.strip():
             # NOT cached: an untracked file has no blob SHA, so there is no HEAD-aware key to
             # store it under — and a stat-only key here would re-open exactly the staleness the
             # SHA closes (the file becomes tracked and the memo keeps answering "untracked").
@@ -1812,6 +1836,12 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             return None  # untracked: the working tree is the only source there is
         # `ls-tree` prints: <mode> SP blob SP <sha> TAB <path>
         mode = int(ls.stdout.split()[0].decode(), 8)
+        kind = ls.stdout.split()[1].decode()
+        if kind != "blob":
+            # A tree (a directory source) or a gitlink: `git show` of a tree prints its LISTING,
+            # which would have been written, mode 0, as the file.
+            _head_unread[rel] = f"not a file in HEAD ({kind})"
+            return None
         # ⚠️ THE KEY CARRIES THE BLOB SHA, not just the working file's stat. The first cut keyed on
         # `(rel, st_mtime_ns, st_size)` and claimed "an edit DURING a run is never served stale" —
         # false for the edit that matters. `git commit` does not touch the working file, so a HEAD
@@ -1828,33 +1858,49 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         except OSError:
             key = None  # unstattable: answer it the slow way rather than caching a guess
         if key is not None and key in _head_cache:
-            hit = _head_cache[key]
-            if hit is None:
-                return None
-            data, mode, drifted = hit
+            data, mode, drifted = _head_cache[key]
             if drifted:
                 _head_drift.add(rel)  # rebuilt per run; a cache hit still records
             return data, mode
+        step = "show"
         blob = subprocess.run(
             ["git", "show", f"HEAD:{rel}"], cwd=FABRIK_ROOT, capture_output=True, check=False
         )
         if blob.returncode != 0:
-            if key is not None:
-                _head_cache[key] = None
-            return None  # tracked but not in HEAD (a staged add) — working tree it is
-    except OSError:
+            # `ls-tree HEAD` just listed the blob, so this is a missing or corrupt object, or a
+            # sibling's commit that removed the file between the two calls — never a staged add.
+            # NOT cached: one transient failure must not answer for the rest of the walk.
+            _head_unread[rel] = f"git show exited {blob.returncode}: {_first_line(blob.stderr)}"
+            return None
+    except OSError as exc:
+        _head_unread[rel] = f"git not runnable ({step}): {exc}"
         return None
     data = blob.stdout
-    drifted = False
     try:
         drifted = source.read_bytes() != data
-    except OSError:
-        pass
+    except OSError as exc:
+        # The working copy cannot be read, so what ships (HEAD) is not what is on disk: drift, with
+        # its reason. NOT cached, so a cache hit can never drop the reason or serve it stale.
+        _head_drift.add(rel)
+        _head_drift_why[rel] = f"working copy unreadable ({type(exc).__name__})"
+        return data, mode
     if drifted:
         _head_drift.add(rel)
     if key is not None:
         _head_cache[key] = (data, mode, drifted)
     return data, mode
+
+
+def _named(names: list[str], why: dict[str, str]) -> str:
+    """At most eight names for a report line, each with its reason when it has one."""
+    shown = [f"{n} ({why[n]})" if n in why else n for n in names[:8]]
+    return ", ".join(shown) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+
+
+def _first_line(stderr: bytes) -> str:
+    """git's first stderr line, for a reason; never raises on a non-UTF-8 path in it."""
+    lines = stderr.decode("utf-8", errors="replace").strip().splitlines()
+    return lines[0] if lines else "(no message)"
 
 
 # Every name imported from the manifest at the top of this module, rebound from HEAD by `main()`.
@@ -1892,9 +1938,10 @@ def _bind_manifest_from_head() -> str | None:
     ship, and a drifted manifest is recorded in `_head_drift` and named in the run's report.
 
     Two cases where HEAD gives no manifest, and they are NOT handled alike:
-    - No HEAD blob to read (an untracked manifest, an unborn HEAD, a hub git cannot read): the
-      import-time working-tree binding is restored, silently — `_head_source`'s rule for EVERY
-      untracked source (T12.17), not a choice made here; reporting those loudly is W-ba306861.
+    - No HEAD blob to read (an untracked manifest, an unborn HEAD): the import-time working-tree
+      binding is restored, silently — `_head_source`'s rule for EVERY untracked source (T12.17).
+      A committed manifest git cannot READ (it lands in `_head_unread`: a corrupt object, git not
+      runnable, a non-repo hub) is a refusal, for the reason below (W-ba306861).
     - A HEAD blob that cannot be BOUND (it raises on exec, or lacks a name the sync imports — a
       manifest and a sync edited together and committed apart): a refusal. A working-tree fallback
       there would ship uncommitted bytes while a committed manifest exists, the incident this
@@ -1909,6 +1956,13 @@ def _bind_manifest_from_head() -> str | None:
     head = _head_source(path)
     globals().update(_IMPORTED_MANIFEST)  # never inherit an earlier in-process run's binding
     if head is None:
+        unread = _head_unread.get("scripts/fabrik_synced_manifest.py")
+        if unread:
+            return (
+                f"HEAD's scripts/fabrik_synced_manifest.py cannot be read ({unread}); a "
+                "working-tree fallback would ship uncommitted lists fleet-wide — fix the hub's git "
+                "and re-run"
+            )
         return None
     committed = types.ModuleType("fabrik_synced_manifest_at_head")
     committed.__file__ = str(path)  # as an import sets it — a manifest may resolve paths from it
@@ -2713,6 +2767,8 @@ def main() -> int:
     # 1 forever.
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
+    _head_drift_why.clear()  # before the manifest bind below, which records into all three
+    _head_unread.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
@@ -2829,7 +2885,7 @@ def main() -> int:
         )
     if _head_drift:
         names = sorted(_head_drift)
-        shown = ", ".join(names[:8]) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+        shown = _named(names, _head_drift_why)
         # ⚠️ SAY WHAT THIS RUN ACTUALLY DID. `_head_source` is consulted on EVERY branch — including
         # the ones that write nothing (SKIP/identical, WARN/destination newer, and every path under
         # --dry-run) — so a flat "the COMMITTED bytes were synced" asserted a sync on runs where
@@ -2847,10 +2903,24 @@ def main() -> int:
             if "scripts/fabrik_synced_manifest.py" in names
             else ""
         )
+        # An unreadable copy has nothing to commit; the advice names both remedies when it applies.
+        advice = (
+            "Commit them (or make an unreadable copy readable again) and re-run to distribute"
+            if _head_drift_why
+            else "Commit them and re-run to distribute"
+        )
         print(
             f"\n⚠️  {len(names)} hub file(s) differ between the hub's WORKING TREE and HEAD; "
             f"{verb} (T12.17 — an uncommitted edit used to ship to every project, 48 copies on "
-            f"2026-09-07). Commit them and re-run to distribute: {shown}{manifest_note}"
+            f"2026-09-07). {advice}: {shown}{manifest_note}"
+        )
+    if _head_unread:
+        # W-ba306861: a git that cannot answer used to read as an untracked file, silently.
+        unread_verb = "would ship (--dry-run)" if args.dry_run else "shipped"
+        print(
+            f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s), so the WORKING "
+            f"TREE {unread_verb} for them instead of the committed bytes (T12.17): "
+            f"{_named(sorted(_head_unread), _head_unread)}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
@@ -2889,6 +2959,14 @@ def main() -> int:
             )
         if _WORKTREE_TALLY["warnings"] > 0:
             summary += f", {_WORKTREE_TALLY['warnings']} warning(s)"
+    # W-ba306861: the two HEAD-read findings join the folds above, on the one line `tail -3` keeps —
+    # printed only as stand-alone lines, a second one evicts the first from the wrapper's tail.
+    if _head_drift:
+        summary += f" | HEAD drift: {len(_head_drift)}"
+    if _head_unread:
+        summary += f" | HEAD unread: {len(_head_unread)} (working tree " + (
+            "would ship)" if args.dry_run else "shipped)"
+        )
     print(summary)
 
     if args.dry_run:

@@ -703,3 +703,157 @@ def test_the_rebound_names_are_exactly_the_modules_manifest_imports(hub) -> None
     ]
     assert len(imports) == 1, [n.lineno for n in imports]
     assert {a.name for a in imports[0].names} == set(mod._MANIFEST_NAMES)
+
+
+# ── W-ba306861: an unreadable source is named, never shipped silently ────────────────────────────
+
+
+def _corrupt_object(hub_root: Path, sha: str) -> None:
+    """Overwrite a loose object with bytes git cannot inflate (objects are written 0444)."""
+    obj = hub_root / ".git" / "objects" / sha[:2] / sha[2:]
+    obj.chmod(0o644)
+    obj.write_bytes(b"not a zlib stream")
+
+
+def _rev(hub_root: Path, what: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(hub_root), "rev-parse", what], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def _fail_git_for(mod, monkeypatch, verb: str, rel: str, *, raise_exc: bool = False) -> None:
+    """Make the module's `git <verb>` for one path fail (rc 128, or OSError), every other call real."""
+    real = subprocess.run
+
+    def fake(cmd, *a, **k):
+        if cmd[:1] == ["git"] and verb in cmd and any(rel in str(c) for c in cmd):
+            if raise_exc:
+                raise FileNotFoundError(2, "No such file or directory", "git")
+            return subprocess.CompletedProcess(cmd, 128, b"", b"fatal: simulated failure\n")
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(mod.subprocess, "run", fake)
+
+
+def _tail3(out: str) -> str:
+    """What the production wrapper keeps (`$SYNC 2>&1 | tail -3`, governance_sync_postcommit.sh)."""
+    return "\n".join(out.rstrip("\n").split("\n")[-3:])
+
+
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads a mode-000 file"
+)
+def test_an_unreadable_working_copy_is_drift_with_its_reason(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A tracked file whose working copy cannot be read ships HEAD's bytes — that IS a difference
+    from what is on disk, and it was recorded as none. Named with its reason, on the summary line
+    the post-commit wrapper keeps, and never served from the memo so a later read re-records it."""
+    mod, hub_root, committed, _untracked = hub
+    _manifest_hub(hub_root, _stub("B", '"enforcement/committed.py",'), None)
+    committed.chmod(0o000)
+    try:
+        assert mod._head_source(committed) == (b"COMMITTED = 1\n", 0o100755)
+        rel = "scripts/enforcement/committed.py"
+        assert rel in mod._head_drift
+        assert mod._head_drift_why[rel] == "working copy unreadable (PermissionError)"
+        mod._head_drift.clear()
+        mod._head_drift_why.clear()
+        mod._head_source(committed)
+        assert rel in mod._head_drift_why, "a cached read lost the reason"
+        _one_project(tmp_path, monkeypatch, mod)
+        mod.main()
+    finally:
+        committed.chmod(0o755)
+    out = capsys.readouterr().out
+    assert "scripts/enforcement/committed.py (working copy unreadable (PermissionError))" in out, (
+        out
+    )
+    assert "HEAD drift: 1" in _tail3(out), _tail3(out)
+
+
+def test_a_hub_git_that_cannot_answer_is_named(hub, tmp_path: Path, monkeypatch, capsys) -> None:
+    """`ls-tree` failing (on a hub WITH a commit) or git not running at all returned None exactly as
+    an untracked file does, and the working tree shipped silently. Both are named, with the
+    fallback, on the summary line; an untracked file beside them still records nothing."""
+    mod, hub_root, committed, untracked = hub
+    assert mod._head_source(untracked) is None
+    assert mod._head_unread == {}, "an untracked source is not an unreadable one"
+    rel = "scripts/enforcement/committed.py"
+    _corrupt_object(hub_root, _rev(hub_root, "HEAD^{tree}"))
+    assert mod._head_source(committed) is None
+    assert mod._head_unread[rel].startswith("git ls-tree exited 128"), mod._head_unread
+    mod._head_unread.clear()
+    _fail_git_for(mod, monkeypatch, "ls-tree", rel, raise_exc=True)
+    assert mod._head_source(committed) is None
+    assert mod._head_unread[rel].startswith("git not runnable (ls-tree)"), mod._head_unread
+
+
+def test_an_unread_source_is_on_the_summary_line(hub, tmp_path: Path, monkeypatch, capsys) -> None:
+    """The run's report and the one line the wrapper keeps both name the working-tree fallback."""
+    mod, hub_root, committed, _untracked = hub
+    _manifest_hub(hub_root, _stub("B", '"enforcement/committed.py",'), None)
+    _one_project(tmp_path, monkeypatch, mod)
+    _fail_git_for(mod, monkeypatch, "ls-tree", "scripts/enforcement/committed.py")
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "git could not read HEAD for 1 hub source(s)" in out, out
+    assert (
+        "scripts/enforcement/committed.py (git ls-tree exited 128: fatal: simulated failure)" in out
+    )
+    assert "HEAD unread: 1 (working tree shipped)" in _tail3(out), _tail3(out)
+
+
+def test_a_failed_head_show_is_named_and_re_asked(hub) -> None:
+    """`ls-tree` found the blob and `git show` could not read it (a corrupt or missing object): the
+    working tree shipped silently and the failure was CACHED, so it answered for the rest of the
+    walk. Named, and asked again on the next call."""
+    mod, hub_root, committed, _untracked = hub
+    rel = "scripts/enforcement/committed.py"
+    blob = _rev(hub_root, f"HEAD:{rel}")
+    obj = hub_root / ".git" / "objects" / blob[:2] / blob[2:]
+    good = obj.read_bytes()
+    _corrupt_object(hub_root, blob)
+    assert mod._head_source(committed) is None
+    assert mod._head_unread[rel].startswith("git show exited 128"), mod._head_unread
+    obj.write_bytes(good)
+    mod._head_unread.clear()
+    assert mod._head_source(committed) == (b"COMMITTED = 1\n", 0o100755), "a failure was cached"
+    assert mod._head_unread == {}
+
+
+def test_an_unreadable_head_manifest_refuses_the_run(
+    hub, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A hub git that cannot read HEAD's manifest fell back to the WORKING-TREE manifest — every
+    synced list and the .gitignore block from a three-session tree, fleet-wide, at exit 0. The
+    loader already refuses a manifest it cannot BIND for that reason; one it cannot READ is
+    refused the same way, before any project is touched."""
+    mod, hub_root, _committed, _untracked = hub
+    (hub_root / "scripts" / "head_only.py").write_text("# x\n", encoding="utf-8")
+    _manifest_hub(hub_root, _stub("B", '"head_only.py",'), None)
+    project = _one_project(tmp_path, monkeypatch, mod)
+    _corrupt_object(hub_root, _rev(hub_root, "HEAD:scripts/fabrik_synced_manifest.py"))
+    assert mod.main() == 1
+    out = capsys.readouterr().out
+    assert "HEAD's scripts/fabrik_synced_manifest.py cannot be read (git show exited 128" in out, (
+        out
+    )
+    assert not (project / "scripts").exists()
+
+
+def test_a_non_file_head_entry_is_named(hub) -> None:
+    """A directory's HEAD entry is a tree: `git show` printed its LISTING and the sync would have
+    written that listing, mode 0, as the file. Named, never shipped."""
+    mod, hub_root, _committed, _untracked = hub
+    assert mod._head_source(hub_root / "scripts" / "enforcement") is None
+    assert mod._head_unread["scripts/enforcement"] == "not a file in HEAD (tree)"
+
+
+def test_the_new_records_reset_before_the_manifest_bind(hub) -> None:
+    """Reset after the bind and the manifest's own record is wiped before the report reads it."""
+    mod = hub[0]
+    main_body = Path(mod.__file__).read_text(encoding="utf-8").split("def main(")[1]
+    bind = main_body.index("refusal = _bind_manifest_from_head()")
+    for marker in ("_head_unread.clear()", "_head_drift_why.clear()", "_head_drift.clear()"):
+        assert -1 < main_body.index(marker) < bind, marker
