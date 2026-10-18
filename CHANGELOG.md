@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — seat briefs state one root for the pins dir, with the review loops' SCRATCH: exception (2026-10-18)
+
+- `commands/_fragments/subagents-core.md`: the D8 paragraph keeps the pins dir under the run's disposable folder
+  unless the including command puts it under the durable `SCRATCH:` folder (D-836), as `/fabrik-review`,
+  `/fabrik-plan-review` and `/fabrik-spec-review` do so an interrupted pass resumes; the PIN paragraph now points at
+  D8 instead of restating `<run scratch>`, which contradicted `fabrik-review.md`, `fabrik-plan-review.md` and
+  `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
+  both sentences.
+
 ### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
 
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against

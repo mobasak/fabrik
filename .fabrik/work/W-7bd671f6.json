@@ -3,7 +3,7 @@
   "created": "2026-10-18T04:25:36.987906Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "819e5c966f70a94fbffb3da8faec1ea70251231e",
   "id": "W-7bd671f6",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (D-956), a contradiction inside one rendered command on where pins_dir lives; two corpus files",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review.md:173 puts pins_dir under the durable SCRATCH: folder while subagents-core.md:5,11 put it under <run scratch> — one rendered command says both"
 }
