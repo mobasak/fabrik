@@ -161,9 +161,22 @@ The **OpenRouter pool** balance (shown once, here; a level, not a projection —
 balance; amber at or under `POOL_CREDITS_WARN_USD`, red at zero with what you will see, "endpoint
 unreachable" with its age when served past its TTL, "not configured" when there is no key), the
 **search-API quotas** (Brave, Firecrawl, Exa — plan, remaining, renewal; every value that cannot be
-obtained says why), and the **external-services page** (`external-services-dashboard.html`, regenerated
-daily by `scripts/gen_dashboard.py` under the 06:00 chain) with its age, linked and opened in its own
-tab — no iframe.
+obtained says why), and the **external-services inventory** — the registry's providers rendered in place
+by `dashboard_ui/inventory.py` (the same function writes `external-services-dashboard.html` for the 06:00
+chain's `scripts/gen_dashboard.py`): a summary, the Needs-attention list, the categories as collapsed groups
+with a filter (a name, Cost, Status) and the untriaged queue.
+
+**The registry read** runs in a CHILD PROCESS, `scripts/sysadmin/inventory_read.py` — the one place psycopg2
+is imported, so the board stays stdlib and a missing driver is only this section's error state. The
+collector (`_inventory`) spawns it under `sys.executable` with a deadline 4.5 s after the arrival of the
+request that spawns it and kills it at that deadline (a request that joins the read shares that deadline
+and waits up to its own 5 s), so the section answers inside the request's 5 s whatever Postgres does; the
+child also bounds itself with a SIGALRM a moment past that deadline, should the board be gone; one
+lock guards the last good read and the read in flight (never held across a read), concurrent requests
+share one child, and the last good read is served for 60 s from its start. A failed or killed read is
+the section's error state, `<ExceptionClass>: <first line>` and nothing more, with Retry; the pool and API
+cards render beside it. No connection is ever cancelled. The Services view has no timed refresh: it loads
+on navigation, on `visibilitychange` and on a forced refresh.
 
 **The pool drain advisory.** When the balance falls to `POOL_CREDITS_WARN_USD` or below, the board sends
 ONE mesh-notify (the rotation tick's notify path) for the drain episode, latched by
@@ -245,7 +258,7 @@ regeneration too. Every POST also needs the custom `X-Quota-Dash` header
 | `GET /static/app.css`, `/static/app.js` | the two static files, `Cache-Control: no-cache` with an ETag (an edit shows at once) |
 | `GET /quota.json` | the last `--status --json` payload on disk, served at once; a payload older than `QUOTA_DASH_MAX_AGE_S`, or a fleet pointer that has moved since it was written, starts ONE background regeneration. A first call with nothing on disk returns `{}` and starts one background probe — a deliberate delta from the old page, which probed inline and made that caller wait |
 | `GET /health` | `ok` — liveness for the keepalive |
-| `GET /external-services.html` | the static external-services page, byte-for-byte — a regular `.html` file only, else 404 |
+| `GET /external-services.html` | `303` to `/#services`, empty body, on no removal date — the old static page's bookmark now lands on the inventory section (not tied to `_LEGACY_TOKEN_UNTIL`) |
 | `GET /repos.html` | the old Repos page's bookmark: `303` to `/#work` through `_LEGACY_TOKEN_UNTIL` (2026-10-31), `404` after it. A work item removes the redirect and the token's legacy branch on that date |
 | `POST /item-verdict` | `{repo, item, action: accept\|reject\|comment, text, token}` → `work.py verdict` as the operator against the repo's main checkout — 200, 400 (unknown pair or action, or no words), 409 (`changed` / `diverged`, nothing run) or 502 (work.py's refusal or a timeout) |
 | `POST /agent-pause` | `{repo, agent, action: pause\|resume, why}` → `work.py pause\|resume` as the operator — 200, 400 or 502 |
@@ -311,7 +324,6 @@ The board's own knobs, and the box and rotation knobs it reads; nothing is set i
 | `POOL_CREDITS_WARN_USD` | `5` | the pool's drain line — an absolute floor, not a percentage |
 | `QUOTA_DASH_API_QUOTAS_TTL_S` · `QUOTA_DASH_API_QUOTAS_TIMEOUT_S` | `1800` · `12` | the search-API readings' reuse window (long on purpose: a Brave probe spends a query) and per-provider timeout |
 | `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED corpus the service matrix reads |
-| `QUOTA_DASH_EXT_SERVICES` | `<repo>/external-services-dashboard.html` | the external-services page served on `/external-services.html` |
 | `CLAUDE_P_COST` | `scripts/kilo-benchmarks/claude_p_cost.json` | the spend sidecar the Usage view reads |
 | `FABRIK_OPT_DIR` | `/opt` | the root the Overview and Work views scan for `*/.fabrik/work` stores and merge records |
 | `CLAUDE_FLEET_ROOT` | `~/.claude-fleet` | where `caps.json` and `thresholds.json` live (unless their own `QUOTA_DASH_*_FILE` is set) |
@@ -327,7 +339,11 @@ The board's own knobs, and the box and rotation knobs it reads; nothing is set i
 Thirteen test files, none of which reaches the network, the fleet or the real home. They share one
 isolation module, `tests/quota_dashboard_isolation.py`: every loader points HOME at an empty directory and
 drops the provider keys, every proxy variable and the MCP configs, and an autouse guard each file imports
-cuts every non-loopback connect and lookup and fails the test that tried one:
+cuts every non-loopback connect and lookup and fails the test that tried one. The Services view's registry
+read is guarded on both sides, because libpq connects in C and the socket guard cannot see it: the loader
+replaces the collector's spawn with a stub that answers the census fixture
+(`tests/external_services_fixture.py`), empties the 60 s slot, and sets `SERVICES_REGISTRY_DSN` to a socket
+directory that does not exist, so no board test reads the real registry:
 
 ```bash
 .venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py \
@@ -337,7 +353,9 @@ cuts every non-loopback connect and lookup and fails the test that tried one:
   tests/test_quota_dashboard_accounts.py tests/test_quota_dashboard_views_misc.py -q
 ```
 
-The two browser files launch chromium through playwright (in the `.venv`; skipped where it is missing).
+The two browser files launch chromium through playwright (in the `.venv`; skipped where it is missing); the
+inventory's axe cases also need `axe-core` (`AXE_CORE_JS`, else any `/opt/*/node_modules/axe-core/axe.min.js`;
+skipped where absent).
 
 ## Boundaries
 
@@ -349,8 +367,9 @@ The two browser files launch chromium through playwright (in the `.venv`; skippe
   coordinator's `work.py commit-items`; the board never commits.
 - **Loopback only.** No auth, because nothing off-box can reach it; remote access is W-7def1b78, never a
   rebind to `0.0.0.0` without auth in front.
-- **Stdlib only, no build step.** No dependencies to keep current; playwright is in the `.venv` for the
-  browser tests only (`tests/test_quota_dashboard_browser.py`, `tests/test_quota_dashboard_app_js.py`).
+- **Stdlib only, no build step.** No dependencies to keep current — the board process imports neither
+  `registry_db` nor psycopg2 (the named exception, D9, lives in the `inventory_read.py` child); playwright is
+  in the `.venv` for the browser tests only (`tests/test_quota_dashboard_browser.py`, `tests/test_quota_dashboard_app_js.py`).
 
 ## Related
 
@@ -365,9 +384,11 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/gen_dashboard.py`
 - `scripts/sysadmin/dashboard_ui/__init__.py`
 - `scripts/sysadmin/dashboard_ui/components.py`
 - `scripts/sysadmin/dashboard_ui/fmt.py`
+- `scripts/sysadmin/dashboard_ui/inventory.py`
 - `scripts/sysadmin/dashboard_ui/merges.py`
 - `scripts/sysadmin/dashboard_ui/snapshot.py`
 - `scripts/sysadmin/dashboard_ui/strings.py`
@@ -378,5 +399,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/dashboard_ui/views/services.py`
 - `scripts/sysadmin/dashboard_ui/views/usage.py`
 - `scripts/sysadmin/dashboard_ui/views/work.py`
+- `scripts/sysadmin/inventory_read.py`
 - `scripts/sysadmin/quota_dashboard.py`
 <!-- END related-scripts -->

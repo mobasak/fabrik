@@ -121,7 +121,6 @@
 - [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): Per-command optimisation report over the fleet-wide close-out ledger (D-175).
 - [scripts/command_run.py](../INDEX.md) (owner: infra): COMMAND RUN-RECORD — the in-flight state of the `/fabrik-*` command an agent is running.
 - [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
-- [scripts/dashboard_server.py](../INDEX.md) (owner: infra): LIVE external-services dashboard — a tiny localhost server that queries the registry on every
 - [scripts/decisions.py](../INDEX.md) (owner: infra): Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): Declare a subscription (renewal date / price / account email) for a service.
 - [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
@@ -210,7 +209,7 @@
 - [scripts/fix_economy_tier_agents.py](../INDEX.md) (owner: infra): Apply Self-Review Workflow to Economy Tier Agents
 - [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): Fleet-wide doc-freshness audit — the MECHANICAL rot detector for /opt projects.
 - [scripts/gather_envs.py](../INDEX.md) (owner: infra): Consolidate all /opt/*/.env files into a single deduped, service-annotated registry.
-- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
+- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained static HTML file.
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_vps_inventory.py](../INDEX.md) (owner: infra): Generate the VPS container inventory table for vps-complete-inventory.md.
 - [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
@@ -266,6 +265,7 @@
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
 - [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
+- [scripts/sysadmin/inventory_read.py](../INDEX.md) (owner: infra): The registry read the Services view runs, as a CHILD PROCESS the board spawns and kills at the read's deadline.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): Kaizen T08 — noise-floor backfill over the pre-event transcript corpus.
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): Kaizen collector — measure how agents ACTUALLY behave, fleet-wide, daily.
 - [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): Kaizen M1 collector v2 — derived facts, versioned metrics, paired-counter registry.

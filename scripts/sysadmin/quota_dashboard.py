@@ -560,6 +560,193 @@ def _credits_async() -> threading.Thread | None:
     return th
 
 
+# The external-services inventory (spec docs/superpowers/specs/2026-10-18-external-services-page-design.md
+# § Failure, D9): the registry is read by a CHILD PROCESS (`inventory_read.py`) the board spawns and kills at
+# the read's deadline, so the board stays stdlib, imports neither registry_db nor psycopg2, and a stalled
+# Postgres is the section's error state, never a hung `/v/services`. ONE lock guards two fields — the last
+# good read and the read in flight — and is never held across a read.
+_INVENTORY_READ = Path(__file__).resolve().parent / "inventory_read.py"
+INVENTORY_FRESH_S = 60.0  # the registry changes once a day: at most one read a minute
+INVENTORY_REQUEST_S = 5.0  # one deadline per request, from its own arrival
+INVENTORY_READ_S = (
+    4.5  # a read's deadline from its spawning request's arrival: kill + render fit in 5 s
+)
+_INV_TIMEOUT = "ReadTimeout: registry read killed at its deadline"
+_INV_LOCK_TIMEOUT = "ReadTimeout: registry lock not taken within the request's deadline"
+_inv_lock = threading.Lock()
+_inv_good: tuple[list, float | None, float] | None = (
+    None  # (rows, synced_at, the read's START, monotonic)
+)
+_inv_flight: _InventoryRead | None = None
+
+
+class _InventoryRead:
+    """The read in flight: its child, its start and deadline (monotonic), a done event and its outcome
+    (``("ok", rows, synced_at)`` or ``("err", message)``)."""
+
+    def __init__(self, start: float, deadline_epoch: float) -> None:
+        self.start = start
+        self.deadline = start + INVENTORY_READ_S
+        self.deadline_epoch = deadline_epoch
+        self.proc: subprocess.Popen | None = None
+        self.done = threading.Event()
+        self.outcome: tuple | None = None
+
+
+def _inventory_spawn(deadline_epoch: float) -> subprocess.Popen:
+    """The child that reads the registry; the board suites replace this one name (tests/quota_dashboard_isolation.py)."""
+    return subprocess.Popen(  # noqa: S603 — fixed argv, no shell, like the rotation call
+        [sys.executable, str(_INVENTORY_READ), "--deadline", repr(deadline_epoch)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _first_line(text: object) -> str:
+    return (str(text).splitlines() or [""])[0][:300]
+
+
+def _epoch(value: object) -> float | None:
+    """``value`` as a finite, non-negative epoch float, or None (a bool, a non-number, NaN, an infinity,
+    a negative, or an integer too large for a float are all None)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        f = float(value)
+    except OverflowError:
+        return None
+    return f if math.isfinite(f) and f >= 0 else None
+
+
+def _inventory_outcome(out: bytes, code: int | None) -> tuple:
+    """The child's stdout and exit status as an outcome: a fresh read, the child's own error string, or
+    ``ReadFailed`` for anything that is not one JSON object matching its exit status."""
+    try:
+        obj = json.loads(out.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        obj = None
+    if isinstance(obj, dict):
+        rows, raw = obj.get("rows"), obj.get("synced_at")
+        synced = _epoch(raw)
+        if (
+            code == 0
+            and "error" not in obj
+            and isinstance(rows, list)
+            and all(isinstance(r, dict) for r in rows)
+            and (raw is None or synced is not None)
+        ):
+            return ("ok", rows, synced)
+        if code != 0 and "rows" not in obj and isinstance(obj.get("error"), str):
+            return ("err", _first_line(obj["error"]))
+    return ("err", f"ReadFailed: exit status {code}")
+
+
+def _inventory_finish(flight: _InventoryRead, outcome: tuple) -> None:
+    """Record the outcome, clear the in-flight field and wake every waiter — the one exit of every read."""
+    global _inv_good, _inv_flight
+    with _inv_lock:
+        if outcome[0] == "ok":
+            _inv_good = (outcome[1], outcome[2], flight.start)
+        if _inv_flight is flight:
+            _inv_flight = None
+    flight.outcome = outcome
+    flight.done.set()
+
+
+def _inventory_wait(flight: _InventoryRead) -> None:
+    """The spawning request's waiter thread: spawn, read the child until the read's deadline, kill and
+    reap it past that — or past whatever else ended the read. ``communicate()`` after ``kill()`` drains
+    and closes both pipes and cannot block."""
+    outcome: tuple = ("err", "ReadFailed: no outcome")
+    proc = None
+    try:
+        proc = _inventory_spawn(flight.deadline_epoch)
+        flight.proc = proc
+        try:
+            out, _err = proc.communicate(timeout=max(0.0, flight.deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            outcome = ("err", _INV_TIMEOUT)
+        else:
+            outcome = _inventory_outcome(out or b"", proc.returncode)
+    except Exception as exc:  # noqa: BLE001 — a spawn or read fault is the section's error state
+        outcome = ("err", f"{type(exc).__name__}: {_first_line(exc)}".rstrip(": "))
+    finally:
+        if (
+            proc is not None and proc.returncode is None
+        ):  # a child still running is never left behind
+            try:
+                proc.kill()
+                proc.communicate()
+            except Exception:  # noqa: BLE001, S110 — the outcome is already decided; the kill is best effort
+                pass
+        _inventory_finish(flight, outcome)
+
+
+def _inventory_classified_at() -> float | None:
+    try:
+        return _CLASSIFY_STAMP.stat().st_mtime
+    except OSError:
+        return None
+
+
+def _inventory(ctx) -> dict:
+    """The Services view's inventory data: ``{"rows", "synced_at", "classified_at"}`` or ``{"error": …}``.
+
+    ONE deadline per request (5 s from its arrival), every wait bounded by what is left of it. Under the
+    lock, for the length of the decision only: serve the last good read if it STARTED under 60 s ago, else
+    spawn the child when none is in flight, else join the one in flight. A request that ends without a
+    fresh result (its wait ran out, the child failed or was killed) is the error state; a failed read
+    never replaces the last good one, and that one is served only inside its 60 s.
+    """
+    global _inv_flight
+    arrival = time.monotonic()
+    deadline = arrival + INVENTORY_REQUEST_S
+    if not _inv_lock.acquire(
+        timeout=INVENTORY_READ_S
+    ):  # leaves room in the 5 s to answer and render
+        return {"error": _INV_LOCK_TIMEOUT}
+    spawned = False
+    fresh = None
+    try:
+        good = _inv_good
+        if good is not None and arrival - good[2] < INVENTORY_FRESH_S:
+            fresh = good
+        else:
+            flight = _inv_flight
+            if flight is None:
+                flight = _inv_flight = _InventoryRead(arrival, time.time() + INVENTORY_READ_S)
+                spawned = True
+    finally:
+        _inv_lock.release()
+    if fresh is not None:  # the stat() runs after the lock is released
+        return {
+            "rows": fresh[0],
+            "synced_at": fresh[1],
+            "classified_at": _inventory_classified_at(),
+        }
+    if spawned:
+        try:
+            threading.Thread(
+                target=_inventory_wait, args=(flight,), daemon=True, name="inventory-read"
+            ).start()
+        except Exception as exc:  # noqa: BLE001 — no thread, no read: clear the field so the next request starts afresh
+            _inventory_finish(flight, ("err", f"{type(exc).__name__}: {_first_line(exc)}"))
+    flight.done.wait(max(0.0, deadline - time.monotonic()))
+    outcome = flight.outcome if flight.done.is_set() else None
+    if outcome is None:
+        return {"error": _INV_TIMEOUT}
+    if outcome[0] != "ok":
+        return {"error": outcome[1]}
+    return {
+        "rows": outcome[1],
+        "synced_at": outcome[2],
+        "classified_at": _inventory_classified_at(),
+    }
+
+
 def _pointer_slug() -> str | None:
     """The account the fleet pointer names, by the rotation CLI's own rule — the FINAL target's name
     (`resolve(strict=True).name`), so a pointer through a second symlink is not read as a flip. None
@@ -827,8 +1014,9 @@ def _eligible(a: dict, now: float | None = None) -> bool:
 # order of CLAUDE.md § Pipeline (stages), then the gates, then the utilities — the test refuses a
 # source with no slot and a slot with no source, so the list cannot drift from the corpus silently.
 _FABRIK_ROOT = Path(__file__).resolve().parents[2]
-# The external-services page (operator ask 2026-09-03): the STATIC file infra's daily chain regenerates
-# (scripts/gen_dashboard.py, 06:00 cron). This board only SERVES and LINKS it — never regenerates it.
+_CLASSIFY_STAMP = (
+    _FABRIK_ROOT / ".tmp" / "external-services" / "classify_last.json"
+)  # the classifier's last run
 # The amortized cost sidecar `claude_p_cost.py --refresh` rebuilds on the 06:00 cron. Read, never
 # recomputed here: the dashboard renders, the producer measures. Resolved AFTER _FABRIK_ROOT but read
 # only inside `_spend_data`, so call-time resolution is what matters.
@@ -836,10 +1024,6 @@ _COST_SIDECAR = Path(
     os.getenv(
         "CLAUDE_P_COST", str(_FABRIK_ROOT / "scripts" / "kilo-benchmarks" / "claude_p_cost.json")
     )
-)
-
-EXT_SERVICES_HTML = Path(
-    os.getenv("QUOTA_DASH_EXT_SERVICES", str(_FABRIK_ROOT / "external-services-dashboard.html"))
 )
 
 
@@ -2390,14 +2574,10 @@ def _view_data(name: str, ctx) -> dict:
             rendered_root=str(RENDERED_COMMANDS),  # the corpus the matrix read — the server's knob
         )
     elif name == "services":
-        try:
-            ext_mtime: float | None = EXT_SERVICES_HTML.stat().st_mtime
-        except OSError:
-            ext_mtime = None
         data.update(
             pool=_guarded(_pool_credits, fetch=False),
             apis=_guarded(_api_quotas, ctx.now, fetch=False),
-            ext_page={"path": "/external-services.html", "mtime": ext_mtime},
+            inventory=_guarded(_inventory, ctx),
             warn_usd=CREDITS_WARN_USD,  # the pool's drain line, as the alert reads it
         )
     else:
@@ -2842,18 +3022,13 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         elif path == "/external-services.html":
-            # Only a regular `.html` file is ever served — the env override is the operator's own
-            # process env on a 127.0.0.1-only server (single-operator threat model), but a symlink
-            # to /etc/hostname was measured to pass through; the suffix + regular-file guard closes it.
-            if EXT_SERVICES_HTML.suffix != ".html" or not EXT_SERVICES_HTML.is_file():
-                self.send_error(404)
-                return
-            try:
-                body = EXT_SERVICES_HTML.read_bytes()  # byte-for-byte, never cached
-            except OSError:
-                self.send_error(404)
-                return
-            ctype = "text/html; charset=utf-8"
+            # the old static page: a bookmark lands on the inventory section, on no removal date (D8)
+            self.send_response(303)
+            self.send_header("Location", "/#services")
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
         else:
             self.send_error(404)
             return

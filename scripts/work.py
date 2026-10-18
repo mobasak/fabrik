@@ -965,7 +965,9 @@ def _paused_dir(repo: Path) -> Path:
     return _shared_dir(repo) / "paused"
 
 
-PAUSE_MARKER_MAX = 4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+PAUSE_MARKER_MAX = (
+    4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+)
 
 
 def _pause_record(raw: object) -> dict:
@@ -1043,7 +1045,9 @@ def _caller_pause(tree: Path, session: str) -> dict | None:
         coordinator = (
             str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
         )
-        name = _is_paused(paused, _caller_name(main, tree, workers, coordinator, session), tree, workers)
+        name = _is_paused(
+            paused, _caller_name(main, tree, workers, coordinator, session), tree, workers
+        )
         return {**paused[name], "name": name} if name else None
     except Exception:
         return None
@@ -2967,8 +2971,22 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
     LF line is left ENTIRELY alone outside the block: no normalization, no restoration, so the
     untouched prefix/suffix bytes pass through byte-for-byte and only the spliced block itself is
     new content — a single stray CRLF line elsewhere must never become the whole file's style
-    (previously a lone CRLF line anywhere flipped every other line to CRLF too)."""
+    (previously a lone CRLF line anywhere flipped every other line to CRLF too).
+
+    The block is the main checkout's view of the main store: outside it (a linked worktree, or
+    ``--repo`` naming a tree the caller is not in) render refuses unless ``--here`` (mail
+    01M55ZNVH7: a worktree render rewrote 433 rows of a block its branch then merges)."""
     _require_store(repo)
+    here = bool(getattr(args, "here", False))
+    elsewhere, linked = _render_refusal(repo)  # asked once, before any write (review A-opus-5)
+    if elsewhere:  # `--here` renders the caller's OWN tree only — never one `--repo` names
+        raise WorkError(elsewhere)
+    if linked and not here:
+        raise WorkError(
+            f"render refused: this is a linked worktree ({repo}). The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge. Change an item "
+            "here with `work.py edit <id>`; `render --here` renders this tree's own store anyway"
+        )
     path = repo / _BACKLOG_REL
     if not path.is_file():
         # T09 review A-O5: a repo with no backlog file is a no-op, not an error — T10's adoption
@@ -3002,7 +3020,43 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
         print(f"work: render — updated {_rel(repo, path)}")
     else:
         print(f"work: render — {_rel(repo, path)} already current")
+    if linked:  # only `--here` reaches this in a linked worktree
+        print("work: render --here — this block is this tree's view — do not commit it")
     return 0
+
+
+def _is_file_inside(repo: Path, value: str) -> bool:
+    """True when ``value`` (repo-relative or absolute) names a regular file inside ``repo``. Never
+    raises: a name the filesystem refuses (too long, a NUL) or a symlink loop is simply not a file
+    inside."""
+    try:
+        target = (repo / value).resolve()
+        return target.is_relative_to(repo.resolve()) and target.is_file()
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def _render_refusal(repo: Path) -> tuple[str | None, bool]:
+    """``(elsewhere, linked)``, both answered before ``render`` writes. ``elsewhere`` is the refusal when
+    the caller's own tree is not ``repo`` (``--repo`` naming another tree, a cwd outside any repo or
+    one that no longer exists) — refused even with ``--here``, which renders only the caller's own
+    tree. ``linked`` is True in a linked worktree, refused there unless ``--here``."""
+    try:
+        cwd: Path | None = Path.cwd()
+    except OSError:
+        cwd = None
+    try:
+        caller = None if cwd is None else _repo_root(cwd)
+    except WorkError:
+        caller = None
+    if caller != repo:
+        where = "a directory that no longer exists" if cwd is None else str(cwd)
+        return (
+            f"render refused: the caller is in {where}, not in {repo}. The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge, from inside that "
+            "tree; `render` (with or without `--here`) never writes a tree the caller is not in"
+        ), False
+    return None, _is_linked_worktree(repo)
 
 
 def _block_body_norm(body: str) -> str:
@@ -3189,6 +3243,111 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     if note:
         print(note, file=sys.stderr)
     print(_rel(repo, path))
+    return 0
+
+
+# `edit` changes only the kinds `add` makes — an allowlist, so a hand-set or future kind is refused too.
+# The derived kinds carry the reason `add` gives for them: their title and links come from their
+# mechanism (the Stop harvest, the mail claim, the feedback queue), so a hand edit would fork them.
+_EDIT_KINDS = ("backlog", "task")
+_EDIT_REFUSED_KINDS = {
+    "decision": "decision items come only from DECISION blocks (the Stop-hook harvest)",
+    "next": "a next item comes only from the Stop harvest of a session's NEXT line",
+    "mail": "mail items are made and closed only by taking the obligation (a mail claim)",
+    "feedback": "feedback items are made and closed only by taking the obligation (a feedback queue)",
+}
+
+
+def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
+    """Change what `add` writes — title, next, the spec/plan/decision links — on an item `add` could
+    have made, under the store lock, in the caller's own tree (as every item-field writer does).
+    `--next ""` clears next; a call that names no field is refused. A link or next edit never
+    changes the backlog block (it lists owner, title and id only), so it needs no render."""
+    _require_store(repo)
+    if args.title is None and args.next is None and not args.link and not args.unlink:
+        raise WorkError("edit needs --title, --next, --link and/or --unlink")
+    title = None if args.title is None else " ".join(args.title.split())
+    if title is not None and not title:
+        raise WorkError("--title is empty")
+    next_action = None if args.next is None else " ".join(args.next.split())
+    links = _parse_links(args.link or [])
+    unlink = list(dict.fromkeys(args.unlink or []))
+    for key in unlink:
+        if key not in LINK_KEYS:
+            raise WorkError(f"--unlink {key!r}: expected one of {'|'.join(LINK_KEYS)}")
+    both = sorted(set(links) & set(unlink))
+    if both:
+        raise WorkError(f"--link and --unlink both name {', '.join(both)}; pick one")
+    decision = links.get("decision")
+    if decision is not None and not _DECISION_ID_RE.fullmatch(decision):
+        raise WorkError(
+            f"--link decision={decision!r} is not a ledger id (D-NNN); mint the row first — "
+            "work.py never writes docs/DECISIONS.md"
+        )
+    for key in ("spec", "plan"):
+        value = links.get(key)
+        if value is not None and not _is_file_inside(repo, value):
+            _warn(f"--link {key}={value}: not a file inside {repo} — applied as given")
+
+    def _check_kind(item: dict) -> None:
+        kind = item.get("kind")
+        if kind in _EDIT_KINDS:
+            return
+        why = _EDIT_REFUSED_KINDS.get(kind) if isinstance(kind, str) else None
+        label = kind if isinstance(kind, str) and kind.isidentifier() else repr(kind)
+        raise WorkError(
+            f"edit {item['id']} refused: a {label} item — "
+            + (why or f"edit changes only the kinds `add` makes ({', '.join(_EDIT_KINDS)})")
+        )
+
+    def _new_links(item: dict) -> dict:
+        current = item.get("links", {})
+        if not isinstance(current, dict):
+            raise WorkError(
+                f"edit {item['id']} refused: its links is not a mapping ({type(current).__name__}) — "
+                "repair the item file by hand first"
+            )
+        # a stored LINK_KEYS value that is not a string is refused by name, never coerced: a link
+        # edit must not silently change a value the call did not name (review pass 3, A-haiku-p3-2)
+        bad = sorted(k for k in LINK_KEYS if k in current and not isinstance(current[k], str))
+        if bad:
+            raise WorkError(
+                f"edit {item['id']} refused: links.{', links.'.join(bad)} is not a string — "
+                "repair the item file by hand first"
+            )
+        merged = {**dict.fromkeys(LINK_KEYS, ""), **current, **links}
+        for key in unlink:
+            merged[key] = ""
+        return merged
+
+    linked = _is_linked_worktree(
+        repo
+    )  # every git answer is taken before the write (review A-opus-5)
+    first = _read_item(
+        repo, args.id
+    )  # a missing id, a refused kind or bad links is named before the lock
+    _check_kind(first)
+    if links or unlink:
+        _new_links(first)
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="edit"):
+        item = _read_item(repo, args.id)
+        _check_kind(item)
+        if title is not None:
+            item["title"] = title
+        if next_action is not None:
+            item["next"] = next_action
+        if links or unlink:
+            item["links"] = _new_links(item)
+        _write_item(repo, item)
+        _after_write(repo, _session())
+    print(_line(item))
+    if title is None:
+        print("work: edit — the backlog block lists owner, title and id only — nothing to render")
+    if linked:
+        print(
+            "work: edit — this item merges with the branch; if the main checkout holds an uncommitted "
+            "write to it, run `work.py commit-items` there before the merge"
+        )
     return 0
 
 
@@ -3835,7 +3994,9 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
 
 VERDICT_TEXT_MAX = 200  # characters of the operator's words kept per verdict
 OPERATOR_ACCEPTED = "operator-accepted"  # informational: no code reads it (the hold it lifts does)
-_REVIEW_HOLD = "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+_REVIEW_HOLD = (
+    "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+)
 
 
 def _operator_only(verb: str) -> None:
@@ -3861,7 +4022,9 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     _operator_only("verdict")
     action = args.action
-    text = _one_line("".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX)
+    text = _one_line(
+        "".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX
+    )
     if action in ("reject", "comment") and not text:
         raise WorkError(f"verdict {action} needs --text <the operator's words>")
     via = _one_line(args.by or "", 40) or "cli"
@@ -3884,8 +4047,13 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
             _fence(repo, args.id, session, "verdict")
         log = item.get("comments", [])
         if not isinstance(log, list):
-            raise WorkError(f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand")
-        item["comments"] = [*log, {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text}]
+            raise WorkError(
+                f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand"
+            )
+        item["comments"] = [
+            *log,
+            {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text},
+        ]
         if action == "comment":
             path = _write_item(repo, item)
         elif awaiting:
@@ -3895,7 +4063,9 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
             path = _close(repo, item, session=session, note=note)
         elif action == "accept":
             raw = item.get("tags") or []
-            tags = set(raw) if isinstance(raw, list) else {str(raw)}  # a hand-edited string stays one tag
+            tags = (
+                set(raw) if isinstance(raw, list) else {str(raw)}
+            )  # a hand-edited string stays one tag
             item["tags"] = sorted((tags | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
             path = _write_item(repo, item)
         else:
@@ -4182,12 +4352,16 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
     actor, label = _pause_actor()
     distributor = str(_read_config(main).get("distributor") or "").strip()
     if actor and actor not in (name, distributor):
-        raise WorkError(f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
-                        f"or the operator's; this caller is {actor}")
+        raise WorkError(
+            f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
+            f"or the operator's; this caller is {actor}"
+        )
     known = set(_workers(main)) | {distributor, _feedback_owner(main)}
     if name not in known:
-        _warn(f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
-              "a window that resolves to that name; the floor and triage count worker trees")
+        _warn(
+            f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
+            "a window that resolves to that name; the floor and triage count worker trees"
+        )
     by = _one_line(args.by, 60) if not actor and args.by and args.by.strip() else label
     marker = _paused_dir(main) / f"{name}.json"
     with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="pause"):
@@ -4195,8 +4369,10 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
         held = _paused(main).get(name)  # re-read under the lock: a pause may have landed meanwhile
         if held is not None and actor and actor != distributor and held["actor"] != actor:
             # re-pausing over someone else's pause would make it this agent's own, and so liftable by it
-            raise WorkError(f"{name} is already paused by {held['by']}; only they, the distributor "
-                            f"({distributor or 'none'}) or the operator may change that pause")
+            raise WorkError(
+                f"{name} is already paused by {held['by']}; only they, the distributor "
+                f"({distributor or 'none'}) or the operator may change that pause"
+            )
         _paused_dir(main).mkdir(parents=True, exist_ok=True)
         rec = {"by": by, "actor": actor, "at": time.time(), "why": _one_line(args.why or "", 200)}
         _write_json(marker, rec)
@@ -4212,7 +4388,9 @@ def _refuse_odd_marker(marker: Path) -> None:
     except FileNotFoundError:
         return
     if not stat.S_ISREG(st.st_mode):
-        raise WorkError(f"{marker} is not a regular file — it pauses by presence; remove it by hand")
+        raise WorkError(
+            f"{marker} is not a regular file — it pauses by presence; remove it by hand"
+        )
 
 
 def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
@@ -4235,8 +4413,10 @@ def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
         _refuse_odd_marker(marker)
         if actor and actor != distributor and not (rec["actor"] and actor == rec["actor"]):
             setter = f"{rec['actor']}'s, " if rec["actor"] else ""
-            raise WorkError(f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
-                            f"({distributor or 'none'}) or the operator's; this caller is {actor}")
+            raise WorkError(
+                f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
+                f"({distributor or 'none'}) or the operator's; this caller is {actor}"
+            )
         try:
             marker.unlink()
         except FileNotFoundError:
@@ -6271,6 +6451,14 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--unblock", action="append", help="remove a blocked-by id, repeatable")
     s.set_defaults(fn=cmd_assign)
 
+    s = sub.add_parser("edit", help="change an item's title, next or links (what `add` wrote)")
+    s.add_argument("id")
+    s.add_argument("--title")
+    s.add_argument("--next", help='the concrete next action, one line ("" clears it)')
+    s.add_argument("--link", action="append", help="spec=<path> | plan=<path> | decision=D-NNN")
+    s.add_argument("--unlink", action="append", help="clear spec, plan or decision, repeatable")
+    s.set_defaults(fn=cmd_edit)
+
     s = sub.add_parser(
         "ready", help="obligations, your claims, owned, awaiting, then the top 10 ready items"
     )
@@ -6344,8 +6532,12 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("verdict", help="the operator's accept / reject / comment on one item")
     s.add_argument("id")
     s.add_argument("action", choices=("accept", "reject", "comment"))
-    s.add_argument("--text", default="", help="the operator's words (one line; reject and comment need it)")
-    s.add_argument("--by", default="", help="where the call came from (e.g. dashboard), kept as `via`")
+    s.add_argument(
+        "--text", default="", help="the operator's words (one line; reject and comment need it)"
+    )
+    s.add_argument(
+        "--by", default="", help="where the call came from (e.g. dashboard), kept as `via`"
+    )
     s.set_defaults(fn=cmd_verdict)
 
     s = sub.add_parser(
@@ -6369,6 +6561,11 @@ def _parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_merge_item)
 
     s = sub.add_parser("render", help="regenerate the backlog's AUTO-GENERATED:BACKLOG block")
+    s.add_argument(
+        "--here",
+        action="store_true",
+        help="render this tree's own store outside the main checkout (never commit the result)",
+    )
     s.set_defaults(fn=cmd_render)
 
     s = sub.add_parser(
