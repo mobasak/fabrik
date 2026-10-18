@@ -910,6 +910,12 @@ def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> Non
 def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
     """W-c71703cb: a fix forced by the post-flip gate run is read by a new closing pass, never shipped unreviewed."""
     assert (
-        "flip back to `IN-PROGRESS`, fix it, run a new closing pass over the fix when it touches a file of the surface"
-        " rather than the receipt alone, and repeat the order;"
+        "embed THAT run in place of the first (a red whose findings name this surface or its receipt is yours: flip"
+        " back to `IN-PROGRESS`, fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the"
+        " order;"
     ) in _norm(SRC)
+    assert "or its receipt is fixed as the post-flip run's is); THEN flip the Status" in _norm(SRC)
+    assert (
+        "YOUR debt, not another lane's — fix it as the close order fixes an in-surface red."
+        in _norm(SRC)
+    )
