@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the watchdog driver stages nothing on a VPS under a guessable /tmp name (2026-10-18)
+
+`fabrik apply` for a watchdog project used to stage the sidecar build context and the governance tarball, which root
+extracts, in a shared `/tmp/fabrik-watchdog-build`. It also staged the compose overlay carrying the database DSN, and the
+write-enabled deploy key, at fixed `/tmp/<project>-…` names. Another local user could swap or read any of them.
+Each now gets its own random remote `mktemp` file or dir (0600/0700) through the new `drivers.ssh.remote_mktemp`, which
+the deployer shares. The overlay is root-only 0600 before it moves. Every stage is removed after use.
+D-1000 (W-719b2678; the monitoring drivers follow in W-42e79070).
+
 ### Fixed — a scaffolded file-worker's `make docker-smoke` never claims a production job (2026-10-18)
 
 The smoke run started the worker with the project's real `.env`, and the worker claims a job on every poll, so a
