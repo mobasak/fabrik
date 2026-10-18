@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: a worktree's gate does not grade a shared runtime's code; Finish step 5 says the run flips and archives its own plan (2026-10-18)
+
+- In a linked worktree, a gate or live request served by a shared runtime runs the main checkout's code. Step 8's isolation bullet now says this and points at `docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated for how to prove the tree's own code. D7's live-request rule points a worktree reader at it. How a worktree run meets D7's live request is filed as W-1c8b3ebd for a panel decision. This answers row 1792337134, a recurrence of the held subject clone-proof-uses-docker-run.
+- Finish step 5 now says the run flips its own plan, and archives it as step 6 allows, at every position. It quotes the hub charter's condition for the coordinator doing either: "once no run is live on it and every ticket is merged". This answers row 1792345477. The project template's coordinator job (7) lacks that condition and is filed as W-77812e10.
+- Row 1792332816 was rejected as landed: `check_review_coverage.py` reads `fable` seats since 7186c590f.
+
 ### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
 
 - Phase 1 used to count only a grep miss on a work item's cited line as a finding, so a grep hit on dead code carried an unproven premise into PROBLEM. A failure or error path the item claims there is now replayed on a copy that carries the state it needs. A replay on such a copy that does not fail as claimed is a finding PROBLEM states. A replay whose copy cannot carry that state is recorded unverified, never as refuted. This answers row 1792348018, a recurrence of the held subject measure-refuted-ticket-premise.
