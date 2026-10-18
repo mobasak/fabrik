@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T17:40:25.341420Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8008e144",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-993",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "qualify both sentences to name the quota wall and an operator's pause (governance-sync surface: full /fabrik-review, one commit), keeping tests/test_governance_template_split.py's anchors",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "CLAUDE.md:129 (plan-execution override) and templates/governance/CLAUDE.md say 'The ONLY legitimate halts are the three BLOCKED cases', contradicting the same files' RED band (blocked --wall at the wall) and D-993 (blocked --paused)"
+}
