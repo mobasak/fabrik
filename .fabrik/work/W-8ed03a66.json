@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:08:03.987103Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8ed03a66",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M553BN2DXKW77VEC2ZWJ6QPB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Stop hook's PANEL APPROVED check can never pass a joint spec+plan verdict — _PANEL_VERDICT_RE stops the artifact at the first space"
+}
