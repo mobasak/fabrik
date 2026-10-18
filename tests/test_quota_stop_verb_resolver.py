@@ -177,9 +177,25 @@ def test_a_cd_is_resolved_logically_as_bash_does(tmp_path: Path) -> None:
     assert _decide("cd ./nested/lnk2/../.. && git log", root / "sub") == "deny"
 
 
+def test_a_cd_through_a_symlink_to_the_root_lands_home(
+    own_repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    # the target is realpath'd after the logical normalisation: a link TO the root is the root
+    link = tmp_path_factory.mktemp("links") / "home"
+    link.symlink_to(own_repo)
+    assert _decide(f"cd {link} && git commit -m x -- f.py", own_repo / "scripts") == "allow"
+
+
+def test_a_git_look_alike_program_is_never_judged_as_git() -> None:
+    # `gitx` is not git: the veto fails closed rather than reading its argv as git's
+    assert hook._git_flags_forbidden("gitx push --force") is True
+    assert hook._git_flags_forbidden("cat gitx") is False
+
+
 def test_a_relative_cd_name_bash_would_search_cdpath_for_is_held(own_repo: Path) -> None:
     # `sub/../..` normalises to the root, but bash looks a name not starting `/` or `.` up in CDPATH
     assert _decide("cd sub/../.. && git log", own_repo / "scripts") == "deny"
+    assert _decide("cd .x/.. && git log", own_repo) == "deny"  # a hidden name is searched too
     assert _decide("cd ./sub/../.. && git log", own_repo / "scripts") == "allow"
 
 
@@ -189,8 +205,13 @@ def test_a_relative_cd_name_bash_would_search_cdpath_for_is_held(own_repo: Path)
         ("git push origin {+,}master", "deny"),
         ("git push origin {:,}master", "deny"),
         ("git add {.,}", "deny"),
-        ("git add -- a{1..3}.py", "deny"),
         ('git push origin {"+",}master', "deny"),
+        ("git push origin {+,\\ }master", "deny"),
+        ("git push origin {+,\\\t}master", "deny"),
+        ("git add {.,\\ }", "deny"),
+        ("git push origin {+,\\}master}", "deny"),
+        ("git log HEAD@{2..3}", "deny"),
+        ("git add -- a{1..3}.py", "deny"),
         ("git log --oneline @{u}..HEAD", "allow"),
         ("git rev-parse HEAD^{tree}", "allow"),
         ("git commit -m 'a {x,y}' -- f.py", "allow"),

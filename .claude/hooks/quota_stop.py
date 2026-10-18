@@ -159,7 +159,11 @@ _NOT_A_BLANK = re.compile(r"[^\S \t\n]")
 # {+,}master` is a FORCE push (`+master master`), `git add {.,}` a sweep — while shlex hands every
 # check one literal word (W-945bf009 review, pass 1, executed on base and new alike). Only the
 # expanding shapes, a `,` or `..` inside, are refused: `@{u}` and `HEAD^{tree}` stay git syntax.
-_BRACE_EXPANSION = re.compile(r"\{[^}\s]*(?:,|\.\.)[^}\s]*\}")
+# No whitespace stops the match: an ESCAPED blank (`{+,\ }master`) is one word to bash and still
+# expands — a force push again (pass 2, executed). Every expansion is refused, the harmless ones
+# too (`git add -- a{1..3}.py`, `ls {a,b}`): judging which expansions are safe is the negative
+# list this file abandoned at pass 19, so a held session writes its paths out instead.
+_BRACE_EXPANSION = re.compile(r"\{[^}]*(?:,|\.\.)[^}]*\}")
 # The RESOLVER (W-945bf009). A held session reads another checkout with `git -C <repo>`, goes back
 # to its own root with `cd <root> &&`, and gives `mail.py send` a MULTI-LINE body on stdin — a
 # here-string carries one line (a quoted newline is the multi-line veto), a file redirect is vetoed
@@ -174,11 +178,13 @@ _BRACE_EXPANSION = re.compile(r"\{[^}\s]*(?:,|\.\.)[^}\s]*\}")
 #     between calls, so a `cd` anywhere else would carry the next, un-relocated `git commit` into
 #     another repo; a `cd` home is not a relocation and every rule applies as without it. The
 #     target is resolved as bash's LOGICAL `cd` does — `..` drops the previous component of the
-#     path as written, never of its symlink target — and must start with `/` or `.`, because bash
-#     searches CDPATH for any other relative name (W-945bf009 review, pass 1: through a symlinked
+#     path as written, never of its symlink target — and must be absolute or start `./`, `../` (or
+#     be `.`/`..`), the only names bash never looks up in CDPATH (a hidden `.x` is searched too) (W-945bf009 review, pass 1: through a symlinked
 #     component, the physical realpath named home while bash landed in another repo, executed).
 _REPO_DIR = r"/opt/[\w-][\w.-]*(?:/\.claude/worktrees/[\w-][\w.-]*)?/?"
-_CD_PREFIX = re.compile(r"^[ \t]*cd[ \t]+([/.][\w./-]*)[ \t]*(?:&&|;)[ \t]*", re.ASCII)
+_CD_PREFIX = re.compile(
+    r"^[ \t]*cd[ \t]+((?:/|\.\.?/)[\w./-]*|\.\.?)[ \t]*(?:&&|;)[ \t]*", re.ASCII
+)
 _GIT_RELOCATE = re.compile(rf"^([ \t]*git)(?:[ \t]+-C[ \t]+{_REPO_DIR}(?=[ \t]))+", re.ASCII)
 _RELOCATED_WRITE = re.compile(r"^[ \t]*git[ \t]+(add|commit|push|fetch|reset)(?!-)\b", re.ASCII)
 # The one pipe: a body producer into `mail.py send`. Nothing else may pipe.
