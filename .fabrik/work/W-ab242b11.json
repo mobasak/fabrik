@@ -1,8 +1,10 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-3e9e2f4c"
+  ],
   "created": "2026-10-18T02:19:57.886448Z",
   "creator": "fleet",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-ab242b11",
   "impact": "high",
@@ -16,8 +18,8 @@
   "next": "fleet: design the auth hook against the template's auth story (fastapi-user-auth / D-xxx), then /fabrik-task or /fabrik-spec",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "HIGH, security first within HIGH (D-958): an unauthenticated route spends the app's OpenRouter key; effort low = a session check plus rate limit on one template route; fleet re-scores high if it needs a spec",
+  "priority": 2,
+  "score_reason": "HIGH security; effort high on fleet's evidence: Pattern A auth means a design trade-off (backend route vs /auth/me check vs Next-side limiter), a /fabrik-spec; major, held behind the one in flight; interim mitigation (leave OPENROUTER_API_KEY unset) mailed to the 4 live projects",
   "status": "open",
   "tags": [
     "security"
