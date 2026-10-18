@@ -3692,9 +3692,12 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
     citations this item fixed. Flagged: a `./` or `../` prefix, a bare `_fragments/` path, a name without `.md`, `_`
     or capitals, a citation ending its sentence. Allowed: the absolute form, a `git show <ref>:commands/...` recipe,
     `{{include:...}}` renderer syntax, a bare directory mention, a glob, a placeholder and a file that is not `.md`."""
+    # the name must END at a terminator a citation ends on, so a glob, brace, placeholder or other extension never
+    # reads as a citation (review rounds 2-4 patched a negative lookahead three times; this allow-list replaced it)
+    end = r"(?=$|[\s`'\"),;:#\]’]|\.(?=$|[\s`'\")\].]))"
     relative = re.compile(
-        r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+"
-        r"(?:\.md\b|(?![\w*</-]|\.\w))"
+        r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+(?:\.md)?"
+        + end
     )
     for spelling in (
         "`commands/_agents/x.md`",
@@ -3712,6 +3715,8 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
         "{{include:term-coverage}}",
         "the `commands/_fragments/` directory",
         "ls commands/_sources/fabrik-*",
+        "ls commands/_sources/fabrik.*",
+        "commands/_sources/x.<ext>",
         "`commands/_sources/<command>.md`",
         "commands/_sources/x.py",
     ):
