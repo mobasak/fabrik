@@ -1084,3 +1084,59 @@ def test_coroner_marks_only_after_a_successful_save(sources, tmp_path, monkeypat
     monkeypatch.setattr(kc, "_command_run_save", lambda sid, rec: False)
     kc.sweep(sources)
     assert _state(child) == "running" and _state(parent) == "running"
+
+
+@pytest.mark.parametrize("missing", ["kaizen_events", "command_run"])
+def test_a_sweep_with_a_failed_import_exits_nonzero_naming_it(monkeypatch, capsys, missing):
+    """W-4bd4ea3c: a failed import of either module was swallowed (`except Exception: ... = None`)
+    and `--sweep` still exited 0, so the daily job stamped a sweep that closed no records (no
+    `command_run`) or emitted no events (no `kaizen_events`) as done, and nothing retried it.
+    It now exits 3, naming the module and its import error; the report still prints."""
+    monkeypatch.setattr(kc, "sweep", lambda *a, **k: kc.CoronerReport())
+    monkeypatch.setattr(kc, missing, None)
+    monkeypatch.setattr(kc, "_IMPORT_ERRORS", {missing: "ImportError: boom"})
+    assert kc.main(["--sweep"]) == 3
+    captured = capsys.readouterr()
+    assert missing in captured.err and "ImportError: boom" in captured.err, captured.err
+    assert '"holes_today"' in captured.out  # the report is still printed
+
+
+def test_a_sweep_with_both_modules_exits_zero(monkeypatch, capsys):
+    """A CONTROL: a sweep whose imports succeeded exits 0, as before."""
+    monkeypatch.setattr(kc, "sweep", lambda *a, **k: kc.CoronerReport())
+    assert kc.main(["--sweep"]) == 0
+
+
+@pytest.mark.parametrize("missing", ["kaizen_events", "command_run"])
+def test_a_real_failed_import_is_kept_and_the_module_still_loads(missing):
+    """The import-time capture itself, not an injected dict: a fresh interpreter whose `missing`
+    import fails still loads the module (its read-only callers need it), keeps the error under
+    that module's name, and `--sweep` exits 3 naming it. The sweep is stubbed inside the child, so
+    nothing reads or writes the real state."""
+    child = (
+        "import sys\n"
+        f"sys.path[:0] = [{str(REPO / 'scripts' / 'sysadmin')!r}, {str(REPO / 'scripts')!r}]\n"
+        f"sys.modules[{missing!r}] = None\n"
+        "import kaizen_coroner as kc\n"
+        f"assert getattr(kc, {missing!r}) is None\n"
+        f"print('KEPT', kc._IMPORT_ERRORS.get({missing!r}, ''))\n"
+        "kc.sweep = lambda *a, **k: kc.CoronerReport()\n"
+        "sys.exit(kc.main(['--sweep']))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", child], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert r.returncode == 3, (r.stdout, r.stderr)
+    assert "KEPT ModuleNotFoundError" in r.stdout, r.stdout
+    assert f"ran without {missing} (ModuleNotFoundError" in r.stderr, r.stderr
+
+
+def test_a_sweep_that_counted_an_error_exits_nonzero(monkeypatch, capsys):
+    """Both modules imported, but the sweep itself counted an error (a crashed pass, a record
+    close that raised): the same blind day, so the same exit 3, naming the first error."""
+    report = kc.CoronerReport()
+    report.errors.append("OSError('home gone')")
+    monkeypatch.setattr(kc, "sweep", lambda *a, **k: report)
+    assert kc.main(["--sweep"]) == 3
+    err = capsys.readouterr().err
+    assert "counted 1 error(s)" in err and "OSError('home gone')" in err, err

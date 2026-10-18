@@ -4,6 +4,111 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
+
+- In a linked worktree, `work.py claim` and `release` refused an item whose file the branch did not yet carry. The claim itself is shared state, and items the coordinator makes on the main checkout reach a branch only with a merge.
+  - So `merge_request.py request --item` printed PARTIAL and left the claim held.
+- Both verbs now read the main checkout's copy when the file is missing here, and only then.
+  - A corrupt copy here stays a refusal.
+  - An item this branch deleted (present at the fork point) is never brought back.
+  - `claim` checks the item's blockers in the store that holds it.
+- A write verb (`done`, `drop`, `answer`, `assign`, `verdict`) on such an item now names the merge it needs, instead of a bare `no item` (D-991, W-98204c50).
+
+### Changed — /fabrik-task: a review fix commit goes through the capture line; MIRROR censuses the whole AST (2026-10-18)
+
+- Phase 5's after-commit review form now says each commit a review fix makes is a run commit. It is made through step 5's capture line, so its sha lands in `commit.sha`, and the receipt is re-made after the last one as `/fabrik-review`'s exit proofs say. A sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead (the `--restamp` form). Rows 1792327651 and 1792309961's confusion read the range-tip rule as excluding fix commits.
+- MIRROR's search now names an `ast.walk` census of a Python name's readers beside the grep, never `tree.body` alone. A function-local or `try:` import sits below `tree.body`, and a string-named import, `getattr` or subprocess argv is no import node, so the grep finds it. This is row 1792303601, the second sighting of the held subject `ast-census-for-python-imports`.
+- The other five rows of the queue were rejected with their reasons: one held as advice, four answered.
+
+### Fixed — merge_request merges work-item files key by key instead of refusing them (2026-10-18)
+
+- `merge_request.py merge` refused a branch whenever the coordinator scored an item on master after its builder closed it on the branch. This happened four times on 2026-10-18.
+  - The two sides changed different keys, but `work.py` writes one key per line in sorted order, so `effort` sits beside `evidence` and `score_reason` beside `status`.
+  - Git's line merge refuses changes from the two sides that land on neighbouring lines.
+- Item conflicts in `_build` now go through the new `work.py merge-item <base> <ours> <theirs>` verb:
+  - Each key takes the side that changed it; an identical change on both sides merges.
+  - `links` merges per sub-key. `tags` and `blocked_by` merge as sets, and `comments` keeps both sides' appends in time order.
+  - A key both sides changed differently, or deleted on one side and changed on the other, still refuses. The refusal now names the key (exit 3).
+- The merged item's `id` must match its file name before it is staged (D-988, W-5f3617e6).
+
+### Changed — the probe catalogue's Sweep also catches a paraphrase of a rule another command holds (2026-10-18)
+
+- `commands/_fragments/review-probe-catalogue.md` § Prose and docs fixes, Sweep: a sentence a fix writes that
+  restates a rule already stated elsewhere is held to `/fabrik-review-scoped` step 3's rule for what is already
+  stated, its source found by the rule's terms and two rewordings of them. The quote re-read never saw a paraphrase;
+  five answered rejects had cited step 3 (row 1792304655).
+
+### Fixed — /fabrik-deploy-plan-review names `scratch_dir` and its pins root (2026-10-18)
+
+- `commands/_sources/fabrik-deploy-plan-review.md`: its `Workflow` args now carry `scratch_dir` (the review-loop
+  script refuses a launch without it) and put `pins_dir` under the run's durable `SCRATCH:` folder, in the words
+  `/fabrik-repo-review` uses; it does not include `subagents-core`, so D8's root never reached it (W-f9933654).
+  `fabrik-repo-review.md`'s fallback now reads "printed no line that begins `SCRATCH:`" too, and
+  `tests/test_review_loop_workflow.py` checks every non-`RUN-` `SCRATCH:` mention in the six review-loop sources
+  is the folder noun or the line selector.
+
+### Fixed — the four review loops name the start line that BEGINS `SCRATCH:` for their pins root (2026-10-18)
+
+- `fabrik-review.md`, `fabrik-review-scoped.md`, `fabrik-plan-review.md`, `fabrik-spec-review.md`: "the path after
+  `SCRATCH: ` on the line `start` printed" also matched inside the `RUN-SCRATCH: ` line, so a literal reader could
+  pin under the disposable folder; each now says "the path on the line `start` printed that begins `SCRATCH:`", as
+  `/fabrik-repo-review` does. `SCRATCH_HOME_CLAUSE` in `tests/test_review_loop_workflow.py` pins it (W-49adc7a7).
+
+### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
+
+- `commands/_sources/fabrik-review.md`: after "apply the lines of the probe catalogue", the same sentence
+  `/fabrik-review-scoped` carries: § Seat isolation applies whole in every brief that runs tests or imports pinned
+  code, from an archive whose roots are derived from what the tests import, read or run. Two rows reported seats
+  staging a partial tree; three earlier answered rejects cited the catalogue line. A test pins both copies equal.
+
+### Changed — /fabrik-repo-review keeps its batch pins in the durable SCRATCH: folder (2026-10-18)
+
+- `commands/_sources/fabrik-repo-review.md`: each batch's `pins_dir` goes under the run's `SCRATCH:` folder
+  (D-836), as `/fabrik-review`, `/fabrik-plan-review` and `/fabrik-spec-review` already say, so a WSL shutdown
+  mid-batch keeps them; the batch launch also names `scratch_dir`, which the review-loop workflow requires.
+  `subagents-core.md` D8 names it with the three; `tests/test_run_scratch_brief_wording.py` reads D8's list and
+  checks every includer naming `pins_dir` against it (W-27a0dc32).
+
+### Changed — /fabrik-task tells a worktree session how to write its durable files (2026-10-18)
+
+- `commands/_sources/fabrik-task.md`: the `<durable>` paragraph says a linked-worktree session, whose Write tool
+  refuses a main-checkout path, changes each file as a scratchpad copy (copied in first when it exists) and `cp`s
+  the whole copy back after every change (D-984). `SIZE_CAP` 22662 -> 22917; `tests/test_fabrik_task_source.py`
+  pins the sentence.
+
+### Changed — seat briefs state one root for the pins dir, with the review loops' SCRATCH: exception (2026-10-18)
+
+- `commands/_fragments/subagents-core.md`: the D8 paragraph keeps the pins dir under the run's disposable folder
+  unless the including command puts it under the durable `SCRATCH:` folder (D-836), as `/fabrik-review`,
+  `/fabrik-plan-review` and `/fabrik-spec-review` do so an interrupted pass resumes; the PIN paragraph now points at
+  D8 instead of restating `<run scratch>`, which contradicted `fabrik-review.md`, `fabrik-plan-review.md` and
+  `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
+  both sentences.
+
+### Fixed — kaizen_coroner --sweep exits 3 when it ran blind (2026-10-18)
+
+- `scripts/sysadmin/kaizen_coroner.py --sweep` exited 0 even when `kaizen_events` or `command_run` failed to import, or when the sweep counted an error. When that happened, it closed no records or emitted no events, and the daily `weekly_catchup.sh` job still stamped the day done, so nothing retried for 24 hours.
+- It now prints the report, names each failed import with its exception (plus the first counted error) on stderr, and exits 3. The job then retries every hour.
+- The import stays tolerant, so `kaizen_collect_v2` still loads the module (W-4bd4ea3c).
+- The deeper `sweep()` paths that count no error are tracked as W-6f46cebd.
+
+### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
+
+- `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
+- It says `POST /auth/passwordless/request` is already capped per email and per IP by the library. Tune that cap; add no second limiter and never answer 429, because a 429 would reveal accounts.
+- It marks the two token-only routes as IP-only limits and tells Pattern B to configure Supabase Auth's own limits (W-51994793).
+
+### Fixed — the sync's synced lists and .gitignore block come from HEAD's manifest, never the working tree (2026-10-18)
+
+- `scripts/sync_enforcement_to_projects.py` already shipped tracked files from HEAD (T12.17), but WHAT it ships and the `.gitignore` block it computes came from the manifest imported off disk, so a sibling's uncommitted manifest edit patched ~46 repos with no drift line.
+- `main()` now binds every manifest name from the committed manifest, and the drift report names a drifted manifest as such. A HEAD manifest that cannot be bound stops the run with the reason instead of falling back to the working tree. A function-local manifest import that bypassed the binding is gone (W-8c57e84a, D-986).
+
+### Changed — /fabrik-plan-after-chat runs a new pattern the plan writes on near-miss inputs (2026-10-18)
+
+Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
+near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
+plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
 ### Fixed — a scaffolded file-worker's `make docker-smoke` checks the worker's heartbeat, not `/health` (2026-10-18)
 
 `fabrik scaffold --type file-worker` wrote a `docker-smoke` target that curled `/health`, which a worker never serves,
@@ -58,6 +163,12 @@ SIZE runs `git check-ignore -v` on each new file path it declares and stages it 
 MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape before `design.md`.
 Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
 22662 (D-979).
+
+### Fixed — check_doc_index and check_doc_links read every CommonMark inline-link shape (2026-10-18)
+
+- `scripts/enforcement/check_doc_index.py` and `scripts/enforcement/check_doc_links.py` read links with a regex that stopped at the first `)` or space. A balanced-paren link (`docs/a(b).md`) was truncated and reported missing, and a titled or `<angle>` link to a missing doc was never examined by either check. Both now share one `link_targets()` scanner, each file carrying its own copy, pinned equal by a test. It handles balanced parens, titles, angle destinations, escapes and fragments.
+- Direction (b) and (c) count every parsed link, and the added-code listing reads non-ASCII names.
+- Fleet replay: no finding changes in any /opt repo (W-dd091f0d, D-982).
 
 ### Fixed — check_synced_unmodified names any BaseException a hub manifest raises and runs none of its code once its lists are read (2026-10-18)
 

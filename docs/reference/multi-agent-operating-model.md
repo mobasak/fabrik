@@ -179,7 +179,8 @@ python3 scripts/merge_request.py resume <id>    # a request left short of `repli
 
 `merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
 `<git common dir>/fabrik-merge/` first, claims the request, and runs (a) a preflight in a throwaway
-worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts only, (c) the
+worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts and
+`.fabrik/work/W-*.json` conflicts merged key-wise by `work.py merge-item` only, (c) the
 owner's tests (`.fabrik/merge-tests`, read from base, with the throwaway's `src` first on
 `PYTHONPATH`; with none, pytest over the touched `tests/` files under `<main>/.venv/bin/python` when
 present, with the caller's `PYTHONPATH` dropped and the merged import root — `src`, or the tree's

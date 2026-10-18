@@ -257,3 +257,19 @@ def test_the_gate_reads_a_bulleted_spec_quote_and_skips_a_blockquote() -> None:
     assert gate.GIVEN_ROW_RE.findall(bullet)
     assert gate._list_paths(quote) == []
     assert gate.GIVEN_ROW_RE.findall(quote) == []
+
+
+def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
+    """Row 1792242620, a recurrence of held probe-plan-code-snippets (1791336859): a plan's new regex was too loose on
+    a run of asterisks, found only at review; Phase 1 now runs a pattern or guard the plan writes new on a copy against
+    near-miss inputs, beside the existing execute-a-behavioural-claim rule."""
+    text = _flat()
+    anchor = "never inferred from anchors;"
+    start = text.find(anchor)
+    end = text.find("a step that relies on what a script DOES", start)
+    assert start != -1 and end != -1, "both neighbouring clauses are still there"
+    assert text[start + len(anchor) : end].strip() == (
+        "a pattern or guard the plan writes new (a regex, a parser condition) is run once on a scratch copy of the"
+        " file it goes into against near-miss inputs (a run of the character it matches, e.g. `***`; the same guards"
+        " in another order), its command and output cited in the plan's Evidence;"
+    )
