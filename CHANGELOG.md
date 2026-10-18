@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: stage and run the gate before the pin of every pass that follows a fix, so a gate-forced fix is reviewed (2026-10-18)
+
+- The close used to run `final_gate.py --check --json` only after the closing pass, so a fix the gate forced landed after the closing seats had read the surface. A sentence before "Close in this ORDER" now has the reader stage their own files and run the gate before the pin of every pass that follows a fix, since any of them may be the closing pass. A red outside the surface forces no fix; it is measured as the `GATE-SCOPE` paragraph does, and the pass is pinned unchanged. This answers row 1792335517, the second sighting of the held subject final-gate-before-closing-pass. `tests/test_review_queue_pass.py` pins the sentence.
+
 ### Fixed — a review seat can run a scaffold test against its pins: fabrik-lib is linked beside the archive, never copied (2026-10-18)
 
 - `.claude/workflows/fabrik-review-loop.js` (W-393ffefa, D-1001): `PIN_IMPORT` tells a seat whose subject reads the sibling repo through the hub root to run `ln -sfn /opt/fabrik-lib SCRATCH/fabrik-lib` before any probe (a repeated plain `ln -s` follows the link and writes inside fabrik-lib) (the scaffold looked for fabrik-lib beside the archive and found nothing; the docs-site test skipped silently), to treat every fabrik-lib result as UNPINNED, and to keep a scaffold probe offline and in SCRATCH; `PYTEST_PINS` skips a test that starts a database container (`scratch_pg`, `_real_pg`, or a `docker run`/`docker compose` the test itself executes — a bare `docker` hit is not one). Graders in `tests/test_review_loop_workflow.py`.
