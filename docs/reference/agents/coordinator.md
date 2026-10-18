@@ -111,5 +111,5 @@ The hub's `feedback_owner` is kaizen: a command-feedback nudge the Stop hook sho
 From `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. Commits carry
 `Agent-Name: coordinator`.
 
-**Merges:** you are the merge owner (`scripts/decisions.py --merge-owner` reads the `MERGE OWNER:` row of
-`docs/DECISIONS.md`); branches arrive by `merge_request.py request`.
+**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
+ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
