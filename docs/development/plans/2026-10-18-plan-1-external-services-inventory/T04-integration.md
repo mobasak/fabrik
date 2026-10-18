@@ -17,12 +17,14 @@ The read runs in a CHILD PROCESS, so the spec's whole-read bound holds whatever 
 like the board's rotation call (`quota_dashboard.py:592`), it puts `scripts/` and `scripts/sysadmin/` on its own `sys.path`,
 connects with `registry_db.connect(connect_timeout=2, options="-c statement_timeout=2000")`, calls
 `inventory.load(conn, before_query=…)` re-arming `SET LOCAL statement_timeout` to the deadline left (never below
-1 ms), and prints one JSON object on stdout, `{"rows": [<row>, …], "synced_at": <float> | null}`, every row
-carrying T02's keys with strings, ints, floats, `null` and lists of strings only (a balance or price is converted
-to `float` before `json.dumps`), exiting 0; on any failure it prints exactly one line on stderr,
-`<ExceptionClass>: <first line of the message>`, and exits 1. Its module top imports only the stdlib: `registry_db`,
-`inventory` and psycopg2 are imported inside the one `try` whose `except Exception` prints that line, so an import
-failure prints it too, never a traceback. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
+1 ms), and reports EVERY outcome as one JSON object, written once to stdout: on success
+`{"rows": [<row>, …], "synced_at": <float> | null}`, every row carrying T02's keys with strings, ints, floats,
+`null` and lists of strings only (a balance or price is converted to `float` before `json.dumps`), exiting 0; on
+any failure `{"error": "<ExceptionClass>: <first line of the message>"}`, exiting 1. Its module top imports only
+`json` and `sys`; everything else — reading `--deadline` from `sys.argv` by hand (no argparse, which prints and
+exits on its own), importing `registry_db`, `inventory` and psycopg2, the read and the success object's
+`json.dumps` — runs inside one `try` whose `except BaseException` builds the error object, so a bad argv, an import
+failure or an interrupt is reported the same way; the one write to stdout follows the `try`. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
 is the child's failure, so the section's error state), and needs no `sys.path` change.
 
 The collector, `_inventory(ctx)`, in `quota_dashboard.py`, keeps two fields behind ONE lock: the last good read
@@ -41,9 +43,10 @@ the in-flight field on every exit — so a read never outlives its 5 s and at mo
 rule covers every request that ends without a fresh result (its wait ran out, the child failed or was killed):
 the section's error state, as spec § Failure states; the last good read is served only inside its 60 s, and a
 failed read never replaces it. The error state carries the failure's class and first line only:
-`ReadTimeout: registry read killed at its deadline` for a killed child; else the LAST non-empty stderr line, as
-printed, when it matches `^[A-Za-z_][\w.]*:` — the handler's line, or a traceback's closing `Class: message` line,
-whatever warnings came before it; and otherwise `ReadFailed: <that last line, or the exit status>`. No connection is
+`ReadTimeout: registry read killed at its deadline` for a killed child; else the child's stdout parsed as JSON —
+an object with `rows` and exit 0 is the fresh read, an object whose `error` is a string gives that string — and
+anything else (stdout not one JSON object, or a shape that does not match its exit status) gives
+`ReadFailed: exit status <n>`. The child's stderr is drained by `communicate()` and never read. No connection is
 ever cancelled: `psycopg2`'s `cancel()` against a server that accepts and never answers froze every thread of the
 process in this review's pass-3 probe (TCP, executed); the child's kill is what ends a stalled read. The collector
 also reads `classified_at` as the mtime of
@@ -84,7 +87,7 @@ Docs: `docs/workstation/quota-dashboard.md` (the Services section, the route row
 - **Given** the board test isolation, **When** any board test renders the Services view, **Then** the collector's spawn is replaced by a stub returning the census fixture or a stated failure, `SERVICES_REGISTRY_DSN` names an unusable DSN so a real child cannot reach the registry, the board process imports neither registry_db nor psycopg2, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:35)
 - **Given** the real child against a fake server that accepts and never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the failure's class and first line only, the child is killed and gone, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
 - **Given** an empty slot, two concurrent requests, a failed child, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one child, every request answers within 5 s of its own arrival, every request without a fresh result serves the section's error state, a failed read leaves the last good read in place, the in-flight field clears on every exit so the next request starts afresh, a request held on the lock answers within its own deadline, no connection is cancelled, and the read at 59 s is served while 61 s spawns a new child (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
-- **Given** psycopg2 cannot be imported in the child, **When** the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, naming the import's exception class even when a warning precedes it on the child's stderr, and the board process never imported psycopg2 (spec § Contract deltas D9)
+- **Given** psycopg2 cannot be imported in the child, **When** the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, naming the import's exception class from the child's error object whatever its stderr holds, and the board process never imported psycopg2 (spec § Contract deltas D9)
 - **Given** a bookmark to /external-services.html, **When** it is requested, **Then** the board answers 303 to /#services with an empty body, and no link card, ext_page key or services.ext string remains (spec § Contract deltas; scripts/sysadmin/quota_dashboard.py:2833)
 - **Given** the Services view at census scale (tests/external_services_fixture.py) in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select, force-swaps and clears, **Then** the group holding the match opens, groups with no match are hidden, the count updates, Cost free shows no freemium row, the Needs-attention list is unchanged by any filter, the filter values, the qd-filter-open:<group> record and the visible filtering survive the swap, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)
 - **Given** the inventory section at census scale with groups collapsed, and the static file gen_dashboard writes from the same fixture, **When** the browser measures each at 1280 px and 375 px, **Then** the section is at most 4,000 px tall, the static file lays out without sideways scroll inside its wrapper, and axe reports no violation of 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2 or 4.1.3 in both themes, with an open row detail included (spec § Validation; spec § Risks the plan carries)
