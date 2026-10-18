@@ -654,7 +654,11 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
     install's .pth shadowing a copied src; under PIN_IMPORT the copy sits ahead of it (probed), so the catalogue says
     where the live src can still win instead of warning about a shadow that the recipe prevents."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    assert (
-        "runs `scripts/` by subprocess is a false red without it; a copy the recipe places sits ahead of the editable"
-        " install's `.pth` path, so the live `src` wins only when the copy is appended to `sys.path`)"
-    ) in iso
+    start = iso.index("never `/opt/fabrik` from a worktree. ") + len("never `/opt/fabrik` from a worktree. ")
+    sentence = iso[start : iso.index(" The pins line follows", start)]
+    assert sentence == (
+        "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; what still runs the main"
+        " checkout's code (a `PYTHONPATH` entry, a pytest run from the live repo, a child process) is listed in"
+        " `PIN_IMPORT` and `PYTEST_PINS`."
+    ), sentence
+    assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"
