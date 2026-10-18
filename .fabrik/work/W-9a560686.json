@@ -3,7 +3,7 @@
   "created": "2026-10-18T05:28:38.919545Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7e7e44b86c9ca9ba78c448200a01e256c9535367",
   "id": "W-9a560686",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "LOW: a CR/LF in raw ssh stderr can split one log line in the resolve path's messages; a rare edge, advisory",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],
