@@ -341,12 +341,13 @@ def test_a_link_path_warns_unless_it_is_a_file_inside_the_repo(tmp_path):
         "../outside.md": True,  # relative, escapes the repo though the file exists
         "a" * 300: True,  # a name the filesystem refuses: a warning, never a crash
     }
-    for value, warns in cases.items():
-        r = run(["edit", item_id, "--link", f"plan={value}"], env, repo)
-        assert r.returncode == 0, (value[:40], r.stderr)
-        assert ("not a file inside" in r.stderr) is warns, (value[:40], r.stderr)
-        stored = json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))
-        assert stored["links"]["plan"] == value
+    for key in ("plan", "spec"):  # both path links are checked, not only plan (review B-sonnet-4)
+        for value, warns in cases.items():
+            r = run(["edit", item_id, "--link", f"{key}={value}"], env, repo)
+            assert r.returncode == 0, (key, value[:40], r.stderr)
+            assert ("not a file inside" in r.stderr) is warns, (key, value[:40], r.stderr)
+            stored = json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))
+            assert stored["links"][key] == value
 
 
 def test_edit_keeps_the_links_shape_add_writes_and_refuses_a_malformed_one(tmp_path):
@@ -368,7 +369,8 @@ def test_edit_keeps_the_links_shape_add_writes_and_refuses_a_malformed_one(tmp_p
     before = path.read_bytes()
     r = run(["edit", item_id, "--link", "plan=docs/q.md"], env, repo)
     assert r.returncode == 1, r.stdout
-    assert "links" in r.stderr and "not" in r.stderr, r.stderr
+    assert "its links is not a mapping (list)" in r.stderr, r.stderr
+    assert "Traceback" not in r.stderr, r.stderr
     assert path.read_bytes() == before
     # a title-only edit leaves the malformed links alone and still succeeds
     r = run(["edit", item_id, "--title", "fine"], env, repo)
@@ -494,3 +496,20 @@ def test_edit_changes_a_task_item(tmp_path):
     assert (
         json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))["title"] == "Renamed task"
     )
+
+
+def test_edit_and_render_need_a_store(tmp_path):
+    """Both verbs refuse a store-less repo with `init`'s refusal before anything else runs — the
+    render refusal never stands in for it (review B-sonnet-4)."""
+    env = _env(tmp_path)
+    repo = tmp_path / "bare"
+    _git(tmp_path, env, "init", "-q", "-b", "master", str(repo))
+    (repo / "docs").mkdir()
+    (repo / BACKLOG).write_text("# Strategic backlog\n", encoding="utf-8")
+    before = (repo / BACKLOG).read_bytes()
+    for args in (["render"], ["edit", "W-00000000", "--title", "x"]):
+        r = run(args, env, repo)
+        assert r.returncode == 1, (args, r.stdout)
+        assert "init" in r.stderr, (args, r.stderr)
+        assert "render refused" not in r.stderr, r.stderr
+    assert (repo / BACKLOG).read_bytes() == before

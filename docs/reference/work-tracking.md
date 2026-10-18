@@ -452,7 +452,7 @@ A `work.py` failure never blocks a Stop — every hook-facing call fails open, l
 second chance above and a printed warning if that also fails. A corrupt item file is reported by
 `sync`/`status` and skipped by `ready`. A missing store reads as empty only through the hook-facing
 API (`has_store`, `on_harvest`, `ensure_decision_item[s]`, `has_msg_digest`, `prompt_block`) and
-through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `ready`, `next`, `claim`,
+through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `edit`, `ready`, `next`, `claim`,
 `release`, `done`, `drop`, `answer`, `status`, `queue`, `triage`, `commit-items`, `render`, `migrate-backlog` — exits 1 with the `init`
 refusal instead.
 
