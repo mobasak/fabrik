@@ -99,6 +99,7 @@ _TITLE_CLOSE_RE = re.compile(
     r"""(?:[ \t]+(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\)"""
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+_PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
 _BARE_RE = re.compile(
     r"(?<![\w/-])((?:docs|scripts|src|specs|configs|templates|\.windsurf)/"
     r"[A-Za-z0-9_./-]+?\.(?:md|py|sh|yaml|yml|json|txt))(?![\w.-])"
@@ -197,14 +198,14 @@ def link_targets(text: str):
         if j < n and text[j] == "<":
             k = j + 1
             while k < n and text[k] not in "<>\n":
-                k += 2 if text[k] == "\\" else 1
+                k += 2 if text[k] == "\\" and text[k + 1 : k + 2] in _PUNCT else 1
             if k < n and text[k] == ">":
                 dest, k = text[j + 1 : k], k + 1
         else:
             k, depth = j, 0
             while k < n:
                 c = text[k]
-                if c == "\\":
+                if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
                     k += 2
                     continue
                 if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
@@ -218,11 +219,24 @@ def link_targets(text: str):
                 k += 1
             if depth == 0:
                 dest = text[j:k]
-        if dest is not None and _TITLE_CLOSE_RE.match(text, k):
-            dest = _ESCAPED_RE.sub(r"\1", dest.split("#", 1)[0])
-            if dest:
-                yield dest
-        i = text.find("](", i + 2)
+        close = _TITLE_CLOSE_RE.match(text, k) if dest is not None else None
+        if dest is None or close is None:
+            i = text.find("](", i + 2)
+            continue
+        cut, p = len(dest), 0  # the fragment starts at the first UNESCAPED `#`
+        while p < len(dest):
+            if dest[p] == "\\" and dest[p + 1 : p + 2] in _PUNCT:
+                p += 2
+            elif dest[p] == "#":
+                cut = p
+                break
+            else:
+                p += 1
+        dest = _ESCAPED_RE.sub(r"\1", dest[:cut])
+        if dest:
+            yield dest
+        # Resume AFTER the link: a `](` inside its destination or title is not a second link.
+        i = text.find("](", close.end())
 
 
 def _iter_refs(text: str):

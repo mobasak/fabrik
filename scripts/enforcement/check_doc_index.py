@@ -136,6 +136,7 @@ _TITLE_CLOSE_RE = re.compile(
     r"""(?:[ \t]+(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\)"""
 )
 _ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+_PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
 
 
 def link_targets(text: str):
@@ -152,14 +153,14 @@ def link_targets(text: str):
         if j < n and text[j] == "<":
             k = j + 1
             while k < n and text[k] not in "<>\n":
-                k += 2 if text[k] == "\\" else 1
+                k += 2 if text[k] == "\\" and text[k + 1 : k + 2] in _PUNCT else 1
             if k < n and text[k] == ">":
                 dest, k = text[j + 1 : k], k + 1
         else:
             k, depth = j, 0
             while k < n:
                 c = text[k]
-                if c == "\\":
+                if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
                     k += 2
                     continue
                 if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
@@ -173,11 +174,24 @@ def link_targets(text: str):
                 k += 1
             if depth == 0:
                 dest = text[j:k]
-        if dest is not None and _TITLE_CLOSE_RE.match(text, k):
-            dest = _ESCAPED_RE.sub(r"\1", dest.split("#", 1)[0])
-            if dest:
-                yield dest
-        i = text.find("](", i + 2)
+        close = _TITLE_CLOSE_RE.match(text, k) if dest is not None else None
+        if dest is None or close is None:
+            i = text.find("](", i + 2)
+            continue
+        cut, p = len(dest), 0  # the fragment starts at the first UNESCAPED `#`
+        while p < len(dest):
+            if dest[p] == "\\" and dest[p + 1 : p + 2] in _PUNCT:
+                p += 2
+            elif dest[p] == "#":
+                cut = p
+                break
+            else:
+                p += 1
+        dest = _ESCAPED_RE.sub(r"\1", dest[:cut])
+        if dest:
+            yield dest
+        # Resume AFTER the link: a `](` inside its destination or title is not a second link.
+        i = text.find("](", close.end())
 
 
 def _printable(text: str) -> str:
@@ -275,24 +289,23 @@ def _added_code_paths() -> list[str]:
     reason `get_changed_files()` excludes untracked-unstaged paths.
 
     Returns [] on any git failure: an advisory that guesses is worse than one that is silent.
+    `-z` and bytes, decoded with surrogateescape, for the reason `_ls` gives: git C-quotes a
+    non-ASCII or quoted name (`"scripts/caf\\303\\251.py"`), which never starts with a code root,
+    so such an added file went unexamined (W-dd091f0d design critique).
     """
     try:
         proc = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=A"],
             cwd=REPO,
             capture_output=True,
-            text=True,
             check=False,
         )
     except OSError:
         return []
     if proc.returncode != 0:
         return []
-    return [
-        ln.strip()
-        for ln in proc.stdout.splitlines()
-        if ln.strip().startswith(_CODE_ROOTS) and not ln.strip().endswith("/")
-    ]
+    paths = [c.decode("utf-8", "surrogateescape") for c in proc.stdout.split(b"\0") if c]
+    return [p for p in paths if p.startswith(_CODE_ROOTS) and not p.endswith("/")]
 
 
 def main() -> int:
@@ -386,6 +399,10 @@ def main() -> int:
     # writes (`R&D%20notes.md`, lowercase hex, a `%E9` byte) agrees with (a). surrogateescape on
     # both sides because paths are read that way (`_printable`), and a strict decode would raise.
     index_unq = _pct_decode(index_text)
+    # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
+    # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
+    # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
+    linked = {s.rstrip("/") for t in link_targets(index_text) for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist
     # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old
@@ -534,7 +551,7 @@ def main() -> int:
         tag = (
             " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
         )
-        if p in index_text or p in index_unq:
+        if p in index_text or p in index_unq or p in linked:
             continue
         if base not in index_text and base not in index_unq:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
@@ -574,8 +591,8 @@ def main() -> int:
     code_problems: list[str] = []
     if not untracked_only:
         for rel in _added_code_paths():
-            # As written OR percent-decoded — the contract (a) and (b) read (W-dd091f0d).
-            if rel not in index_text and rel not in index_unq:
+            # As written, percent-decoded or as a parsed link — the contract (a) and (b) read.
+            if rel not in index_text and rel not in index_unq and rel not in linked:
                 code_problems.append(
                     f"added code file not in INDEX.md: {rel} "
                     "(Doc Sync Matrix: File added/removed/renamed → INDEX.md; the row must name "

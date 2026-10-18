@@ -251,6 +251,7 @@ def _links(monkeypatch, tmp_path, capsys) -> list[str]:
         (["docs/t.md"], "- [T](docs/t.md 'Title')\n- [G](docs/gone.md (Title))\n", "docs/gone.md"),
         (["docs/a b.md"], "- [A](<docs/a b.md>)\n", None),
         (["docs/b.md"], "- [B](docs/b.md)\n- [G](<docs/gone x.md>)\n", "docs/gone x.md"),
+        (["docs/a_b.md"], "- [E](docs/a\\_b.md)\n", None),
     ],
     ids=[
         "paren-live",
@@ -260,6 +261,7 @@ def _links(monkeypatch, tmp_path, capsys) -> list[str]:
         "single-and-paren-titled-missing",
         "angle-live",
         "angle-missing",
+        "escaped-live",
     ],
 )
 def test_every_commonmark_link_shape_is_graded_by_both_checks(
@@ -268,7 +270,8 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
     """W-dd091f0d: both INDEX link readers stopped at the first `)` or space. A balanced-paren link
     to a live doc was truncated (`docs/a(b`) and reported missing; a titled or `<angle>` link never
     matched, so a link to a MISSING doc was never examined. Direction (a) of check_doc_index and
-    check_doc_links must both read every shape CommonMark renders as a link."""
+    check_doc_links must both read every shape CommonMark renders as a link, and an escaped link
+    (`docs/a\\_b.md`) counts for direction (b) exactly when it counts for (a)."""
     rc, out = _run(monkeypatch, tmp_path, capsys, docs, index)
     broken = _links(monkeypatch, tmp_path, capsys)
     if missing is None:
@@ -296,6 +299,20 @@ def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
     assert "added code file not in INDEX.md: scripts/c d.py" in out, out  # still graded
 
 
+def test_a_non_ascii_added_code_path_is_examined(monkeypatch, tmp_path, capsys) -> None:
+    """`git diff --name-only` without `-z` C-quoted a non-ASCII name (`"scripts/caf\\303\\251.py"`),
+    which never starts with a code root, so such an added file was never examined at all."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["scripts/café.py", "scripts/naïve.py"],
+        "- [c](scripts/café.py)\n",
+    )
+    assert "added code file not in INDEX.md: scripts/café.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/naïve.py" in out, out
+
+
 def test_both_link_readers_find_one_set_of_targets() -> None:
     """check_doc_index carries its own copy of the reader (no enforcement check imports a sibling);
     the two must return one output."""
@@ -308,6 +325,25 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         r"[e](docs/e\(x\).md) [i](![img](docs/i.png)",
         "[bad](docs/a(b.md [open](docs/x.md",
         '[x](#only-fragment) [y]() [z](docs/z.md "unterminated)',
+        r"[s](docs/a\ b.md) [h](docs/a\#b.md#frag) [w](docs/x](docs/gone.md).md)",
         "",
     ]:
         assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
+
+
+@pytest.mark.parametrize(
+    ("text", "targets"),
+    [
+        (r"[s](docs/a\ b.md)", []),  # `\ ` escapes nothing: the space ends it, so no link
+        (r"[h](docs/a\#b.md#frag)", ["docs/a#b.md"]),  # an escaped `#` is part of the path
+        ("[w](docs/x](docs/gone.md).md)", ["docs/x](docs/gone.md).md"]),  # one link, not two
+        ('[t](docs/x.md "see ](docs/gone.md)")', ["docs/x.md"]),  # a title holds no link
+    ],
+    ids=["escaped-space", "escaped-hash", "bracket-in-destination", "link-in-title"],
+)
+def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
+    text: str, targets: list[str]
+) -> None:
+    import check_doc_links as cdl
+
+    assert list(cdl.link_targets(text)) == targets
