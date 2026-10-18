@@ -11,6 +11,30 @@ All notable changes to this project will be documented in this file.
 - The import stays tolerant, so `kaizen_collect_v2` still loads the module (W-4bd4ea3c).
 - The deeper `sweep()` paths that count no error are tracked as W-6f46cebd.
 
+### Changed — /fabrik-repo-review keeps its batch pins in the durable SCRATCH: folder (2026-10-18)
+
+- `commands/_sources/fabrik-repo-review.md`: each batch's `pins_dir` goes under the run's `SCRATCH:` folder
+  (D-836), as `/fabrik-review`, `/fabrik-plan-review` and `/fabrik-spec-review` already say, so a WSL shutdown
+  mid-batch keeps them; the batch launch also names `scratch_dir`, which the review-loop workflow requires.
+  `subagents-core.md` D8 names it with the three; `tests/test_run_scratch_brief_wording.py` reads D8's list and
+  checks every includer naming `pins_dir` against it (W-27a0dc32).
+
+### Changed — /fabrik-task tells a worktree session how to write its durable files (2026-10-18)
+
+- `commands/_sources/fabrik-task.md`: the `<durable>` paragraph says a linked-worktree session, whose Write tool
+  refuses a main-checkout path, changes each file as a scratchpad copy (copied in first when it exists) and `cp`s
+  the whole copy back after every change (D-984). `SIZE_CAP` 22662 -> 22917; `tests/test_fabrik_task_source.py`
+  pins the sentence.
+
+### Changed — seat briefs state one root for the pins dir, with the review loops' SCRATCH: exception (2026-10-18)
+
+- `commands/_fragments/subagents-core.md`: the D8 paragraph keeps the pins dir under the run's disposable folder
+  unless the including command puts it under the durable `SCRATCH:` folder (D-836), as `/fabrik-review`,
+  `/fabrik-plan-review` and `/fabrik-spec-review` do so an interrupted pass resumes; the PIN paragraph now points at
+  D8 instead of restating `<run scratch>`, which contradicted `fabrik-review.md`, `fabrik-plan-review.md` and
+  `fabrik-spec-review.md` in their own rendered text (W-7bd671f6). `tests/test_run_scratch_brief_wording.py` pins
+  both sentences.
+
 ### Fixed — core/35 rate-limiting names the vendored IdP's real routes and its built-in caps (2026-10-18)
 
 - `.windsurf/rules/core/35-security-auth.md` § Rate Limiting named `/auth/register` and `/auth/reset`, which `fastapi-user-auth` does not mount. It now lists every route the library mounts, with methods.
@@ -27,6 +51,15 @@ All notable changes to this project will be documented in this file.
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Fixed — the DNS SSH proxy's API key leaves the ssh argv; a dead container-resolve path is named (2026-10-18)
+
+`src/fabrik/drivers/dns.py`: `_request_via_ssh` sends `X-API-Key` and the request body to the remote curl as a
+`-K -` config on ssh's stdin (escaped; CR/LF/NUL refused), so neither shows in `ps` on the hub or the VPS.
+`_resolve_container_url` treats a timeout, an OSError, rc 255 or a signal kill as a dead path — falling back to
+`SITE_PROVISIONER_INTERNAL_URL` when set, else raising a command-free error naming host and jump — while an
+ordinary miss stays a miss. `src/fabrik/drivers/ssh.py`: scp passes `--` before the local path; an empty stderr
+reads `no stderr`. D-985 (W-894fdc5f).
 
 ### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
 

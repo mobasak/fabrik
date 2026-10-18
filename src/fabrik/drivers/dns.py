@@ -15,9 +15,24 @@ from typing import Any
 
 import httpx
 
-from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_args, jump_for
+from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_for
 
 logger = logging.getLogger(__name__)
+
+
+def _curl_quoted(value: str, what: str) -> str:
+    """*value* as a curl config string: ``"…"`` with ``\\`` then ``"`` escaped.
+
+    CR, LF and NUL are refused, never escaped: curl cuts a header at a raw newline silently, and
+    a header holding one is header injection. The message names *what*, never the value — the
+    orchestrator's DNS fallback logs this exception.
+
+    Raises:
+        ValueError: *value* holds CR, LF or NUL.
+    """
+    if any(c in value for c in "\r\n\0"):
+        raise ValueError(f"{what} holds a CR, LF or NUL character — refused before ssh ran")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 @dataclass
@@ -111,10 +126,18 @@ class DNSClient:
     def _resolve_container_url(self) -> str | None:
         """Resolve the live internal URL via ``docker inspect`` over SSH.
 
-        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or
-        the container can't be resolved (caller falls back to
-        ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
+        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or the container can't be
+        found or its IP read (caller falls back to ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
         instance — create a fresh ``DNSClient`` after a Coolify redeploy.
+
+        A DEAD ssh path — a timeout, an ``OSError`` running ssh, ssh's own exit 255 (no
+        connection, auth, host key) or a kill by signal — is not a miss (W-894fdc5f): with
+        ``SITE_PROVISIONER_INTERNAL_URL`` set it is logged and the static URL is used; without it,
+        it raises rather than fall through to the public URL this box cannot reach.
+
+        Raises:
+            RuntimeError: the ssh path is dead and no ``SITE_PROVISIONER_INTERNAL_URL`` is set
+                (the message names the host and the cause, never the command).
         """
         if not self._container_prefix:
             return None
@@ -122,90 +145,128 @@ class DNSClient:
             return self._resolved_url_cache
         # Outside the try below: a bad FABRIK_SSH_JUMP_<ALIAS> must fail loud, never be
         # swallowed into the public-URL fallback (W-2b657bee).
-        jump = jump_args(self.ssh_host)
-        # Find full container name by prefix, then read its IP on the
-        # shared coolify network (avoids picking the per-app UUID net).
-        try:
-            name_proc = subprocess.run(
-                [
-                    "ssh",
-                    *jump,
-                    self.ssh_host,
-                    f"sudo docker ps --filter name=^{self._container_prefix} "
-                    "--format '{{.Names}}' | head -1",
-                ],
+        jump_value = jump_for(self.ssh_host)  # read once: the argv and the message name one jump
+        jump = _jump_opts(jump_value)
+
+        def run(remote: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["ssh", *jump, self.ssh_host, remote],
                 capture_output=True,
                 text=True,
-                timeout=int(self.timeout),
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                timeout=self.timeout,
                 check=False,
             )
+
+        # Find full container name by prefix, then read its IP on the
+        # shared coolify network (avoids picking the per-app UUID net).
+        dead: str | None = None  # why the ssh path is dead, when it is
+        try:
+            name_proc = run(
+                f"sudo docker ps --filter name=^{self._container_prefix} "
+                "--format '{{.Names}}' | head -1"
+            )
             container = name_proc.stdout.strip()
-            if name_proc.returncode != 0 or not container:
+            if name_proc.returncode == 255 or name_proc.returncode < 0:
+                dead = (
+                    f"rc={name_proc.returncode}: {_redact(name_proc.stderr.strip()) or 'no stderr'}"
+                )
+            elif name_proc.returncode != 0 or not container:
                 logger.warning(
                     "DNS client: container prefix %r not found on VPS (stderr=%r)",
                     self._container_prefix,
                     name_proc.stderr.strip(),
                 )
                 return None
-            fmt = (
-                '{{(index .NetworkSettings.Networks "' + self._container_network + '").IPAddress}}'
-            )
-            ip_proc = subprocess.run(
-                [
-                    "ssh",
-                    *jump,
-                    self.ssh_host,
-                    f"sudo docker inspect {container} --format '{fmt}'",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=int(self.timeout),
-                check=False,
-            )
-            ip = ip_proc.stdout.strip()
-            if ip_proc.returncode != 0 or not ip or ip == "<no value>":
-                logger.warning(
-                    "DNS client: could not resolve %s IP on %s (stderr=%r)",
-                    container,
-                    self._container_network,
-                    ip_proc.stderr.strip(),
+            else:
+                fmt = (
+                    '{{(index .NetworkSettings.Networks "'
+                    + self._container_network
+                    + '").IPAddress}}'
                 )
-                return None
-            url = f"http://{ip}:{self._container_port}"
-            self._resolved_url_cache = url
-            logger.debug(
-                "DNS client: resolved %s → %s (container=%s)",
-                self._container_prefix,
-                url,
-                container,
-            )
-            return url
+                ip_proc = run(f"sudo docker inspect {container} --format '{fmt}'")
+                ip = ip_proc.stdout.strip()
+                if ip_proc.returncode == 255 or ip_proc.returncode < 0:
+                    dead = (
+                        f"rc={ip_proc.returncode}: {_redact(ip_proc.stderr.strip()) or 'no stderr'}"
+                    )
+                elif ip_proc.returncode != 0 or not ip or ip == "<no value>":
+                    logger.warning(
+                        "DNS client: could not resolve %s IP on %s (stderr=%r)",
+                        container,
+                        self._container_network,
+                        ip_proc.stderr.strip(),
+                    )
+                    return None
+                else:
+                    url = f"http://{ip}:{self._container_port}"
+                    self._resolved_url_cache = url
+                    logger.debug(
+                        "DNS client: resolved %s → %s (container=%s)",
+                        self._container_prefix,
+                        url,
+                        container,
+                    )
+                    return url
+        except subprocess.TimeoutExpired:
+            dead = f"no answer in {self.timeout:g}s"
+        except OSError as e:  # no ssh binary, not executable, …
+            dead = f"{type(e).__name__}: {e.strerror or e}"
         except Exception as e:  # noqa: BLE001
             logger.warning("DNS client: container resolution failed: %s", e)
             return None
+        where = f"ssh to {self.ssh_host!r}{_via(jump_value)}"
+        if self._internal_url:
+            logger.warning(
+                "DNS client: %s is dead (%s) — using SITE_PROVISIONER_INTERNAL_URL", where, dead
+            )
+            return None
+        # Raised OUTSIDE the except, so no __context__ carries the command.
+        raise RuntimeError(
+            f"DNS client: {where} is dead ({dead}) and SITE_PROVISIONER_INTERNAL_URL is unset — "
+            "not falling back to the public URL"
+        )
 
     def _request_via_ssh(
         self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
-        # Every word is shlex-quoted for the remote shell (W-6a96f699): a `'` in a domain or
+        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist.
+
+        The API key and the body never touch an argv (W-894fdc5f): they reach the remote curl as a
+        ``-K -`` config on stdin, so neither appears in a ``ps`` listing on either host. So the ``vps`` alias must
+        not set ``StdinNull`` or ``ForkAfterAuthentication`` in ``~/.ssh/config`` — the request
+        would then go out keyless — and ``-T`` keeps a ``RequestTTY`` setting from echoing it back.
+        """
+        # Every argv word is shlex-quoted for the remote shell (W-6a96f699): a `'` in a domain or
         # endpoint broke out of the old hand-quoted URL and ran the rest on the VPS.
-        header_args = " ".join(f"-H {shlex.quote(f'{k}: {v}')}" for k, v in self._headers.items())
-        data_arg = f"-d {shlex.quote(json.dumps(body))}" if body is not None else ""
+        secret = {"X-API-Key"}
+        header_args = " ".join(
+            f"-H {shlex.quote(f'{k}: {v}')}" for k, v in self._headers.items() if k not in secret
+        )
+        config = "".join(
+            f"header = {_curl_quoted(f'{k}: {v}', k)}\n"
+            for k, v in self._headers.items()
+            if k in secret
+        )
+        if body is not None:  # data-raw: a leading `@` never means a file
+            config += f"data-raw = {_curl_quoted(json.dumps(body), 'the request body')}\n"
         # Append query params to URL if present
         if params:
             from urllib.parse import urlencode
 
             query_string = urlencode(params)
             url = f"{url}?{query_string}"
-        cmd = f"curl -s -X {shlex.quote(method)} {header_args} {data_arg} {shlex.quote(url)}"
+        cmd = f"curl -s -X {shlex.quote(method)} {header_args} {shlex.quote(url)} -K -"
         host = self.ssh_host
         jump = jump_for(host)  # read once: the argv and the error text name the same jump
         try:
             result = subprocess.run(
-                ["ssh", *_jump_opts(jump), host, cmd],
+                ["ssh", "-T", *_jump_opts(jump), host, cmd],
+                input=config,
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
-                text=True,
                 timeout=self.timeout,
                 check=False,
             )
@@ -221,7 +282,7 @@ class DNSClient:
         if result.returncode != 0:
             raise RuntimeError(
                 f"SSH proxy request to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-                f"{self._clean(result.stderr.strip())}"
+                f"{self._clean(result.stderr.strip()) or 'no stderr'}"
             )
         try:
             return json.loads(result.stdout)

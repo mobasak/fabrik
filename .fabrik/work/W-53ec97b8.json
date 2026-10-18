@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:00:46.408558Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-53ec97b8",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:fix-script-exact-once-replace — valid one-run advice, first sighting (kaizen 2026-10-18, D-711 Opus audit; nearest marker-verify-fix checks the edit landed",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-plan-review"
+}
