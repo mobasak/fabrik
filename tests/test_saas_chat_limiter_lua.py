@@ -43,7 +43,9 @@ def _rate_lua(project: Path) -> str:
 @pytest.fixture(scope="module")
 def lua(tmp_path_factory: pytest.TempPathFactory) -> str:
     if not (scaffold.FABRIK_LIB_DIR / "app-audit-log").is_dir():
-        pytest.skip("fabrik-lib/app-audit-log is not beside FABRIK_ROOT; the saas backend scaffold needs it")
+        pytest.skip(
+            "fabrik-lib/app-audit-log is not beside FABRIK_ROOT; the saas backend scaffold needs it"
+        )
     base = tmp_path_factory.mktemp("limiter")
     scaffold.create_project(
         name="p-chat", description="d", base=base, project_type="saas-skeleton", generate_spec=False
@@ -55,12 +57,29 @@ def lua(tmp_path_factory: pytest.TempPathFactory) -> str:
 def client() -> redis.Redis:
     binary = shutil.which("redis-server")
     if binary is None:
-        pytest.skip("redis-server is not installed on this box; the limiter is proven only on a real server")
-    workdir = tempfile.mkdtemp(prefix="rl", dir="/tmp")  # short, so the socket path stays under 108 bytes
+        pytest.skip(
+            "redis-server is not installed on this box; the limiter is proven only on a real server"
+        )
+    workdir = tempfile.mkdtemp(
+        prefix="rl", dir="/tmp"
+    )  # short, so the socket path stays under 108 bytes
     sock = f"{workdir}/redis.sock"
     proc = subprocess.Popen(
-        [binary, "--port", "0", "--unixsocket", sock, "--unixsocketperm", "700",
-         "--save", "", "--appendonly", "no", "--dir", workdir],
+        [
+            binary,
+            "--port",
+            "0",
+            "--unixsocket",
+            sock,
+            "--unixsocketperm",
+            "700",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--dir",
+            workdir,
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -122,7 +141,9 @@ def test_a_key_at_or_above_its_limit_without_a_ttl_gets_the_full_window_back(cli
     assert client.pttl("a") == -1
     index, ttl_ms = _call(client, lua, [("a", 5)])
     assert index == 1
-    assert WINDOW_MS - 1000 <= ttl_ms <= WINDOW_MS, "the returned TTL is the re-armed one, the full window"
+    assert WINDOW_MS - 1000 <= ttl_ms <= WINDOW_MS, (
+        "the returned TTL is the re-armed one, the full window"
+    )
     assert client.pttl("a") > 0
 
 

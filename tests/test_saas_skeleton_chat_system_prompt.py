@@ -86,9 +86,8 @@ def test_no_template_file_names_the_chat_route_or_the_key():
     for p in _template_files():
         rel = str(p.relative_to(TEMPLATE))
         text = p.read_text(errors="ignore")
-        if "api/chat" in text or "NEXT_PUBLIC_OPENROUTER" in text.upper():
-            hits.append(rel)
-        elif rel not in _KEY_DOCS and "openrouter" in text.lower():
+        exposed = "api/chat" in text or "NEXT_PUBLIC_OPENROUTER" in text.upper()
+        if exposed or (rel not in _KEY_DOCS and "openrouter" in text.lower()):
             hits.append(rel)
     assert hits == []
 
@@ -133,7 +132,11 @@ def test_only_the_backend_chat_module_names_the_key(project_type, tmp_path):
     covers the root config files too: an `env:` entry in next.config.js would inline the key into
     the client bundle."""
     scaffold.create_project(
-        name="p-chat", description="d", base=tmp_path, project_type=project_type, generate_spec=False
+        name="p-chat",
+        description="d",
+        base=tmp_path,
+        project_type=project_type,
+        generate_spec=False,
     )
     project = tmp_path / "p-chat"
     hits = []
@@ -141,7 +144,11 @@ def test_only_the_backend_chat_module_names_the_key(project_type, tmp_path):
         rel = p.relative_to(project).as_posix()
         if not p.is_file() or _BUILD_DIRS.intersection(p.relative_to(project).parts):
             continue
-        if rel.startswith(_SCAN_SKIP_DIRS) or "/." in f"/{rel}" or rel.endswith((".md", ".env.example")):
+        if (
+            rel.startswith(_SCAN_SKIP_DIRS)
+            or "/." in f"/{rel}"
+            or rel.endswith((".md", ".env.example"))
+        ):
             continue
         if "OPENROUTER_API_KEY" in p.read_text(errors="ignore"):
             hits.append(rel)

@@ -76,7 +76,9 @@ def _stub_package(name: str, path: Path) -> None:
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if not (scaffold.FABRIK_LIB_DIR / "app-audit-log").is_dir():
-        pytest.skip("fabrik-lib/app-audit-log is not beside FABRIK_ROOT; the saas backend scaffold needs it")
+        pytest.skip(
+            "fabrik-lib/app-audit-log is not beside FABRIK_ROOT; the saas backend scaffold needs it"
+        )
     base = tmp_path_factory.mktemp("chatbackend")
     scaffold.create_project(
         name="p-chat", description="d", base=base, project_type="saas-skeleton", generate_spec=False
@@ -102,12 +104,29 @@ def mods(project: Path) -> dict[str, types.ModuleType]:
 def redis_sock() -> str:
     binary = shutil.which("redis-server")
     if binary is None:
-        pytest.skip("redis-server is not installed on this box; the chat route is proven only on a real server")
-    workdir = tempfile.mkdtemp(prefix="rc", dir="/tmp")  # short: the socket path stays under 108 bytes
+        pytest.skip(
+            "redis-server is not installed on this box; the chat route is proven only on a real server"
+        )
+    workdir = tempfile.mkdtemp(
+        prefix="rc", dir="/tmp"
+    )  # short: the socket path stays under 108 bytes
     sock = f"{workdir}/redis.sock"
     proc = subprocess.Popen(
-        [binary, "--port", "0", "--unixsocket", sock, "--unixsocketperm", "700",
-         "--save", "", "--appendonly", "no", "--dir", workdir],
+        [
+            binary,
+            "--port",
+            "0",
+            "--unixsocket",
+            sock,
+            "--unixsocketperm",
+            "700",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--dir",
+            workdir,
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -215,7 +234,9 @@ def _app(
     return app
 
 
-def _token(mods: dict[str, types.ModuleType], *, tenant: str | None = "t1", user: str | None = None) -> str:
+def _token(
+    mods: dict[str, types.ModuleType], *, tenant: str | None = "t1", user: str | None = None
+) -> str:
     return mods["tokens"].issue_access_token(
         subject=user or str(uuid.uuid4()), tenant_id=tenant, secret=SECRET, ttl_seconds=900
     )
@@ -266,7 +287,9 @@ def _keys(conn: redis.Redis) -> set[str]:
 
 def test_an_anonymous_request_is_401_and_spends_nothing(mods, redis_sock, sync_redis):
     up = Upstream()
-    r = _post(_app(mods, redis_sock, up), {"message": "hi"}, headers={"X-Forwarded-For": "203.0.113.7"})
+    r = _post(
+        _app(mods, redis_sock, up), {"message": "hi"}, headers={"X-Forwarded-For": "203.0.113.7"}
+    )
     assert r.status_code == 401
     assert _keys(sync_redis) == set() and up.requests == []
 
@@ -286,7 +309,10 @@ def _cookie_headers(mods, *, csrf_header: bool, origin: str | None) -> dict[str,
     cookies = mods["cookies"]
     session = cookies.cookie_name(cookies.SESSION, secure=True)
     csrf = cookies.cookie_name(cookies.CSRF, secure=True)
-    headers = {"Cookie": f"{session}={_token(mods)}; {csrf}=tok123", "X-Forwarded-For": "203.0.113.8"}
+    headers = {
+        "Cookie": f"{session}={_token(mods)}; {csrf}=tok123",
+        "X-Forwarded-For": "203.0.113.8",
+    }
     if csrf_header:
         headers["X-CSRF-Token"] = "tok123"
     if origin:
@@ -294,17 +320,29 @@ def _cookie_headers(mods, *, csrf_header: bool, origin: str | None) -> dict[str,
     return headers
 
 
-def test_a_cookie_request_with_the_token_and_an_allowed_origin_streams(mods, redis_sock, sync_redis):
-    r = _post(_app(mods, redis_sock, Upstream()), {"message": "hi"},
-              headers=_cookie_headers(mods, csrf_header=True, origin=ORIGIN))
+def test_a_cookie_request_with_the_token_and_an_allowed_origin_streams(
+    mods, redis_sock, sync_redis
+):
+    r = _post(
+        _app(mods, redis_sock, Upstream()),
+        {"message": "hi"},
+        headers=_cookie_headers(mods, csrf_header=True, origin=ORIGIN),
+    )
     assert r.status_code == 200
 
 
-@pytest.mark.parametrize(("csrf_header", "origin"), [(False, ORIGIN), (True, "https://evil.example")])
-def test_a_cookie_request_without_the_token_or_the_origin_is_403(mods, redis_sock, sync_redis, csrf_header, origin):
+@pytest.mark.parametrize(
+    ("csrf_header", "origin"), [(False, ORIGIN), (True, "https://evil.example")]
+)
+def test_a_cookie_request_without_the_token_or_the_origin_is_403(
+    mods, redis_sock, sync_redis, csrf_header, origin
+):
     up = Upstream()
-    r = _post(_app(mods, redis_sock, up), {"message": "hi"},
-              headers=_cookie_headers(mods, csrf_header=csrf_header, origin=origin))
+    r = _post(
+        _app(mods, redis_sock, up),
+        {"message": "hi"},
+        headers=_cookie_headers(mods, csrf_header=csrf_header, origin=origin),
+    )
     assert r.status_code == 403 and up.requests == []
 
 
@@ -312,8 +350,11 @@ def test_a_revoked_token_is_401(mods, redis_sock, sync_redis):
     token = _token(mods)
     jti = mods["tokens"].decode_access_token(token, secret=SECRET)["jti"]
     sync_redis.set(f"auth:denylist:{jti}", "1")
-    r = _post(_app(mods, redis_sock, Upstream()), {"message": "hi"},
-              headers={"Authorization": f"Bearer {token}", "X-Forwarded-For": "203.0.113.7"})
+    r = _post(
+        _app(mods, redis_sock, Upstream()),
+        {"message": "hi"},
+        headers={"Authorization": f"Bearer {token}", "X-Forwarded-For": "203.0.113.7"},
+    )
     assert r.status_code == 401
 
 
@@ -321,7 +362,9 @@ def test_redis_unset_is_503_with_a_token_and_401_without(mods, sync_redis):
     app = _app(mods, None, Upstream())
     r = _post(app, {"message": "hi"}, headers=_bearer(mods))
     assert r.status_code == 503
-    assert r.json()["detail"] == "Revocation check unavailable", "the identity check refuses, before the limiter"
+    assert r.json()["detail"] == "Revocation check unavailable", (
+        "the identity check refuses, before the limiter"
+    )
     assert _post(app, {"message": "hi"}, headers={}).status_code == 401
 
 
@@ -353,7 +396,9 @@ def test_a_message_over_the_character_cap_is_400(mods, redis_sock, sync_redis):
     assert _post(app, {"message": "x" * 11}, headers=_bearer(mods)).status_code == 400
 
 
-def test_a_body_over_the_byte_cap_is_413_with_or_without_content_length(mods, redis_sock, sync_redis):
+def test_a_body_over_the_byte_cap_is_413_with_or_without_content_length(
+    mods, redis_sock, sync_redis
+):
     app = _app(mods, redis_sock, Upstream(), env={"CHAT_MAX_BODY_BYTES": "64"})
     big = json.dumps({"message": "x" * 200}).encode()
     assert _post(app, raw=big, headers=_bearer(mods)).status_code == 413
@@ -362,7 +407,9 @@ def test_a_body_over_the_byte_cap_is_413_with_or_without_content_length(mods, re
         yield big[:40]
         yield big[40:]
 
-    r = _client(app).post("/api/v1/chat", content=chunks(), headers=_bearer(mods))  # chunked: no Content-Length
+    r = _client(app).post(
+        "/api/v1/chat", content=chunks(), headers=_bearer(mods)
+    )  # chunked: no Content-Length
     assert r.status_code == 413
     assert _keys(sync_redis) == set()
 
@@ -388,7 +435,9 @@ def test_a_set_system_prompt_is_sent_first_verbatim(mods, redis_sock, sync_redis
 
 
 @pytest.mark.parametrize("env", [{"OPENROUTER_API_KEY": ""}, {"OPENROUTER_MODEL": "  "}])
-def test_the_key_or_model_unset_is_503_with_a_token_and_401_without(mods, redis_sock, sync_redis, env):
+def test_the_key_or_model_unset_is_503_with_a_token_and_401_without(
+    mods, redis_sock, sync_redis, env
+):
     app = _app(mods, redis_sock, Upstream(), env=env)
     assert _post(app, {"message": "hi"}, headers=_bearer(mods)).status_code == 503
     assert _post(app, {"message": "hi"}, headers={}).status_code == 401
@@ -403,15 +452,21 @@ def test_a_malformed_rate_fails_at_start(mods):
 
 
 @pytest.mark.parametrize("bucket", ["app", "tenant", "user", "ip"])
-def test_each_full_bucket_is_429_with_retry_after_and_names_it(mods, redis_sock, sync_redis, bucket):
+def test_each_full_bucket_is_429_with_retry_after_and_names_it(
+    mods, redis_sock, sync_redis, bucket
+):
     env = {f"CHAT_RATE_{bucket.upper()}": "1/3600"}
     app = _app(mods, redis_sock, Upstream(), env=env)
     user = str(uuid.uuid4())
     first = _bearer(mods, user=user)
     assert _post(app, {"message": "hi"}, headers=first).status_code == 200
     # the app bucket refuses a fresh user on a fresh IP; the others the same user, tenant or IP
-    second = _bearer(mods, ip="198.51.100.9") if bucket == "app" else (
-        _bearer(mods, user=user, ip="198.51.100.9") if bucket in ("tenant", "user") else first
+    second = (
+        _bearer(mods, ip="198.51.100.9")
+        if bucket == "app"
+        else (
+            _bearer(mods, user=user, ip="198.51.100.9") if bucket in ("tenant", "user") else first
+        )
     )
     if bucket == "tenant":
         second = _bearer(mods, ip="198.51.100.10")  # another user, same tenant t1
@@ -500,7 +555,10 @@ def test_closing_the_stream_closes_the_upstream_stream(mods):
 
 
 def _count(mods, outcome: str) -> float:
-    return mods["metrics"].REGISTRY.get_sample_value("chat_requests_total", {"outcome": outcome}) or 0.0
+    return (
+        mods["metrics"].REGISTRY.get_sample_value("chat_requests_total", {"outcome": outcome})
+        or 0.0
+    )
 
 
 def test_refusals_and_successes_are_counted_by_outcome(mods, redis_sock, sync_redis):
@@ -520,13 +578,21 @@ def test_refusals_and_successes_are_counted_by_outcome(mods, redis_sock, sync_re
 def _emitted_problem_handlers(project: Path) -> dict[str, Any]:
     main = next(project.glob("server/src/*/main.py"))
     tree = ast.parse(main.read_text())
-    keep = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name in ("_problem", "_http_exc")]
+    keep = [
+        n
+        for n in tree.body
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and n.name in ("_problem", "_http_exc")
+    ]
     for node in keep:
         node.decorator_list = []
-    ns: dict[str, Any] = {"JSONResponse": JSONResponse, "Request": Request,
-                          "StarletteHTTPException": StarletteHTTPException,
-                          "PROBLEM_JSON": "application/problem+json", "Any": Any}
+    ns: dict[str, Any] = {
+        "JSONResponse": JSONResponse,
+        "Request": Request,
+        "StarletteHTTPException": StarletteHTTPException,
+        "PROBLEM_JSON": "application/problem+json",
+        "Any": Any,
+    }
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(main), "exec"), ns)  # noqa: S102
     return ns
 
