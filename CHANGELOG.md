@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
+
+- Phase 1 used to count only a grep miss on a work item's cited line as a finding, so a grep hit on dead code carried an unproven premise into PROBLEM. A failure or error path the item claims there is now replayed on a copy that carries the state it needs. A replay on such a copy that does not fail as claimed is a finding PROBLEM states. A replay whose copy cannot carry that state is recorded unverified, never as refuted. This answers row 1792348018, a recurrence of the held subject measure-refuted-ticket-premise.
+- Phase 2 asked critique seats for a second approach the build cannot settle but gave no disposition, so phase 4 raised the same yes as UPGRADE after the build. Such an approach is now the UPGRADE crossing `tradeoffs`, taken before `--design`, provided the seat's claim is executed and holding and it is not an equivalent implementation. This answers row 1792339442.
+- Supporting changes: D-1008 records the edit, and D-1011 and D-1012 record the review's two rounds of fixes. `SIZE_CAP` rises to 24260. `tests/test_fabrik_task_queue_pass.py` pins both sentences.
+
 ### Changed — every command's close list names the quota wall and an operator's pause, additive to the stops each command names (2026-10-18)
 
 - The run-record fragment that most `/fabrik-*` commands include said a run closes `done`, or `blocked` on one of the three BLOCKED cases, and that "Nothing else is a legitimate halt". That contradicted `CLAUDE.md`'s quota bands, where a run at the wall closes `blocked --wall`, and D-993, where an operator's pause closes `blocked --paused`. The fragment now says: "Two more stops close `blocked` too: the quota wall … and a pause the operator ordered …; both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too." No other command's text changed. A command's own stops still hold, such as a safety HARD STOP, `## BLOCKED: NON-CONVERGENCE` or `handoff`. This closes W-8d98265e. `tests/test_plan_after_chat_queue_pass.py` pins the sentence, and it fails on the original fragment.
