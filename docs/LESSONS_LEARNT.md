@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## An exit code that "means" a state is a guess until each sibling state is executed (2026-10-19)
+
+W-ba306861 taught the governance sync to tell an untracked file from a hub git that cannot answer.
+- **One rc, several causes.** The design read `git rev-parse --verify -q HEAD` exit 1 as an unborn HEAD. The probe ran unborn
+  and not-a-repo only. A review seat added a garbage branch ref and a deleted one, and both also exit 1, so a broken hub still
+  shipped the working tree silently. List every sibling state of the one you name, run each of them, and only then let the
+  exit code stand for it.
+- **A test can pass because its input misses the hazard.** The `--literal-pathspecs` test committed `scripts/:(glob)x.py` and
+  passed with the flag removed: git parses pathspec magic only at the START of a pathspec. A guard's test is proven only by
+  its mutant; the review's mutant run found this, reading the test did not.
+- **Reading a value by name twice re-resolves it.** `ls-tree HEAD` then `git show HEAD:<rel>` asked for HEAD twice, so a
+  sibling's commit in between paired one commit's bytes with another's mode. Read the object the first call listed, by its SHA.
+
 ## A gate's fleet diff is re-run after EVERY fix, not once at design time (2026-10-18)
 
 W-f11e740e (D-1015) changed how check_doc_links and docs_updater read markdown links.
