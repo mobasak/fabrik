@@ -451,7 +451,7 @@ def test_the_view_data_carries_each_views_keys(tmp_path, monkeypatch):
         },
         "usage": {"spend"},
         "commands": {"commands", "ext_services", "rendered_root"},
-        "services": {"pool", "apis", "ext_page", "warn_usd"},
+        "services": {"pool", "apis", "inventory", "warn_usd"},
     }
     for name, keys in want.items():
         data = qd._view_data(name, ctx)
