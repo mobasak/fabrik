@@ -126,7 +126,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - The client has an explicit `httpx.Timeout` (connect 10 s; read 60 s between chunks, from `CHAT_UPSTREAM_READ_TIMEOUT`). A timeout gives an `error` frame, so a stalled provider cannot hold a connection open without bound.
   - A non-2xx upstream gives an `error` frame.
   - A client disconnect cancels the upstream stream. The generator's close closes the `httpx` stream (E7). OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
-- **Observability.** The route's first dependency is a small wrapper around `chat_user` that logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
+- **Observability.** The route's first dependency is a small wrapper that calls `chat_user(request=request, authorization=authorization)` directly inside a try/except (a direct, non-`Depends` call is supported, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/dependencies.py:84-89`; a `Depends(chat_user)` would raise before the wrapper's body runs). It logs and counts, then re-raises, so a 401 or a denylist 503 raised inside `build_current_user` is recorded too. One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
 - **Key placement.** `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read only by `chat.py`. They live in the root `.env`, like every other backend secret, so they are present in the Next container's environment as `DATABASE_URL` and `JWT_SECRET` already are. Per-service env files are a fleet-wide hardening, not this slice (§ Rejected alternatives; F8).
 - **Client.** `SSEStream` sends `credentials: "same-origin"` and the `X-CSRF-Token` header. The README example uses `endpoint="/api/v1/chat"`.
 
@@ -143,7 +143,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 ## Lifecycle
 
 - **Adoption:** new scaffolds get the route when slice 2 merges. The coordinator then files one adoption item per live project.
-- **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9). It must first settle the blocker the verdict row names: `reserve()` takes a `tenant_id` and a synchronous `pg_conn` (`/opt/fabrik-lib/cost-budget/cost_reservations.py:180-188`), so a tenantless user needs a tenant of its own (for example, one per user) before the reservation can admit them.
+- **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9). It must first settle the blocker the verdict row names: `reserve()` and `a_reserve()` take a `tenant_id` and a psycopg connection (`/opt/fabrik-lib/cost-budget/cost_reservations.py:180-188`, `:226-230`), not the backend's asyncpg pool, so a tenantless user needs a tenant of its own (for example, one per user) before the reservation can admit them.
 - **Growth trigger, from counters this slice ships:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
 - **Degradation:**
   - Redis down gives 503 (denylist and limiter both).
@@ -152,7 +152,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
   - A revoked token gives 401.
   - An upstream timeout gives an `error` frame.
   - None of these spends the key without a check.
-- **Residual risk, accepted:** redis-main runs `--maxmemory-policy allkeys-lru` (`infra/vps1/redis/compose.yaml:6`). Under memory pressure Redis may evict a bucket key, which resets that window early, or a denylist key, which un-revokes a token early. That risk already applies to every app's denylist. It is recorded, not fixed here; a no-evict policy is a fleet Redis change.
+- **Residual risk, accepted:** redis-main runs `--maxmemory-policy allkeys-lru` (`infra/vps1/redis/compose.yaml:6`). Under memory pressure Redis may evict a bucket key, which resets that window early, or a denylist key, which un-revokes a token early. That risk already applies to every app's denylist. Likewise, a logical DB index released without `--drop-data` (`release_db_index`, `src/fabrik/drivers/redis.py:298`, does not flush by default) and reassigned to a new app carries the old app's counters for at most one window. It is recorded, not fixed here; a no-evict policy is a fleet Redis change.
 - **Retirement:** a project drops chat by deleting `chat.py`'s mount. The slice-1 graders keep the Next side from re-growing a key-bearing route.
 
 ## External dependencies
@@ -177,7 +177,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 | USD spend cap | defer (recorded deviation) | `cost-budget/` (README:28; the rule at README:175: "Any project that … calls paid LLM/AI APIs needs `cost-budget/`") | Its fail-closed `reserve()` admits a run against a per-tenant daily cap and an app-global monthly USD budget. It needs a tenant on every call, which passwordless users lack (`router.py:53`), and a USD estimate per call. This slice bounds spend by request count × `CHAT_MAX_TOKENS` instead, plus E3's key limit. Adopting it is a Growth path below |
 | OpenRouter streaming | build | — | The deleted Next route's logic, ported to the backend. `ai-consult/` (README:18) is an OpenRouter client built for long consults with a durable JSONL store; a chat relay needs none of that |
 | Upstream rate-limit tracking | defer (recorded deviation) | `api-quota/` (README:68; the rule at README:175) | It tracks an upstream's X-RateLimit headers and rotates keys. A chat route on one OpenRouter key has no key pool, and an upstream 429 already becomes an `error` frame. Adopt it when a project runs several keys |
-| Upstream HTTP pool | build (a module-level `httpx.AsyncClient`) | `async-http-client/` (README:23; the rule at README:175) | Its circuit breaker would also suit this route. Not vendored by this slice: one upstream and one route, where a timeout plus an error frame cover provider death. Recorded as a deviation from the README:175 rule |
+| Upstream HTTP pool | build (a module-level `httpx.AsyncClient`) | `async-http-client/` (README:23; the rule at README:175) | Its circuit breaker would also suit this route. Not vendored by this slice: one upstream and one route, where a timeout plus an error frame cover provider death. Recorded as a deviation from the README:175 rule. Adopt it when the route gains a second upstream |
 
 ## Shape and infra implications
 
@@ -212,7 +212,7 @@ The cases:
   - cookie without token, or without an allowed Origin: 403 (each tested separately, so neither passes for the other's reason);
   - each bucket full: 429 plus `Retry-After`;
   - a request refused on the user bucket leaves the tenant and IP counts unchanged;
-  - each refusal and the success increment `chat_requests_total` with their outcome, `unauthenticated` included;
+  - each refusal past CSRF, and the success, increments `chat_requests_total` with its outcome, `unauthenticated` included (a CSRF 403 is refused in the middleware, before the route, and is not counted here);
   - an empty client IP: no IP key touched;
   - a body refused with 400: no bucket touched;
   - a tenantless user: no `t:` key touched;
@@ -239,7 +239,7 @@ The cases:
   - C5's plan-tier limits (env defaults until the Growth trigger);
   - the key in the shared `.env` (the fleet-wide per-service env hardening is filed separately);
   - C4's token-bucket shape (fixed windows instead);
-  - README:175's `cost-budget/`, `async-http-client/` and `api-quota/` (request count × `max_tokens`, a timeout, and one key, instead; each has its adoption trigger in its verdict row).
+  - README:175's `cost-budget/`, `async-http-client/` and `api-quota/` (request count × `max_tokens`, a timeout, and one key, instead; each has its adoption trigger in its verdict row, cost-budget's in § Lifecycle).
 
 ## Open / blocking unknowns
 
