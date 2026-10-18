@@ -797,7 +797,9 @@ def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
         " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
         " deploys or reaches a host stays the lead's — and probe"
     ) in cat
-    assert "every citation in a docs change, every cross-repo claim" in cat, "the Execute line stays the lead's"
+    assert "every citation in a docs change, every cross-repo claim" in cat, (
+        "the Execute line stays the lead's"
+    )
 
 
 def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
@@ -831,10 +833,14 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
     )
     for name, unit in (("term-coverage.md", "branch or clause"), ("term-edit.md", "clause")):
         text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
-        start = text.index("in ONE batch instead of a third patch,") + len("in ONE batch instead of a third patch,")
+        start = text.index("in ONE batch instead of a third patch,") + len(
+            "in ONE batch instead of a third patch,"
+        )
         span = text[start : text.index(" and the row's method cell APPENDS", start)]
         assert span == clause.format(unit), (name, span)
-    picker = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    picker = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text()
+    )
     assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
 
 
@@ -843,11 +849,34 @@ def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
     a coder as a patch, and the coder's version held for the reported shape only. The fix list now carries the
     invariant, the shapes the replaced form held and the reproduction, right after the shapes are enumerated."""
     text = _norm(SRC)
-    start = text.index("asked here of every replaced form)?") + len("asked here of every replaced form)?")
+    start = text.index("asked here of every replaced form)?") + len(
+        "asked here of every replaced form)?"
+    )
     end = text.find("A **wrong fix to a real finding is itself a defect**", start)
     assert end != -1, "the wrong-fix sentence still follows"
     assert text[start:end].strip() == (
         "A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it"
         " must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively,"
         " its failure scenario), never as the patch alone."
+    )
+
+
+def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> None:
+    """Rows 1792303600, 1792302600 (three earlier answered rejects on seat staging): /fabrik-review's brief pointer to
+    the probe catalogue now carries review-scoped's § Seat isolation sentence word for word, so a lead copying either
+    command's brief stages the whole archive. Mutant: drop or reword it in either source."""
+    src = ROOT / "commands" / "_sources"
+    flat = {
+        n: " ".join((src / f"{n}.md").read_text().split())
+        for n in ("fabrik-review", "fabrik-review-scoped")
+    }
+    start = flat["fabrik-review-scoped"].find("Its § Seat isolation applies whole")
+    assert start >= 0
+    end = flat["fabrik-review-scoped"].find("it is not restated here.", start)
+    assert end > start
+    sentence = flat["fabrik-review-scoped"][start : end + len("it is not restated here.")]
+    assert flat["fabrik-review"].count(sentence) == 1
+    assert (
+        "isolation and bookkeeping steps earlier runs found missing. " + sentence
+        in flat["fabrik-review"]
     )
