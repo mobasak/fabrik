@@ -353,7 +353,8 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "[bad](docs/a(b.md [open](docs/x.md",
         '[x](#only-fragment) [y]() [z](docs/z.md "unterminated)',
         r"[s](docs/a\ b.md) [h](docs/a\#b.md#frag) [w](docs/x](docs/gone.md).md)",
-        r"[e](docs/a\_b.md) [g](docs/g(o)ne.md) [t](docs/x.md \"see ](docs/gone.md)\")",
+        r"[e](docs/a\_b.md) [g](docs/g(o)ne.md) " + '[t](docs/x.md "see ](docs/gone.md)")',
+        r"\[x](docs/a.md) [a \\](docs/b.md)",
         "[a](docs/a(b.md ) [n](<docs/a\nb.md>) " + r"[q](<docs/a\>b.md>) [c](docs/a\).md)",
         "plain ](docs/stray.md) " + r'\](docs/a.md "see [x](docs/gone.md)") [a] \](docs/g.md)',
         "[![i](docs/i.png)](docs/x.md)",
@@ -384,6 +385,8 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         (r'- \](docs/a.md "see [x](docs/gone.md)")', ["docs/gone.md"]),  # the real link survives
         ("[![i](docs/i.png)](docs/x.md)", ["docs/i.png", "docs/x.md"]),  # an image inside a link
         (r"C:\\[a](docs/x.md)", ["docs/x.md"]),  # `\\` is an escaped backslash: the `[` opens
+        (r"\[x](docs/a.md)", []),  # an escaped `[` opens nothing
+        (r"[a \\](docs/b.md)", ["docs/b.md"]),  # an even run before `]`: it still closes
     ],
     ids=[
         "escaped-space",
@@ -404,6 +407,8 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "stray-closer-before-a-real-link",
         "image-inside-a-link",
         "opener-after-an-escaped-backslash",
+        "escaped-opener",
+        "closer-after-an-even-backslash-run",
     ],
 )
 def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
