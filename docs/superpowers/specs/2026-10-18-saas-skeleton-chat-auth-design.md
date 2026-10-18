@@ -13,7 +13,7 @@ Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the 
 - **The tenant (paying account).** Per-tenant rate limiting is mandatory for SaaS (`.windsurf/rules/saas/95-multi-tenant-saas.md:166`). One tenant's users must not starve another.
 - **Automated consumers and duty holders:**
   - `fabrik scaffold` (saas-skeleton, static-site, office-extension), which emits the backend and the template and holds the duty to ship the fixed shape.
-  - The live projects' agents. The work item counts 7 scaffolded projects with the route: six carry the current route header and one an older variant. They hold the duty to adopt slice 2 in their own copies; four were mailed an interim warning, as the item's tags record.
+  - The live projects' agents. The work item counts 7 scaffolded projects with the route: six share one header and one has a variant (the census is in I4). They hold the duty to adopt slice 2 in their own copies; four were mailed an interim warning, as the item's tags record.
   - The coordinator, who files one adoption item per live project after slice 2 merges.
   - The fabrik-lib agent, who holds the `client_ip` export request (§ Open unknowns).
   - The hub deployer (`fabrik apply`), which provisions Redis only when `shape.needs_cache` is true and writes the `secrets.from_env` keys into the root `.env`.
@@ -144,7 +144,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 
 - **Adoption:** new scaffolds get the route when slice 2 merges. The coordinator then files one adoption item per live project.
 - **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9).
-- **Growth, the counters:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
+- **Growth trigger, from counters this slice ships:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
 - **Degradation:**
   - Redis down gives 503 (denylist and limiter both).
   - The key unset gives 503.
@@ -198,7 +198,13 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 ## Validation
 
 - **The slice-1 graders change with it.** `tests/test_saas_skeleton_chat_system_prompt.py` bans "openrouter" from the emitted `.env.example` and from every template file. Slice 2 needs the key in `.env.example`. So the `.env.example` assertion narrows to forbidding `NEXT_PUBLIC_OPENROUTER`. The template-file scan keeps its ban on `templates/saas-skeleton/app/**`. A new assertion requires that the only emitted file reading `OPENROUTER_API_KEY` is `server/src/<pkg>/chat.py`. The Next side stays guarded, and no assertion is deleted.
-- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is a fake implementing the limiter script's semantics (check every key, then increment), INCR, EXPIRE and PTTL; OpenRouter is an `httpx.MockTransport`. The cases:
+- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is an in-process fake of the client calls the route makes; OpenRouter is an `httpx.MockTransport`. The fake cannot prove the Lua itself, so the limiter script has its own test:
+  - `tests/test_saas_chat_limiter_lua.py` starts a throwaway `redis-server` on a unix socket in `tmp_path` (the box has `/usr/bin/redis-server`; the hub `.venv` has no redis client, so it drives the server with `redis-cli --eval` on the emitted script text).
+  - It proves against real Redis that a refused request leaves every other key unchanged, that the first increment sets the TTL, and that the refusal returns the bucket and its `PTTL`.
+  - A mutant that increments before it checks is proven red there.
+  - Where `redis-server` is absent, the test skips and says so. The emitted `server/tests/test_chat.py` runs the same script with the project's own redis client.
+
+The cases:
   - anonymous: 401;
   - bearer: 200 and frames;
   - cookie with token and Origin: 200;
@@ -254,7 +260,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 | I1 | "the unauthenticated saas-skeleton /api/chat that spends an app's OpenRouter key" (coordinator, 2026-10-18) | IN | § Why this exists (slice 1 shipped, D-1005; slice 2 here) |
 | I2 | "it's security" | IN | Constraints digest; full review at spec-review and in the plan |
 | I3 | "the design trade-off you laid out (backend route vs /auth/me check vs Next-side limiter)" | IN | § Chosen approach (A); § Rejected alternatives (B2 = the /auth/me check, C = the Next-side limiter) |
-| I4 | "The four live projects' interim mails are already out and recorded on the item" — the item carries four interim-mail tags; six live projects carry the route | IN | § Lifecycle, Adoption |
+| I4 | "The four live projects' interim mails are already out and recorded on the item" — the item carries four interim-mail tags. Seven repos carry the route (`ls /opt/*/app/api/chat/route.ts`, run 2026-10-18): ai-model-catalog, compliance-ops, exam-coach, fabrik-test-saas-skeleton, test-saas-platform, test-saas-scaffold and web-ecommerce-factory. Six share one 3-line header, and test-saas-platform has a variant. The adoption items cover all seven, less any repo the operator retires (fabrik-test-saas-skeleton awaits a delete decision) | IN | § Lifecycle, Adoption |
 | I5 | "needs a session/auth check and a rate limit before a scaffolded app goes public" (W-ab242b11) | IN | § Chosen approach (Identity, Limits) |
 | I6 | "design the auth hook against the template's auth story (fastapi-user-auth / D-xxx)" | IN | § What exists today |
 | I7 | "If the spec won't fit, get it to a resumable checkpoint and hand it off cleanly." | IN (met earlier, round-1 findings) | header |
