@@ -111,7 +111,7 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
     - `global:chat:app`, always: one bucket for the whole app, the hard bound on its total spend whoever signs up;
     - `t:{tenant_id}:chat:rate`, when `tenant_id` is set;
     - `global:chat:user:{user_id}`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
-    - `global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). An IPv6 address is keyed on its /64 prefix, because one host commonly holds a whole /64. When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:153-154`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
+    - `global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)` from `fastapi_user_auth.router`, passed in through the seam and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). An IPv6 address is keyed on its /64 prefix, because one host commonly holds a whole /64. When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:153-154`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
   - Each bucket is `<count>/<seconds>` from `CHAT_RATE_APP` (default `1200/3600`), `CHAT_RATE_TENANT` (`600/3600`), `CHAT_RATE_USER` (`60/3600`) and `CHAT_RATE_IP` (`120/3600`). A malformed value fails the app at start.
   - A full bucket returns 429 with `Retry-After` set to that key's remaining TTL, rounded up to whole seconds. The response names the bucket, deliberately: a user refused on `tenant` or `app` learns that the shared budget is spent, not their own.
   - A Redis error returns 503, closed.
@@ -263,8 +263,8 @@ The cases:
   - the tenantless rule;
   - outage fail-closed;
   - the hub test pattern.
-- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time. Until it lands, `chat.py` imports it from `fastapi_user_auth.router` (vendored, so the import is pinned per scaffold).
-- **Open: the default bucket sizes** (600/60/120 per hour). Resolution step: the plan's D-row derives them from `OPENROUTER_MODEL`'s per-token price and a stated daily budget. They stay env-overridable.
+- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time, asking for the export from a leaf module that does not need argon2. Until it lands, the emitted wiring passes `chat.py` the `client_ip` from `fastapi_user_auth.router` through the seam (vendored, so the import is pinned per scaffold).
+- **Open: the default bucket sizes** (app 1200, tenant 600, user 60 and IP 120 per hour). Resolution step: the plan's D-row derives them from `OPENROUTER_MODEL`'s per-token price and a stated daily budget. They stay env-overridable.
 
 ## Intake Inventory
 
