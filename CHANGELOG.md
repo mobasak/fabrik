@@ -11,6 +11,24 @@ MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's
 Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
 22662 (D-979).
 
+### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
+
+- `scripts/command_run.py::_seat_size_lines` globbed `seat-*`, so seats named `seat2-opus` or `seat-p1-<pin>-A-haiku`
+  and hand-made pins of a whole tree — a third of the live run folders' top-level folders — were never measured. It
+  now measures every top-level folder (symlinks and files skipped, an unexaminable entry reported as unmeasured; a `pin --base` extraction
+  beside its pins `MANIFEST.json` is exempt), and the line reads `a copied tree? an archive or clone is leaner`
+  instead of accusing a legitimate clone (W-3c60b7db, D-978).
+
+### Fixed — a doc whose name holds a space can be linked the markdown way in INDEX.md (2026-10-18)
+
+- `scripts/enforcement/check_doc_index.py` decoded only `%20` when checking INDEX link targets exist, but compared the
+  raw path when checking every doc is indexed, so `[Notes](docs/my%20notes.md)` reported `docs/my notes.md` as "not in
+  INDEX.md" (52 tracked docs fleet-wide carry a space). Both directions, and the sibling `check_doc_links.py` that scans
+  the same INDEX, now read the link as written first and then percent-decoded (`%2F` kept literal, non-UTF-8 bytes
+  via surrogateescape, a decoded NUL skipped), so every name has a reachable spelling — `%25` for a literal `%`,
+  `%23` for `#` — and a file whose real name holds `%XX` still resolves by that name. Graders in
+  `tests/test_check_doc_index_percent_encoding.py` (W-7ae1169a, D-976).
+
 ### Fixed — rendered commands cite fragments, sources and seat files by their hub path (2026-10-18)
 
 Twelve citations of `commands/_fragments/`, `commands/_sources/` or `commands/_agents/` files across eight
@@ -33,6 +51,22 @@ heuristic is rewritten at the first delta round its site yields an own-fix defec
 a noise rule probed against its live population, with a `(round k)` class-rewrite cell; a second yield without
 the rewrite is the foundation error. Answers /fabrik-review row 1792289039; pinned in
 `tests/test_review_queue_pass.py`.
+
+### Fixed — file-worker template runs outside a container (2026-10-18)
+
+- `templates/file-worker/worker/main.py` created `/app/.tmp` when imported, so `python -m worker.main` on a dev
+  host died with `PermissionError: '/app'` before the worker ran. The heartbeat is now the project's own `.tmp/`
+  beside `worker/` (still `/app/.tmp/worker_heartbeat` in the image the `.j2` Dockerfile builds), and `_beat()`
+  makes the directory on each heartbeat instead of at import (W-2a2c5a08). A scaffolded project's `pgrep`
+  healthcheck, which never reads the heartbeat, is a separate item (W-0bf1a37b).
+
+### Fixed — saas-skeleton chat route no longer lets the browser set the model's system prompt (2026-10-18)
+
+- `templates/saas-skeleton/app/api/chat/route.ts` read `systemPrompt` from the request body and sent it as the
+  system message on the app's own OpenRouter key, on an unauthenticated route. It now reads only `message`, as a
+  non-empty string (anything else is a 400 before any upstream call), and takes the system prompt from the server
+  constant `CHAT_SYSTEM_PROMPT` in the new `lib/config/chat.ts`. `ChatUI` no longer has a `systemPrompt` prop, and
+  the README example no longer passes one (W-46afa9c4). Scaffolded projects keep their own copies and were mailed.
 
 ### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
 

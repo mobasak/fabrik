@@ -555,8 +555,8 @@ the command?", that moment is the Stop hook.
 | `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints — and the run-folder sweep `start` launches, so consumed run folders then wait for the nightly run |
 | `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to, and the run-folder sweep `start` launches; a missing path is silent |
 | `FABRIK_SCRATCH_SWEEP_LIB` | `/opt/fabrik/scripts` | the directory whose `scratch_sweep.py` the run-folder mint loads by file location (never a `sys.path` insert) |
-| `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a seat folder over this many apparent bytes prints the advisory line at `round` |
-| `COMMAND_RUN_SEAT_DU_DEADLINE_S` | `10` | the shared deadline for those `du` calls; past it a seat reads `size unmeasured` |
+| `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a top-level folder of the run folder over this many apparent bytes prints the advisory line at `round` (a `pin --base` extraction beside its pins `MANIFEST.json` is exempt) |
+| `COMMAND_RUN_SEAT_DU_DEADLINE_S` | `10` | each folder's own deadline for its `du` call; past it that folder reads `size unmeasured` |
 
 ## The scratch advisory on a top-level close
 
@@ -636,7 +636,7 @@ run is consumed. The removal rules live in `docs/workstation/cleanup-automation.
   the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
   session, `--retire` refuses it and only a hand edit of `.owner` ends it).
 - **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
-  <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
+  <repo_root> --apply` detached; `round` prints one line per top-level folder of the run folder over
   `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.
 - **Tests:** a test seam (`COMMAND_RUN_DIR`/`PYTEST_CURRENT_TEST`) without `SCRATCH_SWEEP_ROOT` mints
   nothing, and launches the sweep only for an explicit `FABRIK_SCRATCH_SWEEP_SCRIPT`.

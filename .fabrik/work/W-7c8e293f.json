@@ -3,7 +3,7 @@
   "created": "2026-10-18T01:07:43.415791Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "6fce5a8872e242b752b36b53c37ab21df731759f",
   "id": "W-7c8e293f",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-956 bug: a red test on master; one doc or test line",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "rules"
