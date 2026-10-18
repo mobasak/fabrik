@@ -797,3 +797,25 @@ def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
         " deploys or reaches a host stays the lead's — and probe"
     ) in cat
     assert "every citation in a docs change, every cross-repo claim" in cat, "the Execute line stays the lead's"
+
+
+def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
+    """Row 1792289039 (second verdict on the held parser-residue-replace subject): a function that picks ONE item from
+    a list by heuristic is patched round after round, each patch moving the pick to the next wrong item, so rule (3)
+    rewrites it at the first delta round its site yields, after the deletion text so 'that residue' keeps its
+    antecedent, with a one-round method cell and an earlier foundation error."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    clause = (
+        "goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason"
+        " line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields"
+        " an own-fix defect, recast as the whole list filtered by a noise rule probed against the list's live population"
+        " like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
+        " row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the"
+        " rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass"
+        " without a rewrite"
+    )
+    assert text.count(clause) == 1
+    assert "(rounds k, k+1)`; when that residue is itself a sentence" in text, (
+        "the deletion clause keeps its antecedent"
+    )
+    assert "a heuristic that SELECTS" not in text
