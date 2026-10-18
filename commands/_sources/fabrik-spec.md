@@ -262,7 +262,8 @@ build this — never pick an approach from training memory or first instinct:
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
   `firecrawl_scrape` with `maxAge: 0`, a live fetch) and match the string — normalising whitespace first (raw HTML wraps lines
   mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated): a `WebFetch` reply is a small model's ANSWER about the page,
-  not an extract, and quoting it ships a sentence the page does not contain.
+  not an extract, and quoting it ships a sentence the page does not contain. When the raw-fetch tools are down, you
+  make that fetch from the shell (the division of labour below).
 - ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
   cache: it returned a complete, live-looking page for `docs.exa.ai/reference/find-similar-links`, which
   actually **307s to an HTTP 404** . So an **existence or liveness claim** — "this endpoint still
@@ -273,10 +274,11 @@ build this — never pick an approach from training memory or first instinct:
   deliberately, because it is read-only. So a dispatched grounder CANNOT run
   `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
-  Division of labour: the grounder returns CONTENT and its source; **you** run the status probe, and
-  every other shell-only check (a count over a fetched file, a seat's quote matched against your own raw
-  fetch when the fetch tools are down), from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
-  it answers about a page rather than reporting a code. Content is
+  Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
+  from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
+  it answers about a page rather than reporting a code. Every other shell-only check is yours from the shell
+  too, with no `WebFetch` fallback: a count over a file you downloaded, and a seat's quote matched — whitespace
+  normalised first, as the quote rule says — against your own raw fetch when the raw-fetch tools are down. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
   third-party planning doc inside one). "Best practice is X" / "this is the lean option" with **no fresh cited source is a defect**.
