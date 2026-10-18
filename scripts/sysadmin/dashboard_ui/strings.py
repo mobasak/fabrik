@@ -56,6 +56,8 @@ CATALOGUE: dict[str, str] = {
     "fresh.ago_min": "Read {n} min ago",
     "fresh.ago_h": "Read {n} h ago",
     "fresh.stale": "Stale — {age}",
+    "filter.shown": "{n} of {total} providers shown",
+    "filter.group_count": "{n} of {total}",
     "fresh.went_stale": "Some figures on this view are stale.",
     # ---- the shared formatters (fmt.py)
     "fmt.ago_min": "{n} min ago",

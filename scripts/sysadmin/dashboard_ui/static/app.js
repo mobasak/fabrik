@@ -488,6 +488,44 @@
         el.setAttribute("aria-pressed", f && f.chip && f.v === spec.slice(i + 1) ? "true" : "false");
       }
     });
+    applySections(g);
+  }
+  // The groups a filter opens. The ids it opened live in qd-filter-open:<group> (a list), NEVER inside
+  // qd-filter:<group>, whose every key validFilterState reads as a field filter. With a filter on, a
+  // [data-filter-section] holding a shown [data-filter-item] opens (an already-open one is the
+  // operator's and is left alone), one holding none is hidden; with the filter off, or once a group
+  // stops matching, every recorded group closes and the hidden ones return.
+  function applySections(g) {
+    var state = g._qdFilter || {};
+    var active = Object.keys(state).some(function (n) { return state[n] && state[n].v !== ""; });
+    var secs = [], per = [], total = 0, shown = 0;
+    each(g, "[data-filter-section]", function (sec) {
+      if (sec.closest("[data-filter-group]") === g) { secs.push(sec); per.push({ n: 0, total: 0 }); }
+    });
+    each(g, "[data-filter-item]", function (it) {
+      if (it.closest("[data-filter-group]") !== g) { return; }
+      var vis = !it.hidden, sec = it.closest("[data-filter-section]"), i = sec ? secs.indexOf(sec) : -1;
+      total++; if (vis) { shown++; }
+      if (i >= 0) { per[i].total++; if (vis) { per[i].n++; } }
+    });
+    var rec = g._qdOpened || [], next = [];
+    secs.forEach(function (sec, i) {
+      var hit = per[i].n > 0, mine = rec.indexOf(sec.id) >= 0;
+      sec.hidden = active && !hit;
+      if (active && hit) {
+        if (!sec.open) { sec.open = true; mine = true; }
+        if (mine) { next.push(sec.id); }
+      } else if (mine) { sec.open = false; }
+      var cnt = sec.querySelector("[data-filter-count]");
+      if (cnt) { cnt.textContent = t("filter.group_count", { n: per[i].n, total: per[i].total }); }
+    });
+    if (JSON.stringify(next) !== JSON.stringify(rec)) {
+      save("qd-filter-open:" + g.getAttribute("data-filter-group"), JSON.stringify(next));
+    }
+    g._qdOpened = next;
+    each(g, "[data-filter-status]", function (st) {
+      if (st.closest("[data-filter-group]") === g) { st.textContent = t("filter.shown", { n: shown, total: total }); }
+    });
   }
   function validFilterState(state) {
     if (!plainObject(state)) { return false; }
@@ -502,7 +540,15 @@
       var state = loadJSON(skey);
       if (state === null) { state = {}; }
       else if (!validFilterState(state)) { state = {}; save(skey, "{}"); } // a corrupt store resets
-      var controls = filterControls(g);
+      var okey = "qd-filter-open:" + name, raw = load(okey), rec = [];
+      if (raw !== null) {
+        try { rec = JSON.parse(raw); } catch (e) { rec = null; }
+        if (!Array.isArray(rec) || !rec.every(function (x) { return typeof x === "string"; })) {
+          rec = []; save(okey, "[]"); // a corrupt record resets alone; the filter store is not its business
+        }
+      }
+      g._qdOpened = rec;
+      var controls = filterControls(g), dirty = false;
       Object.keys(state).forEach(function (n) {
         var f = state[n]; if (!f.chip) { return; }
         var there = controls.some(function (el) { return el.getAttribute("data-filter") === n + ":" + f.v; });
@@ -511,10 +557,16 @@
       g._qdFilter = state;
       controls.forEach(function (el) {
         var spec = el.getAttribute("data-filter");
-        if (spec.indexOf(":") < 0 && /^(INPUT|TEXTAREA)$/.test(el.tagName)) {
-          var f = state[spec]; el.value = f && !f.chip ? f.v : "";
+        if (spec.indexOf(":") < 0 && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+          var f = state[spec], v = f && !f.chip ? f.v : "";
+          if (el.tagName === "SELECT") {
+            var offers = function (x) { return Array.prototype.some.call(el.options, function (o) { return o.value === x; }); };
+            if (v !== "" && !offers(v)) { delete state[spec]; dirty = true; v = ""; } // no option offers it: all
+            if (offers(v)) { el.value = v; }
+          } else { el.value = v; }
         }
       });
+      if (dirty) { save(skey, JSON.stringify(state)); }
       applyFilters(g);
     });
   }
@@ -660,6 +712,10 @@
   document.addEventListener("input", function (ev) {
     var el = ev.target;
     if (el && el.matches && el.matches("input[data-filter], textarea[data-filter]")) { filterInput(el); }
+  });
+  document.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el && el.matches && el.matches("select[data-filter]")) { filterInput(el); }
   });
   document.addEventListener("keydown", function (ev) {
     var el = ev.target;

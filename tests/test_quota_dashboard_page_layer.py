@@ -284,6 +284,8 @@ _TEXT_SLOTS = {
     "card": ({0, 1}, {"title", "body", "age"}),
     "table": ({1, 2, 3}, {"label", "headers", "rows"}),
     "button": ({0}, {"label"}),
+    "select": ({0}, {"label"}),
+    "status_text": ({0}, {"text"}),
     "field": ({0}, {"label", "placeholder", "value"}),
     "group": ({0}, {"body", "label"}),
     "section": ({0, 1}, {"title", "body"}),
@@ -300,7 +302,8 @@ _TEXT_SLOTS = {
 # keyword parameters that carry no words; any OTHER keyword — a misspelt `heading=`, a new one —
 # is read as text, so a literal cannot hide behind a name the scan does not know
 _NON_TEXT_KWS = {"id", "kind", "data", "tag", "new_tab", "note", "open", "lines", "retry", "name",
-                 "min", "max", "row_data", "href", "label_id", "active", "severity"}  # fmt: skip
+                 "min", "max", "row_data", "href", "label_id", "active", "severity", "options",
+                 "align"}  # fmt: skip
 
 
 def _component_name(func: ast.expr, aliases: dict[str, str] | None = None) -> str | None:
@@ -445,6 +448,10 @@ def test_no_view_module_hands_a_component_a_literal_word():
         "from ..components import button as b\nb('Accept')\n",
         "ui.table('x', t('a'), [t('h')], [['Accept' for _ in xs]])\n",
         "rows = [['Accept', 1], ['Reject', 2]]\nui.table('x', t('a'), [t('h')], rows)\n",
+        "ui.select('Cost', name='c', id='i', options=[])\n",
+        "ui.select(label='Cost', name='c', id='i', options=[])\n",
+        "ui.status_text('3 shown')\n",
+        "ui.status_text(text='3 shown')\n",
     ],
 )
 def test_the_view_literal_scan_catches_a_hard_coded_word(mutant):
@@ -455,6 +462,23 @@ def test_the_view_literal_scan_passes_catalogue_words_and_punctuation():
     assert (
         _view_literals(
             "ui.fragment(t('a', n=1), ' · ', t('b'))\nui.button(t('x'), kind='primary')\n"
+        )
+        == []
+    )
+
+
+def test_the_new_parameters_are_scanned_or_named_non_text():
+    """`select`'s label and `status_text`'s text are text slots; `options` and `align` carry values
+    and an enum, so they are named non-text keywords (a literal in an option label is the caller's
+    catalogue lookup to make — the scan does not read it)."""
+    assert _TEXT_SLOTS["select"] == ({0}, {"label"})
+    assert _TEXT_SLOTS["status_text"] == ({0}, {"text"})
+    assert {"options", "align"} <= _NON_TEXT_KWS
+    assert (
+        _view_literals(
+            "ui.select(t('a'), name='c', id='i', options=[('x', t('b'))], value='')\n"
+            "ui.table('x', t('a'), [t('h')], [], align=['right'])\n"
+            "ui.status_text(t('s'), data={'filter-status': ''})\n"
         )
         == []
     )

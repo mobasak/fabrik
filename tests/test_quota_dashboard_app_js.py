@@ -472,6 +472,203 @@ def test_chip_and_token_filters_match_token_equal_search_by_substring_and_surviv
     assert _visible_rows(page) == ["ops"]
 
 
+# ---------------------------------------------------------------- filters: select, sections, count
+_INV = {
+    "Group one": [("alpha", "free"), ("beta", "freemium")],
+    "Group two": [("gamma", "paid"), ("delta", "free")],
+    "Group three": [("eps", "paid")],
+}
+_SID = {title: ui.slug(title, "inv") for title in _INV}
+_FILTER_KEY, _OPEN_KEY = "qd-filter:inv", "qd-filter-open:inv"
+
+
+def _inv_view(stamp="s1"):
+    sections = []
+    for title, rows in _INV.items():
+        table = ui.table(
+            "t-" + _SID[title],
+            title,
+            ["Name", "Cost"],
+            [[n, c] for n, c in rows],
+            row_data=[{"filter-item": "", "f-name": n, "f-cost": c} for n, c in rows],
+        )
+        count = ui.group("", tag="span", data={"filter-count": ""})
+        sections.append(
+            ui.disclosure(
+                ui.fragment(title, " ", count),
+                table,
+                id=_SID[title],
+                data={"filter-section": ""},
+            )
+        )
+    body = ui.fragment(
+        ui.field("Name", name="name-box", kind="search", id="name-box", data={"filter": "name"}),
+        ui.select(
+            "Cost",
+            name="cost-sel",
+            id="cost-sel",
+            options=[("", "All"), ("free", "Free"), ("paid", "Paid")],
+            data={"filter": "cost", "filter-mode": "token"},
+        ),
+        ui.status_text("", data={"filter-status": ""}),
+        *sections,
+    )
+    return view(ui.group(body, data={"filter-group": "inv"}), stamp=stamp)
+
+
+def _sections(page) -> dict[str, tuple[bool, bool]]:
+    """section id -> (hidden, open)"""
+    rows = page.eval_on_selector_all(
+        "details[data-filter-section]", "ds => ds.map(d => [d.id, d.hidden, d.open])"
+    )
+    return {i: (h, o) for i, h, o in rows}
+
+
+def _counts(page) -> dict[str, str]:
+    rows = page.eval_on_selector_all(
+        "details[data-filter-section]",
+        "ds => ds.map(d => [d.id, d.querySelector('[data-filter-count]').textContent])",
+    )
+    return dict(rows)
+
+
+def _status(page) -> str:
+    return page.locator("[data-filter-status]").text_content()
+
+
+def _record(page):
+    return json.loads(page.evaluate(f"localStorage.getItem({_OPEN_KEY!r})") or "null")
+
+
+def _open_inv(open_, page):
+    open_("#overview", {"overview": _inv_view()})
+    settle(page)
+
+
+def test_a_cost_select_in_token_mode_keeps_free_rows_and_never_freemium(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    assert _visible_rows(page) == ["alpha", "beta", "gamma", "delta", "eps"]
+    page.select_option("#cost-sel", "free")
+    assert _visible_rows(page) == ["alpha", "delta"]
+    page.select_option("#cost-sel", "")
+    assert _visible_rows(page) == ["alpha", "beta", "gamma", "delta", "eps"]
+    page.select_option("#cost-sel", "paid")
+    page.get_by_label("Name").fill("e")
+    assert _visible_rows(page) == ["eps"]  # the select and the text box combine
+
+
+def test_a_right_aligned_column_is_drawn_right_while_the_others_stay_left(board):
+    state, page, open_ = board
+    tbl = ui.table("t-a", "T", ["Name", "Keys"], [["a", "12"]], align=[None, "right"])
+    open_("#overview", {"overview": view(tbl)})
+    settle(page)
+    align = "e => getComputedStyle(e).textAlign"
+    assert page.locator("td").evaluate(align) == "right"
+    assert page.locator("th[scope=col]").nth(1).evaluate(align) == "right"
+    assert page.locator("th[scope=col]").nth(0).evaluate(align) in ("left", "start")
+
+
+def test_a_stored_select_value_is_restored_and_an_unoffered_one_resets_to_all(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    stored = {"cost": {"v": "paid", "mode": "token", "chip": False}}
+    page.evaluate(f"localStorage.setItem({_FILTER_KEY!r}, {json.dumps(json.dumps(stored))})")
+    page.reload()
+    settle(page)
+    assert page.locator("#cost-sel").input_value() == "paid"
+    assert _visible_rows(page) == ["gamma", "eps"]
+    state.fragments["overview"] = _inv_view(stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert page.locator("#cost-sel").input_value() == "paid"
+    assert _visible_rows(page) == ["gamma", "eps"]
+    gone = {
+        "cost": {"v": "zzz", "mode": "token", "chip": False},
+        "name": {"v": "e", "mode": "substr", "chip": False},
+    }
+    page.evaluate(f"localStorage.setItem({_FILTER_KEY!r}, {json.dumps(json.dumps(gone))})")
+    page.reload()
+    settle(page)
+    assert page.locator("#cost-sel").input_value() == ""
+    assert _visible_rows(page) == ["beta", "delta", "eps"]  # only the name key still filters
+    kept = json.loads(page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})"))
+    assert list(kept) == ["name"]
+
+
+def test_a_typed_term_opens_matching_sections_hides_the_rest_and_writes_the_counts(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    assert not any(o for _, o in _sections(page).values())
+    page.get_by_label("Name").fill("gam")
+    one, two, three = (_SID[k] for k in _INV)
+    assert _sections(page) == {one: (True, False), two: (False, True), three: (True, False)}
+    assert _record(page) == [two]
+    assert _status(page) == cat.t("filter.shown", n=1, total=5)
+    assert _counts(page)[two].strip() == cat.t("filter.group_count", n=1, total=2)
+    assert _counts(page)[one].strip() == cat.t("filter.group_count", n=0, total=2)
+    assert _counts(page)[three].strip() == cat.t("filter.group_count", n=0, total=1)
+
+
+def test_clearing_the_filter_closes_what_it_opened_and_leaves_a_hand_opened_group_open(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    one, two, three = (_SID[k] for k in _INV)
+    page.locator("summary", has_text="Group one").click()  # opened by hand
+    page.get_by_label("Name").fill("a")
+    assert _sections(page) == {one: (False, True), two: (False, True), three: (True, False)}
+    assert _record(page) == [two]  # the hand-opened group is not the filter's to close
+    page.get_by_label("Name").fill("")
+    assert _sections(page) == {one: (False, True), two: (False, False), three: (False, False)}
+    assert _record(page) == []
+    assert _status(page) == cat.t("filter.shown", n=5, total=5)
+
+
+def test_a_group_that_stops_matching_is_closed_while_the_filter_stays_on(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    one, two, three = (_SID[k] for k in _INV)
+    page.get_by_label("Name").fill("gam")
+    assert _record(page) == [two]
+    page.get_by_label("Name").fill("eps")
+    assert _sections(page) == {one: (True, False), two: (True, False), three: (False, True)}
+    assert _record(page) == [three]
+
+
+def test_the_filter_its_opened_groups_and_its_view_survive_a_swap_and_a_reload(board):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    one, two, three = (_SID[k] for k in _INV)
+    page.get_by_label("Name").fill("gam")
+    page.select_option("#cost-sel", "paid")
+    before = (_sections(page), _record(page), _visible_rows(page), _status(page))
+    assert before[1] == [two] and before[2] == ["gamma"]
+    state.fragments["overview"] = _inv_view(stamp="s2")
+    page.evaluate("window.qdRefresh(true)")
+    settle(page)
+    assert (_sections(page), _record(page), _visible_rows(page), _status(page)) == before
+    assert page.get_by_label("Name").input_value() == "gam"
+    page.reload()
+    settle(page)
+    assert (_sections(page), _record(page), _visible_rows(page), _status(page)) == before
+    assert page.get_by_label("Name").input_value() == "gam"
+    assert page.locator("#cost-sel").input_value() == "paid"
+
+
+@pytest.mark.parametrize("stored", ['{"a":1}', "[1,2]", '"x"', "not json", '[["a"]]'])
+def test_a_corrupt_opened_group_record_is_reset_without_touching_the_filter_store(board, stored):
+    state, page, open_ = board
+    _open_inv(open_, page)
+    page.get_by_label("Name").fill("gam")
+    filt = page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})")
+    page.evaluate(f"localStorage.setItem({_OPEN_KEY!r}, {json.dumps(stored)})")
+    page.reload()
+    settle(page)
+    assert page.evaluate(f"localStorage.getItem({_FILTER_KEY!r})") == filt
+    assert _record(page) == [_SID["Group two"]]  # reset, then re-derived from the live filter
+    assert _visible_rows(page) == ["gamma"]
+
+
 # ---------------------------------------------------------------- clamp, menu, tabs, pick group
 def test_the_clamp_toggle_shows_the_whole_question(board):
     state, page, open_ = board

@@ -38,6 +38,7 @@ BUTTON_KINDS = ("primary", "secondary", "danger")
 FIELD_KINDS = ("text", "textarea", "number", "search")
 GROUP_TAGS = ("div", "section", "ul", "ol", "li", "nav", "fieldset", "span", "tbody")
 NOTES = (None, "optional", "required")
+ALIGNS = (None, "right")
 STATES = ("loading", "empty", "error")
 CLAMP_LINES = range(1, 7)
 
@@ -53,6 +54,8 @@ RESERVED_DATA_KEYS = frozenset(
         "nav", "live", "still", "inline-error", "open",
         # written by app.js (data-stale on a stamp, data-view on <main>) or by `freshness` itself
         "stale", "ts", "cadence", "view", "wrap",
+        # written by `table(align=)` on a right-aligned header and cell
+        "align",
     }
 )  # fmt: skip
 
@@ -188,6 +191,10 @@ def card(
     )
 
 
+def _mark(marks: Sequence[str], j: int) -> str:
+    return marks[j] if j < len(marks) else ""
+
+
 def table(
     label_id: object,
     label: object,
@@ -195,15 +202,28 @@ def table(
     rows: Sequence[Sequence[object]],
     *,
     row_data: Sequence[Mapping[str, object] | None] | None = None,
+    align: Sequence[str | None] | None = None,
 ) -> Safe:
-    """A real table inside a labelled, focusable scroll region; the first cell of a row is its header."""
+    """A real table inside a labelled, focusable scroll region; the first cell of a row is its header.
+    ``align`` is one entry per column, ``"right"`` or ``None``: a right column's header and cells carry
+    ``data-align="right"`` (a number column, set in tabular figures by the stylesheet)."""
     label_id = _id(label_id, "table label id")
-    head = "".join(f'<th scope="col">{_esc(h)}</th>' for h in headers)
+    if align is None:
+        marks = [""] * len(headers)
+    else:
+        if isinstance(align, str) or len(align) != len(headers):
+            raise ValueError(f"table align {align!r} needs one entry per column ({len(headers)})")
+        for a in align:
+            _choice(a, ALIGNS, "table align")
+        marks = [' data-align="right"' if a == "right" else "" for a in align]
+    head = "".join(f'<th scope="col"{marks[i]}>{_esc(h)}</th>' for i, h in enumerate(headers))
     body = []
     for i, row in enumerate(rows):
         attrs = _data(row_data[i] if row_data is not None and i < len(row_data) else None)
         cells = [
-            f'<th scope="row">{_esc(c)}</th>' if j == 0 else f"<td>{_esc(c)}</td>"
+            f'<th scope="row"{_mark(marks, j)}>{_esc(c)}</th>'
+            if j == 0
+            else f"<td{_mark(marks, j)}>{_esc(c)}</td>"
             for j, c in enumerate(row)
         ]
         body.append(f"<tr{attrs}>{''.join(cells)}</tr>")
@@ -253,6 +273,36 @@ def field(
             extra += _attr("max", max) if max is not None else ""
         ctrl = f'<input class="input"{_attr("type", kind)}{common}{_attr("value", "" if value is None else value)}{extra}>'
     return Safe(f'<div class="field"><label{_attr("for", id)}>{_esc(label)}</label>{ctrl}</div>')
+
+
+def select(
+    label: object,
+    *,
+    name: object,
+    id: object,
+    options: Sequence[tuple[object, object]],
+    value: object = "",
+    data: Mapping[str, object] | None = None,
+) -> Safe:
+    """A labelled `<select>`; ``options`` are ``(value, label)`` pairs and the one whose ``str(value)``
+    equals ``value`` is selected."""
+    id = _id(id, "select id")  # noqa: A001
+    want = "" if value is None else str(value)
+    opts = "".join(
+        f"<option{_attr('value', '' if v is None else v)}{' selected' if str(v) == want else ''}>"
+        f"{_esc(text)}</option>"
+        for v, text in options
+    )
+    common = f"{_attr('id', id)}{_attr('name', '' if name is None else name)}{_data(data)}"
+    return Safe(
+        f'<div class="field"><label{_attr("for", id)}>{_esc(label)}</label>'
+        f'<select class="input"{common}>{opts}</select></div>'
+    )
+
+
+def status_text(text: object, *, data: Mapping[str, object] | None = None) -> Safe:
+    """A polite status line (``role="status"``) that `app.js` may rewrite, e.g. the filter's count."""
+    return Safe(f'<p class="status-text" role="status"{_data(data)}>{_esc(text)}</p>')
 
 
 def group(
