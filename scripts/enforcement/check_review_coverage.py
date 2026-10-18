@@ -2439,10 +2439,14 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # opus×1 + sonnet×2, re-prompted`, satisfies this search while describing the state the rule forbids.
 # The artifact that could falsify it is the `command_run.py dispatch --seats` stamp, which this gate
 # does not read; a counter-measure is /fabrik-spec work (D-262 ruled this grammar needs a spec, not a
-# patch). The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
+# patch). `fable` is a token because a dispatched Fable seat re-verifies its own slice in the closing
+# pass (core/62 § The orchestrator, W-d90fe030) — and the orchestrator is Opus or Fable, so
+# `fable×1 (the orchestrator re-read its own fix)` passes exactly as its `opus×1` twin does, same
+# counter. A spelled-out version (`Fable 5.1×1`, `opus 4×1`) is no token.
+# The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
 # the text before its counters (0 of the 42 graded closing rows were prose across 324 receipts, measured
 # 2026-09-19 for W-b61f25cb).
-_MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
+_MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku|fable)\s*[×x]\s*\d+", re.I)
 
 
 def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
