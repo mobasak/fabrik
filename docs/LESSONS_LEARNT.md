@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Fixing one side of an encoding mismatch moves the mismatch to the next reader of the same text (2026-10-18)
+
+W-7ae1169a (D-976): check_doc_index decoded `%20` in INDEX links on one side and compared raw paths on the other.
+- **Normalise the side you control, never re-encode the side you read.** My draft `quote()`d the doc path to meet the
+  INDEX text; both design critics executed it and it crashed on non-UTF-8 names and missed every escape a human writes
+  (`R&D%20notes.md`, lowercase hex). Decoding the INDEX text once accepts every valid spelling with one canonical form.
+- **Grep for every OTHER reader of the same text before calling the class closed.** check_doc_links scans the same
+  INDEX in the same gate run and also decoded only `%20`, so each new remedy would have been a "broken ref" one row
+  later. Then, widening that reader to decode EVERY link it scans broke two things the review seats found by
+  execution: a `%00` crashed the row, and a file whose real name holds `%XX` stopped resolving. A decoder over text
+  you do not own needs the raw spelling as a fallback and a guard for what decoding can manufacture (NUL, `%2F`).
+
 ## `except ImportError` cannot tell a missing symbol from a missing module, and `Path.is_file()` can raise (2026-10-18)
 
 W-5feb6e9c (D-972): `check_synced_unmodified.py` guarded `from fabrik_synced_manifest import X` with `except ImportError`,
