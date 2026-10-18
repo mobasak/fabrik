@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T15:57:52.978251Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-152c26c8",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure how both scripts classify a blocked --paused close, then exclude wall == 'paused' from the blocked count, with a regression test",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work = HIGH (D-956); one counter split in two scripts, one session, no spec",
   "status": "open",
   "title": "kaizen_collect_v2.py and command_feedback_report.py count an operator pause as a blocked close inside the rules_compliance denominator; split on the usage ledger's wall == 'paused' (intel mail 01M57KNEZ2, D-993)"
 }
