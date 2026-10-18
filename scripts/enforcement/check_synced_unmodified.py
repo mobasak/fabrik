@@ -46,7 +46,9 @@ def _md5(path: Path) -> str:
 # `from fabrik_synced_manifest import X` / `except ImportError` read a missing SYMBOL exactly like
 # a missing module (both raise ImportError, both with `name == "fabrik_synced_manifest"`) and ran
 # the check with an empty list, so a hub rename red-flagged ~46 projects for edits they were
-# allowed to make, with no word about the hub. Same rule as check_sync_trigger_coverage.py.
+# allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
+# check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names EVERY load
+# failure, SystemExit included, and refuses a present list of the wrong shape.
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -55,20 +57,44 @@ class ManifestError(Exception):
     """The hub manifest exists but cannot answer — the hub's defect, never the project's."""
 
 
+def _is_file(path: Path) -> bool | None:
+    """`path.is_file()`, or None when the path cannot be examined: `is_file` swallows only
+    ENOENT-class errors and RAISES PermissionError for a hub another uid owns."""
+    try:
+        return path.is_file()
+    except OSError:
+        return None
+
+
+def _path_list(path: Path, name: str, value: object, *, tuple_entries: bool) -> list[object]:
+    """`value` as a list of paths, or ManifestError: a present list of the wrong shape is a guessed
+    list too (`set(None)` crashed bare; a string exploded into one-character prefixes)."""
+    if not isinstance(value, (set, frozenset, list, tuple)):  # a str is none of these
+        raise ManifestError(
+            f"{path}: {name} is a {type(value).__name__}, not a collection of paths"
+        )
+    for item in value:
+        head = item[0] if tuple_entries and isinstance(item, tuple) and item else item
+        if not isinstance(head, str):
+            raise ManifestError(f"{path}: {name} holds {item!r}, not a path")
+    return list(value)
+
+
 def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     """(seeded-not-enforced files, retired vendored dirs) from the hub's live manifest.
 
     Seeded files are distributed once but allowed to diverge (never flagged). Retired vendored
     dirs are the PROJECT'S now — deleting or editing them is the sanctioned action.
 
-    Both are empty when the hub or its manifest FILE is absent (e.g. on a VPS) — a rare,
-    acceptable degradation; `main()` then names the hub beside any drift it reports, because
-    under a present hub a moved manifest, not a project edit, may be the cause. A manifest that
-    is present but fails to load, or lacks either list, raises ManifestError: a guessed empty
-    list grades the wrong rule. Loaded by file location, never `sys.path` + import, so no cached
-    or shadowing module can answer for the hub's file; the manifest therefore imports only the
-    stdlib, which `tests/test_check_synced_unmodified_manifest.py` proves by loading the repo's
-    own manifest through this function.
+    Both are empty when the hub or its manifest FILE is absent, or cannot be examined (e.g. on a
+    VPS, or a hub another uid owns) — a rare, acceptable degradation; `main()` then names the hub
+    beside any drift it reports when the hub is present but its manifest is absent, because a
+    moved manifest, not a project edit, may be the cause. A manifest that is present but fails to
+    load, lacks either list, or holds one of the wrong shape raises ManifestError: a guessed list
+    grades the wrong rule. Loaded by file location, never `sys.path` + import, so no cached or
+    shadowing module can answer for the hub's file; the manifest therefore imports only the stdlib
+    (graded by `tests/test_check_synced_unmodified_manifest.py`, which also loads the repo's own
+    manifest through this function).
 
     Why retired dirs exist (found 2026-09-08 by the independent closing pass of the D-196 retirement):
     this check iterates the project's `.fabrik/synced.lock`, which is a FROZEN SNAPSHOT rewritten
@@ -82,7 +108,7 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
     """
     path = FABRIK_ROOT / MANIFEST_REL
-    if not path.is_file():
+    if not _is_file(path):
         return set(), ()
     spec = importlib.util.spec_from_file_location("fabrik_synced_manifest", path)
     if spec is None or spec.loader is None:
@@ -90,12 +116,18 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     man = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(man)
-    except Exception as e:  # any load failure is the hub's and is NAMED, never swallowed
+    # Any load failure is the hub's and is NAMED, never swallowed — SystemExit too, which is no
+    # Exception: a manifest calling sys.exit(0) would otherwise end the check GREEN.
+    except (Exception, SystemExit) as e:
         raise ManifestError(f"{path} failed to load: {type(e).__name__}: {e}") from e
     missing = [a for a in REQUIRED_MANIFEST_ATTRS if not hasattr(man, a)]
     if missing:
         raise ManifestError(f"{path} has no {', '.join(missing)} — renamed or removed in the hub?")
-    return set(man.SEEDED_NOT_ENFORCED), tuple(man.RETIRED_VENDORED_DIRS)
+    seeded = _path_list(path, "SEEDED_NOT_ENFORCED", man.SEEDED_NOT_ENFORCED, tuple_entries=False)
+    retired = _path_list(
+        path, "RETIRED_VENDORED_DIRS", man.RETIRED_VENDORED_DIRS, tuple_entries=True
+    )
+    return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
 
 
 def _main_checkout(project_root: Path) -> Path | None:
@@ -193,7 +225,9 @@ def main() -> int:
         print("project). Revert it (the next sync restores it), or make the change in")
         print("/opt/fabrik/<path> + re-sync if it's correct for ALL projects. Never fork here.")
         manifest = FABRIK_ROOT / MANIFEST_REL
-        if FABRIK_ROOT.exists() and not manifest.is_file():
+        # `is False`, never falsy: a manifest that cannot be examined (None) is "cannot tell". A
+        # clean False means every stat on the way resolved, so `exists()` below cannot raise.
+        if _is_file(manifest) is False and FABRIK_ROOT.exists():
             print()
             print(f"⚠ The hub manifest {manifest} is missing, so the seeded and retired")
             print("exemptions could not be applied: a hub-side move, not a project edit, may be")

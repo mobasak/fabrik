@@ -11,9 +11,12 @@ project; the last one loads THIS tree's manifest through the check's own loader.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
+import os
+import runpy
 import sys
 import types
 from pathlib import Path
@@ -47,10 +50,14 @@ def _run(
     manifest: str | None,
     files: dict[str, str],
     lock: dict[str, str],
+    *,
+    hub_exists: bool = True,
 ) -> int:
-    """Run the check with a fake hub (`manifest` None = no manifest file) and a fake project."""
+    """Run the check with a fake hub (`manifest` None = no manifest file; `hub_exists` False = no
+    hub directory at all, the VPS case) and a fake project."""
     hub = tmp_path / "hub"
-    (hub / "scripts").mkdir(parents=True)
+    if hub_exists:
+        (hub / "scripts").mkdir(parents=True)
     if manifest is not None:
         (hub / "scripts" / "fabrik_synced_manifest.py").write_text(manifest, encoding="utf-8")
     project = tmp_path / "project"
@@ -106,7 +113,78 @@ def test_an_absent_manifest_file_degrades_and_names_the_hub_beside_drift(
     rc = _run(monkeypatch, tmp_path, None, files, lock)
     out = capsys.readouterr().out
     assert rc == 1, out  # empty lists: the edited seeded file reads as drift, as before
+    assert "PORTS.md" in out, out
     assert "hub manifest" in out and "is missing" in out, out
+
+
+def test_an_absent_hub_degrades_with_no_hub_note(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No `/opt/fabrik` at all (a VPS): empty lists, drift reported plainly, no hub note."""
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, None, files, lock, hub_exists=False)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "PORTS.md" in out, out
+    assert "hub manifest" not in out, out
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root traverses a mode-000 directory")
+def test_a_hub_this_user_cannot_enter_degrades_like_an_absent_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`Path.is_file()` RAISES PermissionError (it swallows only ENOENT-class errors): a hub
+    another uid owns must read as absent, never crash the check with a bare traceback."""
+    hub_scripts = tmp_path / "hub" / "scripts"
+    hub_scripts.mkdir(parents=True)
+    (hub_scripts / "fabrik_synced_manifest.py").write_text(_FULL_MANIFEST, encoding="utf-8")
+    rc = None
+    try:
+        hub_scripts.chmod(0)
+        files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+        rc = _run(monkeypatch, tmp_path, None, files, lock, hub_exists=False)
+    finally:
+        hub_scripts.chmod(0o755)
+    out = capsys.readouterr().out
+    assert rc == 1, out  # empty lists: PORTS.md reads as drift, as with no hub
+    assert "PORTS.md" in out, out
+    assert "hub manifest" not in out, out  # unreadable is "cannot tell", never "missing"
+
+
+@pytest.mark.parametrize(
+    ("seeded", "retired"),
+    [("None", "[]"), ("set()", '"libs/x"'), ("set()", "[1]"), ("{5}", "[]"), ("set()", "[()]")],
+    ids=["seeded-None", "retired-a-string", "retired-an-int-entry", "seeded-an-int", "empty-tuple"],
+)
+def test_a_wrongly_typed_list_fails_red_naming_the_hub(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    seeded: str,
+    retired: str,
+) -> None:
+    """A present symbol of the wrong shape is a guessed list too: `set(None)` crashed with a bare
+    TypeError, and a string was exploded into one-character prefixes that exempt nothing."""
+    manifest = f"SEEDED_NOT_ENFORCED = {seeded}\nRETIRED_VENDORED_DIRS = {retired}\n"
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert _HUB_WORDS in out, out
+    assert _PROJECT_BLAME not in out, out
+
+
+@pytest.mark.parametrize("code", [0, 3])
+def test_a_manifest_that_exits_while_loading_fails_red(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], code: int
+) -> None:
+    """`SystemExit` is no `Exception`: a manifest calling `sys.exit(0)` ended the check GREEN."""
+    manifest = f"import sys\nsys.exit({code})\n" + _FULL_MANIFEST
+    files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
+    rc = _run(monkeypatch, tmp_path, manifest, files, lock)
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "SystemExit" in out and _HUB_WORDS in out, out
 
 
 def test_an_absent_manifest_file_with_a_clean_lock_stays_green(
@@ -146,10 +224,29 @@ def test_the_repo_manifest_answers_the_checks_own_loader(monkeypatch: pytest.Mon
     """The renaming worktree reds HERE, before the sync carries a rename to every project.
 
     The check reads the live `/opt/fabrik` manifest, so no other hub test sees a rename made on a
-    branch; loading THIS tree's manifest through the check's own loader does. It also reds if the
-    manifest grows a non-stdlib import, which the file-location load (no `sys.path`) cannot resolve.
+    branch; loading THIS tree's manifest through the check's own loader does, and its lists must
+    equal what an independent run of the file defines.
     """
+    root = _CHECK.parents[2]
     check = _load_check()
-    monkeypatch.setattr(check, "FABRIK_ROOT", _CHECK.parents[2])
+    monkeypatch.setattr(check, "FABRIK_ROOT", root)
     seeded, retired = check._manifest_lists()
-    assert seeded and retired, (seeded, retired)
+    defined = runpy.run_path(str(root / check.MANIFEST_REL))
+    assert seeded == set(defined["SEEDED_NOT_ENFORCED"]), seeded
+    assert retired == tuple(defined["RETIRED_VENDORED_DIRS"]), retired
+
+
+def test_the_repo_manifest_imports_only_the_stdlib() -> None:
+    """Every project's check loads the HUB's manifest under the project's own interpreter, where a
+    third-party package the hub venv happens to have (`yaml`) may be absent — and a hub sibling
+    script is never importable (no `sys.path` entry). So the manifest imports the stdlib only."""
+    tree = ast.parse((_CHECK.parents[2] / "scripts/fabrik_synced_manifest.py").read_text())
+    names = {
+        (alias.name if isinstance(node, ast.Import) else node.module or "").split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    assert names, "no imports parsed — the walk read nothing"
+    foreign = sorted(n for n in names if n not in sys.stdlib_module_names and n != "__future__")
+    assert not foreign, f"the hub manifest imports non-stdlib modules: {foreign}"
