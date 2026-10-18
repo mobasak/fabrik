@@ -19,6 +19,15 @@ Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
 
+### Fixed — the DNS SSH proxy's API key leaves the ssh argv; a dead container-resolve path is named (2026-10-18)
+
+`src/fabrik/drivers/dns.py`: `_request_via_ssh` sends `X-API-Key` and the request body to the remote curl as a
+`-K -` config on ssh's stdin (escaped; CR/LF/NUL refused), so neither shows in `ps` on the hub or the VPS.
+`_resolve_container_url` treats a timeout, an OSError, rc 255 or a signal kill as a dead path — falling back to
+`SITE_PROVISIONER_INTERNAL_URL` when set, else raising a command-free error naming host and jump — while an
+ordinary miss stays a miss. `src/fabrik/drivers/ssh.py`: scp passes `--` before the local path; an empty stderr
+reads `no stderr`. D-985 (W-894fdc5f).
+
 ### Changed — /fabrik-review: a routed fix carries its invariant and shapes; the sweep re-reads comments too (2026-10-18)
 
 `commands/_sources/fabrik-review.md` Phase 2: a fix the lead routes to another seat is written in the pass's fix
