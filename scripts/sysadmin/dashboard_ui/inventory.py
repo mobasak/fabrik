@@ -22,6 +22,7 @@ collapses to a count that still lists every name, so collapsing never hides a pr
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -68,6 +69,7 @@ _STATUSES = {
     "?": "services.inv.unknown",
 }
 _FILTER_GROUP = "inventory"
+_UNSAFE_URL = re.compile(r"[\x00-\x20\x7f-\x9f\\\s]")  # control, whitespace, backslash
 _EDGE_S = (
     253402300799 - 2 * 86400
 )  # past this a local-zone conversion can leave year 9999 (zones are within a day)
@@ -323,23 +325,40 @@ class _Ids:
 
 
 def _name(row: _Row) -> object:
-    """The provider as a link when its URL PARSES as an ``http(s)`` URL with a host, no userinfo and no
-    broken port, and ``link()`` accepts the whole string; text otherwise. A URL that carries
-    credentials is never a link and is shown without them (zero secrets)."""
+    """The provider, linked or not, by ONE rule over its URL:
+
+    1. whitespace, a control character or a backslash anywhere: never a link, nothing of the URL shown;
+    2. else ``urlsplit`` it: if that raises, the scheme is not exactly ``http``/``https`` (as written),
+       ``.port`` raises, the authority ends in ``:``, or the host is empty once its dots are
+       stripped: never a link, nothing of the URL shown;
+    3. else userinfo (``.username``/``.password`` set): never a link; the name and the raw URL with the
+       userinfo cut out of its authority, the rest byte for byte (no credential is ever rendered);
+    4. else a link only if ``link()`` accepts the whole string."""
     url = row.url
-    if url.startswith(("https://", "http://")):  # the scheme is lowercase: HTTPS:// stays text
-        try:
-            parts = urlsplit(url)
-            hostport = parts.netloc.rpartition("@")[2]
-            ok = bool(parts.hostname) and not hostport.endswith(":")
-            parts.port  # noqa: B018 — reading it raises ValueError for a malformed port
-            if ok and "@" in parts.netloc:  # userinfo: text, never a link, and never the credential
-                return fragment(row.provider, " ", parts._replace(netloc=hostport).geturl())
-            if ok:
-                return link(row.provider, url, new_tab=True)
-        except ValueError:
-            pass
-    return row.provider
+    if _UNSAFE_URL.search(url):
+        return row.provider
+    try:
+        parts = urlsplit(url)
+        authority = parts.netloc
+        host = parts.hostname
+        parts.port  # noqa: B018 — reading it raises ValueError for a malformed or out-of-range port
+    except ValueError:
+        return row.provider
+    if (
+        parts.scheme not in ("http", "https")
+        or not url.startswith(f"{parts.scheme}://")
+        or authority.endswith(":")
+        or not (host or "").strip(".")
+    ):
+        return row.provider
+    if parts.username is not None or parts.password is not None:
+        start = len(parts.scheme) + 3
+        bare = url[:start] + authority.rpartition("@")[2] + url[start + len(authority) :]
+        return fragment(row.provider, " ", bare)
+    try:
+        return link(row.provider, url, new_tab=True)
+    except ValueError:
+        return row.provider
 
 
 def _label(known: dict[str, str], token: str) -> str:

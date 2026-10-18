@@ -763,9 +763,9 @@ def _reference_workload() -> None:
 
 
 def test_a_5000_row_fixture_renders_in_under_200_ms():
-    """CPU time (process_time), best of 5, in both modes: the render's own cost. On a loaded box a
-    process's CPU time itself stretches (shared cores), so the budget scales by how much a fixed
-    reference workload stretched (1x to 3x); a render that is slow stays slow against that."""
+    """CPU time (process_time), best of 5, in both modes: the render's own cost. Load stretches a
+    process's CPU time (shared cores) and the reference workload alike, so the ratio of the two is
+    stable; the absolute 0.6 s ceiling holds on any box."""
     rows = [  # the WORST mix: every row categorised, with a link, projects, a credit and a renewal
         base(
             f"p{i}", category=f"cat-{i % 18:02d}", cost="paid", url=f"https://p{i}.example",
@@ -775,9 +775,10 @@ def test_a_5000_row_fixture_renders_in_under_200_ms():
         for i in range(5000)
     ]  # fmt: skip
     for interactive in (True, False):
-        stretch = min(3.0, max(1.0, _cpu_best(_reference_workload) / 0.020))
         best = _cpu_best(lambda mode=interactive: render(rows, interactive=mode))
-        assert best < 0.2 * stretch, (interactive, best, stretch)
+        ratio = best / _cpu_best(_reference_workload)
+        assert ratio < 10, (interactive, ratio)  # measured 6.2-8.5x on this box; load cancels out
+        assert best < 0.6, (interactive, best)  # an absolute ceiling no box excuses
 
 
 # ---------------------------------------------------------------- invariants the rows are instances of
@@ -1054,14 +1055,14 @@ def test_g12_load_and_render_normalise_multi_valued_input():
                 (1, "a", "x", "free", "", "active"),
             ],
             "FROM api_keys": [
-                (1, ["z", "a"], "first@x.io", "credential"),
-                (1, ["m"], "second@x.io", "credential"),
+                (1, ["z", "k", "x", "c", "t", "a", "p"], "first@x.io", "credential"),
+                (1, ["m", "w", "b"], "second@x.io", "credential"),
             ],
         }
     )
     rows, _ = inventory.load(conn)
     assert [r["provider"] for r in rows] == ["a", "b"]
-    assert rows[0]["account"] == "first@x.io" and rows[0]["projects"] == ["a", "m", "z"]
+    assert rows[0]["account"] == "first@x.io" and rows[0]["projects"] == sorted("zkxctapmwb")
     ordered = [base("alpha", account="1"), base("Zed"), base("Beta"), base("alpha", account="4")]
     root = dom(render(ordered))
     details = [d.text() for d in root.find("details") if d.attrs["id"].startswith("row-")]
@@ -1186,3 +1187,57 @@ def test_h5_the_singular_heading_is_rendered():
         text = dom(render([base("only")], interactive=interactive)).text()
         assert t("services.inv.providers.one", n=1) in text
         assert re.search(r"(?<!of )(?<!\d)1 providers", text) is None
+
+
+# ---------------------------------------------------------------- pass-3 fixes (J1-J3)
+_J1_NAME_ALONE = [
+    "https://./", "https://../", "https://.../", "https://evil.com\\@ok.example/", "https://u:pw@h.exa\tmple/",
+    "https://ok.example/a b", "https://ok.example/\nx", "https://ok.example/\x00", "https://ok.example/\x7f",
+    "https://", "http://", "https:///path", "https://u@", "https://[", "https://ok.example:",
+    "https://h:abc/", "https://h:99999/", "HTTPS://UP.example", "/admin", "#x", "http://a b",
+    "javascript:alert(1)", "ftp://ok.example", "ftp://u:pw@h.example/", "https://u:pw@h.example/\x01", "https://u:pw@h.example/\x7f", "HTTPS://u:pw@h.example/", "",
+]  # fmt: skip
+_J1_STRIPPED = [
+    ("https://u:pw@h.example:8443/p?q=1#f", "https://h.example:8443/p?q=1#f"),
+    ("https://a@b@h/x", "https://h/x"),
+    ("https://u@h.example/", "https://h.example/"),
+    ("https://@h.example/", "https://h.example/"),
+    ("http://u:pw@h.example/", "http://h.example/"),
+]
+_J1_LINKS = [
+    "https://ok.example", "http://ok.example", "http://localhost", "https://[::1]/",
+    "https://h:8080/x", "https://bücher.example/path?q=1#f",
+]  # fmt: skip
+
+
+def _name_cell(url: str, interactive: bool) -> tuple[El, str]:
+    root = dom(render([base("p", url=url)], interactive=interactive))
+    (head,) = provider_heads(root)
+    return root, head.text().split(t("services.inv.detail"))[0]
+
+
+@pytest.mark.parametrize("url", _J1_NAME_ALONE)
+def test_j1_a_url_the_rule_refuses_shows_the_provider_name_alone(url):
+    for interactive in (True, False):
+        root, shown = _name_cell(url, interactive)
+        assert root.find("a") == [] and shown == "p", (url, shown)
+
+
+@pytest.mark.parametrize(("url", "bare"), _J1_STRIPPED)
+def test_j1_userinfo_is_cut_from_the_raw_url_and_the_rest_shown_byte_for_byte(url, bare):
+    for interactive in (True, False):
+        root, shown = _name_cell(url, interactive)
+        assert root.find("a") == [] and shown == f"p {bare}", (url, shown)
+        assert "pw" not in root.text() and "u@" not in root.text()
+
+
+@pytest.mark.parametrize("url", _J1_LINKS)
+def test_j1_a_parsed_http_url_with_a_real_host_that_link_accepts_is_the_link(url):
+    for interactive in (True, False):
+        root, shown = _name_cell(url, interactive)
+        (a,) = root.find("a")
+        assert (
+            a.attrs["href"] == url
+            and a.text().strip().endswith("p")
+            and shown.strip().endswith("p")
+        )
