@@ -543,3 +543,10 @@ def test_the_emitted_http_exception_handler_keeps_retry_after(project):
     r = TestClient(app).post("/limited")
     assert r.status_code == 429 and r.headers["content-type"] == "application/problem+json"
     assert r.headers["retry-after"] == "30"
+
+
+def test_the_scaffold_emits_the_projects_own_chat_tests(project):
+    """The project's CI runs the real stack (the hub cannot: no argon2/uuid_utils); it must be emitted."""
+    emitted = project / "server" / "tests" / "test_chat.py"
+    text = emitted.read_text()
+    assert "TEST_REDIS_URL" in text and "_require_throwaway" in text and "/api/v1/chat" in text

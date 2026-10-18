@@ -2885,11 +2885,15 @@ return {0, 0}
 """
 
 chat_requests_total = Counter(
-    "chat_requests_total", "Chat requests that reached the route, by outcome", ["outcome"],
+    "chat_requests_total",
+    "Chat requests that reached the route, by outcome",
+    ["outcome"],
     registry=REGISTRY,
 )
 chat_rate_limited_total = Counter(
-    "chat_rate_limited_total", "Chat requests refused by a rate bucket", ["bucket"],
+    "chat_rate_limited_total",
+    "Chat requests refused by a rate bucket",
+    ["bucket"],
     registry=REGISTRY,
 )
 
@@ -3016,7 +3020,7 @@ def _parse_message(raw: bytes, max_chars: int) -> str:
         raise HTTPException(400, "Body must be JSON") from None
     message = data.get("message") if isinstance(data, dict) else None
     if not isinstance(message, str) or not message.strip():
-        raise HTTPException(400, "Body must be {\"message\": <non-empty string>}")
+        raise HTTPException(400, 'Body must be {"message": <non-empty string>}')
     if len(message) > max_chars:
         raise HTTPException(400, f"message is longer than {max_chars} characters")
     return message
@@ -3042,7 +3046,9 @@ async def _relay(
         ) as response:
             if response.status_code >= 300:
                 outcome = "upstream_error"
-                yield _frame({"type": "error", "error": f"The model service returned {response.status_code}"})
+                yield _frame(
+                    {"type": "error", "error": f"The model service returned {response.status_code}"}
+                )
                 return
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):
@@ -3121,7 +3127,9 @@ def build_chat_router(
             _record("no_config", user.user_id)
             raise HTTPException(503, "Chat is not configured")
 
-        buckets: list[tuple[str, str, Bucket]] = [("app", "global:chat:app", chat_settings.rate_app)]
+        buckets: list[tuple[str, str, Bucket]] = [
+            ("app", "global:chat:app", chat_settings.rate_app)
+        ]
         if user.tenant_id:
             buckets.append(("tenant", f"t:{user.tenant_id}:chat:rate", chat_settings.rate_tenant))
         buckets.append(("user", f"global:chat:user:{user.user_id}", chat_settings.rate_user))
@@ -3896,6 +3904,161 @@ def test_access_token_round_trip() -> None:
     assert claims["tid"] == "t1"
 '''
 
+# The emitted chat tests (W-ab242b11 slice 2): the real app, middleware and client_ip, on a real Redis.
+_SAAS_TEST_CHAT_PY = r'''"""Chat route tests for __NAME__ — the real app, its middleware, and a real throwaway Redis.
+
+Set ``TEST_REDIS_URL`` to a throwaway Redis logical DB (never DB 0, never the app's ``REDIS_URL``):
+these tests fill rate buckets and flush that DB. Unset, they skip. OpenRouter is replaced by an
+``httpx.MockTransport`` on the app's one chat client, so no key is spent.
+"""
+
+import importlib
+import json
+import os
+import uuid
+from urllib.parse import urlsplit
+
+import httpx
+import pytest
+
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u@localhost/x")
+os.environ.setdefault("JWT_SECRET", "test-" + "x" * 40)  # >= 32 chars (module validator)
+
+_APP_REDIS_URL = os.environ.get(
+    "REDIS_URL", ""
+)  # captured before any test points the app elsewhere
+_TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "")
+
+
+def _require_throwaway(url: str) -> None:
+    db = (urlsplit(url).path or "/0").lstrip("/") or "0"
+    if db == "0":
+        raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
+    if _APP_REDIS_URL and url == _APP_REDIS_URL:
+        raise RuntimeError("TEST_REDIS_URL must not be the app's own REDIS_URL")
+
+
+pytestmark = pytest.mark.skipif(
+    not _TEST_REDIS_URL, reason="TEST_REDIS_URL is unset (a throwaway Redis DB)"
+)
+
+LINES = [
+    ": OPENROUTER PROCESSING",
+    'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+    'data: {"choices":[],"usage":{"total_tokens":2}}',
+    "data: [DONE]",
+]
+
+
+@pytest.fixture
+def app(monkeypatch):
+    """A freshly imported app on the test Redis, with every cached client cleared first."""
+    _require_throwaway(_TEST_REDIS_URL)
+    monkeypatch.setenv("REDIS_URL", _TEST_REDIS_URL)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+    monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "https://app.example.com")
+    monkeypatch.setenv("CHAT_RATE_USER", "2/3600")
+    from __PKG__ import auth
+
+    for cached in (auth.get_settings, auth._denylist, auth.redis_client):
+        cached.cache_clear()
+    import redis
+
+    redis.Redis.from_url(_TEST_REDIS_URL).flushdb()
+    main = importlib.reload(importlib.import_module("__PKG__.main"))
+    sent: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, text="\n".join(LINES) + "\n")
+
+    main._chat_http._transport = httpx.MockTransport(handler)
+    main.app.state.sent = sent
+    return main.app
+
+
+def _bearer(tenant: str | None = "t1", user: str | None = None) -> dict[str, str]:
+    from fastapi_user_auth.tokens import issue_access_token
+
+    token = issue_access_token(
+        subject=user or str(uuid.uuid4()),
+        tenant_id=tenant,
+        secret=os.environ["JWT_SECRET"],
+        ttl_seconds=900,
+    )
+    return {"Authorization": f"Bearer {token}", "X-Forwarded-For": "203.0.113.7"}
+
+
+def _frames(text: str) -> list[dict]:
+    return [json.loads(line[6:]) for line in text.splitlines() if line.startswith("data: ")]
+
+
+def test_anonymous_is_401(app) -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(app, base_url="https://testserver") as tc:
+        assert tc.post("/api/v1/chat", json={"message": "hi"}).status_code == 401
+    assert app.state.sent == []
+
+
+def test_a_signed_in_user_gets_the_stream(app) -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(app, base_url="https://testserver") as tc:
+        r = tc.post("/api/v1/chat", json={"message": "hi"}, headers=_bearer())
+    assert r.status_code == 200
+    assert _frames(r.text) == [{"type": "text_delta", "text": "Hi"}, {"type": "done"}]
+    assert set(app.state.sent[0]) == {"model", "messages", "stream", "max_tokens"}
+
+
+def test_a_cookie_without_the_csrf_token_is_403(app) -> None:
+    from fastapi.testclient import TestClient
+    from fastapi_user_auth.cookies import SESSION, cookie_name
+
+    token = _bearer()["Authorization"].split()[1]
+    with TestClient(app, base_url="https://testserver") as tc:
+        r = tc.post(
+            "/api/v1/chat",
+            json={"message": "hi"},
+            headers={
+                "Cookie": f"{cookie_name(SESSION, secure=True)}={token}",
+                "Origin": "https://app.example.com",
+            },
+        )
+    assert r.status_code == 403
+
+
+def test_a_bad_body_is_400(app) -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(app, base_url="https://testserver") as tc:
+        assert (
+            tc.post("/api/v1/chat", json={"message": "   "}, headers=_bearer()).status_code == 400
+        )
+
+
+def test_a_full_user_bucket_is_429_with_retry_after(app) -> None:
+    from fastapi.testclient import TestClient
+
+    from __PKG__ import chat
+
+    user = str(uuid.uuid4())
+    limit = chat.load_chat_settings(os.environ).rate_user.limit
+    with TestClient(app, base_url="https://testserver") as tc:
+        for _ in range(limit):
+            assert (
+                tc.post(
+                    "/api/v1/chat", json={"message": "hi"}, headers=_bearer(user=user)
+                ).status_code
+                == 200
+            )
+        r = tc.post("/api/v1/chat", json={"message": "hi"}, headers=_bearer(user=user))
+    assert r.status_code == 429
+    assert int(r.headers["retry-after"]) >= 1  # the app's _http_exc keeps the header
+    assert r.headers["content-type"] == "application/problem+json"
+'''
+
 
 _TOML_TABLE_HEADER = re.compile(r"^\[\[?[\w.\-\"]+\]\]?\s*(#.*)?$")
 
@@ -4041,6 +4204,7 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
     # Pattern-A auth smoke test (router mounted + token round-trip) beside test_health.
     (server_dir / "tests").mkdir(parents=True, exist_ok=True)
     (server_dir / "tests" / "test_auth.py").write_text(_sub(_SAAS_TEST_AUTH_PY))
+    (server_dir / "tests" / "test_chat.py").write_text(_sub(_SAAS_TEST_CHAT_PY))
 
 
 def _vendor_fastapi_user_auth(dest_src: Path) -> None:
