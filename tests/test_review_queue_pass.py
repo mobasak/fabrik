@@ -905,3 +905,11 @@ def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> Non
         " unchanged). Close in this ORDER: stage your own files"
     )
     assert sentence in text
+
+
+def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
+    """W-c71703cb: a fix forced by the post-flip gate run is read by a new closing pass, never shipped unreviewed."""
+    assert (
+        "flip back to `IN-PROGRESS`, fix it, run a new closing pass over the fix when it touches a file of the surface"
+        " rather than the receipt alone, and repeat the order;"
+    ) in _norm(SRC)
