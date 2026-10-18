@@ -273,3 +273,18 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
         " file it goes into against near-miss inputs (a run of the character it matches, e.g. `***`; the same guards"
         " in another order), its command and output cited in the plan's Evidence;"
     )
+
+
+def test_the_close_list_names_the_wall_and_the_pause_as_stops() -> None:
+    """W-8d98265e: the run-record close list said "Nothing else is a legitimate halt" after the three BLOCKED cases,
+    so the quota wall and an operator's pause (D-993) had no stated close; it now names both, additive to every stop
+    a command's own text names."""
+    frag = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "run-record.md").read_text())
+    assert (
+        "Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`'s"
+        " quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason`"
+        " the operator's words, D-993). Both hold in every command, even where its text calls other stops the only"
+        " ones, and every stop that text names holds too"
+    ) in frag
+    assert "Nothing else is a legitimate halt" not in frag
+    assert "nothing else halts a run" not in frag

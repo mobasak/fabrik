@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every command's close list names the quota wall and an operator's pause, additive to the stops each command names (2026-10-18)
+
+- The run-record fragment that most `/fabrik-*` commands include said a run closes `done`, or `blocked` on one of the three BLOCKED cases, and that "Nothing else is a legitimate halt". That contradicted `CLAUDE.md`'s quota bands, where a run at the wall closes `blocked --wall`, and D-993, where an operator's pause closes `blocked --paused`. The fragment now says: "Two more stops close `blocked` too: the quota wall … and a pause the operator ordered …; both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too." No other command's text changed. A command's own stops still hold, such as a safety HARD STOP, `## BLOCKED: NON-CONVERGENCE` or `handoff`. This closes W-8d98265e. `tests/test_plan_after_chat_queue_pass.py` pins the sentence, and it fails on the original fragment.
+- Not covered: an URGENT preemption. The builder charters park the run with `handoff`, which `start --resume-from` cannot resume. That question went to infra (mail 01M581KDPM), and feedback row 1792329581 stays open. `fabrik-execute-plan` and `fabrik-review` don't include the fragment, so their own three-case wording is routed with W-8008e144 (the CLAUDE.md halt sentence).
+- Fixed: `tests/test_gate_check_canaries.py`'s `check_doc_index` canary was red on master, because 778c0cc37 rewrote the line it neuters. The anchor now names the rewritten line.
+
 ### Fixed — the coroner's sweep exits 3 when it fails to save or emit, or is blind, instead of reporting a clean run (2026-10-18)
 `scripts/sysadmin/kaizen_coroner.py`: several sweep failures used to count nothing, so `--sweep` exited 0 and the daily job stamped the day done. They now each count a named error, so the job is FAILED and runs again:
 - a record save that returned False;

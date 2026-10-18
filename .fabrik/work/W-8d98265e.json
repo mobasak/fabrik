@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:57:52.162024Z",
+  "creator": "kaizen",
+  "evidence": "21f7e2f95b59f7ce25c821933069d546a6465503",
+  "id": "W-8d98265e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-993",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit commands/_fragments/run-record.md's close list to name blocked --paused for an operator pause, pointing at docs/reference/command-run-protocol.md:52; review-scoped over every includer",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "run-record close list names only done and the three BLOCKED cases ('Nothing else is a legitimate halt') — an operator pause now closes with blocked --paused (D-993, intel mail 01M57KNEZ2), so the fragment misleads"
+}
