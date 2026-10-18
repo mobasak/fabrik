@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
+
+- 6cff7527c made `command_run.py`'s `--commit` accept one comma-joined value (split, since a sha never holds a comma)
+  and reworded `docs/reference/command-run-protocol.md` to say so; the protocol-doc test still pinned the old
+  "SPACE-separated, never comma-joined" sentence and failed. It now pins the current one (W-7c8e293f).
+
 ### Fixed — the synced-files check no longer swallows a missing hub manifest symbol (2026-10-18)
 
 - `scripts/enforcement/check_synced_unmodified.py` read `SEEDED_NOT_ENFORCED` and `RETIRED_VENDORED_DIRS` with
