@@ -273,3 +273,19 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
         " file it goes into against near-miss inputs (a run of the character it matches, e.g. `***`; the same guards"
         " in another order), its command and output cited in the plan's Evidence;"
     )
+
+
+def test_the_close_list_names_the_wall_pause_and_preemption_halts() -> None:
+    """Row 1792329581 (and W-8d98265e): the run-record close list named only the three BLOCKED cases, so a quota
+    wall, an operator pause (D-993) or an URGENT preemption (D-958) had no stated exit."""
+    frag = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "run-record.md").read_text())
+    assert (
+        "The other legitimate halts are the quota wall (`blocked --wall`, `CLAUDE.md`'s RED band), an operator's"
+        " pause (`blocked --paused`, its `--reason` the operator's words, D-993) and an URGENT item that preempts"
+        " the run (D-958: commit, push, then `handoff --resume`, in any command); nothing else halts a run"
+    ) in frag
+    assert "Nothing else is a legitimate halt" not in frag
+    assert (
+        "Besides the halts § Run record names, the only reasons to stop before convergence are"
+        in _flat()
+    )

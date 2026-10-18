@@ -32,8 +32,11 @@ Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``hand
 - `python3 scripts/command_run.py blocked --command {{COMMAND}} --reason "<what · searched · missing>"
   --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` on one of the three
   sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec
-  contradiction). Nothing else is a legitimate halt — and a BLOCKED run is exactly when the machinery
-  friction is worth reporting, so the verdict is required here too.
+  contradiction). The other legitimate halts are the quota wall (`blocked --wall`, `CLAUDE.md`'s RED band), an
+  operator's pause (`blocked --paused`, its `--reason` the operator's words, D-993) and an URGENT item that
+  preempts the run (D-958: commit, push, then `handoff --resume`, in any command); nothing else halts a run —
+  and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required
+  here too.
 
 **Always name the run you close.** A bare close ends whatever is live — which, when this command was
 invoked BY another, silently ends the *caller* instead. A mismatched name is refused; closing an
