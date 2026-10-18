@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:19:57.886448Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ab242b11",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: design the auth hook against the template's auth story (fastapi-user-auth / D-xxx), then /fabrik-task or /fabrik-spec",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "saas-skeleton /api/chat is unauthenticated: any visitor can stream completions on the app's own OPENROUTER_API_KEY (no middleware in templates/saas-skeleton; 7 scaffolded projects carry the same route) — needs a session/auth check and a rate limit before a scaffolded app goes public"
+}

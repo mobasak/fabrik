@@ -77,16 +77,12 @@ import { ChatUI } from "@/components/chat";
 
 export default function ChatPage() {
   return (
-    <ChatUI
-      endpoint="/api/chat"
-      placeholder="Ask anything..."
-      systemPrompt="You are a helpful assistant."
-    />
+    <ChatUI endpoint="/api/chat" placeholder="Ask anything..." />
   );
 }
 ```
 
-The `/api/chat` endpoint streams responses via SSE, backed by the **OpenRouter API** (`openrouter.ai/api/v1` — one key, every provider; no vendor SDK). Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (default `anthropic/claude-sonnet-4.6`; pick any slug from <https://openrouter.ai/models>). The route re-emits `text_delta` / `done` / `error` events the `ChatUI` consumes, and returns 503 if `OPENROUTER_API_KEY` is unset.
+The `/api/chat` endpoint streams responses via SSE, backed by the **OpenRouter API** (`openrouter.ai/api/v1` — one key, every provider; no vendor SDK). Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (default `anthropic/claude-sonnet-4.6`; pick any slug from <https://openrouter.ai/models>). The route re-emits `text_delta` / `done` / `error` events the `ChatUI` consumes, and returns 503 if `OPENROUTER_API_KEY` is unset. The assistant's instructions are server code: edit `CHAT_SYSTEM_PROMPT` in `lib/config/chat.ts` (empty sends no system message). The route reads only `message` from the request, as a non-empty string, so a visitor cannot set or override them.
 
 ### Kilo CLI for Development
 
