@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:42:47.856869Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ba306861",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "treat an unreadable working copy of a tracked file as drift (record it in _head_drift with the reason), with a test \u2014 W-8c57e84a Fable critique, one hop out; and tell a hub the VCS cannot read (ls-tree non-zero) from a genuinely untracked file \u2014 today both return None and fall back to the working tree silently, for the manifest and every synced file (W-8c57e84a review B-H1)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "sync _head_source: a tracked synced file deleted from the working tree between import and the read ships HEAD's bytes but records NO drift (read_bytes OSError leaves drifted=False), so the drift report is silent on a deletion"
+}
