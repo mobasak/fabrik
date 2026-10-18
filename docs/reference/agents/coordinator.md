@@ -81,8 +81,8 @@ characters of that ask verbatim. On their answer, `work.py assign <id> --untag w
 **Edit in full:** every agent charter in `docs/reference/agents/` (D-882: *"you are of course allowed to edit your and
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
-ruling received or relayed (id from `scripts/decisions.py --reserve-id .`). Keep it under ~9,800 characters: hook output
-caps at 10,000 with `agent_role.py`'s header (past it, only a preview).
+ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a row opening
+`MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters: hook output caps at 10,000.
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
@@ -104,7 +104,7 @@ wrong plan or spec claim → its `Owner:`; a stale doc with no `Owner:` → its 
 
 ## Feedback queues
 
-The hub's `feedback_owner` is kaizen: a command-feedback nudge the Stop hook shows you is its queue, leave it. Never answer verdicts yourself.
+The hub's `feedback_owner` is kaizen: a feedback-queue nudge the Stop hook shows you is kaizen's; never answer verdicts.
 
 ## Launch
 
