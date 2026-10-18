@@ -35,7 +35,8 @@ it, or name in the brief why the shape does not have it.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
   and the completion gate on the pinned files; feed a sample row through every grader that parses the artifact; a
   synced hook change is checked for its fleet copies' md5.
-- Execute: every factual row of a relayed report, every citation in a docs change, every cross-repo claim and every
+- Execute: every factual row of a relayed report, every citation in a docs change, every command a changed sentence
+  tells its reader to run (the brief asks the seat to run it as the sentence words it), every cross-repo claim and every
   count in a decision row (with its command and denominator), every remedy proposed for a security primitive, a
   confirmed candidate's premise before writing its fix, and a report-adopted fix traced into its consumers; paste the
   code path's own enumeration beside a doc sentence that lists it.

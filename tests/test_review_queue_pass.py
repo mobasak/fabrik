@@ -783,3 +783,13 @@ def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
         " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
     ) in cov
     assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
+
+
+def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
+    """Row 1792262881 (2026-10-18), recurring held wording-claim-execution (1791453535): both seats of a wording
+    review ran the command the changed text described, unprompted; the brief now asks for it."""
+    cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
+    assert (
+        "every citation in a docs change, every command a changed sentence tells its reader to run (the brief asks the"
+        " seat to run it as the sentence words it), every cross-repo claim"
+    ) in cat
