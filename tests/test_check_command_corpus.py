@@ -3689,15 +3689,20 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
     """W-aeb35e3a: the rendered commands run from every repo on the box, where `commands/_fragments/`,
     `commands/_sources/` and `commands/_agents/` do not exist (only the rendered output is installed), so a source,
     fragment or seat file cites one of their files as `/opt/fabrik/commands/<dir>/<f>.md`. Red on the twelve relative
-    citations this item fixed. Allowed: the absolute form, a `git show <ref>:commands/...` recipe, `{{include:...}}`
-    renderer syntax and a bare directory mention; flagged: a `./` prefix, a name without `.md`, `_` or capitals."""
+    citations this item fixed. Flagged: a `./` or `../` prefix, a bare `_fragments/` path, a name without `.md`, `_`
+    or capitals, a citation ending its sentence. Allowed: the absolute form, a `git show <ref>:commands/...` recipe,
+    `{{include:...}}` renderer syntax, a bare directory mention, a glob, a placeholder and a file that is not `.md`."""
     relative = re.compile(
-        r"(?<![\w/.:-])(?:\./)?commands/_(?:fragments|sources|agents)/[A-Za-z0-9_-]+(?:\.md)?"
+        r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+"
+        r"(?:\.md\b|(?![\w.*</-]))"
     )
     for spelling in (
         "`commands/_agents/x.md`",
         "./commands/_fragments/a.md",
+        "../_fragments/a.md",
+        "`_fragments/a.md`",
         "commands/_sources/Term_x",
+        "see commands/_fragments/a.md.",
     ):
         assert relative.search(spelling), spelling
     for spelling in (
@@ -3705,6 +3710,9 @@ def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
         "git show HEAD:commands/_fragments/a.md",
         "{{include:term-coverage}}",
         "the `commands/_fragments/` directory",
+        "ls commands/_sources/fabrik-*",
+        "`commands/_sources/<command>.md`",
+        "commands/_sources/x.py",
     ):
         assert not relative.search(spelling), spelling
     hits = [
