@@ -919,3 +919,15 @@ def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
         "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
         " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
     ) in _norm(SRC)
+
+
+def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
+    """Row 1792359501 (a recurrence of held full-suite-import-time-registration): the catalogue said HOW a seat runs
+    tests, never WHICH — so a new import that breaks a stubbed loader, which only the tests loading the module by path
+    exercise, passed every review run. The brief now names those tests for every seat to run."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text())
+    assert (
+        "tests run by exact node id, and a brief over changed code names the tests that load each changed module (by"
+        " import, or by path through a loader or a stub) for every seat to run by that recipe, so a new import that"
+        " breaks a stubbed loader reds in the pass."
+    ) in text
