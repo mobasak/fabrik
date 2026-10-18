@@ -210,15 +210,24 @@ def _smoke_recipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
     return project, makefile[start : makefile.index("\n\n", start)]
 
 
+_SMOKE_EXEC = f'docker exec $(PROJECT_NAME)-smoke python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
+
+
 def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypatch):
-    _, recipe = _smoke_recipe(tmp_path, monkeypatch)
+    project, recipe = _smoke_recipe(tmp_path, monkeypatch)
     assert "curl" not in recipe and "/health" not in recipe, recipe
     assert "-p $(PORT)" not in recipe, recipe  # a worker publishes nothing
+    # its own container name: another project's smoke run may hold the template's shared `smoke-test`
+    assert "smoke-test" not in (project / "Makefile").read_text()
     lines = recipe.splitlines()
-    rm = next(i for i, ln in enumerate(lines) if "docker rm -f smoke-test" in ln)
-    run = next(i for i, ln in enumerate(lines) if "docker run -d --name smoke-test" in ln)
+    rm = lines.index("\t@docker rm -f $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
+    run = lines.index(
+        "\t@docker run -d --name $(PROJECT_NAME)-smoke --env-file .env $(PROJECT_NAME) || true"
+    )
     assert rm < run, recipe  # a leftover container is never the one judged
-    assert "docker exec smoke-test python -c" in recipe and "Health OK" in recipe, recipe
+    wait = f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {_SMOKE_EXEC} >/dev/null 2>&1 && break; sleep 1; done"
+    verdict = f'\t@{_SMOKE_EXEC} && echo " ✓ Health OK" || echo " ✗ Health FAILED"'
+    assert run < lines.index(wait) < lines.index(verdict), recipe
 
 
 def test_make_hands_the_smoke_check_to_python_intact(tmp_path, monkeypatch):
@@ -234,23 +243,28 @@ def test_make_hands_the_smoke_check_to_python_intact(tmp_path, monkeypatch):
     ).stdout
     checks = []
     for line in out.splitlines():
-        argv = shlex.split(line) if "docker exec smoke-test python -c" in line else []
+        argv = shlex.split(line) if "docker exec fw-smoke-smoke python -c" in line else []
         checks += [
             argv[i + 1] for i, word in enumerate(argv) if word == "-c" and argv[i - 1] == "python"
         ]
-    assert len(checks) >= 2, out  # the bounded wait and the verdict
+    assert len(checks) == 2, out  # the bounded wait and the verdict
     assert all(c == FILE_WORKER_HEARTBEAT_CHECK for c in checks), checks
 
 
-@pytest.mark.parametrize("line", ["curl", "run"])
+@pytest.mark.parametrize("line", ["curl", "run", "spaced-target"])
 def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
+    """A drifted smoke line is refused — under any legal spelling of the target, `docker-smoke :` included."""
     tpl = tmp_path / "tpl"
     shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
     mk = tpl / "docker" / "Makefile.python"
     src = mk.read_text()
-    old = "curl -sf http://localhost" if line == "curl" else "docker run -d --name smoke-test -p"
+    old = "docker run -d --name smoke-test -p" if line == "run" else "curl -sf http://localhost"
     assert old in src
-    mk.write_text(src.replace(old, old.replace("-", "--", 1)))
+    drifted = src.replace(old, old.replace("-", "--", 1))
+    if line == "spaced-target":
+        assert "\ndocker-smoke: docker-build" in drifted
+        drifted = drifted.replace("\ndocker-smoke: docker-build", "\ndocker-smoke : docker-build")
+    mk.write_text(drifted)
     monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
     monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
     project = tmp_path / "fw-drift"
