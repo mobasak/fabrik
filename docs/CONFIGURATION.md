@@ -54,8 +54,9 @@ driver (`src/fabrik/drivers/ssh.py`), the DNS client's SSH proxy and the audit p
 the `vps` alias (the audit probes' alias is `FABRIK_AUDIT_VPS`, default `vps`). Not covered: the Vultr provisioning and drill calls (fresh hosts by IP), the
 watchdog's redeploy command (it runs on the VPS), the alerting library's ssh leg, and any script
 under `scripts/` that runs `ssh` itself rather than through the driver. The key is the
-host string upper-cased with every non-alphanumeric turned into `_` (`vps2` →
-`FABRIK_SSH_JUMP_VPS2`; `vps-1` and `vps_1` share one). The value is one or more comma-separated
+host part of the alias (after any `user@`) upper-cased with every non-alphanumeric turned into `_`
+(`vps2` → `FABRIK_SSH_JUMP_VPS2`; `deploy@vps` reads `FABRIK_SSH_JUMP_VPS`; `vps-1` and `vps_1`
+share one). The value is one or more comma-separated
 `[user@]host[:port]` hops, port 1-65535; anything else (a leading `-`, a space, an IPv6 literal, a
 hop host of `none`) is refused with an error naming the variable. Unset, the argv is exactly what
 it was before — nothing reroutes automatically.
@@ -74,8 +75,9 @@ overrides a variable already set (`FABRIK_NO_AUTOLOAD=1` skips the load). For th
 install that is `/opt/fabrik/.env`.
 
 The ssh host itself — `FABRIK_VPS_SSH_HOST` (default `vps`) and the audit's `FABRIK_AUDIT_VPS` — must
-be an ssh alias, `[user@]host` with no leading `-`, space or shell character (the same grammar as a
-jump hop, without the port). Any other value is refused before ssh runs (W-6a96f699).
+be an ssh alias, `[user@]host`: each part a letter, digit or `_` followed by letters, digits, `_`,
+`.` or `-` — no port, no IPv6 literal, no other character (the same grammar as a jump hop, without
+the port). Any other value is refused before ssh runs (W-6a96f699).
 
 <!--
 Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).

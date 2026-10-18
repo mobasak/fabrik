@@ -122,8 +122,10 @@ def jump_env_name(host: str) -> str:
     """Return the variable that names *host*'s jump: ``vps`` → ``FABRIK_SSH_JUMP_VPS``.
 
     Every character outside ``[A-Z0-9]`` becomes ``_``, so ``vps-1`` and ``vps_1`` share one.
+    The user part never selects the jump: ``deploy@vps`` reads ``FABRIK_SSH_JUMP_VPS`` too, or a
+    user-qualified alias would silently take the direct path (W-6a96f699).
     """
-    return JUMP_ENV_PREFIX + re.sub(r"[^A-Z0-9]", "_", host.upper())
+    return JUMP_ENV_PREFIX + re.sub(r"[^A-Z0-9]", "_", host.rpartition("@")[2].upper())
 
 
 def jump_for(host: str) -> str | None:
@@ -207,7 +209,9 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # Re-raised OUTSIDE the except block: TimeoutExpired's str/repr carry the full
         # argv, and `_run_sql`'s argv holds the base64 SQL batch (`ALTER ROLE … PASSWORD`),
         # which registrars log via str(e). Raising here leaves no __context__ holding it.
-        raise subprocess.TimeoutExpired(["ssh", host, "<command redacted>"], timeout) from None
+        raise subprocess.TimeoutExpired(
+            ["ssh", *_jump_opts(jump), host, "<command redacted>"], timeout
+        ) from None
     if result.returncode != 0:
         # _redact the FAILURE surface too (F12, 01M1C95A2S: a failing .env-write heredoc
         # echoed a live CONSUMER_TOKENS bearer token verbatim into the apply log twice —

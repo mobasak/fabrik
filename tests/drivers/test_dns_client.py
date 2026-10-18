@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -160,3 +161,69 @@ class TestRequestViaSsh:
         assert self.KEY not in str(e) and self.KEY not in repr(e)
         assert e.__context__ is None and e.__cause__ is None
         assert e.cmd == ["ssh", "vps", "<command redacted>"]
+
+    def test_a_timeout_names_the_jump_and_keeps_a_fractional_budget(self, monkeypatch):
+        """Review C-S3/C-H4: the command-free timeout still names the jump; 0.5 s stays 0.5 s
+        (int() made it 0 — an instant timeout)."""
+        import subprocess
+
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
+        client = DNSClient(api_key=self.KEY, ssh_host="vps", timeout=0.5)
+        seen = {}
+
+        def run(argv, **kw):
+            seen["timeout"] = kw["timeout"]
+            raise subprocess.TimeoutExpired(argv, kw["timeout"])
+
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(subprocess.TimeoutExpired) as info:
+                client._request_via_ssh("GET", "http://x/y")
+        assert seen["timeout"] == 0.5
+        assert info.value.cmd == ["ssh", "-o", "ProxyJump=vps2", "vps", "<command redacted>"]
+
+    @pytest.mark.parametrize(
+        "url", ["https://h/api/domains/a'; id; echo 'b", "https://h/x$(id)", 'https://h/x"; id']
+    )
+    def test_the_remote_command_quotes_every_word(self, url, monkeypatch):
+        """Review C-H1: a `'` in a domain broke out of the hand-quoted URL and the rest ran on the
+        VPS; the remote shell must see the URL, each header and the body as one word each."""
+        import shlex
+        from unittest.mock import MagicMock
+
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        client = self._client(monkeypatch)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+            client._request_via_ssh("POST", url, body={"v": "it's; $(id)"})
+        words = shlex.split(mock_run.call_args[0][0][-1])
+        assert words[-1] == url
+        assert words[words.index("-d") + 1] == json.dumps({"v": "it's; $(id)"})
+        assert f"X-API-Key: {self.KEY}" in words
+
+    def test_a_header_value_is_one_word_whatever_it_holds(self, monkeypatch):
+        """The API key comes from the environment; a `"` in it must not end the header word."""
+        import shlex
+        from unittest.mock import MagicMock
+
+        monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        key = 'k"; id; echo "'
+        client = DNSClient(api_key=key, ssh_host="vps")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+            client._request_via_ssh("GET", "https://h/x")
+        assert f"X-API-Key: {key}" in shlex.split(mock_run.call_args[0][0][-1])
+
+    def test_a_non_json_reply_leaks_no_secret(self, monkeypatch):
+        """Review C-H3: an error page echoing the request reached the RuntimeError uncleaned."""
+        from unittest.mock import MagicMock
+
+        client = self._client(monkeypatch)
+        page = f"<html>X-API-Key: {self.KEY} DB_PASSWORD=hunter2secret</html>"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=page, stderr="")
+            with pytest.raises(RuntimeError) as info:
+                client._request_via_ssh("GET", "http://x/y")
+        assert self.KEY not in str(info.value) and "hunter2secret" not in str(info.value)
+        assert "non-JSON" in str(info.value)

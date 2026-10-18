@@ -278,6 +278,8 @@ _HOSTILE_HOSTS = [
     "a\nb",
     "vps:22",
     "ssh://vps",
+    "vps\n",  # a `$`-anchored match would accept it (review A-S2)
+    "2001:db8::1",  # an IPv6 literal: name the host by an alias
 ]
 _VALID_HOSTS = ["vps", "deploy@vps", "10.0.0.1", "vps-2.x_y"]
 
@@ -330,3 +332,24 @@ class TestSshHostAlias:
             ok, msg = audit._ssh_check("true")
             mock_run.assert_not_called()
         assert ok is False and "FABRIK_AUDIT_VPS" in msg and "not an ssh alias" in msg
+
+    def test_a_user_qualified_alias_takes_its_hosts_jump(self, monkeypatch):
+        """Review A-H1: `deploy@vps` keyed FABRIK_SSH_JUMP_DEPLOY_VPS, so the jump set for `vps`
+        was ignored and ssh took the dead direct path in silence."""
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "deploy@vps")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        assert ssh_mod.jump_env_name("deploy@vps") == "FABRIK_SSH_JUMP_VPS"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            ssh("true")
+            assert mock_run.call_args[0][0] == ["ssh", "-o", "ProxyJump=vps2", "deploy@vps", "true"]
+
+    def test_a_timeout_names_the_jump_it_went_through(self, monkeypatch):
+        """Review C-S3: a dead jump times out; the command-free TimeoutExpired still says how."""
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["x"], 5)):
+            with pytest.raises(subprocess.TimeoutExpired) as info:
+                ssh("echo DB_PASSWORD=hunter2secret", timeout=5)
+        assert info.value.cmd == ["ssh", "-o", "ProxyJump=vps2", "vps", "<command redacted>"]
+        assert "hunter2secret" not in str(info.value)

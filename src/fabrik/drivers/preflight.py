@@ -371,7 +371,7 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
         text = raw.strip().strip("@").strip().rstrip(".")
         if text:
             lines.append(text)
-            if raw.strip().startswith("@"):
+            if raw.strip().startswith("@") and text not in headline:
                 headline.append(text)
     # Every line but ssh's noise, in order — no single line is picked, because which line
     # says WHY differs by failure (a jumped refusal's cause comes first, a host-key failure's
@@ -382,8 +382,12 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
     reason = "; ".join(body)
     if len(reason) > _REASON_MAX:
         reason = "…" + reason[-_REASON_MAX:]
-    reason = "; ".join([*headline, reason] if reason else headline) or (
-        lines[-1] if lines else f"rc={r.returncode}, no stderr"
+    head = "; ".join(headline)[:_REASON_MAX]  # a banner has one headline; never let it grow
+    # Nothing kept: the last line that says anything (a noise line, as before), else the exit
+    # code — saying whether stderr was empty or held only `@`/`.` (it is not "no stderr" then).
+    empty = "no stderr" if not (r.stderr or "").strip() else "stderr held no text"
+    reason = "; ".join(part for part in (head, reason) if part) or (
+        lines[-1] if lines else f"rc={r.returncode}, {empty}"
     )
     network = any(_NETWORK_STDERR.search(ln) for ln in said if not _WARNING.match(ln))
     return False, network, reason

@@ -627,7 +627,9 @@ class TestProbeReason:
     @pytest.mark.parametrize(
         "stderr, reason",
         [
-            (".\n", "rc=255, no stderr"),
+            (".\n", "rc=255, stderr held no text"),
+            ("@@@@@@@@@@\n", "rc=255, stderr held no text"),
+            ("", "rc=255, no stderr"),
             (
                 "Connection closed by 203.0.113.7 port 22\n.\n",
                 "Connection closed by 203.0.113.7 port 22",
@@ -636,3 +638,13 @@ class TestProbeReason:
     )
     def test_a_lone_period_never_empties_the_reason(self, stderr, reason):
         assert self._reason(stderr)[2] == reason
+
+    def test_the_headline_appears_once_and_is_bounded(self):
+        """Review B-S1/B-S4: a repeated headline is said once, and the headline part is capped."""
+        assert self._reason("@ x @\n@ x @\nHost key verification failed.\n")[2] == (
+            "x; Host key verification failed"
+        )
+        many = "".join(f"@ headline {i} {'z' * 40} @\n" for i in range(30))
+        reason = self._reason(many + "Host key verification failed.\n")[2]
+        assert reason.endswith("Host key verification failed")
+        assert len(reason) <= 2 * preflight._REASON_MAX + 4
