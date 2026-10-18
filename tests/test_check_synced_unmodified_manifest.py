@@ -188,25 +188,31 @@ def test_a_manifest_that_exits_while_loading_fails_red(
 
 
 @pytest.mark.parametrize(
-    "raise_line",
-    ['raise GeneratorExit("gen")', 'raise BaseExceptionGroup("g", [GeneratorExit()])'],
-    ids=["GeneratorExit", "BaseExceptionGroup"],
+    ("raise_line", "named"),
+    [
+        ('raise GeneratorExit("gen")', "GeneratorExit"),
+        ('raise BaseExceptionGroup("g", [GeneratorExit()])', "BaseExceptionGroup"),
+        ('raise BaseExceptionGroup("g", [KeyboardInterrupt()])', "BaseExceptionGroup"),
+    ],
+    ids=["GeneratorExit", "BaseExceptionGroup", "group-holding-a-KeyboardInterrupt"],
 )
 def test_any_base_exception_but_keyboardinterrupt_fails_red_naming_the_hub(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     raise_line: str,
+    named: str,
 ) -> None:
     """W-3d6a6236: `except (Exception, SystemExit)` let any other BaseException escape as a bare
-    traceback — still rc 1, but with no word about the hub. Only KeyboardInterrupt, the operator's,
-    is let through."""
+    traceback — still rc 1, but with no word about the hub. Only a bare KeyboardInterrupt, the
+    operator's, is let through: a group holding one is the manifest's construct and is named (a
+    group names only itself, never its members)."""
     manifest = raise_line + "\n" + _FULL_MANIFEST
     files, lock = {"PORTS.md": "edited"}, {"PORTS.md": _md5("orig")}
     rc = _run(monkeypatch, tmp_path, manifest, files, lock)
     out = capsys.readouterr().out
     assert rc == 1, out
-    assert _HUB_WORDS in out, out
+    assert _HUB_WORDS in out and named in out, out
     assert _PROJECT_BLAME not in out, out
 
 
