@@ -195,6 +195,8 @@ def test_a_session_that_cannot_switch_model_runs_on_and_says_so() -> None:
     sec = " ".join(_drive_section().split())
     assert (
         "account percentages. A session the operator has not switched runs on Opus, or on Fable outside that RED,"
-        " and names its model in the commit body; on a seat model, or on Fable at that RED, it takes the handoff"
-        " close (§ Drive, Resilience) naming the model the run needs."
+        " and names its model in the commit body, or in its close when it commits nothing; on a seat model, or on"
+        " Fable at that RED, it takes the handoff close (§ Drive, Resilience) naming the model the run needs."
     ) in sec
+    # row 1792284368: Terminal's no-edit and handoff closes make no commit, so the commit body is not always there
+    assert "An unnamed hub window names its role in the commit body, or in its close when it commits nothing." in sec
