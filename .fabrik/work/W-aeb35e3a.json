@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T00:58:45.411037Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-aeb35e3a",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "Count the relative commands/_fragments/ citations in the rendered corpus (command grep -rn 'commands/_fragments/' ~/.claude/commands), then decide per citation: absolute /opt/fabrik path or drop; /fabrik-review-scoped, /fabrik-command-improve, review-probe-catalogue.md and subagents-core.md cite term-coverage.md that way",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: rendered commands cite fragments by a path that resolves nowhere in every project repo (every-repo bug); corpus wording",
   "status": "open",
   "title": "Rendered commands cite commands/_fragments/*.md by relative path, which resolves nowhere in a project repo (found in the fabrik-review round-zero pointer review)"
 }
