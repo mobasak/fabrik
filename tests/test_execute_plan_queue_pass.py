@@ -270,8 +270,8 @@ def test_finish_step_5_says_the_run_flips_its_own_plan_and_when_the_coordinator_
     assert (
         "flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as step 6 allows, at every"
         " position, (c)"
-        ' included; in the hub the coordinator does both only "once no run is live on it and every ticket is merged",'
+        ' included; in the hub the coordinator does both only "once its last run closed `done` and every ticket is merged",'
         " `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact"
     ) in _norm()
     charter = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "agents" / "coordinator.md").read_text())
-    assert "once no run is live on it and every ticket is merged" in charter
+    assert "once its last run closed `done` and every ticket is merged" in charter

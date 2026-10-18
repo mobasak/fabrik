@@ -1285,10 +1285,10 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    other. Coder worktrees created BY this run are removed from this tree as usual — they are inside it,
    so no redirect is involved.
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
-   `final_commit`), flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as
-   step 6 allows, at every position, (c) included; in the hub the coordinator does both only "once no run is
-   live on it and every ticket is merged", `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the
-   step-1 whole-plan review artifact in the completion stamp** — a
+   `final_commit`), flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as step
+   6 allows, at every position, (c) included; in the hub the coordinator does both only "once its last run closed
+   `done` and every ticket is merged", `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1
+   whole-plan review artifact in the completion stamp** — a
    `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
    This is not bookkeeping: **`check_convergence.py` FAILS the gate on any plan that claims `EXECUTED` (in
    `plans/` OR `plans/archived/`) unless it cites a review artifact that EXISTS on disk and shows a
