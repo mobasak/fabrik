@@ -261,7 +261,7 @@ def test_the_held_subject_search_reads_the_reasons_view() -> None:
         "Before rejecting, search earlier reject reasons for the subject: `python3"
         " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
         " is still final; it is an advice hold when its reason says the text lacks the advice but is"
-        " not wrong, an answered reject when it says the text already states it or never said it (D-952), and neither"
+        " not wrong, an answered reject when it says the text already states it or never said it (D-952's two grounds), and neither"
         " when it is misfiled or refuted), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
         " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
         " output into an audit seat's scratch, never the seat."
@@ -492,9 +492,9 @@ def test_test_fragment_and_removed_word_rules() -> None:
 
 
 SCRIPT_POINTER_RULE = (
-    "An edit that must describe what a script does states only the fact its reader acts on and points at the doc that"
-    " owns the script for the rest — the doc the script's `# AFTER-EDIT:` header names, else the script by path —"
-    " never restating it."
+    "An edit that must describe what a script does states only the fact its reader acts on and points for the rest at"
+    " the `docs/` file the script's `# AFTER-EDIT:` header names for that behaviour, else at the script by path —"
+    " never restating the rest."
 )
 
 
