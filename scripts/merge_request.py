@@ -449,7 +449,7 @@ def request(args: argparse.Namespace) -> int:
     copy = bool(distributor) and _norm(distributor) not in (_norm(owner), _norm(caller))
 
     mailbox = main.name
-    sent = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sent = _now()
 
     def fields(names: list[str]) -> dict[str, str]:
         return {
@@ -1357,7 +1357,7 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
             _copy_worktree_include(ctx, wt, old)
             touched = [p for p in spec.get("touched", []) if (wt / p).is_file()]
             if not spec.get("script") and not touched:
-                return "; on base alone: not checked (every failing test file is new in the branch)"
+                return "; on base alone: not checked (every touched test file is new in the branch)"
             run, _label = _run_owner_leg(ctx, wt, spec.get("script", ""), touched)
     except Exception as exc:  # noqa: BLE001 — a verdict that cannot be reached is said, never raised
         return (
@@ -1370,8 +1370,9 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
     if run.returncode in _KILLED_EXITS:
         return f"; on base alone: not checked (the base run timed out or was killed, exit {run.returncode})"
     tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
+    said = f"exit {run.returncode}: {tail}" if tail else f"exit {run.returncode}"
     return (
-        f"; on base alone (one run): red too (exit {run.returncode}: {tail}) — likely a base-side "
+        f"; on base alone (one run): red too ({said}) — likely a base-side "
         f"fault: fix the base, then `merge_request.py retry {rec['id']}`"
     )
 
@@ -2074,7 +2075,12 @@ def _continue_claiming(ctx: _Ctx, rec: dict) -> dict | None:
     """A ``claiming`` record: its message in the archive → the claim landed, continue; still in
     the inbox → claim it again; in neither → nothing to do, the record is removed."""
     box = _mail_root() / ctx.mailbox
-    if (box / "archive" / f"{rec['id']}.md").is_file():
+    archived = box / "archive" / f"{rec['id']}.md"
+    if archived.is_file():
+        if rec.get("retries") and _acked(archived):
+            # a retry that stopped before its requeue: its mail still carries the refusal's ack,
+            # and continuing as claimed would skip the merge's `done --merge-sha` ack (W-c751bca6)
+            return _reopen(ctx, rec)
         rec["phase"] = "claimed"
         _save(ctx, rec)
         return rec
@@ -2323,6 +2329,12 @@ def _retry_locked(ctx: _Ctx, msg_id: str) -> int:
             f"request {other} for branch {rec['branch']} waits — a re-sent request supersedes "
             f"{msg_id}: `merge_request.py merge {other}` instead"
         )
+    local = _rev(ctx.main, HEADS + rec["base"])
+    if local and _rev(ctx.main, rec["head"]) and _is_ancestor(ctx.main, rec["head"], local):
+        raise RefusedError(
+            f"the head {rec['head'][:12]} of {msg_id} is already in {rec['base']} — merged under "
+            "another request; nothing to retry"
+        )
     remote = _remote_name(ctx.main, rec["base"])
     tip = _remote_tip(ctx, remote, rec["branch"])
     if tip is None:
@@ -2344,18 +2356,44 @@ def _retry_locked(ctx: _Ctx, msg_id: str) -> int:
         "retries": retries,
         **_claimer(),
     }
-    _save(ctx, fresh)  # BEFORE the requeue: a crash between the two is finished by the next run
-    res = _mail_cli(ctx, "requeue", msg_id, "--repo", ctx.mailbox)
-    if res.returncode != 0:
-        _save(ctx, rec)  # the mail never moved: the refused record is restored as it was
-        raise RefusedError(
-            f"mail.py requeue {msg_id} failed: {res.stderr.strip() or res.returncode}; nothing changed"
-        )
+    _save(ctx, fresh)  # BEFORE the requeue: a crash between the two is re-opened by the next run
+    try:
+        fresh = _reopen(ctx, fresh)
+    except RefusedError:
+        if (_mail_root() / ctx.mailbox / "archive" / f"{msg_id}.md").is_file():
+            _save(ctx, rec)  # the mail never moved: the refused record is restored as it was
+        raise
     print(
         f"merge_request: retrying {msg_id} — it was refused: {rec.get('reason', '?')}",
         file=sys.stderr,
     )
-    return _drive(ctx, _mail_claim(ctx, fresh), resuming=False)
+    return _drive(ctx, fresh, resuming=False)
+
+
+def _reopen(ctx: _Ctx, rec: dict) -> dict:
+    """A retry's re-open: ``mail.py requeue`` (archive → inbox, the old ack stripped), then a
+    fresh claim. Checks the requeued copy carries no ack: ``requeue`` leaves an undecodable
+    message's ack in place, which would skip the merge's own ack."""
+    res = _mail_cli(ctx, "requeue", rec["id"], "--repo", ctx.mailbox)
+    if res.returncode != 0:
+        raise RefusedError(
+            f"mail.py requeue {rec['id']} failed: {res.stderr.strip() or res.returncode}; "
+            "nothing changed"
+        )
+    inbox = _mail_root() / ctx.mailbox / "inbox" / f"{rec['id']}.md"
+    if _acked(inbox):
+        raise RefusedError(
+            f"{rec['id']} still carries its old ack after `mail.py requeue` (undecodable bytes?) — "
+            "strip it by hand, then `merge_request.py resume " + rec["id"] + "`"
+        )
+    return _mail_claim(ctx, rec)
+
+
+def _acked(path: Path) -> bool:
+    try:
+        return bool(_mail()._ACK_LINE.search(path.read_text(encoding="utf-8", errors="replace")))
+    except OSError:
+        return False
 
 
 def _now() -> str:

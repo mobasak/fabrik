@@ -1722,6 +1722,52 @@ def test_retry_refuses_a_moved_branch_and_an_unrefused_request(world, capsys):
     assert world.run("retry", ok_id) == 1
     assert "only a refused request is retried" in capsys.readouterr().err
     assert world.run("retry", "01NOSUCHREQUEST00000000000") == 1
+    assert "no record of request 01NOSUCHREQUEST00000000000" in capsys.readouterr().err
+
+
+def test_retry_refuses_a_gone_branch_an_unreachable_remote_and_a_held_record(world, capsys):
+    """Each gate before the mail moves: the branch deleted on the remote, a remote that cannot be
+    reached (a refusal here, never a deferral: nothing is claimed to defer), and another request
+    for the branch that holds a record short of `replied` (mid-claim in another run)."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    archived = world.archived(msg_id)
+
+    _git(world.wt, "push", "-q", "origin", "--delete", "feat")
+    assert world.run("retry", msg_id) == 1
+    assert "is gone from origin" in capsys.readouterr().err
+    _git(world.wt, "push", "-q", "origin", "feat")
+
+    url = str(world.remote)
+    _git(world.main, "remote", "set-url", "origin", str(world.tmp / "no-such-remote.git"))
+    assert world.run("retry", msg_id) == 1
+    assert "could not reach origin" in capsys.readouterr().err
+    _git(world.main, "remote", "set-url", "origin", url)
+
+    held = dict(world.record(msg_id), id="01HELDCLAIM0000000000000000", phase="claimed")
+    (world.main / ".git" / "fabrik-merge" / f"{held['id']}.json").write_text(json.dumps(held))
+    assert world.run("retry", msg_id) == 1
+    assert f"request {held['id']} for branch feat waits" in capsys.readouterr().err
+    assert world.archived(msg_id) == archived and world.record(msg_id)["outcome"] == "refused"
+
+
+def test_a_failed_requeue_restores_the_refused_record(world, monkeypatch, capsys):
+    """The fresh record is written before `mail.py requeue`; a requeue that fails left the mail
+    where it was, so the refused record is put back and nothing else changed."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    before, archived = world.record(msg_id), world.archived(msg_id)
+    real = world.mod._mail_cli
+
+    def failing_requeue(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            return subprocess.CompletedProcess(args, 1, "", "requeue refused\n")
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", failing_requeue)
+    assert world.run("retry", msg_id) == 1
+    assert "nothing changed" in capsys.readouterr().err
+    assert world.record(msg_id) == before and world.archived(msg_id) == archived
 
 
 def test_retry_refuses_while_a_resent_request_waits(world, capsys):
@@ -1737,6 +1783,47 @@ def test_retry_refuses_while_a_resent_request_waits(world, capsys):
     err = capsys.readouterr().err
     assert dup in err and f"merge {dup}" in err, err
     assert world.record(msg_id)["outcome"] == "refused" and dup in world.inbox()
+
+
+def test_a_retry_stopped_before_its_requeue_is_reopened_by_resume(world, monkeypatch):
+    """The retry writes its record before `mail.py requeue`; a run that stops in between left the
+    mail archived with the refusal's `blocked` ack, and `resume` continued it as claimed — the
+    merge landed but its ack was skipped (the stale line read as "already acked")."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    real = world.mod._mail_cli
+
+    def stop_at_requeue(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            raise KeyboardInterrupt  # the run dies here, as a SIGKILL would
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", stop_at_requeue)
+    with pytest.raises(KeyboardInterrupt):
+        world.run("retry", msg_id)
+    monkeypatch.setattr(world.mod, "_mail_cli", real)
+    assert world.record(msg_id)["phase"] == "claiming"
+
+    assert world.run("resume", msg_id) == 0
+    rec = world.record(msg_id)
+    assert rec["outcome"] == "merged", rec
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0], acks
+
+
+def test_retry_refuses_a_head_already_in_base(world, capsys):
+    """A head merged under ANOTHER request (one already replied, so not "open") would be re-opened
+    only to be refused again "already in base", its first refusal's ack lost on the way."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    other = world.send(head)
+    assert world.run("merge", other) == 0
+    capsys.readouterr()
+    archived = world.archived(msg_id)
+
+    assert world.run("retry", msg_id) == 1
+    assert "already in master" in capsys.readouterr().err
+    assert world.archived(msg_id) == archived and world.record(msg_id)["outcome"] == "refused"
 
 
 def test_a_red_base_is_named_in_the_refusal(world):
@@ -1777,3 +1864,35 @@ def test_base_alone_not_checked_for_new_tests_or_a_timeout(world, monkeypatch):
     assert world.run("merge") == 1
     reason = world.record(slow)["reason"]
     assert "on base alone: not checked" in reason and "timed out" in reason, reason
+
+
+def test_base_alone_names_an_outer_timeout_and_a_check_that_could_not_run(world, monkeypatch):
+    """The outer bound (a runner that itself hangs) raises instead of exiting 124, and the base-alone
+    run can fail on its own; both are the "not checked" clause, never a changed refusal."""
+    world.write(".fabrik/merge-tests", "exit 1\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    real = world.mod._run_owner_leg
+
+    def hangs(ctx, wt, script, touched):
+        raise world.mod.TimedOutError("sh -e -c timed out after 1860s")
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", hangs)
+    first = world.send(world.branch({"a.txt": "a\n"}, msg="a"))
+    assert world.run("merge") == 1
+    reason = world.record(first)["reason"]
+    assert "timed out after 1860s" in reason and "not checked (the merged run timed out)" in reason
+
+    calls: list[str] = []
+
+    def red_then_broken(ctx, wt, script, touched):
+        calls.append(str(wt))
+        if len(calls) > 1:
+            raise RuntimeError("the base tree is unusable")
+        return real(ctx, wt, script, touched)
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", red_then_broken)
+    second = world.send(world.branch({"b.txt": "b\n"}, msg="b"))
+    assert world.run("merge") == 1
+    reason = world.record(second)["reason"]
+    assert reason.startswith("(a)-(d) build, preflight, tests, CAS: owner tests red"), reason
+    assert "not checked (the check could not run: the base tree is unusable)" in reason, reason

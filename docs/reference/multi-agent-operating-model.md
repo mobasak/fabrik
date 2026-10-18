@@ -196,13 +196,16 @@ request. When the reason is a conflict with the base, the requester brings the b
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,
 staged or untracked owner file) is the owner's to clear and needs no change to the branch. An owner-tests
-refusal ends with what the same tests did on the base alone, one run and hedged: red too (likely the
-base's fault), green (the failure needs the branch's change, or is flaky), or not checked and why. A
-refusal the base caused is re-run by the OWNER with `retry <id>` once the base is fixed, never re-sent by
-the requester: it refuses while another request for the same branch or head is open, or the branch on
-the remote no longer points at the recorded head (the requester superseded it); otherwise it re-opens the
-mail (`mail.py requeue`, its `blocked` ack stripped), claims it again and runs every step from (a), and
-the new reply says which refused reply it supersedes (W-c751bca6). A remote the
+refusal of a request (never a catch-up) ends with what the same tests did, in one run, on the base the
+failed run saw with nothing merged: red too (likely the base's fault), green (the failure needs the
+branch's change, or is flaky), or not checked and why. A refusal the base caused is re-run by the OWNER
+with `retry <id>` once the base is fixed, never re-sent by the requester. `retry` exits 1, changing
+nothing, while another request for the same branch or head is open, when the head is already in the
+base, or when the branch on the remote is gone or no longer points at the recorded head (the requester
+superseded it); a remote it cannot reach is a refusal there too, never a deferral. Otherwise it
+re-opens the mail (`mail.py requeue`, its `blocked` ack stripped), claims it again and runs every step
+from (a), so a merge is acked `done --merge-sha`, and the reply carries a `retry: <n>` line naming the
+refusal it supersedes (W-c751bca6). A remote the
 run cannot reach (a fetch that times out or fails for any reason but a missing ref) is no refusal: the
 request DEFERS — it stays claimed, nothing is replied, the next `merge` run retries it, and for the rest
 of that run every request on the same remote defers without another fetch while requests on other
