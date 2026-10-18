@@ -148,6 +148,104 @@ _ALLOWED_BASH = re.compile(
 # (`$@`, `$*` and friends escaped `\$[\w{]`), or one that OPENS a double-quoted span (`"$F"` — a
 # whole word that can be a flag). A `$` inside quoted text is masked and never reaches this.
 _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$|`|\n|(?<!>)&(?!&)|[<>]\(")
+# Whitespace Python's `\s` matches and bash does NOT split words on (U+00A0, U+2028, 0x0B-0x1F…):
+# every pattern here reads `\s`, so `git<NBSP>log push --force` looked like `git log` while bash
+# ran one unknown word — and stripped, a `-C /opt/x<NBSP>log` prefix left a push (W-945bf009, both
+# design critiques, executed). Outside quotes only space, tab and newline are blanks.
+_NOT_A_BLANK = re.compile(r"[^\S \t\n]")
+# The RESOLVER (W-945bf009). A held session reads another checkout with `git -C <repo>`, goes back
+# to its own root with `cd <root> &&`, and gives `mail.py send` its body on stdin — the only way, a
+# file redirect being vetoed — and the start-anchored allow-list refused all three. Relaxing the
+# anchor alone re-opened a force push, so each prefix is STRIPPED here, by a grammar this file
+# owns, and every veto then judges what is left. A shape outside the grammar is left in place and
+# the anchored allow-list refuses it: every unknown fails CLOSED.
+#   `-C <repo>`: `/opt/<name>` or `/opt/<name>/.claude/worktrees/<name>`, the trust the absolute
+#     `scripts/` anchor already grants; the segment is RELOCATED and may only read (a commit in
+#     another repo is a HARD STOP this hook cannot otherwise see).
+#   `cd <dir>`: only to the session's OWN repo root. The Bash tool's working directory persists
+#     between calls, so a `cd` anywhere else would carry the next, un-relocated `git commit` into
+#     another repo; a `cd` home is not a relocation and every rule applies as without it.
+_REPO_DIR = r"/opt/[\w-][\w.-]*(?:/\.claude/worktrees/[\w-][\w.-]*)?/?"
+_CD_PREFIX = re.compile(r"^[ \t]*cd[ \t]+([\w./-]+)[ \t]*(?:&&|;)[ \t]*", re.ASCII)
+_GIT_RELOCATE = re.compile(rf"^([ \t]*git)(?:[ \t]+-C[ \t]+{_REPO_DIR}(?=[ \t]))+", re.ASCII)
+_RELOCATED_WRITE = re.compile(r"^[ \t]*git[ \t]+(add|commit|push|fetch|reset)(?!-)\b", re.ASCII)
+# The one pipe: a body producer into `mail.py send`. Nothing else may pipe.
+_PIPE_PRODUCER = re.compile(r"^[ \t]*(printf|echo)(?=[ \t]|$)", re.ASCII)
+_PIPE_MAIL = re.compile(
+    r"^[ \t]*python3?(?:\.\d+)?[ \t]+(?:/opt/[\w-][\w.-]*/)?scripts/mail\.py[ \t]+send(?=[ \t]|$)",
+    re.ASCII,
+)
+
+
+def _own_root(cwd: str | None) -> str | None:
+    """The session's repo root: the nearest ancestor of `cwd` holding a `.git` entry (a directory,
+    or a linked worktree's file), realpath'd; None when there is no `cwd` or no repo above it."""
+    if not cwd or not os.path.isabs(cwd):
+        return None
+    try:
+        here = Path(os.path.realpath(cwd))
+        for d in (here, *here.parents):
+            if os.path.lexists(d / ".git"):
+                return str(d)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _resolve(command: str, cwd: str | None) -> tuple[list[str], bool]:
+    """(segments, relocated): the line with ONE leading `cd <own root> &&|;` and every `git -C
+    <repo>` stripped, split at its single top-level `|`. Two or more pipes, or `||`, leave the line
+    whole for `_UNSAFE_SHELL` to refuse; an escaped `\\|` splits into a half ending in a lone
+    backslash, which shlex cannot parse, so `_git_flags_forbidden` refuses it. `_mask_quoted` keeps
+    one character per character, so a `|` found on the masked line splits the raw line there."""
+    rest = command
+    m = _CD_PREFIX.match(command)
+    if m and cwd and (root := _own_root(cwd)) is not None:
+        try:
+            if os.path.realpath(os.path.join(cwd, m.group(1))) == root:
+                rest = command[m.end() :]
+        except (OSError, ValueError):
+            pass
+    masked = _mask_quoted(rest)
+    pipes = [i for i, ch in enumerate(masked) if ch == "|"]
+    if len(pipes) == 1 and len(masked) == len(rest):
+        segments = [rest[: pipes[0]], rest[pipes[0] + 1 :]]
+    else:
+        segments = [rest]
+    relocated = False
+    out = []
+    for seg in segments:
+        stripped = _GIT_RELOCATE.sub(r"\1", seg, count=1)
+        relocated = relocated or stripped != seg
+        out.append(stripped)
+    return out, relocated
+
+
+def _segment_allowed(segment: str, pattern: re.Pattern[str]) -> bool:
+    masked = _mask_quoted(segment, commit_body=segment.lstrip().startswith("git commit "))
+    return bool(
+        segment.strip()
+        and not _UNSAFE_SHELL.search(masked)
+        and not _FILE_REDIRECT.search(masked)
+        and not _git_flags_forbidden(segment)
+        and pattern.match(segment)
+    )
+
+
+def _bash_allowed(command: str, cwd: str | None = None) -> bool:
+    if _NOT_A_BLANK.search(_mask_quoted(command)):
+        return False
+    segments, relocated = _resolve(command, cwd)
+    if len(segments) == 2:
+        return _segment_allowed(segments[0], _PIPE_PRODUCER) and _segment_allowed(
+            segments[1], _PIPE_MAIL
+        )
+    (only,) = segments
+    if relocated and _RELOCATED_WRITE.match(only):
+        return False
+    return _segment_allowed(only, _ALLOWED_BASH)
+
+
 # git VERBS carry no flag scope of their own, and every flag list of DANGEROUS ones was wrong the
 # next pass: `--output` (pass 14), `--upload-pack`/`--receive-pack` (17), quoted and abbreviated
 # forms (18), `--ext-diff`/`--chmod` (19), and then the convergence sweep (P19-A, 93 candidates,
@@ -296,11 +394,15 @@ def _git_flags_forbidden(command: str) -> bool:
         argv = shlex.split(command, posix=True)
     except ValueError:
         return True  # unbalanced quote: cannot know the argv — fail closed
-    if len(argv) < 2 or argv[0] != "git":
+    if not argv or not argv[0].startswith("git"):
         return False
+    if argv[0] != "git" or len(argv) < 2 or argv[1] not in _GIT_VERB_FLAGS:
+        # Fail CLOSED on any git line whose verb is not one this check knows. It returned False
+        # here, leaving the anchored allow-list as the only guard: `git -C /opt/fabrik push
+        # --force` read `-C` as an unknown verb and the veto passed a force push — and
+        # `git<NBSP>log` is one shlex word `bash` never runs as git (W-945bf009, executed).
+        return True
     verb = argv[1]
-    if verb not in _GIT_VERB_FLAGS:
-        return False  # not a verb the allow-list regex admits
     long_ok, short_ok = _GIT_VERB_FLAGS[verb]
     if verb == "commit" and _commit_lacks_the_template_shape(argv):
         return True
@@ -587,8 +689,10 @@ def decide(
     sid: str | None = None,
     tier: str = _STAMP_TIER_WALLED,
     battery: bool = False,
+    cwd: str | None = None,
 ) -> tuple[str, str]:
-    """Pure decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}."""
+    """Decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}. Pure but
+    for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root."""
     if not stamp_exists:
         return "allow", ""
     stale_after = _stale_after_s()
@@ -606,20 +710,10 @@ def decide(
         # cheapest way to arrive at it is to not notice.
         return "allow_warn", _nudge()
     if tool == "Bash":
-        # the vetoes read the MASKED line (operators only); the allow-list reads the RAW line,
-        # because the leading command word is never quoted in a command we would allow.
-        masked = (
-            _mask_quoted(command, commit_body=command.lstrip().startswith("git commit "))
-            if command is not None
-            else ""
-        )
-        if (
-            command is not None
-            and not _UNSAFE_SHELL.search(masked)
-            and not _FILE_REDIRECT.search(masked)
-            and not _git_flags_forbidden(command)
-            and _ALLOWED_BASH.match(command)
-        ):
+        # the vetoes read the MASKED segment (operators only); the allow-list reads the RAW
+        # segment, because the leading command word is never quoted in a command we would allow.
+        # `_resolve` first strips the one `cd`/`-C` and splits the one pipe the hold admits.
+        if command is not None and _bash_allowed(command, cwd):
             return "allow", ""
         return "deny", _reason("Bash", sid, battery)
     if tool in _READ_TOOLS or _READ_MCP.match(tool):
@@ -712,6 +806,7 @@ def main() -> int:
         sid=(payload.get("session_id") if isinstance(payload, dict) else None),
         tier=tier,
         battery=exists and _stamp_is_battery(_stamp()),
+        cwd=payload.get("cwd") if isinstance(payload.get("cwd"), str) else None,
     )
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy

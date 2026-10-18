@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota hold allows a read-only `git -C`, a `cd` home before a close and a piped `mail.py send`, and its veto no longer reads `-C` as git's verb (2026-10-18)
+
+- `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;`, every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Grader: `tests/test_quota_stop_verb_resolver.py`.
+
 ### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
 
 - `_seat_size_lines` (W-2dadedfd) treated `du`'s output as the size even when `du` exited non-zero; it prints the PARTIAL size it reached, so a large seat tree under an unreadable folder read as small and dropped out silently. A non-zero exit now prints `<seat>: size unmeasured — cannot be examined`; a seat removed before `du` answers gives no line, like a gone run folder. The docstring now says an unlistable run folder yields no lines and only an unsearchable one reads as unmeasured. Tests: `tests/test_command_run_scratch.py` (three new, 72 pass).
