@@ -3,7 +3,7 @@
   "created": "2026-10-18T00:58:45.411037Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2d58d184b8bb240ade60455e1cff961897f13b94",
   "id": "W-aeb35e3a",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: rendered commands cite fragments by a path that resolves nowhere in every project repo (every-repo bug); corpus wording",
-  "status": "open",
+  "status": "done",
   "title": "Rendered commands cite commands/_fragments/*.md by relative path, which resolves nowhere in a project repo (found in the fabrik-review round-zero pointer review)"
 }

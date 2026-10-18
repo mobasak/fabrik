@@ -3,7 +3,7 @@
   "created": "2026-10-18T12:56:41.152918Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "008706b627f68a0a4aa8f460ff8a7662ac8c0d85",
   "id": "W-807b73fd",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: a bug that can consume a real production job (a smoke run with a real .env claims from the live queue); one template rule",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

@@ -1,0 +1,78 @@
+{
+  "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+  "owned_paths": [
+    "scripts/sysadmin/dashboard_ui/components.py",
+    "scripts/sysadmin/dashboard_ui/static/app.js",
+    "scripts/sysadmin/dashboard_ui/static/app.css",
+    "scripts/sysadmin/dashboard_ui/inventory.py",
+    "scripts/sysadmin/dashboard_ui/strings.py",
+    "scripts/sysadmin/dashboard_ui/views/services.py",
+    "scripts/sysadmin/quota_dashboard.py",
+    "scripts/sysadmin/inventory_read.py",
+    "scripts/registry_db.py",
+    "scripts/gen_dashboard.py",
+    "scripts/dashboard_server.py",
+    "tests/test_quota_dashboard_ui_kit.py",
+    "tests/test_quota_dashboard_app_js.py",
+    "tests/test_quota_dashboard_page_layer.py",
+    "tests/test_external_services_inventory.py",
+    "tests/external_services_fixture.py",
+    "tests/test_external_services_chain.py",
+    "tests/quota_dashboard_isolation.py",
+    "tests/test_quota_dashboard.py",
+    "tests/test_quota_dashboard_server.py",
+    "tests/test_quota_dashboard_views_misc.py",
+    "tests/test_quota_dashboard_browser.py",
+    "docs/reference/external-services-registry.md",
+    "docs/workstation/quota-dashboard.md",
+    "docs/workflows/DATA_SYNC_WORKFLOW.md",
+    "docs/CAPABILITIES.md",
+    "capabilities.json",
+    "llms.txt"
+  ],
+  "branch": "worktree-infra",
+  "started_at": "2026-10-18T00:58:55Z",
+  "status": "released",
+  "baseline_commit": "4cde3f547",
+  "baseline_gate": {
+    "status": "success",
+    "tier": "lean",
+    "red_checks": []
+  },
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abbc8eb4119eeb47e",
+      "branch": "worktree-agent-abbc8eb4119eeb47e",
+      "base_commit": "4cde3f547",
+      "started_at": "2026-10-18T00:58:55Z",
+      "head": "4dc823196"
+    },
+    "T02": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8807ecf97c09db32",
+      "branch": "worktree-agent-a8807ecf97c09db32",
+      "base_commit": "5d7f1057c",
+      "started_at": "2026-10-18T02:38:43Z",
+      "head": "2bb0eec6a"
+    },
+    "T03": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-afe0f09007ee94a44",
+      "branch": "worktree-agent-afe0f09007ee94a44",
+      "base_commit": "a4647e46e",
+      "started_at": "2026-10-18T04:19:14Z",
+      "head": "5ccd137b7"
+    },
+    "T04": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a897c0c8ef7b1c10d",
+      "branch": "worktree-agent-a897c0c8ef7b1c10d",
+      "base_commit": "4bddb47d2",
+      "started_at": "2026-10-18T05:28:35Z",
+      "head": "89fdcf104"
+    }
+  },
+  "completed_at": "2026-10-18T14:08:31Z",
+  "final_commit": "e660340bf"
+}

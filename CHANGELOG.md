@@ -8,6 +8,62 @@ All notable changes to this project will be documented in this file.
 
 - `.claude/hooks/quota_stop.py` (W-945bf009, D-996): a resolver strips one `cd <own repo root> &&|;` (resolved as bash's logical `cd`, target absolute or `./`/`../`-relative), every `git -C /opt/<repo>` (reads only) and splits one `printf|echo … | python3 scripts/mail.py send` pipe before the unchanged vetoes judge each segment. `_git_flags_forbidden` fails closed on an unknown git verb (a `-C` global option made it pass `git -C <repo> push --force`), and unquoted whitespace bash does not split on (U+00A0, U+2028, 0x0B-0x1F) refuses the line. Two older holes in the same allow-list close with it: unquoted brace expansion (`git push origin {+,}master` was a force push, `git add {.,}` a sweep) and a read tool matched before a `-` (`ls-evil`). Grader: `tests/test_quota_stop_verb_resolver.py`.
 
+### Changed — /fabrik-command-improve: an edit that widens, splits or places text re-reads the clauses that now bind differently (2026-10-18)
+
+- PHASE 3 now has a sentence beside its placement rules. Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause attaching to the changed part is read against what it will bind once the edit lands. That covers the sentence edited, the sentence holding the pronoun, and each later sentence or item pointing back into either. The reason given: a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer. This answers row 1792332697, the second sighting of the held subject placement-keeps-anaphor-with-antecedent. In the case that raised it, widening "you run the status probe" attached the sentence's existing WebFetch fallback to a quote check /fabrik-spec forbids.
+- The queue's other two rows were rejected: the self-filed-rows row was already answered by PHASE 1, and the short-sha row was refuted because `_resolve_commit` expands an abbreviation inside `--repo`.
+
+### Fixed — The external-services chain tests pass in a checkout with no `.venv` of its own (2026-10-18)
+Three helper tests in `tests/test_external_services_chain.py` linked `<root>/.venv` to the checkout's own `.venv`, so in a merge or probe worktree, which has none, `pipeline_alert.sh` found no interpreter and all three failed (the coordinator's merge refusal 01M57PN858). They now link the venv running the suite (`sys.prefix`); red with the old fixtures and green with the new in a venv-less worktree (`3 failed, 58 passed` → `61 passed`).
+
+### Added — The live external-services inventory in the Services view (2026-10-18)
+The Services view renders the external-services inventory in place of the old link card: summary, Needs-attention list, collapsed category groups with a name / Cost / Status filter, and the untriaged queue. The registry is read by a child process, `scripts/sysadmin/inventory_read.py`, that the board's collector spawns and kills at a 4.5 s deadline (one lock over the last good read, 60 s, and the read in flight; concurrent requests share one child; every request answers inside its own 5 s), so the board stays stdlib and a stalled or driverless registry is only that section's error state (`<ExceptionClass>: <first line>`, with Retry). The child also bounds itself with a SIGALRM past its deadline, so a board that dies mid-read cannot leave it blocked on a stalled server; a child is killed and reaped whatever ends its read; a request that cannot take the collector's lock answers inside its 5 s with its own error; a `synced_at` that is not a finite, non-negative number is a failed read. `GET /external-services.html` now answers `303` to `/#services` on no removal date; `EXT_SERVICES_HTML`, `QUOTA_DASH_EXT_SERVICES`, the `ext_page` view key and the four `services.ext.*` strings are removed. The board suites stub the registry read (census fixture) and point `SERVICES_REGISTRY_DSN` at a socket directory that does not exist; new tests cover the collector's concurrency and deadlines, the child and its self-bound, the 303, the filter at census scale in a browser at 1280 and 375 px, the section's height, and axe on the live view and the static file in both themes; the browser suites skip, never error, where Chromium cannot launch. Whole-plan review: `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md`. Docs: `docs/workstation/quota-dashboard.md`.
+
+### Added — `work.py edit` changes an item's title, next and links; `render` refuses outside the main checkout (2026-10-18)
+`work.py edit <id> [--title] [--next] [--link key=value]… [--unlink key]…` changes what `add` wrote, on the kinds
+`add` makes (`backlog`, `task`), under the store lock, so a plan finisher no longer hand-edits
+`.fabrik/work/<id>.json`. It refuses the derived kinds, a malformed `links` and a stored non-string link (named, never
+coerced); `--next ""` clears next; a `spec=`/`plan=` value that is not a regular file inside the repo is applied with
+a warning. `render` builds the backlog block from the caller's own store, so it now refuses in a linked worktree — a
+measured worktree render rewrote 433 rows of a block its branch then merges — and refuses `--repo` naming a tree the
+caller is not in; `--here` renders a linked worktree's own store and says not to commit it (kaizen mail 01M55ZNVH7,
+D-990; review `docs/development/reviews/2026-10-18-work-edit-render-review.md`).
+
+### Changed — The external-services static file renders through the shared inventory section; `dashboard_server.py` retired (2026-10-18)
+`scripts/gen_dashboard.py` keeps its CLI, exit codes, atomic PID-tmp write and its `load()`, `credit_cell` and
+`STALE_AFTER_H` names, and now writes the inventory section (`dashboard_ui/inventory.py::render`,
+`interactive=False`) inside a self-contained document of its own: `app.css` inlined, no script, no external request,
+its own doctype, `lang`, title, viewport and `<h1>`, the registry's sync time and the classifier's last run reaching
+the written file. `_read()` closes its registry connection on every path. `credit_cell` delegates every refusal to
+the inventory and takes `now` through the inventory's own time check. The 8770 live twin `scripts/dashboard_server.py`
+and its tests are deleted; nothing under `scripts/` or `tests/` names it, which a test now asserts (W-3e9e2f4c, T03;
+wave review `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T03-review.md`).
+
+### Added — The external-services inventory module (2026-10-18)
+`scripts/sysadmin/dashboard_ui/inventory.py` holds the registry reader (`load(conn, *, before_query=None)` →
+rows and the registry's own sync time; `credit_cell` and `STALE_AFTER_H` moved out of `gen_dashboard.py`'s rules)
+and the renderer (`render(rows, *, now, synced_at, classified_at, interactive)`): Needs attention (provider rules
+plus a stale registry and a stalled classifier, collapsing a reason past five rows), one table per category with
+the Unidentified table last, the Untriaged queue as a list, and the filter wire for the live view; the static mode
+prints its synced and snapshot lines with the heading. Balances and prices render exactly (never `1.23457e+06`), a
+time no local zone can format reads as unknown, and a provider URL links only when it parses as an http(s) URL
+with a real host and port and no credentials — a URL carrying userinfo shows as text with the credentials cut out.
+`services.inv.*` strings (singular and plural forms), `registry_db.connect(**kwargs)` and
+`tests/external_services_fixture.py` (the census-class fixture) ship with it. Nothing calls the module yet; T03
+and T04 wire it (W-3e9e2f4c, T02; wave review
+`docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T02-review.md`).
+
+### Added — Dashboard page layer: select, aligned table columns, status count and the filter's inverse (2026-10-18)
+`components.select()` (labelled, escaped, token-mode ready; a filter select must offer an `""` "all" option),
+`components.table(..., align=)` (right-aligned columns with tabular figures via `data-align="right"`; positional calls
+unchanged, any iterable of headers) and `components.status_text()` (a `role="status"` line); `disclosure()` refuses a
+filter section with no id. `app.js` drives and restores SELECT filters, opens a closed `<details>` section that holds a
+match and records it under `qd-filter-open:<group>` (the page's own record first, storage as persistence), hides
+sections with no match, writes the shown/total counts (`filter.shown`, `filter.group_count`), drops stored keys no
+control names, and on clear closes only the groups the filter opened, restores hidden ones and leaves a group the
+operator opened or re-opened by hand open. The page-layer scan now reads every option label (W-3e9e2f4c, T01; wave
+review `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T01-review.md`).
+
 ### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
 
 - `_seat_size_lines` (W-2dadedfd) treated `du`'s output as the size even when `du` exited non-zero; it prints the PARTIAL size it reached, so a large seat tree under an unreadable folder read as small and dropped out silently. A non-zero exit now prints `<seat>: size unmeasured — cannot be examined`; a seat removed before `du` answers gives no line, like a gone run folder. The docstring now says an unlistable run folder yields no lines and only an unsearchable one reads as unmeasured. Tests: `tests/test_command_run_scratch.py` (three new, 72 pass).
@@ -20,11 +76,24 @@ All notable changes to this project will be documented in this file.
   - Its ledger row and close event read `wall: paused`, never `quota`. It cannot be combined with `--wall`.
 - `round --command <name>` is optional and is refused when it does not name the live run, the check the close verbs already make (D-993, W-79638b4a, from kaizen's two feedback verdicts in mail 01M4X6XQH0).
 
+### Changed — /fabrik-spec and /fabrik-spec-review: the orchestrator runs every shell-only check the research seat cannot (2026-10-18)
+
+- Phase 1c's division of labour gave the orchestrator only the status probe, because `fabrik-researcher` has no Bash. Both commands now add: "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback". The examples are a count over a fetched file, which you download and count yourself, and a seat's quote matched, whitespace normalised first, against your own raw fetch when the raw-fetch tools are down. The `WebFetch` fallback stays with the status probe alone, since the quote rule forbids quoting a `WebFetch` reply. /fabrik-spec's quote rule points at the duty, and /fabrik-spec-review's copy points at its own quote rule. This answers row 1792241971, the second sighting of the held subject researcher-no-shell-counts.
+- The queue's other row (a census count with no named row set) was rejected, because CLAUDE.md's "name the population you counted" rule already covers it.
+
 ### Changed — /fabrik-command-improve: a weakening recurrence routes to the operator; close-chain writes ledger prose after the closing pass (2026-10-18)
 
 - PHASE 2's "a recurrence is edited, never re-rejected" now names its one exception. A recurrence whose edit PHASE 1 refuses as weakening is routed to the operator as a proposal. Its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. A later sighting cites that proposal instead of routing again. Terminal gains the matching `no edit this run — the surviving row routed to the operator` close (row 1792329659).
 - `commands/_fragments/close-chain.md`, which 37 commands and fragments render, now says that in a command running a review loop, what a close input says about the change is written, or checked sentence by sentence against the final text, after the closing pass. That covers the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` entry or another ledger entry. The check runs again after any fix the chain's own check or `final_gate.py` forces (row 1792329281, the third sighting of the held after-the-closing-pass class).
 - The queue's other two rows were rejected with their reasons: one misfiled, one held as advice.
+
+### Fixed — a scaffolded file-worker's `make docker-smoke` never claims a production job (2026-10-18)
+
+The smoke run started the worker with the project's real `.env`, and the worker claims a job on every poll, so a
+smoke run could claim a production job and be stopped mid-run seconds later. The recipe now runs the container with
+`--network none -e WORKER_SMOKE=1`, and the worker beats but never claims when `WORKER_SMOKE` is exactly `1`. The
+scaffold refuses a template that would still run a live worker, and a GNU make `::=` assignment no longer reads as a
+`docker-smoke` rule. D-994 (W-807b73fd, W-ab66af6f).
 
 ### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
 

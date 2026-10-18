@@ -3,7 +3,7 @@
   "created": "2026-10-17T20:55:15.101150Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ab3c61f2b72f1badd0549c0def10bc2ee74d926c",
   "id": "W-9d8326a4",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording, D-957 operator ruling, panes stall on dialogs",
-  "status": "open",
+  "status": "done",
   "tags": [
     "rules"
   ],

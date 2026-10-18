@@ -3,7 +3,7 @@
   "created": "2026-10-04T21:30:01.765887Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "410c8cf6934dfe75010d90b8c7a4f00515cc5ded",
   "id": "W-4bd4ea3c",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — false green exit 0 on failed import",
-  "status": "open",
+  "status": "done",
   "tags": [
     "intel"
   ],

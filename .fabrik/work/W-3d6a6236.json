@@ -3,7 +3,7 @@
   "created": "2026-10-18T01:32:38.110538Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "187ab35c066552410b1e8d7ac478052b27d2dabc",
   "id": "W-3d6a6236",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare edge (GeneratorExit from a manifest) plus docstring overclaim; one file",
-  "status": "open",
+  "status": "done",
   "title": "check_synced_unmodified: a manifest raising a non-Exception BaseException (GeneratorExit) escapes the ManifestError catch with a bare traceback; the loader comments and docstring overclaim 'every load failure that raises is named'"
 }

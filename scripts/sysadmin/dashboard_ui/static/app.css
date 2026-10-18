@@ -342,6 +342,22 @@ a {
   font: inherit;
 }
 
+/* a filter bar: select fields sit side by side, the status line under them */
+.field:has(> select.input) {
+  display: inline-flex;
+  margin-inline-end: var(--space-md);
+}
+
+select.input {
+  min-width: 10rem;
+}
+
+.status-text {
+  margin: var(--space-xs) 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 textarea.input {
   min-height: 4.5rem;
   resize: vertical;
@@ -477,6 +493,13 @@ textarea.input {
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
+}
+
+/* a right-aligned column (table(align=)): outranks the left rule above, figures set tabular */
+.table-wrap th[data-align="right"],
+.table-wrap td[data-align="right"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .table-wrap thead th {

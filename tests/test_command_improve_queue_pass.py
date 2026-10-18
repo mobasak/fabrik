@@ -542,3 +542,23 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
         " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
         " check or `final_gate.py` forces. Then: (1)" in chain
     )
+
+
+def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None:
+    """Row 1792332697, the second sighting of held placement-keeps-anaphor-with-antecedent: widening 'you run the
+    status probe' to 'and every other shell-only check' attached the sentence's existing WebFetch fallback to a quote
+    check the command forbids. Review round 1: the rule sits beside the placement sentences (where the held reject
+    sends it), reaches later sentences pointing back, and covers text placed between a pronoun and what it names."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "and the draft is that answer. Before an edit widens a sentence's subject, splits the sentence or places text"
+        ' between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the'
+        " sentence edited, in the sentence holding the pronoun, and in each later sentence or item pointing back into"
+        " either — is read against what that clause will bind once the edit lands, since a clause written for one"
+        " subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed"
+        " text puts nearer. An edit to what a SEAT may do"
+    ) in p3
+    assert (
+        'every branch the sentence\'s subject can bind (a pronoun for "the review" binds each review the step can pick), and'
+        in p3
+    )
