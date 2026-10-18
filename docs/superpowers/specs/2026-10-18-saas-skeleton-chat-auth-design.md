@@ -11,10 +11,17 @@ Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the 
 - **The signed-in end user** of a scaffolded SaaS app. They are the only person who may start a chat.
 - **The anonymous visitor or abuse bot.** After slice 1 there is no endpoint for them. Slice 2 must not reopen one.
 - **The tenant (paying account).** Per-tenant rate limiting is mandatory for SaaS (`.windsurf/rules/saas/95-multi-tenant-saas.md:166`). One tenant's users must not starve another.
-- **Automated consumers:**
+- **Automated consumers and duty holders:**
   - `fabrik scaffold` (saas-skeleton, static-site, office-extension), which emits the backend and the template and holds the duty to ship the fixed shape.
-  - The six live projects' agents, who were mailed an interim warning and hold the duty to adopt slice 2 in their own copies.
+  - The live projects' agents. The work item counts 7 scaffolded projects with the route: six carry the current route header and one an older variant. They hold the duty to adopt slice 2 in their own copies; four were mailed an interim warning, as the item's tags record.
   - The coordinator, who files one adoption item per live project after slice 2 merges.
+  - The fabrik-lib agent, who holds the `client_ip` export request (§ Open unknowns).
+  - The hub deployer (`fabrik apply`), which provisions Redis only when `shape.needs_cache` is true and writes the `secrets.from_env` keys into the root `.env`.
+
+**The owner's own setup loop, counted (the step budget is 3):**
+1. Set `OPENROUTER_API_KEY` (and, optionally, `OPENROUTER_MODEL` and the three `CHAT_RATE_*` values) in the spec's `secrets.from_env` or the project `.env`.
+2. Keep `shape.needs_cache: true` (the saas-skeleton default), so `REDIS_URL` is set.
+3. Deploy. Optionally, set a USD `limit` on the OpenRouter key itself (E3), which caps spend on OpenRouter's side whatever the app does.
 
 **The primary's minimal loop, counted (the step budget is 4):**
 1. The user signs in through the existing `/auth/login/web`.
@@ -74,7 +81,7 @@ $ .venv/bin/python <run scratch>/probe_stream.py
 | C5 | "Rate-limit per tenant so a noisy neighbour cannot exhaust the VPS — counters keyed by tenant id, applied in middleware before business logic, limits from the plan tier" | .windsurf/rules/saas/95-multi-tenant-saas.md:166 |
 | C6 | "Redis keys carry the tenant: `t:{tenant_id}:settings`; unprefixed keys are reserved for explicitly global data (`global:`)." | .windsurf/rules/saas/95-multi-tenant-saas.md:161 |
 
-C4 governs the routes fastapi-user-auth mounts (`/auth/*`). It is cited here for the limiter's shape (Redis-backed), not as a mandate on `/api/v1/chat`. C5's "limits from the plan tier" is a deviation this slice records (§ Decisions taken).
+C4 governs the routes fastapi-user-auth mounts (`/auth/*`). It is cited here for the limiter's storage (Redis-backed), not as a mandate on `/api/v1/chat`. Its shape, token buckets, is not followed: this slice uses fixed windows, a recorded departure (§ Decisions taken). C5's "limits from the plan tier" is a deviation this slice records too. C6's key form is followed inside an app namespace, because redis-main's DB 0 is shared by every app (`REDIS_URL=redis://redis-main:6379/0`, `src/fabrik/scaffold.py:1478`).
 
 ## Chosen approach — A: a backend chat route
 
@@ -82,21 +89,44 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 
 - **Identity.**
   - `chat_user = build_current_user(secret=get_settings().jwt_secret, denylist=<fail-closed denylist>, session_cookie_secure=get_settings().session_cookie_secure)`. Because it reads the cookie as well as the header, a same-origin browser session authenticates (F1, F7).
-  - The denylist passed in is a small adapter around `_denylist()`. Any Redis error in `contains` raises `HTTPException(503)`, so an outage is never a 500 (F4) and never a pass.
-  - `_denylist` is exposed from the emitted `auth.py` under a public name (`build_denylist`), so `chat.py` imports nothing private.
+  - The denylist passed in is a small adapter around the emitted denylist. Any Redis error in `contains` raises `HTTPException(503)`, so an outage is never a 500 (F4) and never a pass. When `REDIS_URL` is unset the emitted denylist is a `NullDenylist`, which never raises; the adapter therefore raises 503 itself for a `NullDenylist`, so a revoked token can never pass because Redis is unconfigured. An anonymous request still gets 401, because `build_current_user` refuses a missing token before it consults the denylist (`dependencies.py:98`).
+  - The emitted `auth.py` gains two public names, and `chat.py` imports nothing private:
+    - `redis_client()`, an lru-cached accessor for the one async Redis client. `_denylist()` is changed to build its `RedisDenylist` on it, and `aclose()` closes it, so the limiter and the denylist share one client and nothing is left unclosed (`src/fabrik/scaffold.py:2725-2735` closes only `_denylist()._client` today).
+    - `denylist()`, a public alias of `_denylist()`. `_denylist` itself keeps its name, because `build_saas_auth_router`, `token_revoked` and `aclose` call it.
 - **CSRF.** A cookie-borne POST carries `X-CSRF-Token` (read from `__Host-csrf_token`, same host) and the browser's own Origin. `CsrfOriginMiddleware` already enforces both. A bearer request is exempt, as everywhere (F2).
-- **Limits.** One atomic Redis transaction per request: a redis-py pipeline (MULTI/EXEC) of `INCR key` then `EXPIRE key <window> NX` per bucket. That is Redis ≥ 7.0 (E4, E5), and redis-main is Redis 7 (`infra/vps1/redis/compose.yaml:3`). There is no non-atomic INCR-then-EXPIRE (F14). The buckets, all of which must pass:
-  - `t:{tenant_id}:chat:rate`, when `tenant_id` is set (C6);
-  - `u:{user_id}:chat:rate`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
-  - `ip:{client_ip}:chat:rate`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. An upstream request asks fabrik-lib to export it (§ Open unknowns).
+- **The order of checks**, each refusing before the next costs anything:
+  1. CSRF, in the middleware (403).
+  2. Identity (401; 503 on a denylist outage or an unset `REDIS_URL`).
+  3. The body (400). A malformed request spends no bucket.
+  4. `OPENROUTER_API_KEY` unset (503). It comes after identity, so an anonymous caller learns nothing about the app's config.
+  5. The limiter (429; 503 on a Redis error).
+  6. The upstream stream.
+- **Limits.** One Lua script per request, run with `EVAL` (Redis guarantees a script's atomic execution, E8). It checks every bucket before it increments any:
+  - For each key it reads the count. If any count is at its limit, it increments nothing and returns that bucket's name and its `PTTL`.
+  - Otherwise it `INCR`s every key, and `EXPIRE`s each key whose count became 1.
+  - So a request refused on one bucket spends no other bucket. One user looping at 429 cannot drain their tenant's or their NAT neighbours' budget.
+  - This is the pattern of the vendored passwordless limiter (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/passwordless.py:174-180`), widened to several keys. It needs no Redis 7 feature, and there is no non-atomic INCR-then-EXPIRE (F14).
+  - Every key starts with the project id, which the scaffold writes into `chat.py` as a constant, because DB 0 is shared by every app on redis-main. The buckets, all of which must pass:
+    - `<project>:t:{tenant_id}:chat:rate`, when `tenant_id` is set (C6);
+    - `<project>:global:chat:user:{user_id}`, always. A tenantless user (F3) gets this bucket and the IP bucket, and never shares a global one;
+    - `<project>:global:chat:ip:{client_ip}`, through the vendored `client_ip(request, trusted_proxy_hops)`, imported from `fastapi_user_auth.router` and never re-implemented. The hop count is the vendored settings' `trusted_proxy_hops`, set by `AUTH_TRUSTED_PROXY_HOPS` (default 1, `/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/settings.py:112`). When `client_ip` returns `""` (no forwarded header and no socket peer, `router.py:155-156`), the IP bucket is skipped, never keyed on the empty string, which would make one bucket shared by everyone. An upstream request asks fabrik-lib to export `client_ip` (§ Open unknowns).
   - Each bucket is `<count>/<seconds>` from `CHAT_RATE_TENANT` (default `600/3600`), `CHAT_RATE_USER` (`60/3600`) and `CHAT_RATE_IP` (`120/3600`). A malformed value fails the app at start.
-  - A full bucket returns 429 with `Retry-After` set to the key's TTL.
-  - No Redis returns 503, closed; with `REDIS_URL` unset the limiter refuses rather than passes.
-- **Body.** The handler reads the raw JSON body itself and keeps the deleted route's contract: only `message`, a non-empty string. Anything else, invalid JSON and `null` included, is a 400, not the app's 422 (F9). This holds the D-977 red-list: `SLICE2_HOSTILE_FIELDS` and `SLICE2_BAD_BODIES` in `tests/test_saas_skeleton_chat_system_prompt.py`.
+  - A full bucket returns 429 with `Retry-After` set to that key's remaining TTL, rounded up to whole seconds.
+  - A Redis error returns 503, closed.
+  - A fixed window, by choice. Its known edge, a client spending one window's quota at its end and the next window's at its start (up to twice the rate across the boundary), is accepted here (E6). The user bucket is the primary key, not the IP, which is weak behind NAT (E6). A sliding window is the Growth path if the boundary burst ever shows in the metrics.
+- **Body.** The handler reads the raw JSON body itself and keeps the deleted route's contract.
+  - `message` must be a string that is non-empty after `.strip()` and at most `CHAT_MAX_MESSAGE_CHARS` long (default 4000).
+  - Unknown keys are ignored and never forwarded.
+  - A missing or invalid `message`, invalid JSON, `null`, or a non-object body is a 400, not the app's 422 (F9).
+  - This holds the D-977 red-list: `SLICE2_HOSTILE_FIELDS` and `SLICE2_BAD_BODIES` in `tests/test_saas_skeleton_chat_system_prompt.py` (whose bad bodies include `{"message": "   "}`).
 - **The system prompt** is a server constant, `CHAT_SYSTEM_PROMPT` in `chat.py`. When empty, no system message is sent; when set, it is sent verbatim before the user message.
-- **Upstream.** An `httpx.AsyncClient` stream to `https://openrouter.ai/api/v1/chat/completions` with exactly `{model, messages, stream: true}`. It is relayed as the same `{type: text_delta|done|error}` SSE frames `SSEStream` already consumes.
-  - With `OPENROUTER_API_KEY` unset: a 503 JSON response, before any limiter cost.
+- **Upstream.** An `httpx.AsyncClient` stream to `https://openrouter.ai/api/v1/chat/completions`.
+  - We send exactly `{model, messages, stream: true, max_tokens}`. `max_tokens` is `CHAT_MAX_TOKENS` (default 1024). With the message cap it bounds one request's cost, so the user bucket bounds a user's hourly spend.
+  - It is relayed as the same `{type: text_delta|done|error}` SSE frames `SSEStream` already consumes. The parser reads only `data:` lines. It skips SSE comment lines such as `: OPENROUTER PROCESSING`, and a final chunk that carries only `usage`, and it ends on `data: [DONE]` (E9).
+  - The client has an explicit `httpx.Timeout` (connect 10 s; read 60 s between chunks, from `CHAT_UPSTREAM_READ_TIMEOUT`). A timeout gives an `error` frame, so a stalled provider cannot hold a connection open without bound.
   - A non-2xx upstream gives an `error` frame.
+  - A client disconnect cancels the upstream stream. The generator's close closes the `httpx` stream (E7). OpenRouter stops billing on an aborted stream only for providers that support cancellation (E9), so a disconnect bounds spend at best effort. `max_tokens` is the hard bound.
+- **Observability.** One structured log line per request, carrying the outcome (`ok`, `unauthenticated`, `bad_body`, `no_key`, `limited:<bucket>`, `redis_down`, `upstream_error`, `timeout`) and the user id, never the message text. The same outcome increments `chat_requests_total{outcome}` (§ Lifecycle).
 - **Key placement.** `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are read only by `chat.py`. They live in the root `.env`, like every other backend secret, so they are present in the Next container's environment as `DATABASE_URL` and `JWT_SECRET` already are. Per-service env files are a fleet-wide hardening, not this slice (§ Rejected alternatives; F8).
 - **Client.** `SSEStream` sends `credentials: "same-origin"` and the `X-CSRF-Token` header. The README example uses `endpoint="/api/v1/chat"`.
 
@@ -113,23 +143,28 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 ## Lifecycle
 
 - **Adoption:** new scaffolds get the route when slice 2 merges. The coordinator then files one adoption item per live project.
-- **Growth:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
+- **Growth, a USD budget:** a project that wants a dollar cap rather than a request count vendors `cost-budget/` and wraps the upstream call in `reserve`/`settle`, settling on the stream's `usage` chunk (E9).
+- **Growth, the counters:** there is no request metrics counter today; `REQUEST_COUNT` is declared and never incremented (`src/fabrik/scaffold.py:1731`). So slice 2 adds `chat_rate_limited_total{bucket}` and `chat_requests_total{outcome}` counters to the backend's metrics registry. The escalation trigger is a project whose `chat_rate_limited_total{bucket="tenant"}` exceeds 1% of `chat_requests_total` over a day. That is the signal to source limits from the plan tier (C5) (F10).
 - **Degradation:**
   - Redis down gives 503 (denylist and limiter both).
   - The key unset gives 503.
   - An OpenRouter error gives an `error` frame.
   - A revoked token gives 401.
+  - An upstream timeout gives an `error` frame.
   - None of these spends the key without a check.
+- **Residual risk, accepted:** redis-main runs `--maxmemory-policy allkeys-lru` (`infra/vps1/redis/compose.yaml:6`). Under memory pressure Redis may evict a bucket key, which resets that window early, or a denylist key, which un-revokes a token early. That risk already applies to every app's denylist. It is recorded, not fixed here; a no-evict policy is a fleet Redis change.
 - **Retirement:** a project drops chat by deleting `chat.py`'s mount. The slice-1 graders keep the Next side from re-growing a key-bearing route.
 
 ## External dependencies
 
 - **E1 — cookie prefixes.** `__Host-` cookies must be Secure, carry no Domain, and have Path=/, so they are "only sent to the host that set them". https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie (read 2026-10-18).
 - **E2 — Next.js 15 route handlers** read cookies and stream through a ReadableStream. `middleware` was renamed `proxy` in v16.0.0. https://nextjs.org/docs/app/api-reference/file-conventions/route · https://nextjs.org/docs/app/api-reference/file-conventions/proxy (read 2026-10-18).
-- **E3 — OpenRouter key limits.** A key takes an optional `limit`, "spending limit for the API key in USD", which an owner can set as a backstop. https://openrouter.ai/docs/api-reference/api-keys/create-api-key (read 2026-10-18).
-- **E4 — `EXPIRE … NX`** is "Set the expiry only when the key has no expiry", added in 7.0.0. https://raw.githubusercontent.com/redis/docs/main/content/commands/expire.md, the source of redis.io/docs/latest/commands/expire, which returned 403 to this box (read 2026-10-18).
-- **E5 — MULTI/EXEC.** "A request sent by another client will never be served in the middle of the execution of a Redis Transaction". https://raw.githubusercontent.com/redis/docs/main/content/develop/using-commands/transactions.md. A redis-py `pipeline()` is transactional (MULTI/EXEC) by default: https://redis.readthedocs.io/en/stable/advanced_features.html (read 2026-10-18).
-- **Method:** fabrik-researcher via WebFetch. exa, firecrawl and brave failed to connect this session, so there is no tier-2 cross-check. `/fabrik-spec-review` re-verifies these facts.
+- **E3 — OpenRouter key limits.** A key takes an optional `limit`, "spending limit for the API key in USD". https://openrouter.ai/docs/api-reference/api-keys/create-api-key (read 2026-10-18). Calling it the owner's backstop is this spec's use of it, not the page's words.
+- **E6 — the fixed-window pattern** for per-user Redis limits, found by WebSearch on 2026-10-18 and read raw with curl: "Fixed window rate limiting with Redis requires just two commands - `INCR` and `EXPIRE`" and "The main drawback is the boundary burst problem: a user can make `limit` requests at the end of one window and `limit` more at the start of the next, effectively doubling the rate". https://oneuptime.com/blog/post/2026-03-31-redis-fixed-window-rate-limiting/markdown. That source's non-atomic pipeline is what the Lua script (E8) replaces.
+- **E7 — Starlette `StreamingResponse`**, read raw with curl on 2026-10-18: it "Takes an async generator or a normal generator/iterator and streams the response body". https://raw.githubusercontent.com/encode/starlette/master/docs/responses.md. That this works through the app's `BaseHTTPMiddleware` stack was executed here (the probe above).
+- **E8 — Lua scripts are atomic.** "Redis guarantees the script's atomic execution", and such scripts "can perform conditional updates across multiple keys". https://raw.githubusercontent.com/redis/docs/main/content/develop/programmability/eval-intro.md, the source of redis.io's eval-intro page, read raw with curl on 2026-10-18. `EVAL` predates Redis 7, so the design needs no Redis 7 feature. redis-main is a standalone Redis 7 (`infra/vps1/redis/compose.yaml:3`), not a cluster, so a multi-key script runs as one unit.
+- **E9 — OpenRouter streaming.** Each payload is a `data: ` line of JSON, and the stream ends with `data: [DONE]`. Comment lines such as `: OPENROUTER PROCESSING` appear and must be skipped. A final chunk can carry only `usage`. On cancelling a stream: "For supported providers, this immediately stops model processing and billing"; for unsupported providers the model keeps running and the request is billed in full. https://openrouter.ai/docs/api-reference/streaming (read 2026-10-18).
+- **Method:** E1-E3 and E9 came from fabrik-researcher via WebFetch. openrouter.ai returns 403 to curl, so E3 and E9 rest on the WebFetch summariser alone. The quotes in E6, E7 and E8 were read raw with curl. exa, firecrawl and brave failed to connect this session, so there is no tier-2 cross-check.
 
 ## fabrik-lib verdict
 
@@ -137,14 +172,17 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 |---|---|---|---|
 | Identity on the chat request | vendor (already vendored) | `/opt/fabrik-lib/fastapi-user-auth` `build_current_user` | It reads the header, then the cookie, then the denylist. The scaffold's bearer-only `require_user` cannot serve a browser |
 | Client IP behind proxies | vendor (already vendored) | `fastapi_user_auth.router.client_ip` | Handles `trusted_proxy_hops`. Upstream note to fabrik-lib: export it |
-| Rate limiting | build, in the emitted backend | — | No general limiter exists in fabrik-lib (passwordless's is internal). ~40 lines on the existing redis client. Upstream note: a general limiter would serve every FastAPI scaffold |
-| OpenRouter streaming | build | — | The deleted Next route's logic, ported to the backend |
+| Rate limiting | build, in the emitted backend | — | No general Redis limiter exists in fabrik-lib (passwordless's `_RATE_LUA` is internal and single-key). About 40 lines on the shared `redis_client()`. Upstream note: a general limiter would serve every FastAPI scaffold |
+| Rate limiting, the two existing modules | reject | `abuse-prevention/` (README:16), `api-auth/` (README:20) | `abuse-prevention`'s per-IP limit is DB-backed, registration-only and fails open (`abuse_detection.py:117-148`). `api-auth`'s per-tier limit counts usage in the DB, keyed on an API key (`auth.py:66-135`). Neither keys on a session user or fails closed |
+| USD spend cap | defer (recorded deviation) | `cost-budget/` (README:28; the rule at README:175: "Any project that … calls paid LLM/AI APIs needs `cost-budget/`") | Its fail-closed `reserve()` admits a run against a per-tenant daily cap and an app-global monthly USD budget. It needs a tenant on every call, which passwordless users lack (`router.py:53`), and a USD estimate per call. This slice bounds spend by request count × `CHAT_MAX_TOKENS` instead, plus E3's key limit. Adopting it is a Growth path below |
+| OpenRouter streaming | build | — | The deleted Next route's logic, ported to the backend. `ai-consult/` (README:18) is an OpenRouter client built for long consults with a durable JSONL store; a chat relay needs none of that |
+| Upstream HTTP pool | build (a module-level `httpx.AsyncClient`) | `async-http-client/` (README:23; the rule at README:175) | Its circuit breaker would also suit this route. Not vendored by this slice: one upstream and one route, where a timeout plus an error frame cover provider death. Recorded as a deviation from the README:175 rule |
 
 ## Shape and infra implications
 
 - **Scaffold type:** `saas-skeleton` (also emitted for static-site and office-extension through the shared template).
 - **Redis:** `shape.needs_cache: true` is required for chat to work. Without `REDIS_URL` the route is a closed 503.
-- **Env:** `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CHAT_RATE_TENANT`, `CHAT_RATE_USER` and `CHAT_RATE_IP` go into the emitted `.env.example` and `docs/CONFIGURATION.md`. New specs list `OPENROUTER_API_KEY` under `secrets.from_env` again.
+- **Env:** `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CHAT_RATE_TENANT`, `CHAT_RATE_USER`, `CHAT_RATE_IP`, `CHAT_MAX_TOKENS`, `CHAT_MAX_MESSAGE_CHARS` and `CHAT_UPSTREAM_READ_TIMEOUT` go into the emitted `.env.example` and `docs/CONFIGURATION.md`. New specs list `OPENROUTER_API_KEY` under `secrets.from_env` again.
 - **No new port, service or path prefix:** `/api` already routes to the backend.
 
 ## Documentation landing sites
@@ -159,20 +197,28 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 
 ## Validation
 
-- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is a fake implementing MULTI/EXEC, INCR, EXPIRE NX and TTL; OpenRouter is an `httpx.MockTransport`. The cases:
+- **The slice-1 graders change with it.** `tests/test_saas_skeleton_chat_system_prompt.py` bans "openrouter" from the emitted `.env.example` and from every template file. Slice 2 needs the key in `.env.example`. So the `.env.example` assertion narrows to forbidding `NEXT_PUBLIC_OPENROUTER`. The template-file scan keeps its ban on `templates/saas-skeleton/app/**`. A new assertion requires that the only emitted file reading `OPENROUTER_API_KEY` is `server/src/<pkg>/chat.py`. The Next side stays guarded, and no assertion is deleted.
+- **Hub tests.** These run where the hub can run them (F6). `tests/test_saas_chat_backend.py` scaffolds a saas-skeleton into `tmp_path`, loads the emitted `chat.py` and the vendored modules by path into a bare Starlette app (the pattern of `tests/test_scaffold_saas_web_wiring.py:121-135`), and drives it with TestClient. Redis is a fake implementing the limiter script's semantics (check every key, then increment), INCR, EXPIRE and PTTL; OpenRouter is an `httpx.MockTransport`. The cases:
   - anonymous: 401;
   - bearer: 200 and frames;
   - cookie with token and Origin: 200;
   - cookie without token, or without an allowed Origin: 403 (each tested separately, so neither passes for the other's reason);
   - each bucket full: 429 plus `Retry-After`;
+  - a request refused on the user bucket leaves the tenant and IP counts unchanged;
+  - every key starts with the project id;
+  - an empty client IP: no IP key touched;
+  - a body refused with 400: no bucket touched;
   - a tenantless user: no `t:` key touched;
   - Redis raising: 503 from the denylist and from the limiter;
-  - `REDIS_URL` unset: 503;
-  - key unset: 503;
+  - `REDIS_URL` unset: 503 with a token, 401 without one;
+  - key unset: 503 with a token, 401 without one;
+  - a message over `CHAT_MAX_MESSAGE_CHARS`: 400;
+  - an upstream that stalls past the read timeout: an `error` frame;
+  - an upstream stream with `: OPENROUTER PROCESSING` comment lines and a usage-only chunk: the frames are unchanged;
   - upstream non-2xx: an `error` frame;
   - a revoked jti: 401;
   - every `SLICE2_BAD_BODIES` body: 400;
-  - `SLICE2_HOSTILE_FIELDS`: the upstream payload is exactly `{model, messages, stream}`;
+  - `SLICE2_HOSTILE_FIELDS`: a 200, and the upstream payload is exactly `{model, messages, stream, max_tokens}`;
   - the system-constant rows;
   - the stream through the app's four `BaseHTTPMiddleware` layers.
 - **The emitted tests.** `server/tests/test_chat.py` carries the same core cases for a project's own CI (`pip install -r requirements-dev.txt && pytest tests`).
@@ -184,18 +230,21 @@ The emitted backend gains a chat module, `server/src/<pkg>/chat.py`, emitted by 
 - Deviations recorded in the D-row:
   - C5's middleware placement (a route dependency instead);
   - C5's plan-tier limits (env defaults until the Growth trigger);
-  - the key in the shared `.env` (the fleet-wide per-service env hardening is filed separately).
+  - the key in the shared `.env` (the fleet-wide per-service env hardening is filed separately);
+  - C4's token-bucket shape (fixed windows instead);
+  - C6's key form inside a `<project>:` namespace, because DB 0 is shared;
+  - README:175's `cost-budget/` and `async-http-client/` (request count × `max_tokens`, and a timeout, instead; each has its Growth path).
 
 ## Open / blocking unknowns
 
 - **Resolved:**
   - same-host topology (`src/fabrik/scaffold.py:3398`);
   - SSE through `BaseHTTPMiddleware` (probe above);
-  - the atomic bucket (E4, E5);
+  - the atomic, check-before-increment bucket (E8);
   - the tenantless rule;
   - outage fail-closed;
   - the hub test pattern.
-- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time. Until it lands, `chat.py` imports it from `fastapi_user_auth.router` (vendored, so the import is pinned per scaffold).
+- **Open: the fabrik-lib export of `client_ip`.** Resolution step: a request mail to fabrik-lib at plan time. The same mail reports that passwordless's default `key_prefix="auth:pwdless:"` (`passwordless.py:187`) carries no app namespace on a Redis DB that apps share. Until it lands, `chat.py` imports it from `fastapi_user_auth.router` (vendored, so the import is pinned per scaffold).
 - **Open: the default bucket sizes** (600/60/120 per hour). Resolution step: the plan's D-row derives them from `OPENROUTER_MODEL`'s per-token price and a stated daily budget. They stay env-overridable.
 
 ## Intake Inventory
