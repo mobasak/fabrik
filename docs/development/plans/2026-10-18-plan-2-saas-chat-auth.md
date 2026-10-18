@@ -69,7 +69,7 @@ Intake: 13 items — 13 IN, 0 OUT-OF-SCOPE, 0 ASK.
 - **Processes.** Stateless; chat state lives only in Redis with a TTL (VI). No bare `asyncio.create_task()`.
 - **Error responses.** Every 4xx/5xx the chat route raises is RFC 9457 `application/problem+json`, through the app's existing `_http_exc` handler (`src/fabrik/scaffold.py:3207-3210`). Two refusals come from middleware before the route and keep their own shape:
   - the vendored `CsrfOriginMiddleware` 403 is `application/json` `{"detail": …}` (`/opt/fabrik-lib/fastapi-user-auth/fastapi_user_auth/csrf.py:136-137`);
-  - the emitted `TenantMiddleware` answers an invalid or revoked bearer token with a problem+json 401, and a non-member tenant with a problem+json 403 (`src/fabrik/scaffold.py:2530-2538`, `:2545-2546`).
+  - the emitted `TenantMiddleware` answers an invalid or revoked bearer token with a problem+json 401, and a non-member tenant with a problem+json 403 (`src/fabrik/scaffold.py:2530-2538`, `:2549-2550`).
   The client handles all of them.
 - **Dependencies.** No dependency edits except Phase A's two dev-extra packages, `email-validator` and `redis`, each authorised by the coordinator on 2026-10-18. The emitted backend already declares `httpx>=0.28.0` (`src/fabrik/scaffold.py:2255`) and `redis>=5.0` (`:2266`).
 - **Synced surfaces.** No fleet-synced path is touched. `src/fabrik/scaffold.py` and `templates/saas-skeleton/` ship to new scaffolds, not through the governance sync.
@@ -209,20 +209,20 @@ Steps (the highest-risk behaviour first, test-first):
    - **One log line per request**, through `get_logger`.
    - **Counting, and its limit.** The counters see every request that reaches the route. Two kinds of request are refused by middleware before the route and are not counted there:
      - a bearer token `TenantMiddleware` already refused (`src/fabrik/scaffold.py:2530-2538`);
-     - a `TenantMiddleware` 403 for a tenant the user is not a member of (`:2545-2546`);
+     - a `TenantMiddleware` 403 for a tenant the user is not a member of (`:2549-2550`);
      - a CSRF 403.
      A cookie-borne 401 is counted.
 5. **Mount it.** `_SAAS_MAIN_PY` includes the chat router, whose prefix is `/api/v1` and route `/chat`, before `app.include_router(v1)` (`src/fabrik/scaffold.py:3290`), so the path is `POST /api/v1/chat`, under the `/api` prefix Traefik routes to the backend. The `app.include_router(build_saas_auth_router())` line (`:3201`, pinned by `tests/test_scaffold_saas_web_wiring.py:44`) stays verbatim.
 6. **The template.**
    - `templates/saas-skeleton/.env.example` gets a chat block after App Config (`:22-24`) with the ten chat variables and `TEST_REDIS_URL` (step 8), eleven lines.
      - The key line is `OPENROUTER_API_KEY=`, uncommented and empty, so `_detect_secrets` puts it into a new spec's `secrets.from_env`: it skips commented lines (`src/fabrik/scaffold.py:118-122`), and `_is_likely_secret` matches `_API_KEY$` (`:80`).
-     - The other ten are commented, with their defaults.
+     - The other ten are commented: the eight `CHAT_*` lines with their defaults, and `OPENROUTER_MODEL` and `TEST_REDIS_URL` with example values, since neither has a default.
    - The emitted `docs/CONFIGURATION.md` gets a chat section. `_scaffold_shared` seeds that file first (`src/fabrik/scaffold.py:1209`), but `_should_seed_doc` can skip it for a type (`:423-433`). So `_scaffold_saas_skeleton` appends the section when the file exists and writes it as a new file when it does not. The append sits next to its `SERVICE_NAME` append to `.env.example` (`:4411-4412`), the same pattern. It is not added to the shared `docs/CONFIGURATION_TEMPLATE.md`, which every project type reads (`:300`, `:470`). This is spec § Shape and infra and § Documentation landing sites.
    - `templates/saas-skeleton/README.md` § AI Chat Integration (`:68-88`) gets the chat section the spec lists (spec § Documentation landing sites).
    - Narrow the slice-1 graders in the same step, because the template now names the key (spec § Validation, the slice-1 graders):
      - `tests/test_saas_skeleton_chat_system_prompt.py:106` becomes a ban on `NEXT_PUBLIC_OPENROUTER`;
      - `:80-83` keeps scanning the whole tree, allowlists only `.env.example` and `README.md`, and still scans those two for `NEXT_PUBLIC_OPENROUTER` and `api/chat`;
-     - a new test asserts that, of the emitted app's own code (`server/src/`, `app/`, `components/`, `lib/`, in `.py`, `.ts`, `.tsx`, `.js` and `.mjs`), only `server/src/<pkg>/chat.py` contains `OPENROUTER_API_KEY`. It also asserts that the emitted `compose.yaml` passes the key to no service but the backend's (the `web` service gets the root `.env` file, but no `environment:` entry names the key). The fleet-synced `scripts/` tree is out of the scan: `scripts/rivals_run.py` names the key for its own use (`scripts/fabrik_synced_manifest.py:53`). Docs, `.env.example` and the emitted tests may name it.
+     - a new test asserts that, of every emitted file, only `server/src/<pkg>/chat.py` contains `OPENROUTER_API_KEY`. The scan covers the root config files such as `next.config.js`, where an `env:` entry would inline the key into the client bundle. It excludes `server/tests/`, the fleet-synced `scripts/` tree (`scripts/rivals_run.py` names the key for its own use, `scripts/fabrik_synced_manifest.py:53`), `docs/`, `*.md` and `.env.example`. The key still reaches every container through the shared root `.env`, the spec's recorded key-placement deviation (spec § Chosen approach, Key placement), so the test does not claim otherwise.
 7. **The hub backend test, test-first per risky row.** `tests/test_saas_chat_backend.py`:
    - Scaffold into `tmp_path`.
    - Load the vendored leaf modules by path under a stub package, with this file's own loader, a copy of `_load_vendored_idp` (`tests/test_scaffold_saas_web_wiring.py:125-139`) extended with `tokens` and `dependencies`. That file is not edited. Load the emitted `chat.py` by path.
@@ -270,14 +270,14 @@ Implements spec § Chosen approach, Client, and spec § Validation, The template
   - `ChatUI.tsx`, which passes an `onError` to `useSSEStream` (`:29`, which today passes none) and renders the message: signed out, rate-limited with its `Retry-After`, or the stream error.
 
 Steps:
-1. **The source grader, test-first.** Write `tests/test_saas_chat_client_template.py`, in the plain substring style of `tests/test_scaffold_saas_web_wiring.py:92-98`, over `SSEStream.tsx`. It asserts:
+1. **The source grader, test-first.** Write `tests/test_saas_chat_client_template.py`, in the plain substring style of `tests/test_scaffold_saas_web_wiring.py:92-98`, over `SSEStream.tsx` and `ChatUI.tsx`. It asserts:
    - `credentials: "same-origin"` and the `X-CSRF-Token` header are sent;
    - both cookie names are read (`__Host-csrf_token`, `csrf_token`), and read again before a retry;
    - one `/auth/refresh` call on a 401, with a second 401 shown as signed out;
    - a streaming decode (`{ stream: true }`) and a carried partial line;
    - one `onComplete` call site;
    - a 429 shows `Retry-After`;
-   - the file contains neither "openrouter" nor "api/chat", which keeps the slice-1 ban;
+   - neither `SSEStream.tsx` nor `ChatUI.tsx` contains "openrouter" or "api/chat", which keeps the slice-1 ban;
    - `ChatUI.tsx` passes `onError` to `useSSEStream`, keeps the message it receives in state, and renders that state in the chat surface. So a no-op handler fails the grader.
 
    Its scope is `SSEStream.tsx` and `ChatUI.tsx`. It is a source grader: it proves the wiring is present, not the rendered text. The rendered messages are the project's own front-end tests (spec § Validation, The template grader). Watch it fail on today's files. Then:
@@ -703,7 +703,8 @@ $ command grep -n "onError\|useSSEStream" templates/saas-skeleton/components/cha
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (slice A) + sonnet×1 (slice B) · all axes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 30 | method: citation — full pass. Every candidate was re-executed by the lead: `csrf.py:136-137` (the CSRF 403 is plain `{detail}`), `scaffold.py:118-122` (`_detect_secrets` skips commented keys), `dependencies.py:86-92` (a direct call needs `authorization=`), `scaffold.py:2530-2538` (TenantMiddleware's bearer 401), `ChatUI.tsx:29` (no `onError`), and the 5-line SSEStream grep that replaced a retyped 2-line subset. One candidate was a duplicate (CONFIGURATION.md raised by both seats). | 2e60ccd086a3158f0b7767a0ff6d2e45 → a80f58bca732d7d5d83b07e1056af39e |
-| Pass 2 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-1 fix diff + one hop | found: 16, new: 16, confirmed: 10, fixed: 10, unexecuted: 0, edits: 22 | method: re-derivation — the 24 pass-1 ids were re-executed: 21 CLOSED, and 3 partly open (S-C1, S-C4, O-C8). The new candidates were re-executed by the lead: `scripts/rivals_run.py` names `OPENROUTER_API_KEY` and ships in every scaffold (`fabrik_synced_manifest.py:53`); `require_throwaway` is at `scaffold.py:232`, not `:2114`; `httpx.Timeout(connect=10, read=60)` raises `ValueError`; TenantMiddleware's 403 is at `:2545-2546`; `_evidence_commits` (`work.py:3617`) needs the id in the message. The I9 wording and the estimate table were fixed one hop out (not counted). R3 (`secrets.from_env` makes the key required) was recorded as the spec's own "again" decision. All 10 confirmed defects were own-fix, round 1. | bc6b0bc576dfc02f4ee7e5c9d6368c74 → b0d61df00a70d1f972d6c484b0d9a37a |
+| Pass 2 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-1 fix diff + one hop | found: 16, new: 16, confirmed: 10, fixed: 10, unexecuted: 0, edits: 22 | method: re-derivation — the 24 pass-1 ids were re-executed: 21 CLOSED, and 3 partly open (S-C1, S-C4, O-C8). The new candidates were re-executed by the lead: `scripts/rivals_run.py` names `OPENROUTER_API_KEY` and ships in every scaffold (`fabrik_synced_manifest.py:53`); `require_throwaway` is at `scaffold.py:232`, not `:2114`; `httpx.Timeout(connect=10, read=60)` raises `ValueError`; TenantMiddleware's 403 is at `:2549-2550`; `_evidence_commits` (`work.py:3617`) needs the id in the message. The I9 wording and the estimate table were fixed one hop out (not counted). R3 (`secrets.from_env` makes the key required) was recorded as the spec's own "again" decision. All 10 confirmed defects were own-fix, round 1. | bc6b0bc576dfc02f4ee7e5c9d6368c74 → b0d61df00a70d1f972d6c484b0d9a37a |
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners) · the pass-2 fixed set + one hop | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0, edits: 6 | method: re-derivation — the 11 pass-2 ids were re-executed: 9 CLOSED and 2 partly open (O-N4, O-C8). New candidates, re-executed by the lead: `grep -n "Not a member of this tenant"` gives `scaffold.py:2550` (the round-2 cite `:2545-2546` was wrong, and is corrected in all 3 places, this ledger's Pass 2 row included); `_write_saas_compose` gives `web`, `api` and `worker` the same root `.env` (`:3340-3342`, `:3376-3378`, `:3415-3417`), so the compose assertion was false and is deleted, not reworded; `next.config.js` is the template's only `.js` file, so the scan now covers the whole emitted tree; two of the ten chat variables have no default. Recorded one hop out: the Coverage rows :337 and :339, the Phase C contract and the TenantMiddleware 403, the `_engine` cache, and DB 0 for a pathless URL. Scope-growth stop: all 5 confirmed defects are own-fix, round 2. | 7de342f7b4fda8efdd796d322f0fd0a4 → 5e0f30aaffaf260f51c7560a7768b338 |
 
 ## Self-audit
 
