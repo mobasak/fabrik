@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task checks new paths against ignore rules and runs a codec change on its edge inputs (2026-10-18)
+
+SIZE runs `git check-ignore -v` on each new file path it declares and stages it just before phase 5's pathspec commit;
+MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape before `design.md`.
+Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held subjects). `SIZE_CAP` 22410 ->
+22662 (D-979).
+
 ### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
 
 - `scripts/command_run.py::_seat_size_lines` globbed `seat-*`, so seats named `seat2-opus` or `seat-p1-<pin>-A-haiku`
