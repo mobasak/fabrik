@@ -2597,3 +2597,18 @@ def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -
     )
     assert quote in body
     assert quote in " ".join(source.read_text(encoding="utf-8").split())
+
+
+def test_seat_prompts_carry_the_gate_layout() -> None:
+    """W-4ad7ff2d (kaizen row 1792192144): a seat asked to run the completion gate had no layout for it. The gate
+    grades its WORKING DIRECTORY and scopes itself through git (`PROJECT_ROOT = Path.cwd()`), so run from the live
+    repo it graded the live tree, and a bare run auto-fixes the live checkout. Every finder and refuter prompt now
+    says: run it only inside the pinned shared clone, `--check`, with the directory changed inside the program,
+    and name a result resting on the synced set UNPINNED. Read from the BUILT prompts, never the source text."""
+    _, prompts = _two_seat_union("a.py")
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "scripts/final_gate.py" in p and "--check" in p, label
+        assert 'os.chdir("SCRATCH/clone")' in p, label
+        assert "never from the live repo" in p and "UNPINNED" in p, label
+        assert "skipped_checks" in p, label
