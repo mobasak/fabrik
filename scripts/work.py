@@ -6139,6 +6139,8 @@ def cmd_merge_item(repo: Path | None, args: argparse.Namespace) -> int:
             raw = path.read_text(encoding="utf-8")
         except FileNotFoundError:
             raw = ""
+        except UnicodeDecodeError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not UTF-8: {exc}") from exc
         if name == "base" and not raw.strip():
             texts[name] = {}
             continue

@@ -299,3 +299,29 @@ def test_an_item_both_sides_added_merges_end_to_end(world):  # noqa: F811
 
     assert world.run("merge") == 0
     assert _merged(world) == {**BASE, "owner": "kaizen", "score_reason": "branch"}
+
+
+def test_the_verb_names_a_side_that_is_not_utf8(tmp_path):
+    """Review pass 1 (slice A): a non-UTF-8 side escaped as a traceback; it is a named refusal."""
+    sides = {
+        "base": _dump(BASE).encode(),
+        "ours": _dump(CLOSED).encode(),
+        "theirs": b'{"id": "\xff"}\n',
+    }
+    paths = []
+    for name, data in sides.items():
+        p = tmp_path / f"{name}.json"
+        p.write_bytes(data)
+        paths.append(str(p))
+    work = Path(__file__).resolve().parent.parent / "scripts" / "work.py"
+    res = subprocess.run(
+        [sys.executable, str(work), "merge-item", *paths],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert res.returncode == 1 and "theirs" in res.stderr and "is not UTF-8" in res.stderr, (
+        res.stderr
+    )
+    assert "Traceback" not in res.stderr
