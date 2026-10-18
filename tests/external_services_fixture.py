@@ -20,6 +20,8 @@ census counts, and its own test (`test_the_fixture_is_the_census`) recounts ever
 
 from __future__ import annotations
 
+import copy
+
 CENSUS_NOW = 1_790_000_000.0  # the instant the fixture's credit age is measured against
 _HOUR = 3600.0
 
@@ -79,5 +81,5 @@ def census_rows(**overrides) -> list[dict]:
     real[0].update(balance=12.5, unit="usd", credit_at=CENSUS_NOW - 20 * _HOUR)
     for i, r in enumerate(rows):
         for key, value in overrides.items():
-            r[key] = value(i) if callable(value) else value
+            r[key] = value(i) if callable(value) else copy.deepcopy(value)
     return rows

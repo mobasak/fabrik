@@ -22,9 +22,11 @@ collapses to a count that still lists every name, so collapsing never hides a pr
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from .components import (
     Safe,
@@ -66,6 +68,12 @@ _STATUSES = {
     "?": "services.inv.unknown",
 }
 _FILTER_GROUP = "inventory"
+_HAS_HOST = re.compile(
+    r"https?://(?:[^/?#@]*@)?[^/?#@:]+"
+)  # a scheme, then something to connect to
+_EDGE_S = (
+    253402300799 - 2 * 86400
+)  # past this a local-zone conversion can leave year 9999 (zones are within a day)
 
 
 # ---------------------------------------------------------------- numbers and times
@@ -82,7 +90,9 @@ def _epoch(x: object) -> float | None:
         v = float(x)
         if not (math.isfinite(v) and v >= 0):
             return None
-        datetime.fromtimestamp(v, tz=UTC)  # a time no calendar holds cannot be stamped or aged
+        if v > _EDGE_S:  # only the far edge can fail; the check is the formatters' own round-trip
+            datetime.fromtimestamp(v, tz=UTC)  # a time no calendar holds cannot be stamped or aged
+            datetime.fromtimestamp(v).astimezone()  # nor one the local zone pushes past year 9999
     except (OverflowError, OSError, ValueError):
         return None
     return v
@@ -97,7 +107,13 @@ def _balance(x: object) -> float | None:
         v = float(x)
     except (TypeError, ValueError, OverflowError):
         return None
-    return v if math.isfinite(v) and v >= 0 else None
+    return v + 0.0 if math.isfinite(v) and v >= 0 else None  # + 0.0: -0.0 is 0
+
+
+def _plain(v: float) -> str:
+    """``v`` as the shortest decimal that round-trips: never scientific notation, never rounded."""
+    out = format(Decimal(repr(v)), "f")
+    return out.rstrip("0").rstrip(".") if "." in out else out
 
 
 def _age_h(at: object, now: float) -> float | None:
@@ -107,8 +123,10 @@ def _age_h(at: object, now: float) -> float | None:
 
 def _credit_stale(balance: object, credit_at: object, now: float) -> bool:
     """Strictly past ``STALE_AFTER_H``; a credit with no usable time, or one in the future, is not stale."""
+    if _balance(balance) is None:
+        return False
     age = _age_h(credit_at, now)
-    return _balance(balance) is not None and age is not None and age > STALE_AFTER_H
+    return age is not None and age > STALE_AFTER_H
 
 
 def _source_stale(at: object, now: float) -> bool:
@@ -124,10 +142,16 @@ def credit_cell(balance: object, unit: object, credit_at: object, now: float) ->
     bal = _balance(balance)
     if bal is None:
         return ""
-    text = f"{bal:g} {unit or ''}".strip()
-    if _credit_stale(bal, credit_at, now):
-        return t("services.inv.credit_stale", text=text, days=f"{_age_h(credit_at, now) / 24:.0f}")
+    text = f"{_plain(bal)} {unit or ''}".strip()
+    age = _age_h(credit_at, now)
+    if age is not None and age > STALE_AFTER_H:
+        return t("services.inv.credit_stale", text=text, days=f"{age / 24:.0f}")
     return text
+
+
+def _plural(key: str, n: int, **fields: object) -> str:
+    """The catalogue's ``.one`` or ``.other`` form of ``key``: the words live in the catalogue."""
+    return t(f"{key}.{'one' if n == 1 else 'other'}", n=n, **fields)
 
 
 def _when(ts: float) -> str:
@@ -221,7 +245,7 @@ def load(conn, *, before_query: Callable | None = None) -> tuple[list[dict], flo
                 price
             )  # a NaN, Infinity or NEGATIVE price is refused like a balance (FE1/FF1)
             if cost is not None:
-                s["price"] = f"{cost:g} {curr or ''}".strip()
+                s["price"] = f"{_plain(cost)} {curr or ''}".strip()
         run(cur, "SELECT max(last_seen) FROM api_keys")
         newest = cur.fetchone()  # None (a fake) or (None,) (Postgres over an empty table): no row
         synced_at = _epoch(newest[0]) if newest else None
@@ -249,17 +273,21 @@ class _Row:
     credit_at: object
     renews: str
     price: str
+    credit: str = ""  # credit_cell at render time
+    stale: bool = False  # its balance is older than STALE_AFTER_H
 
     @property
     def find(self) -> str:
         return " ".join([self.provider, *self.projects, self.account])
 
 
-def _norm(i: int, r: dict) -> _Row:
+def _norm(i: int, r: dict, now: float) -> _Row:
     """Every key is read by index, so a row missing one raises ``KeyError`` (the chain suite's guard)."""
-    return _Row(
+    name = r["provider"]
+    name = "" if name is None else str(name).strip()
+    row = _Row(
         idx=i,
-        provider=str(r["provider"]),
+        provider=name or t("services.inv.unnamed"),
         category=str(r["category"] or _UNTRIAGED),
         cost=str(r["cost"] or "?"),
         url=str(r["url"] or ""),
@@ -274,13 +302,20 @@ def _norm(i: int, r: dict) -> _Row:
         renews=str(r["renews"] or ""),
         price=str(r["price"] or ""),
     )
+    row.credit = credit_cell(row.balance, row.unit, row.credit_at, now)
+    row.stale = _credit_stale(row.balance, row.credit_at, now)
+    return row
 
 
 class _Ids:
-    """Distinct, valid element ids: ``slug`` of the text, re-slugged with a counter on a collision."""
+    """Distinct, valid element ids (``slug`` of the text, re-slugged with a counter on a collision),
+    and the per-render labels every row repeats, read from the catalogue once."""
 
     def __init__(self) -> None:
         self._seen: set[str] = set()
+        self.cost = {tok: t(key) for tok, key in _COSTS.items()}
+        self.status = {tok: t(key) for tok, key in _STATUSES.items()}
+        self.detail = t("services.inv.detail")
 
     def make(self, text: str, prefix: str) -> str:
         n, key = 0, text
@@ -293,7 +328,7 @@ class _Ids:
 
 def _name(row: _Row) -> object:
     """The provider as a link when its URL is an ``http(s)://`` URL ``link()`` accepts whole; text otherwise."""
-    if row.url.startswith(("https://", "http://")):
+    if _HAS_HOST.match(row.url):  # a scheme alone, or an empty host, is no destination
         try:
             return link(row.provider, row.url, new_tab=True)
         except ValueError:
@@ -302,7 +337,7 @@ def _name(row: _Row) -> object:
 
 
 def _label(known: dict[str, str], token: str) -> str:
-    return t(known[token]) if token in known else token
+    return known.get(token, token)
 
 
 def _by_provider(rows: list[_Row]) -> list[_Row]:
@@ -311,7 +346,7 @@ def _by_provider(rows: list[_Row]) -> list[_Row]:
 
 def _reasons(row: _Row, now: float) -> list[str]:
     out = []
-    if _credit_stale(row.balance, row.credit_at, now):
+    if row.stale:
         out.append("stale_credit")
     if row.unattributed > 0:
         out.append("unattributed")
@@ -336,11 +371,11 @@ def _attention(
     if queue > 0 and _source_stale(classified_at, now):
         key = "classifier_never" if _epoch(classified_at) is None else "classifier_stale"
         entries.append(
-            _li(badge("warning", t(f"services.inv.attn.{key}", hours=STALE_AFTER_H, n=queue)))
+            _li(badge("warning", _plural(f"services.inv.attn.{key}", queue, hours=STALE_AFTER_H)))
         )
     by_rule: dict[str, list[_Row]] = {rule: [] for rule in _RULES}
     flagged: set[int] = set()
-    for row in _by_provider(rows):
+    for row in rows:
         for rule in _reasons(row, now):
             by_rule[rule].append(row)
             flagged.add(row.idx)
@@ -373,16 +408,15 @@ def _detail(row: _Row, ids: _Ids) -> Safe:
         t("services.inv.detail.unattributed", n=row.unattributed),
     ]
     return disclosure(
-        t("services.inv.detail"),
+        ids.detail,
         group(fragment(*[_li(x) for x in lines]), tag="ul"),
         id=ids.make(f"{row.category}\x00{row.provider}", "row"),
     )
 
 
 def _funding(row: _Row, now: float) -> str:
-    credit = credit_cell(row.balance, row.unit, row.credit_at, now)
-    if credit:
-        return credit
+    if row.credit:
+        return row.credit
     parts = [row.price] if row.price else []
     if row.renews:
         parts.append(t("services.inv.renews", date=row.renews))
@@ -420,16 +454,15 @@ def _unattributed(row: _Row) -> object:
 def _group_table(
     name: str, display: str, members: list[_Row], now: float, ids: _Ids, interactive: bool
 ) -> Safe:
-    members = _by_provider(members)
     body = []
     for r in members:
-        label = _label(_STATUSES, r.status)
+        label = _label(ids.status, r.status)
         status = badge("warning", label) if r.status in ("unidentified", "retiring") else label
-        keys = fragment(str(r.keys), " " if r.unattributed else None, _unattributed(r))
+        keys = fragment(str(r.keys), " ", _unattributed(r)) if r.unattributed else str(r.keys)
         body.append(
             [
                 fragment(_name(r), _detail(r, ids)),
-                _label(_COSTS, r.cost),
+                _label(ids.cost, r.cost),
                 status,
                 keys,
                 _funding(r, now),
@@ -453,7 +486,7 @@ def _group_table(
     summary = fragment(
         display,
         " · ",
-        t("services.inv.group.counts", n=len(members), paid=paid, cred=cred),
+        _plural("services.inv.group.counts", len(members), paid=paid, cred=cred),
         " · " if interactive else None,
         _count_span(len(members), interactive),
     )
@@ -482,13 +515,13 @@ def _projects_line(row: _Row, ids: _Ids) -> object:
 
 def _queue(members: list[_Row], ids: _Ids, interactive: bool) -> Safe:
     items = []
-    for r in _by_provider(members):
+    for r in members:
         items.append(
             _li(
                 fragment(
                     _name(r),
                     " · ",
-                    t("services.inv.untriaged.keys", n=r.keys),
+                    _plural("services.inv.untriaged.keys", r.keys),
                     " " if r.unattributed else None,
                     _unattributed(r),
                     " · ",
@@ -546,9 +579,9 @@ def _filter_bar(total: int) -> Safe:
 def _more_counts(rows: list[_Row], ntables: int, now: float, ids: _Ids) -> Safe:
     tracked = stale = 0
     for r in rows:
-        if _credit_stale(r.balance, r.credit_at, now):
+        if r.stale:
             stale += 1
-        elif credit_cell(r.balance, r.unit, r.credit_at, now):
+        elif r.credit:
             tracked += 1
     counts = [
         ("categories", ntables),
@@ -570,7 +603,8 @@ def _more_counts(rows: list[_Row], ntables: int, now: float, ids: _Ids) -> Safe:
     return disclosure(t("services.inv.more.title"), grid, id=ids.make("more", "more"))
 
 
-def _static_notes(synced_at, now: float) -> Safe:
+def _static_stamps(synced_at, now: float) -> Safe:
+    """What the static file prints in place of the ticking stamp, beside the heading."""
     ts = _epoch(synced_at)
     synced = (
         t("services.inv.static.synced", when=_when(ts))
@@ -578,13 +612,12 @@ def _static_notes(synced_at, now: float) -> Safe:
         else t("services.inv.static.never")
     )
     return group(
-        fragment(
-            _li(synced),
-            _li(t("services.inv.static.written", when=_when(now))),
-            _li(t("services.inv.static.legend", hours=STALE_AFTER_H)),
-        ),
-        tag="ul",
+        fragment(_li(synced), _li(t("services.inv.static.written", when=_when(now)))), tag="ul"
     )
+
+
+def _static_legend() -> Safe:
+    return group(_li(t("services.inv.static.legend", hours=STALE_AFTER_H)), tag="ul")
 
 
 def render(
@@ -598,10 +631,12 @@ def render(
     """The inventory section (body-only). ``interactive`` adds the filter bar and its wire for the
     board; without it the section has no control, no button and no script dependency, and prints the
     registry's own date, the snapshot's date and the legend the live stamp would otherwise carry."""
+    if not isinstance(interactive, bool):
+        raise ValueError(f"render interactive must be True or False, not {interactive!r}")
     if isinstance(now, bool) or not isinstance(now, (int, float)) or not math.isfinite(now):
         raise ValueError(f"now {now!r} is not a finite number")
     now = float(now)
-    recs = [_norm(i, r) for i, r in enumerate(rows)]
+    recs = _by_provider([_norm(i, r, now) for i, r in enumerate(rows)])
     ids = _Ids()
     queue = [r for r in recs if r.category == _UNTRIAGED]
     cats: dict[str, list[_Row]] = {}
@@ -655,12 +690,13 @@ def render(
             data={"filter-group": _FILTER_GROUP},
         )
     body = fragment(
-        group(t("services.inv.providers", n=len(recs)), tag="div"),
+        group(_plural("services.inv.providers", len(recs)), tag="div"),
+        None if interactive else _static_stamps(synced_at, now),
         summary,
         more,
         attention,
         listing,
-        None if interactive else _static_notes(synced_at, now),
+        None if interactive else _static_legend(),
     )
     age = freshness(_epoch(synced_at), _REGISTRY_CADENCE_S) if interactive else None
     return card(t("services.inv.title"), body, age=age)
