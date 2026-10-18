@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T23:23:37.126459Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7f9d308d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "final_gate_stop.py sixth cause: on 2026-10-19 sid 8a498855 was blocked for W-d90fe030's files, reviewed to CONVERGED under sid 7e6fef18 (its record: covered 20:43:35-21:35:13, reviewed_surfaces W-d90fe030); read the prior sid's covered windows and reviewed_surfaces when the transcript carries its turns",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "stop-hook"
+  ],
+  "title": "Stop hook: a window that continues under a new session id reads its carried transcript's edits against the NEW id's run record only, so work reviewed under the old id blocks as unreviewed"
+}
