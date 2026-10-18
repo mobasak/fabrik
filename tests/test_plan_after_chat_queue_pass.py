@@ -275,17 +275,28 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
     )
 
 
-def test_the_close_list_names_the_wall_pause_and_preemption_halts() -> None:
-    """Row 1792329581 (and W-8d98265e): the run-record close list named only the three BLOCKED cases, so a quota
-    wall, an operator pause (D-993) or an URGENT preemption (D-958) had no stated exit."""
-    frag = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "run-record.md").read_text())
+def _norm(rel: str) -> str:
+    return re.sub(r"\s+", " ", (ROOT / rel).read_text())
+
+
+def test_the_close_list_names_the_wall_and_the_pause_as_halts() -> None:
+    """W-8d98265e: the run-record close list named only the three BLOCKED cases, so the quota wall and an operator's
+    pause (D-993) had no stated close; every command that restates the halt rule names or points at both."""
+    frag = _norm("commands/_fragments/run-record.md")
     assert (
-        "The other legitimate halts are the quota wall (`blocked --wall`, `CLAUDE.md`'s RED band), an operator's"
-        " pause (`blocked --paused`, its `--reason` the operator's words, D-993) and an URGENT item that preempts"
-        " the run (D-958: commit, push, then `handoff --resume`, in any command); nothing else halts a run"
+        "The other two halts are `blocked` too: the quota wall (`blocked --wall`, once the fleet is AT the wall"
+        " `CLAUDE.md`'s quota bands name — RED before it is finish-and-checkpoint, never a halt) and a pause the"
+        " operator ordered (`blocked --paused`, its `--reason` the operator's words, D-993); nothing else halts a run"
     ) in frag
     assert "Nothing else is a legitimate halt" not in frag
+    pointer = "besides the quota wall and the operator's pause § Run record names, the only reasons to stop before"
+    assert pointer[0].upper() + pointer[1:] in _flat()
+    assert pointer in _norm("commands/_sources/fabrik-spec.md")
+    plan = _norm("commands/_sources/fabrik-execute-plan.md")
     assert (
-        "Besides the halts § Run record names, the only reasons to stop before convergence are"
-        in _flat()
+        "a HARD STOP, the quota wall (`blocked --wall`) or a pause the operator ordered (`blocked --paused`, D-993);"
+    ) in plan
+    assert (
+        "contradiction), or `--wall` / `--paused` for the quota wall or a pause the operator ordered;"
+        in plan
     )
