@@ -402,7 +402,7 @@ def main() -> int:
     # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
     # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
     # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
-    linked = {s.rstrip("/") for t in link_targets(index_text) for s in (t, _pct_decode(t))}
+    linked = {s for t in link_targets(index_text) for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist
     # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old

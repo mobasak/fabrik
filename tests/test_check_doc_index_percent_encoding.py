@@ -247,21 +247,27 @@ def _links(monkeypatch, tmp_path, capsys) -> list[str]:
         (["docs/a(b).md"], "- [A](docs/a(b).md)\n", None),
         (["docs/b.md"], "- [B](docs/b.md)\n- [G](docs/g(o)ne.md)\n", "docs/g(o)ne.md"),
         (["docs/t.md"], '- [T](docs/t.md "Title")\n', None),
-        (["docs/t.md"], '- [T](docs/t.md "Title")\n- [G](docs/gone.md "Title")\n', "docs/gone.md"),
-        (["docs/t.md"], "- [T](docs/t.md 'Title')\n- [G](docs/gone.md (Title))\n", "docs/gone.md"),
+        (["docs/t.md"], '- [T](docs/t.md "T")\n- [G](docs/g(1).md "Title")\n', "docs/g(1).md"),
+        (["docs/t.md"], "- [T](docs/t.md 'T')\n- [G](docs/g(2).md 'Title')\n", "docs/g(2).md"),
+        (["docs/t.md"], "- [T](docs/t.md (T))\n- [G](docs/g(3).md (Title))\n", "docs/g(3).md"),
         (["docs/a b.md"], "- [A](<docs/a b.md>)\n", None),
         (["docs/b.md"], "- [B](docs/b.md)\n- [G](<docs/gone x.md>)\n", "docs/gone x.md"),
         (["docs/a_b.md"], "- [E](docs/a\\_b.md)\n", None),
+        (["docs/a_b c.md"], "- [E](docs/a\\_b%20c.md)\n", None),
+        (["docs/a_b%41.md"], "- [E](docs/a\\_b%41.md)\n", None),
     ],
     ids=[
         "paren-live",
         "paren-missing",
         "titled-live",
-        "titled-missing",
-        "single-and-paren-titled-missing",
+        "double-titled-missing",
+        "single-titled-missing",
+        "paren-titled-missing",
         "angle-live",
         "angle-missing",
         "escaped-live",
+        "escaped-and-encoded-live",
+        "escaped-with-a-literal-percent-live",
     ],
 )
 def test_every_commonmark_link_shape_is_graded_by_both_checks(
@@ -271,7 +277,9 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
     to a live doc was truncated (`docs/a(b`) and reported missing; a titled or `<angle>` link never
     matched, so a link to a MISSING doc was never examined. Direction (a) of check_doc_index and
     check_doc_links must both read every shape CommonMark renders as a link, and an escaped link
-    (`docs/a\\_b.md`) counts for direction (b) exactly when it counts for (a)."""
+    (`docs/a\\_b.md`, also percent-encoded or naming a literal `%41`) counts for direction (b)
+    exactly when it counts for (a). Every missing target holds a paren or a space, which
+    check_doc_links' BARE-path reader cannot match, so only its link reader can report it."""
     rc, out = _run(monkeypatch, tmp_path, capsys, docs, index)
     broken = _links(monkeypatch, tmp_path, capsys)
     if missing is None:
@@ -286,16 +294,18 @@ def test_every_commonmark_link_shape_is_graded_by_both_checks(
 def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
     monkeypatch, tmp_path, capsys
 ) -> None:
-    """Direction (c) compared the RAW INDEX text only, so a row linking `scripts/a%20b.py` — the
-    spelling (a) and (b) accept — still earned "added code file not in INDEX.md"."""
+    """Direction (c) compared the RAW INDEX text only, so a row naming `scripts/a%20b.py` — the
+    spelling (a) and (b) accept — still earned "added code file not in INDEX.md". A bare encoded
+    mention counts through the decoded text, an escaped link through the parsed link set."""
     rc, out = _run(
         monkeypatch,
         tmp_path,
         capsys,
-        ["scripts/a b.py", "scripts/c d.py"],
-        "- [a](scripts/a%20b.py)\n",
+        ["scripts/a b.py", "scripts/a_b.py", "scripts/c d.py"],
+        "- scripts/a%20b.py (a bare mention)\n- [x](scripts/a\\_b.py)\n",
     )
     assert "added code file not in INDEX.md: scripts/a b.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/a_b.py" not in out, out
     assert "added code file not in INDEX.md: scripts/c d.py" in out, out  # still graded
 
 
@@ -326,6 +336,8 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         "[bad](docs/a(b.md [open](docs/x.md",
         '[x](#only-fragment) [y]() [z](docs/z.md "unterminated)',
         r"[s](docs/a\ b.md) [h](docs/a\#b.md#frag) [w](docs/x](docs/gone.md).md)",
+        r"[e](docs/a\_b.md) [g](docs/g(o)ne.md) [t](docs/x.md \"see ](docs/gone.md)\")",
+        "[a](docs/a(b.md ) [n](<docs/a\nb.md>) " + r"[q](<docs/a\>b.md>) [c](docs/a\).md)",
         "",
     ]:
         assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
@@ -338,8 +350,29 @@ def test_both_link_readers_find_one_set_of_targets() -> None:
         (r"[h](docs/a\#b.md#frag)", ["docs/a#b.md"]),  # an escaped `#` is part of the path
         ("[w](docs/x](docs/gone.md).md)", ["docs/x](docs/gone.md).md"]),  # one link, not two
         ('[t](docs/x.md "see ](docs/gone.md)")', ["docs/x.md"]),  # a title holds no link
+        ('[t](docs/x.md "T")', ["docs/x.md"]),
+        ("[t](docs/x.md 'T')", ["docs/x.md"]),
+        ("[t](docs/x.md (T))", ["docs/x.md"]),
+        ("[a](docs/a(b.md )", []),  # an unclosed paren is no destination
+        ("[a](<docs/a\nb.md>)", []),  # an angle destination never spans a line
+        (r"[a](<docs/a\>b.md>)", ["docs/a>b.md"]),  # `\>` stays inside the angle form
+        (r"[e](docs/e\(x\).md)", ["docs/e(x).md"]),
+        (r"[e](docs/a\).md)", ["docs/a).md"]),  # an escaped `)` neither closes nor counts
     ],
-    ids=["escaped-space", "escaped-hash", "bracket-in-destination", "link-in-title"],
+    ids=[
+        "escaped-space",
+        "escaped-hash",
+        "bracket-in-destination",
+        "link-in-title",
+        "double-quoted-title",
+        "single-quoted-title",
+        "paren-title",
+        "unbalanced-paren",
+        "angle-across-a-line",
+        "escaped-angle-close",
+        "escaped-parens",
+        "escaped-unbalanced-close",
+    ],
 )
 def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
     text: str, targets: list[str]

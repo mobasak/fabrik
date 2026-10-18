@@ -184,8 +184,9 @@ def link_targets(text: str):
     BALANCED parentheses and no whitespace, then an optional whitespace-led title (`"…"`, `'…'` or
     `(…)`) and the closing `)`. The fragment is dropped and backslash escapes of ASCII punctuation
     are undone; a link that is not well formed yields nothing. The old `\\]\\(([^)\\s]+?)…\\)`
-    regex truncated `docs/a(b).md` to `docs/a(b` (a false "broken") and never matched a titled or
-    angle link, so a link of either shape to a MISSING file was never examined. check_doc_index
+    regex truncated `docs/a(b).md` to `docs/a(b`, missed a titled link entirely and kept the
+    brackets of an angle one (`<docs/x.md>`); none of those ends in a checked suffix, so a link of
+    any of the three shapes to a MISSING file was never examined. check_doc_index
     carries the same function (no enforcement check imports a sibling); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
