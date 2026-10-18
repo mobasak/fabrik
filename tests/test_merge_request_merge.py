@@ -859,6 +859,36 @@ def _shadow_branch(world, monkeypatch, test=_SHADOW_TEST):
     return head, mark
 
 
+def test_owner_tests_run_with_the_merge_check_signal_in_both_legs(world, monkeypatch):
+    """W-c3177526: the owner tests run BEFORE the merge's render reaches ~/.claude, so both legs tell
+    them so — FABRIK_MERGE_CHECK=1, which the hub conftest reads to skip its live-box tests. The
+    caller's own value is removed first: this grader itself runs inside merge checks."""
+    monkeypatch.delenv("FABRIK_MERGE_CHECK", raising=False)
+    owner = world.tmp / "owner-leg"
+    world.write(
+        ".fabrik/merge-tests",
+        f"python3 -c \"import os; open({str(owner)!r}, 'w').write(os.environ.get('FABRIK_MERGE_CHECK', 'unset'))\"\n",
+    )
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert owner.read_text() == "1"
+
+    world.write(".fabrik/merge-tests", "")
+    world.commit_main("no owner tests", ".fabrik/merge-tests")
+    fallback = world.tmp / "fallback-leg"
+    monkeypatch.setenv("SIGNAL_MARK", str(fallback))
+    test = (
+        "import os, pathlib\n"
+        "def test_signal():\n"
+        "    pathlib.Path(os.environ['SIGNAL_MARK']).write_text(os.environ.get('FABRIK_MERGE_CHECK', 'unset'))\n"
+    )
+    world.send(world.branch({"tests/test_signal.py": test}))
+    assert world.run("merge") == 0
+    assert fallback.read_text() == "1"
+    assert os.environ.get("FABRIK_MERGE_CHECK") is None
+
+
 def test_fallback_tests_import_a_stdlib_named_src_package_without_shadowing(world, monkeypatch):
     head, mark = _shadow_branch(world, monkeypatch)
     msg_id = world.send(head)

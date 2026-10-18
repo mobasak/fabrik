@@ -20,6 +20,8 @@ import importlib.util
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("asm", REPO / "commands" / "assemble_commands.py")
 assert _spec and _spec.loader
@@ -121,6 +123,7 @@ def test_check_detects_drift_in_a_rendered_agent():
     assert any("fabrik-reviewer" in d for d in drift), drift
 
 
+@pytest.mark.live_box
 def test_the_live_box_matches_the_repo_sources():
     """The point of the whole change: what the box actually dispatches is what the repo says."""
     drift = asm.agent_drift(asm.AGENTS)
@@ -165,3 +168,20 @@ def test_the_mail_triage_agent_sentences_are_present_once():
     researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
     assert reviewer.count("with `git -C <repo>` when the repo is not your cwd") == 1
     assert researcher.count("silently DROPS TABLES") == 1
+
+
+def test_the_researcher_follows_redirects_and_pages_before_an_absence():
+    """W-eb9db7c0: WebFetch returns a cross-host redirect unfollowed and reads a long page in
+    windows, so the researcher re-fetches the redirect target and pages on with `offset` before
+    an ABSENCE verdict."""
+    researcher = " ".join((SRC / "fabrik-researcher.md").read_text(encoding="utf-8").split())
+    assert "six measured failure shapes" in researcher
+    assert "`REDIRECT DETECTED` reply naming the server's `Location` URL" in researcher
+    assert "fetch that URL and cite both the original and the final one" in researcher
+    assert "line that the TOOL appends after the answer" in researcher
+    assert "Before any ABSENCE verdict on that page, call again with that `offset`" in researcher
+    assert "a `NEEDS-RAW-FETCH` naming the next offset, never an absence" in researcher
+    assert "Paging is necessary, not sufficient" in researcher
+    assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
+    assert "judging the claim on the final page like any other" in researcher
+    assert "VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher

@@ -3,7 +3,7 @@
   "created": "2026-09-02T00:00:00.000000Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2662b26d5ffc9c629f3f86d4aec84f96e5dfe800",
   "id": "W-eb9db7c0",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — researcher brief/fragment wording drift",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

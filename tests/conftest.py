@@ -1,10 +1,13 @@
 """Pytest configuration and Hypothesis profiles."""
 
+import ast
+import inspect
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import textwrap
 from datetime import timedelta
 from pathlib import Path
 
@@ -124,6 +127,13 @@ def pytest_configure(config):
     """
     config.addinivalue_line(
         "markers", "live_fleet: reaches the real fleet; runs only when a person opts in"
+    )
+    config.addinivalue_line(
+        "markers",
+        "live_box: reads the installed ~/.claude corpus the merge owner renders after a merge;"
+        " skipped inside a merge check (FABRIK_MERGE_CHECK=1) only when its own body reads"
+        " asm|ac|assemble_commands.AGENTS|OUT|SKILLS or Path.home() / '.claude' /"
+        " commands|skills|agents",
     )
     for var in _GIT_ENV_LEAKS:
         os.environ.pop(var, None)
@@ -583,8 +593,81 @@ def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
     memguard.stop()
 
 
+# The installed corpus the merge owner renders into ~/.claude AFTER a merge lands (W-c3177526).
+_CORPUS_ATTRS = frozenset({"AGENTS", "OUT", "SKILLS"})
+_CORPUS_MODULES = frozenset({"asm", "ac", "assemble_commands"})  # the aliases tests/ imports it as
+_CORPUS_DIRS = frozenset({"commands", "skills", "agents"})
+
+
+def _home_chain_dir(node: ast.AST) -> bool:
+    """True for a `Path.home() / ".claude" / <commands|skills|agents>` chain (any depth below)."""
+    parts: list[str] = []
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            parts.append(node.right.value)
+        node = node.left
+    home = (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "home"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "Path"
+    )
+    parts.reverse()
+    return home and len(parts) >= 2 and parts[0] == ".claude" and parts[1] in _CORPUS_DIRS
+
+
+def _reads_installed_corpus(item) -> bool:
+    """Whether the test's OWN code reads the installed corpus: an `asm|ac|assemble_commands`
+    `.AGENTS|OUT|SKILLS` read (assemble_commands' installed trees) or a `Path.home() / ".claude"
+    / commands|skills|agents` chain, written in the test body itself. Docstrings and string
+    constants are never evidence, so a test that only MENTIONS the corpus, or renders into a tmp
+    dir, is not a reader. Any other spelling (a helper, `joinpath`, `expanduser`, another alias)
+    and an unreadable source answer False, which leaves the test to run (fail-closed): a merge
+    check then refuses on it exactly as it did before W-c3177526."""
+    try:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(item.function)))
+    except (OSError, TypeError, SyntaxError, AttributeError):
+        return False
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and node.attr in _CORPUS_ATTRS
+            and isinstance(node.value, ast.Name)
+            and node.value.id in _CORPUS_MODULES
+        ):
+            return True
+        if isinstance(node, ast.BinOp) and _home_chain_dir(node):
+            return True
+    return False
+
+
+def pytest_report_header(config):  # noqa: ARG001 - pytest hook signature
+    """Say so in the header when the run is a merge check (pytest prints it unless `-q`; the
+    merge's own fallback leg runs `-q`, so there the skip shows only as `s` and its count)."""
+    if os.environ.get("FABRIK_MERGE_CHECK") == "1":
+        return (
+            "FABRIK_MERGE_CHECK=1: a merge check — live_box tests that read ~/.claude are skipped"
+        )
+    return None
+
+
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001 - pytest hook signature
-    """A `live_fleet`-marked test is a deliberate live check: it runs only when a PERSON opted in."""
+    """A `live_box` test is skipped inside a merge check, which runs before the merge's render
+    reaches ~/.claude (W-c3177526) — only when its own code reads that corpus, so the marker alone
+    never skips (D-253). Applied BEFORE the live_fleet opt-in's early return, so a person's
+    FABRIK_TEST_ALLOW_FLEET inherited into a merge check cannot bring it back.
+
+    A `live_fleet`-marked test is a deliberate live check: it runs only when a PERSON opted in."""
+    if os.environ.get("FABRIK_MERGE_CHECK") == "1":
+        box = pytest.mark.skip(
+            reason="live_box: FABRIK_MERGE_CHECK=1 — a merge check runs before the merge owner"
+            " renders the corpus into ~/.claude, so the installed copy cannot match yet"
+        )
+        for item in items:
+            if item.get_closest_marker("live_box") and _reads_installed_corpus(item):
+                item.add_marker(box)
     if os.environ.get("FABRIK_TEST_ALLOW_FLEET") == "1":
         return
     skip = pytest.mark.skip(
