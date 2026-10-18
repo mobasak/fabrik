@@ -380,3 +380,20 @@ class TestEmptyStderrAndScpOptions:
             mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="  ")
             with pytest.raises(RuntimeError, match=r"failed \(rc=255\): no stderr$"):
                 ssh("true") if call == "ssh" else scp_to_vps("/a", "/b")
+
+
+@pytest.mark.parametrize("call", ["ssh", "scp"])
+def test_ssh_and_scp_failures_carry_stderr_on_one_line(call, monkeypatch):
+    """W-9a560686: a CR/LF in ssh's stderr split the RuntimeError, so the remote side could forge a log line."""
+    from fabrik.drivers.ssh import scp_to_vps, ssh
+
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+    hostile = "denied\r\nINJECTED API_TOKEN=hunter2secret café\n"
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=255, stdout="", stderr=hostile)
+        with pytest.raises(RuntimeError) as info:
+            ssh("true") if call == "ssh" else scp_to_vps("/tmp/a", "/opt/b")
+    msg = str(info.value)
+    assert len(msg.splitlines()) == 1 and "\\r\\n" in msg, repr(msg)
+    assert "hunter2secret" not in msg and "café" in msg

@@ -56,6 +56,18 @@ def _redact(cmd: str) -> str:
     return _SECRETY_ASSIGN.sub(r"\1<redacted>", out)
 
 
+def _one_line(text: str, empty: str = "no stderr") -> str:
+    """Return remote ``text`` (ssh stderr, a reply) fit for an error or a log line: masked, then ``repr``-quoted.
+
+    ``repr`` escapes CR, LF, NUL, U+2028 and every other line break or control character, so the remote side
+    cannot forge a log line (W-9a560686), and keeps printable non-ASCII as itself. The mask runs FIRST:
+    after ``repr`` an escaped ``\\r\\n`` is no longer whitespace, so ``_SECRETY_ASSIGN`` masks past it and a
+    newline-split base64 pipe no longer matches. An empty or whitespace-only ``text`` reads ``empty``.
+    """
+    masked = _redact(text.strip())
+    return repr(masked) if masked else empty
+
+
 def _ssh_host() -> str:
     """Return the SSH host alias, reading ``FABRIK_VPS_SSH_HOST`` at call time.
 
@@ -216,10 +228,10 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # _redact the FAILURE surface too (F12, 01M1C95A2S: a failing .env-write heredoc
         # echoed a live CONSUMER_TOKENS bearer token verbatim into the apply log twice —
         # the debug line above redacts the command, but the error path shipped raw stderr,
-        # forcing a mid-deploy credential rotation).
+        # forcing a mid-deploy credential rotation) — and on one line (W-9a560686).
         raise RuntimeError(
             f"SSH to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_redact(result.stderr.strip()) or 'no stderr'}"
+            f"{_one_line(result.stderr)}"
         )
     return result.stdout.strip()
 
@@ -265,5 +277,5 @@ def scp_to_vps(
     if result.returncode != 0:
         raise RuntimeError(
             f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_redact(result.stderr.strip()) or 'no stderr'}"
+            f"{_one_line(result.stderr)}"
         )

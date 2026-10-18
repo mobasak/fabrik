@@ -489,3 +489,121 @@ def test_a_fractional_budget_and_the_jump_are_read_once(monkeypatch):
             client._resolve_container_url()
     assert seen["timeout"] == 0.5
     assert seen["argv"][:3] == ["ssh", "-o", "ProxyJump=vps2"]
+
+
+# W-9a560686: text the remote side of ssh controls — its stderr, and the container name docker prints — reached the
+# resolve and request errors and logs raw: a CR/LF forged a log line, and the miss warnings skipped `_redact`.
+_HOSTILE = (
+    "Permission denied TOKEN=abc\r\nINJECTED forged log line API_KEY=sk-live-123\x00 café"
+    + chr(0x2028)
+    + "next"
+    + chr(0x85)
+    + "nel\n"
+)
+
+
+def _assert_one_line_masked(messages):
+    assert messages
+    for m in messages:
+        assert len(m.splitlines()) == 1, repr(m)  # no CR, LF, U+2028, U+0085 split it
+        assert "\\r\\nINJECTED forged log line" in m, (
+            m
+        )  # escaped, never stripped; masked BEFORE repr,
+        # since after it the escaped CR/LF is no longer whitespace and the mask swallows the forged line
+        assert "<redacted>" in m and "sk-live-123" not in m, m
+        assert "café" in m, m  # printable non-ASCII kept as itself
+
+
+def _resolve_messages(
+    call, rc, stderr, internal, monkeypatch, caplog, stdout1="site-provisioner-1\n"
+):
+    import logging
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    if internal:
+        monkeypatch.setenv("SITE_PROVISIONER_INTERNAL_URL", internal)
+    else:
+        monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    calls = []
+
+    def run(argv, **kw):
+        calls.append(argv)
+        if len(calls) < call:
+            return MagicMock(returncode=0, stdout=stdout1, stderr="")
+        return MagicMock(returncode=rc, stdout="", stderr=stderr)
+
+    messages = []
+    with (
+        caplog.at_level(logging.WARNING, logger="fabrik.drivers.dns"),
+        patch("subprocess.run", side_effect=run),
+    ):
+        if rc == 255 and not internal:
+            with pytest.raises(RuntimeError) as info:
+                client._resolve_container_url()
+            messages.append(str(info.value))
+        else:
+            assert client._resolve_container_url() is None
+    messages += [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    return messages, calls
+
+
+@pytest.mark.parametrize("internal", [None, "http://10.0.0.5:8000"])
+@pytest.mark.parametrize("rc", [255, 1], ids=["dead", "miss"])
+@pytest.mark.parametrize("call", [1, 2])
+def test_ssh_stderr_reaches_every_resolve_message_on_one_line_masked(
+    call, rc, internal, monkeypatch, caplog
+):
+    messages, calls = _resolve_messages(call, rc, _HOSTILE, internal, monkeypatch, caplog)
+    assert len(calls) == call
+    _assert_one_line_masked(messages)
+
+
+@pytest.mark.parametrize("stderr", ["", " \r\n\t"])
+@pytest.mark.parametrize("internal", [None, "http://10.0.0.5:8000"])
+@pytest.mark.parametrize("rc", [255, 1], ids=["dead", "miss"])
+@pytest.mark.parametrize("call", [1, 2])
+def test_an_empty_stderr_reads_no_stderr_in_every_resolve_message(
+    call, rc, internal, stderr, monkeypatch, caplog
+):
+    messages, _ = _resolve_messages(call, rc, stderr, internal, monkeypatch, caplog)
+    assert messages and all("no stderr" in m and len(m.splitlines()) == 1 for m in messages), (
+        messages
+    )
+
+
+@pytest.mark.parametrize(
+    "stdout1",
+    ["c1\rFORGED LINE x;id\n", "site provisioner\n", "x;id\n", "-rm\n", "a$(id)\n"],
+)
+def test_a_hostile_container_name_is_a_miss_never_a_command(stdout1, monkeypatch, caplog):
+    """The name docker printed went unquoted into the second remote command: `c1\\rFORGED x;id` ran `;id` on the VPS."""
+    messages, calls = _resolve_messages(2, 0, "", None, monkeypatch, caplog, stdout1=stdout1)
+    assert len(calls) == 1, calls  # the second command never ran
+    assert messages and all(len(m.splitlines()) == 1 for m in messages), messages
+
+
+def test_a_docker_container_name_still_reaches_the_second_command(monkeypatch, caplog):
+    messages, calls = _resolve_messages(
+        2, 1, "", None, monkeypatch, caplog, stdout1="site-provisioner.1_a-b\n"
+    )
+    assert len(calls) == 2 and "site-provisioner.1_a-b" in calls[1][-1]
+
+
+@pytest.mark.parametrize("where", ["failure", "non-json"])
+def test_request_errors_carry_remote_text_on_one_line(where, monkeypatch):
+    from unittest.mock import MagicMock
+
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="the-key-0123456789", ssh_host="vps")
+    reply = (
+        MagicMock(returncode=255, stdout="", stderr=_HOSTILE)
+        if where == "failure"
+        else MagicMock(returncode=0, stdout=_HOSTILE, stderr="")
+    )
+    with patch("subprocess.run", return_value=reply):
+        with pytest.raises(RuntimeError) as info:
+            client._request_via_ssh("GET", "http://x/y")
+    _assert_one_line_masked([str(info.value)])
