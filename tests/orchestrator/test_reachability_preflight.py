@@ -163,3 +163,12 @@ def test_dns_step_never_falls_back_to_cloudflare_on_a_malformed_jump():
         with pytest.raises(JumpConfigError):
             orch._provision_dns(ctx, spec)
     cloudflare.assert_not_called()
+
+
+def test_this_module_opts_in_to_the_real_preflight():
+    """W-6a96f699 (review P1-17): LIVE_REACHABILITY_PREFLIGHT leaves the real function bound, so the
+    tests above exercise it rather than the conftest stub."""
+    import fabrik.orchestrator as orch
+    from fabrik.drivers import preflight
+
+    assert orch.verify_host_reachable is preflight.verify_host_reachable

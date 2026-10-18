@@ -39,6 +39,16 @@ Answers /fabrik-task rows 1792293040 and 1792291304 (second verdicts on two held
 
   The module dict is taken before the load, every list read shares the load's catch, only exact built-in types are accepted, and the message is built safely (W-3d6a6236, D-980).
 
+### Fixed — ssh hosts are aliases; the DNS SSH proxy quotes its command and hides its key (2026-10-18)
+
+- `drivers/ssh.py` refuses a `FABRIK_VPS_SSH_HOST` that is not an ssh alias (`[user@]host`, the jump-hop grammar without
+  the port) with `SshHostError` before any argv, and `audit._ssh_check` does the same for `FABRIK_AUDIT_VPS`; a
+  `user@host` alias now takes its host's `FABRIK_SSH_JUMP_<ALIAS>`. `drivers/dns.py`'s SSH proxy shell-quotes every word
+  of the remote curl command (a `'` in a domain ran the rest on the VPS), names the host and jump in its errors, and
+  never carries the site-provisioner API key in an error or a timeout. The preflight reason keeps a cause-bearing
+  `Warning:` line and the changed-host-key headline. New graders cover the test suite's `FABRIK_SSH_JUMP_*` scrub and
+  the reachability-preflight stub (W-6a96f699, D-981). Residue: W-894fdc5f.
+
 ### Fixed — the seat-size advisory at `round` measures every folder of the run folder (2026-10-18)
 
 - `scripts/command_run.py::_seat_size_lines` globbed `seat-*`, so seats named `seat2-opus` or `seat-p1-<pin>-A-haiku`

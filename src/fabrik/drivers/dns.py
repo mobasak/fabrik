@@ -8,13 +8,14 @@ which provides unified access to both Namecheap and Cloudflare DNS.
 import json
 import logging
 import os
+import shlex
 import subprocess
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
-from fabrik.drivers.ssh import jump_args
+from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_args, jump_for
 
 logger = logging.getLogger(__name__)
 
@@ -187,33 +188,55 @@ class DNSClient:
         self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
-        header_args = " ".join(f'-H "{k}: {v}"' for k, v in self._headers.items())
-        data_arg = ""
-        if body is not None:
-            escaped = json.dumps(body).replace("'", "'\\''")
-            data_arg = f"-d '{escaped}'"
+        # Every word is shlex-quoted for the remote shell (W-6a96f699): a `'` in a domain or
+        # endpoint broke out of the old hand-quoted URL and ran the rest on the VPS.
+        header_args = " ".join(f"-H {shlex.quote(f'{k}: {v}')}" for k, v in self._headers.items())
+        data_arg = f"-d {shlex.quote(json.dumps(body))}" if body is not None else ""
         # Append query params to URL if present
         if params:
             from urllib.parse import urlencode
 
             query_string = urlencode(params)
             url = f"{url}?{query_string}"
-        cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
-        result = subprocess.run(
-            ["ssh", *jump_args(self.ssh_host), self.ssh_host, cmd],
-            capture_output=True,
-            text=True,
-            timeout=int(self.timeout),
-            check=False,
-        )
+        cmd = f"curl -s -X {shlex.quote(method)} {header_args} {data_arg} {shlex.quote(url)}"
+        host = self.ssh_host
+        jump = jump_for(host)  # read once: the argv and the error text name the same jump
+        try:
+            result = subprocess.run(
+                ["ssh", *_jump_opts(jump), host, cmd],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        if timed_out:
+            # Raised OUTSIDE the except (W-6a96f699): TimeoutExpired's str/repr carry the argv, and
+            # `cmd` holds `-H "X-API-Key: …"`, which the orchestrator's DNS fallback logs via %s.
+            raise subprocess.TimeoutExpired(
+                ["ssh", *_jump_opts(jump), host, "<command redacted>"], self.timeout
+            )
         if result.returncode != 0:
-            msg = f"SSH proxy request failed: {result.stderr.strip()}"
-            raise RuntimeError(msg)
+            raise RuntimeError(
+                f"SSH proxy request to {host!r}{_via(jump)} failed (rc={result.returncode}): "
+                f"{self._clean(result.stderr.strip())}"
+            )
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            msg = f"SSH proxy returned non-JSON: {result.stdout[:200]}"
+            # masked BEFORE the cut: a key straddling character 200 would otherwise escape it
+            msg = f"SSH proxy returned non-JSON: {self._clean(result.stdout)[:200]}"
             raise RuntimeError(msg) from exc
+
+    def _clean(self, text: str) -> str:
+        """*text* with this client's API key masked, then ``_redact``-ed. A remote shell or a
+        server error page can echo the request — `-H "X-API-Key: …"` included — and _redact
+        cannot mask a `Key: value` header, so the key goes first."""
+        if self.api_key:
+            text = text.replace(self.api_key, "<redacted>")
+        return _redact(text)
 
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request to Site Provisioner service.
