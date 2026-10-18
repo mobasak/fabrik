@@ -288,12 +288,12 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   time, because `_guarded` (`quota_dashboard.py:2218-2223`) catches exceptions but has no timeout and
   `registry_db.connect()` (`registry_db.py:33-35`) takes no arguments and sets none. `registry_db.connect()`
   gains optional keyword arguments passed to `psycopg2.connect` (the chain's call, with none, is unchanged);
-  the collector passes `connect_timeout=2` and `options="-c statement_timeout=2000"`, and runs `load()`'s
-  queries in one transaction; its `before_query` hook re-arms `SET LOCAL statement_timeout` before each query to the deadline left,
-  never below 1 ms (a `statement_timeout` of 0 disables the bound in Postgres): with nothing left the read is
-  abandoned as the section's error state, so the whole read — connect plus every query — ends within 5 s. A stalled Postgres becomes that section's error state,
-  never a hung `/v/services`. (On the default unix-socket DSN a connect does not stall on the network; the
-  statement bound is what holds there.) The Services view has no timed refresh (it emits no `data-refresh-s`,
+  the read runs in a CHILD PROCESS, `scripts/sysadmin/inventory_read.py`, which connects with `connect_timeout=2` and `options="-c statement_timeout=2000"`,
+  and runs `load()`'s queries in one transaction, its `before_query` hook re-arming `SET LOCAL statement_timeout` before each query to the deadline left,
+  never below 1 ms (a `statement_timeout` of 0 disables the bound in Postgres); the collector kills the child at the read's deadline,
+  so the whole read — connect plus every query — ends within 5 s whatever the server does. A stalled Postgres becomes that section's error state,
+  never a hung `/v/services`. (An in-process read could not be ended: a read blocked inside a query never reaches its next hook, and `psycopg2`'s
+  `cancel()` against a server that accepts and never answers froze every thread of the process in the plan review's pass-3 probe.) The Services view has no timed refresh (it emits no `data-refresh-s`,
   and `app.js`'s `CADENCE` names only overview, work and accounts); `/v/services` is fetched on navigation,
   on `visibilitychange` (`app.js:708-709`) and on a forced refresh. The collector keeps its last good read in
   memory in one cache slot under a lock, as `_credits_lock` guards the credits refresh (`quota_dashboard.py:531`) —
@@ -322,12 +322,12 @@ visible string is a `strings.py` key under `services.inv.*` — English-only wit
   with the opened-by-filter mark, zero-match groups hidden, the filter's inverse on clear, and the
   `[data-filter-count]` text — each with a browser-smoke assertion.
 - `components.select()`: new — a labelled `<select>` carrying `data-filter` and `data-filter-mode`.
-- The board imports the registry reader (D9): `quota_dashboard.py` appends `scripts/` to `sys.path` once, at import time,
-  guarded like its own directory's insert (the chain suite's
-  `test_the_dashboard_modules_insert_their_directory_once` pins that class) — an append, not the
-  `insert(0)` of `:52-54`, so none of its ~75 importable module names can shadow a module the board imports) and
-  imports `registry_db` and `dashboard_ui.inventory.load` **lazily inside the guarded collector**, so a
-  missing psycopg2 degrades the inventory section to its error state and never stops the board starting.
+- The board runs the registry reader as a child process (D9): `scripts/sysadmin/inventory_read.py` — new — puts
+  `scripts/` and `scripts/sysadmin/` on its own `sys.path`, imports `registry_db` and `dashboard_ui.inventory.load`,
+  and prints the read as JSON; the guarded collector in `quota_dashboard.py` spawns it under `sys.executable`
+  as the board's other subprocesses run (`quota_dashboard.py:493`, :592) and kills it at the read's deadline.
+  The board process imports neither `registry_db` nor psycopg2 and changes no `sys.path`, so a missing psycopg2
+  fails the child, the inventory section shows its error state, and the board always starts.
 - `components.table()`: an optional per-column `align` (for the right-aligned, tabular Keys column); row
   detail is a `disclosure()` passed as cell markup, needing no table change.
 - `dashboard_ui/inventory.py`: new — `load(conn, *, before_query=None)` and `render(…)`.
@@ -414,7 +414,7 @@ Box-local hub tooling: no scaffold type, no `specs/services/*.yaml`, no `shape:`
 - The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that
   interpreter: 2.9.11 from the user site `~/.local` when `HOME` is set, as under the board's cron and
   `--serve`; 2.9.9 from the system `dist-packages` otherwise) as a named exception to the parent spec's "no new dependency" rule (D9), imported
-  lazily so the rest of the board stays stdlib.
+  only in the child process the board spawns, so the board process itself stays stdlib.
 - Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926).
 
 ## Rejected alternatives
@@ -502,9 +502,9 @@ stdlib only — save the D9 exception for the guarded registry read — no CDN).
   working.
 - **D9 — psycopg2 in the board, as a named exception** to the parent spec's "stdlib, no new dependency"
   constraint (`2026-10-16-command-centre-dashboard-design.md:447`): already installed for `/usr/bin/python3`,
-  imported lazily inside the guarded collector only. The alternative — the chain writes a JSON snapshot
+  imported only in `scripts/sysadmin/inventory_read.py`, the child the guarded collector spawns and kills at its deadline. The alternative — the chain writes a JSON snapshot
   the board reads — keeps the board stdlib but makes the live view as old as the last chain run, the
-  day-old snapshot this design replaces. Reversible: the collector's one import site is the whole surface.
+  day-old snapshot this design replaces. Reversible: the child's one import site is the whole surface.
 - **D10 — Data-source health is attention**: a stale registry and a stalled classifier are Needs-attention
   entries, and a reason with more than five rows collapses to a count (the approval panel, both seats).
 
@@ -557,3 +557,9 @@ https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/sortable-table/ ·
 https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html ·
 https://www.w3.org/WAI/WCAG22/Understanding/reflow.html ·
 https://docs.djangoproject.com/en/5.1/ref/templates/builtins/
+
+## Amendments
+
+- 2026-10-18, decision D-968 (superseding D-966 in part), found by the plan review: the live registry read runs in a
+  child process the collector kills at its deadline — § Failure, § Contract deltas, § Constraints Digest and D9 —
+  because no in-process mechanism ends a read against a server that accepts and never answers.

@@ -25,7 +25,9 @@ W-7e467f2d (the stalled classifier, spec I8).
 - The coordinator (fabrik-21), 2026-10-18: "Carry on with /fabrik-ui-design, then /fabrik-plan-after-chat … One request
   together with the plan is fine" — one merge request carries the spec and the built plan.
 - This plan's own seam decisions, D-967 (rowed with this plan): the read/load split in `gen_dashboard.py`, epoch-float
-  times, the worker-thread deadline, the cache slot written on completion, the test-isolation stub, the four tickets.
+  times, the cache slot written on completion, the test-isolation stub, the four tickets; its worker-thread read is
+  superseded by D-968 (minted with this plan's convergence), which amends the spec: the live read runs in a child
+  process the collector kills at its deadline (spec § Amendments).
 
 ## Intake Inventory
 
@@ -143,10 +145,10 @@ would spread that invariant across tickets that must merge together anyway.
 
 ### T04 — from `T04-integration.md`
 
-- **Given** the board test isolation, **When** any board test renders the Services view or calls registry_db.connect, **Then** the inventory collector returns the census fixture or its stated stub, every connect attempt raises and is recorded so the test fails, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:46)
-- **Given** a registry whose read never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the exception class and first line only, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
-- **Given** an empty slot, two concurrent requests, a read in flight past its deadline, a failed read, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one read, every request answers within 5 s of its own arrival, a stale in-flight read starts no second read, every request without a fresh result serves the section's error state, a failed read leaves the last good read in place, a read that ends past its deadline clears the in-flight field so the next request starts afresh, a request held on the lock answers within its own deadline, no thread calls cancel, and the read at 59 s is served while 61 s starts a new read (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
-- **Given** psycopg2 cannot be imported, **When** the board starts and the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and scripts appears on sys.path once (spec § Contract deltas D9)
+- **Given** the board test isolation, **When** any board test renders the Services view, **Then** the collector's spawn is replaced by a stub returning the census fixture or a stated failure, `SERVICES_REGISTRY_DSN` names an unusable DSN so a real child cannot reach the registry, the board process imports neither registry_db nor psycopg2, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:35)
+- **Given** the real child against a fake server that accepts and never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the failure's class and first line only, the child is killed and gone, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
+- **Given** an empty slot, two concurrent requests, a failed child, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one child, every request answers within 5 s of its own arrival, every request without a fresh result serves the section's error state, a failed read leaves the last good read in place, the in-flight field clears on every exit so the next request starts afresh, a request held on the lock answers within its own deadline, no connection is cancelled, and the read at 59 s is served while 61 s spawns a new child (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
+- **Given** psycopg2 cannot be imported in the child, **When** the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and the board process never imported psycopg2 (spec § Contract deltas D9)
 - **Given** a bookmark to /external-services.html, **When** it is requested, **Then** the board answers 303 to /#services with an empty body, and no link card, ext_page key or services.ext string remains (spec § Contract deltas; scripts/sysadmin/quota_dashboard.py:2833)
 - **Given** the Services view at census scale (tests/external_services_fixture.py) in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select, force-swaps and clears, **Then** the group holding the match opens, groups with no match are hidden, the count updates, Cost free shows no freemium row, the Needs-attention list is unchanged by any filter, the filter values, the qd-filter-open:<group> record and the visible filtering survive the swap, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)
 - **Given** the inventory section at census scale with groups collapsed, and the static file gen_dashboard writes from the same fixture, **When** the browser measures each at 1280 px and 375 px, **Then** the section is at most 4,000 px tall, the static file lays out without sideways scroll inside its wrapper, and axe reports no violation of 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2 or 4.1.3 in both themes, with an open row detail included (spec § Validation; spec § Risks the plan carries)
@@ -154,7 +156,8 @@ would spread that invariant across tickets that must merge together anyway.
 
 ## Global Constraints
 
-- Box-local hub tool. The board stays stdlib Python on `/usr/bin/python3` apart from D9's lazily imported psycopg2; the
+- Box-local hub tool. The board process stays stdlib Python on `/usr/bin/python3`; D9's psycopg2 is imported only in
+  the child `scripts/sysadmin/inventory_read.py` the board spawns; the
   generator runs under the hub `.venv` (`scripts/external_services_chain.sh:117`); no CDN, no build step; playwright is in
   the `.venv` for tests only.
 - The bind stays `127.0.0.1:5051` (`PORTS.md`); no port is added.
@@ -182,7 +185,7 @@ adds for the packs the rubric matches (10-python, 12-node, 40-documentation, 45-
 | The chain's CLI, exit codes, atomic write and D-106 heartbeat unchanged (I5). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:410` | T03 |
 | The shared renderer is body-only; from the page layer `gen_dashboard.py` imports `dashboard_ui.inventory`, `components` and `strings` only, never `quota_dashboard` (the panel's caveat). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:411` | T02, T03 |
 | The live registry read is bounded in time (2 s connect, 5 s for the whole read); the static file carries no script. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:413` | T03, T04 |
-| The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that interpreter: 2.9.11 from the user site `~/.local` when `HOME` is set, as under the board's cron and `--serve`; 2.9.9 from the system `dist-packages` otherwise) as a named exception to the parent spec's "no new dependency" rule (D9), imported lazily so the rest of the board stays stdlib. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:414` | T04 |
+| The board keeps running under `/usr/bin/python3`; the registry read adds psycopg2 (present for that interpreter: 2.9.11 from the user site `~/.local` when `HOME` is set, as under the board's cron and `--serve`; 2.9.9 from the system `dist-packages` otherwise) as a named exception to the parent spec's "no new dependency" rule (D9), imported only in the child process the board spawns, so the board process itself stays stdlib. | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:414` | T04 |
 | Responsive 375→2560 px, dark and light, English-only with a catalogue (D-926). | `docs/superpowers/specs/2026-10-18-external-services-page-design.md:418` | T01, T02, T04 |
 | BANNED: logging.FileHandler, logging.handlers.RotatingFileHandler, TimedRotatingFileHandler, loguru file sinks, any *.log file write, any in-app log rotation/retention/cleanup. | `.windsurf/rules/core/10-python.md:294` | Global Constraints XI |
 | No cosmetic assertions: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. | `.windsurf/rules/core/45-testing-strategy.md:21` | Every ticket's tests assert landmarks, roles, text and state; T04's height check is the spec's measured budget, read from the browser, not a snapshot |
@@ -211,6 +214,7 @@ adds for the packs the rubric matches (10-python, 12-node, 40-documentation, 45-
 - scripts/sysadmin/dashboard_ui/strings.py
 - scripts/sysadmin/dashboard_ui/views/services.py
 - scripts/sysadmin/quota_dashboard.py
+- scripts/sysadmin/inventory_read.py
 - scripts/registry_db.py
 - scripts/gen_dashboard.py
 - scripts/dashboard_server.py
@@ -281,7 +285,8 @@ The grounding seats' findings this plan settles (each read from source, the seat
   and the registry's default DSN is the peer-auth socket (`scripts/registry_db.py:19`), so without a stub every Services
   render in the board suites reads the live registry — unit-C seats; settled in T04's isolation stub.
 - `statement_timeout` is server-side and cannot bound a client blocked on a backend that never replies — the Opus seat;
-  settled by T04's worker thread joined at the deadline, the server-side timeouts kept as the backend's own bound.
+  settled by T04's child process killed at the read's deadline, the server-side timeouts kept as the backend's own
+  bound (spec amended, D-968; pass 3 executed that `cancel()` freezes the process against a silent server).
 - `gen_dashboard.main()` needs `synced_at` while `load()` keeps returning rows alone, and six chain tests patch `gd.load`
   and a one-argument `gd.render` by name (`tests/test_external_services_chain.py:232`, :241, :254, :887, :942, :1049) —
   units A and C; settled by T03's `_read()` and the keyword-only `render`.
@@ -317,7 +322,7 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
 | Class | Verdict |
 |---|---|
 | core/35-security-auth.md | CLEAN — no auth, secret or CORS surface changes; zero secrets held (T02 row 7, T03); the board's loopback bind and POST guards untouched (Global Constraints); hunted T01-T04 Touches |
-| core/25-data-postgres.md | FIXED — no schema or migration; the read is SELECT-only in one implicit transaction, bounded server-side by statement_timeout and client-side by T04's worker deadline (rules-3/4); `fetchone` shapes for an empty max() settled in T02 (rules-1) |
+| core/25-data-postgres.md | FIXED — no schema or migration; the read is SELECT-only in one implicit transaction, bounded server-side by statement_timeout and client-side by killing T04's child at the read's deadline (rules-3/4, R4-1); `fetchone` shapes for an empty max() settled in T02 (rules-1) |
 | core/30-ops.md | CLEAN — no container, compose, port or deploy surface; the chain's step and heartbeat unchanged (T03, `scripts/external_services_chain.sh:117`) |
 | 12-FACTOR | CLEAN — Global Constraints list each axis as it applies; no logfile (XI), no new binary (II), granular env vars only (III, `QUOTA_DASH_EXT_SERVICES` removed in T04) |
 | core/10-python.md | FIXED — every new Python function typed in its ticket's Produces; logs stay stderr lines; Decimal-to-float at the credit_cell seam (T03) |
@@ -502,18 +507,17 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
 | Pass 1 | opus×1 (slice rules: spine Interfaces, Execution Discipline, Global Constraints, roll-up, File Scope; T02, T04) + sonnet×1 (slice context: T01, T03; spine agreed, intake, breadth, digest, ledger, Evidence, Self-audit, residuals) · shape: agent-tool (D-961) | found: 20, new: 20, confirmed: 19, fixed: 19, unexecuted: 0, edits: 31 | method: re-derivation — every candidate re-executed by the lead: the one-argument `render` lambda against the keyword call (`TypeError`), `link()` over `/admin` and `#top` (both linked), a spy on `socket.socket.connect` around `psycopg2.connect` (no call seen), the chain fakes' answer keys and `fetchone` (`tests/test_external_services_chain.py:1078-1106`), `after_load` at `tests/quota_dashboard_isolation.py:46`, the filter emitter `scripts/sysadmin/dashboard_ui/views/commands.py:144`, :164; context-7b (option labels unscanned) recorded, not a defect: labels come from the catalogue | 57927e7d695b0abf43104f848437f88f → 346d93a7a99b0a7dc669734bb21d5eeb |
 | Pass 2 | opus×1 + sonnet×1 (round-1 owners) · delta over every pass-1 hunk + one hop (fix1.diff, 436 lines) · shape: agent-tool | found: 8, new: 8, confirmed: 8, fixed: 8, unexecuted: 0, edits: 9 | method: re-derivation — 20 pass-1 ids re-executed (19 FIXED, context-7b recorded and accepted); new candidates re-executed by the lead: `link()` against a prefix gate (`http://a b` passes the prefix, `link()` refuses), the chain fake at `tests/test_external_services_chain.py:1643` (Decimal) and :2459 (the connect patch), `scripts/tests/test_registry_sync.py:41-44` (the opt-in writes the LIVE registry), `psycopg2.extensions.connection.cancel` (present); the collector's concurrency paragraph, which drew defects in two consecutive passes, was REWRITTEN whole around one lock and one outcome rule (the spec's error state) | baf2aa3d3422cc15ad18b1a17e467196 → d4eb141c00914aa1ad93ac7850fb4b18 |
 | Pass 3 | opus×1 + sonnet×1 (round-1 owners) · the pass-2 fixed set only (scope-growth remainder round) · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 6 | method: re-derivation — NEW-1…NEW-4 and context-9/-10 re-executed FIXED; new: `psycopg2`'s `cancel()` against a fake server that accepts and never answers froze every thread for 28 s (the rules seat's `probe_cancel.py`, re-read by the lead), keepalives left the query blocked over 12 s, the in-flight record held no connection handle, three concurrency rules had no assertion; context-11's claimed coverage absent (no fake answers `api_keys` rows) — the cancel and keepalives removed, the frozen-server wedge stated as an accepted residual, T02's first row guards `keys`/`projects` | f656f6cf8978a5b740dd1011aafb1f03 → 63680a366e9cbdc87333e57ce30139c1 |
+| Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the pass-3 fixed set only (scope-growth remainder round) · shape: agent-tool | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 12 | method: re-derivation — P3-1…P3-4 and context-11 re-executed FIXED; new: the accepted wedge departed from the CONVERGED spec's whole-read bound (`docs/superpowers/specs/2026-10-18-external-services-page-design.md:294`, :413 — read by the lead) and credited an unexecuted unix-socket probe; resolved by amending the spec (D-968, line-count neutral, § Amendments): the read runs in a child process killed at its deadline; the context seat's fake-routing note recorded, not a defect (the chain fakes answer `[]` for `api_keys`) | 2b88aae312931ea72add46212ab304a5 → c5e60b86f62025100bf039df4fa3ae11 |
 
 ## Residual unknowns
 
 - Resolved: the import seams (no cycle; `inventory.py` imports only the package and the stdlib) — the Opus seat.
 - Resolved: the per-ticket READ budget — the live wiring is indivisible and is T04, the Integration ticket.
-- Resolved: whether libpq's `connect_timeout` bounds a unix-socket connect is no longer load-bearing — T04's worker-thread
-  join bounds every REQUEST at 5 s whatever the socket does.
-- Accepted residual: a registry server that accepts a connection and never answers leaves T04's one read in flight
-  until it returns or the board restarts; meanwhile every Services request answers the inventory section's error
-  state within 5 s and the rest of the view renders, as spec § Failure requires. No cancel is attempted —
-  `psycopg2`'s `cancel()` freezes every thread of the board against such a server, and keepalives cannot end the
-  read (both executed in this review's pass 3). A live server ends any query at its `statement_timeout`.
+- Resolved: whether libpq's `connect_timeout` bounds a unix-socket connect is no longer load-bearing — T04 kills the
+  child at the read's deadline whatever the socket does.
+- Resolved: a registry server that accepts a connection and never answers — the read runs in a child process the
+  collector kills at the read's deadline, so the whole read ends within 5 s as spec :294 and :413 require; no
+  connection is cancelled (`psycopg2`'s `cancel()` froze every thread in this review's pass-3 TCP probe).
 - Open: the 4,000 px height is still the spec's estimate — resolution: T04's browser test measures the section and the
   receipt records the number; past the bar, collapse further before any bar change (spec § Risks).
 - Resolved: `scripts/tests/test_registry_sync.py:394` runs only with `REGISTRY_WRITE_TESTS=1`, which writes

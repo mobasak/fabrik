@@ -11,29 +11,32 @@ board test files that pin the link card or render Services (`tests/test_quota_da
 change together, or a commit between them leaves a red suite. The route's `303` could land in a commit of its own;
 it stays here by choice (spine § Ticket breadth). Then the whole-plan close.
 
-The collector, `_inventory(ctx)`, in `quota_dashboard.py`: appends `scripts/` to `sys.path` once at import, guarded
-like its own insert (:52-54); imports `registry_db` and `dashboard_ui.inventory.load` inside the function (D9: a
-missing psycopg2 is that section's error state, never a board that will not start); runs the read in a daemon worker
-thread joined with a 5 s deadline, connecting with `connect_timeout=2` and `options="-c statement_timeout=2000"` and
-passing `load` a `before_query` that re-arms `SET LOCAL statement_timeout` to the deadline left, never below 1 ms,
-raising once nothing is left. The collector's state is two fields behind ONE lock: the last good read (rows,
-`synced_at`, and the read's START time) and the read in flight (its thread, its start, its own deadline, a done
-event). Each request has ONE deadline, 5 s from its own arrival; every wait it makes — the lock and the read — is
-bounded by what is left of it. Under the lock, held only for these decisions and never across a read or a join, a
-request (1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, records and
-starts one, whose deadline is this request's; else (3) when a read is in flight within its own deadline, joins it;
-else (4) — a read in flight past its own deadline — starts none and goes straight to the outcome rule. In cases 2
-and 3 it then releases the lock and waits on that read's done event until its OWN deadline; the worker alone
-writes the last good read, under the lock, on success, and clears the in-flight field on any exit. ONE outcome rule
-covers every request that ends without a fresh result — its wait timed out, the read failed, or only a stale read
-was in flight: it serves the section's error state, as spec § Failure states for a registry that does not answer;
-the last good read is served only inside its 60 s. So at most one read is ever alive. Nothing cancels a read: `psycopg2`'s `cancel()` blocks holding the GIL against a
-server that accepts and never answers, freezing every board thread, and keepalives end no read against a live but
-silent server and are ignored on the default unix socket (both executed by the review, pass 3). A live server ends
-any query at its `statement_timeout`, so the in-flight field clears and the next request starts afresh; a frozen
-server leaves the read in flight, every request meanwhile answering the section's error state within its 5 s, until
-that read returns or the board restarts — the accepted residual (spine § Residual unknowns). The error state carries the exception's class and first line only,
-and a failed read never replaces the last good read; reads `classified_at` as the mtime of
+The read runs in a CHILD PROCESS, so the spec's whole-read bound holds whatever the server does (spec
+`docs/superpowers/specs/2026-10-18-external-services-page-design.md:294`, :413). A new
+`scripts/sysadmin/inventory_read.py` is that child: run as `[sys.executable, <its path>]` like the board's other
+subprocesses (`quota_dashboard.py:493`, :592), it puts `scripts/` and `scripts/sysadmin/` on its own `sys.path`,
+connects with `registry_db.connect(connect_timeout=2, options="-c statement_timeout=2000")`, calls
+`inventory.load(conn, before_query=…)` re-arming `SET LOCAL statement_timeout` to the deadline left (never below
+1 ms), and prints `{"rows": …, "synced_at": …}` as JSON on stdout, exiting non-zero with one line on stderr on
+any failure. The board process never imports `registry_db` or psycopg2 (D9 holds in the child: a missing psycopg2
+is the child's failure, so the section's error state), and needs no `sys.path` change.
+
+The collector, `_inventory(ctx)`, in `quota_dashboard.py`, keeps two fields behind ONE lock: the last good read
+(rows, `synced_at`, the read's START time) and the read in flight (its `subprocess.Popen`, its start, its
+deadline, a done event). Each request has ONE deadline, 5 s from its own arrival, and every wait it makes is
+bounded by what is left of it. Under the lock — held only for these decisions, never across a read — a request
+(1) serves the last good read if it started under 60 s ago; else (2) when no read is in flight, spawns the child,
+whose deadline is this request's; else (3) joins the read in flight. It then releases the lock and waits on that
+read's done event until its OWN deadline. The spawning request's waiter thread reads the child with
+`communicate(timeout=<the read's deadline left>)`, kills the child on timeout (`kill()` then `wait()`, which
+cannot block on the server: the child is gone), writes the last good read under the lock on success, and clears
+the in-flight field on every exit — so a read never outlives its 5 s and at most one is ever alive. ONE outcome
+rule covers every request that ends without a fresh result (its wait ran out, the child failed or was killed):
+the section's error state, as spec § Failure states; the last good read is served only inside its 60 s, and a
+failed read never replaces it. The error state carries the failure's class and first line only. No connection is
+ever cancelled: `psycopg2`'s `cancel()` against a server that accepts and never answers froze every thread of the
+process in this review's pass-3 probe (TCP, executed); the child's kill is what ends a stalled read. The collector
+also reads `classified_at` as the mtime of
 `_FABRIK_ROOT / ".tmp/external-services/classify_last.json"`. `_view_data("services")` carries `inventory` in place of
 `ext_page`; `views/services.py` renders the section after the pool and API cards and drops `_external` and its
 `link` import; `/external-services.html` answers `303` to `/#services` with no removal date; `EXT_SERVICES_HTML` and
@@ -51,6 +54,7 @@ Docs: `docs/workstation/quota-dashboard.md` (the Services section, the route row
 
 ## Touches
 - scripts/sysadmin/quota_dashboard.py
+- scripts/sysadmin/inventory_read.py — NEW: the child process that reads the registry
 - scripts/sysadmin/dashboard_ui/views/services.py
 - scripts/sysadmin/dashboard_ui/strings.py
 - tests/quota_dashboard_isolation.py
@@ -67,10 +71,10 @@ Docs: `docs/workstation/quota-dashboard.md` (the Services section, the route row
 - docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md
 
 ## Behavior Contract
-- **Given** the board test isolation, **When** any board test renders the Services view or calls registry_db.connect, **Then** the inventory collector returns the census fixture or its stated stub, every connect attempt raises and is recorded so the test fails, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:46)
-- **Given** a registry whose read never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the exception class and first line only, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
-- **Given** an empty slot, two concurrent requests, a read in flight past its deadline, a failed read, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one read, every request answers within 5 s of its own arrival, a stale in-flight read starts no second read, every request without a fresh result serves the section's error state, a failed read leaves the last good read in place, a read that ends past its deadline clears the in-flight field so the next request starts afresh, a request held on the lock answers within its own deadline, no thread calls cancel, and the read at 59 s is served while 61 s starts a new read (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
-- **Given** psycopg2 cannot be imported, **When** the board starts and the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and scripts appears on sys.path once (spec § Contract deltas D9)
+- **Given** the board test isolation, **When** any board test renders the Services view, **Then** the collector's spawn is replaced by a stub returning the census fixture or a stated failure, `SERVICES_REGISTRY_DSN` names an unusable DSN so a real child cannot reach the registry, the board process imports neither registry_db nor psycopg2, and the 60 s slot is empty at each test's start (spec § Validation; tests/quota_dashboard_isolation.py:35)
+- **Given** the real child against a fake server that accepts and never answers, **When** the Services view is requested, **Then** the inventory section shows its error state within 5 s with the failure's class and first line only, the child is killed and gone, and the pool and API cards render (spec § Failure; scripts/sysadmin/quota_dashboard.py:2218)
+- **Given** an empty slot, two concurrent requests, a failed child, and a last good read 59 s and 61 s past its start, **When** requests reach the collector, **Then** the concurrent requests share one child, every request answers within 5 s of its own arrival, every request without a fresh result serves the section's error state, a failed read leaves the last good read in place, the in-flight field clears on every exit so the next request starts afresh, a request held on the lock answers within its own deadline, no connection is cancelled, and the read at 59 s is served while 61 s spawns a new child (spec § Failure; scripts/sysadmin/quota_dashboard.py:531)
+- **Given** psycopg2 cannot be imported in the child, **When** the Services view renders, **Then** the board serves every view and only the inventory section shows its error state, and the board process never imported psycopg2 (spec § Contract deltas D9)
 - **Given** a bookmark to /external-services.html, **When** it is requested, **Then** the board answers 303 to /#services with an empty body, and no link card, ext_page key or services.ext string remains (spec § Contract deltas; scripts/sysadmin/quota_dashboard.py:2833)
 - **Given** the Services view at census scale (tests/external_services_fixture.py) in a 1280 px and a 375 px browser, **When** the operator types a provider name, picks each select, force-swaps and clears, **Then** the group holding the match opens, groups with no match are hidden, the count updates, Cost free shows no freemium row, the Needs-attention list is unchanged by any filter, the filter values, the qd-filter-open:<group> record and the visible filtering survive the swap, clearing closes what the filter opened and keeps a hand-opened group open, and the page never scrolls sideways (spec § Validation)
 - **Given** the inventory section at census scale with groups collapsed, and the static file gen_dashboard writes from the same fixture, **When** the browser measures each at 1280 px and 375 px, **Then** the section is at most 4,000 px tall, the static file lays out without sideways scroll inside its wrapper, and axe reports no violation of 1.3.1, 1.4.1, 1.4.3, 1.4.11, 2.1.1, 3.3.2 or 4.1.3 in both themes, with an open row detail included (spec § Validation; spec § Risks the plan carries)
@@ -92,9 +96,10 @@ Grounding (read at c4e827715): the services branch is `scripts/sysadmin/quota_da
 times out; libpq connects in C and never calls Python's `socket.socket.connect` (executed: a spy on it saw no call
 while `psycopg2.connect('host=127.0.0.1 port=1 …')` failed), so the board suites' `no_network` guard
 (`tests/quota_dashboard_isolation.py:51-58`) cannot see a registry connection, TCP or the default peer-auth socket
-(`scripts/registry_db.py:19`); the stub is therefore installed in `after_load` (:46), which every loader calls,
-as a `registry_db.connect` replacement that raises and records — a test teardown fails on any record — and
-without it every Services render in these suites would read the live registry —
+(`scripts/registry_db.py:19`); the guard is therefore two-sided — `isolate()` (:35) sets `SERVICES_REGISTRY_DSN`
+(`scripts/registry_db.py:27`) to an unusable DSN, inherited by any child, and `after_load` (:46) replaces the
+collector's spawn with the stub — and without it every Services render in these suites would read the live
+registry —
 `tests/test_quota_dashboard.py` renders Services at :1284, :1349, :1527, :1855, :1864, :1873, :1961, :1966, :2476,
 :2493 and over every view at :1886; `tests/test_quota_dashboard_page_layer.py` builds its board at :646-666; the browser
 fixture serves the real board (`tests/test_quota_dashboard_browser.py:89-121`). The tests to rewrite with the link
