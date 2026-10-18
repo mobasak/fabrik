@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the synced-file check no longer exits green when a manifest's exception has a hostile type name (2026-10-18)
+`scripts/enforcement/check_synced_unmodified.py`: when the hub manifest raises, the failure message reads the exception's type name inside its own guard, the way it already read the message. Both halves must be an exact `str`, so a str subclass's `__format__` can't run in the message either. The checker's own `ManifestError` now passes through only when its arguments are exact strs. One raised with a hostile argument is named instead of being printed, because printing it ran that argument's `__str__`. Before this, a metaclass `__name__` that called `sys.exit(0)` escaped `main()` and the check ended green over a drifted file. New tests cover a hostile type name, a GeneratorExit and a KeyboardInterrupt from the name read, a str subclass from either half, and the hostile-argument `ManifestError`. The test now fails an escaping `SystemExit` itself, because when pytest formatted the hostile exception, the whole session ended at rc 0. `tests/test_gate_check_canaries.py` re-derives the `check_doc_index` neuter anchor that 778c0cc37 moved. W-deb8eb0f.
+
 ### Fixed — the saas-skeleton template no longer ships a public chat route (2026-10-18)
 
 `app/api/chat/route.ts` streamed OpenRouter completions on the app's own key for anyone who called it, with no

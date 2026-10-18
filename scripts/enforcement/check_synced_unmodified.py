@@ -132,8 +132,8 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     # NAMED, never swallowed — SystemExit too (a manifest calling sys.exit(0) would otherwise end
     # the check GREEN), and GeneratorExit or any other BaseException (a bare traceback named
     # nothing; W-3d6a6236). Only a bare KeyboardInterrupt (exactly that type) is let through: it is
-    # the operator's. The exception's own `str()` is the manifest's code too and could exit 0 from
-    # inside this handler, so it gets the same guard. What the catch cannot reach: a manifest that
+    # the operator's. The exception's own `str()` and its type's `__name__` are the manifest's code
+    # too and could exit 0 from inside this handler, so each gets the same guard. What the catch cannot reach: a manifest that
     # ends the process (os._exit) or installs a side effect that outlives its load (an atexit hook,
     # sys.excepthook, a signal handler) — it is the hub's own stdlib-only file, not a sandboxed one.
     # A manifest that deliberately reaches into THIS module (a frame walk, gc) can rewrite the check
@@ -155,17 +155,37 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
         # Exact built-in strs and tuples only past this line, so nothing below runs manifest code.
         return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
     except BaseException as e:
-        # This check's own refusal passes as raised — the exact type, so a ManifestError subclass
-        # (whose `__str__` would run when `main()` prints it) is named like any other failure.
-        if type(e) is ManifestError or type(e) is KeyboardInterrupt:
+        # This check's own refusal passes as raised — the exact type holding exact-str args, so a
+        # ManifestError subclass, or the exact class re-raised with a hostile argument (whose
+        # `__str__` would run when `main()` prints it), is named like any other failure.
+        if type(e) is KeyboardInterrupt:
             raise
+        if (
+            type(e) is ManifestError
+            and type(e.args) is tuple
+            and all(type(a) is str for a in e.args)
+        ):
+            raise
+        # Both halves of the message run manifest code — the exception's `__str__` and its
+        # metaclass's `__name__` (W-deb8eb0f) — so each is read inside its own guard, and each
+        # must be an EXACT str: a str subclass's `__format__` would run in the f-string below.
+        try:
+            name = type(e).__name__
+            if type(name) is not str:
+                raise TypeError("not an exact str")
+        except BaseException as inner:
+            if type(inner) is KeyboardInterrupt:
+                raise
+            name = "<its type name could not be read>"
         try:
             detail = str(e)
+            if type(detail) is not str:
+                raise TypeError("not an exact str")
         except BaseException as inner:
             if type(inner) is KeyboardInterrupt:
                 raise
             detail = "<its message raised too>"
-        raise ManifestError(f"{path} failed to load or answer: {type(e).__name__}: {detail}") from e
+        raise ManifestError(f"{path} failed to load or answer: {name}: {detail}") from e
 
 
 def _main_checkout(project_root: Path) -> Path | None:

@@ -21,8 +21,5 @@
   "priority": 2,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — deployed secrets silently truncated; needs spec chain",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "deployer_ssh._format_env never escapes $, and compose interpolates env_file values: a deployed value containing $ (bcrypt hash, user password) reaches the container substituted or truncated, silently (a$b -> a, compose 2.40.3; found by both W-9ead34bd design critiques)"
 }

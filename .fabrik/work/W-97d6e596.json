@@ -23,8 +23,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "Scaffold fix residue recorded by the plan-1 Finish review: traycer marker removed while reports remain (needs a trimmed .droid/.gitignore — 0 of 40 on box); CRLF .gitignore gets an LF droid block (pre-existing); FABRIK_SCAFFOLD_WORKFLOW.md:766 says SCAFFOLD_TYPES has 12 entries and omits office-extension (13); preplan._extract_domain dead equality branch"
 }

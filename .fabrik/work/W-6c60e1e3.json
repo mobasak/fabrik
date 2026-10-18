@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — operator-owned question on spec values",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "**Do the 33 explicit `code_fix_window_sec: 1800` lines follow D-378's 300 s default? (2026-09-23)** — 33 of the 72 live specs (`specs/services/*.yaml`) set it explicitly (19 from the 2026-07-05 swe..."
 }

@@ -20,8 +20,7 @@
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — checkout terms acceptance; real value, fleet template, nobody blocked",
   "status": "open",
   "tags": [
-    "medium",
-    "waits-quota-reset"
+    "medium"
   ],
   "title": "saas-skeleton checkout: buyer accepts Terms + Refund Policy before purchase, and the post-purchase email links them"
 }

@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — missing test on a helper, not security/gate path",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "infrastructure.py::_database_url_pin has no test; D-626 changed it (an interpolated DATABASE_URL now counts as unpinned)"
 }

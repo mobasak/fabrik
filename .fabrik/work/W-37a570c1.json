@@ -22,8 +22,7 @@
   "tags": [
     "gpu",
     "medium",
-    "money-guard",
-    "waits-quota-reset"
+    "money-guard"
   ],
   "title": "gpu_rent: the serverless cost estimate ignores workers_max, so a multi-worker endpoint is under-estimated against max_cost_usd and the daily cap"
 }

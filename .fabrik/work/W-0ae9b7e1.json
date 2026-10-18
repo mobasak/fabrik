@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "infra",
-    "scaffold",
-    "waits-quota-reset"
+    "scaffold"
   ],
   "title": "tests/test_scaffold_saas_web_wiring.py CSRF tests are red in the hub venv: ImportError email-validator is not installed (pydantic EmailStr in the saas-skeleton backend) — the hub .venv lacks the dependency the scaffolded app declares"
 }

@@ -3,7 +3,7 @@
   "created": "2026-10-18T15:53:04.224856Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2ec76c60446e771e6643d4cb09892c60cad7c664",
   "id": "W-deb8eb0f",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: security-class enforcement bug, a hostile manifest exits GREEN at check_synced_unmodified.py:168; one guard plus the full review it owes",
-  "status": "open",
+  "status": "done",
   "title": "check_synced_unmodified _manifest_lists: type(e).__name__ at :168 runs outside the inner guard, so a manifest exception whose metaclass __name__ calls sys.exit(0) escapes main() and ends the check GREEN over a drifted file (same class as the str(e) hole the inner try closes)"
 }

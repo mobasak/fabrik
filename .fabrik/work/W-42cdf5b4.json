@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — quoted false bool edge",
   "status": "open",
-  "tags": [
-    "waits-quota-reset"
-  ],
   "title": "watchdog driver: raw-dict bool(wcfg['auto_tier_b']) renders a quoted \"false\" as Tier B ON"
 }
