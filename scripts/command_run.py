@@ -1817,20 +1817,26 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     the live top-level folders escape. A symlink and a plain file are skipped. Runs AFTER the record lock
     drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
     a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
-    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the seat count
-    times `deadline_s`. Never changes the exit code or the record."""
+    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
+    times `deadline_s` (measured 2026-10-18: at most 32 top-level folders in a live run folder, 0.31 s
+    warm). An entry that cannot be examined is skipped, never the rest of the folder's lines. Never
+    changes the exit code or the record."""
     lines: list[str] = []
     try:  # `glob` answered a vanished or unreadable folder with nothing; `iterdir` raises
         entries = sorted(Path(run_scratch).iterdir())
     except OSError:
         return lines
     for seat in entries:
-        if seat.is_symlink() or not seat.is_dir():
-            continue
-        # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an archive
-        # extraction, the remedy this line recommends, never the defect. Known by its sibling's
-        # MANIFEST.json (a content test, not a name), so a hand-made `x.base` is still measured.
-        if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
+        try:  # an unsearchable run folder makes the stat raise: skip that entry, keep the rest
+            if seat.is_symlink() or not seat.is_dir():
+                continue
+            # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an
+            # archive extraction, the remedy this line recommends, never the defect. Known by its
+            # sibling's MANIFEST.json (a content test, not a name), so a hand-made `x.base` is
+            # still measured.
+            if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
+                continue
+        except OSError:
             continue
         try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
             out = subprocess.run(
@@ -1847,7 +1853,7 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
             continue
         if size > threshold:
             lines.append(
-                f"{seat.name}: {size / 1024**2:.1f} MB — copied a tree instead of archive/clone"
+                f"{seat.name}: {size / 1024**2:.1f} MB — a copied tree? an archive or clone is leaner"
             )
     return lines
 

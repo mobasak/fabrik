@@ -1162,7 +1162,9 @@ def test_round_reports_large_seat_folders(tmp_path: Path, case: str) -> None:
     assert out.returncode == 0, out.stdout + out.stderr
     lines = [ln for ln in out.stdout.splitlines() if ln.startswith("seat-1:")]
     if case == "over":
-        assert lines == ["seat-1: 3.0 MB — copied a tree instead of archive/clone"], out.stdout
+        assert lines == ["seat-1: 3.0 MB — a copied tree? an archive or clone is leaner"], (
+            out.stdout
+        )
     elif case == "deadline":
         assert lines == ["seat-1: size unmeasured — over the deadline"], out.stdout
     else:
@@ -1203,10 +1205,42 @@ def test_every_top_level_directory_of_the_run_folder_is_measured(tmp_path: Path)
         (tmp_path / name).mkdir()
         (tmp_path / name / "copy.bin").write_bytes(big)
     (tmp_path / "brief.md").write_bytes(big)  # a file at the top level is no folder
-    (tmp_path / "linked").symlink_to(tmp_path / "seat-1")  # a symlink is never followed
+    (tmp_path / "linked").symlink_to(tmp_path / "seat-1")  # a symlink is never measured
     lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
     named = sorted(ln.split(":", 1)[0] for ln in lines)
     assert named == [".hidden", "pins-p1", "probe", "seat-1", "seat2-opus"], lines
+
+
+def test_a_symlinked_folder_is_never_handed_to_du(tmp_path: Path, monkeypatch) -> None:
+    """`du -s` does not follow a symlink, so the output alone cannot tell whether the skip ran
+    (review pass 1, C1): the observable is that `du` is never spawned on it."""
+    run = tmp_path / "run"  # its own folder: the conftest pins isolation dirs into tmp_path
+    (run / "real").mkdir(parents=True)
+    (run / "linked").symlink_to(run / "real")
+    seen: list[str] = []
+
+    def fake_run(cmd, **kw):
+        seen.append(Path(cmd[-1]).name)
+        return subprocess.CompletedProcess(cmd, 0, stdout="5\t" + cmd[-1] + "\n", stderr="")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    cr._seat_size_lines(str(run), threshold=1024, deadline_s=5.0)
+    assert seen == ["real"], seen
+
+
+def test_an_unsearchable_run_folder_never_raises(tmp_path: Path) -> None:
+    """A readable but unsearchable folder (mode 0444) lists its names but every stat raises
+    EACCES: the advisory skips those entries and returns, never raises past its caller's
+    `suppress` and loses the folder's other lines (review pass 1, Ah-C1)."""
+    if os.geteuid() == 0:
+        pytest.skip("root bypasses mode 0444")
+    run = tmp_path / "run"
+    (run / "seat-1").mkdir(parents=True)
+    run.chmod(0o444)
+    try:
+        assert cr._seat_size_lines(str(run), threshold=1, deadline_s=5.0) == []
+    finally:
+        run.chmod(0o755)
 
 
 def test_a_ledger_pin_base_extraction_is_exempt_but_a_hand_made_base_is_not(tmp_path: Path) -> None:
