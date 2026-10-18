@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
+
+- `commands/_sources/fabrik-review.md`: after "apply the lines of the probe catalogue", the same sentence
+  `/fabrik-review-scoped` carries: § Seat isolation applies whole in every brief that runs tests or imports pinned
+  code, from an archive whose roots are derived from what the tests import, read or run. Two rows reported seats
+  staging a partial tree; three earlier answered rejects cited the catalogue line. A test pins both copies equal.
+
 ### Changed — /fabrik-repo-review keeps its batch pins in the durable SCRATCH: folder (2026-10-18)
 
 - `commands/_sources/fabrik-repo-review.md`: each batch's `pins_dir` goes under the run's `SCRATCH:` folder

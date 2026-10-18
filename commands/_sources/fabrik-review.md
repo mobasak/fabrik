@@ -149,7 +149,13 @@ that a change re-exposes are in scope).
 Before every pin, the first and each delta, and in every brief, apply the lines of
 `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE (not installed — the hub
 path resolves from every repo): the probes, hunt lines, grader, prose-fix, isolation and bookkeeping steps earlier
-runs found missing.
+runs found missing. Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or
+imports pinned code: the tests run from an archive of the pin's base SHA, never the live tree or HEAD, and the
+archive roots are derived from what the tests import, read or run, every path expression in the test files, the
+scripts they run by subprocess and what those scripts read included, never a hand-listed path set — the recipe is
+the seat prompt's `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo's
+`.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the
+pytest config with the roots).
 
 **Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
 (D4): `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface>
