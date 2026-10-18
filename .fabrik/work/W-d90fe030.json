@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T13:58:54.331387Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-d90fe030",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "add fable to _MODEL_TOK with a red-first test over a receipt whose last Pass row names only fable×1; full /fabrik-review (enforcement path, fleet-synced)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: blocking bug, the review grader refuses a valid Fable-only closing seat; one pattern in check_review_coverage.py",
   "status": "open",
   "tags": [
     "enforcement"

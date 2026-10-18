@@ -67,7 +67,9 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 ## Phase 1 — MEASURE
 
 FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
-a reconstruction. Then, before phase 2 and any edit, each command and its output goes to
+a reconstruction, and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it
+names; a miss is a finding PROBLEM states, never the item's wording (MIRROR greps every name the design uses
+again). Then, before phase 2 and any edit, each command and its output goes to
 `<durable>/measure.md`, beside phase 2's `design.md`, never in
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
 import, grade or run the declared files (grep the tests for each file's name and every mode or flag

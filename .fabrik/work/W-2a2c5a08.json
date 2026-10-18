@@ -3,7 +3,7 @@
   "created": "2026-09-30T09:21:15.464401Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "514ea6a84a5bcc96cdbdac4c44f9e91247df3020",
   "id": "W-2a2c5a08",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — template crash on host make dev",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "scaffold"

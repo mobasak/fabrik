@@ -3,7 +3,7 @@
   "created": "2026-10-17T21:58:16.202070Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "33ba5be02875da705c701565c677b526480d095d",
   "id": "W-2b657bee",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-956 bug that blocks every vps1 deploy from this box; a deployer fallback, few files",
-  "status": "open",
+  "status": "done",
   "tags": [
     "deploy",
     "waits-operator-env-jump-line"

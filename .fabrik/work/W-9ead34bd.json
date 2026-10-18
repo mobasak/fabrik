@@ -3,7 +3,7 @@
   "created": "2026-10-03T20:31:25.183708Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5de4b531b90d22a188295aa49c76601e1291412b",
   "id": "W-9ead34bd",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — registrar env never reaches canonical-compose containers",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "queued"

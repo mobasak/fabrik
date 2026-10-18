@@ -3,7 +3,7 @@
   "created": "2026-10-17T09:23:28.024446Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ee2d8e4ba0a4d7499d971554782701ec2a706153",
   "id": "W-6f690b90",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — scaffold compose config fails in fresh checkout, audits and CI red",
-  "status": "open",
+  "status": "done",
   "title": "Scaffold composes with a short-form env_file (.env required) refuse docker compose config in a fresh checkout: the audit-jobs companion (_append_audit_jobs_service, every db-enabled python-api/file-worker/chrome-extension/mobile-app) and the three saas services; found by the W-9ead34bd review (seat 2 executed: \"env file .../.env not found\", rc 1)"
 }

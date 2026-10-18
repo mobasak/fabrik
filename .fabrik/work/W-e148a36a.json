@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:40:35.077185Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e148a36a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57JZCN0BEQNCHEF3TKQAGZW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Relay to trade-intelligence (their dev runtime, not ours to restart)."
+}
