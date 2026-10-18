@@ -116,10 +116,14 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
         "a slice batch IS a round",
         "contract and fallback",
     )
-    assert "`scratch_dir` (this run's `RUN-SCRATCH:` folder" in batch
     assert (
-        "(`pins_dir` goes under the run's `SCRATCH:` folder, the path after `SCRATCH: ` on that line, kept on disk"
-        " across a WSL shutdown (D-836), or the session scratchpad when `start` printed no `SCRATCH:` line);"
+        "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on"
+        " the line `start` printed (a trailing `(adopted from …)` is not part of it)"
+    ) in batch
+    assert (
+        "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
+        " `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed"
+        " no `SCRATCH:` line);"
     ) in batch
 
 
