@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T06:46:46.058171Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-881752ec",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "in _scaffold_file_worker's Makefile patch, rewrite the health target to run FILE_WORKER_HEARTBEAT_CHECK against the dev heartbeat (.tmp/worker_heartbeat), with a grader",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "LOW: a scaffolded file-worker's 'make health' curls /health it does not serve; developer convenience, no runtime effect",
   "status": "open",
   "tags": [
     "fleet"
