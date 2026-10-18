@@ -1819,7 +1819,7 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
     read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
     times `deadline_s` (measured 2026-10-18: at most 32 top-level folders in a live run folder, 0.31 s
-    warm). An entry that cannot be examined is skipped, never the rest of the folder's lines. Never
+    warm). An entry that cannot be examined prints `size unmeasured — cannot be examined`; the others still print. Never
     changes the exit code or the record."""
     lines: list[str] = []
     try:  # `glob` answered a vanished or unreadable folder with nothing; `iterdir` raises
@@ -1827,7 +1827,7 @@ def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> lis
     except OSError:
         return lines
     for seat in entries:
-        try:  # an unsearchable run folder makes the stat raise: skip that entry, keep the rest
+        try:  # an unsearchable run folder makes the stat raise: say so for that entry, keep the rest
             if seat.is_symlink() or not seat.is_dir():
                 continue
             # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an
