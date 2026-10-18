@@ -122,7 +122,7 @@ would spread that invariant across tickets that must merge together anyway.
 
 ### T02 — from `T02-inventory-module.md`
 
-- **Given** a fake connection answering the five queries and max(last_seen), with a fetchone that returns None for an empty answer as the chain suite's fake does and, separately, (None,) as Postgres does, **When** load runs with and without a before_query hook, **Then** it returns rows with balance, unit and credit_at in place of the credit string, synced_at as an epoch float or None in both empty shapes, the hook ran once before each query, and with no hook no other SQL ran (spec § Data flow; tests/test_external_services_chain.py:1096)
+- **Given** a fake connection answering the five queries and max(last_seen), with a fetchone that returns None for an empty answer as the chain suite's fake does and, separately, (None,) as Postgres does, **When** load runs with and without a before_query hook, **Then** it returns rows with balance, unit and credit_at in place of the credit string, synced_at as an epoch float or None in both empty shapes, the hook ran once before each query, with no hook no other SQL ran, and api_keys rows of kind credential, credential-unattributed and code-host give keys 1, unattributed 1 and keys 0 respectively while every one keeps its project in projects (spec § Data flow; scripts/gen_dashboard.py:94)
 - **Given** provider URLs https://ok.example, HTTPS://UP.example, /admin, #x and http://a b, **When** render runs, **Then** only the first carries an href and every other renders as plain text (spec § Validation; scripts/sysadmin/dashboard_ui/components.py:47)
 - **Given** fixture rows covering every census class at census counts, **When** render runs, **Then** the section holds Needs attention, eighteen category tables with the Unidentified table last, the Untriaged queue as one section of 331 list entries and no table row, an unidentified row in both Needs attention and the Unidentified table, and the More counts each equal to its formula (spec § The design items 2-5; spec § Validation)
 - **Given** one row per attention rule (a 49 h credit, unattributed credentials, unidentified, retiring), a 47 h credit, a healthy row, a paid row with no credential, synced_at and classified_at each 49 h old, 47 h old and None, and five and six rows sharing a reason, **When** render runs, **Then** each rule row, both 49 h and both None source cases are entries, the 47 h, healthy and paid-without-credential rows and a stalled classifier over an empty Untriaged queue are not, five rows are listed by name and six collapse into one counted details listing all six (spec § The design item 3; spec § Validation)
@@ -512,6 +512,8 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
   receipt records the number; past the bar, collapse further before any bar change (spec § Risks).
 - Resolved: `scripts/tests/test_registry_sync.py:394` runs only with `REGISTRY_WRITE_TESTS=1`, which writes
   `test_zzz_regsync` rows to the LIVE registry (its skip reason, `:41-44`), so no gate runs it; the shape it reads —
-  `gd.load()` returning the rows list with `provider`, `keys` and `projects` — is covered by T03's chain cases over
-  the fake cursors (`tests/test_external_services_chain.py:1096`, :2459), which run in every T03 gate.
+  `gd.load()` returning the rows list with `provider`, `keys` and `projects` — is guarded by T02's first Behavior
+  row, which feeds a fake cursor `api_keys` rows of each kind and asserts `keys`, `unattributed` and `projects`
+  per provider; T03's chain cases (`tests/test_external_services_chain.py:1117`, :2459-2462) keep `gd.load()`
+  returning the list.
 - Open: the static file's retirement has no owner yet — resolution: T04's close files a work item naming it (spec § Risks).
