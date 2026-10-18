@@ -95,7 +95,10 @@ _PLACEHOLDER_RE = re.compile(
     r"|example\.com|<your|\bNNN\b|\bxxx\b"
 )
 
-_LINK_RE = re.compile(r"\]\(([^)\s]+?)(?:#[^)]*)?\)")
+_TITLE_CLOSE_RE = re.compile(
+    r"""(?:[ \t]+(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\)"""
+)
+_ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _BARE_RE = re.compile(
     r"(?<![\w/-])((?:docs|scripts|src|specs|configs|templates|\.windsurf)/"
     r"[A-Za-z0-9_./-]+?\.(?:md|py|sh|yaml|yml|json|txt))(?![\w.-])"
@@ -173,6 +176,55 @@ def _tracked_md_sources() -> list[Path]:
     return [REPO / p for p in sorted(set(srcs)) if str(Path(p)) not in SOURCE_WAIVERS]
 
 
+def link_targets(text: str):
+    """Yield the destination of every inline link in `text` as CommonMark reads it (W-dd091f0d).
+
+    After `](`: an `<angle>` destination (no newline, no unescaped `<` or `>`) or a bare one with
+    BALANCED parentheses and no whitespace, then an optional whitespace-led title (`"…"`, `'…'` or
+    `(…)`) and the closing `)`. The fragment is dropped and backslash escapes of ASCII punctuation
+    are undone; a link that is not well formed yields nothing. The old `\\]\\(([^)\\s]+?)…\\)`
+    regex truncated `docs/a(b).md` to `docs/a(b` (a false "broken") and never matched a titled or
+    angle link, so a link of either shape to a MISSING file was never examined. check_doc_index
+    carries the same function (no enforcement check imports a sibling); a test in
+    tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
+    n = len(text)
+    i = text.find("](")
+    while i != -1:
+        j = i + 2
+        while j < n and text[j] in " \t":
+            j += 1
+        dest = None
+        if j < n and text[j] == "<":
+            k = j + 1
+            while k < n and text[k] not in "<>\n":
+                k += 2 if text[k] == "\\" else 1
+            if k < n and text[k] == ">":
+                dest, k = text[j + 1 : k], k + 1
+        else:
+            k, depth = j, 0
+            while k < n:
+                c = text[k]
+                if c == "\\":
+                    k += 2
+                    continue
+                if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
+                    break
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            if depth == 0:
+                dest = text[j:k]
+        if dest is not None and _TITLE_CLOSE_RE.match(text, k):
+            dest = _ESCAPED_RE.sub(r"\1", dest.split("#", 1)[0])
+            if dest:
+                yield dest
+        i = text.find("](", i + 2)
+
+
 def _iter_refs(text: str):
     """Yield (target, kind) pairs, skipping fenced code blocks for bare paths."""
     in_fence = False
@@ -192,8 +244,8 @@ def _iter_refs(text: str):
             or "does not exist" in line
         ):
             continue
-        for m in _LINK_RE.finditer(line):
-            yield m.group(1), "link"
+        for target in link_targets(line):
+            yield target, "link"
         if not in_fence:
             for m in _BARE_RE.finditer(line):
                 yield m.group(1), "bare"

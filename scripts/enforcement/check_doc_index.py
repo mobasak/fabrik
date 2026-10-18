@@ -132,6 +132,54 @@ def _pct_decode(text: str) -> str:
     return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
 
 
+_TITLE_CLOSE_RE = re.compile(
+    r"""(?:[ \t]+(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\)"""
+)
+_ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+def link_targets(text: str):
+    """Every inline link destination in `text` as CommonMark reads it — the same function as
+    check_doc_links.link_targets (its docstring carries the why, W-dd091f0d; a test pins the two
+    to one output)."""
+    n = len(text)
+    i = text.find("](")
+    while i != -1:
+        j = i + 2
+        while j < n and text[j] in " \t":
+            j += 1
+        dest = None
+        if j < n and text[j] == "<":
+            k = j + 1
+            while k < n and text[k] not in "<>\n":
+                k += 2 if text[k] == "\\" else 1
+            if k < n and text[k] == ">":
+                dest, k = text[j + 1 : k], k + 1
+        else:
+            k, depth = j, 0
+            while k < n:
+                c = text[k]
+                if c == "\\":
+                    k += 2
+                    continue
+                if c.isspace():  # whitespace only: a NUL stays in the target, which reports it
+                    break
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            if depth == 0:
+                dest = text[j:k]
+        if dest is not None and _TITLE_CLOSE_RE.match(text, k):
+            dest = _ESCAPED_RE.sub(r"\1", dest.split("#", 1)[0])
+            if dest:
+                yield dest
+        i = text.find("](", i + 2)
+
+
 def _printable(text: str) -> str:
     """Render a surrogateescape string safely for a UTF-8 stdout.
 
@@ -340,12 +388,16 @@ def main() -> int:
     index_unq = _pct_decode(index_text)
 
     # (a) INDEX targets exist
-    for m in re.finditer(r"\]\((docs/[^)#\s]+?)(?:#[^)]*)?\)", index_text):
+    # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old
+    # regex truncated `docs/a(b).md` and never saw a titled or angle link to a missing doc.
+    for target in dict.fromkeys(link_targets(index_text)):
+        if not target.startswith("docs/"):
+            continue
         # Percent-DECODED (W-7ae1169a): `%20` alone left every other escape — a literal `%`
         # (`%25`), a `#` (`%23`), a UTF-8 name — with no link spelling direction (b) could agree
         # with; (b) reads the same contract through `index_unq`. The link as WRITTEN still counts
         # when its decoded form is absent, so a file whose real name holds `%XX` stays reachable.
-        raw = m.group(1).rstrip("/")
+        raw = target.rstrip("/")
         t = _pct_decode(raw).rstrip("/")
         state = _target_state(REPO / t)
         if state == "absent" and t != raw and _target_state(REPO / raw) != "absent":
@@ -522,7 +574,8 @@ def main() -> int:
     code_problems: list[str] = []
     if not untracked_only:
         for rel in _added_code_paths():
-            if rel not in index_text:
+            # As written OR percent-decoded — the contract (a) and (b) read (W-dd091f0d).
+            if rel not in index_text and rel not in index_unq:
                 code_problems.append(
                     f"added code file not in INDEX.md: {rel} "
                     "(Doc Sync Matrix: File added/removed/renamed → INDEX.md; the row must name "

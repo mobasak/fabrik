@@ -227,3 +227,87 @@ def test_a_percent_escaped_link_to_a_missing_doc_is_still_reported(
     )
     assert rc == 1, out
     assert "INDEX.md names missing path: docs/gone x.md" in out, out
+
+
+def _links(monkeypatch, tmp_path, capsys) -> list[str]:
+    """Run check_doc_links over the repo `_run` just built and return its broken-ref lines."""
+    import json
+
+    import check_doc_links as cdl
+
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    monkeypatch.setattr(cdl.sys, "argv", ["check_doc_links.py", "--json"])
+    cdl.main()
+    return json.loads(capsys.readouterr().out)["broken"]
+
+
+@pytest.mark.parametrize(
+    ("docs", "index", "missing"),
+    [
+        (["docs/a(b).md"], "- [A](docs/a(b).md)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](docs/g(o)ne.md)\n", "docs/g(o)ne.md"),
+        (["docs/t.md"], '- [T](docs/t.md "Title")\n', None),
+        (["docs/t.md"], '- [T](docs/t.md "Title")\n- [G](docs/gone.md "Title")\n', "docs/gone.md"),
+        (["docs/t.md"], "- [T](docs/t.md 'Title')\n- [G](docs/gone.md (Title))\n", "docs/gone.md"),
+        (["docs/a b.md"], "- [A](<docs/a b.md>)\n", None),
+        (["docs/b.md"], "- [B](docs/b.md)\n- [G](<docs/gone x.md>)\n", "docs/gone x.md"),
+    ],
+    ids=[
+        "paren-live",
+        "paren-missing",
+        "titled-live",
+        "titled-missing",
+        "single-and-paren-titled-missing",
+        "angle-live",
+        "angle-missing",
+    ],
+)
+def test_every_commonmark_link_shape_is_graded_by_both_checks(
+    monkeypatch, tmp_path, capsys, docs: list[str], index: str, missing: str | None
+) -> None:
+    """W-dd091f0d: both INDEX link readers stopped at the first `)` or space. A balanced-paren link
+    to a live doc was truncated (`docs/a(b`) and reported missing; a titled or `<angle>` link never
+    matched, so a link to a MISSING doc was never examined. Direction (a) of check_doc_index and
+    check_doc_links must both read every shape CommonMark renders as a link."""
+    rc, out = _run(monkeypatch, tmp_path, capsys, docs, index)
+    broken = _links(monkeypatch, tmp_path, capsys)
+    if missing is None:
+        assert rc == 0, out
+        assert broken == [], broken
+    else:
+        assert rc == 1, out
+        assert f"INDEX.md names missing path: {missing}" in out, out
+        assert broken == [f"INDEX.md: broken ref -> {missing}"], broken
+
+
+def test_an_added_code_path_indexed_percent_encoded_needs_no_advisory(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    """Direction (c) compared the RAW INDEX text only, so a row linking `scripts/a%20b.py` — the
+    spelling (a) and (b) accept — still earned "added code file not in INDEX.md"."""
+    rc, out = _run(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        ["scripts/a b.py", "scripts/c d.py"],
+        "- [a](scripts/a%20b.py)\n",
+    )
+    assert "added code file not in INDEX.md: scripts/a b.py" not in out, out
+    assert "added code file not in INDEX.md: scripts/c d.py" in out, out  # still graded
+
+
+def test_both_link_readers_find_one_set_of_targets() -> None:
+    """check_doc_index carries its own copy of the reader (no enforcement check imports a sibling);
+    the two must return one output."""
+    import check_doc_links as cdl
+
+    for text in [
+        "[a](docs/a(b).md) and [b](docs/b.md#frag)",
+        "[t](docs/t.md \"T\") [u](docs/u.md 'U') [v](docs/v.md (V))",
+        "[a](<docs/a b.md>) [n](<docs/n.md>)",
+        r"[e](docs/e\(x\).md) [i](![img](docs/i.png)",
+        "[bad](docs/a(b.md [open](docs/x.md",
+        '[x](#only-fragment) [y]() [z](docs/z.md "unterminated)',
+        "",
+    ]:
+        assert list(cdi.link_targets(text)) == list(cdl.link_targets(text)), text
