@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a merge check no longer refuses on tests that read the installed `~/.claude` corpus (2026-10-18)
+
+- `scripts/merge_request.py` runs the owner tests before the merge lands, but the corpus reaches `~/.claude` only at the
+  merge owner's render afterwards, so two hub tests comparing the two could never pass there and refused a branch
+  (W-c3177526, merge request 01M564A4W4). Both owner-test legs now export `FABRIK_MERGE_CHECK=1`.
+- `tests/conftest.py` adds a `live_box` marker and skips such a test inside a merge check only when its own code reads
+  the installed corpus, so the marker alone never skips (D-969). The vision test's render-error check is split out
+  and still runs in every merge check.
+- Graded in `tests/test_merge_request_merge.py` and `tests/test_conftest_isolation.py`; the change's mutants all fail
+  their graders.
+
+### Fixed — the researcher follows WebFetch redirects and pages long pages before an absence verdict (2026-10-18)
+
+- `commands/_agents/fabrik-researcher.md` gains a sixth fetch-path shape: `WebFetch` returns a cross-host
+  redirect unfollowed, so the seat fetches the named target, and it reads a long page in windows marked by a
+  note the tool appends, so the seat pages on with `offset` before claiming something is absent; an unfinished
+  chain or tail is a `NEEDS-RAW-FETCH`, never an absence (both measured 2026-10-18, W-eb9db7c0).
+- Rule 3 no longer says exa refuses JSON: it has also fetched JSON raw, so JSON goes to `WebFetch` first and
+  then to exa once before a `NEEDS-RAW-FETCH`. Graded in `tests/test_agent_definitions.py`.
+
 ### Fixed — `check_doc_links.py` no longer reads the decision ledger as a link source (2026-10-18)
 
 - A `docs/DECISIONS.md` row minted with a DRAFT plan cites files that do not exist yet, and rows are immutable, so a

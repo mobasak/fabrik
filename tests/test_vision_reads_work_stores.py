@@ -22,6 +22,7 @@ first had been extended, so the step that actually OPENS the files never named t
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
@@ -174,6 +175,32 @@ def test_edited_sources_render_clean_and_within_skill_cap():
             assert len(desc) <= SKILL_CAP, f"{name}: composed description {len(desc)} > {SKILL_CAP}"
 
 
+def test_assemble_commands_check_renders_cleanly_in_an_empty_home(tmp_path):
+    """The tree-only half of the `--check` invariant, split out of the live-box test below so a
+    merge check — which skips that one (W-c3177526) — still catches a render error: in an EMPTY
+    home every installed file is missing, yet the render itself must not crash, report a RENDER
+    ERROR, or leave a fan-out without its D-191 dispatch step."""
+    home = tmp_path / "home"
+    for sub in ("commands", "skills", "agents"):
+        (home / ".claude" / sub).mkdir(parents=True)
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env["HOME"] = str(home)
+    result = subprocess.run(
+        [sys.executable, str(ASSEMBLER), "--check"],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert "Traceback" not in result.stderr, f"--check crashed:\n{result.stderr}"
+    assert "RENDER ERRORS" not in result.stdout, f"--check hit a render error:\n{result.stdout}"
+    assert "without the D-191 dispatch step" not in result.stdout, result.stdout
+    assert result.returncode == 1 and "MISSING in" in result.stdout, result.stdout + result.stderr
+
+
+@pytest.mark.live_box
 def test_assemble_commands_check_reports_no_render_error_and_only_expected_drift():
     """`assemble_commands.py --check` diffs the render against the INSTALLED corpus
     (`~/.claude/commands`) — from a worktree whose two sources are edited but not yet

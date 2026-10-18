@@ -3,7 +3,7 @@
   "created": "2026-10-17T23:51:30.754942Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "824d693bb6dcc954e78b801d25ee4f54e69e986d",
   "id": "W-c3177526",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-956 bug blocking merges of every agent-definition change; few-file fix in merge_request.py or the test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "rules"
