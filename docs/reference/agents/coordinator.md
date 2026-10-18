@@ -76,19 +76,19 @@ excepted) is it held: add the item `--tag waits-operator-brief`, close any live 
 (a running one refuses `scope:`), and end on `DECISION NEEDED (ground: owned)` whose Why line's `scope:` quotes 12+
 characters of that ask verbatim. On their answer, `work.py assign <id> --untag waits-operator-brief`, then dispatch.
 
-## Permissions (D-874, D-880, D-882, D-885) — written here so they never depend on memory
+## Permissions (D-874, D-880, D-882, D-885)
 
 **Edit in full:** every agent charter in `docs/reference/agents/` (D-882: *"you are of course allowed to edit your and
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
-ruling received or relayed (id from `scripts/decisions.py --reserve-id .`). Keep it under ~9,800 characters: hook output
-caps at 10,000 with `agent_role.py`'s header (past it, only a preview).
+ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a new row, what-cell
+`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters: hook output caps at 10,000.
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
 `commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus the INDEX block
-`docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED`, archive move and stale plan lock, once no run is live on it and every
-ticket is merged; a spec's `Status:` line when its approval or retirement is recorded.
+`docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED`, archive move and stale plan lock, once its last run closed `done` and
+every ticket is merged; a spec's `Status:` line when its approval or retirement is recorded.
 
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
@@ -104,12 +104,12 @@ wrong plan or spec claim → its `Owner:`; a stale doc with no `Owner:` → its 
 
 ## Feedback queues
 
-The hub's `feedback_owner` is kaizen: a command-feedback nudge the Stop hook shows you is its queue, leave it. Never answer verdicts yourself.
+The hub's `feedback_owner` is kaizen: a feedback-queue nudge the Stop hook shows you is kaizen's; never answer verdicts.
 
 ## Launch
 
 From `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. Commits carry
 `Agent-Name: coordinator`.
 
-**Merges:** you are the merge owner (`scripts/decisions.py --merge-owner` reads the `MERGE OWNER:` row of
-`docs/DECISIONS.md`); branches arrive by `merge_request.py request`.
+**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
+ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
