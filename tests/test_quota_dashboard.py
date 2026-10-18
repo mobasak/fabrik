@@ -18,6 +18,7 @@ import html
 import html.parser
 import importlib.util
 import json
+import math
 import os
 import re
 import signal
@@ -2708,6 +2709,22 @@ def test_the_childs_stdout_and_exit_status_are_one_outcome(
     assert qd._inventory_outcome(stdout, code) == want
 
 
+def test_the_board_reads_synced_at_by_the_pages_rule(tmp_path, monkeypatch):
+    """W-a4bc74a6 (R27): the board had its own `_epoch`, which admitted a `synced_at` the page's
+    refuses (no calendar holds it), so a payload the page renders as no time was a FRESH read here.
+    One rule now: the page's. A real child already applies it, so only a foreign payload meets this."""
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui import inventory
+
+    assert qd._epoch is inventory._epoch
+    for synced in (b"1e308", b"253402300799"):
+        payload = b'{"rows": [], "synced_at": ' + synced + b"}"
+        assert qd._inventory_outcome(payload, 0) == ("err", "ReadFailed: exit status 0"), synced
+    outcome = qd._inventory_outcome(b'{"rows": [], "synced_at": -0.0}', 0)
+    assert outcome == ("ok", [], 0.0)
+    assert math.copysign(1.0, outcome[2]) == 1.0  # `==` above ignores the sign of zero
+
+
 def test_a_child_that_cannot_import_psycopg2_is_only_the_inventory_sections_error_state(
     tmp_path, monkeypatch
 ):
@@ -2851,6 +2868,9 @@ def test_the_child_reports_a_read_as_one_json_object_with_floats_for_decimals(mo
     class Conn:
         closed = False
 
+        def set_session(self, **kw):
+            pass
+
         def close(self):
             self.closed = True
 
@@ -2903,7 +2923,7 @@ def test_the_child_re_arms_the_statement_timeout_to_the_deadline_left_never_belo
             self.sql.append(sql)
 
     cur = Cur()
-    conn = type("Conn", (), {"close": lambda self: None})()
+    conn = type("Conn", (), {"close": lambda self: None, "set_session": lambda self, **kw: None})()
     monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
 
     def load(c, *, before_query=None):
@@ -2918,6 +2938,55 @@ def test_the_child_re_arms_the_statement_timeout_to_the_deadline_left_never_belo
         (stmt,) = cur.sql
         ms = int(re.fullmatch(r"SET LOCAL statement_timeout = (\d+)", stmt).group(1))
         assert low <= ms <= high, (deadline_in, ms)  # 0 would DISABLE the bound in Postgres
+
+
+def test_the_child_reads_the_registry_in_one_read_only_snapshot(monkeypatch):
+    """W-a4bc74a6 (R15): under READ COMMITTED each of `load()`'s six statements took its own
+    snapshot, so a read straddling `registry_sync`'s one-transaction commit showed pre-sync rows
+    stamped with the post-sync `synced_at` (read last) — and the board keeps a read 60 s. The child
+    asks for REPEATABLE READ, read-only, BEFORE the first statement: one snapshot for the six."""
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    events: list = []
+
+    class Conn:
+        def set_session(self, **kw):
+            events.append(("set_session", kw))
+
+        def close(self):
+            events.append(("close", None))
+
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: Conn())
+
+    def load(c, *, before_query=None):
+        events.append(("load", None))
+        return [], None
+
+    monkeypatch.setattr(inventory, "load", load)
+    monkeypatch.setattr(sys, "stdout", _OneWrite())
+    assert child.main(["x", "--deadline", repr(time.time() + 4)]) == 0
+    assert events == [
+        ("set_session", {"isolation_level": "REPEATABLE READ", "readonly": True}),
+        ("load", None),
+        ("close", None),
+    ]
+    # a session the driver refuses is an error object AND a closed connection, never a leaked one
+    events.clear()
+
+    def refuse(self, **kw):
+        events.append(("set_session", kw))
+        raise RuntimeError("set_session cannot be used inside a transaction")
+
+    monkeypatch.setattr(Conn, "set_session", refuse)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(["x", "--deadline", repr(time.time() + 4)]) == 1
+    assert json.loads(out.writes[0]) == {
+        "error": "RuntimeError: set_session cannot be used inside a transaction"
+    }
+    assert [e for e, _ in events] == ["set_session", "close"]  # load never ran; close did
 
 
 @pytest.mark.parametrize(
@@ -2947,7 +3016,13 @@ def test_the_child_closes_the_connection_and_reports_the_first_line_when_the_rea
     from dashboard_ui import inventory
 
     conn = type(
-        "Conn", (), {"closed": False, "close": lambda self: setattr(self, "closed", True)}
+        "Conn",
+        (),
+        {
+            "closed": False,
+            "close": lambda self: setattr(self, "closed", True),
+            "set_session": lambda self, **kw: None,
+        },
     )()
     monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
 

@@ -53,6 +53,9 @@ and office-extension scaffolds no longer carry it. The README now says to wire `
 rate-limited endpoint; a backend chat route is the planned replacement.
 D-1005 (W-ab242b11 slice 1).
 
+### Fixed — the external-services inventory shows one plan whole, survives a NULL project, and reads one snapshot (2026-10-19)
+The whole-plan review's residue (W-a4bc74a6), six rows fixed and three dropped with their reasons. In `scripts/sysadmin/dashboard_ui/inventory.py`: a service with two subscriptions now shows the last-added plan WHOLE, where a column-by-column merge could show one plan's price beside another's renewal. The key read is ordered, so the FIRST email wins. A NULL `used_by_projects` element is skipped instead of failing the whole read, and `_epoch` no longer returns `-0.0`. `scripts/sysadmin/inventory_read.py` reads the registry in one read-only REPEATABLE READ snapshot. The board (`scripts/sysadmin/quota_dashboard.py`) reads the child's `synced_at` by the page's own `_epoch`, so the two agree on what a time is. Plus a misnamed test renamed.
+
 ### Fixed — the identifier-regex grader is green again: it allowlists the dashboard's pattern hand-off (2026-10-18)
 `tests/test_identifier_checks_fullmatch.py` had been red on master since the dashboard plan's T02: `quota_dashboard.py` hands `_SLUG_RE.pattern` / `_EMAIL_RE.pattern` to the Accounts view, and the grader counted every non-`.fullmatch` load as a stray. A `HAND_OFFS` allowlist now admits exactly `data.update(slug_re=…)` and `data.update(email_re=…)`, once each. Every graded regex must be one module-level `re.compile(<literal>)` binding: an assignment, parameter, import alias, `def`, `except … as` or `match` capture rebinding it is refused. A listed regex carries no flags, since `.pattern` drops them. A new test renders the Accounts view with the production literals and proves a slug or email with a trailing newline gets no control and no pending row.
 

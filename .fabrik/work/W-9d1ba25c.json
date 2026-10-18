@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure: after /clear, command_run line/round/done, final_gate_stop and work.py release all read the new sid; design adoption by cwd+agent+window, /fabrik-task",
+  "next": "measured 2026-10-18 in window sid 8a498855 (after /clear from 7e6fef18): command_run line/round/done needed --session on every verb; merge_request request PARTIAL (work.py release refused the old claim); the review close counted 0 seats seen; and the Stop hook's unreviewed-work cause named 4 files the full /fabrik-review under 7e6fef18 covered (receipt efef94f9e). Design: adopt a running record and its covered windows by cwd+agent+window across /clear, /fabrik-task",
   "note": "",
   "owner": "infra",
   "priority": 2,
