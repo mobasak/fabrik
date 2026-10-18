@@ -339,9 +339,9 @@ def test_measure_greps_a_work_items_cited_line_before_the_design_takes_its_wordi
     wording about a cited file:line that did not hold the symbol the item named."""
     assert (
         "a failure reported with a command is replayed by that command, never a reconstruction, and a work item's cited"
-        " `path:line` is grepped here, in the cited file, for the symbol it names, and a failure it cites there is"
-        " replayed on a copy (a grep hit can sit in dead code); a miss, or a replay that does not fail, is a finding"
-        " PROBLEM states, never the item's wording (MIRROR greps every name the design uses again)."
+        " `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or error path it claims there is"
+        " replayed on a copy carrying the state it needs (a grep hit can sit in dead code); a miss, or a replay that does not fail, is a finding"
+        " PROBLEM states, never the item's wording, and a replay that cannot reach the state it needs is recorded unverified, never as refuted (MIRROR greps every name the design uses again)."
     ) in _section("## Phase 1", "## Phase 2")
 
 
@@ -349,6 +349,6 @@ def test_a_phase_2_critique_naming_an_unsettled_second_approach_is_the_upgrade_c
     """Row 1792339442: phase 2 asked seats for a second approach the build cannot settle but gave no disposition, so a
     yes was folded in as ACCEPTED and phase 4 raised the same yes as UPGRADE after the build."""
     assert (
-        "A seat naming a second approach the build cannot settle is the § UPGRADE crossing, taken here before"
+        "A second approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed, is the § UPGRADE crossing `tradeoffs`, taken here before"
         " `--design`, never folded in as ACCEPTED."
     ) in _section("## Phase 2", "## Phase 3")

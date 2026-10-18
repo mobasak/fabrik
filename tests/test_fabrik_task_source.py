@@ -115,7 +115,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-1008 (kaizen, 2026-10-18): 23744 -> 24006 — MEASURE replays a work item's cited failure on a copy beside the
 # grep (a grep hit can sit in dead code; row 1792348018, a recurrence); a phase-2 seat naming a second approach the
 # build cannot settle is the UPGRADE crossing before --design (row 1792339442).
-SIZE_CAP = 24006
+# D-1011 (kaizen, 2026-10-18): 24006 -> 24209 — supersedes D-1008's figure: the replay names the state it needs and
+# records an unreachable one unverified, never refuted; the phase-2 crossing carries the equivalent-implementation
+# guard, its seat's claim executed, and the `tradeoffs` token (review round 1 on rows 1792348018, 1792339442).
+SIZE_CAP = 24209
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
