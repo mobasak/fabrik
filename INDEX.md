@@ -361,7 +361,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:18 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:20 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -450,7 +450,6 @@ docs/
 │   │   ├── 2026-10-15-plan-2-apply-template-defaults-parity.md
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
-│   │   ├── 2026-10-18-plan-2-saas-chat-auth.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
