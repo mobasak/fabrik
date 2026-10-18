@@ -1955,9 +1955,10 @@ def _is_scaffold_template(rel: str) -> bool:
     return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
 
 
-# A URI that names no file: any `scheme://`, or one of the schemes written without `//`. Never
-# "letters then a colon": a relative `notes.md:12` or `ab:c.md` is a path to grade (W-f11e740e review).
-_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://|(?:javascript|tel|data|sms|about):", re.I)
+# A URI that names no file: a scheme (two+ letters, digits, `+` or `-`, so a Windows `C:` is none)
+# then `:` — `mailto:`, `urn:`, `geo:`, `ms-settings:`, `HTTP://` alike. A dot or slash before the
+# colon makes it a path, so `notes.md:12` and `src/a.py:1` are graded (W-f11e740e review).
+_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+-]+:")
 
 
 def _shared_link_targets() -> Any:

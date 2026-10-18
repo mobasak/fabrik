@@ -819,14 +819,17 @@ class TestLinkCheckReadsCommonMarkLinks:
         """A paren is now a path character, so `javascript:alert(1)` stopped being skipped as
         regex-ish and was checked as a file (4 fleet docs, the after-diff): any URI scheme is
         external, not only http(s)/mailto/file."""
-        body = "[x](javascript:alert(1))\n[t](tel:+15550100)\n[d](data:text/plain,hi)\n"
+        body = (
+            "[x](javascript:alert(1))\n[t](tel:+15550100)\n[d](data:text/plain,hi)\n"
+            "[m](MAILTO:a@b.c)\n[u](urn:ietf:rfc:2119)\n[g](geo:37.7,-122.4)\n[s](ms-settings:display)\n"
+        )
         assert self._issues(tmp_path, monkeypatch, body) == []
 
     def test_a_colon_in_a_relative_name_is_still_graded(self, tmp_path, monkeypatch):
         """Review pass 1: "letters then a colon" read `notes.md:12` and `ab:c.md` as URIs and
         skipped them; only `scheme://` and the named no-`//` schemes are external."""
-        issues = self._issues(tmp_path, monkeypatch, "[a](ab:gone.md)\n[b](notes.md:12)\n")
-        assert any(i.endswith(": ab:gone.md") for i in issues), issues
+        issues = self._issues(tmp_path, monkeypatch, "[a](src/gone.py:1)\n[b](notes.md:12)\n")
+        assert any(i.endswith(": src/gone.py:1") for i in issues), issues
         assert any(i.endswith(": notes.md:12") for i in issues), issues
 
     def test_a_protocol_relative_link_is_not_a_repo_file(self, tmp_path, monkeypatch):

@@ -412,3 +412,10 @@ def test_a_four_backtick_fence_body_is_skipped():
     assert ("docs/nope-four.md", "bare") not in refs
     assert ("docs/nope-four-link.md", "link") not in refs
     assert ("docs/nope-after.md", "link") in refs
+
+
+def test_an_inline_triple_backtick_span_does_not_open_a_fence():
+    """Review pass 2: a line-leading ```x``` span is inline code; read as a fence opener it hid every
+    link below it, which the pre-change check still graded."""
+    text = "```x``` is inline\n[x](docs/nope-after.md)\n"
+    assert ("docs/nope-after.md", "link") in list(cdl._iter_refs(text))

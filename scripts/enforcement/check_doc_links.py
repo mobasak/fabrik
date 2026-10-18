@@ -259,6 +259,10 @@ def link_targets(text: str):
         i = text.find("](", close.end())
 
 
+# A backtick run, text, then the same run: an inline code span on one line, not a fence opener.
+_INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
+
+
 def _iter_refs(text: str):
     """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
 
@@ -267,11 +271,14 @@ def _iter_refs(text: str):
     bare paths always used — any line starting with ``` opens or closes one — kept on purpose: a
     CommonMark fence model (run length, ~~~, info strings) measured 16 NEW findings fleet-wide, all a
     shared lessons-learnt template whose fences only balance by this toggle, so it waits on that
-    template (W-f11e740e review residue). Cost, stated: a fence that is never closed stops grading
-    links and bare paths to the end of the file."""
+    template (W-f11e740e review residue). One exception: a line-leading inline span that closes on its
+    own line (```` ```x``` ````) is inline code, never a fence — it would hide every link below it.
+    Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
+    file."""
     in_fence = False
     for line in text.splitlines():
-        if line.lstrip().startswith("```"):
+        stripped = line.lstrip()
+        if stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped):
             in_fence = not in_fence
             continue
         # documented-stale convention: a line carrying the warning marker or an
