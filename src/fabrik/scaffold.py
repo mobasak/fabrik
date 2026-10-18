@@ -2790,6 +2790,29 @@ def cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
 '''
 
+# Appended to the emitted docs/CONFIGURATION.md by _scaffold_saas_skeleton (W-ab242b11).
+_SAAS_CHAT_CONFIGURATION_MD = """
+## Chat (`POST /api/v1/chat`)
+
+Read only by `server/src/<pkg>/chat.py`. Signed-in users only; Redis (`REDIS_URL`) required.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — (secret) | The model key. Empty means chat answers 503. Never a `NEXT_PUBLIC_` name. |
+| `OPENROUTER_MODEL` | — | The model id. Empty means chat answers 503. |
+| `CHAT_RATE_APP` | `1200/3600` | `<count>/<seconds>` for the whole app. |
+| `CHAT_RATE_TENANT` | `600/3600` | Per tenant. |
+| `CHAT_RATE_USER` | `60/3600` | Per signed-in user. |
+| `CHAT_RATE_IP` | `120/3600` | Per client IP (IPv6 per /64). |
+| `CHAT_MAX_TOKENS` | `1024` | Max output tokens per request. |
+| `CHAT_MAX_MESSAGE_CHARS` | `4000` | Longest message accepted (400 above it). |
+| `CHAT_MAX_BODY_BYTES` | `65536` | Largest request body (413 above it). |
+| `CHAT_UPSTREAM_READ_TIMEOUT` | `60` | Seconds to wait between streamed chunks. |
+| `TEST_REDIS_URL` | — | `server/tests/test_chat.py` only: a throwaway Redis, never DB 0, never `REDIS_URL`. |
+
+A malformed `CHAT_*` value fails the app at start.
+"""
+
 # The emitted chat route (W-ab242b11 slice 2; spec docs/superpowers/specs/2026-10-18-saas-skeleton-
 # chat-auth-design.md). Raw so the emitted source keeps its own "\n" escapes.
 _SAAS_CHAT_PY = r'''"""Chat for __NAME__ that only a signed-in, rate-limited user can spend.
@@ -4808,6 +4831,12 @@ def _scaffold_saas_skeleton(
     # fall back to this same project name; a deployed .env is built from the spec, not from here).
     with (project_dir / ".env.example").open("a") as f:
         f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
+    # The chat route's variables (W-ab242b11). _scaffold_shared seeds docs/CONFIGURATION.md first, but
+    # _should_seed_doc can skip it for a type, so append when it exists and write it new when not.
+    configuration = project_dir / "docs" / "CONFIGURATION.md"
+    configuration.parent.mkdir(parents=True, exist_ok=True)
+    with configuration.open("a") as f:
+        f.write(_SAAS_CHAT_CONFIGURATION_MD)
 
     # Emit the multi-tenant FastAPI backend under server/ (Phase 1) and the
     # three-service compose (web + api + worker) that fronts it (Phase 6).

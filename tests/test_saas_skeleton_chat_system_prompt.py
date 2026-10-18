@@ -8,7 +8,7 @@ rate-limited backend chat route is the planned replacement (slice 2).
 
 What slice 2 OWES, the red-list its backend tests must cover (round-1 findings F5 and F11,
 `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-round1-findings.md`):
-- the upstream payload is exactly ``{model, messages, stream}``. No field in
+- the upstream payload is exactly ``{model, messages, stream, max_tokens}``. No field in
   ``SLICE2_HOSTILE_FIELDS`` reaches the model;
 - the system message comes only from a server constant: an empty one sends no system message, and a
   set one is sent verbatim, before the user's message;
@@ -73,14 +73,23 @@ def test_the_template_ships_only_the_health_route():
     assert not [str(p) for p in files if "pages" in p.parts or p.stem == "middleware"]
 
 
+# Slice 2 (W-ab242b11): only these two may name the key, because the backend chat reads it from the
+# root .env. They are still scanned for a browser-exposed key name and for the deleted Next route.
+_KEY_DOCS = {".env.example", "README.md"}
+
+
 def test_no_template_file_names_the_chat_route_or_the_key():
     """The README, .env.example and ChatUI once described the route and the key it spent. Any
-    OpenRouter reference counts (a URL, OPENROUTER_MODEL, prose), not only one variable name."""
-    hits = [
-        str(p.relative_to(TEMPLATE))
-        for p in _template_files()
-        if "api/chat" in (t := p.read_text(errors="ignore")) or "openrouter" in t.lower()
-    ]
+    OpenRouter reference counts (a URL, OPENROUTER_MODEL, prose), not only one variable name;
+    `.env.example` and `README.md` may document the backend's key, never expose it to the browser."""
+    hits = []
+    for p in _template_files():
+        rel = str(p.relative_to(TEMPLATE))
+        text = p.read_text(errors="ignore")
+        if "api/chat" in text or "NEXT_PUBLIC_OPENROUTER" in text.upper():
+            hits.append(rel)
+        elif rel not in _KEY_DOCS and "openrouter" in text.lower():
+            hits.append(rel)
     assert hits == []
 
 
@@ -103,7 +112,41 @@ def test_a_fresh_scaffold_ships_no_chat_route(project_type, tmp_path):
     assert not (project / "templates" / "saas-skeleton" / "app" / "api" / "chat").exists()
     env_example = project / ".env.example"
     assert env_example.is_file()  # never a vacuous pass on a scaffold that stopped emitting it
-    assert "openrouter" not in env_example.read_text().lower()
+    assert "next_public_openrouter" not in env_example.read_text().lower()
+    assert "OPENROUTER_API_KEY=" in env_example.read_text()  # uncommented: _detect_secrets lists it
+
+
+# Paths a key-name scan of an emitted project skips: the emitted tests, the fleet-synced scripts
+# (scripts/rivals_run.py names the key for its own use), docs and every markdown file, .env.example,
+# which documents it, and the vendored fastapi-user-auth package (its _dotenv.py docstring names the
+# key in prose about fabrik-lib's pool; vendored code is not the app's).
+_SCAN_SKIP_DIRS = ("server/tests/", "scripts/", "docs/", "server/src/fastapi_user_auth/")
+
+
+@pytest.mark.skipif(
+    not (scaffold.FABRIK_LIB_DIR / "app-audit-log").is_dir(),
+    reason="fabrik-lib/app-audit-log is not beside FABRIK_ROOT; the saas backend scaffold needs it",
+)
+@pytest.mark.parametrize("project_type", _TEMPLATE_TYPES)
+def test_only_the_backend_chat_module_names_the_key(project_type, tmp_path):
+    """Of every emitted file, only server/src/<pkg>/chat.py contains OPENROUTER_API_KEY. The scan
+    covers the root config files too: an `env:` entry in next.config.js would inline the key into
+    the client bundle."""
+    scaffold.create_project(
+        name="p-chat", description="d", base=tmp_path, project_type=project_type, generate_spec=False
+    )
+    project = tmp_path / "p-chat"
+    hits = []
+    for p in project.rglob("*"):
+        rel = p.relative_to(project).as_posix()
+        if not p.is_file() or _BUILD_DIRS.intersection(p.relative_to(project).parts):
+            continue
+        if rel.startswith(_SCAN_SKIP_DIRS) or "/." in f"/{rel}" or rel.endswith((".md", ".env.example")):
+            continue
+        if "OPENROUTER_API_KEY" in p.read_text(errors="ignore"):
+            hits.append(rel)
+    chat = [h for h in hits if h.startswith("server/src/") and h.endswith("/chat.py")]
+    assert len(chat) == 1 and hits == chat, hits
 
 
 def test_no_template_file_offers_a_client_system_prompt():

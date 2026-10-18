@@ -2,13 +2,13 @@
 
 ## Overview
 
-A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and chat UI components (no chat endpoint yet).
+A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and a signed-in, rate-limited chat (`POST /api/v1/chat`).
 
 ## Features
 
 - **Marketing Site**: Landing, pricing, FAQ, terms, privacy pages
 - **App Shell**: Sidebar navigation, dashboard, job workflow
-- **Chat UI**: SSE streaming components; wire them to an authenticated, rate-limited endpoint (none ships)
+- **Chat**: SSE streaming components wired to the backend's authenticated, rate-limited `POST /api/v1/chat`
 - **Self-hosted auth (Pattern A)**: the FastAPI backend (`server/`) is the IdP — issues its own JWTs via the vendored `fastapi_user_auth` (Argon2, refresh rotation, jti denylist, tenant RLS) on `postgres-main` + `redis-main`
 
 ## Quick Start
@@ -69,23 +69,48 @@ See `docs/QUICKSTART.md` for build instructions and local development, and `CLAU
 
 ### Chat UI Component
 
-The template ships the `ChatUI` / `SSEStream` components and **no chat endpoint**. A model call spends
-the app's own provider key, so it must sit behind a signed-in session and a rate limit; an
-authenticated, rate-limited backend chat route is planned (W-ab242b11). Until it lands, wire
-`ChatUI` only to an endpoint that checks the session and limits the caller:
+The backend serves chat at `POST /api/v1/chat` (`server/src/<pkg>/chat.py`). Only a signed-in user
+can spend the app's model key, and every request is rate-limited:
 
 ```tsx
 import { ChatUI } from "@/components/chat";
 
 export default function ChatPage() {
-  return (
-    <ChatUI endpoint="<your authenticated chat endpoint>" placeholder="Ask anything..." />
-  );
+  return <ChatUI endpoint="/api/v1/chat" placeholder="Ask anything..." />;
 }
 ```
 
-`ChatUI` sends only `{ message }` and renders the `text_delta` / `done` / `error` SSE events it
-receives; the model's instructions belong to the server, never to the request.
+`ChatUI` sends only `{ message }` with the session cookie and the `X-CSRF-Token` header, and renders
+the `text_delta` / `done` / `error` SSE events it receives. The model's instructions are the server
+constant `CHAT_SYSTEM_PROMPT`, never part of the request.
+
+### Turning chat on
+
+1. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (in the spec's `secrets.from_env` or `.env`). Either
+   one empty means chat answers 503.
+2. Keep `shape.needs_cache: true` (the default), so `REDIS_URL` is set. Without Redis, chat answers 503.
+3. Put the app's public URL in the origin allowlist web login already uses (`AUTH_ALLOWED_ORIGINS`,
+   else `CORS_ORIGINS` plus `NEXT_PUBLIC_APP_URL`). A chat request from an origin outside it is a 403.
+4. Set a USD `limit` on the OpenRouter key itself. That caps spend on OpenRouter's side whatever the
+   app does.
+
+The template ships no login page: chat needs one, through `/auth/login/web` or passwordless.
+
+### Limits and cost
+
+Four buckets must all pass, checked together before any is counted: the whole app
+(`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600), the user
+(`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per /64). A full bucket answers
+429 with `Retry-After`. At the defaults the app produces at most 1200 × 1024 = 1,228,800 output
+tokens per hour; multiply by your model's price to get the ceiling in money.
+
+`CHAT_MAX_TOKENS` (default 1024) bounds each reply. On a reasoning model it covers the reasoning and
+the visible reply together, so a small value can return an empty reply that stopped at the limit;
+raise it there.
+
+Anyone with an email address can sign up while passwordless auto-signup is on, and a bot that mints
+users can fill the app bucket and refuse everyone until the hour ends. Set
+`AUTH_PASSWORDLESS_AUTO_SIGNUP=false` when sign-up should not be open.
 
 ### Kilo CLI for Development
 
@@ -133,6 +158,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 #   DATABASE_URL=postgresql://…@postgres-main:5432/<db>
 #   REDIS_URL=redis://redis-main:6379/0
 #   JWT_SECRET=<32+ char secret>
+#   OPENROUTER_API_KEY=, OPENROUTER_MODEL=   chat (see "Turning chat on" above)
+#   CHAT_RATE_*, CHAT_MAX_*, CHAT_UPSTREAM_READ_TIMEOUT   chat limits (see "Limits and cost")
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS
