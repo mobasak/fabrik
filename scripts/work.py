@@ -2912,9 +2912,15 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
     01M55ZNVH7: a worktree render rewrote 433 rows of a block its branch then merges)."""
     _require_store(repo)
     here = bool(getattr(args, "here", False))
-    why = _render_refusal(repo)  # asked once, before any write (review A-opus-5)
-    if why and not here:
-        raise WorkError(why)
+    elsewhere, linked = _render_refusal(repo)  # asked once, before any write (review A-opus-5)
+    if elsewhere:  # `--here` renders the caller's OWN tree only — never one `--repo` names
+        raise WorkError(elsewhere)
+    if linked and not here:
+        raise WorkError(
+            f"render refused: this is a linked worktree ({repo}). The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge. Change an item "
+            "here with `work.py edit <id>`; `render --here` renders this tree's own store anyway"
+        )
     path = repo / _BACKLOG_REL
     if not path.is_file():
         # T09 review A-O5: a repo with no backlog file is a no-op, not an error — T10's adoption
@@ -2948,39 +2954,43 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
         print(f"work: render — updated {_rel(repo, path)}")
     else:
         print(f"work: render — {_rel(repo, path)} already current")
-    if why:  # only `--here` reaches this with a refusal
+    if linked:  # only `--here` reaches this in a linked worktree
         print("work: render --here — this block is this tree's view — do not commit it")
     return 0
 
 
 def _is_file_inside(repo: Path, value: str) -> bool:
     """True when ``value`` (repo-relative or absolute) names a regular file inside ``repo``. Never
-    raises: a name the filesystem refuses (too long, a NUL) is simply not a file inside."""
+    raises: a name the filesystem refuses (too long, a NUL) or a symlink loop is simply not a file
+    inside."""
     try:
         target = (repo / value).resolve()
         return target.is_relative_to(repo.resolve()) and target.is_file()
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
         return False
 
 
-def _render_refusal(repo: Path) -> str | None:
-    """Why ``render`` must not write here, or None: the block is the main checkout's view of the main
-    store, so a linked worktree, or a caller whose own tree is not ``repo``, is refused."""
-    if _is_linked_worktree(repo):
-        where = f"this is a linked worktree ({repo})"
-    else:
-        try:
-            caller = _repo_root(Path.cwd())
-        except WorkError:
-            caller = None
-        if caller == repo:
-            return None
-        where = f"the caller is in {Path.cwd()}, not in {repo}"
-    return (
-        f"render refused: {where}. The backlog block is the main checkout's view of the main store "
-        "and is rendered there, at merge. Change an item here with `work.py edit <id>`; "
-        "`render --here` renders this tree's own store anyway"
-    )
+def _render_refusal(repo: Path) -> tuple[str | None, bool]:
+    """``(elsewhere, linked)``, both answered before ``render`` writes. ``elsewhere`` is the refusal when
+    the caller's own tree is not ``repo`` (``--repo`` naming another tree, a cwd outside any repo or
+    one that no longer exists) — refused even with ``--here``, which renders only the caller's own
+    tree. ``linked`` is True in a linked worktree, refused there unless ``--here``."""
+    try:
+        cwd: Path | None = Path.cwd()
+    except OSError:
+        cwd = None
+    try:
+        caller = None if cwd is None else _repo_root(cwd)
+    except WorkError:
+        caller = None
+    if caller != repo:
+        where = "a directory that no longer exists" if cwd is None else str(cwd)
+        return (
+            f"render refused: the caller is in {where}, not in {repo}. The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge, from inside that "
+            "tree; `render` (with or without `--here`) never writes a tree the caller is not in"
+        ), False
+    return None, _is_linked_worktree(repo)
 
 
 def _block_body_norm(body: str) -> str:
@@ -3231,7 +3241,10 @@ def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
                 f"edit {item['id']} refused: its links is not a mapping ({type(current).__name__}) — "
                 "repair the item file by hand first"
             )
-        merged = {**{key: current.get(key, "") for key in LINK_KEYS}, **current, **links}
+        merged = {**current, **links}
+        for key in LINK_KEYS:  # every LINK_KEYS value is a string, the shape `add` writes
+            if not isinstance(merged.get(key), str):
+                merged[key] = ""
         for key in unlink:
             merged[key] = ""
         return merged

@@ -412,3 +412,85 @@ def test_no_git_call_after_the_write_can_fail_edit_or_render(tmp_path, monkeypat
     written["yes"] = False
     assert work.main(["render", "--here"]) == 0
     assert item_id in (tree / BACKLOG).read_text(encoding="utf-8")
+
+
+# ── review pass 2 (fixup 2): A-opus-1/2/3, A-sonnet-1, B-haiku-1/4 ────────────────────────────
+
+
+def test_here_renders_only_the_callers_own_tree(tmp_path):
+    """`--here` never writes a tree the caller is not in: with `--repo` naming another tree it is
+    refused like a plain render, from a linked tree and from outside any repo."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _add(repo, env, "Main row")
+    tree = _linked(repo, env, tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    before = (repo / BACKLOG).read_bytes()
+    for cwd in (tree, outside):
+        r = run(["--repo", str(repo), "render", "--here"], env, cwd)
+        assert r.returncode == 1, (cwd, r.stdout)
+        assert "not in" in r.stderr, r.stderr
+        assert "do not commit" not in r.stdout
+        assert (repo / BACKLOG).read_bytes() == before
+
+
+def test_render_refuses_cleanly_when_the_cwd_is_gone(tmp_path, monkeypatch):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    work = _work_module()
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.chdir(repo)
+
+    def gone():
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr(work.Path, "cwd", staticmethod(gone))
+    before = (repo / BACKLOG).read_bytes()
+    for args in (["--repo", str(repo), "render"], ["--repo", str(repo), "render", "--here"]):
+        with pytest.raises(work.WorkError, match="not in"):
+            work.cmd_render(work._repo_root(str(repo)), work._parser().parse_args(args))
+    assert (repo / BACKLOG).read_bytes() == before
+
+
+def test_a_symlink_loop_is_a_warning_never_a_crash(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    (repo / "docs" / "loopa").symlink_to("loopb")
+    (repo / "docs" / "loopb").symlink_to("loopa")
+    r = run(["edit", item_id, "--link", "plan=docs/loopa"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert "not a file inside" in r.stderr
+    assert (
+        json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))["links"]["plan"]
+        == "docs/loopa"
+    )
+
+
+def test_edit_writes_every_link_as_a_string(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item_id = _add(repo, env)
+    path = _item_file(repo, item_id)
+    item = json.loads(path.read_text(encoding="utf-8"))
+    item["links"] = {"spec": None, "plan": "docs/p.md", "decision": 7}
+    path.write_text(json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    r = run(["edit", item_id, "--unlink", "plan"], env, repo)
+    assert r.returncode == 0, r.stderr
+    links = json.loads(path.read_text(encoding="utf-8"))["links"]
+    assert links == {"decision": "", "plan": "", "spec": ""}, links
+
+
+def test_edit_changes_a_task_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    r = run(["add", "--kind", "task", "--title", "A task"], env, repo)
+    assert r.returncode == 0, r.stderr
+    item_id = Path(r.stdout.strip().splitlines()[-1]).stem
+    r = run(["edit", item_id, "--title", "Renamed task"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert (
+        json.loads(_item_file(repo, item_id).read_text(encoding="utf-8"))["title"] == "Renamed task"
+    )
