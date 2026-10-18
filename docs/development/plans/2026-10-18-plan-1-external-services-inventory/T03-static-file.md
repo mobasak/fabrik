@@ -34,8 +34,8 @@ Docs: `docs/reference/external-services-registry.md` (the chain table, the dashb
   calls still work. `main()` calls `_read()` then `render(...)` inside today's single `try`
   (`scripts/gen_dashboard.py:308-315`), so any failure prints the one typed line and exits 1.
 - `gen_dashboard.credit_cell(bal, unit, fetched, now=None)` — today's datetime signature (the chain tests call it
-  with three arguments and with `Decimal` balances, `tests/test_external_services_chain.py:1643-1650`, :2419-2420),
-  converting the balance to `float` and the datetimes to epoch seconds before delegating to `inventory.credit_cell`; `gen_dashboard.STALE_AFTER_H` re-exported.
+  with three arguments, with `Decimal` balances at `tests/test_external_services_chain.py:1643-1650` and float ones at
+  :2419-2420), converting the balance to `float` and the datetimes to epoch seconds before delegating to `inventory.credit_cell`; `gen_dashboard.STALE_AFTER_H` re-exported.
 
 ## Behavior Contract
 - **Given** a fixture registry and the test's timezone pinned (TZ set and time.tzset), **When** gen_dashboard writes the static file, **Then** it holds no script element, no src attribute, only https provider hrefs, the inlined app.css, a Registry synced line with date, time and zone, and Registry never synced when synced_at is None (spec § Validation; spec § The design item 1)

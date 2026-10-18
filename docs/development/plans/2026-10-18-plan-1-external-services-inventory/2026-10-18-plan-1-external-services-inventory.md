@@ -99,7 +99,7 @@ would spread that invariant across tickets that must merge together anyway.
 - T01 kept — eight rows, one invariant: the filter's state machine (select, open, record, hide, inverse, swap) lives in
   one `app.js` function family and its components; split, the inverse would be reviewed apart from what it inverts.
 - T02 kept — eight rows, one module: one reader and one renderer whose fixtures share every census class.
-- T03 kept — six rows, one CLI: the generator's output and its exit paths, with the retirement that its `CSS`/`HELPERS`
+- T03 kept — seven rows, one CLI: the generator's output and its exit paths, with the retirement that its `CSS`/`HELPERS`
   removal forces in the same commit (`scripts/dashboard_server.py:26` imports them).
 - T04 kept — the Integration ticket. Its live wiring is indivisible: the collector, the section and the board suites'
   stub land together, or every Services render in those suites reads the live registry in between. Its route half
@@ -509,6 +509,8 @@ Fixed point: not claimed — `/fabrik-plan-review` converges this set.
   join bounds the whole read whatever the socket does.
 - Open: the 4,000 px height is still the spec's estimate — resolution: T04's browser test measures the section and the
   receipt records the number; past the bar, collapse further before any bar change (spec § Risks).
-- Open: `scripts/tests/test_registry_sync.py:394` runs only with `REGISTRY_WRITE_TESTS=1` — resolution: T03's gate step
-  runs it once with that variable set against the dev registry.
+- Resolved: `scripts/tests/test_registry_sync.py:394` runs only with `REGISTRY_WRITE_TESTS=1`, which writes
+  `test_zzz_regsync` rows to the LIVE registry (its skip reason, `:41-44`), so no gate runs it; the shape it reads —
+  `gd.load()` returning the rows list with `provider`, `keys` and `projects` — is covered by T03's chain cases over
+  the fake cursors (`tests/test_external_services_chain.py:1096`, :2459), which run in every T03 gate.
 - Open: the static file's retirement has no owner yet — resolution: T04's close files a work item naming it (spec § Risks).
