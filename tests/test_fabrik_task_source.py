@@ -112,7 +112,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # before the design takes the item's wording (row 1792330126, a recurrence of held measure-refuted-ticket-premise).
 # D-999 (kaizen, 2026-10-18): 23706 -> 23744 — supersedes D-998: the cited-line grep runs in the cited file and a
 # miss is a finding PROBLEM states, never the item's wording (review round 1 on row 1792330126).
-SIZE_CAP = 23744
+# D-1008 (kaizen, 2026-10-18): 23744 -> 24006 — MEASURE replays a work item's cited failure on a copy beside the
+# grep (a grep hit can sit in dead code; row 1792348018, a recurrence); a phase-2 seat naming a second approach the
+# build cannot settle is the UPGRADE crossing before --design (row 1792339442).
+SIZE_CAP = 24006
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
