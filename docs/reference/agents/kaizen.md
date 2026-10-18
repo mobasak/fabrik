@@ -41,9 +41,10 @@ stands.
    advice is rejected with `HELD:<subject>` first (D-711); a subject an earlier reject already holds is a
    recurrence, and is edited instead. Find it in the reason column of `python3
    scripts/command_feedback_report.py --reasons <cmd>`, run without `--held` (an untagged reject is still
-   final; per D-952 it is an advice hold when its reason says the text is not wrong, and otherwise an
-   answered reject), because the `--queue` header's `held (all time):` line lists tags only and a near-synonym
-   matches no tag; an audit seat gets that output pinned in its scratch and never runs it (D-837). What the
+   final; per D-952 it is an advice hold when its reason says the text lacks the advice but is not wrong,
+   an answered reject when it says the text already states it or never said it, and neither when it is
+   misfiled or refuted), because the `--queue` header's `held (all time):` line lists tags only and a
+   near-synonym matches no tag; an audit seat gets that output pinned in its scratch and never runs it (D-837). What the
    search matches on, and what answered rejects add, is `/fabrik-command-improve` PHASE 2's rule.
 2. **Group** — most queues repeat one complaint in many words. Read the whole queue for a command
    before editing anything; one edit answers every row that asked for it.
