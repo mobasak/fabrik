@@ -764,6 +764,7 @@ def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> No
     fix cited a hub-only fragment, a pointer that resolves nowhere in the fleet."""
     cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     assert (
-        "never as a check for that one input; a pointer the fix writes is opened from every repo the surface ships"
-        " to, since a fleet-synced file that cites a hub-only path resolves nowhere in the fleet; the Pass Ledger's"
+        "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
+        " `scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
+        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet; the Pass Ledger's"
     ) in cov
