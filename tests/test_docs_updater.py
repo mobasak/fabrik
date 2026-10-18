@@ -811,7 +811,9 @@ class TestLinkCheckReadsCommonMarkLinks:
         monkeypatch.setitem(sys.modules, "scripts.enforcement.check_doc_links", None)
         issues = self._issues(tmp_path, monkeypatch, "[g](gone.md)\n")
         assert any("gone.md" in i for i in issues), issues
-        assert "link_targets unavailable" in capsys.readouterr().out
+        captured = capsys.readouterr()
+        assert "link_targets unavailable" in captured.err  # stdout carries only the report
+        assert "link_targets unavailable" not in captured.out
 
     def test_a_uri_scheme_link_is_not_a_file(self, tmp_path, monkeypatch):
         """A paren is now a path character, so `javascript:alert(1)` stopped being skipped as
@@ -819,3 +821,19 @@ class TestLinkCheckReadsCommonMarkLinks:
         external, not only http(s)/mailto/file."""
         body = "[x](javascript:alert(1))\n[t](tel:+15550100)\n[d](data:text/plain,hi)\n"
         assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_a_colon_in_a_relative_name_is_still_graded(self, tmp_path, monkeypatch):
+        """Review pass 1: "letters then a colon" read `notes.md:12` and `ab:c.md` as URIs and
+        skipped them; only `scheme://` and the named no-`//` schemes are external."""
+        issues = self._issues(tmp_path, monkeypatch, "[a](ab:gone.md)\n[b](notes.md:12)\n")
+        assert any(i.endswith(": ab:gone.md") for i in issues), issues
+        assert any(i.endswith(": notes.md:12") for i in issues), issues
+
+    def test_a_protocol_relative_link_is_not_a_repo_file(self, tmp_path, monkeypatch):
+        assert self._issues(tmp_path, monkeypatch, "[c](//cdn.example.com/x.js)\n") == []
+
+    def test_two_links_to_one_missing_target_report_it_once(self, tmp_path, monkeypatch):
+        """The shared reader's line holds no link text, so duplicates would print identically."""
+        issues = self._issues(tmp_path, monkeypatch, "[a](gone.md)\nand [b](gone.md)\n")
+        assert issues == [i for i in issues if i.endswith(": gone.md")]
+        assert len(issues) == 1, issues

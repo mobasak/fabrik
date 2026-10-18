@@ -404,7 +404,11 @@ def test_the_same_link_outside_a_fence_is_still_graded():
     assert ("docs/nope-open.md", "link") in list(cdl._iter_refs(text))
 
 
-def test_an_inline_triple_backtick_span_does_not_open_a_fence():
-    """A line-leading ```x``` span is inline code, not a fence: a link after it is still graded."""
-    text = "```x``` is inline\n[x](docs/nope-after.md)\n"
-    assert ("docs/nope-after.md", "link") in list(cdl._iter_refs(text))
+def test_a_four_backtick_fence_body_is_skipped():
+    """Review pass 1: the round-0 guard made a ```` ```` ```` opener (a backtick after its first
+    three) no fence, so its body was graded — bare paths included, which were skipped before."""
+    text = "````md\nSee docs/nope-four.md\n[x](docs/nope-four-link.md)\n````\n[y](docs/nope-after.md)\n"
+    refs = list(cdl._iter_refs(text))
+    assert ("docs/nope-four.md", "bare") not in refs
+    assert ("docs/nope-four-link.md", "link") not in refs
+    assert ("docs/nope-after.md", "link") in refs

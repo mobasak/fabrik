@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T19:20:25.692059Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-55905ee1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "allow one line ending in the whitespace before a title and before ')' per CommonMark, in BOTH copies (the parity test pins them), with a test of each shape",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "link_targets (check_doc_links + check_doc_index copies): a title or the closing paren after a line break is not read (_TITLE_CLOSE_RE allows only space/tab), so docs_updater, which feeds whole documents, skips such a link that its regex fallback graded (W-f11e740e review, slice A Haiku)"
+}

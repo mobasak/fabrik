@@ -262,15 +262,16 @@ def link_targets(text: str):
 def _iter_refs(text: str):
     """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
 
-    A fenced link is a code EXAMPLE, so it is not graded (W-f11e740e; measured over 44 /opt repos:
-    it removed none of the 315 findings and stopped examining 3 resolving example links). A line
-    opens or closes a fence only when it starts with ``` and holds no further backtick, so a
-    line-leading inline span (```` ```x``` ````) is not a fence. Cost, stated: a fence that is never
-    closed stops grading to the end of the file, as it already did for bare paths."""
+    A fenced link is a code EXAMPLE, so it is not graded (W-f11e740e: over 44 /opt repos it removed
+    none of the findings and stopped examining 3 resolving example links). The fence is the toggle
+    bare paths always used — any line starting with ``` opens or closes one — kept on purpose: a
+    CommonMark fence model (run length, ~~~, info strings) measured 16 NEW findings fleet-wide, all a
+    shared lessons-learnt template whose fences only balance by this toggle, so it waits on that
+    template (W-f11e740e review residue). Cost, stated: a fence that is never closed stops grading
+    links and bare paths to the end of the file."""
     in_fence = False
     for line in text.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith("```") and "`" not in stripped[3:]:
+        if line.lstrip().startswith("```"):
             in_fence = not in_fence
             continue
         # documented-stale convention: a line carrying the warning marker or an

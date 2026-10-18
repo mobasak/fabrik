@@ -1955,14 +1955,16 @@ def _is_scaffold_template(rel: str) -> bool:
     return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
 
 
-# RFC 3986 scheme then `:`, two letters at least so a Windows drive (`C:`) is not one.
-_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]+:")
+# A URI that names no file: any `scheme://`, or one of the schemes written without `//`. Never
+# "letters then a colon": a relative `notes.md:12` or `ab:c.md` is a path to grade (W-f11e740e review).
+_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://|(?:javascript|tel|data|sms|about):", re.I)
 
 
 def _shared_link_targets() -> Any:
     """check_doc_links.link_targets — the CommonMark link reader the gate and check_doc_index use
-    (W-f11e740e) — or None, said once, when neither import path resolves (a repo whose synced
-    scripts/enforcement is missing), so the advisory row still runs on the old regex."""
+    (W-f11e740e) — or None when neither import path resolves (a repo whose synced
+    scripts/enforcement is missing), said on stderr each time it is asked, so the advisory row still
+    runs on the old regex and stdout carries only the report."""
     try:
         from enforcement.check_doc_links import link_targets
     except ImportError:  # imported as scripts.docs_updater — scripts/ not on sys.path
@@ -1971,7 +1973,8 @@ def _shared_link_targets() -> Any:
         except ImportError:
             print(
                 "docs_updater: link_targets unavailable (scripts/enforcement/check_doc_links.py) "
-                "— links read by the old regex"
+                "— links read by the old regex",
+                file=sys.stderr,
             )
             return None
     return link_targets
@@ -2049,8 +2052,8 @@ def check_link_integrity() -> list[str]:
                 continue
             # Any other URI scheme (`javascript:`, `tel:`, `data:`) is no file either: to the shared
             # reader a paren is a path character, so `javascript:alert(1)` reaches here now.
-            if shared and _URI_SCHEME_RE.match(link_path):
-                continue
+            if shared and (_URI_SCHEME_RE.match(link_path) or link_path.startswith("//")):
+                continue  # `//host/x` is protocol-relative — another host's path, not a repo file
 
             # Skip external Factory doc paths
             if link_path.startswith(external_prefixes):
@@ -2102,7 +2105,11 @@ def check_link_integrity() -> list[str]:
 
             if not target.exists():
                 shown = link_path if link_text is None else f"[{link_text}]({link_path})"
-                issues.append(f"Broken link in {doc.relative_to(PROJECT_ROOT)}: {shown}")
+                issue = f"Broken link in {doc.relative_to(PROJECT_ROOT)}: {shown}"
+                # The shared reader's line carries no link text, so two links to one missing
+                # target in a doc would print twice, identically — report each once.
+                if not (shared and issue in issues):
+                    issues.append(issue)
     return issues
 
 
