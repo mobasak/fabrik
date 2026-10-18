@@ -392,6 +392,127 @@ def test_approval_quotes_must_approve_this_artifact(tmp_path, panel_mode):
     assert "VERDICT" in hook._panel_brief_problem(tr, _BRIEF.format(panel=line))
 
 
+_PLAN = "docs/development/plans/2026-10-17-plan-1-x.md"
+_JOINT = f"{_PLAN} + {_SPEC}"
+
+
+def _joint_brief(heading: str, opus: str, fable: str) -> str:
+    return _BRIEF.format(panel=_approve_line(opus, fable)).replace(
+        f"PANEL APPROVED ({_SPEC})", f"PANEL APPROVED ({heading})", 1
+    )
+
+
+def test_a_joint_plan_and_spec_approval_passes(tmp_path, panel_mode):
+    """W-f253a5eb (mail 01M553BN2D): a joint /fabrik-plan-review approves `<plan> + <spec>`; the
+    verdict's artifact used to stop at the first space, so a joint approval could never pass."""
+    for verdict in (
+        f"VERDICT: sound — {_JOINT}",
+        f"VERDICT: sound-with-changes — `{_JOINT}`",
+        f"VERDICT: sound — {_SPEC} + {_PLAN}",
+        f"VERDICT: sound -- `{_PLAN}` + `{_SPEC}`.",
+        f"VERDICT: sound: {_JOINT} (two notes, both folded)",
+    ):
+        tr = _approving(tmp_path, opus=verdict, fable=verdict)
+        assert hook._panel_brief_problem(tr, _joint_brief(_JOINT, verdict, verdict)) == "", verdict
+
+
+def test_a_joint_heading_refuses_a_partial_wider_or_stitched_verdict(tmp_path, panel_mode):
+    for verdict in (
+        f"VERDICT: sound — {_PLAN}",
+        f"VERDICT: sound — {_JOINT} + docs/other.md",
+        f"VERDICT: sound — {_PLAN} and {_SPEC}",
+        f"VERDICT: unsound — {_JOINT}",
+        f"VERDICT: sound — not {_JOINT}",
+    ):
+        tr = _approving(tmp_path, opus=verdict, fable=verdict)
+        assert "VERDICT" in hook._panel_brief_problem(tr, _joint_brief(_JOINT, verdict, verdict))
+    # a plan-only verdict and a `+ <spec>` bullet on the NEXT line: the quote spans a line break
+    stitched_text = f"VERDICT: sound — {_PLAN}\n+ {_SPEC} is out of scope"
+    quote = f"VERDICT: sound — {_PLAN} + {_SPEC} is out of scope"
+    tr = _approving(tmp_path, opus=stitched_text, fable=stitched_text)
+    assert hook._panel_brief_problem(tr, _joint_brief(_JOINT, quote, quote))
+
+
+def test_an_empty_or_prose_heading_approves_nothing(tmp_path, panel_mode):
+    """An EMPTY heading equalled an unparsed verdict's empty artifact, so it approved anything —
+    `unsound` included; a heading that is not a path list must not shrink to its first path."""
+    unsound = f"VERDICT: unsound — {_SPEC}"
+    tr = _approving(tmp_path, opus=unsound, fable=unsound)
+    for heading in (" ", "`", "``"):
+        assert hook._panel_brief_problem(tr, _joint_brief(heading, unsound, unsound)), heading
+    plan_only = f"VERDICT: sound — {_PLAN}"
+    tr = _approving(tmp_path, opus=plan_only, fable=plan_only)
+    for heading in (f"{_PLAN} and {_SPEC}", f"{_PLAN} & {_SPEC}", f"{_PLAN} — joint review"):
+        assert hook._panel_brief_problem(tr, _joint_brief(heading, plan_only, plan_only)), heading
+
+
+def test_the_refusal_quotes_the_verdict_and_the_heading_paths(tmp_path, panel_mode):
+    verdict = f"VERDICT: sound — {_PLAN}"
+    tr = _approving(tmp_path, opus=verdict, fable=verdict)
+    problem = hook._panel_brief_problem(tr, _joint_brief(_JOINT, verdict, verdict))
+    assert verdict in problem  # whole, never cut at 60 characters
+    # the wanted list comes from the heading's parsed paths — the `ground` prefix also names
+    # them, so assert the template's own segment
+    assert f"— {' + '.join(sorted((_PLAN, _SPEC)))}` — not:" in problem
+
+
+def test_a_both_approve_brief_never_reads_verdicts_from_before_the_operators_last_word(
+    tmp_path, panel_mode
+):
+    """Review round 1 (two seats): the operator-boundary reset cleared the seat texts but not the
+    new per-line stores, so a brief passed on verdicts given BEFORE the operator spoke again."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _user("a new question entirely"),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(
+        tr, _BRIEF.format(panel=_approve_line())
+    )
+
+
+def test_a_quote_that_is_a_prefix_of_a_wider_verdict_line_never_holds(tmp_path, panel_mode):
+    """Review round 1: the seat-text check was a bare substring, so a quote cut from a line naming
+    another file (`….md.bak`) or one more path still passed."""
+    for tail in (".bak", " + docs/other.md"):
+        # each seat's line is its own quoted verdict plus the tail, so ONLY the prefix rule refuses
+        tr = _approving(tmp_path, opus=_V_OPUS + tail, fable=_V_FABLE + tail)
+        problem = hook._panel_brief_problem(tr, _BRIEF.format(panel=_approve_line()))
+        assert "is not in the opus seat's own returned text" in problem, (tail, problem)
+    tr = _approving(tmp_path, opus=f"- {_V_OPUS} (two notes)", fable=f"**{_V_FABLE}**")
+    assert hook._panel_brief_problem(tr, _BRIEF.format(panel=_approve_line())) == ""
+
+
+def test_a_stand_in_both_approve_brief_reads_each_opus_seats_own_line(
+    tmp_path, panel_mode, monkeypatch
+):
+    """The `fable unavailable` path reads the per-line stores too: two distinct opus seats, each
+    quoted from one line of its own text; a stitched quote never holds there either."""
+    monkeypatch.setitem(_MODELS, "t-opus2", "claude-opus-5-5")
+    second = f"VERDICT: sound-with-changes — {_SPEC}"
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-opus2", f"{second}\none note."),
+    )
+    line = f'opus="{_V_OPUS}" fable="{second}" → both-approve (fable unavailable: out of credit)'
+    assert hook._panel_brief_problem(tr, _BRIEF.format(panel=line)) == ""
+    stitched = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _result("t-opus", f"VERDICT: sound —\n{_SPEC}"),
+        _result("t-opus2", f"{second}\none note."),
+    )
+    assert hook._panel_brief_problem(stitched, _BRIEF.format(panel=line))
+
+
 def test_brief_heading_forms(tmp_path, panel_mode):
     """A-S2/C-H1/C-H3: a fenced example is not a brief; extra spacing does not dodge the check;
     one heading never borrows the Panel line written for a later one."""
