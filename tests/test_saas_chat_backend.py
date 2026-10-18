@@ -969,11 +969,15 @@ def test_the_emitted_guard_reads_the_apps_redis_url_from_its_env_files(project, 
         "comment": 'REDIS_URL = "rediss://h:6380/9" # the app\n',
         "crlf": "REDIS_URL=unix:///run/r.sock?db=10\r\n",
         "ignored": "# REDIS_URL=redis://h:6379/1\nTEST_REDIS_URL=redis://h:6379/2\nREDIS_URL=\n",
+        "interpolated": "REDIS_URL=${REDIS_BASE}/5\n",
     }
     paths = []
     for name, text in files.items():
         (tmp_path / name).write_bytes(text.encode())
         paths.append(tmp_path / name)
+    # a latin-1 file (not valid UTF-8) is still read, never skipped
+    (tmp_path / "latin1").write_bytes("# caf\xe9\nREDIS_URL=redis://h:6379/11\n".encode("latin-1"))
+    paths.append(tmp_path / "latin1")
     read = _emitted_guard_ns(project, ())["_dotenv_redis_urls"]
     assert read([*paths, tmp_path / "absent"]) == [
         "redis://h:6379/5",
@@ -982,7 +986,17 @@ def test_the_emitted_guard_reads_the_apps_redis_url_from_its_env_files(project, 
         "redis://h:6379/8",
         "rediss://h:6380/9",
         "unix:///run/r.sock?db=10",
+        "${REDIS_BASE}/5",
+        "redis://h:6379/11",
     ]
+
+
+@pytest.mark.parametrize("app_url", ["${REDIS_BASE}/5", "redis://:pa"])
+def test_the_emitted_guard_refuses_an_app_url_it_cannot_read(project, redis_sock, app_url):
+    # an interpolation, or a URL cut at a `#` in its password: unprovable, so refused
+    guard = _emitted_guard_ns(project, (app_url,))["_require_throwaway"]
+    with pytest.raises(RuntimeError, match="cannot read the app's REDIS_URL"):
+        guard(f"unix://{redis_sock}?db=3")
 
 
 def test_the_emitted_guard_checks_every_app_url_it_found(project, redis_sock):

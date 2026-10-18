@@ -3968,15 +3968,21 @@ def _dotenv_redis_urls(paths: list[Path]) -> list[str]:
     found: list[str] = []
     for path in paths:
         try:
-            lines = path.read_text(encoding="utf-8-sig").splitlines()
-        except (OSError, UnicodeDecodeError):
+            raw = path.read_bytes()
+        except OSError:
             continue
-        for line in lines:
+        # latin-1 never fails and keeps every ASCII URL intact, whatever the file's encoding
+        for line in raw.removeprefix(b"\xef\xbb\xbf").decode("latin-1").splitlines():
             # any dotenv dialect: `export` and its whitespace, spaces round `=`, quotes, a comment
             match = re.match(r"\s*(?:export\s+)?REDIS_URL\s*=(.*)", line)
-            url = match and re.search(r"(?:rediss?|unix)://[^\s\"'#]+", match.group(1))
+            if not match:
+                continue
+            value = match.group(1).strip()
+            url = re.search(r"(?:rediss?|unix)://[^\s\"'#]+", value)
             if url:
                 found.append(url.group(0))
+            elif value.strip("\"'") and not value.startswith("#"):
+                found.append(value)  # an interpolation: kept raw, so the guard refuses it
     return found
 
 
@@ -4022,7 +4028,14 @@ def _require_throwaway(url: str) -> None:
     if db == 0:
         raise RuntimeError(f"TEST_REDIS_URL must name a throwaway logical DB, not DB 0: {url!r}")
     for app_url in _APP_REDIS_URLS:
-        if db != _db(app_url):
+        try:
+            app_db = _db(app_url)
+        except ValueError:
+            raise RuntimeError(
+                f"cannot read the app's REDIS_URL {app_url!r} from its env files, so these tests"
+                " cannot prove TEST_REDIS_URL is not the app's DB; write it as a literal URL"
+            ) from None
+        if db != app_db:
             continue
         # an unknown run_id (unreachable, or a user denied INFO) proves nothing, so it is refused
         app_id, test_id = _server_id(app_url), _server_id(url)
