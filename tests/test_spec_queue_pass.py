@@ -115,3 +115,14 @@ def test_a_build_tool_setting_is_probed_by_a_build_or_its_source() -> None:
         " config file's default included) is settled by a build you run or by the tool's own source read through `gh`"
         " — its docs page locates the setting but never settles it — else it is a named BLOCKING unknown."
     ) in phase
+
+
+def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> None:
+    """Row 1792241971, a recurrence of held researcher-no-shell-counts: a seat quote could not be byte-checked with
+    the raw-fetch tools down, and fabrik-researcher has no shell."""
+    text = _flat(SRC)
+    assert (
+        "the grounder returns CONTENT and its source; **you** run the status probe, and every other shell-only check"
+        " (a count over a fetched file, a seat's quote matched against your own raw fetch when the fetch tools are"
+        " down), from the orchestrator shell"
+    ) in text

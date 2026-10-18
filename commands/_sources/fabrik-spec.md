@@ -273,8 +273,9 @@ build this — never pick an approach from training memory or first instinct:
   deliberately, because it is read-only. So a dispatched grounder CANNOT run
   `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
-  Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
-  from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
+  Division of labour: the grounder returns CONTENT and its source; **you** run the status probe, and
+  every other shell-only check (a count over a fetched file, a seat's quote matched against your own raw
+  fetch when the fetch tools are down), from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
   it answers about a page rather than reporting a code. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
