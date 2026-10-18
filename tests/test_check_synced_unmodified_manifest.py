@@ -245,7 +245,8 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [S("libs/x")]\n',
         _EXIT0 + "class P:\n    __class__ = property(_exit0)\n"
         "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [P()]\n",
-        # Answers the shape check, then exits when `main()` indexes the entry again.
+        # An isinstance shape check would index it clean once and let `main()` index it again into
+        # the exit; the exact-type check refuses the tuple subclass before indexing it.
         _EXIT0 + "class T(tuple):\n    calls = 0\n    def __getitem__(self, i):\n"
         "        T.calls += 1\n        return 'libs/x' if T.calls == 1 else _exit0()\n"
         'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = [T(("libs/x",))]\n',
@@ -256,8 +257,9 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         _EXIT0 + "import sys\nf = sys._getframe()\n"
         "while '_manifest_lists' not in f.f_globals:\n    f = f.f_back\n"
         "class F(f.f_globals['ManifestError']):\n    __str__ = _exit0\nraise F('x')\n",
-        # Iterates clean for the shape check, then hands `main()` a str subclass whose `rstrip`
-        # exits: only an exact list (one that cannot re-iterate differently) is taken.
+        # An isinstance shape check would iterate it clean once, and the second iteration would
+        # hand `main()` a str subclass whose `rstrip` exits; the exact-type check refuses the list
+        # subclass before iterating it.
         _EXIT0 + "class S(str):\n    rstrip = _exit0\nclass L(list):\n    calls = 0\n"
         "    def __iter__(self):\n        L.calls += 1\n"
         "        return iter(['libs/x'] if L.calls == 1 else [S('libs/x')])\n"

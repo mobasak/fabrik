@@ -161,7 +161,7 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
             if type(inner) is KeyboardInterrupt:
                 raise
             detail = "<its message raised too>"
-        raise ManifestError(f"{path} failed to load: {type(e).__name__}: {detail}") from e
+        raise ManifestError(f"{path} failed to load or answer: {type(e).__name__}: {detail}") from e
 
 
 def _main_checkout(project_root: Path) -> Path | None:
