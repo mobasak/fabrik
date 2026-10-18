@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Stop hook: a review whose surface names a commit range no longer blocks its own files (2026-10-19)
+
+- A right-now fix is committed before its review starts. When the review's `--surface` named a range (`range <a>..<b>`) and no file path, the Stop hook still reported the fix's files as unreviewed work, up to three blocked turns per fix. The hook now has git list the files a running review's range changed, in every spelling the hub's commands use (`@{upstream}...HEAD`, `main...HEAD`, `HEAD~3..HEAD`, two commit ids), and exempts them; the uncommitted-work cause reads the same list. A closed review's range counts only between two commit ids. Decision D-1030; item W-42ddde8f (mail 01M55CM91H).
+
 ### Fixed — Stop hook: a joint plan + spec PANEL APPROVED verdict can pass (2026-10-19)
 
 - The design-gate panel check read only the first word after a verdict's dash, so a heading naming a plan and a spec together could never be approved. It now reads the heading's ` + `-joined path list as a set and requires each seat's verdict to name exactly that set, on one line of the seat's own text. A heading with no path, or with prose, approves nothing. Decision D-1029; item W-f253a5eb (mail 01M553BN2D).
