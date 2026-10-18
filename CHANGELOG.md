@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: shell-written briefs quote their backticks; archive roots from every path a test reaches (2026-10-18)
+
+Step 5: a brief or Workflow args file is written with the Write tool or a quoted heredoc, and a grep pattern
+holding a backtick goes unescaped in single quotes (GNU grep reads a backslash-backtick as a start-of-text
+anchor). The archive-roots rule now names where the roots are read from: every path expression in the test
+files and the scripts they run by subprocess. Answers /fabrik-review-scoped rows 1792291162 and 1792288442;
+pinned in `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — round zero rewrites a heuristic one-item picker at its first residue (2026-10-18)
 
 `commands/_fragments/term-coverage.md` rule (3): a function under review that picks ONE item from a list by
