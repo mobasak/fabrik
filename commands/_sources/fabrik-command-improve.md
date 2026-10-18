@@ -22,7 +22,8 @@ five runs, each of which a reader can judge on its own.
   its verdict at its own close and the queue is worked from the hub. An unnamed hub window names
   its role in the commit body.
 - **Driver.** The session running it is on Fable — `/model claude-fable-5-1` before phase 1 if it
-  is not. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
+  is not; `/model` is the operator's to type, so a session that cannot switch itself runs on the model it has
+  and names that model in its FEEDBACK line. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
   `on this account's own Fable window` when the clamp binds), the run is driven on Opus
   (`/model claude-opus-5`), never on a seat model; AMBER on Fable is finish-what-you-started, not a
   switch. The Fable band is raised to this account's own Fable reading whenever that is hotter than
