@@ -46,7 +46,6 @@ import yaml
 from fabrik.drivers.ssh import (
     JumpConfigError,
     _ssh_host,
-    jump_args,
     jump_env_name,
     jump_for,
     parse_hop,
@@ -333,6 +332,7 @@ _NETWORK_STDERR = re.compile(
     r"|network is down|could not resolve|name or service not known",
     re.I,
 )
+_GENERIC_CLOSE = re.compile(r"connection (closed|to \S+ closed)", re.I)
 # an ssh alias as fabrik names one; anything else (a leading "-") never reaches the argv
 _ALIAS = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]*")
 
@@ -357,13 +357,16 @@ def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
     except subprocess.TimeoutExpired:
         return False, True, f"no answer in {timeout + 5}s"
     except OSError as e:
-        return False, False, f"{type(e).__name__}: {e}"
+        return False, False, f"{type(e).__name__}: {e}".rstrip(".")
     if r.returncode == 0:
         return True, False, ""
     lines = [ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()]
     # the line that says WHY (a jumped refusal ends on a generic "Connection closed …")
     cause = next((ln for ln in lines if _NETWORK_STDERR.search(ln)), None)
-    reason = (cause or (lines[-1] if lines else f"rc={r.returncode}, no stderr")).rstrip(".")
+    # else the first line that is not ssh's generic sign-off, which says nothing of why
+    specific = next((ln for ln in lines if not _GENERIC_CLOSE.match(ln)), None)
+    fallback = specific or (lines[-1] if lines else f"rc={r.returncode}, no stderr")
+    reason = (cause or fallback).rstrip(".")
     return False, cause is not None, reason
 
 
@@ -372,11 +375,31 @@ def _batch(timeout: int) -> list[str]:
 
 
 def _hop_destination(hop: str) -> str:
-    """``ssh://[user@]host[:port]`` — the one destination form ssh parses a port from."""
+    """The hop as an ssh destination: ``[user@]host``, or ``ssh://[user@]host:port`` when it
+    carries a port — ssh reads ``host:port`` as a HOSTNAME; the URI is the form it parses."""
     parsed = parse_hop(hop)
-    assert parsed is not None  # jump_for already refused anything else
+    if parsed is None:  # unreachable: jump_for already refused it; never strip to a TypeError
+        return hop
     user, host, port = parsed
-    return f"ssh://{user + '@' if user else ''}{host}{f':{port}' if port else ''}"
+    who = f"{user}@{host}" if user else host
+    return f"ssh://{who}:{port}" if port else who
+
+
+def check_ssh_config(host: str) -> str | None:
+    """The no-network half of the preflight (a dry run runs only this): *host* must be an
+    ssh alias and its jump variable well-formed. Returns the jump, or ``None``.
+
+    Raises:
+        HostUnreachableError: either check failed.
+    """
+    if not _ALIAS.fullmatch(host):
+        raise HostUnreachableError(
+            f"SSH preflight: {host!r} is not an ssh alias (nothing was changed)"
+        )
+    try:
+        return jump_for(host)
+    except JumpConfigError as e:
+        raise HostUnreachableError(f"SSH preflight: {e} (nothing was changed)") from None
 
 
 def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
@@ -397,17 +420,11 @@ def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
             set, the reason and the next step.
     """
     host = host or _ssh_host()
-    if not _ALIAS.fullmatch(host):
-        raise HostUnreachableError(
-            f"SSH preflight: {host!r} is not an ssh alias (nothing was changed)"
-        )
+    jump = check_ssh_config(host)
     var = jump_env_name(host)
-    try:
-        jump = jump_for(host)
-    except JumpConfigError as e:
-        raise HostUnreachableError(f"SSH preflight: {e} (nothing was changed)") from None
     path = f"via jump {jump!r}" if jump else "without a FABRIK jump (as ssh config resolves it)"
-    ok, network, reason = _probe(["ssh", *jump_args(host), *_batch(timeout), host, "true"], timeout)
+    hop = ["-o", f"ProxyJump={jump}"] if jump else []  # the value read once, above
+    ok, network, reason = _probe(["ssh", *hop, *_batch(timeout), host, "true"], timeout)
     if ok:
         if jump:
             _advise_if_direct_back(host, var)
@@ -416,8 +433,9 @@ def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
     if jump:
         hops = jump.split(",")
         first = hops[0]
+        dest = _hop_destination(first)  # what the operator should type, too
         first_ok, first_network, first_reason = _probe(
-            ["ssh", *_batch(timeout), _hop_destination(first), "true"], timeout
+            ["ssh", *_batch(timeout), dest, "true"], timeout
         )
         if first_ok:
             beyond = "a later hop or the leg to" if len(hops) > 1 else "the leg from it to"
@@ -430,11 +448,11 @@ def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
         elif first_network:
             tail = (
                 f" The jump host {first!r} is unreachable too: {first_reason}. Check"
-                f" `ssh {first} true`, or unset {var} if the direct path is back."
+                f" `ssh {dest} true`, or unset {var} if the direct path is back."
             )
         else:
             tail = (
-                f" The jump host {first!r} fails: {first_reason}. Run `ssh {first} true` by"
+                f" The jump host {first!r} fails: {first_reason}. Run `ssh {dest} true` by"
                 " hand to see why."
             )
         msg = head + tail
@@ -474,5 +492,6 @@ __all__: tuple[str, ...] = (
     "verify_dns_before_deployment",
     "restart_traefik_and_wait",
     "HostUnreachableError",
+    "check_ssh_config",
     "verify_host_reachable",
 )

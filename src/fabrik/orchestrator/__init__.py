@@ -12,8 +12,12 @@ from typing import Any
 import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
-from fabrik.drivers.preflight import HostUnreachableError, verify_host_reachable
-from fabrik.drivers.ssh import JumpConfigError, _ssh_host, jump_for
+from fabrik.drivers.preflight import (
+    HostUnreachableError,
+    check_ssh_config,
+    verify_host_reachable,
+)
+from fabrik.drivers.ssh import JumpConfigError, _ssh_host
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
 from fabrik.orchestrator.exceptions import (
@@ -275,9 +279,7 @@ class DeploymentOrchestrator:
                 if probe:
                     verify_host_reachable(host)
                 else:
-                    jump_for(host)
-            except JumpConfigError as e:
-                raise ValidationError(f"SSH preflight: {e}", field="target_vps") from e
+                    check_ssh_config(host)
             except HostUnreachableError as e:
                 raise ValidationError(str(e), field="target_vps") from e
 

@@ -68,7 +68,8 @@ def _ssh_host() -> str:
 
 JUMP_ENV_PREFIX = "FABRIK_SSH_JUMP_"
 """Per-alias opt-in jump (W-2b657bee): ``FABRIK_SSH_JUMP_VPS=vps2`` routes ssh/scp to the
-``vps`` alias through ``vps2`` — here, in ``drivers/dns.py`` and in ``audit._ssh_check``. Unset, the argv is exactly what it was before. Never an
+``vps`` alias through ``vps2`` — here, in ``drivers/dns.py``, in ``audit._ssh_check`` and in
+``preflight.verify_host_reachable``. Unset, the argv is exactly what it was before. Never an
 automatic reroute: a dead path is named by ``preflight.verify_host_reachable`` instead.
 """
 

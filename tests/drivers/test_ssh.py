@@ -177,6 +177,23 @@ class TestJump:
         assert mock_run.call_args[0][0] == ["ssh", "vps2", "true"]
         assert ssh_mod.jump_env_name("vps-1.x") == "FABRIK_SSH_JUMP_VPS_1_X"
 
+    def test_failure_text_names_the_jump_the_call_used(self, monkeypatch):
+        """One read per call: an env change mid-call never makes the message name another jump."""
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+
+        def run(argv, **_kw):
+            monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps3")
+            return MagicMock(returncode=255, stdout="", stderr="boom")
+
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(RuntimeError, match="via jump 'vps2'"):
+                ssh("true")
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(RuntimeError, match="via jump 'vps2'"):
+                scp_to_vps("/tmp/a", "/opt/b")
+
     @pytest.mark.parametrize(
         "value",
         [

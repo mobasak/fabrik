@@ -134,6 +134,16 @@ def test_dry_run_still_refuses_a_malformed_jump(monkeypatch):
     secrets.assert_not_called()
 
 
+def test_dry_run_refuses_a_non_alias_host(monkeypatch):
+    monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "-oProxyCommand=x")
+    orch = _orchestrator()
+    with patch("subprocess.run") as run:
+        ctx = orch.deploy(Path("/tmp/unused.yaml"), dry_run=True)
+    assert ctx.state == DeploymentState.FAILED
+    assert "not an ssh alias" in ctx.error
+    run.assert_not_called()
+
+
 def test_dns_step_never_falls_back_to_cloudflare_on_a_malformed_jump():
     """`_provision_dns` falls back to Cloudflare on ANY DNS-manager error; a bad jump is config."""
     from fabrik.drivers.ssh import JumpConfigError

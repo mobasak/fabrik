@@ -366,6 +366,7 @@ class TestVerifyHostReachable:
             ((255, "ssh: Connection timed out during banner exchange\n"), "banner exchange"),
             (subprocess.TimeoutExpired(cmd="ssh", timeout=15), "no answer in 15s"),
             (OSError("No such file or directory: 'ssh'"), "No such file"),
+            (OSError("No such file or directory."), "No such file or directory."),
         ],
     )
     def test_dead_direct_path_names_alias_path_and_fix(self, answer, reason, monkeypatch):
@@ -376,6 +377,7 @@ class TestVerifyHostReachable:
                 preflight.verify_host_reachable("vps", timeout=10)
         msg = str(info.value)
         assert "'vps'" in msg and "without a FABRIK jump" in msg and reason in msg
+        assert ".." not in msg
         assert "nothing was changed" in msg
         if not isinstance(answer, OSError):
             assert "FABRIK_SSH_JUMP_VPS=" in msg
@@ -399,7 +401,7 @@ class TestVerifyHostReachable:
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
         assert calls[0][0][:3] == ["ssh", "-o", "ProxyJump=vps2"]
-        assert calls[1][0][-2:] == ["ssh://vps2", "true"]
+        assert calls[1][0][-2:] == ["vps2", "true"]
         msg = str(info.value)
         assert "via jump 'vps2'" in msg
         assert "'vps2' answers; the leg from it to 'vps' does not" in msg
@@ -421,6 +423,14 @@ class TestVerifyHostReachable:
                 preflight.verify_host_reachable("vps")
         assert calls[1][0][-2:] == ["ssh://ops@vps2:2222", "true"]
         assert "a later hop or the leg to 'vps' does not" in str(info.value)
+        # the advice names the same destination the probe used (never `ssh ops@vps2:2222`)
+        run, _ = _probe(
+            [(255, "Connection timed out\n"), (255, "Permission denied (publickey).\n")]
+        )
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "Run `ssh ssh://ops@vps2:2222 true` by hand" in str(info.value)
 
     def test_first_hop_auth_failure_gets_no_network_advice(self, monkeypatch):
         monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
@@ -452,6 +462,19 @@ class TestVerifyHostReachable:
             with pytest.raises(preflight.HostUnreachableError) as info:
                 preflight.verify_host_reachable("vps")
         assert "FABRIK_SSH_JUMP_VPS=" not in str(info.value)
+
+    def test_reason_skips_ssh_generic_sign_off(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "channel 0: open failed: administratively prohibited: open failed\n"
+            "stdio forwarding failed\n"
+            "Connection closed by UNKNOWN port 65535\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "administratively prohibited" in str(info.value)
 
     @pytest.mark.parametrize("alias", ["-oProxyCommand=x", "a b", "a;b"])
     def test_non_alias_host_is_refused_before_any_probe(self, alias):
