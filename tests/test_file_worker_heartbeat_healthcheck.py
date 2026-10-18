@@ -301,6 +301,8 @@ def test_a_project_named_like_the_smoke_container_keeps_a_loadable_makefile(tmp_
     [
         ".PHONY: dev docker-smoke\ndev:\n\tuvicorn x.main:app\n",  # a mention, no rule
         "docker-smoke := 1\ndev:\n\tuvicorn x.main:app\n",  # an assignment, no rule
+        "docker-smoke ::= 1\ndev:\n\tuvicorn x.main:app\n",  # GNU make's ::= assignment (W-ab66af6f)
+        "docker-smoke :::= 1\ndev:\n\tuvicorn x.main:app\n",  # and its :::= form
         "docker-smoke\n: x\ndev:\n\tuvicorn x.main:app\n",  # not a rule: the colon is on the next line
     ],
 )

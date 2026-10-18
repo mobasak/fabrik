@@ -5058,8 +5058,8 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         }
         # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
         has_smoke = (
-            re.search(r"(?m)^docker-smoke[ \t]*::?(?!=)", content) is not None
-        )  # a rule, never `:=`
+            re.search(r"(?m)^docker-smoke[ \t]*::?(?![:=])", content) is not None
+        )  # a rule, never an assignment (`:=`, `::=`, `:::=`)
         for old, new in smoke.items() if has_smoke else ():
             if content.count(old) != 1:
                 raise ValueError(
