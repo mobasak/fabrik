@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — rendered commands cite fragments by their hub path (2026-10-18)
+### Fixed — rendered commands cite fragments, sources and seat files by their hub path (2026-10-18)
 
-Five citations of `commands/_fragments/<f>.md` in `fabrik-command-improve.md`, `fabrik-review.md` and
-`fabrik-generate-tests.md` resolved nowhere in a project repo, where the rendered commands also run; they now
-read `/opt/fabrik/commands/_fragments/<f>.md`, as the other citations did. Guarded by
+Twelve citations of `commands/_fragments/`, `commands/_sources/` or `commands/_agents/` files across eight
+command sources and `subagents-core.md` resolved nowhere in a project repo, where the rendered commands also run;
+they now read `/opt/fabrik/commands/<dir>/<f>.md`, as the other citations did. Guarded by
 `tests/test_check_command_corpus.py::test_a_fragment_is_cited_by_its_hub_absolute_path` (W-aeb35e3a).
 
 ### Changed — /fabrik-review-scoped: shell-written briefs quote their backticks; archive roots from every path a test reaches (2026-10-18)

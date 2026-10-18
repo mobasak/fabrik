@@ -269,7 +269,7 @@ build this — never pick an approach from training memory or first instinct:
   exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
   returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
   CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
-  `fabrik-researcher` has `Bash` in its `disallowedTools` (`commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
+  `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
   deliberately, because it is read-only. So a dispatched grounder CANNOT run
   `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
@@ -412,7 +412,7 @@ spec's plan is drafted before it and approved with it).
   takes the full section set; state the profile verdict either way.
 - **`Size: small` (spec § The delta D10) — estimate the diff, skip the review loop.** Before Phase 6,
   estimate the code diff this spec's own deltas will produce using D-169's rule (the same rule
-  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md` § SIZE THE DIFF
+  `/fabrik-plan-after-chat` applies to a plan, `/opt/fabrik/commands/_sources/fabrik-plan-after-chat.md` § SIZE THE DIFF
   BEFORE THE SHAPE): code lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
   `Size: small (≈<lines> lines, <files> files)` on its own line directly under `Status:`** — a separate key
   from `Profile:` above, since `Profile: delta` already names the BRIEF's own shape, not the code estimate.

@@ -103,7 +103,7 @@ central build-vs-buy verdict.
   exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
   returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
   CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
-  `fabrik-researcher` has `Bash` in its `disallowedTools` (`commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
+  `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
   deliberately, because it is read-only. So a dispatched grounder CANNOT run
   `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
   (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
