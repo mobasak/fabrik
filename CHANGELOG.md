@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
+
+- In a linked worktree, `work.py claim` and `release` refused an item whose file the branch did not yet carry. The claim itself is shared state, and items the coordinator makes on the main checkout reach a branch only with a merge.
+  - So `merge_request.py request --item` printed PARTIAL and left the claim held.
+- Both verbs now read the main checkout's copy when the file is missing here, and only then.
+  - A corrupt copy here stays a refusal.
+  - An item this branch deleted (present at the fork point) is never brought back.
+  - `claim` checks the item's blockers in the store that holds it.
+- A write verb (`done`, `drop`, `answer`, `assign`, `verdict`) on such an item now names the merge it needs, instead of a bare `no item` (D-991, W-98204c50).
+
 ### Fixed — merge_request merges work-item files key by key instead of refusing them (2026-10-18)
 
 - `merge_request.py merge` refused a branch whenever the coordinator scored an item on master after its builder closed it on the branch. This happened four times on 2026-10-18.
