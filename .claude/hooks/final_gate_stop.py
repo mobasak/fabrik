@@ -3013,10 +3013,11 @@ _PATH_JOIN_RE = re.compile(r"\s+\+\s+")
 
 
 def _bare_path(token: str) -> str:
-    """``token`` with backticks and trailing ``.,;:)`` stripped until stable (`` `x.md`. `` → x.md)."""
+    """``token`` with backticks, markdown bold and trailing ``.,;:)`` stripped until stable
+    (`` `x.md`. `` and ``x.md**`` → x.md)."""
     prev = None
     while prev != token:
-        prev, token = token, token.strip("`").rstrip(".,;:)")
+        prev, token = token, token.strip("`*").rstrip(".,;:)")
     return token
 
 
@@ -3033,7 +3034,8 @@ def _heading_paths(text: str) -> frozenset[str]:
 
 def _verdict_paths(quote: str) -> frozenset[str]:
     """The paths an APPROVING verdict line names — each ` + `-separated part's first token, so
-    trailing prose is tolerated; only ` + ` joins (a paraphrased joiner fails closed). Empty when the
+    trailing prose is tolerated and only ` + ` splits paths (a part's words after its first token are
+    prose: `<a> and <b>` reads as `<a>` alone, never as two paths). Empty when the
     quote is no approving VERDICT line."""
     v = _PANEL_VERDICT_RE.match(quote)
     if not v:
@@ -3778,6 +3780,7 @@ def _panel_problem(
         )
     quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
     line_local = False  # a both-approve quote is a seat's FIRST LINE: it may not span a line break
+    want: frozenset[str] = frozenset()  # the heading's paths, set on a both-approve line
     if m.group(3).lower() == "both-approve":
         # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path(s)>` line: a
         # disagreeing verdict, or one given on another artifact, never approves this one
@@ -3827,6 +3830,8 @@ def _panel_problem(
                     continue
                 if _is_operator_prompt(entry):
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
+                    # the line stores too, or a both-approve brief reads pre-operator verdicts
+                    said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
                     continue
                 content = (entry.get("message") or {}).get("content")
                 text = _row_text(content)
@@ -3862,10 +3867,19 @@ def _panel_problem(
     seat_texts = by_seat_lines if line_local else by_seat
     if line_local:
         said = said_lines
+
+    def _holds(q: str, texts: list[str]) -> bool:
+        """``q`` is in one of ``texts``; on a both-approve line, in ONE line whose own verdict, read
+        from the quote on, names exactly the heading's paths — a quote that is a PREFIX of a wider
+        line (`…x.md` of `…x.md.bak`, `<plan> + <spec>` of `<plan> + <spec> + <other>`) never holds."""
+        if not line_local:
+            return any(q in t for t in texts)
+        return any(_verdict_paths(t[t.index(q) :]) == want for t in texts if q in t)
+
     if stand_in:
         opus_ids = [a for a, f in seats.items() if f == "opus"]
-        first = [a for a in opus_ids if any(quotes[0] in t for t in seat_texts.get(a, []))]
-        second = [a for a in opus_ids if any(quotes[1] in t for t in seat_texts.get(a, []))]
+        first = [a for a in opus_ids if _holds(quotes[0], seat_texts.get(a, []))]
+        second = [a for a in opus_ids if _holds(quotes[1], seat_texts.get(a, []))]
         if any(a != b for a in first for b in second):
             return ""
         return (
@@ -3879,7 +3893,7 @@ def _panel_problem(
             f"a {' or '.join(missing)} seat since the operator's last message"
         )
     for who, q in zip(("opus", "fable"), quotes, strict=True):
-        if not any(q in t for t in said[who]):
+        if not _holds(q, said[who]):
             return (
                 f"the {who} verdict quoted on the Panel: line is not in the {who} seat's own "
                 "returned text since the operator's last message"
