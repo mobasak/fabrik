@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md and the project template: the halt list names the quota wall and an operator's pause; coordinator job (7) waits for the builder's confirmation (2026-10-19)
+
+- Both contracts said "The ONLY legitimate halts are the three BLOCKED cases" while their own RED band closes a run `blocked --wall` and hub D-993 closes an operator's pause `blocked --paused`. The plan-execution override now names those two stops beside the three cases. § COMMAND RUN-RECORD gives their runnable form, the same `blocked` close with `--wall` or `--paused` (W-8008e144).
+- Coordinator job (7) gave the coordinator a finished plan's EXECUTED flip and archive move with no condition. It now does both only "once every ticket is merged and its builder confirms no run will resume it" (coordinator rulings D-1026 and D-1027, refining D-1024 after this change's review found that "no run is live" admitted a parked run). `/fabrik-execute-plan` Finish step 5 quotes the same words (W-77812e10, feedback row 1792345477).
+- `tests/test_governance_template_split.py` pins the halt sentence, the run-record close, the hub's "keep going" clause and job (7) in both contracts. `tests/test_execute_plan_queue_pass.py` pins step 5's quote. Full /fabrik-review: `docs/development/reviews/2026-10-19-w8008e144-halt-list-and-job7-review.md`.
+
 ### Changed — /fabrik-task: BUILD re-runs MEASURE's population measurement on the built tree for a changed check, guard or threshold (2026-10-19)
 
 - MEASURE measured the population a change writes or thresholds only at design time. A check changed during the build therefore shipped with a fire rate nobody re-measured. BUILD now re-runs that population measurement on the built tree, beside the test slice, when the change adds, changes or removes a check, guard or threshold. This answers row 1792352977, a recurrence of the held subject resweep-corpus-on-widened-guard (D-1021, refined by D-1023 in review; `SIZE_CAP` 24260 → 24375).
