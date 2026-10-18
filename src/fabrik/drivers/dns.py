@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_args, jump_for
+from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_for
 
 logger = logging.getLogger(__name__)
 
@@ -127,11 +127,11 @@ class DNSClient:
         """Resolve the live internal URL via ``docker inspect`` over SSH.
 
         Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or the container can't be
-        found (caller falls back to ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
+        found or its IP read (caller falls back to ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
         instance — create a fresh ``DNSClient`` after a Coolify redeploy.
 
-        A DEAD ssh path — a timeout, an ``OSError`` running ssh, or ssh's own exit 255 (no
-        connection, auth, host key) — is not a miss (W-894fdc5f): with
+        A DEAD ssh path — a timeout, an ``OSError`` running ssh, ssh's own exit 255 (no
+        connection, auth, host key) or a kill by signal — is not a miss (W-894fdc5f): with
         ``SITE_PROVISIONER_INTERNAL_URL`` set it is logged and the static URL is used; without it,
         it raises rather than fall through to the public URL this box cannot reach.
 
@@ -145,7 +145,8 @@ class DNSClient:
             return self._resolved_url_cache
         # Outside the try below: a bad FABRIK_SSH_JUMP_<ALIAS> must fail loud, never be
         # swallowed into the public-URL fallback (W-2b657bee).
-        jump = jump_args(self.ssh_host)
+        jump_value = jump_for(self.ssh_host)  # read once: the argv and the message name one jump
+        jump = _jump_opts(jump_value)
 
         def run(remote: str) -> subprocess.CompletedProcess[str]:
             return subprocess.run(
@@ -154,7 +155,7 @@ class DNSClient:
                 text=True,
                 errors="replace",
                 stdin=subprocess.DEVNULL,
-                timeout=int(self.timeout),
+                timeout=self.timeout,
                 check=False,
             )
 
@@ -167,8 +168,10 @@ class DNSClient:
                 "--format '{{.Names}}' | head -1"
             )
             container = name_proc.stdout.strip()
-            if name_proc.returncode == 255:
-                dead = f"rc=255: {_redact(name_proc.stderr.strip()) or 'no stderr'}"
+            if name_proc.returncode == 255 or name_proc.returncode < 0:
+                dead = (
+                    f"rc={name_proc.returncode}: {_redact(name_proc.stderr.strip()) or 'no stderr'}"
+                )
             elif name_proc.returncode != 0 or not container:
                 logger.warning(
                     "DNS client: container prefix %r not found on VPS (stderr=%r)",
@@ -184,8 +187,10 @@ class DNSClient:
                 )
                 ip_proc = run(f"sudo docker inspect {container} --format '{fmt}'")
                 ip = ip_proc.stdout.strip()
-                if ip_proc.returncode == 255:
-                    dead = f"rc=255: {_redact(ip_proc.stderr.strip()) or 'no stderr'}"
+                if ip_proc.returncode == 255 or ip_proc.returncode < 0:
+                    dead = (
+                        f"rc={ip_proc.returncode}: {_redact(ip_proc.stderr.strip()) or 'no stderr'}"
+                    )
                 elif ip_proc.returncode != 0 or not ip or ip == "<no value>":
                     logger.warning(
                         "DNS client: could not resolve %s IP on %s (stderr=%r)",
@@ -205,13 +210,13 @@ class DNSClient:
                     )
                     return url
         except subprocess.TimeoutExpired:
-            dead = f"no answer in {int(self.timeout)}s"
+            dead = f"no answer in {self.timeout:g}s"
         except OSError as e:  # no ssh binary, not executable, …
             dead = f"{type(e).__name__}: {e.strerror or e}"
         except Exception as e:  # noqa: BLE001
             logger.warning("DNS client: container resolution failed: %s", e)
             return None
-        where = f"ssh to {self.ssh_host!r}{_via(jump_for(self.ssh_host))}"
+        where = f"ssh to {self.ssh_host!r}{_via(jump_value)}"
         if self._internal_url:
             logger.warning(
                 "DNS client: %s is dead (%s) — using SITE_PROVISIONER_INTERNAL_URL", where, dead

@@ -380,6 +380,8 @@ def _dead(kind):
             raise FileNotFoundError(2, "No such file or directory", "ssh")
         if kind == "not-executable":
             raise PermissionError(13, "Permission denied", "ssh")
+        if kind == "signal-1" or (kind == "signal-2" and n == 2):
+            return MagicMock(returncode=-9, stdout="", stderr="")
         if kind == "rc255-1" or (kind == "rc255-2" and n == 2):
             return MagicMock(
                 returncode=255,
@@ -392,7 +394,16 @@ def _dead(kind):
     return run
 
 
-_DEAD_KINDS = ["timeout-1", "timeout-2", "no-ssh", "not-executable", "rc255-1", "rc255-2"]
+_DEAD_KINDS = [
+    "timeout-1",
+    "timeout-2",
+    "no-ssh",
+    "not-executable",
+    "rc255-1",
+    "rc255-2",
+    "signal-1",
+    "signal-2",
+]
 
 
 @pytest.mark.parametrize("kind", _DEAD_KINDS)
@@ -426,3 +437,55 @@ def test_a_dead_ssh_path_with_an_internal_url_falls_back_to_it(kind, monkeypatch
     with caplog.at_level("WARNING"), patch("subprocess.run", side_effect=_dead(kind)):
         assert client._resolve_container_url() is None
     assert "is dead" in caplog.text and "SITE_PROVISIONER_INTERNAL_URL" in caplog.text
+
+
+@pytest.mark.parametrize("internal_url", [None, "http://10.0.1.25:8001"])
+@pytest.mark.parametrize(
+    "answers",
+    [
+        [(1, "", "sudo: a password is required")],  # call 1 fails the ordinary way
+        [(0, "", "")],  # no such container
+        [(0, "site-provisioner-1\n", ""), (1, "", "Error: No such object")],  # call 2 misses
+        [(0, "site-provisioner-1\n", ""), (0, "<no value>\n", "")],  # not on that network
+    ],
+)
+def test_an_ordinary_miss_is_still_a_miss(answers, internal_url, monkeypatch):
+    """Review pass 2 (O-N1): only a DEAD path raises; a container that is simply not there still
+    returns None, so the caller's fallback runs — whether or not an internal URL is set."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    if internal_url:
+        monkeypatch.setenv("SITE_PROVISIONER_INTERNAL_URL", internal_url)
+    else:
+        monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k", ssh_host="vps")
+    replies = [MagicMock(returncode=rc, stdout=out, stderr=err) for rc, out, err in answers]
+    with patch("subprocess.run", side_effect=replies):
+        assert client._resolve_container_url() is None
+
+
+def test_a_fractional_budget_and_the_jump_are_read_once(monkeypatch):
+    """Review pass 2 (H-N1, O-N3): int() made a 0.5 s budget an instant timeout, now fatal under the
+    dead-path rule; and the message must name the jump the argv used, read once."""
+    import os
+    import subprocess
+
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
+    monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+    client = DNSClient(api_key="k", ssh_host="vps", timeout=0.5)
+    seen = {}
+
+    def run(argv, **kw):
+        seen["timeout"] = kw["timeout"]
+        seen["argv"] = argv
+        os.environ["FABRIK_SSH_JUMP_VPS"] = "bad value;"  # a second read would refuse it
+        raise subprocess.TimeoutExpired(argv, kw["timeout"])
+
+    with patch("subprocess.run", side_effect=run):
+        with pytest.raises(RuntimeError, match=r"via jump 'vps2' is dead \(no answer in 0.5s\)"):
+            client._resolve_container_url()
+    assert seen["timeout"] == 0.5
+    assert seen["argv"][:3] == ["ssh", "-o", "ProxyJump=vps2"]
