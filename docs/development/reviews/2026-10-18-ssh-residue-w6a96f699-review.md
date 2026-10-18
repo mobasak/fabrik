@@ -4,6 +4,8 @@
 **Surface:** `git rev-parse HEAD` = 121790faf92e8cecde1b3b97ba215f21e1301f92; range tip 121790faf92e8cecde1b3b97ba215f21e1301f92; `git diff 572329e52..HEAD -- src/fabrik/drivers/ssh.py src/fabrik/drivers/dns.py src/fabrik/drivers/preflight.py src/fabrik/audit.py tests/drivers/test_ssh.py tests/drivers/test_dns_client.py tests/drivers/test_preflight.py tests/test_conftest_isolation.py tests/orchestrator/test_reachability_preflight.py docs/CONFIGURATION.md docs/reference/modules/drivers.md` md5 e0724e35687f81162afa33d47d3d54c8 (29937 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/drivers/ssh.py`, `src/fabrik/drivers/dns.py`, `src/fabrik/drivers/preflight.py`, `src/fabrik/audit.py`, `tests/drivers/test_ssh.py`, `tests/drivers/test_dns_client.py`, `tests/drivers/test_preflight.py`, `tests/test_conftest_isolation.py`, `tests/orchestrator/test_reachability_preflight.py`, `docs/CONFIGURATION.md`, `docs/reference/modules/drivers.md`
 
+**Lane:** fabrik-task (W-6a96f699) — the in-lane scope-growth stop fired at round 2 (confirmed/own-fix 2/2); the closing pass re-verifies the fixed set
+
 ## Coverage Checklist
 
 Rubric invocation (verbatim output — the gate reads the generated header, never a prose mention):
@@ -225,6 +227,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×3 + haiku×3 | found: 33, new: 33, confirmed: 9, fixed: 9, unexecuted: 0 | method: citation — full partitioned pass (A ssh/audit/test_ssh/drivers.md · B preflight/test_preflight/conftest graders · C dns/test_dns/CONFIGURATION.md) on pin 214d0a1874523eb801deb3c96e4f37f1 (base 572329e52, tip 121790faf); hygiene 1 hit (RECORDED — hygiene false positive, `_ALIAS.fullmatch` is is_alias's body); seats: A-sonnet 0/4 · A-haiku 2/6 · B-sonnet 2/4 · B-haiku 0/4 · C-sonnet 2/7 · C-haiku 4/8; shape: agent-tool; stop: confirmed 9; fix: 10 round-zero mutants red by named test |
+| Pass 2 | native sonnet×3 + haiku×3 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — delta over 121790faf..20ff4d490 + one hop on pin e3645be736f19cdbbb8dd6732133154f (base 121790faf): the round-1 seats re-executed their slice ledgers — A 3/3 · B 3/3 · C 4/5 DEFECT_ABSENT, C-H3 DEFECT_PRESENT as NEW C2-1 (three seats: C-sonnet, C-haiku, A-haiku); NEW B2-1 (B-haiku, noted by B-sonnet); both own-fix: round 1; shape: agent-tool; stop: scope-growth advisory (in-lane, own-fix 2/2); fix: +5 -2 source lines, +17 test, +2 -2 doc (numstat 85696d213..01519f758) for 2 confirmed, mutants dns-clean-after-cut and pre-head-cut-unmarked red by named test; round-zero probe — drivers.md line counts re-measured by wc -l after the fix (dns.py 719, preflight.py 522), committed 01519f758 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -252,6 +255,15 @@ Row shapes (quoted here, so the gate does not read them as passes):
 | C-S3 | C-sonnet | the command-free TimeoutExpired no longer names the jump | FIXED r1 · LOCAL — probe str carries no jump; `_jump_opts(jump)` in the cmd of both ssh() and dns; mutants ssh-timeout-no-jump and dns-timeout-no-jump red |
 | C-H8 | C-haiku | CONFIGURATION.md lists the refused characters as if exhaustive | FIXED r1 · LOCAL — the grammar stated whole |
 | A-H2 | A-haiku | an IPv6 literal, once accepted, is now refused with no doc saying so | FIXED r1 · LOCAL — CONFIGURATION.md names it; the hostile list holds `2001:db8::1` |
+
+### Pass 2 dispositions
+
+2 candidates → 2 FIXED. The round-1 seats' ledgers: A 3/3, B 3/3, C 4/5 DEFECT_ABSENT (C-H3 reopened as C2-1).
+
+| Id | Raised by | Candidate | Disposition |
+|---|---|---|---|
+| C2-1 | C-sonnet, C-haiku, A-haiku | the non-JSON text is cleaned AFTER the 200-character cut, so a key straddling the cut leaks its prefix | FIXED r2 · LOCAL — probe-p2: `sk_live_ABCDEFGHIJKL` survived; masked first, then cut; test_a_key_straddling_the_cut_leaks_no_prefix at offsets 185/190/199; mutant dns-clean-after-cut red; own-fix: round 1 |
+| B2-1 | B-haiku (noted by B-sonnet) | the headline cap cuts silently with no marker | FIXED r2 · LOCAL — a cut headline ends in `…` at exactly _REASON_MAX; mutant pre-head-cut-unmarked red; own-fix: round 1 |
 
 ## Residual
 
