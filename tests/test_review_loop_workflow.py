@@ -2615,3 +2615,8 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         # the two scopes the gate reads (critiques, executed): the index, and the range against @{upstream}
         assert "--set-upstream-to=base pins" in p and "NEVER commit the pins" in p, label
         assert "Run the gate TWICE" in p and "MANIFEST.md5" in p, label
+        # strings only GATE_PINS carries (review pass 1: two above also occur in PIN_IMPORT)
+        assert 'KAIZEN_EVENTS_DIR"]="SCRATCH/events"' in p and '"--check","--json"' in p, label
+        assert "> SCRATCH/gate-pins.json" in p and "a pin-set row" in p, label
+        assert "WITHOUT any of the pytest recipe's guards" in p and "`warnings`" in p, label
+        assert "${" not in p, f"{label}: an uninterpolated template expression"
