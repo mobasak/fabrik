@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-18T15:57:52.162024Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "21f7e2f95b59f7ce25c821933069d546a6465503",
   "id": "W-8d98265e",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "run-record close list names only done and the three BLOCKED cases ('Nothing else is a legitimate halt') — an operator pause now closes with blocked --paused (D-993, intel mail 01M57KNEZ2), so the fragment misleads"
 }

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every command's close list names the quota wall and an operator's pause, additive to the stops each command names (2026-10-18)
+
+- The run-record fragment that most `/fabrik-*` commands include said a run closes `done`, or `blocked` on one of the three BLOCKED cases, and that "Nothing else is a legitimate halt". That contradicted `CLAUDE.md`'s quota bands, where a run at the wall closes `blocked --wall`, and D-993, where an operator's pause closes `blocked --paused`. The fragment now says: "Two more stops close `blocked` too: the quota wall … and a pause the operator ordered …; both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too." No other command's text changed. A command's own stops still hold, such as a safety HARD STOP, `## BLOCKED: NON-CONVERGENCE` or `handoff`. This closes W-8d98265e. `tests/test_plan_after_chat_queue_pass.py` pins the sentence, and it fails on the original fragment.
+- Not covered: an URGENT preemption. The builder charters park the run with `handoff`, which `start --resume-from` cannot resume. That question went to infra (mail 01M581KDPM), and feedback row 1792329581 stays open. `fabrik-execute-plan` and `fabrik-review` don't include the fragment, so their own three-case wording is routed with W-8008e144 (the CLAUDE.md halt sentence).
+- Fixed: `tests/test_gate_check_canaries.py`'s `check_doc_index` canary was red on master, because 778c0cc37 rewrote the line it neuters. The anchor now names the rewritten line.
+
 ### Changed — /fabrik-review: a fix forced at the close re-opens a closing pass unless it edits the receipt alone (2026-10-18)
 
 - The close order said "flip back to `IN-PROGRESS`, fix it, and repeat the order" on a post-flip red, the pre-flip `IN-PROGRESS` run had no in-surface route, and the `GATE-SCOPE` paragraph said "fix it and re-run", so a fix the gate forced at the close shipped with no seat reading it. Both gate runs now share one rule: a red whose findings name this surface or its receipt is yours; fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the order. The `GATE-SCOPE` paragraph counts a finding that names the receipt as naming the surface, so a receipt-only red cannot be declared out-of-surface, and points at that rule. This closes W-c71703cb. `tests/test_review_queue_pass.py` pins all three sites.
