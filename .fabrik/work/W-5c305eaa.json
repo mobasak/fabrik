@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:15:18.731183Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5c305eaa",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:brief-file-ls-verified-before-dispatch — valid advice, first sighting (both rows from one fleet session; kaizen 2026-10-18, D-711 Opus audit: ADVICE). Chec",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review"
+}

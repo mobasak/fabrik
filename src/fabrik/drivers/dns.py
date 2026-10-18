@@ -5,9 +5,11 @@ This client calls the site-provisioner service at VPS (provision.vps1.ocoron.com
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
+import ipaddress
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass
@@ -15,9 +17,28 @@ from typing import Any
 
 import httpx
 
-from fabrik.drivers.ssh import _jump_opts, _redact, _via, jump_for
+from fabrik.drivers.ssh import _jump_opts, _one_line, _redact, _via, jump_for
 
 logger = logging.getLogger(__name__)
+
+# Docker's own container-name grammar (`[a-zA-Z0-9][a-zA-Z0-9_.-]+`): the name `docker ps` printed is remote
+# text, and only a name of
+# this shape may reach the second remote command or a log line unquoted (W-9a560686).
+_DOCKER_NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]+")
+
+
+def _is_ip(text: str) -> bool:
+    """True only for a bare dotted-quad IPv4 address — what `.NetworkSettings.Networks.<net>.IPAddress` prints.
+
+    IPv4 only, on purpose: `ipaddress.ip_address` accepts an IPv6 scope id, so `fe80::1%@attacker.example` passed
+    and became `http://fe80::1%@attacker.example:<port>` — host `attacker.example`, where the request and its
+    key would go; and that field never holds an IPv6 address, which the URL would need bracketed anyway.
+    """
+    try:
+        ipaddress.IPv4Address(text)
+    except ValueError:
+        return False
+    return True
 
 
 def _curl_quoted(value: str, what: str) -> str:
@@ -169,14 +190,19 @@ class DNSClient:
             )
             container = name_proc.stdout.strip()
             if name_proc.returncode == 255 or name_proc.returncode < 0:
-                dead = (
-                    f"rc={name_proc.returncode}: {_redact(name_proc.stderr.strip()) or 'no stderr'}"
-                )
+                dead = f"rc={name_proc.returncode}: {_one_line(name_proc.stderr)}"
             elif name_proc.returncode != 0 or not container:
                 logger.warning(
-                    "DNS client: container prefix %r not found on VPS (stderr=%r)",
+                    "DNS client: container prefix %r not found on VPS (stderr=%s)",
                     self._container_prefix,
-                    name_proc.stderr.strip(),
+                    _one_line(name_proc.stderr),
+                )
+                return None
+            elif not _DOCKER_NAME.fullmatch(container):
+                logger.warning(
+                    "DNS client: container prefix %r matched a name docker would not print (%s)",
+                    self._container_prefix,
+                    _one_line(container, empty="empty"),
                 )
                 return None
             else:
@@ -188,15 +214,22 @@ class DNSClient:
                 ip_proc = run(f"sudo docker inspect {container} --format '{fmt}'")
                 ip = ip_proc.stdout.strip()
                 if ip_proc.returncode == 255 or ip_proc.returncode < 0:
-                    dead = (
-                        f"rc={ip_proc.returncode}: {_redact(ip_proc.stderr.strip()) or 'no stderr'}"
-                    )
+                    dead = f"rc={ip_proc.returncode}: {_one_line(ip_proc.stderr)}"
                 elif ip_proc.returncode != 0 or not ip or ip == "<no value>":
                     logger.warning(
-                        "DNS client: could not resolve %s IP on %s (stderr=%r)",
+                        "DNS client: could not resolve %s IP on %s (stderr=%s)",
                         container,
                         self._container_network,
-                        ip_proc.stderr.strip(),
+                        _one_line(ip_proc.stderr),
+                    )
+                    return None
+                elif not _is_ip(ip):
+                    # the IP is remote text too, and it becomes the request's target host
+                    logger.warning(
+                        "DNS client: %s on %s printed no IP address (%s)",
+                        container,
+                        self._container_network,
+                        _one_line(ip, empty="empty"),
                     )
                     return None
                 else:
@@ -282,13 +315,15 @@ class DNSClient:
         if result.returncode != 0:
             raise RuntimeError(
                 f"SSH proxy request to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-                f"{self._clean(result.stderr.strip()) or 'no stderr'}"
+                f"{_one_line(self._clean(result.stderr))}"
             )
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            # masked BEFORE the cut: a key straddling character 200 would otherwise escape it
-            msg = f"SSH proxy returned non-JSON: {self._clean(result.stdout)[:200]}"
+            # masked BEFORE the cut (a key straddling character 200 would otherwise escape it),
+            # then one line: the reply is remote text (W-9a560686)
+            reply = _one_line(self._clean(result.stdout).strip()[:200], empty="empty reply")
+            msg = f"SSH proxy returned non-JSON: {reply}"
             raise RuntimeError(msg) from exc
 
     def _clean(self, text: str) -> str:
@@ -449,7 +484,7 @@ class DNSClient:
         ``Internal Server Error`` body when the record doesn't exist
         (instead of the more correct 404). The SSH-proxy layer then
         surfaces that as ``RuntimeError("SSH proxy returned non-JSON:
-        Internal Server Error")``. For a DELETE this is the desired
+        'Internal Server Error'")`` (the reply quoted on one line). For a DELETE this is the desired
         end-state, not a failure — so catch the specific shape and
         return ``{"status": "absent"}`` rather than re-raising.
 

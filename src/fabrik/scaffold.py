@@ -999,8 +999,8 @@ def _logger_py_content(name: str, package_name: str) -> str:
 
 
 # The file-worker liveness check, the `python -c` code every file-worker healthcheck runs (this scaffold's
-# Dockerfile and compose, and the literal copy in templates/file-worker/{Dockerfile,compose.yaml}.j2 —
-# tests/test_file_worker_heartbeat_healthcheck.py holds the four equal). worker/main.py touches the heartbeat
+# Dockerfile and compose, the literal copy in templates/file-worker/{Dockerfile,compose.yaml}.j2, and the
+# scaffolded Makefile's docker-smoke — tests/test_file_worker_heartbeat_healthcheck.py holds them equal). worker/main.py touches the heartbeat
 # every POLL_INTERVAL; healthy only when it was written in the last 120 s and not in the future. Never pgrep
 # (the slim image has no procps) and never `find -mmin` (it exits 0 on a stale file). No `$`: compose
 # interpolates it inside an exec-form `test:` list.
@@ -5036,9 +5036,42 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     makefile_src = TEMPLATE_DIR / "docker" / "Makefile.python"
     if makefile_src.exists():
         content = makefile_src.read_text()
-        content = content.replace("myproject", name)
         # A file-worker keeps its code in worker/, not src/ (the template's lint/gate-lean type src).
         content = content.replace("mypy src", "mypy --explicit-package-bases worker")
+        # docker-smoke: the worker serves no HTTP, so the template's curl to /health could never pass (W-881752ec).
+        # Judge the smoke container by the image's own heartbeat check instead: after the template's 3 s sleep,
+        # up to 10 more tries a second apart (about 15-20 s in all) for the first beat — it follows boto3/supabase
+        # import and two client constructions — then the verdict. No port is published. The container is named
+        # `$(PROJECT_NAME)-smoke`, not the template's shared `smoke-test` (another project's smoke run may own
+        # that name), and a leftover of our own is removed first — `docker run ... || true` would otherwise
+        # swallow the name clash and the leftover would be the one judged.
+        check = f'docker exec smoke-test python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
+        smoke = {
+            "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
+                "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
+                "\t@docker run -d --name smoke-test --env-file .env $(PROJECT_NAME) || true\n"
+            ),
+            '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
+                f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {check} >/dev/null 2>&1 && break; sleep 1; done\n"
+                f'\t@{check} && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n'
+            ),
+        }
+        # a template with no docker-smoke target has nothing to fix; one whose smoke lines drifted is refused
+        has_smoke = (
+            re.search(r"(?m)^docker-smoke[ \t]*::?(?!=)", content) is not None
+        )  # a rule, never `:=`
+        for old, new in smoke.items() if has_smoke else ():
+            if content.count(old) != 1:
+                raise ValueError(
+                    f"{makefile_src}: expected one docker-smoke line to replace, found {content.count(old)}: "
+                    f"{old.strip()!r}"
+                )
+            content = content.replace(old, new)
+        if has_smoke:
+            content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
+        # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
+        # turn `PROJECT_NAME ?= x9-smoke-test` into a self-reference make refuses to load
+        content = content.replace("myproject", name)
         # Replace the dev target body: match any uvicorn invocation on the line
         # following the "dev:" target and replace it with the worker command.
         # This handles the actual template command regardless of exact arguments.

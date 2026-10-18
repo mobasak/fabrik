@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:21:56.927145Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-464ab303",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "count route-ups whose --surface reads 'ROUTED-UP: step 1 — >5 files' in ~/.claude/state/command-feedback.jsonl or the run records, and their round-1 seat cost",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "LOW: an advisory measurement for an operator proposal; status quo stands meanwhile",
+  "status": "open",
+  "tags": [
+    "mail-01m57jn7k1"
+  ],
+  "title": "Measure how often /fabrik-review-scoped routes up to /fabrik-review ONLY because a fold added a file, and the re-read cost of the full round 1 — the evidence the operator needs to choose option B of kaizen proposal mail 01M57JN7K1 (adopt the scoped round's seats as round 1); option A (full round 1) stands until then"
+}

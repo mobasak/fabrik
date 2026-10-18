@@ -698,7 +698,9 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     ) in cat
     assert "and of each field a fix writes, named before the closing round." in cat
     assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; every doc line, docstring,"
+        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
+        " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
+        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line, docstring,"
         " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
@@ -739,7 +741,7 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
     changelog-figure-before-close and changelog-test-count-from-pytest)."""
     review = _norm(SRC)
     assert (
-        "or the session scratchpad when `start` printed no `SCRATCH:` line, and so do the briefs and fix lists the "
+        "or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the "
         "lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and "
         "`files_read` are already in the pass files there); only the seats' copies go under"
     ) in review

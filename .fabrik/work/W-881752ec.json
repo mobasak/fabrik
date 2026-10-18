@@ -3,7 +3,7 @@
   "created": "2026-10-18T06:46:46.058171Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "10363c5e470726f1057d069f925bec4c04bf3fa5",
   "id": "W-881752ec",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "LOW: a scaffolded file-worker's 'make health' curls /health it does not serve; developer convenience, no runtime effect",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

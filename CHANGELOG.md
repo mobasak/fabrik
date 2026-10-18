@@ -16,6 +16,12 @@ All notable changes to this project will be documented in this file.
   - Its ledger row and close event read `wall: paused`, never `quota`. It cannot be combined with `--wall`.
 - `round --command <name>` is optional and is refused when it does not name the live run, the check the close verbs already make (D-993, W-79638b4a, from kaizen's two feedback verdicts in mail 01M4X6XQH0).
 
+### Changed — /fabrik-command-improve: a weakening recurrence routes to the operator; close-chain writes ledger prose after the closing pass (2026-10-18)
+
+- PHASE 2's "a recurrence is edited, never re-rejected" now names its one exception. A recurrence whose edit PHASE 1 refuses as weakening is routed to the operator as a proposal. Its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. A later sighting cites that proposal instead of routing again. Terminal gains the matching `no edit this run — the surviving row routed to the operator` close (row 1792329659).
+- `commands/_fragments/close-chain.md`, which 37 commands and fragments render, now says that in a command running a review loop, what a close input says about the change is written, or checked sentence by sentence against the final text, after the closing pass. That covers the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` entry or another ledger entry. The check runs again after any fix the chain's own check or `final_gate.py` forces (row 1792329281, the third sighting of the held after-the-closing-pass class).
+- The queue's other two rows were rejected with their reasons: one misfiled, one held as advice.
+
 ### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
 
 - In a linked worktree, `work.py claim` and `release` refused an item whose file the branch did not yet carry. The claim itself is shared state, and items the coordinator makes on the main checkout reach a branch only with a merge.
@@ -25,6 +31,12 @@ All notable changes to this project will be documented in this file.
   - An item this branch deleted (present at the fork point) is never brought back.
   - `claim` checks the item's blockers in the store that holds it.
 - A write verb (`done`, `drop`, `answer`, `assign`, `verdict`) on such an item now names the merge it needs, instead of a bare `no item` (D-991, W-98204c50).
+
+### Changed — /fabrik-task: a review fix commit goes through the capture line; MIRROR censuses the whole AST (2026-10-18)
+
+- Phase 5's after-commit review form now says each commit a review fix makes is a run commit. It is made through step 5's capture line, so its sha lands in `commit.sha`, and the receipt is re-made after the last one as `/fabrik-review`'s exit proofs say. A sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead (the `--restamp` form). Rows 1792327651 and 1792309961's confusion read the range-tip rule as excluding fix commits.
+- MIRROR's search now names an `ast.walk` census of a Python name's readers beside the grep, never `tree.body` alone. A function-local or `try:` import sits below `tree.body`, and a string-named import, `getattr` or subprocess argv is no import node, so the grep finds it. This is row 1792303601, the second sighting of the held subject `ast-census-for-python-imports`.
+- The other five rows of the queue were rejected with their reasons: one held as advice, four answered.
 
 ### Fixed — merge_request merges work-item files key by key instead of refusing them (2026-10-18)
 
@@ -36,6 +48,29 @@ All notable changes to this project will be documented in this file.
   - `links` merges per sub-key. `tags` and `blocked_by` merge as sets, and `comments` keeps both sides' appends in time order.
   - A key both sides changed differently, or deleted on one side and changed on the other, still refuses. The refusal now names the key (exit 3).
 - The merged item's `id` must match its file name before it is staged (D-988, W-5f3617e6).
+
+### Changed — the probe catalogue's Sweep also catches a paraphrase of a rule another command holds (2026-10-18)
+
+- `commands/_fragments/review-probe-catalogue.md` § Prose and docs fixes, Sweep: a sentence a fix writes that
+  restates a rule already stated elsewhere is held to `/fabrik-review-scoped` step 3's rule for what is already
+  stated, its source found by the rule's terms and two rewordings of them. The quote re-read never saw a paraphrase;
+  five answered rejects had cited step 3 (row 1792304655).
+
+### Fixed — /fabrik-deploy-plan-review names `scratch_dir` and its pins root (2026-10-18)
+
+- `commands/_sources/fabrik-deploy-plan-review.md`: its `Workflow` args now carry `scratch_dir` (the review-loop
+  script refuses a launch without it) and put `pins_dir` under the run's durable `SCRATCH:` folder, in the words
+  `/fabrik-repo-review` uses; it does not include `subagents-core`, so D8's root never reached it (W-f9933654).
+  `fabrik-repo-review.md`'s fallback now reads "printed no line that begins `SCRATCH:`" too, and
+  `tests/test_review_loop_workflow.py` checks every non-`RUN-` `SCRATCH:` mention in the six review-loop sources
+  is the folder noun or the line selector.
+
+### Fixed — the four review loops name the start line that BEGINS `SCRATCH:` for their pins root (2026-10-18)
+
+- `fabrik-review.md`, `fabrik-review-scoped.md`, `fabrik-plan-review.md`, `fabrik-spec-review.md`: "the path after
+  `SCRATCH: ` on the line `start` printed" also matched inside the `RUN-SCRATCH: ` line, so a literal reader could
+  pin under the disposable folder; each now says "the path on the line `start` printed that begins `SCRATCH:`", as
+  `/fabrik-repo-review` does. `SCRATCH_HOME_CLAUSE` in `tests/test_review_loop_workflow.py` pins it (W-49adc7a7).
 
 ### Changed — /fabrik-review's brief pointer carries the seat-isolation sentence review-scoped has (2026-10-18)
 
@@ -91,6 +126,22 @@ All notable changes to this project will be documented in this file.
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Fixed — a scaffolded file-worker's `make docker-smoke` checks the worker's heartbeat, not `/health` (2026-10-18)
+
+`fabrik scaffold --type file-worker` wrote a `docker-smoke` target that curled `/health`, which a worker never serves,
+so it always printed "Health FAILED". It now runs `FILE_WORKER_HEARTBEAT_CHECK` inside the smoke container after a
+bounded wait for the first beat, publishes no port, and names the container `<project>-smoke`, removing a leftover
+of its own first. A drifted `Makefile.python` smoke rule fails the scaffold. D-992 (W-881752ec).
+
+### Fixed — remote ssh text reaches errors and logs masked and on one line (2026-10-18)
+
+`src/fabrik/drivers/ssh.py::_one_line` masks remote text with `_redact` and then `repr`-quotes it, so a CR, LF,
+NUL, U+2028 or U+0085 in ssh stderr or a reply can no longer forge a log line. `ssh()`, `scp_to_vps()`, the DNS
+client's container-resolve messages and its `_request_via_ssh` errors all use it. The container name `docker ps`
+prints must match Docker's name grammar, and the IP `docker inspect` prints must be a plain IPv4 address, or the
+resolve is a miss: a hostile reply can no longer reach the second remote command or become the request's target
+host. D-989 (W-9a560686).
 
 ### Fixed — file-worker healthchecks read the heartbeat's age (2026-10-18)
 

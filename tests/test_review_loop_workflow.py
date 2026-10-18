@@ -2462,9 +2462,9 @@ def test_each_review_command_carries_the_run_scratch_clause() -> None:
 
 SCRATCH_HOME_CLAUSE = (
     "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the "
-    "run's `SCRATCH:` folder — the path after `SCRATCH: ` on the line `start` printed, kept on disk "
+    "run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk "
     "across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session "
-    "scratchpad when `start` printed no `SCRATCH:` line"
+    "scratchpad when `start` printed no line that begins `SCRATCH:`"
 )
 REVIEW_LOOP_COMMANDS = (
     "fabrik-review",
@@ -2486,6 +2486,22 @@ def test_each_review_command_names_the_durable_home_of_pins_and_pass_files() -> 
     scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
     flat = " ".join(scoped.read_text(encoding="utf-8").split())
     assert "--pins-dir <a NEW pins_dir under the run's `SCRATCH:` folder>" in flat
+
+
+def test_every_scratch_mention_in_the_review_loops_is_the_folder_or_the_line_selector() -> None:
+    """W-49adc7a7: `start` prints `SCRATCH: <durable>` and `RUN-SCRATCH: <disposable>` on separate lines, so a
+    needle like "after `SCRATCH: `" or "no `SCRATCH:` line" also matches the RUN-SCRATCH: line. Every mention of
+    `SCRATCH:` not preceded by `RUN-` in the review-loop sources is either the folder noun ("the run's `SCRATCH:`
+    folder") or the line selector ("begins `SCRATCH:`"). Mutants: "the text after `SCRATCH: `", "printed no
+    `SCRATCH:` line", "contains `SCRATCH:`" — each fails."""
+    names = REVIEW_LOOP_COMMANDS + ("fabrik-repo-review", "fabrik-deploy-plan-review")
+    for name in names:
+        flat = " ".join((ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8").split())
+        mentions = list(re.finditer(r"(?<!RUN-)`SCRATCH: ?`", flat))
+        assert mentions, name
+        for m in mentions:
+            before = flat[max(0, m.start() - 8) : m.start()]
+            assert before.endswith(("run's ", "begins ")), (name, flat[max(0, m.start() - 60) : m.end() + 20])
 
 
 def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -> None:
