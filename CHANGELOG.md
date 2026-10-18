@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a doc whose name holds a space can be linked the markdown way in INDEX.md (2026-10-18)
+
+- `scripts/enforcement/check_doc_index.py` decoded only `%20` when checking INDEX link targets exist, but compared the
+  raw path when checking every doc is indexed, so `[Notes](docs/my%20notes.md)` reported `docs/my notes.md` as "not in
+  INDEX.md" (52 tracked docs fleet-wide carry a space). Both directions, and the sibling `check_doc_links.py` that scans
+  the same INDEX, now read the link as written first and then percent-decoded (`%2F` kept literal, non-UTF-8 bytes
+  via surrogateescape, a decoded NUL skipped), so every name has a reachable spelling — `%25` for a literal `%`,
+  `%23` for `#` — and a file whose real name holds `%XX` still resolves by that name. Graders in
+  `tests/test_check_doc_index_percent_encoding.py` (W-7ae1169a, D-976).
+
 ### Fixed — a stale `--commit` sentence pin no longer reds `tests/test_fabrik_task_source.py` on master (2026-10-18)
 
 - 6cff7527c made `command_run.py`'s `--commit` accept one comma-joined value (split, since a sha never holds a comma)
