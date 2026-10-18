@@ -3,7 +3,7 @@
   "created": "2026-09-19T00:00:00.000000Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c27329e0c465bc07bad8fe784f51b2ad6a685d83",
   "id": "W-8c57e84a",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — gitignore sync ships uncommitted bytes to 46 repos",
-  "status": "open",
+  "status": "done",
   "title": "The gitignore block bypasses the T12.17 \"never ship the working tree\" guard — 46 repos patched from uncommitted bytes (found reviewing the serena ignore, routed 2026-09-19)"
 }

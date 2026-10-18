@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run.py: a seat folder `du` cannot fully read is unmeasured, never a partial small size (2026-10-18)
+
+- `_seat_size_lines` (W-2dadedfd) treated `du`'s output as the size even when `du` exited non-zero; it prints the PARTIAL size it reached, so a large seat tree under an unreadable folder read as small and dropped out silently. A non-zero exit now prints `<seat>: size unmeasured — cannot be examined`; a seat removed before `du` answers gives no line, like a gone run folder. The docstring now says an unlistable run folder yields no lines and only an unsearchable one reads as unmeasured. Tests: `tests/test_command_run_scratch.py` (three new, 72 pass).
+
+### Added — command_run.py: `blocked --paused` for an operator pause, and `round --command` (2026-10-18)
+
+- `blocked --paused --reason "<the operator's words>"` closes a run for an operator pause.
+  - Before, there was no honest exit: the Stop hook blocked every turn end until the session invented `done` or a fake BLOCKED cause.
+  - It keeps the same resume seed `--wall` keeps, so `start --resume-from` reopens the run with its rounds.
+  - Its ledger row and close event read `wall: paused`, never `quota`. It cannot be combined with `--wall`.
+- `round --command <name>` is optional and is refused when it does not name the live run, the check the close verbs already make (D-993, W-79638b4a, from kaizen's two feedback verdicts in mail 01M4X6XQH0).
+
 ### Changed — /fabrik-spec and /fabrik-spec-review: the orchestrator runs every shell-only check the research seat cannot (2026-10-18)
 
 - Phase 1c's division of labour gave the orchestrator only the status probe, because `fabrik-researcher` has no Bash. Both commands now add: "Every other shell-only check is yours from the shell too, with no `WebFetch` fallback". The examples are a count over a fetched file, which you download and count yourself, and a seat's quote matched, whitespace normalised first, against your own raw fetch when the raw-fetch tools are down. The `WebFetch` fallback stays with the status probe alone, since the quote rule forbids quoting a `WebFetch` reply. /fabrik-spec's quote rule points at the duty, and /fabrik-spec-review's copy points at its own quote rule. This answers row 1792241971, the second sighting of the held subject researcher-no-shell-counts.
@@ -14,6 +26,14 @@ All notable changes to this project will be documented in this file.
 - PHASE 2's "a recurrence is edited, never re-rejected" now names its one exception. A recurrence whose edit PHASE 1 refuses as weakening is routed to the operator as a proposal. Its rows are rejected with a reason opening `HELD:<subject> ROUTED:` that names the proposal's mail id and quotes the line the edit would weaken. A later sighting cites that proposal instead of routing again. Terminal gains the matching `no edit this run — the surviving row routed to the operator` close (row 1792329659).
 - `commands/_fragments/close-chain.md`, which 37 commands and fragments render, now says that in a command running a review loop, what a close input says about the change is written, or checked sentence by sentence against the final text, after the closing pass. That covers the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` entry or another ledger entry. The check runs again after any fix the chain's own check or `final_gate.py` forces (row 1792329281, the third sighting of the held after-the-closing-pass class).
 - The queue's other two rows were rejected with their reasons: one misfiled, one held as advice.
+
+### Fixed — a scaffolded file-worker's `make docker-smoke` never claims a production job (2026-10-18)
+
+The smoke run started the worker with the project's real `.env`, and the worker claims a job on every poll, so a
+smoke run could claim a production job and be stopped mid-run seconds later. The recipe now runs the container with
+`--network none -e WORKER_SMOKE=1`, and the worker beats but never claims when `WORKER_SMOKE` is exactly `1`. The
+scaffold refuses a template that would still run a live worker, and a GNU make `::=` assignment no longer reads as a
+`docker-smoke` rule. D-994 (W-807b73fd, W-ab66af6f).
 
 ### Fixed — work.py claim and release find a work item that only the main checkout holds (2026-10-18)
 
@@ -119,6 +139,13 @@ All notable changes to this project will be documented in this file.
 Phase 1: a pattern or guard the plan writes new (a regex, a parser condition) is run once on a copy against
 near-miss inputs (a run of its metacharacter, the guards in another order), its command and output cited in the
 plan's Evidence. Answers /fabrik-plan-after-chat row 1792242620 (a recurrence of held probe-plan-code-snippets).
+
+### Fixed — a scaffolded file-worker's `make docker-smoke` checks the worker's heartbeat, not `/health` (2026-10-18)
+
+`fabrik scaffold --type file-worker` wrote a `docker-smoke` target that curled `/health`, which a worker never serves,
+so it always printed "Health FAILED". It now runs `FILE_WORKER_HEARTBEAT_CHECK` inside the smoke container after a
+bounded wait for the first beat, publishes no port, and names the container `<project>-smoke`, removing a leftover
+of its own first. A drifted `Makefile.python` smoke rule fails the scaffold. D-992 (W-881752ec).
 
 ### Fixed — remote ssh text reaches errors and logs masked and on one line (2026-10-18)
 

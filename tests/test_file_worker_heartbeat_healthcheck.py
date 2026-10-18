@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -195,3 +196,180 @@ def test_a_drifted_dockerfile_healthcheck_fails_the_scaffold(
     with pytest.raises(ValueError, match=rf"expected one HTTP HEALTHCHECK .* found {found}$"):
         scaffold._scaffold_file_worker(project, "fw-drift", "drift")
     assert not (project / "Dockerfile").exists()  # refused before anything was written
+
+
+# W-881752ec: a file-worker's `make docker-smoke` curled /health, which it never serves, so the smoke test always
+# printed "Health FAILED"; it now runs FILE_WORKER_HEARTBEAT_CHECK inside the smoke container.
+def _smoke_recipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, str]:
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", _ROOT / "templates" / "scaffold")
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    create_project(name="fw-smoke", project_type="file-worker", description="smoke", base=tmp_path)
+    project = tmp_path / "fw-smoke"
+    makefile = (project / "Makefile").read_text()
+    start = makefile.index("docker-smoke:")
+    return project, makefile[start : makefile.index("\n\n", start)]
+
+
+_SMOKE_EXEC = f'docker exec $(PROJECT_NAME)-smoke python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
+
+
+def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypatch):
+    project, recipe = _smoke_recipe(tmp_path, monkeypatch)
+    assert "curl" not in recipe and "/health" not in recipe, recipe
+    assert "-p $(PORT)" not in recipe, recipe  # a worker publishes nothing
+    # its own container name: another project's smoke run may hold the template's shared `smoke-test`
+    assert "smoke-test" not in (project / "Makefile").read_text()
+    lines = recipe.splitlines()
+    rm = lines.index("\t@docker rm -f $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
+    run = lines.index(
+        "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1"
+        " --env-file .env $(PROJECT_NAME) || true"
+    )
+    assert rm < run, recipe  # a leftover container is never the one judged
+    wait = f"\t@for i in 1 2 3 4 5 6 7 8 9 10; do {_SMOKE_EXEC} >/dev/null 2>&1 && break; sleep 1; done"
+    verdict = f'\t@{_SMOKE_EXEC} && echo " ✓ Health OK" || echo " ✗ Health FAILED"'
+    assert run < lines.index(wait) < lines.index(verdict), recipe
+
+
+def test_make_hands_the_smoke_check_to_python_intact(tmp_path, monkeypatch):
+    if shutil.which("make") is None:
+        pytest.skip("GNU make is not on PATH")
+    project, _ = _smoke_recipe(tmp_path, monkeypatch)
+    out = subprocess.run(
+        ["make", "-n", "-C", str(project), "docker-smoke"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout
+    checks = []
+    for line in out.splitlines():
+        argv = shlex.split(line) if "docker exec fw-smoke-smoke python -c" in line else []
+        checks += [
+            argv[i + 1] for i, word in enumerate(argv) if word == "-c" and argv[i - 1] == "python"
+        ]
+    assert len(checks) == 2, out  # the bounded wait and the verdict
+    assert all(c == FILE_WORKER_HEARTBEAT_CHECK for c in checks), checks
+
+
+@pytest.mark.parametrize("line", ["curl", "run", "spaced-target"])
+def test_a_drifted_smoke_target_fails_the_scaffold(line, tmp_path, monkeypatch):
+    """A drifted smoke line is refused — under any legal spelling of the target, `docker-smoke :` included."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    old = "docker run -d --name smoke-test -p" if line == "run" else "curl -sf http://localhost"
+    assert old in src
+    drifted = src.replace(old, old.replace("-", "--", 1))
+    if line == "spaced-target":
+        assert "\ndocker-smoke: docker-build" in drifted
+        drifted = drifted.replace("\ndocker-smoke: docker-build", "\ndocker-smoke : docker-build")
+    mk.write_text(drifted)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-drift"
+    project.mkdir()
+    with pytest.raises(ValueError, match="docker-smoke"):
+        scaffold._scaffold_file_worker(project, "fw-drift", "drift")
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "docker-smoke docker-x: docker-build",
+        "docker-smoke &: docker-build",
+        " docker-smoke: docker-build",
+    ],
+    ids=["multi-target", "grouped", "leading-space"],
+)
+def test_a_smoke_rule_the_regex_cannot_read_still_loses_the_live_worker_line(
+    header, tmp_path, monkeypatch
+):
+    """A rule header the guard's regex misses must not leave the template's live-worker run line (W-807b73fd)."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    assert "\ndocker-smoke: docker-build" in src
+    mk.write_text(src.replace("\ndocker-smoke: docker-build", "\n" + header))
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-header"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-header", "header")
+    makefile = (project / "Makefile").read_text()
+    runs = [ln for ln in makefile.splitlines() if "docker run" in ln]
+    assert runs == [
+        "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true"
+    ], runs
+
+
+def test_an_unreadable_header_with_both_smoke_lines_drifted_fails_the_scaffold(
+    tmp_path, monkeypatch
+):
+    """Neither the header regex nor the exact smoke lines see this template; the live run line must still be refused."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    src = mk.read_text()
+    for old, new in [
+        ("\ndocker-smoke: docker-build", "\n docker-smoke: docker-build"),
+        ("--env-file .env $(PROJECT_NAME)", "--env-file .env  $(PROJECT_NAME)"),
+        ("curl -sf", "curl -fs"),
+    ]:
+        assert src.count(old) == 1, old
+        src = src.replace(old, new)
+    mk.write_text(src)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-double-drift"
+    project.mkdir()
+    with pytest.raises(ValueError, match="live worker"):
+        scaffold._scaffold_file_worker(project, "fw-double-drift", "drift")
+
+
+def test_a_project_named_like_the_smoke_container_keeps_a_loadable_makefile(tmp_path, monkeypatch):
+    """The `smoke-test` rename ran after the name went in, so `x9-smoke-test` got
+    `PROJECT_NAME ?= x9-$(PROJECT_NAME)-smoke`, which make refuses to load."""
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", _ROOT / "templates" / "scaffold")
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    create_project(
+        name="x9-smoke-test", project_type="file-worker", description="smoke", base=tmp_path
+    )
+    project = tmp_path / "x9-smoke-test"
+    makefile = (project / "Makefile").read_text()
+    assert "PROJECT_NAME ?= x9-smoke-test\n" in makefile, makefile[:400]
+    if shutil.which("make") is None:
+        pytest.skip("GNU make is not on PATH")
+    out = subprocess.run(
+        ["make", "-n", "-C", str(project), "clean"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout
+    assert "docker stop x9-smoke-test-smoke" in out, out
+
+
+@pytest.mark.parametrize(
+    "makefile",
+    [
+        ".PHONY: dev docker-smoke\ndev:\n\tuvicorn x.main:app\n",  # a mention, no rule
+        "docker-smoke := 1\ndev:\n\tuvicorn x.main:app\n",  # an assignment, no rule
+        "docker-smoke ::= 1\ndev:\n\tuvicorn x.main:app\n",  # GNU make's ::= assignment (W-ab66af6f)
+        "docker-smoke :::= 1\ndev:\n\tuvicorn x.main:app\n",  # and its :::= form
+        "docker-smoke\n: x\ndev:\n\tuvicorn x.main:app\n",  # not a rule: the colon is on the next line
+    ],
+)
+def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeypatch):
+    """Only a `docker-smoke:` (or `::`) rule is rewritten; a template without one has nothing to refuse."""
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    (tpl / "docker" / "Makefile.python").write_text(makefile)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-plain"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-plain", "plain")
+    assert (project / "Makefile").exists()

@@ -3,7 +3,7 @@
   "created": "2026-10-18T03:31:17.485884Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f3f2b71ae2a905f4f79cfad825754bc9af7cd219",
   "id": "W-2dadedfd",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: one docstring sentence in command_run.py overstates an edge case (D-978 review leftover); no behaviour change",
-  "status": "open",
+  "status": "done",
   "title": "command_run._seat_size_lines docstring: 'in a folder that cannot be searched, every entry reads as unmeasured' overstates — a folder that cannot be LISTED (mode 0000) reads as nothing"
 }

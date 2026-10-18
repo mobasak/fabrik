@@ -3,7 +3,7 @@
   "created": "2026-10-05T21:25:18.215495Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b1d9904d0bd2912a9206803593da4a873956f28e",
   "id": "W-98204c50",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — merge_request PARTIAL for main-store item; merge flow",
-  "status": "open",
+  "status": "done",
   "tags": [
     "infra"
   ],

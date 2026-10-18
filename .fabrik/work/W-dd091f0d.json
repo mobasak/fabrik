@@ -3,7 +3,7 @@
   "created": "2026-10-18T02:16:58.691627Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1b3a5904c5bf975174b7e8a9faf969fd9ff81836",
   "id": "W-dd091f0d",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare link-syntax edges (balanced-paren, titled, angle links) left from D-976",
-  "status": "open",
+  "status": "done",
   "title": "check_doc_index/check_doc_links: a raw balanced-paren INDEX link (docs/a(b).md, valid CommonMark) is truncated at the first ')' and reported missing; titled and <angle> links are unseen by direction (a); direction (c) (added code paths) still compares raw-only"
 }
