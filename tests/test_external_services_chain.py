@@ -23,6 +23,9 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
+# The venv running this suite: the helper fixtures link it in as `<root>/.venv`. Never `REPO / ".venv"` —
+# a merge or probe worktree has no `.venv` of its own, and three tests then read "no interpreter".
+VENV = Path(sys.prefix)
 DAILY = REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh"
 REGISTRY = REPO / ".fabrik" / "liveness-registry.json"
 
@@ -1009,7 +1012,7 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
 
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")  # the ONE package (FC6)
     # a MINIMAL environment, never a filtered copy of the test process's: an earlier suite imports
     # `libs.subagents`, whose package autoload puts the hub's whole `.env` into `os.environ`, and a
@@ -1495,7 +1498,7 @@ def test_the_helper_names_a_directory_interpreter_a_keyless_env_and_an_explicit_
 
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
     helper = REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
     env = {
@@ -1770,7 +1773,7 @@ def test_a_venv_without_python_dotenv_reads_the_env_file_through_the_stdlib_load
     (root / "dotenv.py").write_text(
         shadow, encoding="utf-8"
     )  # the helper and the chain run their python with cwd = root, and '' leads their sys.path
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     env = {
         k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
