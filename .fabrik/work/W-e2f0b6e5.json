@@ -3,7 +3,7 @@
   "created": "2026-10-17T15:46:40.804444Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "81afd8a76e14d83377ba55a496a0d79eddbca595",
   "id": "W-e2f0b6e5",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scaffolder creates real databases in probes",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

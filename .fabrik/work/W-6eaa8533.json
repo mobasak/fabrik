@@ -3,7 +3,7 @@
   "created": "2026-10-17T00:50:53.886330Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f9cb60105e52f0417525dd0a2c2799b632c74d4f",
   "id": "W-6eaa8533",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on master",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m53nbwpx"
   ],
