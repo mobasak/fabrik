@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-18T06:17:41.674169Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "45c1c9a4f8d151eb96b613dfa0e024571eb54f94",
   "id": "W-49adc7a7",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Four review sources say the SCRATCH: path is 'the path after `SCRATCH: ` on the line `start` printed' — the RUN-SCRATCH: line also contains 'SCRATCH: ', so a literal reader can pin under the disposable folder"
 }
