@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The external-services static file renders through the shared inventory section; `dashboard_server.py` retired (2026-10-18)
+`scripts/gen_dashboard.py` keeps its CLI, exit codes, atomic PID-tmp write and its `load()`, `credit_cell` and
+`STALE_AFTER_H` names, and now writes the inventory section (`dashboard_ui/inventory.py::render`,
+`interactive=False`) inside a self-contained document of its own: `app.css` inlined, no script, no external request,
+its own doctype, `lang`, title, viewport and `<h1>`, the registry's sync time and the classifier's last run reaching
+the written file. `_read()` closes its registry connection on every path. `credit_cell` delegates every refusal to
+the inventory and takes `now` through the inventory's own time check. The 8770 live twin `scripts/dashboard_server.py`
+and its tests are deleted; nothing under `scripts/` or `tests/` names it, which a test now asserts (W-3e9e2f4c, T03;
+wave review `docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T03-review.md`).
+
 ### Added — The external-services inventory module (2026-10-18)
 `scripts/sysadmin/dashboard_ui/inventory.py` holds the registry reader (`load(conn, *, before_query=None)` →
 rows and the registry's own sync time; `credit_cell` and `STALE_AFTER_H` moved out of `gen_dashboard.py`'s rules)

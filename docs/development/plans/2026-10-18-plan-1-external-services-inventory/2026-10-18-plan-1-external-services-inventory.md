@@ -51,8 +51,8 @@ W-7e467f2d (the stalled classifier, spec I8).
 |---|---|---|---|---|---|
 | T01 | Page-layer additions | — | ⚡ | ✅ | |
 | T02 | The inventory module | T01 | ⛓️ | ✅ | |
-| T03 | The static file; dashboard_server retired | T02 | ⛓️ | 🔵 | |
-| T04 | Integration | T01, T02, T03 | ⛓️ | ⬜ | |
+| T03 | The static file; dashboard_server retired | T02 | ⛓️ | ✅ | |
+| T04 | Integration | T01, T02, T03 | ⛓️ | 🔵 | |
 
 ## Merge Order
 

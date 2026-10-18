@@ -365,6 +365,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/gen_dashboard.py`
 - `scripts/sysadmin/dashboard_ui/__init__.py`
 - `scripts/sysadmin/dashboard_ui/components.py`
 - `scripts/sysadmin/dashboard_ui/fmt.py`

@@ -121,7 +121,6 @@
 - [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): Per-command optimisation report over the fleet-wide close-out ledger (D-175).
 - [scripts/command_run.py](../INDEX.md) (owner: infra): COMMAND RUN-RECORD — the in-flight state of the `/fabrik-*` command an agent is running.
 - [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
-- [scripts/dashboard_server.py](../INDEX.md) (owner: infra): LIVE external-services dashboard — a tiny localhost server that queries the registry on every
 - [scripts/decisions.py](../INDEX.md) (owner: infra): Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): Declare a subscription (renewal date / price / account email) for a service.
 - [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
@@ -210,7 +209,7 @@
 - [scripts/fix_economy_tier_agents.py](../INDEX.md) (owner: infra): Apply Self-Review Workflow to Economy Tier Agents
 - [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): Fleet-wide doc-freshness audit — the MECHANICAL rot detector for /opt projects.
 - [scripts/gather_envs.py](../INDEX.md) (owner: infra): Consolidate all /opt/*/.env files into a single deduped, service-annotated registry.
-- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
+- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained static HTML file.
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_vps_inventory.py](../INDEX.md) (owner: infra): Generate the VPS container inventory table for vps-complete-inventory.md.
 - [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
@@ -280,7 +279,7 @@
 - [scripts/sysadmin/mcp_orphan_reaper.py](../INDEX.md) (owner: infra): Reap stdio MCP server processes whose Claude Code session is gone (operator mail 01M4AR32MY).
 - [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
 - [scripts/sysadmin/prune_transcripts.py](../INDEX.md) (owner: infra): prune_transcripts — Phase C.2/C.3 of the session-history retention plan (D-736).
-- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The account-quota dashboard: a localhost page showing every Claude account's session +
+- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The command centre (plan 2026-10-17-plan-1): the localhost board the operator leaves open — six
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 - [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
 - [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen
