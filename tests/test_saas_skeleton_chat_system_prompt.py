@@ -9,11 +9,15 @@ rate-limited backend chat route is the planned replacement (slice 2).
 What slice 2 OWES, the red-list its backend tests must cover (round-1 findings F5 and F11,
 `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-round1-findings.md`):
 - the upstream payload is exactly ``{model, messages, stream}``. No field in
-  ``SLICE2_HOSTILE_FIELDS`` reaches the model, and the system message comes only from server code;
+  ``SLICE2_HOSTILE_FIELDS`` reaches the model;
+- the system message comes only from a server constant: an empty one sends no system message, and a
+  set one is sent verbatim, before the user's message;
 - every body in ``SLICE2_BAD_BODIES`` is a 400 and reaches nothing;
 - the key unset is a 503, and a non-2xx upstream is an ``error`` frame.
-The two constants below are that list verbatim from the retired route tests. Slice 2 imports them, so the
-guarantee keeps a named owner between the slices.
+The two constants below are the retired route tests' matrices, verbatim. The last bullet is the
+deleted route's own behaviour (``route.ts:30-37`` and its upstream branch at 8c30c61d2), which no
+retired test pinned. Slice 2 imports the constants, so the guarantee keeps a named owner between
+the slices.
 """
 
 from __future__ import annotations
@@ -63,22 +67,19 @@ def _template_files() -> list[Path]:
 
 def test_the_template_ships_only_the_health_route():
     """An allowlist, not a search: a new route, a pages/ API or a middleware fails until allowed on purpose."""
-    routes = sorted(
-        str(p.relative_to(TEMPLATE))
-        for p in (TEMPLATE / "app").rglob("*")
-        if p.is_file() and p.stem == "route"
-    )
-    assert routes == ["app/api/health/route.ts"]
-    assert not (TEMPLATE / "pages").exists()
-    assert not any((TEMPLATE / f"middleware.{ext}").exists() for ext in ("ts", "js"))
+    files = [p.relative_to(TEMPLATE) for p in _template_files()]
+    routes = sorted(str(p) for p in files if p.stem == "route")
+    assert routes == ["app/api/health/route.ts"]  # anywhere in the tree, src/app included
+    assert not [str(p) for p in files if "pages" in p.parts or p.stem == "middleware"]
 
 
 def test_no_template_file_names_the_chat_route_or_the_key():
-    """The README, .env.example and ChatUI once described the route and the key it spent."""
+    """The README, .env.example and ChatUI once described the route and the key it spent. Any
+    OpenRouter reference counts (a URL, OPENROUTER_MODEL, prose), not only one variable name."""
     hits = [
         str(p.relative_to(TEMPLATE))
         for p in _template_files()
-        if any(t in p.read_text(errors="ignore") for t in ("api/chat", "OPENROUTER_API_KEY"))
+        if "api/chat" in (t := p.read_text(errors="ignore")) or "openrouter" in t.lower()
     ]
     assert hits == []
 
@@ -101,7 +102,8 @@ def test_a_fresh_scaffold_ships_no_chat_route(project_type, tmp_path):
     # every scaffold type carries a reference copy of this template
     assert not (project / "templates" / "saas-skeleton" / "app" / "api" / "chat").exists()
     env_example = project / ".env.example"
-    assert "OPENROUTER_API_KEY" not in (env_example.read_text() if env_example.exists() else "")
+    assert env_example.is_file()  # never a vacuous pass on a scaffold that stopped emitting it
+    assert "openrouter" not in env_example.read_text().lower()
 
 
 def test_no_template_file_offers_a_client_system_prompt():

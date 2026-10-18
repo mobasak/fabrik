@@ -2,13 +2,13 @@
 
 ## Overview
 
-A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and AI chat integration.
+A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and chat UI components (no chat endpoint yet).
 
 ## Features
 
 - **Marketing Site**: Landing, pricing, FAQ, terms, privacy pages
 - **App Shell**: Sidebar navigation, dashboard, job workflow
-- **Chat UI**: SSE streaming component for AI chat integration
+- **Chat UI**: SSE streaming components; wire them to an authenticated, rate-limited endpoint (none ships)
 - **Self-hosted auth (Pattern A)**: the FastAPI backend (`server/`) is the IdP — issues its own JWTs via the vendored `fastapi_user_auth` (Argon2, refresh rotation, jti denylist, tenant RLS) on `postgres-main` + `redis-main`
 
 ## Quick Start
