@@ -132,7 +132,8 @@ def pytest_configure(config):
         "markers",
         "live_box: reads the installed ~/.claude corpus the merge owner renders after a merge;"
         " skipped inside a merge check (FABRIK_MERGE_CHECK=1) only when its own body reads"
-        " asm/ac.AGENTS|OUT|SKILLS or Path.home() / '.claude' / commands|skills|agents",
+        " asm|ac|assemble_commands.AGENTS|OUT|SKILLS or Path.home() / '.claude' /"
+        " commands|skills|agents",
     )
     for var in _GIT_ENV_LEAKS:
         os.environ.pop(var, None)
