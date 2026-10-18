@@ -499,7 +499,7 @@ it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's s
 pass; `/fabrik-spec-review` is the independent adversarial one that re-verifies every cited external fact
 against the live web, audits the fabrik-lib vendor→enhance→build verdict against real modules, iterates to a
 no-op round, and after its design-approval panel flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
-`/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (**Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — besides the quota wall and the operator's pause § Run record names, the only reasons to stop before
+`/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (**Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — the only reasons to stop before
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and close with `python3 scripts/command_run.py handoff --command fabrik-spec --resume
 <scratch file> --reason "<the open question>" --feedback …`, the file's `## RESUME` block naming the question

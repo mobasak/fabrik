@@ -275,50 +275,16 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
     )
 
 
-def _norm(rel: str) -> str:
-    return re.sub(r"\s+", " ", (ROOT / rel).read_text())
-
-
-def test_the_close_list_names_the_wall_and_the_pause_as_halts() -> None:
-    """W-8d98265e: the run-record close list named only the three BLOCKED cases, so the quota wall and an operator's
-    pause (D-993) had no stated close; every command that restates the halt rule names or points at both."""
-    frag = _norm("commands/_fragments/run-record.md")
+def test_the_close_list_names_the_wall_and_the_pause_as_stops() -> None:
+    """W-8d98265e: the run-record close list said "Nothing else is a legitimate halt" after the three BLOCKED cases,
+    so the quota wall and an operator's pause (D-993) had no stated close; it now names both, additive to every stop
+    a command's own text names."""
+    frag = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "run-record.md").read_text())
     assert (
-        "The other two halts are `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band `CLAUDE.md`"
-        " places AT the wall: finish and checkpoint the step in hand, commit, push, then close) and a pause the"
-        " operator ordered (`blocked --paused`, its `--reason` the operator's words, D-993). Those two hold in every"
-        " command, whatever its other lines say are the only ways to stop; nothing else halts a run"
+        "Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`'s"
+        " quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason`"
+        " the operator's words, D-993). Both hold in every command, even where its text calls other stops the only"
+        " ones, and every stop that text names holds too"
     ) in frag
     assert "Nothing else is a legitimate halt" not in frag
-    pointer = "besides the quota wall and the operator's pause § Run record names, the only reasons to stop before"
-    assert pointer[0].upper() + pointer[1:] in _flat()
-    assert pointer in _norm("commands/_sources/fabrik-spec.md")
-    assert (
-        "Besides the quota wall and the operator's pause § Run record names, the only legitimate early stop is"
-    ) in _norm("commands/_sources/fabrik-catchup.md")
-    assert (
-        "or you halt with `blocked --wall` / `--paused` (the quota wall, a pause the operator > ordered) or with"
-        " `BLOCKED:"
-    ) in _norm("commands/_sources/fabrik-execute-plan.md")
-    assert (
-        "on one of the three sanctioned cases, or with `--wall` / `--paused` at the quota wall or a pause the"
-        " operator ordered —"
-    ) in _norm("commands/_sources/fabrik-review.md")
-    assert (
-        "naming the suspected foundation error, besides the quota wall and a pause the operator ordered (`--wall` /"
-        " `--paused`, as the exit list above says)."
-    ) in _norm("commands/_sources/fabrik-review.md")
-    cov = _norm("commands/_fragments/term-coverage.md")
-    assert "**The exceptions are four.**" in cov
-    assert (
-        "And the quota wall and a pause the operator ordered, closed `blocked --wall` and `blocked --paused`."
-        in cov
-    )
-    plan = _norm("commands/_sources/fabrik-execute-plan.md")
-    assert (
-        "a HARD STOP, the quota wall (`blocked --wall`) or a pause the operator ordered (`blocked --paused`, D-993);"
-    ) in plan
-    assert (
-        "contradiction), or `--wall` / `--paused` for the quota wall or a pause the operator ordered;"
-        in plan
-    )
+    assert "nothing else halts a run" not in frag

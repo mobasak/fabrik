@@ -36,7 +36,7 @@ The class ledger persists across rounds: **re-sweep it, never re-scope it** — 
 fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
 `done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases, or with `--wall` / `--paused` at the quota wall or a pause the operator ordered —
+review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
 plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
@@ -515,8 +515,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
   BLOCKED-escalate it per the contract and keep looping on the rest.
 - **The only other exit is `## BLOCKED: NON-CONVERGENCE`** after three non-decreasing nonzero delta
-  rounds, naming the suspected foundation error, besides the quota wall and a pause the operator ordered
-  (`--wall` / `--paused`, as the exit list above says). There is no round cap.
+  rounds, naming the suspected foundation error. There is no round cap.
 - **No flywheel rows while the pool is OFF (D-181/D-182)** — every seat is native and records nothing; the exit check is the adjudication ledger (every candidate FIXED or REFUTED with proof), never a score back-fill.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is

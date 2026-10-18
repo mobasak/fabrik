@@ -801,9 +801,7 @@ is stronger: ERROR at the emit gate and the flip, advisory only on the shared pa
   first grounding; the deliverable is a plan that has been through **one full convergence round**
   (grounders → refute/merge → runnable gates → `check_convergence.py`). Do **not** end the turn on
   an unconverged DRAFT — context is never the reason (the harness auto-compacts and the run
-  continues). Besides the quota wall and the operator's pause § Run record names, the only reasons to stop
-  before convergence are an
-  unanswered **Phase-0 THIN**
+  continues). The only reasons to stop before convergence are an unanswered **Phase-0 THIN**
   question, a **Phase-1 BLOCKING** unknown, or a cited spec that is not CONVERGED and carries no `Size: small`
 (`check_stage_artifacts.py` refuses a plan flip over ANY non-CONVERGED spec; a `Size: small` one converges
 spec-first in `/fabrik-plan-review`'s joint loop, any other goes to `/fabrik-spec-review` first) — surface those and

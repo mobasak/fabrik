@@ -42,8 +42,7 @@ nested review can never end the plan by accident (it is refused). Close this run
 LAST phase is EXECUTED; a real halt is
 `blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the
 three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec/scope
-contradiction), or `--wall` / `--paused` for the quota wall or a pause the operator ordered; a step the plan assigns
-to the operator under a § FINAL OUTPUT gate token closes `handoff --command
+contradiction); a step the plan assigns to the operator under a § FINAL OUTPUT gate token closes `handoff --command
 fabrik-execute-plan --resume <a file with a ## RESUME block> --reason "…" --feedback "…"` instead (the halt rule
 below). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
 TASK terminator, and the record is what proves the task is actually over.
@@ -239,8 +238,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 > 1. **No self-authorized deferral.** You do **NOT** get to decide to skip, descope, defer, simplify away, or
 >    "leave for later" any step, task, or phase in the plan. There is **no** *optional / nice-to-have /
 >    out-of-scope-for-now / TODO-revisit / follow-up-PR / good-enough* bucket for plan work — **every step
->    ships in THIS run**, or you halt with `blocked --wall` / `--paused` (the quota wall, a pause the operator
->    ordered) or with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
+>    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction) — a step the plan
 >    assigns to the operator under a § FINAL OUTPUT gate token excepted, which ends behind its gate DECISION (the
 >    halt rule below). *"I judged X
@@ -267,8 +265,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    confirmation and **without stopping mid-run to ask or to narrate progress.** Never end a turn with
    "shall I continue / proceeding now unless you redirect" — keep going until the plan is `EXECUTED`,
    `BLOCKED`, or a HARD STOP fires. The only permitted mid-run halts are a real `BLOCKED` (3 consecutive
-   same-test failures, missing infra, unresolvable spec/scope contradiction), a HARD STOP, the quota wall
-   (`blocked --wall`) or a pause the operator ordered (`blocked --paused`, D-993); a step the plan assigns
+   same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP; a step the plan assigns
    to the operator under a § FINAL OUTPUT gate token ends the run behind `DECISION NEEDED (ground: gate)`, closed
    `handoff` with its `## RESUME` naming the next phase (`CLAUDE.md` § Behavior, plan-execution override), the lock
    and `Status: IN-PROGRESS` kept for the resume — a phase step, never Finish step 7's deploy, which the EXECUTED
