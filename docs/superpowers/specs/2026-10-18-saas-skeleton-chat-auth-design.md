@@ -1,6 +1,6 @@
 # saas-skeleton chat that only a signed-in, rate-limited user can spend — design spec
 
-Status: DRAFT
+Status: CONVERGED
 Amended: 2026-10-18 (night). The joint plan-review's round 1 confirmed a foundation error (F1: the default topology is same-host) and 14 findings, all in `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-round1-findings.md`. This amendment re-grounds the design on them. Slice 1 has shipped (D-1005). This spec now designs slice 2.
 Profile: full (the backend chat route and the rate limiter have no code behind them today)
 Work item: W-ab242b11 · owner fleet · coordinator-scored HIGH (security), the major in flight
