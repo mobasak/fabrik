@@ -3,9 +3,10 @@
 `templates/file-worker/worker/main.py` created `/app/.tmp` at import, so `python -m worker.main`
 (`make dev`) on any host that is not the container died with `PermissionError: '/app'` before
 the first line of the worker ran. The heartbeat now lives in the project's own `.tmp/` next to the
-`worker/` package — `/app/.tmp/worker_heartbeat` inside the image (WORKDIR /app, COPY . .), so the
-Docker HEALTHCHECK path is unchanged — and the directory is made when the first beat is written,
-never at import.
+`worker/` package — `/app/.tmp/worker_heartbeat` inside the image (WORKDIR /app, COPY . .), the
+path the `templates/file-worker/*.j2` healthchecks read (rendered by `template_renderer.py`; a
+`fabrik scaffold` project ships a `pgrep` healthcheck instead) — and the directory is made when the
+first beat is written, never at import.
 
 A scaffolded project's real `worker/main.py` is imported in a subprocess (dummy credentials, no
 network: the Supabase and S3 clients are only constructed at import).
@@ -19,7 +20,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from fabrik import scaffold
 from fabrik.scaffold import create_project
+
+# The scaffold copies main.py from FABRIK_ROOT, which follows the checkout the test RUNS in; pin it to
+# the checkout this test file belongs to, so the grader always scaffolds the template beside it.
+_TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "file-worker"
 
 _PROBE = """
 import json, worker.main as m
@@ -41,7 +47,8 @@ _ENV = {
 }
 
 
-def test_the_worker_imports_outside_a_container_and_beats_into_its_own_tmp(tmp_path):
+def test_the_worker_imports_outside_a_container_and_beats_into_its_own_tmp(tmp_path, monkeypatch):
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _TEMPLATE)
     create_project(
         name="fw-heartbeat", project_type="file-worker", description="heartbeat path", base=tmp_path
     )
@@ -65,11 +72,16 @@ def test_the_worker_imports_outside_a_container_and_beats_into_its_own_tmp(tmp_p
     assert out["beat"] is True  # the first beat makes the directory
 
 
-def test_the_healthcheck_still_reads_the_path_the_worker_writes_in_the_image():
-    """WORKDIR /app + `COPY . .` puts worker/ at /app/worker, so the project's .tmp is /app/.tmp."""
-    template = Path(__file__).resolve().parent.parent / "templates" / "file-worker"
-    dockerfile = (template / "Dockerfile.j2").read_text()
-    compose = (template / "compose.yaml.j2").read_text()
+def test_the_j2_healthchecks_read_the_path_the_worker_writes_in_the_image():
+    """The .j2 Dockerfile and compose (template_renderer's) read /app/.tmp/worker_heartbeat, and
+    WORKDIR /app + `COPY . .` puts worker/ at /app/worker, so HEARTBEAT_FILE lands exactly there."""
+    dockerfile = (_TEMPLATE / "Dockerfile.j2").read_text()
+    compose = (_TEMPLATE / "compose.yaml.j2").read_text()
     assert "WORKDIR /app" in dockerfile and "COPY . ." in dockerfile
     assert "/app/.tmp/worker_heartbeat" in dockerfile
     assert "/app/.tmp/worker_heartbeat" in compose
+    # the worker's own arithmetic, relocated to the image layout, is that same path
+    in_image = Path("/app/worker/main.py").parent.parent / ".tmp" / "worker_heartbeat"
+    main_src = (_TEMPLATE / "worker" / "main.py").read_text()
+    assert 'Path(__file__).resolve().parent.parent / ".tmp" / "worker_heartbeat"' in main_src
+    assert str(in_image) == "/app/.tmp/worker_heartbeat"
