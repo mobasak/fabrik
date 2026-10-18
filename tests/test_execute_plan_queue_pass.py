@@ -245,3 +245,24 @@ def test_a_backlog_referrer_is_repointed_through_the_work_store() -> None:
         " delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than "
         "editing the row. Doc Link Integrity DOES catch a missed one"
     ) in _norm()
+
+
+def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
+    """Row 1792337134 (recurrence of the held clone-proof-uses-docker-run): a gate or live request served by a shared
+    runtime that mounts the main checkout grades MAIN's code, so a worktree run grades its tree in a one-off container."""
+    assert (
+        "against the two-level rule above. In any linked worktree, a gate or live request that a shared runtime serves (a"
+        " container or service mounting the main checkout) grades MAIN's code, so grade this tree with a one-off"
+        " container that mounts it. - **Verify your owned paths are clean:**"
+    ) in _norm()
+
+
+def test_finish_step_5_says_the_run_flips_its_own_plan_and_when_the_coordinator_does() -> None:
+    """Row 1792345477: the template gives the coordinator a finished plan's EXECUTED flip with no condition, so step 5
+    names the run as the flipper at every position and quotes coordinator.md's condition for the coordinator's flip."""
+    assert (
+        "flip the plan `Status: EXECUTED <date>` (this run flips its own plan at every position, (c) included; the"
+        " coordinator's flip covers a plan whose run is no longer live,"
+        " `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact"
+    ) in _norm()
+    assert "once no run is live on it" in (ROOT / "docs" / "reference" / "agents" / "coordinator.md").read_text()

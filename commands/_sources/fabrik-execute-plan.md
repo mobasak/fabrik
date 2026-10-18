@@ -178,7 +178,9 @@ TASK terminator, and the record is what proves the task is actually over.
      the main checkout is fine. **Already in a linked worktree — a named
      agent's window, or an isolation tree a prior step created — work in place: that tree IS your
      isolation**, and a second orchestrator level would push the coders to a third, against the two-level
-     rule above.
+     rule above. In any linked worktree, a gate or live request that a shared runtime serves (a container or
+     service mounting the main checkout) grades MAIN's code, so grade this tree with a one-off container
+     that mounts it.
    - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not →
      STOP — for a step-7 same-plan RESUME this is the MESSY case: `BLOCKED: resume needs operator ruling`
      per step 7 (never adopt, reset, or revert residue on shared paths — the operator rules first).
@@ -1282,7 +1284,9 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    other. Coder worktrees created BY this run are removed from this tree as usual — they are inside it,
    so no redirect is involved.
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
-   `final_commit`), flip the plan `Status: EXECUTED <date>`, **and cite the step-1 whole-plan review artifact
+   `final_commit`), flip the plan `Status: EXECUTED <date>` (this run flips its own plan at every position, (c)
+   included; the coordinator's flip covers a plan whose run is no longer live,
+   `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact
    in the completion stamp** — a `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
    This is not bookkeeping: **`check_convergence.py` FAILS the gate on any plan that claims `EXECUTED` (in
    `plans/` OR `plans/archived/`) unless it cites a review artifact that EXISTS on disk and shows a
