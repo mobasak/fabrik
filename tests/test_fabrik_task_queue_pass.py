@@ -128,7 +128,10 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
     """Row 1791845646: the nested review learned the `--range` init only at phase 5's close."""
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     review = text[text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")]
-    assert "A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none." in review
+    assert "A full `/fabrik-review` over committed work inits its receipt with `--range` to phase 5's last commit (ledgers in); a scoped one needs none." in review
+    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
+    # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
+    assert "Its range tip must be the LAST `--commit`" in text and "then commit that receipt alone" in text
 
 
 def test_phase_three_formats_the_declared_paths_only() -> None:
