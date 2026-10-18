@@ -104,7 +104,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-979 (kaizen, 2026-10-18): 22410 -> 22662 — SIZE check-ignores each new file path and stages it just before the
 # pathspec commit; MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape (rows
 # 1792293040, 1792291304; two held-subject recurrences).
-SIZE_CAP = 22662
+# D-984 (kaizen, 2026-10-18): 22662 -> 22797 — a linked-worktree session writes <durable> from the shell, since its
+# Write tool refuses a main-checkout path (row 1792298605, a fourth sighting after three routed to infra).
+SIZE_CAP = 22797
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -863,7 +865,15 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     ) in text
     # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
     assert "<run-scratch>" not in raw
-    assert "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
+    assert (
+        "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
+    )
+    # D-984: the Write tool refuses a main-checkout path from a linked worktree; a shell heredoc writes it
+    assert (
+        "never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; a linked-worktree"
+        " session writes there from the shell (a quoted `<<'EOF'` heredoc), since its Write tool refuses a"
+        " main-checkout path; with no `SCRATCH:` line"
+    ) in text
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     assert raw.count("<durable>") == 9
     for site in (
