@@ -3767,6 +3767,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="record one convergence round (--confirmed <n> is the exit counter)",
         parents=[common],
     )
+    p.add_argument(
+        "--command",
+        default=None,
+        help="the run this round is for — optional; when given it must be the LIVE one (rc 1 and "
+        "nothing recorded otherwise), the check the close verbs make (W-79638b4a)",
+    )
     p.add_argument("--findings", type=int, default=0)
     # D-206/D-203: quiet is zero CONFIRMED code or doc defects, never zero RAISED — a refuted or
     # recorded candidate never reopens the loop, so the raw candidate count cannot be the exit
@@ -3887,7 +3893,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
-    p.add_argument(
+    _resumable = p.add_mutually_exclusive_group()
+    _resumable.add_argument(
+        "--paused",
+        action="store_true",
+        help="this close is an OPERATOR PAUSE, not one of the three BLOCKED cases: --reason carries the "
+        "operator's words, and the record keeps the same resume seed `--wall` keeps, so `start "
+        "--resume-from` reopens it (W-79638b4a). A pause is never the quota wall, and the wall "
+        "regexes never read one into it.",
+    )
+    _resumable.add_argument(
         "--wall",
         action="store_true",
         help="this close is the fleet QUOTA WALL, not one of the three BLOCKED cases: the record is "
@@ -5764,7 +5779,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 elif loaded.get("state") != "blocked":
                     why = f"is not a blocked record (state {loaded.get('state')!r})"
                 elif loaded.get("wall") is not True:
-                    why = "was not closed at the quota wall (no `wall` mark — `blocked --wall` keeps one)"
+                    why = (
+                        "was not closed at the quota wall or by an operator pause (no `wall` mark — "
+                        "`blocked --wall` and `blocked --paused` keep one)"
+                    )
                 elif _norm_command(str(loaded.get("command") or "")) != _cmd:
                     why = f"belongs to /{loaded.get('command')}, not /{_cmd}"
                 else:
@@ -5799,7 +5817,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             _superseded = str(rec.get("run_scratch") or "")
             # the forgotten flag is the common case: say where the seed is, then open as asked
             sys.stderr.write(
-                f"[command_run] NOTE — this session's /{_cmd} record was closed at the quota wall; "
+                f"[command_run] NOTE — this session's /{_cmd} record was closed "
+                f"{'by an operator pause' if rec.get('paused') else 'at the quota wall'}; "
                 f"a plain `start` restarts it from zero. To carry its rounds, design and commit "
                 f"window: start --command {_cmd} --phases {rec.get('phases')} --resume-from "
                 f"{rec.get('resume_seed') or _record_path(sid)}\n"
@@ -6467,6 +6486,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "round":
+        # W-79638b4a: a round can name its run, as every close does; a nested caller's round that
+        # names its parent while the child is live is refused before it lands on the wrong record
+        _named = getattr(args, "command", None)
+        if _named and _norm_command(_named) != _norm_command(str(rec.get("command") or "")):
+            msg = (
+                f"REFUSED — round --command /{_norm_command(_named)}, but the LIVE run is "
+                f"/{rec.get('command')} (phase {rec.get('phase')}/{rec.get('phases')}); nothing "
+                f"was recorded. Re-run with --command {rec.get('command')}, or close the live run first."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
         rounds = list(rec.get("rounds") or [])
         # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation:
         # a NEGATIVE count can never reach 0, so the loop either counter describes has no exit at
@@ -7193,7 +7224,15 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # the quota wall (W-28f260c3): the flag is the gate, the hook's own phrase implies it, and a
     # quota-shaped reason WITHOUT either gets a NOTE — a silent miss here is a lost run
     _wall = False
-    if args.cmd == "blocked":
+    # an operator pause (W-79638b4a) keeps the wall's resume seed — `_wall` below drives the seed,
+    # the resumable folder and the reopen order — but is recorded as `paused`, its rows read
+    # `wall: paused`, and no quota regex runs on its reason (the operator's words are not a wall)
+    _paused = args.cmd == "blocked" and bool(getattr(args, "paused", False))
+    if _paused:
+        _wall = True
+        rec["wall"] = True
+        rec["paused"] = True
+    elif args.cmd == "blocked":
         _reason_text = str(getattr(args, "reason", "") or "")
         _wall = bool(getattr(args, "wall", False)) or bool(_WALL_REASON.search(_reason_text))
         if _wall:
@@ -7430,7 +7469,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # SCALAR under its own name: `resumed_from` on the record and the ledger row is the
             # dict (session_id, started_at, blocked_at, reason, seed, rounds); one name with two
             # shapes across the two streams was review tests-docs-S1
-            "wall": "quota" if _wall else "",
+            "wall": ("paused" if _paused else "quota") if _wall else "",
             "resumed_from_start": str((rec.get("resumed_from") or {}).get("started_at") or ""),
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
@@ -7516,7 +7555,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # seed it came from, the gap it never counted and the rounds it carried — a reader that
             # sums rows per command subtracts on `resumed_from` instead of counting the first
             # sitting twice. Tokens never span sessions (the transcript is this sid's).
-            "wall": "quota" if _wall else "",
+            "wall": ("paused" if _paused else "quota") if _wall else "",
             "resumed_from": dict(rec.get("resumed_from") or {}) or "",
             "gap_s": round(float(_finite_ts(rec.get("gap_s")) or 0.0), 1),
             "rounds_before_resume": _int0((rec.get("resumed_from") or {}).get("rounds")),
@@ -7636,14 +7675,19 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if _fb_line is not None:
         print(_fb_line)
     if _reopen:
+        _why, _when, _flag = (
+            ("paused", "when the operator resumes", "--paused")
+            if _paused
+            else ("wall", "after the lift", "--wall")
+        )
         print(
-            f"wall: the run is kept — reopen it after the lift with: start --command "
+            f"{_why}: the run is kept — reopen it {_when} with: start --command "
             f"{rec.get('command')} --phases {rec.get('phases')} --resume-from {_reopen}"
         )
         if parent is not None:
             print(
-                f"wall: the parent /{parent.get('command')} is live — close it too with `blocked --wall`; "
-                "after the lift resume the PARENT first, then this run"
+                f"{_why}: the parent /{parent.get('command')} is live — close it too with `blocked {_flag}`; "
+                f"{_when} resume the PARENT first, then this run"
             )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
