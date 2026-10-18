@@ -1175,8 +1175,9 @@ def test_each_seat_folder_gets_its_own_du_deadline(tmp_path: Path, monkeypatch) 
     """F8 (W-c0a1d324): spec D5 gives EACH seat folder its own `du` deadline. One deadline shared
     across the seats left a later seat whatever a slow earlier one did not spend — down to zero,
     so one large copy made every later seat read "size unmeasured"."""
+    run = tmp_path / "run"  # its own folder: every top-level folder is measured (W-3c60b7db)
     for n in (1, 2, 3):
-        (tmp_path / f"seat-{n}").mkdir()
+        (run / f"seat-{n}").mkdir(parents=True)
     clock = {"t": 0.0}
     timeouts: list[float] = []
 
@@ -1187,9 +1188,25 @@ def test_each_seat_folder_gets_its_own_du_deadline(tmp_path: Path, monkeypatch) 
 
     monkeypatch.setattr(cr.time, "monotonic", lambda: clock["t"])
     monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    lines = cr._seat_size_lines(str(tmp_path), threshold=1024, deadline_s=15.0)
+    lines = cr._seat_size_lines(str(run), threshold=1024, deadline_s=15.0)
     assert timeouts == [15.0, 15.0, 15.0], timeouts
     assert lines == [], lines
+
+
+def test_every_top_level_directory_of_the_run_folder_is_measured(tmp_path: Path) -> None:
+    """W-3c60b7db (kaizen 01M4Z543MQ): the glob was `seat-*`, so `seat2-opus`, a hand-made pin of a
+    whole tree and any other top-level folder escaped the advisory — 436 top-level dirs across 103
+    live run folders on 2026-10-18, a third of them outside `seat-*`. Every directory is a seat's
+    or the lead's write, so every one is measured; a plain file and a symlink are not folders."""
+    big = b"x" * (2 * 1024 * 1024)
+    for name in ("seat-1", "seat2-opus", "pins-p1", "probe", ".hidden"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "copy.bin").write_bytes(big)
+    (tmp_path / "brief.md").write_bytes(big)  # a file at the top level is no folder
+    (tmp_path / "linked").symlink_to(tmp_path / "seat-1")  # a symlink is never followed
+    lines = cr._seat_size_lines(str(tmp_path), threshold=1024 * 1024, deadline_s=15.0)
+    named = sorted(ln.split(":", 1)[0] for ln in lines)
+    assert named == [".hidden", "pins-p1", "probe", "seat-1", "seat2-opus"], lines
 
 
 # ── Finish review (round 1): graders for the confirmed candidates ─────────────────────────────────

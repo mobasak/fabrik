@@ -636,7 +636,7 @@ run is consumed. The removal rules live in `docs/workstation/cleanup-automation.
   the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
   session, `--retire` refuses it and only a hand edit of `.owner` ends it).
 - **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
-  <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
+  <repo_root> --apply` detached; `round` prints one line per top-level folder of the run folder over
   `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.
 - **Tests:** a test seam (`COMMAND_RUN_DIR`/`PYTEST_CURRENT_TEST`) without `SCRATCH_SWEEP_ROOT` mints
   nothing, and launches the sweep only for an explicit `FABRIK_SCRATCH_SWEEP_SCRIPT`.
