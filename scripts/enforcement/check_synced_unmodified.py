@@ -49,8 +49,9 @@ def _md5(path: Path) -> str:
 # allowed to make, with no word about the hub. The REQUIRED_MANIFEST_ATTRS rule is
 # check_sync_trigger_coverage.py's; unlike its loader (OSError only), this one names anything the
 # manifest raises while it loads or while its lists are read, except a bare KeyboardInterrupt (the
-# operator's), SystemExit and GeneratorExit included, runs none of the manifest's code once the
-# lists are read, and refuses a present list of the wrong shape.
+# operator's), SystemExit and GeneratorExit included, consults no manifest object once the lists
+# are read, and refuses a present list of the wrong shape (the boundary — a manifest that reaches
+# into this module can rewrite it — is stated at the load in `_manifest_lists`).
 REQUIRED_MANIFEST_ATTRS = ("SEEDED_NOT_ENFORCED", "RETIRED_VENDORED_DIRS")
 MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
@@ -72,19 +73,21 @@ def _path_list(path: Path, name: str, value: object, *, tuple_entries: bool) -> 
     """`value` as a list of paths, or ManifestError: a present list of the wrong shape is a guessed
     list too (`set(None)` crashed bare; a string exploded into one-character prefixes).
 
-    EXACT built-in types only, tested with `type()`, never `isinstance`: a subclass's `__iter__`,
-    `__str__` or `rstrip`, or a `__class__` property, is the manifest's code running after its load
-    is over, where a `sys.exit(0)` ended the check GREEN (W-3d6a6236). The message names a refused
-    entry by its type, never its `repr`, for the same reason."""
-    if type(value) not in (set, frozenset, list, tuple):  # a str is none of these
+    EXACT built-in types only, tested by identity (`type(x) is T`), never `isinstance` or `==` (a
+    metaclass answers both): a subclass's `__iter__`, `__str__` or `rstrip`, or a `__class__`
+    property, is the manifest's code running after its load is over, where a `sys.exit(0)` ended
+    the check GREEN (W-3d6a6236). The value is iterated ONCE, so the entries checked are the entries
+    returned. The message names a refused entry by its type, never its `repr`, for the same reason."""
+    if not any(type(value) is t for t in (set, frozenset, list, tuple)):  # a str is none of these
         raise ManifestError(
             f"{path}: {name} is a {type(value).__name__}, not a collection of paths"
         )
-    for item in value:
+    items = list(value)
+    for item in items:
         head = item[0] if tuple_entries and type(item) is tuple and item else item
         if type(head) is not str:
             raise ManifestError(f"{path}: {name} holds a {type(head).__name__}, not a path")
-    return list(value)
+    return items
 
 
 def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
@@ -133,6 +136,9 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
     # inside this handler, so it gets the same guard. What the catch cannot reach: a manifest that
     # ends the process (os._exit) or installs a side effect that outlives its load (an atexit hook,
     # sys.excepthook, a signal handler) — it is the hub's own stdlib-only file, not a sandboxed one.
+    # A manifest that deliberately reaches into THIS module (a frame walk, gc) can rewrite the check
+    # itself — replacing `_md5` passes any drift with nothing raised — so these guards close what an
+    # honest manifest can get wrong, never an attack (W-3d6a6236 review pass 2).
     try:
         spec.loader.exec_module(man)
         missing = [a for a in REQUIRED_MANIFEST_ATTRS if a not in names]
@@ -149,11 +155,9 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
         # Exact built-in strs and tuples only past this line, so nothing below runs manifest code.
         return {str(s) for s in seeded}, tuple(retired)  # type: ignore[arg-type]
     except BaseException as e:
-        # This check's own refusal passes as raised; an exact type with a plain-str message is the
-        # test, because a manifest can reach this module and raise a ManifestError subclass whose
-        # `__str__` would run when `main()` prints it.
-        ours = type(e) is ManifestError and len(e.args) == 1 and type(e.args[0]) is str
-        if ours or type(e) is KeyboardInterrupt:
+        # This check's own refusal passes as raised — the exact type, so a ManifestError subclass
+        # (whose `__str__` would run when `main()` prints it) is named like any other failure.
+        if type(e) is ManifestError or type(e) is KeyboardInterrupt:
             raise
         try:
             detail = str(e)

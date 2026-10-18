@@ -267,6 +267,13 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         _EXIT0 + "class Meta(type):\n    __eq__ = _exit0\n    __hash__ = type.__hash__\n"
         "class C(metaclass=Meta):\n    pass\n"
         "SEEDED_NOT_ENFORCED = C()\nRETIRED_VENDORED_DIRS = []\n",
+        # A metaclass that answers `==` True for any class passes an `in`/`==` type test; its
+        # second iteration hands `main()` a str subclass whose `rstrip` exits.
+        _EXIT0 + "class S(str):\n    rstrip = _exit0\n"
+        "class Meta(type):\n    __eq__ = lambda c, o: True\n    __hash__ = type.__hash__\n"
+        "class C(list, metaclass=Meta):\n    calls = 0\n    def __iter__(self):\n"
+        "        C.calls += 1\n        return iter(['libs/x'] if C.calls == 1 else [S('libs/x')])\n"
+        "SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = C(['libs/x'])\n",
         _EXIT0 + "class Meta(type):\n    __name__ = property(_exit0)\n"
         "class C(metaclass=Meta):\n    pass\n"
         "SEEDED_NOT_ENFORCED = [C()]\nRETIRED_VENDORED_DIRS = []\n",
@@ -290,6 +297,7 @@ _EXIT0 = "def _exit0(*a, **k):\n    raise SystemExit(0)\n"
         "manifesterror-subclass",
         "list-iterates-differently",
         "metaclass-eq",
+        "metaclass-eq-true",
         "metaclass-name",
         "colliding-dict-key",
     ],
