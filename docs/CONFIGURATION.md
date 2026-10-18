@@ -44,6 +44,33 @@ python -c "from fabrik.config import Config; Config(); print('OK — required va
    ssh-copy-id deploy@your-vps
    ```
 
+### SSH jump — `FABRIK_SSH_JUMP_<ALIAS>` (opt-in, per box)
+
+**Why needed:** only on a box whose direct ssh path to a fleet host is dead while another fleet
+host still reaches it (the case that motivated it: W-2b657bee).
+
+**What it does:** `FABRIK_SSH_JUMP_VPS=vps2` adds `-o ProxyJump=vps2` to the ssh/scp that the SSH
+driver (`src/fabrik/drivers/ssh.py`), the DNS client's SSH proxy and the audit probes run against
+the `vps` alias. Not covered: the Vultr provisioning and drill calls (fresh hosts by IP), the
+watchdog's redeploy command (it runs on the VPS), the alerting library's ssh leg, and any script
+under `scripts/` that runs `ssh` itself rather than through the driver. The key is the
+host string upper-cased with every non-alphanumeric turned into `_` (`vps2` →
+`FABRIK_SSH_JUMP_VPS2`; `vps-1` and `vps_1` share one). The value is one or more comma-separated
+`[user@]host[:port]` hops, port 1-65535; anything else (a leading `-`, a space, an IPv6 literal, a
+hop host of `none`) is refused with an error naming the variable. Unset, the argv is exactly what
+it was before — nothing reroutes automatically.
+
+**How it is checked:** `fabrik apply` probes the hub alias, and the target alias for a spoke,
+before anything touches the fleet (`DeploymentOrchestrator._verify_reachable`,
+`drivers/preflight.py::verify_host_reachable`); a dead path fails the run in validation with the
+reason and the next step, naming the dead leg when a jump is set. A dry run probes nothing but
+still refuses a malformed value.
+
+**Where:** any `.env` or environment the `fabrik` process sees — `src/fabrik/config.py` loads the
+first `.env` found walking up from its own directory (`src/fabrik/`) and never overrides a variable
+already set (`FABRIK_NO_AUTOLOAD=1` skips the load). For the main checkout's install that is
+`/opt/fabrik/.env`.
+
 <!--
 Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
 

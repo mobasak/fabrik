@@ -14,6 +14,8 @@ from typing import Any
 
 import httpx
 
+from fabrik.drivers.ssh import jump_args
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,12 +119,16 @@ class DNSClient:
             return None
         if self._resolved_url_cache:
             return self._resolved_url_cache
+        # Outside the try below: a bad FABRIK_SSH_JUMP_<ALIAS> must fail loud, never be
+        # swallowed into the public-URL fallback (W-2b657bee).
+        jump = jump_args(self.ssh_host)
         # Find full container name by prefix, then read its IP on the
         # shared coolify network (avoids picking the per-app UUID net).
         try:
             name_proc = subprocess.run(
                 [
                     "ssh",
+                    *jump,
                     self.ssh_host,
                     f"sudo docker ps --filter name=^{self._container_prefix} "
                     "--format '{{.Names}}' | head -1",
@@ -146,6 +152,7 @@ class DNSClient:
             ip_proc = subprocess.run(
                 [
                     "ssh",
+                    *jump,
                     self.ssh_host,
                     f"sudo docker inspect {container} --format '{fmt}'",
                 ],
@@ -193,7 +200,7 @@ class DNSClient:
             url = f"{url}?{query_string}"
         cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
         result = subprocess.run(
-            ["ssh", self.ssh_host, cmd],
+            ["ssh", *jump_args(self.ssh_host), self.ssh_host, cmd],
             capture_output=True,
             text=True,
             timeout=int(self.timeout),

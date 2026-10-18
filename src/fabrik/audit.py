@@ -95,10 +95,12 @@ def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
     # Best-effort SSH probe. Never raises; returns (ok, stdout|stderr).
     import subprocess
 
+    from fabrik.drivers.ssh import jump_args
+
     vps = os.getenv("FABRIK_AUDIT_VPS", "vps")
     try:
         r = subprocess.run(
-            ["ssh", vps, cmd],
+            ["ssh", *jump_args(vps), vps, cmd],
             capture_output=True,
             text=True,
             timeout=timeout,

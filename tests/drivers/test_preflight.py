@@ -324,3 +324,248 @@ class TestRestartTraefikAndWait:
         with patch.object(preflight, "ssh", side_effect=fake_ssh):
             with pytest.raises(RuntimeError, match="no such container"):
                 restart_traefik_and_wait(timeout=5)
+
+
+# --------------------------------------------------------------------------- #
+# verify_host_reachable (W-2b657bee)                                           #
+# --------------------------------------------------------------------------- #
+
+
+def _probe(answers):
+    """A `subprocess.run` stand-in: answers[i] is an int rc, a (rc, stderr) pair or an
+    exception, consumed one per call; every argv is recorded on the returned list."""
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        answer = answers.pop(0)
+        if isinstance(answer, BaseException):
+            raise answer
+        rc, err = answer if isinstance(answer, tuple) else (answer, "")
+        return MagicMock(returncode=rc, stdout="", stderr=err)
+
+    return run, calls
+
+
+class TestVerifyHostReachable:
+    def test_direct_pass_probes_once_with_batchmode_and_devnull(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        run, calls = _probe([0])
+        with patch("subprocess.run", side_effect=run):
+            preflight.verify_host_reachable("vps", timeout=7)
+        argv, kwargs = calls[0]
+        assert argv == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "vps", "true"]
+        assert kwargs["timeout"] == 12
+        assert kwargs["stdin"] is subprocess.DEVNULL
+        assert kwargs["errors"] == "replace"  # undecodable stderr never escapes as an error
+        assert len(calls) == 1
+
+    @pytest.mark.parametrize(
+        "answer, reason",
+        [
+            ((255, "ssh: Connection timed out during banner exchange\n"), "banner exchange"),
+            (subprocess.TimeoutExpired(cmd="ssh", timeout=15), "no answer in 15s"),
+            (OSError("No such file or directory: 'ssh'"), "No such file"),
+            (OSError("No such file or directory."), "No such file or directory."),
+        ],
+    )
+    def test_dead_direct_path_names_alias_path_and_fix(self, answer, reason, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        run, _ = _probe([answer])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps", timeout=10)
+        msg = str(info.value)
+        assert "'vps'" in msg and "without a FABRIK jump" in msg and reason in msg
+        assert ".." not in msg
+        assert "nothing was changed" in msg
+        if not isinstance(answer, OSError):
+            assert "FABRIK_SSH_JUMP_VPS=" in msg
+
+    def test_non_network_failure_gets_no_jump_advice(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        run, _ = _probe([(255, "Host key verification failed.\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "Host key verification failed." in msg
+        assert "ssh vps true" in msg
+        assert "FABRIK_SSH_JUMP_VPS=" not in msg
+
+    def test_jumped_failure_names_the_dead_leg(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        # target via jump fails, first hop answers → the hop-to-target leg is dead
+        run, calls = _probe([(255, "Connection timed out\n"), 0])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert calls[0][0][:3] == ["ssh", "-o", "ProxyJump=vps2"]
+        assert calls[1][0][-2:] == ["vps2", "true"]
+        msg = str(info.value)
+        assert "via jump 'vps2'" in msg
+        assert "'vps2' answers; the leg from it to 'vps' does not" in msg
+        assert "Check that leg's network" in msg and "Check `ssh vps2 true`" not in msg
+        # first hop dead too → the jump host is named
+        run, _ = _probe([(255, "Connection timed out\n"), (255, "Connection refused\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(
+                preflight.HostUnreachableError, match="jump host 'vps2' is unreachable"
+            ):
+                preflight.verify_host_reachable("vps")
+
+    def test_first_hop_with_user_and_port_is_probed_as_an_ssh_uri(self, monkeypatch):
+        """`ssh … ops@vps2:2222 true` reads `vps2:2222` as the HOSTNAME; only ssh:// carries a port."""
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "ops@vps2:2222,b")
+        run, calls = _probe([(255, "Connection timed out\n"), 0])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert calls[1][0][-2:] == ["ssh://ops@vps2:2222", "true"]
+        assert "a later hop or the leg to 'vps' does not" in str(info.value)
+        # the advice names the same destination the probe used (never `ssh ops@vps2:2222`)
+        run, _ = _probe(
+            [(255, "Connection timed out\n"), (255, "Permission denied (publickey).\n")]
+        )
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "Run `ssh ssh://ops@vps2:2222 true` by hand" in str(info.value)
+
+    def test_first_hop_auth_failure_gets_no_network_advice(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        run, _ = _probe([(255, "Connection timed out\n"), (255, "Host key verification failed.\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "The jump host 'vps2' fails: Host key verification failed." in msg
+        assert "Run `ssh vps2 true` by hand" in msg and "unset FABRIK_SSH_JUMP_VPS" not in msg
+        assert ".." not in msg
+
+    def test_reason_is_the_cause_line_and_reset_is_network_shaped(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "kex_exchange_identification: read: Connection reset by peer\n"
+            "Connection closed by 172.93.160.197 port 22\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "Connection reset by peer" in msg and "Connection closed" not in msg
+        assert "FABRIK_SSH_JUMP_VPS=" in msg
+        # an auth-side close alone is not network-shaped
+        run, _ = _probe([(255, "Connection closed by 172.93.160.197 port 22\n")])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "FABRIK_SSH_JUMP_VPS=" not in str(info.value)
+
+    def test_reason_skips_ssh_generic_sign_off(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "channel 0: open failed: administratively prohibited: open failed\n"
+            "stdio forwarding failed\n"
+            "Connection closed by UNKNOWN port 65535\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "administratively prohibited" in msg and "stdio forwarding failed" in msg
+        assert "Connection closed" not in msg
+
+    @pytest.mark.parametrize(
+        "stderr, cause",
+        [
+            (
+                "Warning: Permanently added 'vps' (ED25519) to the list of known hosts.\n"
+                "Permission denied (publickey).\n",
+                "Permission denied (publickey)",
+            ),
+            (
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+                "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+                "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n"
+                "Host key verification failed.\n",
+                "Host key verification failed",
+            ),
+        ],
+    )
+    def test_reason_is_the_failure_not_a_leading_warning_or_banner(
+        self, stderr, cause, monkeypatch
+    ):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert cause in msg
+        assert "Warning:" not in msg and "@@@" not in msg
+        assert "FABRIK_SSH_JUMP_VPS=" not in msg  # an auth/host-key failure, not the network
+
+    def test_a_warning_line_never_makes_a_failure_network_shaped(self, monkeypatch):
+        """`Warning: Permanently added 'vps-unreachable-box' …` contains 'unreachable'."""
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = (
+            "Warning: Permanently added 'vps-unreachable-box' (ED25519) to the list of known hosts.\n"
+            "Permission denied (publickey).\n"
+        )
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        assert "FABRIK_SSH_JUMP_VPS=" not in str(info.value)
+
+    def test_a_long_reason_keeps_its_tail(self, monkeypatch):
+        monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+        stderr = "".join(f"line {i} of a long host-key notice\n" for i in range(40))
+        stderr += "Host key verification failed.\n"
+        run, _ = _probe([(255, stderr)])
+        with patch("subprocess.run", side_effect=run):
+            with pytest.raises(preflight.HostUnreachableError) as info:
+                preflight.verify_host_reachable("vps")
+        msg = str(info.value)
+        assert "Host key verification failed" in msg and "…" in msg and "line 0 " not in msg
+
+    @pytest.mark.parametrize("alias", ["-oProxyCommand=x", "a b", "a;b"])
+    def test_non_alias_host_is_refused_before_any_probe(self, alias):
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(preflight.HostUnreachableError, match="not an ssh alias"):
+                preflight.verify_host_reachable(alias)
+            mock_run.assert_not_called()
+
+    def test_invalid_jump_value_is_a_host_unreachable_error(self, monkeypatch):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "-oProxyCommand=x")
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(preflight.HostUnreachableError, match="FABRIK_SSH_JUMP_VPS"):
+                preflight.verify_host_reachable("vps")
+            mock_run.assert_not_called()
+
+    def test_direct_path_back_is_logged_not_switched(self, monkeypatch, caplog):
+        monkeypatch.setenv("FABRIK_SSH_JUMP_VPS", "vps2")
+        run, calls = _probe([0, 0])
+        with caplog.at_level("WARNING", logger="fabrik.drivers.preflight"):
+            with patch("subprocess.run", side_effect=run):
+                preflight.verify_host_reachable("vps")
+        advisory = calls[1][0]
+        assert "ProxyJump=none" in advisory and "ProxyJump=vps2" not in advisory
+        assert calls[1][1]["stdin"] is subprocess.DEVNULL
+        assert "FABRIK_SSH_JUMP_VPS" in caplog.text and "direct path" in caplog.text
+        # dead, or raising, advisory probes stay silent and the preflight still passes
+        for advisory_answer in [
+            (255, "timed out"),
+            subprocess.TimeoutExpired("ssh", 5),
+            OSError("x"),
+        ]:
+            caplog.clear()
+            run, _ = _probe([0, advisory_answer])
+            with caplog.at_level("WARNING", logger="fabrik.drivers.preflight"):
+                with patch("subprocess.run", side_effect=run):
+                    preflight.verify_host_reachable("vps")
+            assert "direct path" not in caplog.text

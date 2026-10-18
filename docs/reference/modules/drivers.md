@@ -21,7 +21,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 
 | File | Lines | Used during deploy for | Shape gate |
 |---|---:|---|---|
-| `ssh.py` | 138 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
+| `ssh.py` | 245 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`); `jump_args(host)` adds `-o ProxyJump=` when `FABRIK_SSH_JUMP_<ALIAS>` is set (`docs/CONFIGURATION.md` § SSH jump) | always |
 | `locks.py` | 165 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
 | `dns.py` | 689 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
@@ -34,7 +34,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `redis.py` | 293 | `acquire_db_index()`, `release_db_index()` — per-service Redis DB index on `redis-main` via `assignments.json`; registrar injects `REDIS_URL` | `shape.needs_cache` |
 | `prometheus.py` | 521 | `add_scrape_target()`, `remove_scrape_target()` — scrape config for `/metrics` | `shape.exposes_metrics` + `domain` |
 | `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
-| `preflight.py` | 312 | Readiness probes (compose declares `platform: linux/amd64`, DNS resolves from the VPS and the public internet, Traefik API is reachable) plus `restart_traefik_and_wait()`, which restarts Traefik on the VPS; no command calls any of them today | — |
+| `preflight.py` | 503 | Readiness probes (compose declares `platform: linux/amd64`, DNS resolves from the VPS and the public internet, Traefik API is reachable) plus `restart_traefik_and_wait()`, which restarts Traefik on the VPS — no command calls those; and `verify_host_reachable()`, the ssh reachability probe `fabrik apply` runs first (W-2b657bee) | `fabrik apply` |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
 | ~~`wordpress.py`~~ | — | **Removed** — WP-CLI client extracted to `/opt/wpf/` (May 2026) | WordPress sites (legacy) |
@@ -258,7 +258,7 @@ Canonical source: `/opt/fabrik/.env` (git-ignored; `.env.example` is tracked). R
 | `meilisearch` | `MEILI_MASTER_KEY` (read inside container, never on wire) |
 | `supabase` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
 | `r2` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` |
-| `ssh`, `locks` | `FABRIK_VPS_SSH_HOST` (default `vps`) |
+| `ssh`, `locks` | `FABRIK_VPS_SSH_HOST` (default `vps`); `FABRIK_SSH_JUMP_<ALIAS>` (opt-in ProxyJump, `ssh` only) |
 
 Never commit `.env`. Never `source` a `.env` file — values can contain shell metacharacters (Lesson 25 §8.14); use `python-dotenv` in Python, `grep | cut` in shell.
 
