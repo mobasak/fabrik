@@ -2041,3 +2041,35 @@ def test_a_plan_step_the_operator_owns_ends_behind_a_gate_block_in_both_contract
         " gate token excepted, which ends behind its gate DECISION",
     ):
         assert needle in command, needle
+
+
+def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause_in_both_contracts() -> None:
+    """W-8008e144: the plan-execution override said "The ONLY legitimate halts are the three BLOCKED cases" while the
+    same files' RED band closes a run `blocked --wall` and D-993 closes an operator's pause `blocked --paused`. Both
+    contracts now name those two stops inside the same sentence, which keeps its pinned opening."""
+    sentence = (
+        "The ONLY legitimate halts are the three BLOCKED cases (3 consecutive same-test failures, missing infra, or an"
+        " unresolvable spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`) and the"
+        " two stops that close `blocked` beside them: the quota wall (`blocked --wall`, at § Pointers' RED band) and a"
+        " pause the operator ordered (`blocked --paused`, D-993)."
+    )
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        text = _normalised(FABRIK / rel)
+        assert sentence in text, rel
+        assert "## Pointers" in text and "`blocked --wall`" in text[text.index("## Pointers") :], rel
+    assert "Anything short of those three" not in _normalised(FABRIK / "CLAUDE.md")
+
+
+def test_coordinator_job_7_carries_the_charters_once_no_run_is_live_condition_in_both_contracts() -> None:
+    """W-77812e10 (feedback row 1792345477, tryton-crm): job (7) gave the coordinator a finished plan's EXECUTED flip
+    and archive move with no condition, so a project agent read the flip as the coordinator's alone while
+    /fabrik-execute-plan's Finish step 5 gives it to the live run. The paragraph now carries coordinator.md's
+    condition, byte-identically in both files (D-888)."""
+    clause = (
+        "a finished plan's `Status: EXECUTED` and archive move once no run is live on it and every ticket is merged,"
+        " spec `Status:` lines"
+    )
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        assert clause in _normalised(FABRIK / rel), rel
+    charter = _normalised(FABRIK / "docs" / "reference" / "agents" / "coordinator.md")
+    assert "once no run is live on it and every ticket is merged" in charter
