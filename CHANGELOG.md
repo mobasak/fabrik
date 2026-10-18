@@ -31,6 +31,9 @@ and office-extension scaffolds no longer carry it. The README now says to wire `
 rate-limited endpoint; a backend chat route is the planned replacement.
 D-1005 (W-ab242b11 slice 1).
 
+### Fixed — the identifier-regex grader is green again: it allowlists the dashboard's pattern hand-off (2026-10-18)
+`tests/test_identifier_checks_fullmatch.py` had been red on master since the dashboard plan's T02: `quota_dashboard.py` hands `_SLUG_RE.pattern` / `_EMAIL_RE.pattern` to the Accounts view, and the grader counted every non-`.fullmatch` load as a stray. A `HAND_OFFS` allowlist now admits exactly `data.update(slug_re=…)` and `data.update(email_re=…)`, once each. Every graded regex must be one module-level `re.compile(<literal>)` binding: an assignment, parameter, import alias, `def`, `except … as` or `match` capture rebinding it is refused. A listed regex carries no flags, since `.pattern` drops them. A new test renders the Accounts view with the production literals and proves a slug or email with a trailing newline gets no control and no pending row.
+
 ### Fixed — the review checker accepts a Fable seat on a receipt's closing round (2026-10-18)
 `scripts/enforcement/check_review_coverage.py`: the V11 closing-row check refused a closing `Pass N` row whose only seat was `fable×N` as "names no finder seat", though a dispatched Fable seat re-verifies its own slice in the closing pass (`.windsurf/rules/core/62-using-subagents.md` § The orchestrator). `_MODEL_TOK` now knows `fable`; a spelled-out version (`Fable 5.1×1`) is still no token, as `opus 4×1` is not. Two red-first tests pin the token's near misses and drive `check_file` on a table, a prose and a spelled-out closing row (W-d90fe030).
 
