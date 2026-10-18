@@ -361,7 +361,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-15T09:46 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:18 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -428,6 +428,7 @@ docs/
 │   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
 │   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
+│   │   ├── 2026-10-14-plan-1-chrome-extension-devmode-release-kit.md
 │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement
 │   │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement.md
 │   │   │   ├── T01-deployer-helpers.md
@@ -446,16 +447,10 @@ docs/
 │   │   ├── 2026-10-14-plan-2-one-door-lane.md
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
+│   │   ├── 2026-10-15-plan-2-apply-template-defaults-parity.md
+│   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
-│   │   ├── 2026-10-17-plan-1-command-centre-dashboard
-│   │   │   ├── 2026-10-17-plan-1-command-centre-dashboard.md
-│   │   │   ├── T01-ui-kit.md
-│   │   │   ├── T02-server-wiring.md
-│   │   │   ├── T03-overview-view.md
-│   │   │   ├── T04-work-view.md
-│   │   │   ├── T05-accounts-view.md
-│   │   │   ├── T06-usage-commands-services.md
-│   │   │   └── T07-integration.md
+│   │   ├── 2026-10-18-plan-2-saas-chat-auth.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1165,6 +1160,7 @@ docs/
 │       ├── 2026-10-14-lane-default-sentence-review.md
 │       ├── 2026-10-14-one-door-lane-plan-review.md
 │       ├── 2026-10-14-phase-receipt-worktrees-review.md
+│       ├── 2026-10-14-plan-1-chrome-extension-devmode-release-kit-plan-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T01-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T02-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T03-review.md
@@ -1187,13 +1183,105 @@ docs/
 │       ├── 2026-10-14-schema-sync-migration-governance-review.md
 │       ├── 2026-10-14-two-sided-lane-gate-review.md
 │       ├── 2026-10-14-w-c687ce60-lib-routing-review.md
+│       ├── 2026-10-15-agent-status-reader-review.md
+│       ├── 2026-10-15-apply-template-defaults-parity-plan-review.md
 │       ├── 2026-10-15-by-design-ledger-owner-review.md
+│       ├── 2026-10-15-chrome-ext-release-kit-review.md
+│       ├── 2026-10-15-dashboard-agents-table-review.md
+│       ├── 2026-10-15-dashboard-item-verdict-review.md
+│       ├── 2026-10-15-dashboard-pause-buttons-review.md
+│       ├── 2026-10-15-gate-act-halt-review.md
+│       ├── 2026-10-15-held-major-in-flight-review.md
+│       ├── 2026-10-15-paused-workers-review.md
+│       ├── 2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md
 │       ├── 2026-10-15-plan-1-coordinator-role-review.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
+│       ├── 2026-10-15-plan-2-apply-template-defaults-parity-review.md
+│       ├── 2026-10-15-run-scratch-clause-review.md
+│       ├── 2026-10-15-scratch-close-vouch-review.md
+│       ├── 2026-10-15-scratch-lifecycle-conformance-review.md
 │       ├── 2026-10-15-scratch-lifecycle-spec-review.md
+│       ├── 2026-10-15-seat-run-scratch-review.md
+│       ├── 2026-10-15-w-2bc42fc3-operator-named-trigger-review.md
+│       ├── 2026-10-15-w-8dd25072-remote-mktemp-staging-review.md
+│       ├── 2026-10-15-w-b9c91cc5-split-table-review.md
+│       ├── 2026-10-15-w-fc3eddd8-spoke-registrars-review.md
+│       ├── 2026-10-16-agent-role-payload-sid-review.md
+│       ├── 2026-10-16-battery-hold-review.md
+│       ├── 2026-10-16-cert-runtime-md-review.md
+│       ├── 2026-10-16-mesh-network-death-review.md
+│       ├── 2026-10-16-scratch-partials-review.md
+│       ├── 2026-10-16-scratch-write-after-close-review.md
+│       ├── 2026-10-17-command-centre-dashboard-plan-review.md
+│       ├── 2026-10-17-command-centre-dashboard-spec-review.md
+│       ├── 2026-10-17-command-run-capture-verb-review.md
+│       ├── 2026-10-17-command-scratch-home-and-d335-reason-review.md
+│       ├── 2026-10-17-next-carry-corpus-review.md
+│       ├── 2026-10-17-oauth-transport-latch-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T01-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T02-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
+│       ├── 2026-10-17-stop-hook-uncommitted-vs-running-review-review.md
+│       ├── 2026-10-17-test-caps-w162398ef-review.md
+│       ├── 2026-10-17-w-177082fc-review-loop-candidate-file-review.md
+│       ├── 2026-10-17-w-2118e9c9-adopt-undeclared-review.md
+│       ├── 2026-10-17-w-6399d1a3-retry-slice-review.md
+│       ├── 2026-10-17-w-9f436e18-next-edges-review.md
+│       ├── 2026-10-17-w-b1f67743-ids-help-review.md
+│       ├── 2026-10-17-w-b1f67743-next-carries-open-claims-r-review.md
+│       ├── 2026-10-17-w-c5f39b74-ids-carry-meaning-review.md
+│       ├── 2026-10-17-w51d6c153-redeploy-validate-final-review.md
+│       ├── 2026-10-17-w6f690b90-env-file-optional-review.md
+│       ├── 2026-10-17-w807287f1-deploy-local-validate-final-review.md
+│       ├── 2026-10-18-d961-no-workflow-in-the-hub-review.md
+│       ├── 2026-10-18-external-services-inventory-plan-review.md
+│       ├── 2026-10-18-external-services-page-spec-review.md
+│       ├── 2026-10-18-file-worker-heartbeat-healthcheck-review.md
+│       ├── 2026-10-18-ledger-not-a-link-source-review.md
+│       ├── 2026-10-18-ledger-read-seat-notes-review.md
+│       ├── 2026-10-18-merge-check-live-box-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T01-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T02-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T03-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-review.md
+│       ├── 2026-10-18-plan-2-saas-chat-auth-review.md
+│       ├── 2026-10-18-plan-2-saas-chat-auth-round1-findings.md
+│       ├── 2026-10-18-reply-exemption-wording-review.md
+│       ├── 2026-10-18-rule-grounding-all-review.md
+│       ├── 2026-10-18-saas-chat-auth-spec-review.md
+│       ├── 2026-10-18-scratch-line-wording-review.md
+│       ├── 2026-10-18-seat-guard-network-review.md
+│       ├── 2026-10-18-seat-home-read-rule-review.md
+│       ├── 2026-10-18-ssh-jump-preflight-w2b657bee-review.md
+│       ├── 2026-10-18-ssh-residue-w6a96f699-final-review.md
+│       ├── 2026-10-18-uv-seat-exception-review.md
+│       ├── 2026-10-18-v11-fable-seat-token-review.md
+│       ├── 2026-10-18-w-a846021a-doc-sync-tracked-review.md
+│       ├── 2026-10-18-w-ab242b11-slice1-template-chat-review.md
+│       ├── 2026-10-18-w393ffefa-seat-pin-fabrik-lib-review.md
+│       ├── 2026-10-18-w3c60b7db-seat-size-scope-review.md
+│       ├── 2026-10-18-w3d6a6236-manifest-baseexception-review.md
+│       ├── 2026-10-18-w5f3617e6-item-key-merge-review.md
+│       ├── 2026-10-18-w5feb6e9c-synced-manifest-loader-review.md
+│       ├── 2026-10-18-w719b2678-remote-staging-review.md
+│       ├── 2026-10-18-w79638b4a-paused-close-review.md
+│       ├── 2026-10-18-w7ae1169a-doc-index-percent-encoding-review.md
+│       ├── 2026-10-18-w8c57e84a-manifest-from-head-review.md
+│       ├── 2026-10-18-w8d98265e-halt-list-final-review.md
+│       ├── 2026-10-18-w945bf009-quota-hold-resolver-review.md
+│       ├── 2026-10-18-w98204c50-main-store-claim-review.md
+│       ├── 2026-10-18-wdd091f0d-commonmark-link-reader-review.md
+│       ├── 2026-10-18-wdeb8eb0f-exception-name-guard-committed-review.md
+│       ├── 2026-10-18-wf11e740e-link-readers-review.md
+│       ├── 2026-10-18-work-edit-render-review.md
+│       ├── 2026-10-19-panel-joint-artifact-review.md
+│       ├── 2026-10-19-w8008e144-halt-list-and-job7-review.md
+│       ├── 2026-10-19-wba306861-head-source-unread-review.md
+│       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1434,11 +1522,14 @@ docs/
 │   │   ├── 2026-10-08-review-coverage-commit-scope-ledger.md
 │   │   ├── 2026-10-12-owner-dsn-split-ledger.md
 │   │   ├── 2026-10-13-mail-routing-ledger.md
+│   │   ├── 2026-10-14-chrome-ext-devmode-release-kit-ledger.md
 │   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
 │   │   ├── 2026-10-14-coordinator-role-ledger.md
 │   │   ├── 2026-10-14-one-door-lane-ledger.md
+│   │   ├── 2026-10-15-apply-template-defaults-ledger.md
 │   │   ├── 2026-10-16-command-centre-dashboard-ledger.md
 │   │   ├── 2026-10-18-external-services-page-ledger.md
+│   │   ├── 2026-10-18-saas-chat-auth-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1544,12 +1635,17 @@ docs/
 │       ├── 2026-10-08-review-coverage-commit-scope-design.md
 │       ├── 2026-10-12-owner-dsn-split-design.md
 │       ├── 2026-10-13-mail-routing-design.md
+│       ├── 2026-10-14-chrome-extension-devmode-release-kit-design.md
 │       ├── 2026-10-14-coolify-verb-retirement-design.md
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
+│       ├── 2026-10-15-apply-template-defaults-parity-design.md
+│       ├── 2026-10-15-review-seat-write-isolation-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
-│       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-16-command-centre-dashboard-design.md
+│       ├── 2026-10-17-merge-owner-grammar-design.md
+│       ├── 2026-10-18-external-services-page-design.md
+│       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
