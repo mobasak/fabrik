@@ -683,6 +683,19 @@ def test_the_closing_row_must_name_a_finder_seat_by_model_token() -> None:
     assert crc._closing_pass_row(crc._ledger_shapes(_embed(CLOSING))[2])[0] == 18
 
 
+def test_the_seat_token_knows_fable_and_refuses_its_near_misses() -> None:
+    """W-d90fe030 — Fable is a dispatched seat's model (core/62 § The orchestrator); the
+    near-miss spellings stay unmatched, a spelled-out version (`Fable 5.1×1`) on purpose, as
+    `opus 4×1` is."""
+    for cell in ("native fable×1", "Fable × 2", "native opus×1 + fable×1", "fablex1"):
+        assert crc._MODEL_TOK.search(cell), cell
+    for cell in (
+        "fables×1", "xfable×1", "non-fable×1", "claude-fable×1",
+        "Fable 5.1×1", "fable-5×1", "fable", "fable×",
+    ):
+        assert not crc._MODEL_TOK.search(cell), cell
+
+
 def test_corpus_the_finders_rule_is_scoped_to_the_new_grammar_by_measurement() -> None:
     """FIRE RATE, measured before it blocks: over the receipts at the base SHA the rule would
     refuse 66 of the 70 closing rows if applied to every ledger — receipts whose finders cell
