@@ -9,11 +9,11 @@
   "kind": "backlog",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1010",
     "plan": "",
-    "spec": ""
+    "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
   },
-  "next": "fleet: design the auth hook against the template's auth story (fastapi-user-auth / D-xxx), then /fabrik-task or /fabrik-spec",
+  "next": "re-plan slice 2 with /fabrik-plan-after-chat on the CONVERGED spec; the plan carries the 4 residues in docs/development/reviews/2026-10-18-saas-chat-auth-spec-review.md § Recorded and sequences W-0ae9b7e1 first",
   "note": "",
   "owner": "fleet",
   "priority": 2,

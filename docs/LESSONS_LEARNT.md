@@ -13,6 +13,20 @@ W-6f46cebd (kaizen_coroner exit codes):
 - **A retry the exit code promises is not a retry the code delivers.** Exit 3 re-runs the job, but a lost ttl session_end
   or revival is never reached again, because the record is already `expired` and `has_recon` is already set. Say "one-shot"
   in the D-row, never "retried".
+## A grader that reads a file by PATH is not in that file's import slice — and an allowlist is closed by its binding count, not its call shape (2026-10-18)
+
+`tests/test_identifier_checks_fullmatch.py` parses `scripts/sysadmin/quota_dashboard.py` with `ast` and never
+imports it, so the dashboard plan's T02 commit (4c614aabd) ran every test that IMPORTS the dashboard, and the slice
+went green. This grader then sat red on master through T04, because the hub's pytest leg is off by design.
+- **Find a file's graders by its PATH, not by its imports.** `command grep -rln "<repo-relative path>" tests/` finds
+  the AST and subprocess graders that an import search and a module-name search both miss. Run that slice before
+  committing a change to the file.
+- **A hand-off allowlist is only as tight as its binding count.** The first fix admitted `<name>.pattern` as the
+  listed keyword of `data.update`. Round 1 found that a local shadow, a wrapper callee and a duplicate hand-off all
+  passed. The round-1 fix counted bindings, but only `Name` stores and parameters, and the closing pass shadowed the
+  regex with `case _SLUG_RE:` and `import … as`. Every Python binding form has to be counted: assignment, parameter,
+  import alias, `def`/`class`, `except … as`, and the `match` captures. A bare annotation is skipped, because it
+  binds nothing.
 ## A bound enforced inside the stalled call never fires — and a test named for a scenario can be proving a different bound (2026-10-18)
 
 The external-services plan's T04 reads the registry in a child process the board kills at 4.5 s. Two things the
