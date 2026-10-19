@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the monitoring drivers no longer stage on the VPS under fixed /tmp names (2026-10-19)
+
+- Gatus's endpoint writers, Prometheus's config writer and Redis's assignments writer staged under `/tmp/gatus-endpoint-<name>.yaml`, `/tmp/prometheus.yml.staged` and `/tmp/redis-assignments.json`. Another VPS user could pre-create or swap one before the `sudo mv` installed it as root (W-42e79070).
+- All four now go through the new `drivers.ssh.install_world_readable`. It stages in a `remote_mktemp` file, makes it 0644 before the move, chowns the result to root, and removes the stage on any failure.
+- Gatus's files now land 0644 explicitly; before, they inherited whatever mode scp gave them.
+- `tests/drivers/test_monitoring_remote_staging.py` guards it.
+
 ### Fixed — two remote-side loopback constants no longer red the localhost ban on every master merge (2026-10-19)
 
 - The completion gate's localhost ban scans every file a change lists, and a merge of master lists all of them. So two correct loopback constants turned red any branch that merged master:

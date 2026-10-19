@@ -17,7 +17,7 @@ Design notes
   lives next to the existing monitoring configs (Gatus, Prometheus)
   so ops already have the right backup / git-versioning patterns.
 * **Atomic write via ``sudo mv``.** Same pattern as
-  :mod:`fabrik.drivers.gatus` — stage to ``/tmp/...``, then ``mv`` so
+  :mod:`fabrik.drivers.gatus` — stage in a ``mktemp`` file, then ``mv`` so
   a torn write can never corrupt the registry.
 * **Idempotent** — calling :func:`acquire_db_index` twice with the same
   ``service_name`` returns the same index without reallocation. This
@@ -50,7 +50,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.drivers.ssh import install_world_readable, scp_to_vps, ssh
 from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
@@ -185,19 +185,13 @@ def _write_registry(registry: dict[str, int]) -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(body)
         local_tmp = f.name
-    vps_tmp = "/tmp/redis-assignments.json"  # nosec B108 — single-tenant VPS staging file for scp+mv into /opt/monitoring/configs/redis/
     try:
         # Ensure parent dir exists; -p is idempotent.
         ssh(
             f"sudo mkdir -p {shlex.quote(str(Path(REDIS_REGISTRY_PATH).parent))}",
             timeout=10,
         )
-        scp_to_vps(local_tmp, vps_tmp)
-        ssh(
-            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(REDIS_REGISTRY_PATH)} && "
-            f"sudo chown root:root {shlex.quote(REDIS_REGISTRY_PATH)} && "
-            f"sudo chmod 644 {shlex.quote(REDIS_REGISTRY_PATH)}"
-        )
+        install_world_readable(ssh, scp_to_vps, local_tmp, REDIS_REGISTRY_PATH)
     finally:
         Path(local_tmp).unlink(missing_ok=True)
 

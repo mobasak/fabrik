@@ -20,6 +20,16 @@ from fabrik.drivers.gatus import (
     remove_endpoint,
 )
 
+# what the VPS's `mktemp` answers for the staging file (ssh.install_world_readable)
+STAGE = "/tmp/fabrik-Ab3dE5gH7j"
+
+
+def _missing_ssh(cmd, **_kw):
+    """The endpoint is not there yet; mktemp answers with the stage."""
+    if cmd.startswith("mktemp"):
+        return STAGE
+    return "missing" if "test -f" in cmd else ""
+
 # --------------------------------------------------------------------------- #
 # validators                                                                   #
 # --------------------------------------------------------------------------- #
@@ -109,9 +119,7 @@ class TestAddEndpoint:
 
         def fake_ssh(cmd, **_kw):
             calls.append(cmd)
-            if "test -f" in cmd:
-                return "missing"
-            return ""
+            return _missing_ssh(cmd)
 
         with (
             patch.object(gatus, "ssh", side_effect=fake_ssh),
@@ -143,7 +151,7 @@ class TestAddEndpoint:
             assert pathlib.Path(local).exists()
 
         def fake_ssh(cmd, **_kw):
-            return "missing" if "test -f" in cmd else ""
+            return _missing_ssh(cmd)
 
         with (
             patch.object(gatus, "ssh", side_effect=fake_ssh),
@@ -186,7 +194,7 @@ class TestAddEndpoint:
 
         def fake_ssh(cmd, **_kw):
             calls.append(cmd)
-            return "missing" if "test -f" in cmd else ""
+            return _missing_ssh(cmd)
 
         captured_yaml: list[str] = []
 
@@ -214,7 +222,7 @@ class TestAddEndpoint:
             captured_yaml.append(Path(local).read_text())
 
         with (
-            patch.object(gatus, "ssh", return_value="missing"),
+            patch.object(gatus, "ssh", side_effect=_missing_ssh),
             patch.object(gatus, "scp_to_vps", side_effect=fake_scp),
         ):
             add_endpoint("my-proj", "my.ocoron.com")
@@ -231,7 +239,7 @@ class TestAddEndpoint:
             captured.append(Path(local).read_text())
 
         with (
-            patch.object(gatus, "ssh", return_value="missing"),
+            patch.object(gatus, "ssh", side_effect=_missing_ssh),
             patch.object(gatus, "scp_to_vps", side_effect=fake_scp),
         ):
             add_endpoint("my-proj", "my.ocoron.com")
