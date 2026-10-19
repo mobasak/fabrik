@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review-loop pin records base_sha, the commit a seat archives (2026-10-19)
+W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writes `base_sha` into `<pins_dir>/MANIFEST.json` and the printed fragment, so a D-1051 delta brief can read the previous pass's `base_sha` back from its pin. It is the commit a seat archives and overlays the pins on: the `--base` commit when given (the same commit `base_pin_dir` holds), else the resolved `--from` ref, else HEAD. Only a working-tree pin in a repo with no commit records `null`. An anchor naming no commit, such as a tree `--from`, is refused. It is recorded, not digested; `docs/reference/review-loop-workflow.md` says so.
+
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 
 - `/fabrik-command-improve` PHASE 2's lock bullet names the two scripts that test a path against a lock's `owned_paths`. A new test lists every file under `scripts/` (shell and extensionless runners included) that names `owned_paths` by that literal spelling and fails on one it has not met, so the bullet is re-read when that set changes; it pins which files name the field, not what they do with it (W-bcf6fc2f part 1; part 2, check_plan_tickets.py's missing scalar guard, is infra's item).
