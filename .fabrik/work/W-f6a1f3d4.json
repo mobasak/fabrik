@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T07:37:21.505853Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f6a1f3d4",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1031",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the rollout doc from mail 01M59HFDK9's text, build agents-up with fabrik-lib's three builders (session ids from fabrik-lib once the sentinel has moved), and hand the operator the WT profile JSON and the .bat text",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ask (D-1031); a doc, a script modelled on hub-up and two Windows snippets, one session",
+  "status": "open",
+  "tags": [
+    "operator-ask"
+  ],
+  "title": "Operator ask (D-1031): per-repo coordinator rollout — (1) write docs/reference/repo-coordinator-rollout.md from the coordinator's brief (fabrik-lib mail 01M59HFDK9, the template for every repo); (2) build a general agents-up <repo> tmux launcher like ~/bin/hub-up (own tmux session per repo, one pane per builder resuming its session id, CLAUDE_CONFIG_DIR/CLAUDE_QUOTA_HOME=~/.claude-fleet/active); (3) give the operator a Windows Terminal profile 'Fabrik-lib Agents' and fabrik-lib.bat mirroring fabrik.bat"
+}
