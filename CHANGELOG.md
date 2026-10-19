@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review-loop pin records base_sha, the commit a seat archives (2026-10-19)
+W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writes `base_sha` into `<pins_dir>/MANIFEST.json` and the printed fragment, so a D-1051 delta brief can read the previous pass's `base_sha` back from its pin. It is the commit a seat archives and overlays the pins on: the `--base` commit when given (the same commit `base_pin_dir` holds), else the resolved `--from` ref, else HEAD. Only a working-tree pin in a repo with no commit records `null`. An anchor naming no commit, such as a tree `--from`, is refused. It is recorded, not digested; `docs/reference/review-loop-workflow.md` says so.
+
 ### Fixed — a deploy no longer writes DNS straight to Cloudflare when the site-provisioner refuses the record (2026-10-19)
 W-1086d295, D-1053. `_provision_dns` used to fall back to the direct Cloudflare API on any DNS Manager error. So a provisioner refusal (401 bad API key, 422 rejected body, 429 its rate limiter) was bypassed with the hub's own token. A status in `PROVISIONER_REFUSALS` now fails the DNS step with a one-line `ProvisioningError`. A reverse-proxy 403/404, a 400, a 3xx, a 5xx or a transport failure still falls back. The provisioner's route answers an unmanaged zone with an unmapped 500, which still falls back; that is filed to site-provisioner and tracked as W-747f41c9.
 
