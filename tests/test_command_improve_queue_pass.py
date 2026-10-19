@@ -629,35 +629,54 @@ def test_a_fragment_pointed_at_by_path_is_a_write_and_lock_target() -> None:
 
 
 def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path() -> None:
-    """W-ddf1839c: the lock check's `include:` grep cannot see `close-feedback.md`, which the assembler appends to every
-    rendered command with no include, and the bullet never said how an `owned_paths` entry matches a target while locks
-    own directories. Both sentences are pinned, and each fact they state is checked against the code that holds it: the
-    assembler's `_CLOSE_FEEDBACK` constant, and `_owned` in check_phase_tests.py (exact path or directory subtree,
-    case-insensitive), run on a directory entry."""
+    """W-ddf1839c: the lock check's `include:` grep cannot see the two fragments the assembler appends with no include
+    (close-feedback to every command, agent-feedback to every agent), and the bullet never said how an `owned_paths`
+    entry matches a target while locks hold paths, directories and globs. Both sentences are pinned whole. Their facts
+    are checked against the code: each append STATEMENT (deleting one fails here, the constant alone would not) and no
+    source naming either fragment in an `include:`; and the three-shape ownership rule run through `_glob_matches` in
+    scripts/epic_order.py, the one lock reader that implements all three."""
     import importlib.util
+    import re as _re
 
     p2 = _phase("## PHASE 2", "## PHASE 3")
     lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
     appended = (
-        "Every rendered command also carries `commands/_fragments/close-feedback.md`, which the assembler appends with"
-        " no `include:` (`_CLOSE_FEEDBACK` in `commands/assemble_commands.py`), so a row about the close's FEEDBACK duty"
-        " targets that fragment."
+        "The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):"
+        " `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and"
+        " `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the"
+        " shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source or"
+        " `commands/_fragments/close-chain.md`."
     )
     owns = (
-        "An entry owns the path it names and, when it names a directory, every path under it, case-insensitively, as"
-        " `_owned` in `scripts/enforcement/check_phase_tests.py` matches it."
+        "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
+        " matches (`dir/**`, with `*` inside one path segment), so test all three — the lock-reading scripts each match"
+        " a different subset, so none of them is the rule — and read an entry written as prose by hand."
     )
     assert lock.count(appended) == 1 and lock.count(owns) == 1
     assert lock.index(appended) < lock.index("ONLY THEN read the locks") < lock.index(owns)
     asm = (ROOT / "commands" / "assemble_commands.py").read_text()
-    assert '_CLOSE_FEEDBACK = "close-feedback"' in asm
-    assert (ROOT / "commands" / "_fragments" / "close-feedback.md").exists()
-    spec = importlib.util.spec_from_file_location(
-        "cpt", ROOT / "scripts" / "enforcement" / "check_phase_tests.py"
+    assert (
+        '_CLOSE_FEEDBACK = "close-feedback"' in asm and '_AGENT_FEEDBACK = "agent-feedback"' in asm
     )
+    assert 'text = text.rstrip("\\n") + "\\n\\n" + frags[_CLOSE_FEEDBACK] + "\\n"' in asm
+    assert (
+        "body = frags.get(_AGENT_FEEDBACK" in asm
+        and 'text = text.rstrip("\\n") + "\\n\\n" + body + "\\n"' in asm
+    )
+    for name in ("close-feedback", "agent-feedback", "close-chain"):
+        assert (ROOT / "commands" / "_fragments" / f"{name}.md").exists()
+    for src in (ROOT / "commands" / "_sources").glob("*.md"):
+        assert not _re.search(
+            r"\{\{include:\s*(close-feedback|agent-feedback)\s*\}\}", src.read_text()
+        ), src.name
+    spec = importlib.util.spec_from_file_location("eo", ROOT / "scripts" / "epic_order.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert mod._owned("commands/_fragments/term-edit.md", ["commands/_fragments/"])
-    assert mod._owned("Commands/_Fragments/term-edit.md", ["commands/_fragments"])
-    assert mod._owned("commands/_fragments/term-edit.md", ["commands/_fragments/term-edit.md"])
-    assert not mod._owned("commands/_fragments_old/x.md", ["commands/_fragments"])
+    g = mod._glob_matches
+    assert g(
+        "commands/_fragments/term-edit.md", "commands/_fragments/term-edit.md"
+    )  # the path it names
+    assert g("commands/_fragments", "commands/_fragments/term-edit.md")  # a directory's subtree
+    assert g("templates/chrome-extension/**", "templates/chrome-extension/src/a.ts")  # a glob
+    assert not g("src/a/*", "src/a/b/deep.py")  # `*` stays inside one segment
+    assert not g("commands/_fragments", "commands/_fragments_old/x.md")

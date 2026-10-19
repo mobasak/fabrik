@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — /fabrik-command-improve's lock check names the appended close-feedback fragment and how a lock entry owns a path (2026-10-19)
+### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
-- PHASE 2's lock check found a command's fragments through `include:`, which cannot see `close-feedback.md`, the fragment the assembler appends to every rendered command; and it said to test a write target against `owned_paths` without saying how, while locks own directories. The check now names the appended fragment (`_CLOSE_FEEDBACK` in `commands/assemble_commands.py`) and says an entry owns its path and, for a directory, everything under it, case-insensitively, as `_owned` in `scripts/enforcement/check_phase_tests.py` matches (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
+- PHASE 2's lock check found a command's fragments through `include:`, which cannot see the two fragments the assembler appends with none (`close-feedback.md` to every command, `agent-feedback.md` to every agent); and it said to test a write target against `owned_paths` without saying how, while locks hold paths, directories and `/`-aware globs that the lock-reading scripts each match differently. The check now names both appended fragments and states the three-shape ownership rule itself (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
 
 ### Changed — a delta review brief carries the bounded hop's reader-run inputs (2026-10-19)
 

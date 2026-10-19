@@ -208,13 +208,17 @@ Three shapes are NOT yours to apply here, and each has a destination:
   (`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep -no
   'commands/_fragments/[a-z0-9-]*\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths` is, names them), a seat file under `commands/_agents/`,
   § Drive's home for a shared rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
-  still lands in one. Every rendered command also carries `commands/_fragments/close-feedback.md`, which the assembler
-  appends with no `include:` (`_CLOSE_FEEDBACK` in `commands/assemble_commands.py`), so a row about the close's FEEDBACK
-  duty targets that fragment. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
+  still lands in one. The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):
+  `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and
+  `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the shared
+  FEEDBACK duty can target one of them, while close wording one command owns stays in its source or `commands/_fragments/close-chain.md`.
+  ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
-  owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names and, when it names a
-  directory, every path under it, case-insensitively, as `_owned` in `scripts/enforcement/check_phase_tests.py` matches it.
+  owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names, every path under it
+  when it names a directory, and every path its glob matches (`dir/**`, with `*` inside one path segment), so test all
+  three — the lock-reading scripts each match a different subset, so none of them is the rule — and read an entry
+  written as prose by hand.
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`
   are infra's; `docs/reference/agents/` has the charters) and name the lock file in the mail.
