@@ -718,3 +718,41 @@ def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
     ), span
     # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
     assert "Something already stated, in the code" in step3[step3.index(tail) :]
+
+
+def test_a_delta_brief_carries_the_bounded_hops_reader_run_inputs() -> None:
+    """W-e2ff8f36: D-1047's reader run (a reader passing on the previous round's pin and failing on it with only the fix
+    hunks applied) had no inputs in any brief, and under the default pin the new pin's `change.diff` is empty. § Seat
+    isolation now names the inputs and who runs which reader, pinned whole by equality; both review commands point at
+    it; step 4's own-fix evidence is the round's fix commits. The § Graders timing test the bullet cites is checked to
+    exist."""
+    cat = _norm(CAT)
+    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
+    assert iso.count("- A delta brief also names") == 1
+    bullet = iso[iso.index("- A delta brief also names") : iso.index("- No `uv`/`pip`")].strip()
+    assert bullet == (
+        "- A delta brief also names the previous pass's `base_sha` and pins_dir, the inputs of the bounded hop's reader"
+        " run (a reader passing on the previous round's pin and failing on it with only the fix hunks applied): the seat"
+        " applies the fix, named as above and committed before the pin, to a copy of that pin by `git -C <copy> apply"
+        " --exclude=<each path the pin lacks>`, and to an archive of the previous `base_sha` for a reader outside the"
+        " pinned files, a failed `--check` or an excluded hunk leaving that reader `unverified`; a heading or term"
+        " another section cites is grepped over both archives, where its citers live; a reader that writes a live"
+        " store, sends, commits, deploys or reaches a host is the lead's, run as a round-zero probe script the brief"
+        " names by path, never by its result; and a reader's stability is judged on the unpatched copy, repeated as §"
+        " Graders' timing test is, so any failure on the patched copy is evidence and a reader unstable unpatched is"
+        " `RECORDED` with its destination."
+    ), bullet
+    assert iso.index("The brief names the fix as `git show <sha>`") < iso.index("- A delta brief also names")
+    graders = _section(cat, "## Graders", "## Prose and docs fixes")
+    assert "a timing test is repeated 10× under its mutation" in graders
+    src = _norm(SRC)
+    pointer = (
+        "A delta pass's brief also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat"
+        " isolation says."
+    )
+    assert src.count(pointer) == 1
+    step5 = _section(src, "5. **Loop:**", "6. **Gate + close:**")
+    assert pointer in step5
+    step4 = _section(src, "4. **Record each pass:**", "5. **Loop:**")
+    assert "shown by that round's fix commits (`git show <sha> -- <the surface>`), or for a broken reader by" in step4
+    assert "diffing that round's pin against the next pass's pin" not in src

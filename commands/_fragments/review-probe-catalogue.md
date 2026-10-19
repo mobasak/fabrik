@@ -234,6 +234,15 @@ it, or name in the brief why the shape does not have it.
   script a seat runs is run from its archive copy with every path argument under scratch (a script may treat any
   argument as a write path), and the pin carries the changed files' one-hop callees that are repo files
   (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
+- A delta brief also names the previous pass's `base_sha` and pins_dir, the inputs of the bounded hop's reader run (a
+  reader passing on the previous round's pin and failing on it with only the fix hunks applied): the seat applies the
+  fix, named as above and committed before the pin, to a copy of that pin by `git -C <copy> apply --exclude=<each path
+  the pin lacks>`, and to an archive of the previous `base_sha` for a reader outside the pinned files, a failed
+  `--check` or an excluded hunk leaving that reader `unverified`; a heading or term another section cites is grepped
+  over both archives, where its citers live; a reader that writes a live store, sends, commits, deploys or reaches a
+  host is the lead's, run as a round-zero probe script the brief names by path, never by its result; and a reader's
+  stability is judged on the unpatched copy, repeated as § Graders' timing test is, so any failure on the patched copy
+  is evidence and a reader unstable unpatched is `RECORDED` with its destination.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
