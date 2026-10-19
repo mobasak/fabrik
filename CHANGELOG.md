@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review contracts' bounded hop counts a break a fix's own hunks created in a reader (2026-10-19)
+
+- A review could close `confirmed: 0` on a regression its own fix introduced: a fix changed a returned path form, the unchanged caller that joined it broke, and the counting rule read the caller as "one hop out", so it was recorded, not counted. `term-edit.md`, `term-coverage.md` and the `fabrik-reviewer` seat file now count the break a fix's hunks created in a reader of what they changed, shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied; `/fabrik-review-scoped`'s own-fix rule names it too. The review-loop workflow's seat prompt follows when intel lands it. Pinned in `tests/test_bounded_hop_new_output.py`.
+
 ### Changed — term-coverage round zero leads with the fix's own input-space duty (2026-10-19)
 
 - Two of five `/fabrik-review` closes lost rounds to an input shape the author never ran before the pin (the other three asked for seat-side duties — D-1045), and the duty that asks for it sat fourth of about ten in one round-zero paragraph. `commands/_fragments/term-coverage.md` round zero now opens with it, bold; no word was added or lost. Placement is the reversible first step: W-1dc074b6 measures whether it works and holds the observable-record cure. Pinned in `tests/test_term_coverage_round_zero.py`.
