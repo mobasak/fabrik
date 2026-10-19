@@ -49,7 +49,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
      - The quota bands.
 9. Register every agent's session id in `.fabrik/session-agents.json` (`{"<session id>": "<agent name>"}`). The
    launcher below reads this file. When the repo gets its FIRST registry, also generate its desktop launcher (§ The
-   Windows side); a later registry change needs no new one, because the launcher reads the registry at every start.
+   Windows side); a later registry change needs no new one, because the .bat names only the repo; the launcher reads the registry
+   whenever it builds the grid.
 
 ### 3 — Worktrees
 
@@ -167,20 +168,23 @@ distro comes from `--distro`, else `$WSL_DISTRO_NAME`.
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
-holding a profile named `<Repo> Agents` at font size 9, and then starts
-`wt.exe -M -w new new-tab -p "<Repo> Agents" … wsl.exe --distribution <distro> --exec bash -l
-/opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>`. The command line is given in full, so the grid opens even
-before Windows Terminal has loaded the fragment, at the default font. The fragment loads when Windows Terminal starts,
-so 9pt applies once Windows Terminal has been closed and reopened after the first run. Nobody edits `settings.json`;
-Windows Terminal itself adds a `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own.
-The launcher runs what the hub's main checkout holds, so it works only once `agents_up.sh` is merged there.
+holding a profile named `<Repo> Agents grid` (its own name, so a hand-made `<Repo> Agents` profile cannot shadow it)
+at font size 9, and then starts `wt.exe -M -w new new-tab -p "<Repo> Agents grid" … wsl.exe --distribution <distro>
+--exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>`. The command line is given in full, so the grid
+opens even before Windows Terminal has loaded the fragment, at the default font. The fragment loads when Windows
+Terminal starts, and every Windows Terminal window shares one process, so 9pt applies once every Windows Terminal
+window has been closed after the first run. Nobody edits `settings.json`; Windows Terminal itself adds a
+`"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own. The launcher runs what the hub's
+main checkout holds, so it works only once `agents_up.sh` is merged there.
 
-Moving a repo from a hand-made launcher to the generated one, once:
+Moving a repo from a hand-made launcher to the generated one:
 
-- If an old grid with the same tmux session name is up (fabrik-lib's `~/bin/fabrik-lib-up` builds one named
-  `fabrik-lib`), close it with `tmux kill-session -t =<repo>`: `agents_up.sh` attaches only to a grid it built.
-- Retire the hand-made Windows Terminal profile of the same name and its `~/bin/<repo>-up` script; the generated
-  fragment profile replaces both.
+- A grid an older hand-built launcher left running under the same tmux session name (fabrik-lib's
+  `~/bin/fabrik-lib-up` builds one named `fabrik-lib`) records no owner. `agents_up.sh` adopts it, as it is, when every
+  one of its panes is tagged with one of this repo's builders; any other grid of that name is refused, and closing it
+  (`tmux kill-session -t =<repo>`) also ends the builders running in it, which then resume on the next launch.
+- Retire the hand-made Windows Terminal profile and its `~/bin/<repo>-up` script; the generated fragment profile
+  replaces both.
 - Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
   builder in its worktree, with no banner and no dialog.
 
