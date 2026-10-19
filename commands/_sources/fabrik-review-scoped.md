@@ -50,8 +50,8 @@ proportionate answer.
    rule the sentence would state, never after the draft, and your report names its terms and hits, or that it
    found none and the new sentence is the rule's home; what it finds is held to this step's rule below for
    something already stated. Every checkable claim any fix adds (a doc or command sentence, a code comment, a
-   commit message) is either executed, with its command and output named in your report, or deleted, and a
-   rule, recipe, command or guard a fix adds is run before the pin over the input classes round zero of
+   commit message) is either executed, with its command and output named in your report, or deleted, a rule,
+   recipe, command or guard a fix adds being executed so before the pin over the input classes round zero of
    `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape; a re-read is not execution. Something
    already stated, in the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed
    at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,

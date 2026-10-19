@@ -644,8 +644,9 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     appended = (
         "The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):"
         " `/opt/fabrik/commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and"
-        " `/opt/fabrik/commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the"
-        " shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source."
+        " `/opt/fabrik/commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), each tested"
+        " against `owned_paths` without its `/opt/fabrik/` prefix, so a row about the shared FEEDBACK duty can target"
+        " one of them, while close wording one command owns stays in its source."
     )
     owns = (
         "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
