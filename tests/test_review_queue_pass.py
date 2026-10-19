@@ -285,13 +285,16 @@ def test_a_capped_round_one_merges_low_risk_slices() -> None:
     )
 
 
-def test_a_fix_outside_the_pin_is_pinned_or_named() -> None:
-    """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy."""
+def test_a_fix_outside_the_pin_is_pinned_next_pass() -> None:
+    """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy. Naming the file instead of
+    pinning it left the seat no place to read it, since every unpinned file is read from the base tree (rows
+    1792416541, 1792432410)."""
     text = _norm(CAT)
     assert (
-        "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it"
-        in text
+        "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next"
+        " pass, so the seat never reads the base copy" in text
     )
+    assert "or the brief names it" not in text
 
 
 def test_the_closing_method_cell_rule_matches_the_gate() -> None:
