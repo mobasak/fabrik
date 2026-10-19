@@ -3,7 +3,7 @@
   "created": "2026-10-19T16:55:52.302974Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "e5217ab452c40d3c8f68fdf986f533b0cc1ab078",
   "id": "W-bcf6fc2f",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (D-956), a missing pin in the command-improve lock-check test; LOW effort: one test",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-command-improve lock check (W-ddf1839c scope-growth backlog): (1) the pin test checks only the two named owned_paths matchers (_owned in check_phase_tests.py, _path_covers in check_plan_tickets.py), so a third script that starts matching paths against a lock's owned_paths would leave the sentence false and the test green; (2) check_plan_tickets.py:2740 reads data.get('owned_paths', []) with no scalar guard (check_phase_tests.py:223-229 has one), so a hand-edited string entry is iterated per character — infra's code"
 }
