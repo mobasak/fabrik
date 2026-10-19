@@ -6137,9 +6137,13 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
     """B12 — both accounts cap-walled (no successor, so the flip leg leaves the pointer): the
     posture names the capped account, the ACCOUNT band stays the raw line (GREEN at 80) while the
     FLEET band is RED and the line says which windows nobody serves, the forecast says the wall is
-    reached; the NEXT tick reads WALL because the advisory stamped."""
+    reached; once the advisory stamps, the posture of THAT SAME tick reads WALL (W-75cafe7a: it
+    read WALL one tick later while the posture was built before the advisory). The first tick
+    stubs the advisory so the bands below are the no-hold bands they grade."""
     fleet, rows = _posture_fixture(tmp_path, monkeypatch, seo=(10.0, 80.0), intel=(10.0, 80.0))
     _caps(fleet, {"sarp@ocoron.com": 80, "ob@ocoron.com": 80})
+    real_advisory = cr._fleet_active_wall_advisory
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     assert cr._cmd_tick() == 0
     p = json.loads(_posture_path(tmp_path).read_text())["active"]
     wk = p["windows"]["seven_day"]
@@ -6159,8 +6163,10 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
         and wk["burn_per_min"] is None
     )
     assert cr._fmt_forecast(wk) == "wall in ~0m at —%/m"
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", real_advisory)
     monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
     assert cr._cmd_tick() == 0
+    assert cr._fleet_exhaustion_stamp().exists(), "the advisory stamped this tick"
     second = json.loads(_posture_path(tmp_path).read_text())["active"]
     assert second["band"] == "WALL", second
 
@@ -6818,7 +6824,9 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     """B20g — Delta 8 seat A #1: with caps.json {active: 80} and the active at weekly 81 (5h 0%),
     `_fleet_readings` walls the active out, nobody serves 5h, and the fallback returned the
     active's RAW band — GREEN on the 85/90 line — in the tick that broadcast the ACTIVE-WALL
-    advisory. Scarcity is RED, whatever the walled account's raw percentage says."""
+    advisory. Scarcity is RED, whatever the walled account's raw percentage says. The advisory is
+    stubbed: since W-75cafe7a the posture is built after it, so a tick whose advisory stamps
+    reads WALL outright, and the RED fallback graded here is the no-hold arithmetic."""
     monkeypatch.setenv(
         "ROTATE_TARGET_SESSION_MAX_PCT", "85"
     )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
@@ -6834,6 +6842,7 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     _point(fleet, "seo")
     assert cr._cmd_tick() == 0
     doc = json.loads(_posture_path(tmp_path).read_text())
@@ -8007,7 +8016,9 @@ def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monk
     undoing the entire point of the change — and 428 of 428 graders passed. The first repair
     still computed `_hold_is_wall` in the test and handed it to a spy, which grades the test's own
     arithmetic, not the call site. This drives a REAL tick and captures what the production line
-    actually passes.
+    actually passes. The advisory is stubbed so the planted stamp is the one the posture reads:
+    since W-75cafe7a the posture is built after it, and on these cool readings it would relieve
+    the planted wall first.
     """
     captured = {}
     real = cr._quota_posture
@@ -8027,6 +8038,7 @@ def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monk
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
     monkeypatch.setattr(cr, "_quota_posture", _spy)
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     _point(fleet, "seo")
     stamp = cr._fleet_exhaustion_stamp()
 
