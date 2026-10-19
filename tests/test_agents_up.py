@@ -33,7 +33,12 @@ def _home(tmp: Path, ps_lines: str = "", transcripts: tuple[tuple[Path, str], ..
     home = tmp / "home"
     (home / ".local" / "bin").mkdir(parents=True, exist_ok=True)
     ps = home / ".local" / "bin" / "ps"
-    ps.write_text(f"#!/bin/sh\ncat <<'EOF'\n{ps_lines}\nEOF\n", encoding="utf-8")
+    # answers only the launcher's exact question: every claude process, full width (-ww)
+    ps.write_text(
+        '#!/bin/sh\n[ "$*" = "-ww -C claude -o args=" ] || exit 1\n'
+        f"cat <<'EOF'\n{ps_lines}\nEOF\n",
+        encoding="utf-8",
+    )
     ps.chmod(0o755)
     for root, sid in transcripts:
         folder = (
@@ -88,25 +93,32 @@ def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
     """Two processes on one session id fuse the transcript and the hooks. A session already resumed elsewhere — by a
     terminal (`--resume <sid>`) or by the VS Code extension (`--resume=<sid>`, how all three fabrik-lib builders ran
     on 2026-10-19) — gets a pane that only says so; a mere prefix of another id is not a match."""
-    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sentinel"})
+    third = "1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sentinel", third: "tester"})
     ps = (
-        f"/home/u/.vscode-server/extensions/anthropic.claude-code/native-binary/claude --output-format stream-json --resume={DEV1}\n"
+        f"/home/u/.vscode-server/extensions/anthropic.claude-code/native-binary/claude --output-format stream-json --resume={DEV1} --setting-sources user\n"
         f"claude -n dev2 --resume {DEV2}\n"
-        f"claude --resume {SENT}0"
+        f"claude --resume {SENT}0\n"
+        f"claude -r {third}"
     )
-    home = _home(tmp_path, ps_lines=ps, transcripts=((repo, DEV1), (repo, DEV2), (repo, SENT)))
+    home = _home(
+        tmp_path,
+        ps_lines=ps,
+        transcripts=((repo, DEV1), (repo, DEV2), (repo, SENT), (repo, third)),
+    )
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
         f"pane dev1 {DEV1} {repo} running",
         f"pane dev2 {DEV2} {repo} running",
         f"pane sentinel {SENT} {repo} ok",
+        f"pane tester {third} {repo} running",
     ], out.stdout
     run = {ln.split()[1]: ln for ln in out.stdout.splitlines() if ln.startswith("run ")}
     # a running session's pane only prints a message; it never starts claude
     assert run["dev1"].startswith('run dev1 echo "[dev1 is already running elsewhere'), run["dev1"]
     assert run["dev2"].startswith('run dev2 echo "[dev2 is already running elsewhere'), run["dev2"]
-    assert run["sentinel"].startswith("run sentinel env -u CLAUDECODE "), run["sentinel"]
+    assert run["sentinel"].startswith("run sentinel env -i "), run["sentinel"]
 
 
 def test_a_session_with_no_transcript_under_the_root_is_flagged(tmp_path: Path) -> None:
@@ -122,25 +134,49 @@ def test_a_session_with_no_transcript_under_the_root_is_flagged(tmp_path: Path) 
 
 
 def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
-    """A pane gets the tmux SERVER's environment, and a server started from a VS Code session carries that session's
-    identity, so the config, quota home and PATH go inside the pane's command and the inherited identity is removed."""
+    """A pane gets the tmux SERVER's environment, and a server started from a VS Code session carries ~20 of that
+    session's variables. The pane's command is EXECUTED here, under such a polluted environment, with a fake `claude`
+    that prints what it received: only the allow-list arrives — the shell basics, PATH, the config, the quota home and
+    CLAUDE_AGENT — and so does the shell the pane keeps after claude exits."""
     repo = _repo(tmp_path, {DEV1: "dev1"})
     home = _home(tmp_path, transcripts=((repo, DEV1),))
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text("#!/bin/sh\nenv | sort\n", encoding="utf-8")
+    fake.chmod(0o755)
     out = _run("--print", str(repo), home=home)
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
-    launch = run.split(";")[0]
-    for unset in (
-        "CLAUDECODE",
-        "CLAUDE_CODE_SESSION_ID",
-        "CLAUDE_CODE_MESSAGING_SOCKET",
-        "CLAUDE_PID",
-    ):
-        assert f"-u {unset} " in launch, (unset, launch)
-    assert f"CLAUDE_CONFIG_DIR={home}/.claude-fleet/active " in launch, launch
-    assert f"CLAUDE_QUOTA_HOME={home}/.claude-fleet/active " in launch, launch
-    assert f"PATH={home}/.local/bin:" in launch and "CLAUDE_AGENT=dev1 claude -n dev1" in launch, (
-        launch
+    launch = run[len("run dev1 ") :].split(";")[0]
+    polluted = {
+        "HOME": str(home),
+        "USER": "u",
+        "LOGNAME": "u",
+        "SHELL": "/bin/bash",
+        "TERM": "tmux-256color",
+        "PATH": "/usr/bin:/bin",
+        "CLAUDECODE": "1",
+        "CLAUDE_CODE_SESSION_ID": "39bff247-2733-4e93-8385-bce51336f65c",
+        "CLAUDE_CODE_MESSAGING_TOKEN": "secret",
+        "CLAUDE_EFFORT": "medium",
+        "GIT_EDITOR": "true",
+        "VSCODE_IPC_HOOK_CLI": "/run/vscode.sock",
+        "CLAUDE_CONFIG_DIR": "/wrong",
+    }
+    got = subprocess.run(
+        ["/bin/sh", "-c", launch], capture_output=True, text=True, timeout=30, env=polluted
     )
+    seen = dict(ln.split("=", 1) for ln in got.stdout.splitlines() if "=" in ln)
+    for leaked in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_TOKEN"):
+        assert leaked not in seen, (leaked, got.stdout)
+    for leaked in ("CLAUDE_EFFORT", "GIT_EDITOR", "VSCODE_IPC_HOOK_CLI"):
+        assert leaked not in seen, (leaked, got.stdout)
+    assert seen["CLAUDE_CONFIG_DIR"] == f"{home}/.claude-fleet/active", got.stdout
+    assert seen["CLAUDE_QUOTA_HOME"] == f"{home}/.claude-fleet/active", got.stdout
+    assert seen["CLAUDE_AGENT"] == "dev1" and seen["HOME"] == str(home), got.stdout
+    assert seen["TERM"] == "tmux-256color" and seen["PATH"].startswith(f"{home}/.local/bin:"), (
+        got.stdout
+    )
+    # the shell a pane keeps after claude exits starts from the same allow-list
+    assert run.rstrip().endswith("bash -l") and run.count("env -i ") == 2, run
 
 
 def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
@@ -154,6 +190,7 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
         "shell-in-name": json.dumps({DEV1: "dev1; rm -rf ~"}),
         "quote-in-name": json.dumps({DEV1: "dev'1"}),
         "dash-led-name": json.dumps({DEV1: "-dev1"}),
+        "name-33-chars": json.dumps({DEV1: "a" * 33}),
         "empty-name": json.dumps({DEV1: ""}),
         "name-not-a-string": json.dumps({DEV1: 7}),
         "no-builders": json.dumps({COORD: "fabrik-lib-coordinator"}),
@@ -168,6 +205,9 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
         assert out.returncode == 2, (label, out.stdout, out.stderr)
         assert "pane " not in out.stdout, (label, out.stdout)
         assert out.stderr.strip(), label
+    # the length bound is a bound, not a refusal: 32 characters is a name
+    ok = _run("--print", str(_repo(tmp_path / "len32", {DEV1: "a" * 32})), home=home)
+    assert ok.returncode == 0 and f"pane {'a' * 32} {DEV1} " in ok.stdout, (ok.stdout, ok.stderr)
 
 
 def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:

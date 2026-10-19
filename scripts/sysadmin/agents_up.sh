@@ -13,15 +13,16 @@
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31}, no name may hold two session ids and no key may repeat;
 # one bad row refuses the whole launch (exit 2) rather than silently leaving a builder out or resuming a stale session.
 #
-# A pane's status is `running` when a claude process already resumes that session — in either argv form, `--resume
-# <sid>` (a terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes
-# on one session id fuse the transcript and the hooks; `no-transcript` when no transcript for the session sits under
-# the repo root's project folder (claude resumes by the folder it starts in; the user-level worktree_transcript_link.py
-# hook links a worktree session's transcript there), which the pane still tries; otherwise `ok`.
+# A pane's status is `running` when a claude process already resumes that session — `--resume <sid>`, `-r <sid>` (a
+# terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes on one
+# session id fuse the transcript and the hooks; `no-transcript` when no transcript for the session sits under the repo
+# root's project folder (claude resumes by the folder it starts in; the user-level worktree_transcript_link.py hook
+# links a worktree session's transcript there), which the pane still tries; otherwise `ok`.
 #
-# The environment goes INSIDE each pane's command, never via exports alone: a pane gets the tmux SERVER's environment,
-# and a server started from a VS Code session carries that session's identity (CLAUDECODE, CLAUDE_CODE_SESSION_ID, its
-# messaging socket), which every builder would otherwise inherit.
+# The environment goes INSIDE each pane's command, as an ALLOW-list (`env -i`): a pane gets the tmux SERVER's
+# environment, and a server started from a VS Code session carries ~20 of that session's variables (CLAUDECODE, its
+# session id, messaging socket and token, effort level, GIT_EDITOR, the VSCODE_* set) that every builder — and the
+# shell a pane keeps after claude exits — would otherwise inherit; a deny-list missed most of them (review round 1).
 set -u
 export PATH="$HOME/.local/bin:$PATH"
 export CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/active"
@@ -37,7 +38,7 @@ if [ ! -d "$1" ]; then
   echo "agents_up: $1 is not a directory" >&2
   exit 2
 fi
-ROOT="$(cd "$1" && pwd -P)"
+ROOT="$(cd -- "$1" && pwd -P)" || exit 2
 REG="$ROOT/.fabrik/session-agents.json"
 if [ ! -f "$REG" ]; then
   echo "agents_up: $REG does not exist — the repo names its agents there ({\"<session id>\": \"<name>\"}); the hub uses ~/bin/hub-up" >&2
@@ -88,10 +89,11 @@ S="${base//[^A-Za-z0-9_-]/-}"
 W=agents
 # claude stores a session under its start folder with every non-alphanumeric character as `-`
 PROJ="$CLAUDE_CONFIG_DIR/projects/${ROOT//[^A-Za-z0-9]/-}"
-RUNNING="$(ps -C claude -o args= 2>/dev/null)"
+# -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
+RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 
 status_of() {  # $1 = session id
-  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "--resume[= ]$1( |\$)"; then
+  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(--resume[= ]|-r )$1( |\$)"; then
     echo running
   elif [ ! -f "$PROJ/$1.jsonl" ]; then
     echo no-transcript
@@ -101,14 +103,16 @@ status_of() {  # $1 = session id
 }
 
 cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated above
+  # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now
   local env
-  env="env -u CLAUDECODE -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_PID -u CLAUDE_CODE_CHILD_SESSION"
+  env='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
   env="$env $(printf 'PATH=%q CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$PATH" "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
+  # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
+  # resume hint it prints runs with the pane's own environment, never the server's
   if [ "$3" = running ]; then
-    echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: CLAUDE_AGENT=$1 claude -n $1 --resume $2]\"; exec bash -l"
+    echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
-    # the pane keeps a shell after claude exits, so a crash never closes the pane
-    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: CLAUDE_AGENT=$1 claude -n $1 --resume $2]\"; exec bash -l"
+    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2]\"; exec $env bash -l"
   fi
 }
 
@@ -122,14 +126,27 @@ if [ "$print" = 1 ]; then
   exit 0
 fi
 
-if ! tmux has-session -t "=$S" 2>/dev/null; then
+# a session is named after the folder only, so a grid already up under this name must be THIS repo's
+if tmux has-session -t "=$S" 2>/dev/null; then
+  owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
+  if [ "$owner" != "$ROOT" ]; then
+    echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
+    exit 2
+  fi
+  echo "agents_up: the $S grid is already up — attaching as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
+else
   first=1
   while read -r name sid; do
     st="$(status_of "$sid")"
     [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $PROJ — the pane will try anyway" >&2
     cmd="$(cmd_of "$name" "$sid" "$st")"
     if [ "$first" = 1 ]; then
-      tmux new-session -d -s "$S" -n "$W" -c "$ROOT" -x 240 -y 60 "$cmd" || exit 1
+      if ! tmux new-session -d -s "$S" -n "$W" -c "$ROOT" -x 240 -y 60 "$cmd"; then
+        # a second launch racing this one built the grid first: attach to it rather than fail
+        tmux has-session -t "=$S" 2>/dev/null && break
+        exit 1
+      fi
+      tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null
       first=0
     elif ! tmux split-window -t "=$S:$W" -c "$ROOT" "$cmd"; then
       echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
@@ -141,4 +158,6 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   tmux select-pane -t "=$S:$W.0"
 fi
 tmux source-file "$HOME/.tmux.conf" 2>/dev/null
+# run from inside tmux (a hub pane), attaching would nest; switch the client instead
+[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$S"
 exec tmux attach -t "=$S"

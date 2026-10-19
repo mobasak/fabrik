@@ -92,14 +92,18 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
 `[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
 
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` from the repo root.
-- Each pane's command carries its own `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
-  `~/bin/hub-up`) and removes any inherited VS Code session identity (`CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, its
-  messaging socket). A tmux pane gets the tmux server's environment, and a server first started from a VS Code
-  session carries that session's identity.
+- Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
+  `LOGNAME`, `SHELL`, `TERM`, `LANG`), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
+  `~/bin/hub-up`), and `CLAUDE_AGENT`. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
+  the tmux server's environment, and a server first started from a VS Code session carries about 20 of that
+  session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
+- A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
+  on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder. Run from
+  inside tmux, it switches the client to the grid instead of nesting.
 - The coordinator gets no pane. Its name must be `coordinator` or end in `-coordinator`: any other name gets a pane
   like a builder. The operator reaches it in VS Code, as at the hub.
-- A pane whose session is already running elsewhere only says so, in either form a session can run in: a terminal
-  (`--resume <id>`) or the VS Code extension (`--resume=<id>`). Two processes on one session id mix the transcript
+- A pane whose session is already running elsewhere only says so, in any form a session can run in: a terminal
+  (`--resume <id>` or `-r <id>`) or the VS Code extension (`--resume=<id>`). Two processes on one session id mix the transcript
   and the hooks, so a builder open in VS Code must be closed there before the grid can take it over.
 - A pane whose agent exits keeps a shell with the resume command.
 - Closing the terminal leaves the agents running, and running the launcher again reattaches.
@@ -127,7 +131,8 @@ Each row of the registry is checked before it reaches a shell command, and one b
 
 The registry is box-local state written as sessions start, and fabrik-lib's writer only ever adds a row. When an
 agent's session id changes, the old row stays behind and the launcher refuses until someone removes it. Then run the
-launcher again (after `tmux kill-session -t <repo>` if the grid is already up). The hub has no registry and keeps
+launcher again. If the grid is already up, close it first with `tmux kill-session -t =<session>`, where `<session>` is
+the name `--print` shows on its first line. The hub has no registry and keeps
 `~/bin/hub-up`.
 
 ### The Windows side (installed by the operator)
@@ -152,7 +157,7 @@ The matching desktop launcher, `fabrik-lib.bat`, opens that profile:
 
 ```bat
 @echo off
-start "" wt.exe -p "Fabrik-lib Agents"
+start "" wt.exe -M -p "Fabrik-lib Agents"
 ```
 
 For another repo, copy both and change the name, the path and the guid (any new guid).
