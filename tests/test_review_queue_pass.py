@@ -54,13 +54,14 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
     )
 
 
-def test_the_delta_brief_names_each_reader_of_a_fixed_functions_output() -> None:
-    """Row 1792365642: a reader inside the same file is outside the one-hop FILE set, so the brief names it."""
-    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
+def test_the_callers_hunt_line_names_the_join_against_another_producer() -> None:
+    """Row 1792365642: a fix changed one producer's path form and the line that joined its output with a second
+    producer's keys was never re-derived (W-42ddde8f, final_gate_stop.py's commit leg), so the hunt line names it."""
+    callers = _section(_norm(CAT), "- Callers and consumers:", "- Parsers:")
     assert (
-        "It also names each function a fix changed and every reader of that function's output, "
-        "another branch or leg in the same file included, for the seat owning that slice to "
-        "re-verify against the new output." in p4
+        "callers that use a normaliser's return value; every line that joins, compares or keys a changed output"
+        " against another producer's, named with the form each side's values take (a path relative to a"
+        " subdirectory or to the top level, say); a pure helper's own return contract" in callers
     )
 
 
@@ -935,7 +936,9 @@ def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
     """Row 1792359501 (a recurrence of held full-suite-import-time-registration): the catalogue said HOW a seat runs
     tests, never WHICH — so a new import that breaks a stubbed loader, which only the tests loading the module by path
     exercise, passed every review run. The brief now names those tests for every seat to run."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text())
+    text = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text()
+    )
     assert (
         "tests run by exact node id, and a brief over changed code names the tests that load each changed "
         "module (by import, or by path through a loader or a stub — found by grepping `tests/` for each "

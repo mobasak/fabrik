@@ -494,7 +494,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
   hop of callers and callees (the files that reference a symbol the diff changed — `serena`
   `find_referencing_symbols` where the language server is up, else `/usr/bin/grep -rn '<symbol>'` (the shell `grep` is a gitignore-honouring shim — CLAUDE.md's seventh bounded-search shape) — and the
   tests that import the changed module) (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), PLUS any sibling commit that landed on the original surface
-  since the last round. The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`. It also names each function a fix changed and every reader of that function's output, another branch or leg in the same file included, for the seat owning that slice to re-verify against the new output. **Same partition rule** — the same two finders per slice (D-344), the grep classes to the hygiene script (run at the round's start and close) —
+  since the last round. The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`. **Same partition rule** — the same two finders per slice (D-344), the grep classes to the hygiene script (run at the round's start and close) —
   and the **class ledger PERSISTS**: a delta round sweeps the classes its diff touches and CITES the
   classes it did not touch as standing-clean from the last full pass, naming them in the receipt. **A
   round is never a re-scope**: the brief for a delta round is the fixed class ledger applied to the
