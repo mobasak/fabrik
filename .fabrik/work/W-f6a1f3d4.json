@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "write the rollout doc from mail 01M59HFDK9's text, build agents-up with fabrik-lib's three builders (session ids from fabrik-lib once the sentinel has moved), and hand the operator the WT profile JSON and the .bat text",
-  "note": "",
+  "note": "delivered: merged c7ec33573 (agents_up.sh + docs/reference/repo-coordinator-rollout.md, D-1032); part 3 (WT profile + bat) relayed to the operator; branch commits cite W-ed345f4a, not this id, so done --evidence refuses",
   "owner": "infra",
   "priority": 1,
   "score_reason": "operator ask (D-1031); a doc, a script modelled on hub-up and two Windows snippets, one session",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "operator-ask"
   ],
