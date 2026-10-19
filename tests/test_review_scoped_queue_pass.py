@@ -850,5 +850,6 @@ def test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read() -> None:
         "or outside the repo root). The pin also carries each file a fix's text points at by path, and the brief says"
         " the pin holds only the files it lists, so a seat reads any other file, the rest of a changed module's"
         " directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken"
-        " `--base`, else the archive of its `base_sha`), never from the live tree." in iso
+        " `--base`, else the archive of its `base_sha`), never from the live tree beyond the gitignored synced files the"
+        " seat prompt's `PIN_IMPORT` copies from the live disk and names UNPINNED." in iso
     )

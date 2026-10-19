@@ -237,7 +237,8 @@ it, or name in the brief why the shape does not have it.
   pin also carries each file a fix's text points at by path, and the brief says the pin holds only the files it lists,
   so a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins
   laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
-  live tree.
+  live tree beyond the gitignored synced files the seat prompt's `PIN_IMPORT` copies from the live disk and names
+  UNPINNED.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
@@ -265,17 +266,16 @@ it, or name in the brief why the shape does not have it.
   `git` inside a `-c` program or heredoc as a git call, so the seat writes such a probe to a file) and hands readers a
   ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home
   directory can settle is recorded up front for the lead.
-- Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
-  claim is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database
-  variable: no `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
-  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses
-  the same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where
-  TCP `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
-  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so
-  no seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false
-  red; a seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
-  CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base
-  copy.
+- Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers" claim
+  is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database variable: no
+  `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
+  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses the
+  same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where TCP
+  `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
+  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so no
+  seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false red; a
+  seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
+  CHANGELOG or ledger hunk) has that file pinned next pass, so the seat never reads the base copy.
 - Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
   to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
   directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`
