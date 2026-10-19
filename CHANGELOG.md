@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — `work.py --help` no longer crashes (2026-10-19)
 
-- `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans every literal `help=` under `scripts/` for a bare `%`; this was the only one of 666, across 289 files. Item W-2356fd8d (kaizen relay 01M59T9RXS).
+- `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans `scripts/` for a bare `%` in every argparse text argparse formats: `help=` and `usage=` always, `description=` and `epilog=` beside `%(prog)`, and f-strings by their literal parts. It accepts argparse's own `%(name)` fields with any conversion spec. Across 289 files and 687 texts, this was the only one. Item W-2356fd8d (kaizen relay 01M59T9RXS).
 
 ### Changed — `command_run.py round` shows the slice ledger it expects before recording (2026-10-19)
 
