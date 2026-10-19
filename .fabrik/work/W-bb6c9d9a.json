@@ -5,7 +5,7 @@
   "created": "2026-10-19T12:00:34.886443Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b32b20fd2831dbc9550b02b76aebdd8d907faf5a",
   "id": "W-bb6c9d9a",
   "impact": "high",
   "kind": "task",
@@ -20,6 +20,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: operator ask (D-1042) touching every repo's launcher; LOW effort: one generator beside agents_up.sh plus a runbook section; blocked by W-6c7c3292 (the worktree fix it builds on)",
-  "status": "open",
+  "status": "done",
   "title": "Desktop .bat for every /opt project (D-1042): generate '<Repo> Agents.bat' on the operator's desktop for each repo with a .fabrik/session-agents.json, self-contained (no hand-made WT profile), opening the agents_up tmux grid with each builder in its worktree and resuming its session, no on-screen prompts; document it in docs/reference/repo-coordinator-rollout.md"
 }
