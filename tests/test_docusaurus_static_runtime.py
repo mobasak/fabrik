@@ -610,11 +610,18 @@ def test_every_governed_top_level_doc_is_unpublished() -> None:
 
 def _rendered_excludes(cfg: str) -> list[str]:
     # The content-docs `exclude` array as the scaffold rendered it, read strictly: exactly one
-    # `exclude:` key in the config, and every line of the array either a JS comment or one
-    # single-quoted pattern. A commented-out pattern is not counted, and any other line shape fails,
-    # so a pattern the parser cannot see can never pass as excluded (review round 1, C1 and C2).
-    assert cfg.count("exclude:") == 1, cfg.count("exclude:")
+    # `exclude` key in the config in any spelling JS accepts (bare, quoted, spaced before the colon,
+    # computed `['exclude']`), since a later duplicate key replaces the array; the array opened inside
+    # the `docs: {` options with no `}` between them; and every line of the array either a JS comment
+    # or one single-quoted pattern. A commented-out pattern is not counted, and any other line shape
+    # fails, so a pattern the parser cannot see can never pass as excluded (review rounds 1 and 2).
+    keys = re.findall(r"""\bexclude\b['"\]]*\s*:""", cfg)
+    assert len(keys) == 1, keys
+    docs_at = cfg.index("        docs: {\n")
     start = cfg.index("exclude: [\n") + len("exclude: [\n")
+    assert docs_at < start and "}" not in cfg[docs_at + len("        docs: {\n") : start], (
+        "the exclude array is not inside the docs preset options"
+    )
     patterns: list[str] = []
     for line in cfg[start:].splitlines():
         text = line.strip()
@@ -631,7 +638,9 @@ def _rendered_excludes(cfg: str) -> list[str]:
 def _docusaurus_excluded(path: str, patterns: list[str]) -> bool:
     # The content-docs `exclude` globs, evaluated as Docusaurus's Globby does (the design-critique and
     # review seats measured it with fast-glob 3.3.3): `**/X` is a file named X at any depth, a bare `X`
-    # is docs/X only, `d/**` is anything under d/; of the four re-listed Docusaurus defaults,
+    # is docs/X only, `d/**` is anything under d/ (Globby also prunes a DIRECTORY named like `**/X` or
+    # `X`, which this model does not, so it can only call such a page published — a false red, never
+    # a leak); of the four re-listed Docusaurus defaults,
     # `**/_*.{…}` drops a `_`-prefixed file name and `**/_*/**` a file under a `_`-prefixed directory.
     # Any other shape, a glob class, brace, `?` or `!` included, fails here rather than guess.
     parts = path.split("/")
@@ -670,9 +679,10 @@ def test_a_scaffolded_site_publishes_only_its_own_pages(scaffolded: Path) -> Non
     # Read the exclude array the scaffold actually rendered and apply it to the real tree: only the
     # site's own landing page publishes. Every governed top-level name is excluded whether or not this
     # scaffold seeded it (the deploy commands write DEPLOYMENT and OPERATIONS later). A site author's
-    # nested README (a category index), a nested page named like a root-anchored governed doc, and a
-    # lowercase faq.md must still publish, which is why those names are rendered root-anchored, never
-    # `**/` — a nested page named like a `**/` name (e.g. guides/flows.md) does not publish (W-c2c2c35b).
+    # nested README (a category index) and a nested page named like a root-anchored governed doc must
+    # still publish, which is why those names are rendered root-anchored, never `**/` — a nested page
+    # named like a `**/` name (e.g. guides/flows.md) does not publish. A lowercase faq.md publishes
+    # because the patterns are case-sensitive (FAQ.md), not because of the anchoring (W-c2c2c35b).
     from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DOCS, _DOCUSAURUS_UNPUBLISHED_TOP_DOCS
 
     patterns = _rendered_excludes((scaffolded / "docusaurus.config.js").read_text())
