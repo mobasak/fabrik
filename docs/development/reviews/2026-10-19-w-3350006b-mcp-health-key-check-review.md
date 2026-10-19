@@ -109,15 +109,15 @@ $ python scripts/review_rubric.py --changed scripts/sysadmin/mcp_health.py tests
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/sysadmin/mcp_health.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_mcp_health.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/mcp-roster.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/sysadmin/mcp_health.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F1 `_probe_auth` wraps `_ask_provider`: an HTTPException reads `malformed reply`, anything else `error (<type>)`, never an escape from the daemon thread; F3 exa's refused shape needs its documented `tag`; F4 a refused key under a dead transport keeps a note; F5 a wrapped connect timeout reads `timeout`) |
+| Hunt: `tests/test_mcp_health.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F9-F17 a grader for each outcome-table row and clause ten single-clause mutants survived; F18 a test name that claimed `printed`; F19 the trickling stand-in stops on exit) |
+| Hunt: `docs/workstation/mcp-roster.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (F2 the row named any 401 the key; it now names only the provider-shaped `UNAUTHORIZED (HTTP 401…)` the key and each `unverified` reason network, config or probe) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (F3 a gateway's JSON 401 failed CLOSED onto a good key — now unverified; F1 an escaping exception read as `timeout`) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/sysadmin/mcp_health.py `_AUTH_PROBES`: two body-less GETs, no metered call; the 0-credit note and the bool guard graded, F16) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (F10 the 5 s deadline and `min(timeout, 5)` edges graded; F14 the 2xx band against a mismatched shape) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B-sonnet's 10 survivors of 28 mutants each gained a grader; round-zero battery 14 of 14 killed) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (scripts/sysadmin/mcp_health.py comment: 48 of 48 configs name the servers exa and firecrawl; 96 of 96 key values literal, measure.md) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (scripts/sysadmin/mcp_health.py graded against local HTTP and raw-TCP stand-ins; the live probe against /opt/trade-intelligence printed both `unverified` lines from the blocked egress) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -143,6 +143,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×2 (slice A src+roster: A-sonnet, A-haiku; slice B tests: B-sonnet, then B-haiku in a second wave — dispatch_headroom trimmed the first wave to 3 seats), dispatched 4, returned 4, shape: agent-tool | found: 19, new: 19, confirmed: 16, fixed: 16, unexecuted: 0 | method: citation — every candidate executed by the orchestrator or by the seat's own probe re-read; seats: A-sonnet 4/6 · A-haiku 4/5 · B-sonnet 10/10 · B-haiku 2/2 (confirmed/raised, a shared candidate credits both); stop: confirmed 16; fix: +207 -12 lines for 16 confirmed (d16c90f28: src +32 -9, tests +174 -2, roster +1 -1); round-zero probe — 14 single-clause mutants of the fix, 14 killed by their named graders (battery_r1.py) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -155,6 +156,12 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| Id | Verdict |
+|---|---|
+| F6 | REFUTED (the key-check deadline is taken at `check()` entry, scripts/sysadmin/mcp_health.py ~:264, before the transport pool starts, and each join waits only the remainder; the trickle grader's elapsed bound executes it) |
+| F7 | RECORDED — measured (a `${…}` placeholder in a server's own env reads `no key` without consulting os.environ — the design keeps a placeholder unsent and unexpanded; 0 of 96 measured config values are placeholders) |
+| F8 | REFUTED (the os.environ fallback presents the key the spawned stdio server itself inherits — `_probe_stdio` spawns with `env=None` when the entry has no env) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
