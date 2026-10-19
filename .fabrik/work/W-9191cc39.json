@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:18:34.920931Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9191cc39",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide (panel) whether the hub's llm_actions may enable the DB-write pair (it needs a spec field for the allowlist); then re-sync the rows and add a grader that every _LLM_ACTION_REFUSALS name is in the sidecar's ACTION_SPECS (found while answering fabrik-lib mail 01M5A35K4M)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Hub watchdog docs + validator lag fabrik-lib SB-103: the sidecar retired scale_concurrency (now 'unknown action') and accepts drop_queue_items/rotate_locks through WATCHDOG_LLM_ACTIONS under WATCHDOG_DB_WRITE_ALLOWLIST (NEVER_OFFERED is empty), but spec_loader._LLM_ACTION_REFUSALS, 60-watchdog.md:74/80, self-healing.md:21/33/58/99 and CONFIGURATION.md:300 still call all three 'never offered'"
+}
