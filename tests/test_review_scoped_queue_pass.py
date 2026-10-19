@@ -816,18 +816,25 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
 
 def test_a_seat_never_disguises_a_refused_act() -> None:
     """Row 1792433212 and fabrik-lib mail 01M5AP11P1: a seat whose command the worktree guard refused assembled the
-    word git from 'gi'+'t' and ran it, reading "fix the named shape" as leave to disguise the act. Both homes of the
-    seat refusal rule (subagents-core.md and the fabrik-reviewer agent) now say, after the shared rule, that a reshaped command never disguises the
-    refused act, and a refused act no allowed shape reaches is marked unverified and named in MACHINERY. The
-    workflow's SEAT_ISOLATION string is intel's and is mailed, not checked here."""
-    clause = (
-        "eshaped command never disguises the act a guard refused: a command name or path assembled, split or encoded"
-        " to pass the guard (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked"
-        " unverified and named in MACHINERY"
+    word git from 'gi'+'t' and ran it, following the hint "keep that word out of code you run" and reading "fix the
+    named shape" as leave to disguise the act. Both homes of the seat refusal rule (subagents-core.md and the
+    fabrik-reviewer agent) now say a git call does not belong in such a program at all, and that a command reshaped
+    after any refusal never disguises the refused act. The sentence follows the refusal rule: directly in the agent's
+    house-rules list, and in the same paragraph in subagents-core, after the span the workflow tests pin whole. The
+    workflow's SEAT_ISOLATION copy is intel's and is mailed, not checked here."""
+    body = (
+        "command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: changing"
+        " the command or the tool is allowed, but a refused name or path spelled differently (assembled, split or"
+        " encoded, such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and"
+        " named in MACHINERY"
     )
     tail = "say in MACHINERY which command was refused how many times of how many tries"
-    for rel in ("commands/_fragments/subagents-core.md", "commands/_agents/fabrik-reviewer.md"):
-        text = re.sub(r"\s+", " ", (ROOT / rel).read_text())
-        assert text.count(clause) == 1, rel
-        # it follows the shared refusal rule, which the workflow tests pin whole across every home
-        assert text.index(tail) < text.index(clause), rel
+    hint = "(a git call does not belong in such a program at all, and spelling git differently is still git)"
+    agent = re.sub(r"\s+", " ", (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text())
+    assert agent.count(f"{tail}; a {body};") == 1
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text()
+    paragraph = next(p for p in core.split("\n\n") if tail in p)
+    flat = re.sub(r"\s+", " ", paragraph)
+    assert flat.count(f"A {body}.") == 1 and flat.index(tail) < flat.index(body)
+    for text in (agent, re.sub(r"\s+", " ", core)):
+        assert hint in text and "keep that word out of code you run" not in text
