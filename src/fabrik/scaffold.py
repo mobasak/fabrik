@@ -325,8 +325,9 @@ _NO_DATA_CONTRACT_TYPES = frozenset({"docusaurus"})
 # Fabrik docs tree — see _scaffold_docusaurus's B43 note). These internal Fabrik docs must NOT be
 # published, however they arrive in docs/: they are still kept in docs/ (git + governance — e.g. the
 # DECISIONS ledger MUST exist in every repo), but go into the docusaurus content-docs `exclude` so
-# they exist-but-do-not-publish. Three arrival paths, all covered here (rendered as `**/<name>` so a
-# nested copy is caught too):
+# they exist-but-do-not-publish. This tuple is rendered as `**/<name>`, so a nested copy is caught
+# too; the other governed top-level names are in _DOCUSAURUS_UNPUBLISHED_TOP_DOCS (root-anchored) and
+# the internal subtrees in _DOCUSAURUS_UNPUBLISHED_DIRS. Three arrival paths, all covered here:
 #   - scaffold-SEEDED governance/strategy: DECISIONS (shas/mail-ids), LESSONS_LEARNT, STRATEGIC_BACKLOG
 #   - PIPELINE-generated internal contracts (docusaurus is UI-bearing → /fabrik-flows + /fabrik-ui-design
 #     write these into the SAME published docs/ tree): flows (personas/funnels), ui-design, design-system
@@ -349,9 +350,11 @@ _DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
 # registry plus LEGACY_TOLERATED) is internal too: the seeded README index links the unpublished
 # trees, CONFIGURATION, DEPLOYMENT, SERVICES and RESILIENCE name the hub hosts (*.vps1.ocoron.com,
 # postgres-main, redis-main, 10.99.0.1), and the deploy commands write DEPLOYMENT/OPERATIONS into a
-# deployed site's docs/ (W-c2c2c35b). Rendered ROOT-ANCHORED as `'<name>'`, never `**/<name>`, so a
-# site author's own guides/README.md (a Docusaurus category index) still publishes. The two tuples
-# together are pinned to DOCS_ALLOWLIST by a test, so a new governed name fails until classified.
+# deployed site's docs/ (W-c2c2c35b). preplan.md is the operator's preplan, which
+# _layer_preplan_into_project copies into docs/ under a name governance does not list. Rendered
+# ROOT-ANCHORED as `'<name>'`, never `**/<name>`, so a site author's own guides/README.md (a
+# Docusaurus category index) still publishes. The two tuples together are pinned to DOCS_ALLOWLIST
+# plus preplan.md by a test, so a new governed name fails until classified.
 _DOCUSAURUS_UNPUBLISHED_TOP_DOCS: tuple[str, ...] = (
     "README.md",
     "QUICKSTART.md",
@@ -371,6 +374,7 @@ _DOCUSAURUS_UNPUBLISHED_TOP_DOCS: tuple[str, ...] = (
     "lessons-learnt.md",
     "lessons_learnt.md",
     "owner_ozgur_basak.md",
+    "preplan.md",
 )
 
 # Whole docs/ SUBTREES the scaffold and the governance sync fill with internal Fabrik material
@@ -8000,7 +8004,8 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "          // Fabrik: Docusaurus's own default excludes, THEN internal governance/strategy\n"
         "          // docs that are seeded into docs/ (git + governance) but must not publish to a\n"
         "          // world-readable site (decision rows carry shas/mail-ids). See scaffold.py\n"
-        "          // _DOCUSAURUS_UNPUBLISHED_DOCS. Setting `exclude` replaces the plugin default,\n"
+        "          // _DOCUSAURUS_UNPUBLISHED_DOCS, _DOCUSAURUS_UNPUBLISHED_TOP_DOCS and\n"
+        "          // _DOCUSAURUS_UNPUBLISHED_DIRS. Setting `exclude` replaces the plugin default,\n"
         "          // so the defaults are re-listed here first.\n"
         "          exclude: [\n"
         "            '**/_*.{js,jsx,ts,tsx,md,mdx}',\n"
