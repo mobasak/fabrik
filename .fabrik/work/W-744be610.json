@@ -19,5 +19,8 @@
   "priority": 3,
   "score_reason": "LOW: a live re-measure of a merged fix (an advisory proof), blocked by the box's IR egress (217.218.153.224), not by code; nobody blocked",
   "status": "open",
+  "tags": [
+    "waits-open-egress"
+  ],
   "title": "Measure mcp_health's key check live from an OPEN egress (W-3350006b residue): run the firecrawl /v1/team/credit-usage and exa /websets/v0/websets?limit=1 GETs once with the real key and once with a bogus key (keys masked) and confirm 200 + provider-shaped 401 — the build could only be graded against local stand-ins because the box egressed through a blocked network (217.218.153.224) on 2026-10-19"
 }

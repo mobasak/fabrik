@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T17:48:54.555089Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-747f41c9",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "on site-provisioner's reply: read the route's new mapping, add its refusal status(es) to src/fabrik/orchestrator/__init__.py PROVISIONER_REFUSALS and move them from the fallback parametrization to the refusal test",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
+  "score_reason": "LOW: waits on site-provisioner mapping its unmanaged-zone status (requests 01M5AKKR79, 01M5AMGFP7); nobody blocked",
   "status": "open",
   "tags": [
     "waits-site-provisioner"
