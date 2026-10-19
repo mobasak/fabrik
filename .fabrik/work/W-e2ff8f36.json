@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:57:13.777107Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e2ff8f36",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen wording: delta briefs name the previous pass's pins_dir and the fix diff; define the doc-reader executor (an anchor that resolves) and a re-run for a flaky reader; full /fabrik-review (two fragments)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "the bounded hop's new two-pin test (D-230 refinement, W-7b5a6a17) needs inputs no brief supplies: a delta brief names only this pass's pin, not the previous pass's pins_dir the seat must run the reader on (fabrik-review-scoped step 5, fabrik-review Phase 4), and readers outside the pinned surface, flaky readers and doc cross-references have no defined executor — Opus seat of the 2026-10-19 review"
+}

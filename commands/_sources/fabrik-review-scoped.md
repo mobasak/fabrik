@@ -68,8 +68,9 @@ proportionate answer.
    which persists a report) — deliberately no review file: `check_review_coverage.py` grades the heavy command's
    reports; this one's proof is the record the Stop hook reads (that asymmetry is the lightness,
    stated so nobody "fixes" it). `--own-fix` is EVIDENCED, never asserted: each defect it counts names
-   the round whose fix hunk holds the defect's line or created the contradiction it reports
-   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin), in your
+   the round whose fix hunk holds the defect's line or created the contradiction or the broken reader it reports
+   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin, or for a broken reader by
+   the two-pin run the review contracts' bounded hop names), in your
    report and the close's `--evidence`; any other defect is never own-fix.
 5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA round exactly as the
    fragment defines it (COUNTED under D-230, SIZED under D-335 — the floor paragraph below), over the

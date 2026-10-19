@@ -41,10 +41,11 @@ DEFECT, never of the claim. Open every slice file: a fix hunk can sit in a file 
 defect of a line inside the previous round's fix hunks, or a live contradiction those hunks created with a sentence of
 the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a
 key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another
-section cites), shown by that reader passing on the previous round's pin and failing on this one; a defect one hop out
-that the hunks did not create (a caller, a callee, a neighbouring section, a pre-existing claim) is named in notes with
-a destination and never raised (D-230); a claim you refuted in an earlier pass is closed and is not re-raised (D-206).
-Recall-first is round one's method; a later pass is a verification of a fixed list.
+section cites), shown by that reader passing on the previous round's pin and failing on that pin with only those hunks
+applied, whatever line holds the defect; a defect one hop out that the hunks did not create (a caller, a callee, a
+neighbouring section, a pre-existing claim) is named in notes with a destination and never raised (D-230); a claim you
+refuted in an earlier pass is closed and is not re-raised (D-206). Recall-first is round one's method; a later pass is a
+verification of a fixed list.
 
 ## Hard limits
 - **Read-only — and that includes git.** Never edit, write, or commit a tracked file (a probe file in your own scratch directory is the one write you make), and never any git verb that rewrites the working tree (the next bullet names the refused verbs; the refused set is every verb that WRITES — any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission): several sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling's UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed). Probe a mutation on a COPY under your own scratch directory, never on the tracked file. No fixes, no regression tests — the dispatching session

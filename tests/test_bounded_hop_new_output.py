@@ -22,12 +22,22 @@ CLAUSE = (
     "a live contradiction those hunks created with a sentence of the same section, or the break those hunks created"
     " in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a"
     " raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that"
-    " reader passing on the previous round's pin and failing on this one; a defect one hop out that the hunks did not"
-    " create"
+    " reader passing on the previous round's pin and failing on that pin with only those hunks applied, whatever line"
+    " holds the defect; a defect one hop out that the hunks did not create"
 )
+# the exclusion still RECORDS (fragments) or never raises (seat file) what the hunks did not create
+TAIL = {
+    "commands/_fragments/term-edit.md": "a pre-existing claim — is RECORDED with a named destination",
+    "commands/_fragments/term-coverage.md": "a pre-existing claim — is RECORDED with a named destination",
+    "commands/_agents/fabrik-reviewer.md": "a pre-existing claim) is named in notes with a destination and never raised",
+}
 
 
 @pytest.mark.parametrize("rel", HOMES)
 def test_each_home_counts_a_reader_the_hunk_broke(rel: str) -> None:
     text = re.sub(r"\s+", " ", (ROOT / rel).read_text(encoding="utf-8"))
     assert text.count(CLAUSE) == 1, rel
+    after = text[text.index(CLAUSE) + len(CLAUSE) :]
+    assert after.lstrip(" —(").startswith(
+        "a caller, a callee, a neighbouring section, " + TAIL[rel]
+    ), after[:200]
