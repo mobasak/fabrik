@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a review seat never disguises an act a guard refused (2026-10-20)
+
+- A seat whose command the worktree guard refused assembled the word git from `'gi'+'t'` and ran it, in the hub and in fabrik-lib, reading the seat rule's "fix the named shape" as leave to disguise the act. `subagents-core.md` and the `fabrik-reviewer` agent now say a reshaped command never disguises the refused act: a command name or path assembled, split or encoded to pass the guard is the same call, and an act no allowed shape reaches is marked unverified and named in MACHINERY. The workflow's `SEAT_ISOLATION` copy is intel's and was mailed (fabrik-lib mail 01M5AP11P1; review-scoped row 1792433212).
+
 ### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
 
 - The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), and a conflict no single primary source settles (two primary surfaces that disagree settle nothing) joins the nothing-found case as UNVERIFIABLE, naming every source on each side (W-7c2ca4e1).

@@ -812,3 +812,22 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
     zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     assert "**Round zero — the orchestrator's OWN pre-pin probe" in zero
     assert "the fix's own INPUT space is enumerated and executed before the pin" in zero
+
+
+def test_a_seat_never_disguises_a_refused_act() -> None:
+    """Row 1792433212 and fabrik-lib mail 01M5AP11P1: a seat whose command the worktree guard refused assembled the
+    word git from 'gi'+'t' and ran it, reading "fix the named shape" as leave to disguise the act. Both homes of the
+    seat refusal rule (subagents-core.md and the fabrik-reviewer agent) now say, after the shared rule, that a reshaped command never disguises the
+    refused act, and a refused act no allowed shape reaches is marked unverified and named in MACHINERY. The
+    workflow's SEAT_ISOLATION string is intel's and is mailed, not checked here."""
+    clause = (
+        "eshaped command never disguises the act a guard refused: a command name or path assembled, split or encoded"
+        " to pass the guard (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked"
+        " unverified and named in MACHINERY"
+    )
+    tail = "say in MACHINERY which command was refused how many times of how many tries"
+    for rel in ("commands/_fragments/subagents-core.md", "commands/_agents/fabrik-reviewer.md"):
+        text = re.sub(r"\s+", " ", (ROOT / rel).read_text())
+        assert text.count(clause) == 1, rel
+        # it follows the shared refusal rule, which the workflow tests pin whole across every home
+        assert text.index(tail) < text.index(clause), rel
