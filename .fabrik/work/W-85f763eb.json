@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: fabrik-lib's watchdog module retires the Tier-B action `install_log_drop_rule` (fabrik-lib SB-095; decisions fabrik-lib D-398 retire, D-444 remove field+env key together, D-462 design approval, D-465 executed). This mail is the hub request for the five hub-side references, and it is also the c"
 }
