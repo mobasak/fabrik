@@ -1227,17 +1227,25 @@ def test_restub_keeps_a_curated_match_list(tmp_path, monkeypatch):
     assert out["category"] == "unidentified" and out["match"] == ["ZZZ", "ZZZ_LEGACY"]
 
 
-def test_the_classifier_never_pops_or_restubs_an_operators_off_enum_category(tmp_path, monkeypatch):
+def test_the_classifier_never_pops_or_restubs_an_operators_off_enum_category(
+    tmp_path, monkeypatch, capsys
+):
     """D-1050 review (A-sonnet C4, A-haiku C1): an off-enum category is no longer CATALOGUED (it routes
     to triage), but it is still the OPERATOR'S field — a typo to correct, never a tombstone the merge
-    path may pop or the re-stub may overwrite with `unidentified`."""
+    path may pop or the re-stub may overwrite with `unidentified`. Nor is it DISPATCHED: it stays in
+    triage until the operator corrects it, so a dispatch could only fail to stub it and re-dispatch it
+    every run (review pass 2, A-haiku NEW-1) — the run skips it before the spend and says so."""
     assert cs.tombstone_of({"p": {"category": "ai-lm"}}, "p") is False
     text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
     cat, _ = _classify_env(
         tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], [_Res("not json")]
     )
     cat.write_text(json.dumps({"zzz": {"category": "ai-lm", "cost": "paid"}}), encoding="utf-8")
+    monkeypatch.setattr(
+        cs, "fanout", lambda *a, **k: pytest.fail("an off-enum entry was dispatched")
+    )
     assert cs.main() == 0
+    assert "zzz" in capsys.readouterr().err
     assert json.loads(cat.read_text(encoding="utf-8"))["zzz"] == {
         "category": "ai-lm",
         "cost": "paid",

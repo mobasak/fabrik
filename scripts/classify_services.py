@@ -477,7 +477,9 @@ def main() -> int:
         )
         return 0
     try:
-        gather_envs.load_catalog()  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
+        lap_catalog, _ = (
+            gather_envs.load_catalog()
+        )  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
     except gather_envs.CatalogError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -492,6 +494,19 @@ def main() -> int:
         print(f"ERROR: {exc} — nothing written, cursor unmoved", file=sys.stderr)
         return 1
     all_flagged = set(provs)  # the WHOLE queue, before any --only narrowing (pass 5, Z2)
+    typos = sorted(  # an operator's off-enum category sits in triage until THEY correct it (D-1050)
+        p
+        for p in provs
+        if _operator_category((lap_catalog.get(p) or {}).get("category"))
+        and not gather_envs.real_category(lap_catalog[p].get("category"))
+    )
+    if typos:  # dispatching one could only fail to stub it — never overwrite it — and re-dispatch it every run
+        print(
+            f"skipped {typos}: their catalog category is outside the enum — correct it in "
+            f"{CATALOG_PATH.name}, nothing dispatched for them",
+            file=sys.stderr,
+        )
+        provs = {p: v for p, v in provs.items() if p not in typos}
     if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         provs = {p: v for p, v in provs.items() if p in wanted}
@@ -861,8 +876,9 @@ def main() -> int:
                 if prov in identified or prov in errored or prov in merged_into:
                     continue  # a merged host joined its vendor — never also a stub (AF2)
                 if prov in catalog and _operator_category(catalog[prov].get("category")):
-                    # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
-                    # non-str category buckets to `?` there, so treating it as real here re-billed it daily
+                    # the operator's category, an enum value or a typo — never overwritten by a stub;
+                    # a typo is skipped before dispatch (above), so it is never re-billed (D-1050). A
+                    # non-str category is not the operator's, and the stub replaces it (Z10, CJ3)
                     continue
                 stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
                 if stub["match"] and stub["match"][0].rstrip("_") in _tokens_elsewhere(
