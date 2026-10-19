@@ -401,9 +401,12 @@ def _destroy_dns(domain: str, dry_run: bool) -> ActionResult:
         if dry_run:
             return ActionResult("dns", "dry_run", detail=f"{subdomain}.{base_domain} A")
         client = DNSClient()
-        # the driver answers {"status": "absent"} for the provisioner's already-gone shape
+        # an already-absent record: the provisioner's 200 {"action": "not_found"}, or the
+        # driver's {"status": "absent"} for its plaintext 500 (see DNSClient.delete_record)
         result = client.delete_record(base_domain, "A", subdomain)
-        if isinstance(result, dict) and result.get("status") == "absent":
+        if isinstance(result, dict) and (
+            result.get("action") == "not_found" or result.get("status") == "absent"
+        ):
             return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")
         return ActionResult("dns", "removed", detail=f"{subdomain}.{base_domain} A")
     except Exception as e:  # noqa: BLE001

@@ -394,13 +394,24 @@ def test_the_destroyer_reads_a_provisioner_http_error_by_its_status(
     assert dns_action.status == expected
 
 
+@pytest.mark.parametrize(
+    "result,expected",
+    [
+        ({"action": "not_found", "name": "svc-test.vps1.ocoron.com"}, "not_found"),
+        ({"status": "absent"}, "not_found"),
+        ({"action": "deleted", "record_id": "r1"}, "removed"),
+    ],
+    ids=["provisioner-not-found", "driver-absent", "deleted"],
+)
 def test_the_destroyer_reports_an_already_absent_record_as_not_found(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    result, expected, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """The driver's {"status": "absent"} is not a removal (W-8bb683e6 review)."""
+    """An already-absent record is not a removal: the provisioner's 200 {"action": "not_found"}
+    (/opt/site-provisioner api/cloudflare_client.py) and the driver's {"status": "absent"} (W-8bb683e6
+    review)."""
     mocks = _install_stub_drivers(monkeypatch)
-    mocks["dns.client"].delete_record.return_value = {"status": "absent"}
+    mocks["dns.client"].delete_record.return_value = result
 
     report = destroy_deployment(_maximal_service_spec(), project_base=tmp_path)
 
-    assert [a for a in report.actions if a.step == "dns"][0].status == "not_found"
+    assert [a for a in report.actions if a.step == "dns"][0].status == expected

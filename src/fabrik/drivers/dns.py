@@ -521,21 +521,15 @@ class DNSClient:
         """
         Delete a Cloudflare DNS record by type and name.
 
-        Treated as idempotent: site-provisioner has answered a delete of an absent record with
-        HTTP 500 + plain-text ``Internal Server Error``, which the SSH proxy raises as
-        ``ProvisionerHTTPError`` (status 500, that exact body), mapped here to
-        ``{"status": "absent"}``. ⚠️ That plaintext 500 is the provisioner's catch-all for ANY
-        unhandled exception (a Cloudflare failure, a missing zone), so this mapping can swallow a
-        real failed delete; an absent record already answers 200 ``action: not_found``. A typed
-        status from the provisioner retires this mapping (requested of site-provisioner,
-        2026-10-19). Any other HTTP error raises, a 404 included (a missing route).
-
-        Verified live during the vps4 DR drill 2026-06-08: the second
-        ``destroy --reverse-fleet-add`` against an already-cleaned vps4
-        emitted ``dns: error: SSH proxy returned non-JSON: Internal
-        Server Error`` even though ``dig`` confirmed the records were
-        already gone. With this guard, subsequent destroys (or re-runs
-        after a partial failure) report ``ok`` instead.
+        Idempotent. The provisioner's route answers an absent record 200
+        ``{"action": "not_found", …}``, returned as is. The vps4 DR drill (2026-06-08) also saw
+        its HTTP 500 + plain-text ``Internal Server Error`` on a re-run against records ``dig``
+        showed gone; the SSH proxy raises that as ``ProvisionerHTTPError`` (status 500, that exact
+        body), mapped here to ``{"status": "absent"}``. ⚠️ That plaintext 500 is the provisioner's
+        catch-all for ANY unhandled exception (a Cloudflare failure, a missing zone), so this
+        mapping can swallow a real failed delete; a typed status from the provisioner retires it
+        (requested of site-provisioner, 2026-10-19). Any other HTTP error raises, a 404 included
+        (a missing route).
 
         Args:
             domain: Root domain
@@ -543,8 +537,8 @@ class DNSClient:
             name: Record name (use "@" for root)
 
         Returns:
-            Result dict from site-provisioner, or ``{"status": "absent"}``
-            when the record didn't exist.
+            Result dict from site-provisioner (``{"action": "deleted" | "not_found", …}``), or
+            ``{"status": "absent"}`` for the plaintext 500 above.
         """
         try:
             return self._request(
