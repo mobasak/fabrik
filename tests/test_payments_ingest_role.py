@@ -71,9 +71,17 @@ def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
             res = pg.mint_payments_role("ti", lane)
         assert res["password"] is None and res["status"] == "exists"
         alter_sql = run.call_args_list[0].args[0]
-        assert f'ALTER ROLE "ti_payments_{lane}"' in alter_sql
-        for attr in ("NOSUPERUSER", "NOCREATEDB", "NOCREATEROLE", "NOBYPASSRLS", "LOGIN"):
-            assert attr in alter_sql, attr
+        role = f"ti_payments_{lane}"
+        # the exact attribute list, never a substring check (`LOGIN` would match `NOLOGIN`)
+        assert (
+            f'ALTER ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS '
+            "NOREPLICATION INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';"
+        ) in alter_sql
+        assert f'ALTER ROLE "{role}" RESET ALL;' in alter_sql
+        # a role that is a superuser or owns a database is refused BEFORE the ALTER runs
+        refusal = alter_sql.index("RAISE EXCEPTION")
+        assert "r.rolsuper OR EXISTS" in alter_sql and "d.datdba = r.oid" in alter_sql
+        assert refusal < alter_sql.index(f'ALTER ROLE "{role}"')
         assert "PASSWORD" not in alter_sql  # the password is never reset on re-apply
 
 
@@ -82,9 +90,15 @@ def test_the_grant_batch_grants_connect_and_usage_before_the_lane_grants() -> No
         with patch.object(pg, "_run_sql", return_value="module") as run:
             pg.grant_payments_role("ti", lane)
         sql = run.call_args_list[0].args[0]
-        connect = sql.index(f'GRANT CONNECT ON DATABASE "ti" TO "ti_payments_{lane}"')
-        usage = sql.index(f'GRANT USAGE ON SCHEMA public TO "ti_payments_{lane}"')
-        assert connect < sql.index("\\c ti") < usage < sql.index("DO $$")
+        role = f"ti_payments_{lane}"
+        # everything before the lane's first DO block is exactly these four lines, so no
+        # hub-written grant can hide between USAGE and the lane grants
+        assert sql[: sql.index("DO $$")].splitlines() == [
+            "\\set ON_ERROR_STOP on",
+            f'GRANT CONNECT ON DATABASE "ti" TO "{role}";',
+            "\\c ti",
+            f'GRANT USAGE ON SCHEMA public TO "{role}";',
+        ]
         assert 'GRANT "ti_payments_' not in sql  # never a role membership
 
 
@@ -241,7 +255,7 @@ def test_resolve_applicability_payments_ingest() -> None:
     )
 
 
-def _prov_with(pi_result, flag=True, grant=None):
+def _prov_with(pi_result, flag=True, grant=None, dry_run=False):
     """Drive the ingest block with the driver boundary mocked; ``prov.events`` records the
     order of mint, DSN injection and grant (``grant`` may raise to model a failing batch)."""
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
@@ -253,7 +267,7 @@ def _prov_with(pi_result, flag=True, grant=None):
         return pi_result(db)
 
     def _grant(db, lane, dry_run=False, **k):
-        events.append(("grant", lane))
+        events.append(("grant", lane, "dry_run") if dry_run else ("grant", lane))
         return grant(db) if grant else {"grants": "module"}
 
     prov.deployer.inject_env.side_effect = lambda c, env: events.append(("inject", *sorted(env)))
@@ -266,7 +280,7 @@ def _prov_with(pi_result, flag=True, grant=None):
         _mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=_mint) as m,
         _mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=_grant),
     ):
-        prov._provision_postgres("ti", {}, ctx, dry_run=False, provision_payments_ingest=flag)
+        prov._provision_postgres("ti", {}, ctx, dry_run=dry_run, provision_payments_ingest=flag)
     prov.events = events  # type: ignore[attr-defined]
     return prov, ctx, m
 
@@ -324,6 +338,18 @@ def test_no_dsn_injected_when_role_already_exists() -> None:
     m.assert_called_once()
     injected_keys = [k for c in prov.deployer.inject_env.call_args_list for k in c.args[1]]
     assert "PAYMENTS_INGEST_DATABASE_URL" not in injected_keys  # None password → no fresh DSN
+    # the grant still runs on re-apply, so a grant that failed on a first apply is retried
+    assert ("grant", "ingest") in prov.events
+
+
+def test_a_dry_run_injects_nothing_and_still_reaches_the_grant_as_a_dry_run() -> None:
+    prov, ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": None, "status": "dry_run"},
+        dry_run=True,
+    )
+    assert ("grant", "ingest", "dry_run") in prov.events
+    assert not any("PAYMENTS_INGEST_DATABASE_URL" in e for e in prov.events)
+    assert ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "dry_run"
 
 
 def test_not_provisioned_when_flag_false() -> None:

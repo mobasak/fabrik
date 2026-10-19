@@ -267,6 +267,8 @@ def test_a_failing_grant_leaves_the_minted_password_with_the_caller(lane: str) -
     schema = _schema()
     with scratch_pg() as s:
         _database(s, schema, with_jobs=False)
+        # without PUBLIC's default CONNECT, only the grant batch's own CONNECT lets the login in
+        s.run_sql(f"REVOKE CONNECT ON DATABASE {DB} FROM PUBLIC;")
         minted = _mint(s, lane)
         assert minted["password"]  # held BEFORE the grant runs
         with pytest.raises(RuntimeError, match="jobs does not"):
@@ -297,14 +299,45 @@ def test_drop_database_drops_both_payments_roles(exists: bool) -> None:
 
 
 def test_a_role_altered_out_of_band_is_narrowed_again_on_re_mint() -> None:
-    """mint re-asserts NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS on an existing role."""
-    _schema()
+    """mint re-asserts every attribute on an existing role and resets its role-level settings."""
     with scratch_pg() as s:
         _owner_db(s)
-        _mint(s, "fulfilment")
-        s.run_sql(f'ALTER ROLE "{FULFIL}" BYPASSRLS CREATEDB;')
-        assert _can(s, f"(SELECT rolbypassrls FROM pg_roles WHERE rolname = '{FULFIL}')")
+        minted = _mint(s, "fulfilment")
+        s.run_sql(
+            f'ALTER ROLE "{FULFIL}" BYPASSRLS CREATEDB CREATEROLE REPLICATION NOINHERIT '
+            "CONNECTION LIMIT 0 VALID UNTIL '2000-01-01';\n"
+            f'ALTER ROLE "{FULFIL}" SET row_security = off;'
+        )
         again = _mint(s, "fulfilment")
         assert again["status"] == "exists" and again["password"] is None
-        assert not _can(s, f"(SELECT rolbypassrls FROM pg_roles WHERE rolname = '{FULFIL}')")
-        assert not _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")
+        flags = s.run_sql(
+            "SELECT rolbypassrls, rolcreatedb, rolcreaterole, rolreplication, rolinherit, "
+            f"rolconnlimit, rolvaliduntil = 'infinity' FROM pg_roles WHERE rolname = '{FULFIL}';"
+        )
+        assert flags == "f|f|f|f|t|-1|t", flags
+        assert (
+            s.run_sql(
+                f"SELECT count(*) FROM pg_db_role_setting WHERE setrole = '{FULFIL}'::regrole;"
+            )
+            == "0"
+        )
+        # and the login the caller holds works again
+        assert s.login_sql(FULFIL, minted["password"], "SELECT 1;") == "1"
+
+
+def test_a_foreign_superuser_role_of_the_same_name_is_refused_not_altered() -> None:
+    """A role the registrar never minted (a superuser, or a database owner) is never stripped."""
+    with scratch_pg() as s:
+        _owner_db(s)
+        s.run_sql(f'CREATE ROLE "{FULFIL}" WITH LOGIN SUPERUSER;')
+        with pytest.raises(RuntimeError, match="refusing to re-assert"):
+            _mint(s, "fulfilment")
+        assert _can(s, f"(SELECT rolsuper FROM pg_roles WHERE rolname = '{FULFIL}')")
+    with scratch_pg() as s:
+        _owner_db(s)
+        s.run_sql(
+            f'CREATE ROLE "{FULFIL}" WITH LOGIN CREATEDB;\nCREATE DATABASE other OWNER "{FULFIL}";'
+        )
+        with pytest.raises(RuntimeError, match="owns a database"):
+            _mint(s, "fulfilment")
+        assert _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")

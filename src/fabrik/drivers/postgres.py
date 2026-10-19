@@ -995,10 +995,12 @@ def mint_payments_role(
 
     On create: ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`` with a
     CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
-    password before the caller holds it. On re-apply (``password`` ``None``): ``ALTER ROLE``
-    re-asserts the same attributes, so a role altered out of band (e.g. to BYPASSRLS) is
-    narrowed again rather than granted as it stands; the password is never reset. No membership
-    is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
+    password before the caller holds it. On re-apply (the returned ``password`` is ``None``):
+    ``ALTER ROLE`` re-asserts the same attributes (with INHERIT, no connection limit, no expiry)
+    and resets role-level settings, so a role altered out of band (e.g. to BYPASSRLS or
+    REPLICATION) is narrowed again rather than granted as it stands; the password is never
+    reset. A role of that name that is a superuser or owns a database was not minted here, so
+    re-apply RAISES rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
     AFTER the caller has delivered the DSN (spec D-464 item 2).
 
     Returns ``{"user", "password"|None, "status"}`` — ``status`` is ``created`` · ``exists`` ·
@@ -1009,7 +1011,7 @@ def mint_payments_role(
         logger.info("[DRY RUN] Would ensure payments-%s role %s on %s", lane, role, db_name)
         return {"user": role, "password": None, "status": "dry_run"}
 
-    attrs = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS"
+    attrs = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION"
     exists = _role_exists(role, container)
     pw = None if exists else _generate_password()
     if not exists:
@@ -1018,8 +1020,24 @@ def mint_payments_role(
             container=container,
         )
     else:
+        # A role of this name that is a superuser or owns a database is not one this registrar
+        # minted (it mints neither): refuse, never re-assert, so an unrelated admin or owner
+        # role is never silently stripped. Otherwise narrow every attribute back, including the
+        # ones that would leave the role unusable (CONNECTION LIMIT, VALID UNTIL) and its
+        # role-level settings.
         _run_sql(
-            f'\\set ON_ERROR_STOP on\nALTER ROLE "{role}" WITH {attrs};',  # nosec B608 — role is _validate_identifier-gated
+            "\\set ON_ERROR_STOP on\n"
+            "DO $$ BEGIN\n"
+            "  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles r\n"
+            f"             WHERE r.rolname = '{role}'\n"  # nosec B608 — role is _validate_identifier-gated
+            "               AND (r.rolsuper OR EXISTS (SELECT 1 FROM pg_catalog.pg_database d\n"
+            "                                          WHERE d.datdba = r.oid))) THEN\n"
+            f"    RAISE EXCEPTION 'payments-{lane} role {role} exists but is a superuser or owns a "
+            "database, so the registrar did not mint it; refusing to re-assert its attributes';\n"
+            "  END IF;\n"
+            "END $$;\n"
+            f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
+            f'ALTER ROLE "{role}" RESET ALL;',  # nosec B608 — role is _validate_identifier-gated
             container=container,
         )
     status = "created" if not exists else "exists"
