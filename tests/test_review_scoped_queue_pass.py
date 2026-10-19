@@ -812,3 +812,30 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
     zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     assert "**Round zero — the orchestrator's OWN pre-pin probe" in zero
     assert "the fix's own INPUT space is enumerated and executed before the pin" in zero
+
+
+def test_a_seat_never_disguises_a_refused_act() -> None:
+    """Row 1792433212 and fabrik-lib mail 01M5AP11P1: a seat whose command the worktree guard refused assembled the
+    word git from 'gi'+'t' and ran it, following the hint "keep that word out of code you run" and reading "fix the
+    named shape" as leave to disguise the act. Both homes of the seat refusal rule (subagents-core.md and the
+    fabrik-reviewer agent) now say a git call does not belong in such a program at all, and that a command reshaped
+    after any refusal never disguises the refused act. The sentence follows the refusal rule: directly in the agent's
+    house-rules list, and as the next sentence in subagents-core, where the workflow test's pinned span now ends. The
+    workflow's SEAT_ISOLATION copy is intel's and is mailed, not checked here."""
+    body = (
+        "command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing"
+        " the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled,"
+        " split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked"
+        " unverified and named in MACHINERY"
+    )
+    tail = "say in MACHINERY which command was refused how many times of how many tries"
+    hint = (
+        "(the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`,"
+        " and spelling git differently is still git)"
+    )
+    agent = re.sub(r"\s+", " ", (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text())
+    assert agent.count(f"{tail}; a {body};") == 1
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text()
+    assert re.sub(r"\s+", " ", core).count(f"{tail}. A {body}.") == 1
+    for text in (agent, re.sub(r"\s+", " ", core)):
+        assert hint in text and "keep that word out of code you run" not in text

@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 - Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
 - `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
 
+### Changed — a review seat never disguises an act a guard refused (2026-10-20)
+
+- A seat whose command the worktree guard refused assembled the word git from `'gi'+'t'` and ran it, in the hub and in fabrik-lib, reading the seat rule's "fix the named shape" as leave to disguise the act. `subagents-core.md` and the `fabrik-reviewer` agent drop the hint "keep that word out of code you run" for "the word does not belong in such a program at all, even as data", and say, directly after the refusal rule, that a command reshaped after any refusal never disguises the refused act: fixing the named shape or changing the command or the tool is allowed, a refused name or path assembled, split or encoded is the same call, and an act no allowed shape reaches is marked unverified and named in MACHINERY. The workflow's `SEAT_ISOLATION` copy is intel's and was mailed (fabrik-lib mail 01M5AP11P1; review-scoped row 1792433212).
+
 ### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
 
 - The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), and a conflict no single primary source settles (two primary surfaces that disagree settle nothing) joins the nothing-found case as UNVERIFIABLE, naming every source on each side (W-7c2ca4e1).

@@ -2131,7 +2131,7 @@ def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_sil
     )
     # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
     assert (
-        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans"
+        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. A command reshaped after any refusal"
         in core
     )
     exit_ = " ".join(
