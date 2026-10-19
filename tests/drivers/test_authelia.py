@@ -642,17 +642,16 @@ class TestScriptsExecuted:
 
     def test_every_work_dir_touch_is_under_sudo(self):
         """The ssh user cannot search a root 0700 dir: a bare `[ -f "$WORK/…" ]` reads false,
-        so every change would silently report a noop."""
+        so every change would silently report a noop; a bare prune of the backup dir silently
+        never prunes, and a bare `install -d` aborts every add. The fake sudo of the executed
+        tests runs as the test user, so only this check sees a dropped `sudo`."""
         for script in (self._add(), _build_remove_script("authelia-xyz", "my.example.com")):
             bash = script.split("<<'PY'")[0] + script.split("\nPY\n")[1]
-            touches = [
-                line
-                for line in bash.splitlines()
-                if "$WORK" in line and not line.lstrip().startswith("#")
-            ]
-            assert touches, "the script never touches its work dir"
-            for line in touches:
-                assert "sudo " in line.split("$WORK")[0], line
+            code = [line for line in bash.splitlines() if not line.lstrip().startswith("#")]
+            assert any("$WORK" in line for line in code), "the script never touches its work dir"
+            for token in ("$WORK", authelia._BACKUP_DIR, "$BAK"):
+                for line in (ln for ln in code if token in ln):
+                    assert "sudo " in line.split(token)[0], (token, line)
             tmp_mentions = [ln for ln in script.splitlines() if "/tmp/" in ln]
             assert tmp_mentions, "the mktemp template names /tmp"
             assert all("mktemp -d" in ln for ln in tmp_mentions), tmp_mentions

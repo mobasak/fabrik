@@ -38,7 +38,7 @@ class TestRunLockedLocation:
         lock = "/var/lib/fabrik-locks/fabrik-backrest-config.lock"
         assert cmd.startswith(
             "sudo install -d -m 755 -o root -g root /var/lib/fabrik-locks && "
-            f"sudo touch {lock} && flock -x -w 120 {lock} bash -c "
+            f"sudo touch {lock} && sudo chmod 644 {lock} && flock -x -w 120 {lock} bash -c "
         ), cmd
         assert "/tmp" not in cmd
 
@@ -55,14 +55,31 @@ class TestRunLockedLocation:
 class TestVpsSyncLegacyLocks:
     """vps_sync reports only the LEGACY /tmp locks; the new dir's files persist and may be held."""
 
-    def test_vps_sync_reports_only_legacy_tmp_locks(self, monkeypatch):
+    @staticmethod
+    def _load(monkeypatch):
         import importlib.util
         from pathlib import Path
 
+        import dotenv
+
+        # vps_sync loads the hub .env at import; a unit test must not pull it into os.environ
+        monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
         path = Path(__file__).resolve().parents[2] / "scripts" / "vps_sync.py"
         spec = importlib.util.spec_from_file_location("_w3d8_vps_sync", path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
+        return mod
+
+    def test_verify_residue_reports_through_the_legacy_helper(self, monkeypatch):
+        import inspect
+
+        mod = self._load(monkeypatch)
+        body = inspect.getsource(mod.verify_residue)
+        assert 'section("legacy /tmp lock files")' in body
+        assert "findings.extend(_legacy_lock_findings())" in body
+
+    def test_vps_sync_reports_only_legacy_tmp_locks(self, monkeypatch):
+        mod = self._load(monkeypatch)
         asked: list[str] = []
 
         def fake_lines(cmd, timeout=20):
@@ -73,8 +90,9 @@ class TestVpsSyncLegacyLocks:
         out = mod._legacy_lock_findings()
         assert asked == ["sudo find /tmp -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null"]
         assert out == [
-            "  legacy /tmp lock: /tmp/fabrik-authelia-config.lock — nothing takes /tmp locks "
-            "since W-3d834ded; rm /tmp/fabrik-authelia-config.lock"
+            "  legacy /tmp lock: /tmp/fabrik-authelia-config.lock — only pre-W-3d834ded code "
+            "takes it; once `sudo fuser /tmp/fabrik-authelia-config.lock` shows no holder, "
+            "rm /tmp/fabrik-authelia-config.lock"
         ]
         assert "/var/lib/fabrik-locks" not in " ".join(asked)
 

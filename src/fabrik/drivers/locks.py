@@ -56,7 +56,8 @@ from fabrik.drivers.ssh import ssh
 logger = logging.getLogger(__name__)
 
 LOCK_DIR = "/var/lib/fabrik-locks"
-"""Root 0755 on the VPS; each lock file is root 0644, created once by ``sudo touch``."""
+"""Root 0755 on the VPS; each lock file is root 0644 (``sudo touch`` then ``sudo chmod 644`` on every
+call, so sudo's umask never decides it and the inode is never replaced)."""
 
 _RESOURCE_RE = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -122,6 +123,7 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
     lock_file = f"{LOCK_DIR}/fabrik-{resource}.lock"
     cmd = (
         f"sudo install -d -m 755 -o root -g root {LOCK_DIR} && sudo touch {lock_file} && "
+        f"sudo chmod 644 {lock_file} && "
         f"flock -x -w {timeout} {lock_file} bash -c {shlex.quote(script)}"
     )
     # Give ssh() a slightly larger timeout than flock's so the flock error

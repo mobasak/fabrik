@@ -43,6 +43,7 @@ Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `v
 | 8 | Docker volumes | `docker volume ls -f dangling=true`; especially `<svc>_postgres_data` left behind after moving to shared `postgres-main`; pre-migration legacy (`coolify-db`, `coolify-redis`, etc.) |
 | 9 | Dangling images | `docker images -f dangling=true` non-empty |
 | 10 | Legacy `/tmp` locks | Any `/tmp/fabrik-*.lock` file. Since W-3d834ded `run_locked` locks in the root-owned `/var/lib/fabrik-locks` instead, so every `/tmp` one is stale. The files in `/var/lib/fabrik-locks` persist by design and are never residue (removing a held lock's file splits the lock) |
+| 10b | Leaked mktemp stages | A `/tmp/fabrik-XXXXXXXXXX` file or dir (10 random alphanumerics) older than a day. A driver stages there and removes it on every exit it sees (D-1000, D-1038, D-1044), but a SIGKILLed, OOM-killed or disconnected run leaves it behind. An Authelia work dir is root 0700 and may hold the live config, so remove it with `sudo rm -rf` once no fabrik run is live |
 | 11 | `/opt/` | `test-*`, `*-test`, `wp-test` ad-hoc files / orphan project trees |
 | 12 | Backrest | 4 live plans on hub + 2 per spoke (W2/W11). Watch for stray test-named plans (`test-*`, `*-tmp`) and abandoned repos under `/srv/backrest/repos/<test-name>/` left over from one-off experiments. |
 | 13 | Memory limits | Containers with `HostConfig.Memory=0` (limits reset on reboot; rerun `vps_apply_limits.sh`) |

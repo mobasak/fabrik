@@ -373,11 +373,12 @@ def _is_test_name(name: str) -> bool:
 
 
 def _legacy_lock_findings() -> list[str]:
-    """Report the VPS's legacy ``/tmp/fabrik-*.lock`` files, each safe to remove.
+    """Report the VPS's legacy ``/tmp/fabrik-*.lock`` files.
 
     ``locks.run_locked`` takes its locks in the root-owned ``/var/lib/fabrik-locks`` since
-    W-3d834ded, so nothing takes a ``/tmp`` lock any more. That dir is NOT listed: its files
-    persist by design and may be held, and removing a held lock's file splits the lock.
+    W-3d834ded (D-1044), but a hub checkout still on older code takes the ``/tmp`` one, so each
+    is removable only once nothing holds it. That dir is NOT listed: its files persist by design
+    and may be held, and removing a held lock's file splits the lock.
     """
     findings: list[str] = []
     locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
@@ -386,7 +387,8 @@ def _legacy_lock_findings() -> list[str]:
             findings.append(f"  {lk}")
         else:
             findings.append(
-                f"  legacy /tmp lock: {lk} — nothing takes /tmp locks since W-3d834ded; rm {lk}"
+                f"  legacy /tmp lock: {lk} — only pre-W-3d834ded code takes it; once "
+                f"`sudo fuser {lk}` shows no holder, rm {lk}"
             )
     return findings
 
