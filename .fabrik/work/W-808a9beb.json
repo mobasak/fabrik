@@ -20,8 +20,7 @@
   "score_reason": "break on an agent: the Stop hook feedback rung blocks kaizen on its own fresh verdicts",
   "status": "open",
   "tags": [
-    "mail-01m53thj0mjqcvb85p7mf9hraw",
-    "waits-quota-reset"
+    "mail-01m53thj0mjqcvb85p7mf9hraw"
   ],
   "title": "mail 01M53THJ0MJQCVB85P7MF9HRAW: Stop hook feedback rung blocks kaizen on verdicts its own session just filed (self-feeding loop)"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T09:16:54.354966Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7ed7556a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M58H6DF71SSM1D358JTEJW38",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run.py round --slices accepts slice ids without echoing the round-1 claim totals or open classes it expects (feedback row 1792361103, /fabrik-review)"
+}
