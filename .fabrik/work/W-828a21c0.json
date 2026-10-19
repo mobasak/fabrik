@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: wontfix",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Two hub rule packs say i18n Level 2 is \"never a gate\"; since fabrik-lib SB-107 a Level-2 run that could not complete exits 1"
 }
