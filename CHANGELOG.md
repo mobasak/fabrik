@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two remote-side loopback constants no longer red the localhost ban on every master merge (2026-10-19)
+
+- The completion gate's localhost ban scans every file a change lists, and a merge of master lists all of them. So two correct loopback constants turned red any branch that merged master:
+  - `drivers/preflight.py`'s `TRAEFIK_API_LOCAL_URL`, the VPS's own Traefik admin API, reached over SSH;
+  - `drivers/prometheus.py`'s `PROMETHEUS_RELOAD_URL`, prometheus's in-container reload URL.
+- Each now carries the reasoned `# noqa` that `orchestrator/verifier.py`'s identical Traefik constant already had.
+- `tests/test_drivers_remote_loopback_constants.py` keeps all three passing (W-3cb69ae8).
+
 ### Fixed — the daily VPS script-drift check reaches vps1 through the ssh jump (2026-10-19)
 
 - `scripts/sysadmin/vps_script_drift.py` used raw `ssh`. With vps1 unreachable directly since W-2b657bee, the check failed to reach `vps` for three daily runs, so drift on vps1 went unchecked.

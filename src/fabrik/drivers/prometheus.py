@@ -78,7 +78,7 @@ try:
 except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
-PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"  # noqa — prometheus's own loopback, called inside its container
 """Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
 container (its own loopback). The VPS host does not join the monitoring
 network, and the old route — wget from the ``alertmanager`` container to
