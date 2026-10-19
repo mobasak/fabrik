@@ -999,8 +999,8 @@ def mint_payments_role(
     ``ALTER ROLE`` re-asserts the same attributes (with INHERIT, no connection limit, no expiry)
     and resets its role settings (global and in this database), so a role altered out of band (e.g. to BYPASSRLS or
     REPLICATION) is narrowed again rather than granted as it stands; the password is never
-    reset. A role of that name that is a superuser or owns a database was not minted here, so
-    re-apply RAISES rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
+    reset. A role of that name that is a superuser or owns a database (never left so by this
+    registrar) makes re-apply RAISE rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
     AFTER the caller has delivered the DSN (spec D-464 item 2).
 
     Returns ``{"user", "password"|None, "status"}`` — ``status`` is ``created`` · ``exists`` ·
@@ -1020,11 +1020,12 @@ def mint_payments_role(
             container=container,
         )
     else:
-        # A role of this name that is a superuser or owns a database is not one this registrar
-        # minted (it mints neither): refuse, never re-assert, so an unrelated admin or owner
-        # role is never silently stripped. Otherwise narrow every attribute back, including the
-        # ones that would leave the role unusable (CONNECTION LIMIT, VALID UNTIL) and its
-        # role-level settings.
+        # A role of this name that is a superuser or owns a database was never left that way by
+        # this registrar (it grants neither): it may be an unrelated admin or owner role, or one
+        # escalated out of band, and the registrar cannot tell which. Fail closed and say so,
+        # never silently strip it; an operator narrows or drops it by hand. Otherwise narrow
+        # every attribute back, including the ones that would leave the role unusable
+        # (CONNECTION LIMIT, VALID UNTIL) and its role settings.
         _run_sql(
             "\\set ON_ERROR_STOP on\n"
             "DO $$ BEGIN\n"
@@ -1033,7 +1034,9 @@ def mint_payments_role(
             "               AND (r.rolsuper OR EXISTS (SELECT 1 FROM pg_catalog.pg_database d\n"
             "                                          WHERE d.datdba = r.oid))) THEN\n"
             f"    RAISE EXCEPTION 'payments-{lane} role {role} exists but is a superuser or owns a "
-            "database, so the registrar did not mint it; refusing to re-assert its attributes';\n"
+            "database, which this registrar never grants; refusing to re-assert its attributes. "
+            f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER, reassign its databases) or drop "
+            "it, then re-apply';\n"
             "  END IF;\n"
             "END $$;\n"
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
