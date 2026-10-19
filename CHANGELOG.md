@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the payments fulfilment-worker role: `shape.needs_payments_fulfilment` mints `<db>_payments_fulfilment` and injects `PAYMENTS_FULFILMENT_DATABASE_URL` (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: `create_payments_ingest_role` is split into `mint_payments_role(db, lane)` (the NOBYPASSRLS login and nothing else) and `grant_payments_role(db, lane)` (CONNECT, USAGE, then the lane's grant; returns the path it took). The `fulfilment` lane is granted only by fabrik-lib's `payments_grant_fulfilment(regrole)`; `drop_database` drops both roles. Re-apply re-asserts the role's attributes and resets its settings, and refuses a same-named superuser or database owner.
+- `src/fabrik/orchestrator/infrastructure.py`: each payments role is minted, its DSN injected, then granted, ingest first; the grant path sets the status — `provisioned`, `pending` (a new `DeploymentContext.registrar_warnings` line, exit 0) or `failed` (exit 2). An `infra.postgres: false` override turns the payments rows off too.
+- `src/fabrik/cli.py`: `fabrik apply` and `fabrik redeploy --refresh-infra` print each registrar warning as a `⚠` line (W-7ba06610, W-4b1dfd76).
+
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 
 - fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
