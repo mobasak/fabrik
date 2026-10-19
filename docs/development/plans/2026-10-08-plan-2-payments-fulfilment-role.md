@@ -196,7 +196,7 @@ Implements spec § The delta items 1, 2, 3, 4, 6.
 - **Given** a database name at the boundary length, **When** the fulfilment role name is built, **Then** the 63-character guard refuses the over-long name (spec § The delta item 2)
 - **Given** a database with both payments roles, **When** `drop_database` runs, **Then** both roles are dropped in either branch (`src/fabrik/drivers/postgres.py:1756`, `:1779`)
 
-## Phase B — Orchestrator, context and CLI: inject before grant, status from the path, warnings shown
+## Phase B — Orchestrator, context and CLI: inject before grant, status from the path, warnings shown — ✅ EXECUTED 2026-10-20 (3d11f15be; review fixes d9b7ea9a9)
 
 Appetite: 100
 Implements spec § The delta item 5; folds in W-7ba06610 and W-4b1dfd76.

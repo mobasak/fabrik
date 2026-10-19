@@ -946,7 +946,7 @@ def _payments_grant_fulfilment_block(role: str) -> str:
     payments = [t for t in _PAYMENTS_GRANT_TABLES if t != "jobs"]
     payments_present = " AND ".join(f"to_regclass('{t}') IS NOT NULL" for t in payments)
     return (
-        "DO $$ BEGIN\n"
+        "DO $$ BEGIN\n"  # nosec B608 — role is _validate_identifier-gated; table/function names are constants
         "  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p\n"
         "                   JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace\n"
         "                  WHERE p.proname = 'payments_grant_fulfilment'\n"
