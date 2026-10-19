@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
 
-- `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for the previous pass's `base_sha`, and says it is read back, never verified, since no md5 manifest covers it (W-86f03ace).
+- `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for a working-tree pin (it is HEAD there), read back, never verified, since no md5 manifest covers it; a `--from`/`--base` pin records its anchor and an older pin has no `base_sha`, so their briefs name the commit themselves (W-86f03ace).
 
 ### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
 

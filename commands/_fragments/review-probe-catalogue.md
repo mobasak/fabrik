@@ -234,14 +234,16 @@ it, or name in the brief why the shape does not have it.
   script a seat runs is run from its archive copy with every path argument under scratch (a script may treat any
   argument as a write path), and the pin carries the changed files' one-hop callees that are repo files
   (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
-- A delta brief also names the previous pass's `base_sha` (the one its pin's `MANIFEST.json` records, read back with
-  `json.load`; it is in no md5 manifest, so it is read back, never verified) and pins_dir, for the bounded hop's reader
-  run (a reader passing on the previous round's pin and failing on it with only the fix hunks applied). The lead first
-  diffs the two pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this pins_dir>`) and the two
-  `base_sha`s (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the brief that the difference
-  is the round's fix alone, committed or not, naming any other hunk or path, which leaves every reader it touches
-  `unverified` (each `Only in` line, a path one pin holds and the other does not, is named too, and classed from `git
-  diff --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git status --short
+- A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
+  takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it;
+  a pin taken `--from` or `--base` records that anchor instead, and an older pin has no `base_sha` (a repo with no
+  commit records null), so its brief names the commit itself) and pins_dir, for the bounded hop's reader run (a reader
+  passing on the previous round's pin and failing on it with only the fix hunks applied). The lead first diffs the two
+  pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this pins_dir>`) and the two `base_sha`s
+  (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the brief that the difference is the
+  round's fix alone, committed or not, naming any other hunk or path, which leaves every reader it touches `unverified`
+  (each `Only in` line, a path one pin holds and the other does not, is named too, and classed from `git diff
+  --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git status --short
   --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), since a removed path cannot be
   pinned and `change.diff` carries no entry for it: a path the fix added, modified, removed or renamed is the fix's own,
   and its readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds leaving those
