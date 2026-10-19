@@ -678,7 +678,8 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     while the bullet asked one mutant per clause only, so it now asks one per guard it adds or alters, quoting
     term-coverage rule (4)'s removed-guard proof rather than restating it. The whole bullet is pinned by equality, so
     an added licence or a negation fails here, and the quote is checked against rule (4)'s own text."""
-    rule4 = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    rule4 = tc[tc.index("(4) **A GRADER IS PROVEN") : tc.index("(5) **A GRADER OBSERVES")]
     assert (
         "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it" in rule4
     )
