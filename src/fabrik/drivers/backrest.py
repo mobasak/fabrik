@@ -6,7 +6,7 @@ guarantees the earlier Python-chain design could not provide:
 1. **Concurrency-safe** — the entire read-modify-validate-write cycle
    runs as one bash script under :func:`fabrik.drivers.locks.run_locked`.
    Two concurrent ``fabrik apply`` invocations serialize on the shared
-   ``/tmp/fabrik-backrest-config.lock`` file instead of racing to write
+   ``/var/lib/fabrik-locks/fabrik-backrest-config.lock`` file instead of racing to write
    the same JSON document.
 2. **Atomic** — ``jq`` writes to a ``.tmp`` sibling, ``python3 -m json.tool``
    validates the result, and only then is ``mv`` used to replace the

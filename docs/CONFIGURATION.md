@@ -645,8 +645,8 @@ contention.
   on the same filesystem as `FABRIK_ROOT`.
 
 Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
-which operates over SSH on the VPS and lives in `/tmp/fabrik-<resource>.lock`
-on the remote host. The two never interact.
+which operates over SSH on the VPS and lives in the root-owned
+`/var/lib/fabrik-locks/fabrik-<resource>.lock` on the remote host (D-1044). The two never interact.
 
 ### Scheduled audits — WSL cron (T2-03)
 

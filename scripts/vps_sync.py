@@ -372,6 +372,27 @@ def _is_test_name(name: str) -> bool:
     return bool(TEST_PREFIX_RE.search(name))
 
 
+def _legacy_lock_findings() -> list[str]:
+    """Report the VPS's legacy ``/tmp/fabrik-*.lock`` files.
+
+    ``locks.run_locked`` takes its locks in the root-owned ``/var/lib/fabrik-locks`` since
+    W-3d834ded (D-1044), but a hub checkout still on older code takes the ``/tmp`` one, so each
+    is removable only once nothing holds it. That dir is NOT listed: its files persist by design
+    and may be held, and removing a held lock's file splits the lock.
+    """
+    findings: list[str] = []
+    locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
+    for lk in locks:
+        if lk.startswith("[SSH ERROR"):
+            findings.append(f"  {lk}")
+        else:
+            findings.append(
+                f"  legacy /tmp lock: {lk} — only pre-W-3d834ded code takes it; once "
+                f"`sudo fuser {lk}` shows no holder, rm {lk}"
+            )
+    return findings
+
+
 def verify_residue() -> list[str]:
     """Full 10-point residue audit.
 
@@ -511,14 +532,9 @@ def verify_residue() -> list[str]:
         if count > 0:
             findings.append(f"  Docker: {count} dangling image(s) — run: docker image prune -f")
 
-    # ── 8. /tmp lock files ──────────────────────────────────────────────────
-    section("/tmp lock files")
-    locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
-    for lk in locks:
-        if lk.startswith("[SSH ERROR"):
-            findings.append(f"  {lk}")
-        else:
-            findings.append(f"  /tmp lock: {lk} — verify no process holds it; rm {lk}")
+    # ── 8. legacy /tmp lock files ───────────────────────────────────────────
+    section("legacy /tmp lock files")
+    findings.extend(_legacy_lock_findings())
 
     # ── 9. /opt stale test project dirs ────────────────────────────────────
     section("/opt stale directories")
