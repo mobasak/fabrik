@@ -1627,7 +1627,9 @@ def _review_exempts_commit(sid: str, transcript_p: str) -> dict | None:
     return run if decide_stall(True, run_attempts)[0] == "block_stall" else None
 
 
-def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
+def _surface_reviewed(
+    rec: object, authored: dict[str, int], sid: str | None = None, root: Path | None = None
+) -> set[str]:
     """The authored paths a RUNNING review-family record already names as its `--surface`.
 
     T5.2 (01M28YN1F): the sixth cause fired on exactly those files. A review's window opens at its
@@ -1698,15 +1700,121 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     if not surfaces and not tokens:
         return set()
     for s in surfaces:
-        tokens |= _surface_tokens(s)
+        tokens |= _surface_tokens(s, root)
     return {f for f in authored if f in tokens}
 
 
-def _surface_tokens(surface: str) -> set[str]:
+# W-42ddde8f (mail 01M55CM91H): a commit RANGE in a surface — `<rev>..<rev>` or `<rev>...<rev>` —
+# matched on the RAW surface, because `_SURFACE_SPLIT` cuts the revision grammar the hub's own
+# commands prescribe (`@{upstream}...HEAD`, `HEAD~3..HEAD`) into half-tokens. A side is revision
+# characters and never starts with `-`, so nothing reaches git as an option; git resolves each side
+# (`_range_files`), so a half-token can never resolve to a different range.
+_RANGE_RAW = re.compile(
+    r"(?<![\w@{}~^./-])([\w@{}~^./][\w@{}~^./-]*?)(\.\.\.?)([\w@{}~^/][\w@{}~^./-]*)"
+)
+# A side a CLOSED record may resolve: an abbreviated or full commit id, which names the same commit
+# forever. A ref, `HEAD` or `@{u}` names whatever it points at NOW, so a closed `<a>..HEAD` would
+# grow after the close and clear a file committed later that the review never saw (design critique,
+# both seats executed it) — a closed record resolves only immutable sides.
+_RANGE_FIXED_SIDE = re.compile(r"[0-9a-fA-F]{7,40}")
+# (root, range) -> the paths it changed, for this process (one stop). Capped and on ONE shared
+# deadline, because a stop reads every closed review's surface: past `_RANGE_CAP` distinct ranges, or
+# past the deadline, a range names nothing.
+_RANGE_FILES: dict[tuple[str, str], frozenset[str]] = {}
+_RANGE_CAP = 16
+_RANGE_BUDGET_S = 3.0
+_RANGE_DEADLINE: list[float] = []  # set at the first resolution of this process
+
+
+def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
+    """The paths a range changed in `root`: each side resolved by `git rev-parse <side>^{commit}`
+    (so a tree id — the empty-tree constant — or a blob is refused), then `git diff --name-only
+    --no-renames <sha><sep><sha> --`, so a rename names both its paths. A git failure, a timeout,
+    a repo that lacks the commits, the cap or the spent budget → nothing: the pre-change behaviour
+    (the file stays blocked until the review closes), never a disarm."""
+    key = (str(root), f"{left}{sep}{right}")
+    if key in _RANGE_FILES:
+        return _RANGE_FILES[key]
+    if len(_RANGE_FILES) >= _RANGE_CAP:
+        return frozenset()
+    if not _RANGE_DEADLINE:
+        _RANGE_DEADLINE.append(time.monotonic() + _RANGE_BUDGET_S)
+    deadline = _RANGE_DEADLINE[0]
+    files: frozenset[str] = frozenset()
+    try:
+        shas: list[str] = []
+        for side in (left, right):
+            # `--verify` takes ONE revision; without it `rev-parse` echoes `--end-of-options` back
+            if time.monotonic() >= deadline:
+                break
+            rp = _git_by(
+                root, deadline, "rev-parse", "--verify", "--quiet", "--end-of-options",
+                f"{side}^{{commit}}",
+            )  # fmt: skip
+            sha = rp.stdout.strip() if rp.returncode == 0 else ""
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
+                break
+            shas.append(sha)
+        if len(shas) == 2:  # past the deadline here, `_git_by` floors the diff's timeout at 0.1 s
+            r = _git_by(
+                root,
+                deadline,
+                "diff",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                f"{shas[0]}{sep}{shas[1]}",
+                "--",
+            )
+            top = [p for p in r.stdout.split("\0") if p] if r.returncode == 0 else []
+            # The hook keys its two authorship legs from different bases: an Edit from the
+            # session's cwd (`_session_files`), a commit from the top level (`_commit_files`,
+            # `git log --name-only`). In a subdirectory session the range must name BOTH forms, or
+            # one leg matches nothing (review round 1 and its closing pass, both executed).
+            # RESIDUE, stated: there a top-level `x.py` the range changed also names `<cwd>/x.py`.
+            pre = _git_by(root, deadline, "rev-parse", "--show-prefix") if top else None
+            prefix = pre.stdout.strip() if pre is not None and pre.returncode == 0 else ""
+            files = frozenset(top) | frozenset(
+                p[len(prefix) :] for p in top if prefix and p.startswith(prefix)
+            )
+    except (OSError, subprocess.SubprocessError, ValueError):  # ValueError: a non-UTF-8 path
+        pass
+    _RANGE_FILES[key] = files
+    return files
+
+
+def _surface_range_files(surface: str, root: Path, moving: bool) -> set[str]:
+    """Every path the commit ranges in `surface` changed. `moving=False` (a CLOSED record) resolves
+    only ranges whose both sides are commit ids — `_RANGE_FIXED_SIDE`."""
+    out: set[str] = set()
+    for m in _RANGE_RAW.finditer(surface):
+        left, sep, right = m.group(1), m.group(2), m.group(3).rstrip(".")
+        if not right:
+            continue
+        if not moving and not (
+            _RANGE_FIXED_SIDE.fullmatch(left) and _RANGE_FIXED_SIDE.fullmatch(right)
+        ):
+            continue
+        out |= _range_files(root, left, sep, right)
+    return out
+
+
+def _surface_tokens(surface: str, root: Path | None = None, moving: bool = True) -> set[str]:
     """The whole-token path names a free-text `--surface` carries — ONE parse for the running
     review's exemption and the closed reviews' record (W-bdcff87a), so the two cannot disagree on
-    what a surface names."""
-    tokens: set[str] = set()
+    what a surface names. With `root`, a commit range also names every path it changed
+    (`_surface_range_files`): a right-now fix is committed BEFORE its review starts, and a surface
+    written as `range <a>..<b>` spelled no path at all (W-42ddde8f). A closed record passes
+    `moving=False`: only a range between two commit ids, which cannot grow after the close.
+
+    STATED COST: a running review's range wider than the fix (`<a>..HEAD`, `@{u}..HEAD`, HEAD
+    advancing) names every file committed in it, a sibling's included — the grant a surface listing
+    those paths already makes, and only while the record runs; a push that empties `@{u}..HEAD`
+    takes the exemption back. A closed record's `<a>..HEAD` names nothing (fails closed).
+    ⚠️ COBRA (D-253): the cheapest way past the sixth cause is a trivial running review whose
+    surface is `<first commit>..HEAD`; it still owes its rounds to reach `done`, as naming every path
+    does, and the block names the files."""
+    tokens: set[str] = _surface_range_files(surface, root, moving) if root is not None else set()
     for raw in _SURFACE_SPLIT.split(surface):
         if not raw:
             continue
@@ -1723,7 +1831,7 @@ def _surface_tokens(surface: str) -> set[str]:
 
 
 def _closed_review_named(
-    rec: object, authored: dict[str, int], committed: dict[str, int]
+    rec: object, authored: dict[str, int], committed: dict[str, int], root: Path | None = None
 ) -> set[str]:
     """The paths a CLOSED `done` review of this session NAMED after they were last touched
     (W-bdcff87a, site-provisioner 01M49X4BZT): `command_run.py` records `{surface, adds, closed}` in
@@ -1761,7 +1869,8 @@ def _closed_review_named(
             if not isinstance(closed, (int, float)) or closed > ceiling:
                 continue
             surface, adds = e.get("surface"), e.get("adds")
-            tokens = _surface_tokens(surface) if isinstance(surface, str) else set()
+            # moving=False: a closed `<a>..HEAD` would grow after the close (W-42ddde8f)
+            tokens = _surface_tokens(surface, root, False) if isinstance(surface, str) else set()
             tokens |= {a for a in adds if isinstance(a, str)} if isinstance(adds, list) else set()
             for f in tokens:
                 # a touch of 0 is an UNREADABLE time — no proof of order, so never cleared
@@ -1886,10 +1995,11 @@ def _unreviewed_spontaneous_files(
     # through Bash, so the Edit scan never saw them. Read first, so a running review's `--surface`
     # exempts them by name exactly as it exempts an Edit-written file (T5.2).
     committed = _commit_files(root, commits, floor) if commits and root is not None else {}
-    named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
+    # `root` resolves a surface's commit-range tokens to the files they changed (W-42ddde8f)
+    named = _surface_reviewed(rec, {**committed, **authored}, sid, root)  # once per stop
     # the FLOORED edits: an edit older than the floor is not this session's work, so a fresh commit
     # of that path is judged by the commit leg, never shielded by a review of the old edit (C2)
-    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed)
+    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed, root)
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:
@@ -3003,10 +3113,49 @@ _PANEL_RE = re.compile(
 # of `docs/DECISIONS.md` sees missing its `Panel:` line.
 _DESIGN_ASK_RE = re.compile(r"\bapprove\b[^?\n]*\b(?:design|spec|journeys)\b", re.I)
 _PANEL_BRIEF_RE = re.compile(r"^[#*\s]*PANEL\s+APPROVED\s*\(([^)\n]+)\)", re.M)
-# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the artifact
+# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the
+# artifact span after the dash — one path, or a joint `<plan> + <spec>` (W-f253a5eb: the capture
+# stopped at the first space, so a joint verdict named the plan alone and never matched)
 _PANEL_VERDICT_RE = re.compile(
-    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*`?([^\s`]+)", re.I
+    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*(.+)", re.I
 )
+_PATH_JOIN_RE = re.compile(r"\s+\+\s+")
+
+
+def _bare_path(token: str) -> str:
+    """``token`` with backticks, markdown bold and trailing ``.,;:)`` stripped until stable
+    (`` `x.md`. `` and ``x.md**`` → x.md)."""
+    prev = None
+    while prev != token:
+        prev, token = token, token.strip("`*").rstrip(".,;:)")
+    return token
+
+
+def _heading_paths(text: str) -> frozenset[str]:
+    """The brief's own claim, parsed STRICTLY: `<path>` or `<path> + <path> …`, each part ONE token.
+    Empty for an empty heading or any part that is not one token — a heading never shrinks to its
+    first path (`<plan> and <spec>` would certify the spec on a plan-only panel)."""
+    parts = [p.strip("`").strip() for p in _PATH_JOIN_RE.split(text.strip().strip("`").strip())]
+    if not parts or any(len(p.split()) != 1 for p in parts):
+        return frozenset()
+    paths = frozenset(_bare_path(p) for p in parts)
+    return paths if all(paths) else frozenset()
+
+
+def _verdict_paths(quote: str) -> frozenset[str]:
+    """The paths an APPROVING verdict line names — each ` + `-separated part's first token, so
+    trailing prose is tolerated and only ` + ` splits paths (a part's words after its first token are
+    prose: `<a> and <b>` reads as `<a>` alone, never as two paths). Empty when the
+    quote is no approving VERDICT line."""
+    v = _PANEL_VERDICT_RE.match(quote)
+    if not v:
+        return frozenset()
+    paths = frozenset(
+        _bare_path(p.split()[0]) for p in _PATH_JOIN_RE.split(v.group(1)) if p.split()
+    )
+    return paths if paths and all(paths) else frozenset()
+
+
 _PANEL_LINE_RE = re.compile(r"^\W*Panel:\s*(.+)$", re.M)
 # Operator-entry rows that are the harness's or a hook's words, never the operator's:
 # `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
@@ -3740,21 +3889,26 @@ def _panel_problem(
             "panel that answers it is the decision"
         )
     quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
+    line_local = False  # a both-approve quote is a seat's FIRST LINE: it may not span a line break
+    want: frozenset[str] = frozenset()  # the heading's paths, set on a both-approve line
     if m.group(3).lower() == "both-approve":
-        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path>` line: a
+        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path(s)>` line: a
         # disagreeing verdict, or one given on another artifact, never approves this one
-        def _names(q: str) -> str:
-            v = _PANEL_VERDICT_RE.match(q)
-            return v.group(1).rstrip(".,;:)") if v else ""
-
-        # the path the VERDICT line names must BE the artifact — a containing path is another file
-        bad = [q for q in quotes if _names(q) != artifact.strip("` ")]
+        want = _heading_paths(artifact)
+        if not want:
+            return (
+                f"{ground}: the PANEL APPROVED heading names no artifact path — it must read "
+                "`PANEL APPROVED (<path>)` or `PANEL APPROVED (<path> + <path>)`"
+            )
+        # the paths the VERDICT line names must BE the heading's — a containing path is another file
+        bad = [q for q in quotes if _verdict_paths(q) != want]
         if bad:
             return (
                 f"{ground}: a both-approve Panel line quotes each seat's first line, "
-                f"`VERDICT: sound|sound-with-changes — {artifact or '<artifact path>'}` — not: "
-                + "; ".join(repr(q[:60]) for q in bad)
+                f"`VERDICT: sound|sound-with-changes — {' + '.join(sorted(want))}` — not: "
+                + "; ".join(repr(q[:300]) for q in bad)
             )
+        line_local = True
     stand_in = bool(re.search(r"\bfable unavailable\b", panel, re.I))
     # Each quote must come from ITS seat's own returned text — never any tool result (round 1:
     # an `echo` of the wanted verdict passed). A seat is an Agent call whose result row carries
@@ -3763,6 +3917,14 @@ def _panel_problem(
     # hand-back row whose harness `origin` names that agentId. Only what follows the operator's
     # last word.
     said: dict[str, list[str]] = {"opus": [], "fable": []}
+    # the same texts one normalised LINE at a time: `_norm_ws` folds newlines, so without these a
+    # quote could be stitched from a plan-only verdict and a `+ <spec>` bullet on the next line
+    said_lines: dict[str, list[str]] = {"opus": [], "fable": []}
+    by_seat_lines: dict[str, list[str]] = {}
+
+    def _lines(text: str) -> list[str]:
+        return [_norm_ws(ln) for ln in text.splitlines() if ln.strip()]
+
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
     try:
@@ -3778,6 +3940,8 @@ def _panel_problem(
                     continue
                 if _is_operator_prompt(entry):
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
+                    # the line stores too, or a both-approve brief reads pre-operator verdicts
+                    said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
                     continue
                 content = (entry.get("message") or {}).get("content")
                 text = _row_text(content)
@@ -3790,6 +3954,8 @@ def _panel_problem(
                         if meta.get("status") != "async_launched":
                             said[fam].append(_norm_ws(text))
                             by_seat.setdefault(str(meta["agentId"]), []).append(_norm_ws(text))
+                            said_lines[fam].extend(_lines(text))
+                            by_seat_lines.setdefault(str(meta["agentId"]), []).extend(_lines(text))
                     continue
                 # a hand-back is told by the HARNESS's own `origin` record (kind peer, handback,
                 # from = the agentId), never by the tag in its text: a `Bash` echo (round 2) and a
@@ -3803,13 +3969,27 @@ def _panel_problem(
                 ):
                     said[seats[str(origin["from"])]].append(_norm_ws(text))
                     by_seat.setdefault(str(origin["from"]), []).append(_norm_ws(text))
+                    said_lines[seats[str(origin["from"])]].extend(_lines(text))
+                    by_seat_lines.setdefault(str(origin["from"]), []).extend(_lines(text))
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
+    seat_texts = by_seat_lines if line_local else by_seat
+    if line_local:
+        said = said_lines
+
+    def _holds(q: str, texts: list[str]) -> bool:
+        """``q`` is in one of ``texts``; on a both-approve line, in ONE line whose own verdict, read
+        from the quote on, names exactly the heading's paths — a quote that is a PREFIX of a wider
+        line (`…x.md` of `…x.md.bak`, `<plan> + <spec>` of `<plan> + <spec> + <other>`) never holds."""
+        if not line_local:
+            return any(q in t for t in texts)
+        return any(_verdict_paths(t[t.index(q) :]) == want for t in texts if q in t)
+
     if stand_in:
         opus_ids = [a for a, f in seats.items() if f == "opus"]
-        first = [a for a in opus_ids if any(quotes[0] in t for t in by_seat.get(a, []))]
-        second = [a for a in opus_ids if any(quotes[1] in t for t in by_seat.get(a, []))]
+        first = [a for a in opus_ids if _holds(quotes[0], seat_texts.get(a, []))]
+        second = [a for a in opus_ids if _holds(quotes[1], seat_texts.get(a, []))]
         if any(a != b for a in first for b in second):
             return ""
         return (
@@ -3823,7 +4003,7 @@ def _panel_problem(
             f"a {' or '.join(missing)} seat since the operator's last message"
         )
     for who, q in zip(("opus", "fable"), quotes, strict=True):
-        if not any(q in t for t in said[who]):
+        if not _holds(q, said[who]):
             return (
                 f"the {who} verdict quoted on the Panel: line is not in the {who} seat's own "
                 "returned text since the operator's last message"
@@ -5048,7 +5228,9 @@ def main(argv: list[str]) -> int:
             everything = _own_uncommitted(root, authored)
             exempting = _review_exempts_commit(sid, transcript)
             own_uncommitted = (
-                everything - _surface_reviewed(exempting, authored, sid) if exempting else everything
+                everything - _surface_reviewed(exempting, authored, sid, root)
+                if exempting
+                else everything
             )
             if everything - own_uncommitted:
                 _kaizen(

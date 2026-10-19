@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:50:46.637051Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c47be58f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
+  },
+  "next": "send test-saas-scaffold a request mail (mail.py send --to test-saas-scaffold --kind finding) naming the route, the spec and the template change; ack when test-saas-scaffold replies it is removed",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "security: an unauthenticated route spends the repo's model key; one cross-repo request mail",
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "adopt W-ab242b11 in test-saas-scaffold: /opt/test-saas-scaffold/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail test-saas-scaffold to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
+}

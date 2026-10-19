@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:18:58.689629Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-638c6778",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M582PN5V0QNNNDWWBMPHVTRD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "LANDED on branch worktree-agent-2 (tryton-crm), merge request to agent-1 follows: 81c4a6b1 (the port), 5bb8f497 + 780cd102 + 04bb23ae (three /fabrik-review-scoped passes; closing pass confirmed 0). W-3777cc45."
+}

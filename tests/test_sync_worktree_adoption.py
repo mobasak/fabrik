@@ -760,6 +760,10 @@ def test_real_run_names_the_gitignore_patch_and_folds_it_into_results(
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -1027,6 +1031,10 @@ def test_corrupt_ledger_warn_reaches_the_surviving_results_line(tmp_path, monkey
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -2299,6 +2307,10 @@ def test_worktree_tally_folds_into_the_final_summary_line(tmp_path, monkeypatch,
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -2327,6 +2339,10 @@ def test_worktree_tally_folds_into_the_final_summary_line_under_dry_run(
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py", "--dry-run"])

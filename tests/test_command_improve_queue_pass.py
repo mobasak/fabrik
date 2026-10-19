@@ -281,7 +281,7 @@ def test_fabrik_task_third_queue_pass_lines() -> None:
         "and every vendored copy outside it (`find /opt` by the file's name)",
         "A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail"
         " root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there",
-        "before phase 4, MEASURE's test slice re-runs on the built tree.",
+        "before phase 4, MEASURE's test slice re-runs on the built tree,",
     ):
         assert needle in text, needle
 

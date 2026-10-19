@@ -36,6 +36,10 @@ python3 /opt/fabrik/scripts/whoami_agent.py --as alpha   # then --who to confirm
 The env var still WINS where it is set, so a named launch never needs the command. Detail:
 `docs/workstation/agent-identity.md`.
 
+To reopen a repo's existing builders side by side, each resuming its own session, run
+`scripts/sysadmin/agents_up.sh <repo>`. It reads the builders from `<repo>/.fabrik/session-agents.json` and gives the
+coordinator no pane. The hub keeps `~/bin/hub-up`. Setup and rollout: `docs/reference/repo-coordinator-rollout.md`.
+
 ⚠️ **A window that lands in the main checkout and is not the merge owner MOVES, it doesn't
 relaunch** (spec 2026-09-29-hub-worktree-cutover-design.md § D5(a)): `EnterWorktree` into
 `.claude/worktrees/<name>` carries the running conversation forward ("the transcript follows" — see
@@ -175,6 +179,7 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
+python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose branch is unchanged
 ```
 
 `merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
@@ -194,7 +199,17 @@ hub's governance sync, and (h) the reply to requester and distributor, then `mai
 request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,
-staged or untracked owner file) is the owner's to clear and needs no change to the branch. A remote the
+staged or untracked owner file) is the owner's to clear and needs no change to the branch. An owner-tests
+refusal of a request (never a catch-up) ends with what the same tests did, in one run, on the base the
+failed run saw with nothing merged: red too (likely the base's fault), green (the failure needs the
+branch's change, or is flaky), or not checked and why. A refusal the base caused is re-run by the OWNER
+with `retry <id>` once the base is fixed, never re-sent by the requester. `retry` exits 1, changing
+nothing, while another request for the same branch or head is open, when the head is already in the
+base, or when the branch on the remote is gone or no longer points at the recorded head (the requester
+superseded it); a remote it cannot reach is a refusal there too, never a deferral. Otherwise it
+re-opens the mail (`mail.py requeue`, its `blocked` ack stripped), claims it again and runs every step
+from (a), so a merge is acked `done --merge-sha`, and the reply carries a `retry: <n>` line naming the
+refusal it supersedes (W-c751bca6). A remote the
 run cannot reach (a fetch that times out or fails for any reason but a missing ref) is no refusal: the
 request DEFERS — it stays claimed, nothing is replied, the next `merge` run retries it, and for the rest
 of that run every request on the same remote defers without another fetch while requests on other

@@ -94,7 +94,7 @@ def _epoch(x: object) -> float | None:
             datetime.fromtimestamp(v).astimezone()  # nor one the local zone pushes past year 9999
     except (OverflowError, OSError, ValueError):
         return None
-    return v
+    return v + 0.0  # + 0.0: -0.0 is 0, as `_balance` has it
 
 
 def _balance(x: object) -> float | None:
@@ -207,7 +207,7 @@ def load(conn, *, before_query: Callable | None = None) -> tuple[list[dict], flo
             cur,
             "SELECT service_id, used_by_projects, account_email, "
             + ("kind" if has_kind else "'credential'")
-            + " FROM api_keys",
+            + " FROM api_keys ORDER BY service_id, id",  # insertion order: the FIRST email wins
         )
         for sid, projects, email, kind in cur.fetchall():
             s = svc.get(sid)
@@ -219,7 +219,7 @@ def load(conn, *, before_query: Callable | None = None) -> tuple[list[dict], flo
                 kind == "credential-unattributed"
             ):  # visible on the row, never counted as a key (BM9)
                 s["unattributed"] += 1
-            s["projects"].update(projects or [])
+            s["projects"].update(p for p in projects or [] if p is not None)  # a NULL element
             if email and not s["account"]:
                 s["account"] = email
         run(
@@ -232,11 +232,19 @@ def load(conn, *, before_query: Callable | None = None) -> tuple[list[dict], flo
             value = _balance(bal)
             if s is not None and value is not None:
                 s["balance"], s["unit"], s["credit_at"] = value, unit or "", _epoch(fetched)
-        run(cur, "SELECT service_id, price, currency, renews_on FROM subscriptions")
+        run(
+            cur,
+            "SELECT DISTINCT ON (service_id) service_id, price, currency, renews_on "
+            "FROM subscriptions ORDER BY service_id, id DESC",
+        )
+        planned: set = set()
         for sid, price, curr, renews in cur.fetchall():
             s = svc.get(sid)
-            if not s:
+            # the last-added plan WHOLE (highest id — a re-declared plan keeps its id, and the table
+            # holds no recency column): never one plan's price beside another's renewal
+            if not s or sid in planned:
                 continue
+            planned.add(sid)
             if renews:
                 s["renews"] = str(renews)
             cost = _balance(

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:58.509062Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a023663f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M5540G6J32Y6T8NSH7WNAYHE in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "agent request (fleet): confirm capped_run.sh caps resident memory, never address space",
+  "status": "open",
+  "tags": [
+    "mail-01m5540g6j32y6t8nsh7wnayhe"
+  ],
+  "title": "mail 01M5540G6J32Y6T8NSH7WNAYHE: prlimit --as kills node/pnpm (V8 virtual reservation) — please confirm capped_run.sh caps resident memory, never address space"
+}

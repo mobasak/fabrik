@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-18T01:54:09.621117Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-77b00c13",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide: split only values that are all-hex sha lists, or require one revision per --commit, and make docs/reference/command-run-protocol.md:57 state what the code accepts; regression test for a comma-bearing ref",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: test-coverage or rare-edge residue in infra's scripts; nobody blocked",
   "status": "open",
   "title": "command_run.py --commit splits every value on commas, but git allows commas in ref names (topic,x is a valid branch), and the protocol doc :57 says one comma-joined value while the code accepts several mixed forms — found by intel's W-7c8e293f review"
 }

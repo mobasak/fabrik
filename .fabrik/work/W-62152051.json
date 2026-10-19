@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:25.812506Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-62152051",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WWHVXRXFEC828WWFA9HYGJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-spec row 1791969483 needs code — the /fabrik-task lane's consumers=external refusal should name a `Size: small` spec as the cheapest route"
+}

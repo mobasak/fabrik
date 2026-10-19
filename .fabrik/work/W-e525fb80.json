@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:13.974871Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e525fb80",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review-scoped",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: MISFILED (D-711 Opus audit 2026-10-19): the row governs how a fix to command text is written — /fabrik-command-improve's PHASE 2/3, which already state it: fabr",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review-scoped"
+}

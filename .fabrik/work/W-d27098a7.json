@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:18:57.123580Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d27098a7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57PMXXQZWB9DHR678AYQGCR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "re: fabrik-reviewer seats made live network ssh calls — validated; the fix is a network-client class in seat_guard.py, filed as W-d146dd3c"
+}

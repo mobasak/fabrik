@@ -245,3 +245,33 @@ def test_a_backlog_referrer_is_repointed_through_the_work_store() -> None:
         " delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than "
         "editing the row. Doc Link Integrity DOES catch a missed one"
     ) in _norm()
+
+
+def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
+    """Row 1792337134 (recurrence of the held clone-proof-uses-docker-run): a gate or live request served by a shared
+    runtime that mounts the main checkout runs MAIN's code, so the sentence points at the doc that says how to prove the
+    tree's own code, and D7's live request points back at it."""
+    assert (
+        "against the two-level rule above. In any linked worktree, a gate or live request that a shared runtime serves (a"
+        " container or service mounting the main checkout) runs MAIN's code, not this tree's; prove this tree's code as"
+        " `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says."
+        " - **Verify your owned paths are clean:**"
+    ) in _norm()
+    assert "issued against the running service (from a linked worktree, read Before You Start step 8 first), with" \
+        " its actual" in _norm()
+    doc = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "multi-agent-operating-model.md").read_text())
+    assert "## The shared runtime is NOT isolated" in doc
+    assert "running the worktree's code in-process against a throwaway database clone" in doc
+
+
+def test_finish_step_5_says_the_run_flips_its_own_plan_and_when_the_coordinator_does() -> None:
+    """Row 1792345477: the template gives the coordinator a finished plan's EXECUTED flip with no condition, so step 5
+    names the run as the flipper, and the archiver as step 6 allows, at every position and quotes the hub charter's condition verbatim."""
+    assert (
+        "flip the plan `Status: EXECUTED <date>` (this run flips its own plan, and archives it as step 6 allows, at every"
+        " position, (c)"
+        ' included; in the hub the coordinator does both only "once every ticket is merged and its builder confirms no run will resume it",'
+        " `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact"
+    ) in _norm()
+    charter = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "agents" / "coordinator.md").read_text())
+    assert "once every ticket is merged and its builder confirms no run will resume it" in charter

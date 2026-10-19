@@ -171,7 +171,9 @@ is imported, so the board stays stdlib and a missing driver is only this section
 collector (`_inventory`) spawns it under `sys.executable` with a deadline 4.5 s after the arrival of the
 request that spawns it and kills it at that deadline (a request that joins the read shares that deadline
 and waits up to its own 5 s), so the section answers inside the request's 5 s whatever Postgres does; the
-child also bounds itself with a SIGALRM a moment past that deadline, should the board be gone; one
+child also bounds itself with a SIGALRM a moment past that deadline, should the board be gone, and reads
+the registry in ONE read-only REPEATABLE READ snapshot, so a read that straddles `registry_sync`'s commit
+never shows pre-sync rows under the post-sync `synced_at` (W-a4bc74a6); one
 lock guards the last good read and the read in flight (never held across a read), concurrent requests
 share one child, and the last good read is served for 60 s from its start. A failed or killed read is
 the section's error state, `<ExceptionClass>: <first line>` and nothing more, with Retry; the pool and API

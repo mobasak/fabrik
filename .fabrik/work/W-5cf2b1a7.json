@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:46:21.568164Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5cf2b1a7",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: MISFILED: the row names /fabrik-spec Phase 1b (read the scaffold's emitted compose/routing before approaches for a web-auth design) — it belongs to /fabrik-spec",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-plan-review"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:18.449108Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-98a7ad9d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55WNN00D1MB0E4J7321RNPV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "the hub .venv lacks email-validator, so 4 scaffold tests fail on every full run (test_scaffold_saas_web_wiring.py)"
+}
