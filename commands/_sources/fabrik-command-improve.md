@@ -209,9 +209,9 @@ Three shapes are NOT yours to apply here, and each has a destination:
   'commands/_fragments/[a-z0-9-]*\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths` is, names them), a seat file under `commands/_agents/`,
   § Drive's home for a shared rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
   still lands in one. The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):
-  `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and
-  `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the shared
-  FEEDBACK duty can target one of them, while close wording one command owns stays in its source.
+  `/opt/fabrik/commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and
+  `/opt/fabrik/commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), each tested against `owned_paths` without its
+  `/opt/fabrik/` prefix, so a row about the shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source.
   ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock

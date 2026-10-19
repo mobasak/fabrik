@@ -20,6 +20,10 @@ W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writ
 
 - A docusaurus site published the seeded README, QUICKSTART, CONFIGURATION, TROUBLESHOOTING and FEATURES, and CONFIGURATION names the hub hosts. Every name governance allows directly in `docs/`, plus the `docs/preplan.md` the scaffold writes itself, is now in the content-docs `exclude`, root-anchored so a site author's nested `guides/README.md` still publishes (D-1055, W-c2c2c35b). Graders pin the exclude lists to `check_structure.py`'s DOCS_ALLOWLIST and evaluate the rendered `exclude` array, read strictly, against the real scaffolded tree.
 
+### Changed — a scoped review runs what a fix adds over round zero's input classes (2026-10-19)
+
+- `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, on a scratch copy of what it reads (a scratch repo for diff output, § Seat isolation's archive or clone with the pins laid over it for a seat recipe), over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
+
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 
 - `/fabrik-command-improve` PHASE 2's lock bullet names the two scripts that test a path against a lock's `owned_paths`. A new test lists every file under `scripts/` (shell and extensionless runners included) that names `owned_paths` by that literal spelling and fails on one it has not met, so the bullet is re-read when that set changes; it pins which files name the field, not what they do with it (W-bcf6fc2f part 1; part 2, check_plan_tickets.py's missing scalar guard, is infra's item).
