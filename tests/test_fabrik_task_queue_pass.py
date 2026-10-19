@@ -363,3 +363,15 @@ def test_build_re_runs_the_population_measurement_for_a_changed_check_or_guard()
         "before phase 4, MEASURE's test slice re-runs on the built tree, and so does MEASURE's population measurement when the"
         " change adds, changes or removes a check, guard or threshold."
     ) in _norm(SRC)
+
+
+def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spellings_and_a_copied_mechanism() -> None:
+    """Rows 1792361074, 1792363058, 1792365690, 1792401257: each design was sent back by its critiques for a case
+    MEASURE never executed — what the reporter did next, a base behind the merge target, a spelling another command
+    prescribes, a copied guard on this box — so MEASURE executes each before design.md is written."""
+    assert (
+        "a recipe's real target layout, the reported incident replayed one step past its symptom (what the reporter did"
+        " next), a tool that scopes by a diff range run on a branch level with its merge target and on one behind it, each"
+        " spelling the hub's commands prescribe for an input it parses, a mechanism copied from another script run on this"
+        " box's live state,"
+    ) in _section("## Phase 1", "## Phase 2")

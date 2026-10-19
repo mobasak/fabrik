@@ -66,36 +66,39 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 
 ## Phase 1 — MEASURE
 
-FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
-a reconstruction, and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it
-names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit
-can sit in dead code); a miss, or a replay on a copy carrying that state that does not fail as claimed, is a
-finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded
-unverified, never as refuted (MIRROR greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
-`<durable>/measure.md`, beside phase 2's `design.md`, never in
-it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
-import, grade or run the declared files (grep the tests for each file's name and every mode or flag
-the change extends, since a test that runs a script by subprocess never imports it), that slice and
-never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
-into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
-`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
-the rule already lives in; the population the change writes or thresholds measured (its readers
-are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on,
-every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), the transport handing a new env var to
-the process (compose `environment:`, `env_file`, a build arg, another launcher) read on the started process
-(e.g. `docker compose run --rm <svc> env`, its keys recorded, never its values), and
-the n behind any rate, bound or zero the design will claim; each external contract probed live
-once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
-the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
-source read or a proxy: the tests that drive it by subprocess, the completion gate's own command, a recipe's real
-target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
-what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on
-non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for a parsed format, its operator-facing strings
-in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate's
-new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code's
-10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a
-deliberately broken input, since a pass proves nothing until it can fail. Then `python scripts/select_rules.py --changed
-<the declared paths>` — the path-scoped form — and READ the packs it prints.
+FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never a reconstruction,
+and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or
+error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code); a
+miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the
+item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR
+greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
+`<durable>/measure.md`, beside phase 2's `design.md`, never in it (a pasted line opening with a field word or a `#`
+moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file's
+name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that
+slice and never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the
+remote branch the work merges into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no
+remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
+`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack the rule already
+lives in; the population the change writes or thresholds measured (its readers are MIRROR's) — every writer, every
+occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in
+(grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`,
+`env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its
+keys recorded, never its values), and the n behind any rate, bound or zero the design will claim; each external
+contract probed live once, a list read whole, never a sample — each by EXECUTING the real path on real data (the
+producer's code, the tool's run output per mode, the design's own classifier, the writer of each state value it
+trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate's own
+command, a recipe's real target layout, the reported incident replayed one step past its symptom (what the reporter
+did next), a tool that scopes by a diff range run on a branch level with its merge target and on one behind it, each
+spelling the hub's commands prescribe for an input it parses, a mechanism copied from another script run on this
+box's live state, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
+what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run
+on non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for a parsed format, its operator-facing
+strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose
+commits a gate's new scope holds, and the whole output, not one field, with each hook output it grows sized against
+Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown
+red on a deliberately broken input, since a pass proves nothing until it can fail. Then
+`python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ the packs it
+prints.
 
 ## Phase 2 — DESIGN, where it will be minted
 
