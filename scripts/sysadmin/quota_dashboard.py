@@ -677,15 +677,8 @@ def _inventory_wait(flight: _InventoryRead) -> None:
         _inventory_finish(flight, outcome)
 
 
-def _inventory_classified_at() -> float | None:
-    try:
-        return _CLASSIFY_STAMP.stat().st_mtime
-    except OSError:
-        return None
-
-
 def _inventory(ctx) -> dict:
-    """The Services view's inventory data: ``{"rows", "synced_at", "classified_at"}`` or ``{"error": …}``.
+    """The Services view's inventory data: ``{"rows", "synced_at"}`` or ``{"error": …}``.
 
     ONE deadline per request (5 s from its arrival), every wait bounded by what is left of it. Under the
     lock, for the length of the decision only: serve the last good read if it STARTED under 60 s ago, else
@@ -713,12 +706,8 @@ def _inventory(ctx) -> dict:
                 spawned = True
     finally:
         _inv_lock.release()
-    if fresh is not None:  # the stat() runs after the lock is released
-        return {
-            "rows": fresh[0],
-            "synced_at": fresh[1],
-            "classified_at": _inventory_classified_at(),
-        }
+    if fresh is not None:
+        return {"rows": fresh[0], "synced_at": fresh[1]}
     if spawned:
         try:
             threading.Thread(
@@ -732,11 +721,7 @@ def _inventory(ctx) -> dict:
         return {"error": _INV_TIMEOUT}
     if outcome[0] != "ok":
         return {"error": outcome[1]}
-    return {
-        "rows": outcome[1],
-        "synced_at": outcome[2],
-        "classified_at": _inventory_classified_at(),
-    }
+    return {"rows": outcome[1], "synced_at": outcome[2]}
 
 
 def _pointer_slug() -> str | None:
@@ -1006,9 +991,6 @@ def _eligible(a: dict, now: float | None = None) -> bool:
 # order of CLAUDE.md § Pipeline (stages), then the gates, then the utilities — the test refuses a
 # source with no slot and a slot with no source, so the list cannot drift from the corpus silently.
 _FABRIK_ROOT = Path(__file__).resolve().parents[2]
-_CLASSIFY_STAMP = (
-    _FABRIK_ROOT / ".tmp" / "external-services" / "classify_last.json"
-)  # the classifier's last run
 # The amortized cost sidecar `claude_p_cost.py --refresh` rebuilds on the 06:00 cron. Read, never
 # recomputed here: the dashboard renders, the producer measures. Resolved AFTER _FABRIK_ROOT but read
 # only inside `_spend_data`, so call-time resolution is what matters.

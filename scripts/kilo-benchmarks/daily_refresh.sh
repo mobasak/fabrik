@@ -15,9 +15,8 @@
 #
 # What this file actually does now, in order:
 #   1. check_daily_refresh_freshness.py  — heartbeat: alerts if the previous run is >36h stale
-#   2. scripts/external_services_chain.sh — gather_envs (+ code-host scan) → classify →
-#      gather_envs → registry_sync → gen_dashboard (shared with wsl_startup_hook.sh)
-#      (classify, the paid pool pass, is inside that chain — bounded, cursor-walked)
+#   2. scripts/external_services_chain.sh — gather_envs (+ code-host scan) → registry_sync →
+#      gen_dashboard (shared with wsl_startup_hook.sh; no classify step since D-1046)
 #   3. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
 #   4. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
 #
@@ -204,8 +203,7 @@ sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
   # `grounding` column the hub ranker has emitted since ec05a490 (2026-08-29) — ~8 days of hub
   # output silently discarded. Found by the D-159 review's native finder.
 
-  # The external-services chain (gather_envs → classify → gather_envs → registry_sync →
-  # gen_dashboard) lives in ONE script shared with wsl_startup_hook.sh — both entry points race
+  # The external-services chain (gather_envs → registry_sync → gen_dashboard) lives in ONE script shared with wsl_startup_hook.sh — both entry points race
   # for the daily lock, so a step defined in only one of them silently never runs on the days
   # the other wins (the 2026-08-14 back-port lesson). It alerts on its own failures and writes
   # the dashboard (the liveness heartbeat) only when every DATA step succeeded.

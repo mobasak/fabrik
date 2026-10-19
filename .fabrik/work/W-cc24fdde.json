@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T17:20:20.499497Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "08653c326252177897d424fb05e51624b5129376",
+  "id": "W-cc24fdde",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: name the source the lead classes an Only-in line from (git status for an uncommitted fix, the base-to-base --name-status list for a committed one); widen the reader finder past tests/ or say it stops there; say 'this pass's base_sha' not 'the pin's'; split the fix's-own and pinned-in-one-pass categories so an added path matches one only; CHANGELOG wording add 'or rename' (W-44f02840 pass 4 notes)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956), leftovers of the W-44f02840 review past its scope-growth stop; LOW effort: catalogue wording",
+  "status": "done",
+  "title": "reader-run pin diff (W-44f02840 scope-growth backlog): (1) the lead cannot tell a path the fix removed from one pinned in only one pass from the pins alone — a removed path cannot be pinned and change.diff carries no entry for it, so the classification needs the live status or the base-to-base list named as its source (opus pass 3 note); (2) the reader finder a seat uses for an Only-in path's readers reaches tests/ only (catalogue lines ~230-232), so a non-test reader of a renamed file (r.py importing a.py) is never run (haiku pass 3 C1)"
+}

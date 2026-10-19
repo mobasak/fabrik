@@ -4,6 +4,7 @@ Each test pins one sentence in the phase that owns it.
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +81,7 @@ def test_phase_five_runs_every_test_that_names_the_edited_source() -> None:
     """Row 1791830357 (D-790): fabrik-task.md's size cap and verbatim pins sit in a test the queue-pass test is not."""
     text = re.sub(r"\s+", " ", SRC.read_text())
     assert (
-        "every test file that names the edited source or fragment, or a command that includes that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source"
+        "every test file that names the edited source or fragment, or a command that includes that fragment or points at it by path (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source"
         in text
     )
     import subprocess
@@ -581,8 +582,149 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert span == (
         "Before the first draft, the files the target points at by path for the same subject are read too (a"
         " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
-        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — its"
-        " lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its"
-        " sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a place the pins"
+        " sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside the"
+        " new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
         " sentence below says. "
     ), span
+
+
+def test_a_fragment_pointed_at_by_path_is_a_write_and_lock_target() -> None:
+    """W-5048181b: PHASE 2's write-target list and its lock check named the fragments a command renders but not one it
+    points at by path (the probe catalogue, read live and never rendered), so a row whose fix belongs there had no
+    listed target and no lock check. Both lists now name it; the lock check's printed grep is RUN here on a real command
+    source and must print the catalogue repo-relative, the form `owned_paths` uses, since an absolute path matches no
+    lock and fails open. The weight sentence and PHASE 5's test pick count a by-path reader too."""
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "to one of the fragments that command renders or points at by path (a review command's probe catalogue), to"
+        " the rule pack it cites" in p2
+    )
+    lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
+    assert (
+        "(`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep"
+        " -no 'commands/_fragments/[a-z0-9-]*\\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths`"
+        " is, names them), a seat file under `commands/_agents/`" in lock
+    )
+    assert lock.index("points at by path") < lock.index(".fabrik/plan-locks/")
+    pattern = re.search(r"grep -no '([^']+)'", lock).group(1)
+    scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
+    out = subprocess.run(
+        ["grep", "-no", pattern, str(scoped)], capture_output=True, text=True, check=True
+    ).stdout.split()
+    paths = {line.split(":", 1)[1] for line in out}
+    assert "commands/_fragments/review-probe-catalogue.md" in paths, paths
+    assert not any(p.startswith("/") for p in paths), paths
+    included = set(re.findall(r"\{\{include:([a-z0-9-]+)\}\}", scoped.read_text()))
+    assert "review-probe-catalogue" not in included, included
+    flat = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "renders into every command that INCLUDES it, and is read by every command that points at it by path"
+        in flat
+    )
+    assert (
+        "or a command that includes that fragment or points at it by path (`command grep -rl"
+        in flat
+    )
+
+
+def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path() -> None:
+    """W-ddf1839c: the lock check's `include:` grep cannot see the two fragments the assembler appends with no include
+    (close-feedback to every command, agent-feedback to every agent), and the bullet never said how an `owned_paths`
+    entry matches a target while locks hold paths, directories and globs. Both sentences are pinned whole. Their facts
+    are checked against the code: each append STATEMENT (deleting one fails here, the constant alone would not) and no
+    source naming either fragment in an `include:`; and the three-shape ownership rule run through `_glob_matches` in
+    scripts/epic_order.py, an epic `owned_paths` matcher, which implements all three; and the claim that neither script
+    testing a path against a lock's `owned_paths` matches a glob, run on both, each side of the "also" included."""
+    import importlib.util
+    import re as _re
+
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
+    appended = (
+        "The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):"
+        " `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and"
+        " `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the"
+        " shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source."
+    )
+    owns = (
+        "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
+        " matches (`dir/**`, with `*` inside one path segment), so test all three — neither script that tests a path"
+        " against a lock's `owned_paths` matches a glob (`_owned` in `scripts/enforcement/check_phase_tests.py` also"
+        " ignores case;"
+        " `_path_covers` in `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none"
+        " of them is the rule — and read an entry written as prose by hand."
+    )
+    assert lock.count(appended) == 1 and lock.count(owns) == 1
+    assert lock.index(appended) < lock.index("ONLY THEN read the locks") < lock.index(owns)
+    asm = (ROOT / "commands" / "assemble_commands.py").read_text()
+    assert (
+        '_CLOSE_FEEDBACK = "close-feedback"' in asm and '_AGENT_FEEDBACK = "agent-feedback"' in asm
+    )
+    assert 'text = text.rstrip("\\n") + "\\n\\n" + frags[_CLOSE_FEEDBACK] + "\\n"' in asm
+    assert (
+        "body = frags.get(_AGENT_FEEDBACK" in asm
+        and 'text = text.rstrip("\\n") + "\\n\\n" + body + "\\n"' in asm
+    )
+    for name in ("close-feedback", "agent-feedback"):
+        assert (ROOT / "commands" / "_fragments" / f"{name}.md").exists()
+    for src in (ROOT / "commands" / "_sources").glob("*.md"):
+        assert not _re.search(
+            r"\{\{include:\s*(close-feedback|agent-feedback)\s*\}\}", src.read_text()
+        ), src.name
+    spec = importlib.util.spec_from_file_location("eo", ROOT / "scripts" / "epic_order.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    g = mod._glob_matches
+    assert g(
+        "commands/_fragments/term-edit.md", "commands/_fragments/term-edit.md"
+    )  # the path it names
+    assert g("commands/_fragments", "commands/_fragments/term-edit.md")  # a directory's subtree
+    assert g("templates/chrome-extension/**", "templates/chrome-extension/src/a.ts")  # a glob
+    assert not g("src/a/*", "src/a/b/deep.py")  # `*` stays inside one segment
+    assert not g("commands/_fragments", "commands/_fragments_old/x.md")
+    import sys as _sys
+
+    readers = {}
+    for name, rel in (("cpt_lock", "check_phase_tests.py"), ("cpk_lock", "check_plan_tickets.py")):
+        sp = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "enforcement" / rel)
+        m = importlib.util.module_from_spec(sp)
+        _sys.modules[name] = m
+        sp.loader.exec_module(m)
+        readers[name] = m
+    glob_entry, target = "templates/chrome-extension/**", "templates/chrome-extension/src/a.ts"
+    assert not readers["cpt_lock"]._owned(target, [glob_entry])
+    assert not readers["cpk_lock"]._path_covers(glob_entry, target)
+    assert readers["cpt_lock"]._owned("Commands/_Fragments/a.md", ["commands/_fragments"])
+    assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
+    assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
+    assert not readers["cpt_lock"]._owned("commands/_fragments", ["commands/_fragments/a.md"])
+
+
+def test_the_lock_check_set_of_scripts_that_mention_owned_paths_is_pinned() -> None:
+    """W-bcf6fc2f part 1: the PHASE 2 lock bullet says neither script that tests a path against a lock's
+    `owned_paths` matches a glob, and names `_owned` and `_path_covers`. A new script reading `owned_paths` could
+    make that sentence false while every existing pin stayed green. This test lists every file under scripts/
+    that names `owned_paths` by that literal spelling (keyed on the field, not on how the lock directory is
+    spelled) and fails on one it has not met, so the bullet is re-read whenever that set changes. Its limit: it pins which files name
+    the field, not what they do with it. Whether the two named matchers miss a glob is pinned by
+    test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path, which runs them, and a new glob
+    matcher added inside a known file escapes both. The role beside each entry is a note for the reader who adds
+    the next one, not a checked fact. Cobra: the cheap way past it is to add a file without reading it."""
+    known = {
+        "scripts/enforcement/check_phase_tests.py": "lock reader: `_owned` matches a path (named in the bullet)",
+        "scripts/enforcement/check_plan_tickets.py": "lock reader: `_path_covers` matches a path (named); epics too",
+        "scripts/enforcement/check_plan_lock_release.py": "lock reader: compares owned_paths to ['**'] only",
+        "scripts/epic_order.py": "epic frontmatter owned_paths, not plan locks",
+        "scripts/doc_reconcile.py": "writes owned_paths for the docs it dispatches",
+        "scripts/sysadmin/canary_grounding.py": "writes owned_paths for canary specs",
+    }
+    found = set()
+    for path in sorted((ROOT / "scripts").rglob("*")):
+        # every regular file, not only .py: a shell or extensionless runner can read a lock too; a dangling
+        # symlink is not a file, and __pycache__ holds compiled copies of the .py files already scanned
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        if b"owned_paths" in path.read_bytes():
+            found.add(path.relative_to(ROOT).as_posix())
+    assert found == set(known), sorted(found ^ set(known))

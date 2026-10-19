@@ -2795,18 +2795,16 @@ def test_no_link_card_ext_page_key_or_services_ext_string_remains(tmp_path, monk
     )
 
 
-def test_the_inventory_reads_the_classifiers_last_run_from_its_stamp_file(tmp_path, monkeypatch):
+def test_the_inventory_carries_no_classifier_time(tmp_path, monkeypatch):
+    """D-1046 retired the classifier's source rule: the board no longer stats classify_last.json
+    and its inventory payload carries no `classified_at`."""
     qd = _load(tmp_path, monkeypatch)
-    assert _inv_data(qd)["classified_at"] is None or isinstance(
-        _inv_data(qd)["classified_at"], float
-    )
-    stamp = tmp_path / "classify_last.json"
-    stamp.write_text("{}", encoding="utf-8")
-    os.utime(stamp, (1_700_000_000, 1_700_000_000))
-    monkeypatch.setattr(qd, "_CLASSIFY_STAMP", stamp)
-    assert _inv_data(qd)["classified_at"] == 1_700_000_000.0
-    monkeypatch.setattr(qd, "_CLASSIFY_STAMP", tmp_path / "absent.json")
-    assert _inv_data(qd)["classified_at"] is None
+    data = _inv_data(qd)
+    assert "rows" in data and "synced_at" in data, (
+        data
+    )  # the read succeeded: the negative is not vacuous
+    assert "classified_at" not in data
+    assert not hasattr(qd, "_CLASSIFY_STAMP") and not hasattr(qd, "_inventory_classified_at")
 
 
 def test_two_renders_of_the_services_view_a_minute_apart_carry_the_same_data_stamp(

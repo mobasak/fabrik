@@ -3,7 +3,7 @@
   "created": "2026-10-07T06:03:17.532222Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f73fdf5014a5a76af1ea0f687681228ca9848654",
   "id": "W-c751bca6",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — blocks merge flow after base fault",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m48p82r7"
   ],

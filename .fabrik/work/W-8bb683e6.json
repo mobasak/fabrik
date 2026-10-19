@@ -3,7 +3,7 @@
   "created": "2026-10-18T04:55:15.418549Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2e019365661c8319bfa3079c2eb3559be310eaf2",
   "id": "W-8bb683e6",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "security (a rejected DNS provisioner call reads as success); fleet's driver but fleet holds the major, intel is idle (D-983)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

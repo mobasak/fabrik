@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:54:24.495141Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f0641cc1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AQ5FY4A830SWXJY327GMKX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "docs/preplan.md — the scaffold writes it into every preplan project, but DOCS_ALLOWLIST does not carry it, so check_structure WARNs on it"
+}

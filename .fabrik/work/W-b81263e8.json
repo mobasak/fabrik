@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T17:08:18.607151Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b81263e8",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1046",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether the SLD fallback should require the SLD to equal the token (not merely start with it) and whether paddle needs a PaddlePaddle carve-out entry; measure over the 592-host scan first",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: two latent mis-attributions in gather_envs (foreign-domain host fallback, Paddle vs PaddlePaddle) that hit no live key or host today; nobody blocked",
+  "status": "open",
+  "tags": [
+    "registry"
+  ],
+  "title": "gather_envs.provider_for_host's <SLD>_API_KEY fallback (scripts/gather_envs.py:609) credits a foreign domain to any catalog token: hyphenated SLDs (modal-labs.com -> modal, paddle-ocr.com -> paddle) and multi-token entries (kling.com -> klingai, lumaai.com -> lumalabs); and PADDLE_PDX_*/PADDLE_OCR_* (Baidu PaddlePaddle) keys would route to the paddle billing vendor (W-17aac223 review residue, synthetic only: 0 of 592 live hosts)"
+}

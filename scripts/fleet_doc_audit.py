@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_fleet_doc_audit.py | none
+# AFTER-EDIT: tests/test_fleet_doc_audit.py | scripts/enforcement/check_doc_stubs.py
 """Fleet-wide doc-freshness audit — the MECHANICAL rot detector for /opt projects.
 
 Why this exists: every doc gate (check_doc_sync, check_doc_index, stubs) fires only

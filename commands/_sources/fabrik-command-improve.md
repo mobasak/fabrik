@@ -168,7 +168,7 @@ and stop; do not invent an edit to justify the run.
 
 Group the rows by what they are actually about, then choose the group that (a) the most rows name,
 and (b) you can express as a CONCRETE change to `commands/_sources/<command>.md`, to one of the
-fragments that command renders, to the rule pack it cites, to a seat file under `commands/_agents/` (PHASE 3's seat
+fragments that command renders or points at by path (a review command's probe catalogue), to the rule pack it cites, to a seat file under `commands/_agents/` (PHASE 3's seat
 rules), or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
 change** — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
 on the post-commit hook. Make it only if it is correct for all of them, and say so in the commit;
@@ -205,12 +205,22 @@ Three shapes are NOT yours to apply here, and each has a destination:
 
 - **the file you would WRITE is lock-owned.** RESOLVE THE TARGET FIRST, THEN READ THE LOCKS. Key it
   on the write TARGET — `commands/_sources/<command>.md`, one of the fragments that command renders
-  (`command grep -n 'include:' commands/_sources/<command>.md` names them), a seat file under `commands/_agents/`,
+  (`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep -no
+  'commands/_fragments/[a-z0-9-]*\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths` is, names them), a seat file under `commands/_agents/`,
   § Drive's home for a shared rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
-  still lands in one. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
+  still lands in one. The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):
+  `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and
+  `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the shared
+  FEEDBACK duty can target one of them, while close wording one command owns stays in its source.
+  ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
-  owns this", which is a silent fail-open past the STOP itself.
+  owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names, every path under it
+  when it names a directory, and every path its glob matches (`dir/**`, with `*` inside one path segment), so test all
+  three — neither script that tests a path against a lock's `owned_paths` matches a glob (`_owned` in
+  `scripts/enforcement/check_phase_tests.py` also ignores case; `_path_covers` in
+  `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none of them is the rule — and
+  read an entry written as prose by hand.
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`
   are infra's; `docs/reference/agents/` has the charters) and name the lock file in the mail.
@@ -239,9 +249,9 @@ where that reader looks, never contradicting who drives), every branch the sente
 "the review" binds each review the step can pick), and the --help and argument handling of any script the sentence
 works around (a mode may already cover the blind spot). Before the first draft, the files the target points at by
 path for the same subject are read too (a review command's probe catalogue), and so are the row's own words, the rule
-the edit extends, and the paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read
-whole — its lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its
-sentences govern, which the new text leaves standing unless the row is a decision settled as the decision sentence
+the edit extends, and the paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a
+place the pins sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside
+the new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision sentence
 below says. The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn
 '<a phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two
 sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is extended. A
@@ -266,7 +276,7 @@ DELETE what it replaces. The history lives in git.
 
 ⚠️ **Weight is a cost, and piece 3 measures it.** Every byte you add to `commands/_sources/` or
 `commands/_fragments/` is loaded on every invocation of that command, box-wide — a `_fragments/` edit renders into every command that
-INCLUDES it — 5 commands or 34, so count before you assume — so an edit that adds a
+INCLUDES it, and is read by every command that points at it by path — 5 commands or 34, so count before you assume — so an edit that adds a
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
@@ -331,7 +341,7 @@ and each hit is reworded with the sentence.
 ## PHASE 5 — Commit, naming what you answered
 
 Run the edit's tests — the queue-pass test plus every test file that names the edited source or fragment, or a command that includes
-that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
+that fragment or points at it by path (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
 source — after the last edit, in the shell that commits, so a refused write cannot carry a red grader into the commit. The trailer's `rows` and the `--mark-answered` list below name the same rows: only those PHASE 4's seats found answered in the new text.
 
 The commit is the PROVENANCE — immutable, and what a later reader (and axis 5, continuous

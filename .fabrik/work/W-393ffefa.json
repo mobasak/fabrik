@@ -3,7 +3,7 @@
   "created": "2026-10-18T13:54:21.693121Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7c073a065d012b8c32dbe91471db3341f3e1595b",
   "id": "W-393ffefa",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: another agent's request (kaizen, routed twice) blocking scaffolding-test review seats; one recipe branch",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m54ykmf1"
   ],

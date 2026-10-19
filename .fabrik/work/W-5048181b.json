@@ -3,7 +3,7 @@
   "created": "2026-10-19T11:35:47.335848Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "09f66ff9aefa65bd7ce7663c2d0a9e67a6bb6ce6",
   "id": "W-5048181b",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work, a command-wording gap that leaves catalogue fixes unlock-checked (step 3); LOW effort: one command file",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-command-improve.md PHASE 2's write-target list and lock check name 'one of the fragments that command renders (command grep -n include: names them)' but not a fragment the command points at by path (review-probe-catalogue.md, not installed), so a row whose fix belongs in the catalogue has no listed target and is never lock-checked — found by the Opus seat of the 2026-10-19 command-improve review"
 }

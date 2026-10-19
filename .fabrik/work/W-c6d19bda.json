@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:54:24.863539Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c6d19bda",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: add docs/preplan.md to the doc registry (or record why it stays out), with a test",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a registry gap with no failure today; nobody blocked",
+  "status": "open",
+  "tags": [
+    "mail-01m5aq5fy4a830swxjy327gmkx"
+  ],
+  "title": "mail 01M5AQ5FY4A830SWXJY327GMKX (fleet → infra): docs/preplan.md is missing from the doc registry, so docs checks do not know it (found while fixing W-c2c2c35b)"
+}

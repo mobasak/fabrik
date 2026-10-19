@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T16:24:15.598035Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7599c374",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1050",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the receipt docs/development/reviews/2026-10-19-w7e467f2d-retire-classifier-review.md § Residual for rows routed here; fix each with a red-first test",
+  "note": "empty: the W-7e467f2d review's closing pass 3 found no own-fix residue past the scope-growth stop (receipt 147370dcc), so nothing was ever routed here",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: a residue holder for the classifier review, empty today per intel; nobody blocked",
+  "status": "dropped",
+  "tags": [
+    "registry"
+  ],
+  "title": "W-7e467f2d review residue: own-fix defects past the scope-growth stop of the classifier-retirement review (D-1050)"
+}

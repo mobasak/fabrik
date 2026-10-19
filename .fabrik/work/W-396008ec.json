@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:00:07.011923Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-396008ec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AMMSN4Q6JW18P0GFWEMDCB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review from a hub worktree: the worktree guard refuses `git -C <pin>` under the run's SCRATCH (/opt/fabrik/.tmp/runs), the command's own `git init` pin lesson cannot be followed"
+}

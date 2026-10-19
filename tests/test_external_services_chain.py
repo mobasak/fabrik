@@ -40,33 +40,16 @@ def _steps(text: str) -> list[str]:
 
 def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     text = CHAIN.read_text(encoding="utf-8")
-    assert _steps(text) == [
-        "gather_envs",
-        "classify_services",
-        "gather_envs_reconsolidate",
-        "registry_sync",
-        "gen_dashboard",
-    ]
-    assert re.search(r"_step classify_services.*--max-per-run \d+", text), (
-        "daily classify must be bounded"
-    )
+    # D-1046 retired the pool-only classify step and its reconsolidate re-run: a category comes
+    # from a hand-written service_catalog.json entry, so neither the step nor its budget remains
+    assert _steps(text) == ["gather_envs", "registry_sync", "gen_dashboard"]
+    code_only = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert "classify_services" not in code_only and "CLASSIFY_TIMEOUT" not in text
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
-    # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
-    # ALL in parallel — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
-    budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
-    # one unit's wall clock is the pool's default (1800 s) + 30 s of outer grace: the budget must
-    # EXCEED it, or the kill lands exactly when a hung unit would have returned (DO1)
-    wall = re.search(
-        r"^\s*wall_clock_s: float = (\d+)",
-        (REPO / "libs" / "subagents" / "agent.py").read_text(encoding="utf-8"),
-        re.M,
-    )
-    assert wall and budget and int(budget.group(1)) > int(wall.group(1)) + 30, (budget, wall)
     step_fn = re.search(r"^_step\(\) \{[^\n]*\n(.*?)^\}", text, re.M | re.S).group(
         1
     )  # scoped INSIDE _step (DO2)
-    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', step_fn)
-    assert 'timeout -k 30 "$budget"' in step_fn
+    assert 'local budget="$STEP_TIMEOUT"' in step_fn and 'timeout -k 30 "$budget"' in step_fn
     # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
@@ -81,9 +64,9 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
     assert code.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
-    # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
+    # the DATA steps the dashboard depends on — every step but the dashboard itself
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
-    assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
+    assert set(core.split("|")) == {"gather_envs", "registry_sync"}
     assert (
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
@@ -96,13 +79,6 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert "125-127 wrapper" in alert_line, (
         alert_line
     )  # in the BODY the operator reads, not anywhere in the file (EU3/EY7)
-    # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
-    )
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step classify_services', text
-    )
 
 
 def _shell_code(text: str) -> str:
@@ -241,7 +217,7 @@ def test_gen_dashboard_help_writes_no_file(tmp_path, monkeypatch):
 
 def test_gen_dashboard_writes_the_named_output(tmp_path, monkeypatch):
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
     monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>ok</p>")
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
@@ -254,7 +230,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     leaves the old file untouched (a half-written dashboard is never served). Discriminating: the pre-fix
     `out.write_text(render(rows))` makes no `os.replace` call and truncates the target (H9)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
     monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>new</p>")
     out = tmp_path / "dash.html"
     out.write_text("old", encoding="utf-8")
@@ -291,7 +267,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
 
 
 def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
-    """A failed scan skips the sync like it skips classify and the reconsolidate: a stale file
+    """A failed scan skips the sync (and the dashboard): a stale file
     re-pages the same cause and, on a catalog error, flips every credential unattributed (BR4).
     And the operator-facing reference doc names every `kind` the schema carries plus the sync's
     exit 2 — it named 3 of 4 and 0 of 1 (BR5)."""
@@ -339,14 +315,12 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # contract's ~500 chars (CC5)
     fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
     assert "*" not in fixed and "_" not in fixed, fixed
-    # the heartbeat clause is rendered PER LABEL: the paid step never ages the heartbeat, so its
-    # alert must not send the operator hunting a dead chain that is fresh (G9/DA2)
+    # every step is a DATA step now (D-1046 retired the paid classify step, the one label whose
+    # failure left the heartbeat fresh), so the heartbeat clause is one for every label
     hb_default = re.search(r'local hb="([^"]*)"', text)
-    hb_classify = re.search(r'\[ "\$label" = classify_services \] && hb="([^"]*)"', text)
-    assert hb_default and hb_classify and "$hb" in body, "the per-label heartbeat clause"
-    assert "DEAD" in hb_default.group(1) and "unaffected" in hb_classify.group(1)
-    for clause in (hb_default.group(1), hb_classify.group(1)):
-        assert "*" not in clause and "_" not in clause, clause
+    assert hb_default and "$hb" in body, "the heartbeat clause"
+    assert "DEAD" in hb_default.group(1) and "classify_services" not in text
+    assert "*" not in hb_default.group(1) and "_" not in hb_default.group(1), hb_default.group(1)
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
     # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM2) ×
@@ -375,7 +349,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # underscores cancel); a copy-edit dropping one passed the template-level check (DE1)
     for label in _steps(text):
         for log_path in log_paths:
-            hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
+            hb = hb_default.group(1)
 
             def _render(tpl: str, label=label, log_path=log_path, hb=hb) -> str:
                 return (
@@ -428,7 +402,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         clauses,
     )
     assert "cannot read or write its own output path" in doc, "the doc's step-1 cell (CC5)"
-    for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
+    for step in ("registry_sync.py", "gen_dashboard.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (
             row
@@ -438,8 +412,8 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
 def test_the_chain_script_executes_its_gating(tmp_path):
     """The chain EXECUTED under bash with a fake interpreter (every sibling test regex-matches the
     script; a bash syntax error or a gate that only LOOKS right passed them all — BU1): a failed
-    scan skips classify, the reconsolidate, the sync and the dashboard, alerts once, exits 1; a
-    clean run writes the dashboard and exits 0."""
+    scan skips the sync and the dashboard, alerts once, exits 1; a clean run writes the
+    dashboard and exits 0, and never runs the classifier (D-1046)."""
     import os
     import subprocess
 
@@ -454,14 +428,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         f'echo "$*" >> "{log}"\n'
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
-        '  *classify_services.py*) [ "${FAIL_CLASSIFY:-0}" = 1 ] && exit 1 ;;\n'
+        '  *registry_sync.py*) [ "${FAIL_SYNC:-0}" = 1 ] && exit 1 ;;\n'
         '  *gen_dashboard.py*) [ "${FAIL_DASHBOARD:-0}" = 1 ] && exit 7; echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
     )
     fake.chmod(0o755)
-    # a fake `timeout` on PATH logs the budget each step ran under: the classify budget is proven
+    # a fake `timeout` on PATH logs the budget each step ran under: every step's budget is proven
     # by execution, not by a text pin (DO2)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -480,7 +454,6 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "FABRIK_ROOT": str(root),
         "VENV_PY": str(fake),
         "STEP_TIMEOUT": "30",
-        "CLASSIFY_TIMEOUT": "4321",
         "LOG_FILE": str(tmp_path / "chain.log"),
     }
     dash = root / "external-services-dashboard.html"
@@ -507,40 +480,21 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp.read_text(encoding="utf-8").strip()
     ), "the heartbeat is stamped by the chain after a clean run"
     assert (
-        calls.count("gather_envs.py") == 2
+        calls.count("gather_envs.py") == 1
         and "registry_sync.py" in calls
         and "send_alert(" not in calls
     )
     assert [re.search(r"scripts/(\S+\.py)", ln).group(1) for ln in calls.splitlines()] == [
         "gather_envs.py",
-        "classify_services.py",
-        "gather_envs.py",
         "registry_sync.py",
         "gen_dashboard.py",
-    ]
+    ]  # no classify, no reconsolidate (D-1046)
     by_step: dict[str, list[str]] = {}
     for b, script in (ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()):
         by_step.setdefault(Path(script).name, []).append(b)
-    assert by_step["classify_services.py"] == ["4321"], by_step
-    assert by_step["gather_envs.py"] == ["30", "30"], by_step  # BOTH gather runs, never collapsed
-    assert {b for k, v in by_step.items() if k != "classify_services.py" for b in v} == {"30"}, (
-        by_step
-    )
-    # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
-    # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
-    log.write_text("", encoding="utf-8")
-    dash.unlink()
-    stamp.unlink()
-    r = subprocess.run(
-        ["bash", str(CHAIN)], env={**env, "FAIL_CLASSIFY": "1"}, capture_output=True, text=True
-    )
-    calls = log.read_text(encoding="utf-8")
-    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
-    assert dash.exists() and stamp.exists() and "registry_sync.py" in calls
-    assert calls.count("gather_envs.py") == 2
-    assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls
-    assert "liveness DEAD" not in calls and "heartbeat unaffected" in calls, calls  # DA2
-    # 4. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
+    assert set(by_step) == {"gather_envs.py", "registry_sync.py", "gen_dashboard.py"}, by_step
+    assert {b for v in by_step.values() for b in v} == {"30"}, by_step
+    # 3. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
     # sits behind, executed in the failing direction (a regex-only proof, DA3)
     log.write_text("", encoding="utf-8")
     dash.unlink()
@@ -551,7 +505,18 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
     assert calls.count("send_alert(") == 1 and "step gen_dashboard FAILED (exit 7)" in calls
-    # 5. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
+    # 3b. the SYNC step fails: a DATA step, so the dashboard is skipped and the heartbeat ages — the
+    # only EXECUTED proof of the core_failed case list since D-1046 removed the paid step whose
+    # failure case carried it (BX6; review W-7e467f2d B2)
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_SYNC": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
+    assert "gen_dashboard.py" not in calls and "liveness DEAD" in calls, calls
+    assert calls.count("send_alert(") == 1 and "step registry_sync FAILED (exit 1)" in calls
+    # 4. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
     # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
     log.write_text("", encoding="utf-8")
 
@@ -563,7 +528,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert calls.count("send_alert(") == 1 and "heartbeat NOT stamped" in calls, calls
     assert "heartbeat NOT stamped" in r.stdout
     (root / ".tmp").unlink()
-    # 6. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
+    # 5. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
     # stamp that read LIVE. The previous stamp must survive untouched, no tmp left behind (DA3)
     stamp.parent.mkdir(parents=True)
     stamp.write_text("2026-08-01T00:00:00Z\n", encoding="utf-8")
@@ -763,7 +728,7 @@ def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_
         "    time.sleep(0.7)\n"
         "    return r\n"
         "pathlib.Path.write_text = slow\n"
-        "gd._read = lambda: ([], None, None)\n",
+        "gd._read = lambda: ([], None)\n",
         encoding="utf-8",
     )
     out = tmp_path / "dash.html"
@@ -925,9 +890,7 @@ def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_lin
     """EY6 wrapped `load()` only; a row shape `render()` cannot take (a column drift) was still a
     raw traceback (EZ4)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(
-        gd, "_read", lambda: ([{"provider": "x"}], None, None)
-    )  # every other key absent
+    monkeypatch.setattr(gd, "_read", lambda: ([{"provider": "x"}], None))  # every other key absent
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     assert "ERROR: registry unreadable" in capsys.readouterr().out
     assert not (tmp_path / "dash.html").exists()
@@ -998,7 +961,7 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
             pass
 
     monkeypatch.setattr(gd.registry_db, "connect", lambda: _Conn())
-    rows, synced_at, _ = gd._read()
+    rows, synced_at = gd._read()
     assert rows[0]["balance"] == 12.5 and rows[0]["credit_at"] == old.timestamp(), rows
     assert synced_at == fresh.timestamp()
     page = gd.render(rows, synced_at=synced_at, now=now.timestamp())
@@ -1189,13 +1152,13 @@ def test_a_zero_step_budget_never_disables_the_timeout():
     text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
     head = text[: text.index("LOG_FILE=")]
     proc = subprocess.run(
-        ["bash", "-c", head + '\necho "$STEP_TIMEOUT $CLASSIFY_TIMEOUT"'],
-        env={**os.environ, "STEP_TIMEOUT": "0", "CLASSIFY_TIMEOUT": "abc"},
+        ["bash", "-c", head + '\necho "$STEP_TIMEOUT"'],
+        env={**os.environ, "STEP_TIMEOUT": "0"},
         capture_output=True,
         text=True,
         timeout=30,
     )
-    assert proc.stdout.strip() == "900 2100", (proc.stdout, proc.stderr)
+    assert proc.stdout.strip() == "900", (proc.stdout, proc.stderr)
 
 
 def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
@@ -1432,7 +1395,7 @@ def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_pa
     fn = text[text.index("_step() {") : text.index("\n}\n", text.index("_step() {")) + 3]
     harness = tmp_path / "h.sh"
     harness.write_text(
-        "STEP_TIMEOUT=30\nCLASSIFY_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
+        "STEP_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
         '_alert() { echo "ALERT: $1 [$3]"; }\n'
         + fn
         + '\n_step registry_sync bash -c "exit 3"\necho "chain_failed=$chain_failed core_failed=$core_failed"\n'
@@ -2384,7 +2347,7 @@ def _document_problems(page: str) -> list[str]:
 
 def test_the_static_file_is_a_scriptless_self_contained_document(pinned_zone):
     gd = _load_gen_dashboard()
-    page = gd.render(_fixture_rows(), synced_at=_SYNCED, classified_at=_NOW, now=_NOW)
+    page = gd.render(_fixture_rows(), synced_at=_SYNCED, now=_NOW)
     assert page.startswith('<!doctype html>\n<html lang="en">')
     assert "<title>External services</title>" in page and "<h1>External services</h1>" in page
     assert 'name="viewport"' in page
@@ -2532,17 +2495,14 @@ def test_the_reader_closes_its_connection_on_both_paths(monkeypatch):
     assert closed == [True, True, True]
 
 
-def test_the_classifier_stamp_is_its_files_mtime_or_none(monkeypatch, tmp_path):
+def test_the_static_file_reads_no_classifier_stamp():
+    """D-1046 retired the classifier's source rule: gen_dashboard no longer stats
+    classify_last.json, and the section takes no classifier time (a caller still passing one is
+    a TypeError, never a silently ignored argument)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "REPO", tmp_path)
-    assert gd._classified_at() is None
-    stamp = tmp_path / ".tmp" / "external-services" / "classify_last.json"
-    stamp.parent.mkdir(parents=True)
-    stamp.write_text("{}", encoding="utf-8")
-    os.utime(stamp, (1_700_000_000, 1_700_000_000))
-    assert gd._classified_at() == 1_700_000_000
-    monkeypatch.setattr(gd, "REPO", tmp_path / "missing" / "\x00")
-    assert gd._classified_at() is None, "a stat that cannot run is None, never an exception"
+    assert not hasattr(gd, "_classified_at") and not hasattr(gd, "CLASSIFY_STAMP")
+    with pytest.raises(TypeError):
+        gd.render([], synced_at=_SYNCED, classified_at=_NOW, now=_NOW)
 
 
 def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
@@ -2551,7 +2511,7 @@ def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
     gd = _load_gen_dashboard()
     out = tmp_path / "dash.html"
     out.write_text("previous", encoding="utf-8")
-    monkeypatch.setattr(gd, "_read", lambda: ([_row("a")], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([_row("a")], None))
 
     def boom(rows, **kw):
         raise ValueError("cannot render")
@@ -2567,7 +2527,7 @@ def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
 
 def test_main_writes_the_whole_document_through_the_real_renderer(monkeypatch, tmp_path):
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: (_fixture_rows(), _SYNCED, None))
+    monkeypatch.setattr(gd, "_read", lambda: (_fixture_rows(), _SYNCED))
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
     page = out.read_text(encoding="utf-8")
@@ -2737,48 +2697,35 @@ _STALL = "The classifier has not run for over 48 hours and 1 provider waits for 
 _NEVER = "The classifier has no recorded run and 1 provider waits for a category."
 
 
-def _write_through_main(monkeypatch, tmp_path, *, stamp_age_s):
-    """`main()` over the fake registry, with the clock at _NOW and the classifier stamp aged as asked."""
+def _write_through_main(monkeypatch, tmp_path):
+    """`main()` over the fake registry (its rows carry an untriaged provider), with the clock at _NOW."""
     import datetime as dt
     from types import SimpleNamespace
 
     gd = _load_gen_dashboard()
     tmp_path.mkdir(parents=True)
-    monkeypatch.setattr(gd, "REPO", tmp_path)
     monkeypatch.setattr(gd, "time", SimpleNamespace(time=lambda: _NOW))
     last_seen = dt.datetime.fromtimestamp(_SYNCED, dt.UTC)
     monkeypatch.setattr(gd.registry_db, "connect", lambda: _RegistryConn(last_seen))
-    if stamp_age_s is not None:
-        stamp = tmp_path / ".tmp" / "external-services" / "classify_last.json"
-        stamp.parent.mkdir(parents=True, exist_ok=True)
-        stamp.write_text("{}", encoding="utf-8")
-        os.utime(stamp, (_NOW - stamp_age_s, _NOW - stamp_age_s))
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
     return out.read_text(encoding="utf-8")
 
 
-def test_the_registry_sync_and_classifier_times_reach_the_written_file(
+def test_the_registry_sync_time_reaches_the_written_file_and_no_classifier_entry_does(
     pinned_zone, monkeypatch, tmp_path
 ):
-    stalled = _write_through_main(monkeypatch, tmp_path / "a", stamp_age_s=5 * 86400)
-    assert "Registry synced 2026-10-17 14:30 +03:00" in stalled, "the reader's max(last_seen)"
-    assert _STALL in stalled and _NEVER not in stalled
-    never = _write_through_main(monkeypatch, tmp_path / "b", stamp_age_s=None)
-    assert _NEVER in never and _STALL not in never
-    fresh = _write_through_main(monkeypatch, tmp_path / "c", stamp_age_s=3600)
-    assert _NEVER not in fresh and _STALL not in fresh and "The classifier" not in fresh
+    page = _write_through_main(monkeypatch, tmp_path / "a")
+    assert "Registry synced 2026-10-17 14:30 +03:00" in page, "the reader's max(last_seen)"
+    # D-1046: the untriaged row that used to raise the stalled-classifier entry raises none
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
 
 
-def test_render_hands_the_classifier_time_to_the_section(pinned_zone):
+def test_an_untriaged_provider_raises_no_classifier_entry(pinned_zone):
+    """The queue that used to raise the stalled-classifier entry renders without one (D-1046)."""
     gd = _load_gen_dashboard()
-    rows = [_row("a", category="?", cost="?")]
-    stale = gd.render(rows, synced_at=_SYNCED, classified_at=_NOW - 5 * 86400, now=_NOW)
-    assert _STALL in stale
-    assert _NEVER in gd.render(rows, synced_at=_SYNCED, classified_at=None, now=_NOW)
-    assert "The classifier" not in gd.render(
-        rows, synced_at=_SYNCED, classified_at=_NOW - 60, now=_NOW
-    )
+    page = gd.render([_row("a", category="?", cost="?")], synced_at=_SYNCED, now=_NOW)
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
 
 
 def test_a_stylesheet_that_would_close_its_style_element_is_one_typed_line(
@@ -2794,7 +2741,7 @@ def test_a_stylesheet_that_would_close_its_style_element_is_one_typed_line(
             gd.render([], now=_NOW)
         out = tmp_path / "dash.html"
         out.write_text("previous", encoding="utf-8")
-        monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+        monkeypatch.setattr(gd, "_read", lambda: ([], None))
         assert gd.main([str(out)]) == 1
         printed = capsys.readouterr().out
         assert printed.count("\n") == 1 and "ERROR: registry unreadable" in printed

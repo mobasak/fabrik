@@ -24,7 +24,6 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
 for _dir in (Path(__file__).resolve().parent, Path(__file__).resolve().parent / "sysadmin"):
     if (
         str(_dir) not in sys.path
@@ -37,7 +36,6 @@ from dashboard_ui import inventory  # noqa: E402
 from dashboard_ui.strings import t  # noqa: E402
 
 STALE_AFTER_H = inventory.STALE_AFTER_H
-CLASSIFY_STAMP = Path(".tmp/external-services/classify_last.json")
 
 
 def credit_cell(bal, unit, fetched, now=None) -> str:
@@ -51,22 +49,14 @@ def credit_cell(bal, unit, fetched, now=None) -> str:
     return inventory.credit_cell(bal, unit, fetched, time.time() if moment is None else moment)
 
 
-def _classified_at() -> float | None:
-    """The mtime of the classifier's last-run stamp; None when it is absent or cannot be read."""
-    try:
-        return (REPO / CLASSIFY_STAMP).stat().st_mtime
-    except (OSError, ValueError, OverflowError):
-        return None
-
-
-def _read() -> tuple[list[dict], float | None, float | None]:
-    """``(rows, synced_at, classified_at)``; the registry connection is closed on every path."""
+def _read() -> tuple[list[dict], float | None]:
+    """``(rows, synced_at)``; the registry connection is closed on every path."""
     conn = registry_db.connect()
     try:
         rows, synced_at = inventory.load(conn)
     finally:
         conn.close()
-    return rows, synced_at, _classified_at()
+    return rows, synced_at
 
 
 def load() -> list[dict]:
@@ -77,14 +67,11 @@ def render(
     rows: list[dict],
     *,
     synced_at: float | None = None,
-    classified_at: float | None = None,
     now: float | None = None,
 ) -> str:
     """The whole document: the inventory section (``interactive=False``) inside a self-contained page."""
     when = time.time() if now is None else now
-    section = inventory.render(
-        rows, now=when, synced_at=synced_at, classified_at=classified_at, interactive=False
-    )
+    section = inventory.render(rows, now=when, synced_at=synced_at, interactive=False)
     css = (dashboard_ui.STATIC_DIR / "app.css").read_text(encoding="utf-8")
     if "</style" in css.lower():
         raise ValueError("app.css would close its own <style> element")
@@ -110,9 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         ap.parse_args(argv).out
     )  # `--help` exits here — it used to WRITE a file named --help
     try:
-        rows, synced_at, classified_at = _read()
+        rows, synced_at = _read()
         page = render(
-            rows, synced_at=synced_at, classified_at=classified_at, now=time.time()
+            rows, synced_at=synced_at, now=time.time()
         )  # a row shape the section cannot render is the same typed line (EZ4)
     except Exception as exc:  # noqa: BLE001 - a dead registry is one typed line and exit 1, never a traceback (EY6)
         print(

@@ -12,9 +12,11 @@ This module opts out of the conftest no-op pin (`LIVE_REACHABILITY_PREFLIGHT`) a
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from fabrik.orchestrator import DeploymentOrchestrator
@@ -163,6 +165,109 @@ def test_dns_step_never_falls_back_to_cloudflare_on_a_malformed_jump():
         with pytest.raises(JumpConfigError):
             orch._provision_dns(ctx, spec)
     cloudflare.assert_not_called()
+
+
+def _dns_ctx():
+    from fabrik.orchestrator.context import DeploymentContext
+
+    ctx = DeploymentContext(spec_path=Path("/tmp/unused.yaml"))
+    ctx.target_vps = "vps1"
+    return ctx
+
+
+def _direct_status_error(status: int):
+    request = httpx.Request("POST", "https://dns.example/api/cloudflare/dns/example.com/subdomain")
+    try:  # httpx's own raise, so the error carries its real (two-line) text
+        httpx.Response(status, request=request).raise_for_status()
+    except httpx.HTTPStatusError as err:
+        return err
+    raise AssertionError(f"httpx did not raise on {status}")
+
+
+_SPEC = {"id": "demo", "name": "demo", "domain": "demo.example.com"}
+
+
+@pytest.mark.parametrize("status", [401, 422, 429])
+def test_dns_step_refuses_a_provisioner_refusal_without_cloudflare(status):
+    """W-1086d295: a refusal the site-provisioner emits on its subdomain route (401 API key, 422 body,
+    429 limiter) is a gate — the record is never written straight to Cloudflare."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+    from fabrik.orchestrator.exceptions import ProvisioningError
+
+    ctx = _dns_ctx()
+    refusal = ProvisionerHTTPError(
+        f"returned HTTP {status}: refused", status=status, body="refused"
+    )
+    with (
+        patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=refusal),
+        patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
+    ):
+        with pytest.raises(
+            ProvisioningError, match=rf"^DNS Manager refused demo\.example\.com \(HTTP {status}\): "
+        ):
+            _orchestrator()._provision_dns(ctx, _SPEC)
+    cloudflare.assert_not_called()
+    assert ctx.created_resources == []  # rollback has nothing to delete through Cloudflare
+    assert ctx.dns_record_id is None
+
+
+def test_dns_step_refuses_a_direct_path_refusal_without_cloudflare():
+    """The direct (public URL) transport raises httpx.HTTPStatusError — the same refusal rule."""
+    from fabrik.orchestrator.exceptions import ProvisioningError
+
+    ctx = _dns_ctx()
+    with (
+        patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=_direct_status_error(401)),
+        patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
+    ):
+        with pytest.raises(
+            ProvisioningError, match=r"^DNS Manager refused demo\.example\.com \(HTTP 401\): "
+        ) as refused:
+            _orchestrator()._provision_dns(ctx, _SPEC)
+    cloudflare.assert_not_called()
+    assert ctx.created_resources == []
+    assert "\n" not in str(refused.value)  # httpx's two-line text is folded to one
+
+
+@pytest.mark.parametrize("status", [0, 301, 400, 403, 404, 500, 502])
+def test_dns_step_falls_back_when_the_provisioner_did_not_refuse(status):
+    """A status the provisioner app does not emit as a refusal still falls back: 403/404 are the
+    reverse proxy (allowlist, no route mid-restart), 400 a non-app layer (the route emits none),
+    3xx a misroute, 5xx an outage, 0 a rebuilt error."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    ctx = _dns_ctx()
+    failure = ProvisionerHTTPError(f"returned HTTP {status}", status=status, body="")
+    with (
+        patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=failure),
+        patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
+    ):
+        _orchestrator()._provision_dns(ctx, _SPEC)
+    cloudflare.return_value.add_subdomain.assert_called_once_with(
+        "example.com", "demo", "172.93.160.197"
+    )
+    assert ctx.dns_record_id == "demo.example.com"
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("SSH proxy request failed (rc=255)"),
+        subprocess.TimeoutExpired(["ssh", "vps"], 30),
+        httpx.ConnectError("connection refused"),
+    ],
+    ids=["ssh-rc", "timeout", "connect"],
+)
+def test_dns_step_falls_back_on_a_transport_failure(failure):
+    """A failure that carries no HTTP status never reached the provisioner — the fallback stands."""
+    ctx = _dns_ctx()
+    with (
+        patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=failure),
+        patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
+    ):
+        _orchestrator()._provision_dns(ctx, _SPEC)
+    cloudflare.return_value.add_subdomain.assert_called_once()
+    assert ctx.dns_record_id == "demo.example.com"
 
 
 def test_this_module_opts_in_to_the_real_preflight():
