@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from unittest.mock import patch
 
@@ -84,11 +85,13 @@ def test_container_resolution_uses_chosen_network(monkeypatch):
 
 def test_delete_record_swallows_internal_server_error_for_idempotency(monkeypatch):
     """The not-found case (site-provisioner returns 500 plaintext) is success."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
     monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
     client = DNSClient(api_key="test", ssh_host="vps")
 
     def _boom(*a, **k):
-        raise RuntimeError("SSH proxy returned non-JSON: Internal Server Error")
+        raise ProvisionerHTTPError("HTTP 500", status=500, body="Internal Server Error")
 
     with patch.object(client, "_request", side_effect=_boom):
         result = client.delete_record("ocoron.com", "A", "vps4")
@@ -194,10 +197,11 @@ class TestRequestViaSsh:
         monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
         client = self._client(monkeypatch)
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+            mock_run.return_value = MagicMock(returncode=0, stdout="{}\n200", stderr="")
             client._request_via_ssh("POST", url, body={"v": "it's; $(id)"})
         words = shlex.split(mock_run.call_args[0][0][-1])
-        assert words[-3] == url and words[-2:] == ["-K", "-"]  # the config comes on stdin
+        assert words[-5] == url and words[-4:-2] == ["-K", "-"]  # the config comes on stdin
+        assert words[-2:] == ["-w", "\n%{http_code}"]  # the status rides the reply's last line
 
     def test_no_secret_or_body_reaches_the_argv_or_a_log(self, monkeypatch, caplog):
         """W-894fdc5f: the key and the body (registrant contact data for register_domain) rode the
@@ -209,7 +213,7 @@ class TestRequestViaSsh:
         body = {"contact": {"EmailAddress": "owner@example.com", "Phone": "+1.5550100"}}
         with caplog.at_level("DEBUG"):
             with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+                mock_run.return_value = MagicMock(returncode=0, stdout="{}\n200", stderr="")
                 client._request_via_ssh("POST", "https://h/api/domains/register", body=body)
         argv, kw = mock_run.call_args[0][0], mock_run.call_args[1]
         joined = " ".join(argv)
@@ -279,6 +283,7 @@ class TestRequestViaSsh:
                 capture_output=True,
                 timeout=20,
                 check=False,
+                env=_isolated_curl_env(),
             )
 
         try:
@@ -330,7 +335,7 @@ class TestRequestViaSsh:
 
         def reply_with_a_bad_byte(argv, **kw):
             kw.pop("input", None)
-            return real_run(["sh", "-c", f"printf '\\377 {self.KEY}'"], **kw)
+            return real_run(["sh", "-c", f"printf '\\377 {self.KEY}\\n200'"], **kw)
 
         with patch("subprocess.run", side_effect=reply_with_a_bad_byte):
             with pytest.raises(RuntimeError, match="non-JSON") as info:
@@ -344,22 +349,23 @@ class TestRequestViaSsh:
         client = self._client(monkeypatch)
         page = f"<html>X-API-Key: {self.KEY} DB_PASSWORD=hunter2secret</html>"
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=page, stderr="")
+            mock_run.return_value = MagicMock(returncode=0, stdout=page + "\n200", stderr="")
             with pytest.raises(RuntimeError) as info:
                 client._request_via_ssh("GET", "http://x/y")
         assert self.KEY not in str(info.value) and "hunter2secret" not in str(info.value)
         assert "non-JSON" in str(info.value)
 
+    @pytest.mark.parametrize("status", ["200", "500"], ids=["non-json-branch", "http-error-branch"])
     @pytest.mark.parametrize("offset", [185, 190, 199])
-    def test_a_key_straddling_the_cut_leaks_no_prefix(self, offset, monkeypatch):
+    def test_a_key_straddling_the_cut_leaks_no_prefix(self, offset, status, monkeypatch):
         """Review pass 2 (C2-1): cleaning after the 200-character cut left a straddling key's
-        prefix unmasked."""
+        prefix unmasked — in both branches that cut a reply (W-8bb683e6)."""
         from unittest.mock import MagicMock
 
         client = self._client(monkeypatch)
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="x" * offset + self.KEY + "tail", stderr=""
+                returncode=0, stdout="x" * offset + self.KEY + "tail\n" + status, stderr=""
             )
             with pytest.raises(RuntimeError) as info:
                 client._request_via_ssh("GET", "http://x/y")
@@ -662,21 +668,236 @@ def test_a_whitespace_led_reply_is_not_called_empty(monkeypatch):
 
     monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
     client = DNSClient(api_key="k-0123456789", ssh_host="vps")
-    reply = MagicMock(returncode=0, stdout=" " * 205 + "Internal Server Error", stderr="")
+    reply = MagicMock(returncode=0, stdout=" " * 205 + "Internal Server Error\n200", stderr="")
     with patch("subprocess.run", return_value=reply):
         with pytest.raises(RuntimeError, match=r"non-JSON: 'Internal Server Error'$"):
             client._request_via_ssh("GET", "http://x/y")
 
 
 @pytest.mark.parametrize("body", ["Internal Server Error", "\nInternal Server Error\r\n"])
-def test_delete_record_reads_the_real_non_json_error_as_absent(body, monkeypatch):
-    """End to end: the one-line, quoted non-JSON text `_request_via_ssh` now raises still reads as the
-    already-absent shape `delete_record` swallows (the unit test above hand-writes the old string)."""
+def test_delete_record_reads_the_plaintext_500_as_absent(body, monkeypatch):
+    """End to end: the provisioner's 500 + plaintext reply, as curl hands it back with its trailing status
+    line, reads as the already-absent shape `delete_record` swallows (the unit test above injects it)."""
     from unittest.mock import MagicMock
 
     monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
     monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
     client = DNSClient(api_key="k-0123456789", ssh_host="vps")
     client._resolved_url_cache = "http://10.0.0.5:8000"
-    with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout=body, stderr="")):
+    reply = MagicMock(returncode=0, stdout=body + "\n500", stderr="")
+    with patch("subprocess.run", return_value=reply):
         assert client.delete_record("ocoron.com", "A", "vps4") == {"status": "absent"}
+
+
+# --- W-8bb683e6: an HTTP error through the SSH proxy raises, as the direct path's raise_for_status does ---
+@contextlib.contextmanager
+def _serve(status: int, body: bytes, *, ctype: str = "application/json"):
+    """A local HTTP server answering every request with ``status`` and ``body``; yields its base url and
+    closes its socket and thread on exit."""
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _answer(self):
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            if n:
+                self.rfile.read(n)
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_a):
+            pass
+
+    for verb in ("GET", "POST", "DELETE"):  # http.server dispatches on `do_<VERB>`
+        setattr(Handler, f"do_{verb}", Handler._answer)
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)  # bound and listening on return
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def _isolated_curl_env() -> dict[str, str]:
+    """The environment every real-curl grader runs in: no proxy variables and no ~/.curlrc, so a box
+    with `http_proxy` set still reaches the local server."""
+    import os
+
+    env = {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy")}
+    env.update(NO_PROXY="*", no_proxy="*", CURL_HOME="/nonexistent-curl-home")
+    return env
+
+
+def _through_a_real_curl(monkeypatch, *, container: str | None = None):
+    """A client, and a subprocess.run stand-in that runs the remote command in a local `sh -c` (a real curl).
+
+    curl must FAIL the run when absent, never skip it: these are the graders of the real reply format.
+    It runs in `_isolated_curl_env()`."""
+    import shutil
+    import subprocess
+
+    if shutil.which("curl") is None:
+        pytest.fail("curl is required: these graders drive the real curl reply format")
+    real_run = subprocess.run
+    env = _isolated_curl_env()
+
+    def as_the_remote_shell(argv, **kw):
+        return real_run(
+            ["sh", "-c", argv[-1]],
+            input=kw["input"],
+            encoding="utf-8",
+            capture_output=True,
+            timeout=20,
+            check=False,
+            env=env,
+        )
+
+    if container:  # read at construction: a delete_record test routes through the container path
+        monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", container)
+    else:
+        monkeypatch.delenv("SITE_PROVISIONER_CONTAINER", raising=False)
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    return DNSClient(api_key="s3cr3tvalue-api-key", ssh_host="vps"), as_the_remote_shell
+
+
+@pytest.mark.parametrize("status", [302, 401, 404, 422, 500, 503])
+def test_an_http_error_through_the_proxy_raises_with_its_status(status, monkeypatch):
+    """`curl -s` exits 0 on a 4xx/5xx, so the provisioner's error body was returned as the call's success.
+    A 3xx is no success either: curl does not follow it (no -L), as raise_for_status refuses it."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    client, shell = _through_a_real_curl(monkeypatch)
+    with _serve(status, b'{"success": false, "message": "rejected"}') as base:
+        with patch("subprocess.run", side_effect=shell):
+            with pytest.raises(ProvisionerHTTPError) as caught:
+                client._request_via_ssh("POST", f"{base}/api/x", body={"a": 1})
+    assert caught.value.status == status
+    assert f"HTTP {status}" in str(caught.value) and "rejected" in str(caught.value)
+    assert isinstance(caught.value, RuntimeError), (
+        "every caller catching RuntimeError still catches it"
+    )
+
+
+def test_a_2xx_reply_returns_its_json(monkeypatch):
+    client, shell = _through_a_real_curl(monkeypatch)
+    with _serve(200, b'{"success": true, "id": 7}') as base:
+        with patch("subprocess.run", side_effect=shell):
+            assert client._request_via_ssh("GET", f"{base}/api/x") == {"success": True, "id": 7}
+
+
+def test_curls_own_error_reaches_the_exception(monkeypatch):
+    """`-S`: with `-s` alone curl prints nothing on its own failure, and the error named no cause."""
+    client, shell = _through_a_real_curl(monkeypatch)
+    with patch("subprocess.run", side_effect=shell):
+        with pytest.raises(RuntimeError, match=r"failed \(rc=3\).*curl: \(3\)"):
+            client._request_via_ssh(
+                "GET", "http://127.0.0.1:99999/x"
+            )  # port out of range: rc 3 at once
+
+
+@pytest.mark.parametrize("stdout", ["{}", '{"ok": true}\nnot-a-status', "", "200"])
+def test_a_reply_without_a_status_raises(stdout, monkeypatch):
+    """A reply whose last line is not curl's 3-digit status is never parsed as a body — a bare `200` with no
+    newline included (it is a body, not a body plus its status line)."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k-0123456789", ssh_host="vps")
+    with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout=stdout, stderr="")):
+        with pytest.raises(RuntimeError, match="no HTTP status"):
+            client._request_via_ssh("GET", "http://x/y")
+
+
+def test_a_failed_transfer_is_read_by_its_exit_code_before_its_status(monkeypatch):
+    """An aborted transfer still prints its partial body and a status line; the rc check comes first."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    client = DNSClient(api_key="k-0123456789", ssh_host="vps")
+    reply = MagicMock(returncode=28, stdout='{"partial": tr\n200', stderr="curl: (28) timed out")
+    with patch("subprocess.run", return_value=reply):
+        with pytest.raises(RuntimeError, match=r"failed \(rc=28\)"):
+            client._request_via_ssh("GET", "http://x/y")
+
+
+@pytest.mark.parametrize(
+    "status,body,absent",
+    [
+        (500, b"Internal Server Error", True),
+        (500, b'{"detail": "boom"}', False),
+        (403, b"Internal Server Error", False),
+        (404, b'{"detail": "Not Found"}', False),
+    ],
+    ids=["500-plaintext-absent", "500-other-raises", "403-raises", "404-route-miss-raises"],
+)
+def test_delete_record_treats_the_500_not_found_as_absent(status, body, absent, monkeypatch):
+    """The provisioner answers a delete of an absent record with 500 + plaintext: still absent, keyed on the
+    status. Any other HTTP error propagates — a 404 too, which is a missing route, not a missing record."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    client, shell = _through_a_real_curl(monkeypatch, container="site-provisioner")
+    with _serve(status, body, ctype="text/plain") as base:
+        client._resolved_url_cache = base
+        with patch("subprocess.run", side_effect=shell):
+            if absent:
+                assert client.delete_record("ocoron.com", "A", "vps4") == {"status": "absent"}
+            else:
+                with pytest.raises(ProvisionerHTTPError):
+                    client.delete_record("ocoron.com", "A", "vps4")
+
+
+@pytest.mark.parametrize(
+    "echo,secret",
+    [
+        (
+            "key s3cr3tvalue-api-key rejected",  # no name, no `=`: only the by-value mask hides it
+            "s3cr3tvalue-api-key",
+        ),  # the client's own key, bare: masked by value
+        (
+            "x-api-key: f0reign-key-0123456789",
+            "f0reign-key-0123456789",
+        ),  # a foreign key, by its name
+        ("Authorization: Bearer f0reign-token-0123456789", "f0reign-token-0123456789"),
+        ('{"x-api-key": "f0reign-key-0123456789"}', "f0reign-key-0123456789"),  # a JSON echo
+        (
+            "{'Authorization': 'Bearer f0reign-tok-0123456789'}",
+            "f0reign-tok-0123456789",
+        ),  # a repr echo
+        ("authorization=f0reign-tok-0123456789", "f0reign-tok-0123456789"),
+    ],
+    ids=["own-key-bare", "foreign-key", "bearer-token", "json-echo", "repr-echo", "equals-echo"],
+)
+def test_an_http_error_body_leaks_no_secret(echo, secret, monkeypatch):
+    """An error page that echoes the request — a key or token included — reaches the exception cleaned."""
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    client, shell = _through_a_real_curl(monkeypatch)
+    with _serve(400, f"bad request: {echo}".encode(), ctype="text/plain") as base:
+        with patch("subprocess.run", side_effect=shell):
+            with pytest.raises(ProvisionerHTTPError) as caught:
+                client._request_via_ssh("GET", f"{base}/api/x")
+    assert secret not in str(caught.value) and secret not in caught.value.body
+    assert caught.value.status == 400 and "<redacted>" in caught.value.body
+
+
+@pytest.mark.parametrize("copier", ["copy", "deepcopy", "pickle"])
+def test_a_provisioner_http_error_survives_a_copy(copier):
+    """Keyword-only fields with no default broke copy and pickle (`RuntimeError` rebuilds from args)."""
+    import copy
+    import pickle
+
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    err = ProvisionerHTTPError("returned HTTP 500: 'x'", status=500, body="x")
+    clone = {
+        "copy": copy.copy,
+        "deepcopy": copy.deepcopy,
+        "pickle": lambda e: pickle.loads(pickle.dumps(e)),
+    }[copier](err)
+    assert (clone.status, clone.body, str(clone)) == (500, "x", "returned HTTP 500: 'x'")

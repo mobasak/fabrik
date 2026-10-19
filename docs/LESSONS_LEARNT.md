@@ -1,6 +1,13 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A success that is only an exit code hides every error the tool exits 0 on (2026-10-19)
+
+W-8bb683e6 made the DNS driver's SSH proxy check the provisioner's HTTP status.
+- **`curl -s` exits 0 on a 4xx or 5xx.** The proxy treated rc 0 plus parseable JSON as success, and a JSON error body is both, so a 401 was recorded as a created DNS record. The direct path raised on the same reply. When two paths answer one call, compare what each treats as failure, not just what each returns.
+- **The obvious curl flags lose something.** `-f` drops the body that `delete_record` keys on, and `--fail-with-body` exits 22 into the ssh-failure branch with no status. `-w '\n%{http_code}'` keeps both, and the rc check has to stay first because an aborted transfer still prints a status after its partial body.
+- **A test fake that hands back the old reply format keeps passing a branch it no longer reaches.** Nine fakes returned `"{}"` with no status line; each one had to gain the line, or it would test the no-status error instead of the branch it is named for.
+
 ## A tool that scopes itself two ways needs a layout tested against both (2026-10-19)
 
 W-4ad7ff2d gave review-loop seats a layout for running `final_gate.py` on pinned code.
