@@ -640,8 +640,9 @@ walking specs and `state.save()` writing `.fabrik/state/<id>.json` under
 contention.
 
 - **Default:** `~/.cache/fabrik-locks`, created 0700 (W-1f70f2e9). It is one dir per user, shared by every hub
-  process of that user. The home is an absolute `HOME` other than `/`, else the passwd home under the same rule,
-  which is what cron uses, so an empty, relative or `/` home never moves it. Under a private HOME no other local user can pre-create it, as they
+  process of that user. The home is an absolute `HOME` that is not the root under any spelling (`/`, `//`,
+  `/..`), else the passwd home under the same rule, which is what cron uses, so an empty, relative or root home
+  never moves it. Under a private HOME no other local user can pre-create it, as they
   could the old fixed `/tmp/fabrik-locks`. An empty value counts as unset.
 - **When to override:** when the home is unwritable, or no home resolves at all (no absolute `HOME` and no
   passwd entry), where `file_lock` fails closed with `OSError`; or when the home filesystem lacks flock support.
