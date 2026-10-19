@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:28:34.294632Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-1726082b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59V43758EG4QNY0DDJPD7ME",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-plan-review row 1792192144 — the review-loop seat prompt now carries a completion-gate layout (W-4ad7ff2d, D-1033)"
+}
