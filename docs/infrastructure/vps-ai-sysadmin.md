@@ -673,7 +673,9 @@ read-only detector, never a push. It compares the committed `HEAD` of the hub ch
 checkout, on master, when the rider runs it; never the working tree) against
 `/opt/fabrik/scripts/sysadmin/`, the two cron-called audit scripts and the two checklists they read
 (`audit-prompts/03-security-hardening.md`, `06-backup-disaster-recovery.md`), and `/usr/local/bin/fabrik-autoheal` on
-`vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each, and prints `DRIFT` (content differs),
+`vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each — through the D-973 jump when
+`FABRIK_SSH_JUMP_<ALIAS>` is set (exported, or a line in the hub `.env`, the only `.env` lines it reads; an exported
+value wins; a malformed or unreadable one is exit 3 before any ssh) — and prints `DRIFT` (content differs),
 `MISSING` (absent on the host), `MODE` (the host copy lost its exec bit) and `UNREADABLE` (the host could not
 read the file) lines. The same session reads the host's `/etc/cron.d/vps-sysadmin` — which the sync never
 writes — and compares the set of `/opt/fabrik/scripts/…` paths its non-comment lines schedule with the committed
