@@ -54,16 +54,18 @@ logger = logging.getLogger(__name__)
 def _default_lock_dir() -> Path | None:
     """``<home>/.cache/fabrik-locks``: per user, under a private HOME, and the same dir for every hub process of
     that user — cron has no XDG_RUNTIME_DIR, and a per-checkout dir would stop worktrees excluding each other
-    (W-1f70f2e9). HOME counts only when it is absolute: an empty one would mean ``/`` (as root, a fixed
-    ``/.cache`` path again) and a relative one the caller's cwd. Otherwise the passwd home, as under cron.
-    None when neither resolves — :func:`file_lock` then refuses, so importing this module never fails."""
-    home = os.environ.get("HOME", "")
-    if not os.path.isabs(home):
-        try:
-            home = pwd.getpwuid(os.getuid()).pw_dir
-        except KeyError:
-            return None
-    return Path(home) / ".cache" / "fabrik-locks"
+    (W-1f70f2e9). A home counts only when it is absolute and not the filesystem root: an empty or ``/`` one would
+    mean the fixed ``/.cache`` path (writable as root), a relative one the caller's cwd. HOME is tried first,
+    then the passwd home (as under cron), each under that one rule. None when neither qualifies —
+    :func:`file_lock` then refuses, so importing this module never fails."""
+    try:
+        passwd_home = pwd.getpwuid(os.getuid()).pw_dir
+    except KeyError:
+        passwd_home = ""
+    for home in (os.environ.get("HOME", ""), passwd_home):
+        if os.path.isabs(home) and Path(home) != Path("/"):
+            return Path(home) / ".cache" / "fabrik-locks"
+    return None
 
 
 _override = os.environ.get("FABRIK_LOCK_DIR")

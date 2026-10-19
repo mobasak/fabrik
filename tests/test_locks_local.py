@@ -62,7 +62,9 @@ def test_default_lock_dir_is_private_per_user_cache(tmp_path, monkeypatch):
     assert mod.LOCK_DIR.stat().st_mode & 0o777 == 0o700
 
 
-@pytest.mark.parametrize("home", [None, "", "relative/home"], ids=["unset", "empty", "relative"])
+@pytest.mark.parametrize(
+    "home", [None, "", "relative/home", "/"], ids=["unset", "empty", "relative", "root"]
+)
 def test_default_lock_dir_without_an_absolute_home_uses_the_passwd_home(monkeypatch, home):
     """Cron and other HOME-less callers resolve the same dir through the passwd entry. An empty HOME would
     otherwise mean ``/`` (a fixed ``/.cache`` path as root) and a relative one the cwd; nothing is created."""
@@ -79,6 +81,20 @@ def test_an_empty_override_counts_as_unset(tmp_path, monkeypatch):
     mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR="", HOME=str(home))
     expected = home / ".cache" / "fabrik-locks"
     assert expected == mod.LOCK_DIR
+
+
+@pytest.mark.parametrize("pw_dir", ["", "relative/home", "/"], ids=["empty", "relative", "root"])
+def test_an_unusable_passwd_home_is_refused_too(monkeypatch, pw_dir):
+    """The passwd home is held to HOME's rule: never a cwd-relative dir, never the fixed ``/.cache``."""
+    import pwd
+
+    class _Entry:
+        def __init__(self, d):
+            self.pw_dir = d
+
+    monkeypatch.setattr(pwd, "getpwuid", lambda uid: _Entry(pw_dir))
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    assert mod.LOCK_DIR is None
 
 
 def test_no_resolvable_home_imports_cleanly_and_refuses_to_lock(monkeypatch):
