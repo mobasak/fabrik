@@ -116,7 +116,7 @@ No `🆕 fabrik-lib candidate`.
   Inside a phase the review seats run in parallel and merge in the orchestrator's adjudication; the real-PG
   tests and unit tests of a phase run together in one pytest call.
 
-## Phase A — Driver: mint, deliver, grant for both payments lanes; the flag
+## Phase A — Driver: mint, deliver, grant for both payments lanes; the flag — ✅ EXECUTED 2026-10-20 (9b7349a8f; review fixes 5e514bd21, 8f34e1e36, 996e4a3b5, 66b6198fb, 0fa333962)
 
 Appetite: 120
 Implements spec § The delta items 1, 2, 3, 4, 6.
