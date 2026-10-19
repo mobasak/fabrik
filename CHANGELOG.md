@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed — the retired watchdog action `install_log_drop_rule` from the hub's validator and docs (2026-10-19)
 
-- fabrik-lib's watchdog removed the Tier-B action (its D-398/D-465; it posted to a Promtail update URL no spec sets, and Alloy has no rule-push endpoint), so its sidecar now reports the name as unknown. The hub's `llm_actions` refusal table, the `60-watchdog` allow-list row, the `self-healing` never-offered list, `docs/CONFIGURATION.md` and the `vps-ai-sysadmin` permissions table still described it as "being retired". They are dropped, and a spec naming it is now refused as unknown, as the sidecar does (fabrik-lib mail 01M5A35K4M).
+- fabrik-lib's watchdog removed the Tier-B action (its D-398/D-465; it posted to a Promtail update URL no spec sets, and Alloy has no rule-push endpoint), so its sidecar now logs the name as an unknown action and ignores it. The hub still named it in five places: the `llm_actions` refusal table, the `60-watchdog` allow-list row and the `vps-ai-sysadmin` permissions table (which called it "being retired"), and the `self-healing` and `docs/CONFIGURATION.md` never-offered lists. All five are dropped. `fabrik apply` now refuses a spec naming it as an unknown entry instead of as never offered (fabrik-lib mail 01M5A35K4M).
 
 ### Fixed — `claude_rotate.py --merge-shared tasks` joins the fragmented per-account tasks/ dirs into ~/.claude/tasks (2026-10-19)
 
