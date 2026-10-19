@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:00:52.835760Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-172faaa3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "BRIEF (coordinator, D-923) — operator ask, D-1042. Operator's words: \"you had created a document for fabrik-lib now create for all opt projects except fabrik-lib and fabrik as they are now in that way of working. after we will do it for opt/web-ecommerce-factory which should have 3 existing agents wef1, wef2, wef3, wef2 is current coordinator and merge owner.\" 1. Settled: D-1031, D-1036, D-1041, D-1042. The fabrik-lib document was the brief in mail 01M59HFDK9: 19 items in 5 phases (tooling, roles and records, worktrees, autonomy, first coordinator run). The general runbook is docs/reference/repo-coordinator-rollout.md (infra's). 2. Exists (coordinator inventory 2026-10-19, read-only): 44 git repos under /opt, so 42 to document. Every repo has scripts/work.py and .claude/hooks/agent_role.py (synced). Only fabrik-lib has .fabrik/session-agents.json. Claude worktree counts: web-ecommerce-factory 126, iterative_image_editor 35, seo 28, brand-identiy-creator 19, trade-intelligence 10, tryton-crm 5, site-provisioner 2, whatsapp-agent 2, the rest 0. Live sessions right now: fabrik 5, fabrik-lib 4, every other repo 0. web-ecommerce-factory: worktrees wef1 and wef3 exist; its docs/DECISIONS.md D-198 makes wef2 MERGE OWNER. 3. Proposed lane: docs only → right-now + /fabrik-review-scoped (no code surface); your `start` decides. 4. Rules: core/40-documentation.md; a new docs/ file owes its INDEX.md and docs/README.md rows. HARD STOP cross-repo: READ the other repos only, never edit them. Count with a named population (CLAUDE.md denominator rule). 5. Order: after your security item W-3d834ded; your beat (projects, PROJECT_CATALOG, rollout W-cf005f94); quota GREEN. 6. Gates: none (no mail is sent by this item; the rollout mails stay W-cf005f94's, after the pilot). 7. Done: ONE new doc, docs/reference/repo-coordinator-rollout-repos.md, with a section for each of the 42 repos, web-ecommerce-factory first. Each section gives the repo's agents (names and session ids where its records show them), coordinator and merge owner (its MERGE OWNER row), worktrees (agent vs stale), the tooling it lacks against the runbook, and that repo's remaining steps (the fabrik-lib phases adapted). A repo with no agents says so in one line. Proof: docs_updater.py --check green, and a claim→proof line per count. 8. Best practice: none external.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: operator ask (D-1042); LOW effort: one generated doc from read-only records, one session; fleet owns projects and W-cf005f94",
+  "status": "open",
+  "title": "Per-repo coordinator rollout document for all 42 /opt projects except fabrik and fabrik-lib (D-1042): docs/reference/repo-coordinator-rollout-repos.md, one section per repo (agents, coordinator/merge owner, worktrees, missing tooling, remaining steps), web-ecommerce-factory first (wef1, wef2, wef3; wef2 coordinator and merge owner)"
+}
