@@ -853,3 +853,16 @@ def test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read() -> None:
         " `--base`, else the archive of its `base_sha`), never from the live tree beyond what the seat prompt's recipes"
         " (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and name UNPINNED." in iso
     )
+
+
+def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
+    """Row 1792414928: two Agent-tool seats hit ENOENT writing into a seat folder nothing had created. The Workflow's
+    seat prompt already says "create it first with `mkdir -p SCRATCH` — its parent exists and nothing creates it for
+    you"; the subagents-core seat-folder rule, which a lead's own brief follows, now says so. It names no parent, since in the
+    `RUN-SCRATCH: none` case the folder sits under a session scratchpad `start` may not have found."""
+    core = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text())
+    assert (
+        "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and the brief tells each seat to"
+        " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;" in core
+    )
+

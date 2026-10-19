@@ -20,6 +20,10 @@ W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a ve
 - Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
 - `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
 
+### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
+
+- `subagents-core.md`'s seat-folder rule now has the brief tell each seat to create its folder first with `mkdir -p` on the absolute path, as the Workflow's seat prompt already does; two Agent-tool seats hit ENOENT without it. Answers /fabrik-review-scoped feedback row 1792414928.
+
 ### Changed — a review brief says what the pin holds and where seats read the rest (2026-10-20)
 
 - The probe catalogue's § Seat isolation now makes the pin carry each file a fix's text points at by path, and has the brief say the pin holds only the files it lists: a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` for a `--base` pin, else the archive of its `base_sha`), never from the live tree. Answers /fabrik-review-scoped feedback rows 1792446899, 1792432410 and 1792416541.
