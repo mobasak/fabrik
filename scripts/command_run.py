@@ -411,6 +411,86 @@ def _failing_slices(row: Any) -> list[dict[str, Any]]:
     return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
 
 
+def _slice_expectation(
+    rounds: list[Any],
+    classes: dict[str, Any],
+    slices: list[dict[str, Any]] | None,
+    confirmed: int | None,
+) -> list[str]:
+    """The slice ledger a `round` is expected to state, said BEFORE it is recorded (W-2d704438,
+    kaizen mail 01M58H6DF7). The lead types `--slices` by hand each later pass; before this a
+    wrong ledger was accepted silently and surfaced only as a ✗ or NOT TERMINAL in the report.
+
+    On a record whose earlier rounds stated slices: one EXPECTED line (the first sliced round's
+    claims, each slice's LAST stated count, the classes still open), then a warning per mismatch
+    against each slice's LAST stated row — never against round 1, because a slice legitimately
+    gains claims after round 1 (a fix hunk opens one, `/fabrik-review` § later passes) and a
+    shrunk ledger stays shrunk, so a round-1 baseline would warn on every later correct round,
+    terminal one included (both design critiques executed it). Warned: claims that moved (and
+    which way), verified going DOWN, a name no earlier round stated (once, the round it appears),
+    an owed slice the flag omits — the same owed set `_vanished_slices` reads, so the echo and the
+    report agree — and a later round with no `--slices` at all. On a FIRST sliced round: claims
+    totalling less than `--confirmed` (the undercount `_parse_slices` records). ADVISORY, never
+    a refusal: shrinks and undercounts both occur in real records (`_parse_slices`).
+
+    ⚠️ COBRA (D-253): the cheapest way past the echo is to ignore it, which is why it warns only
+    on a real change — never on a ledger merely restated; the ✗ and NOT TERMINAL in the report
+    remain the enforcement."""
+    sliced = [(i, r) for i, r in enumerate(rounds, 1) if _slice_rows(r)]
+
+    def count(n: int) -> str:
+        return "?" if n < 0 else str(n)
+
+    if not sliced:
+        if slices and confirmed is not None:
+            total = sum(max(s["claims"], 0) for s in slices)
+            if total < confirmed:
+                return [
+                    f"[command_run] ⚠ round --slices: the claims total {total} < --confirmed "
+                    f"{confirmed} — round 1's ledger should hold every confirmed claim"
+                ]
+        return []
+    first_n, first_row = sliced[0]
+    last: dict[str, dict[str, Any]] = {}
+    for _, r in sliced:
+        for s in _slice_rows(r):
+            last[s["name"]] = s
+    open_c = sorted(k for k, v in classes.items() if v != "clean")
+    out = [
+        f"[command_run] EXPECTED — round-{first_n} slices: "
+        + " · ".join(f"{s['name']} claims {count(s['claims'])}" for s in _slice_rows(first_row))
+        + "; last stated: "
+        + " · ".join(
+            f"{n} {count(s['verified'])}/{count(s['claims'])}" for n, s in sorted(last.items())
+        )
+        + f"; classes open: {', '.join(open_c) or 'none'}"
+    ]
+    warn = "[command_run] ⚠ round --slices: "
+    if slices is None:
+        return [*out, warn + "absent — every earlier slice is owed this round (D-335)"]
+    for s in slices:
+        was = last.get(s["name"])
+        if was is None:
+            out.append(warn + f"{s['name']} is new — no earlier round stated it")
+            continue
+        if was["claims"] >= 0 and s["claims"] != was["claims"]:
+            way = "grew" if s["claims"] > was["claims"] else "shrank"
+            out.append(
+                warn + f"{s['name']} claims {way} {was['claims']} → {s['claims']} since it was "
+                "last stated — a fix-opened claim grows a ledger; a candidate count is not a ledger"
+            )
+        if s["verified"] < was["verified"]:
+            out.append(
+                warn + f"{s['name']} verified fell {was['verified']} → {s['verified']} "
+                "since it was last stated"
+            )
+    stated = {s["name"] for s in slices}
+    for n in _vanished_slices([*rounds, {"slices": slices}]):
+        if n not in stated:
+            out.append(warn + f"{n} is missing — an omitted slice is open, never clean (D-335)")
+    return out
+
+
 def _zero_slice_refusal(
     slices: list[dict[str, Any]], confirmed: int | None, rounds: list[Any]
 ) -> str | None:
@@ -6621,6 +6701,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # the ledger this round is expected to state, said after every refusal (a refused round
+        # prints none of it) and before the round is recorded (W-2d704438)
+        for _line in _slice_expectation(rounds, rec.get("classes") or {}, slices, args.confirmed):
+            print(_line, file=sys.stderr)
         _ran = 0
         if not _stamped and args.seats is None:
             # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:

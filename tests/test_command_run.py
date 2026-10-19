@@ -6653,6 +6653,109 @@ def test_a_round_records_its_slice_ledger_and_a_failing_slice_is_never_terminal(
     assert "TERMINAL VERDICT" in final and "every slice verified" in final, final
 
 
+def _round_slices(run_dir: Path, slices: str | None, *extra: str, confirmed: str = "0"):
+    args = ["round", "--findings", confirmed, "--confirmed", confirmed, *extra]
+    if slices is not None:
+        args += ["--slices", slices]
+    return _cr(run_dir, *args)
+
+
+def _warns(out) -> list[str]:
+    return [ln for ln in out.stderr.splitlines() if ln.startswith("[command_run] ⚠ round --slices")]
+
+
+def test_a_later_sliced_round_echoes_the_ledger_it_expects(run_dir: Path) -> None:
+    """W-2d704438 (kaizen mail 01M58H6DF7): a later pass re-verifies the round-1 seats' own
+    ledgers, and the lead types `--slices` by hand. The round now says, BEFORE it records and on
+    stderr beside the handler's other advisories, the first sliced round's claims, each slice's
+    last stated count and the classes still open — and a ledger restated as it stands warns about
+    nothing."""
+    _start(run_dir)
+    first = _round_slices(run_dir, "A:6/11,B:0/2", "--classes-new", "auth,race", confirmed="5")
+    assert "EXPECTED" not in first.stderr, first.stderr  # round 1 has no ledger to echo
+    out = _round_slices(run_dir, "A:11/11,B:2/2", "--classes-swept", "auth")
+    expected = [ln for ln in out.stderr.splitlines() if ln.startswith("[command_run] EXPECTED")]
+    assert len(expected) == 1, out.stderr
+    assert "round-1 slices: A claims 11 · B claims 2" in expected[0], expected[0]
+    assert "last stated: A 6/11 · B 0/2" in expected[0], expected[0]
+    assert "classes open: auth, race" in expected[0], expected[0]
+    assert _warns(out) == [], out.stderr
+    assert out.stdout.splitlines()[0].startswith("ROUND 2 recorded"), out.stdout  # stdout unchanged
+
+
+def test_a_slice_mismatch_warns_and_still_records(run_dir: Path) -> None:
+    """Each way a later `--slices` can disagree with the slice's LAST stated row is said, and the
+    round is still recorded. The case reproduced on 2026-10-19: candidate counts typed where the
+    ledger belongs (`A:0/3` against `A:6/11`), a slice never stated before, an owed slice left out,
+    and verified falling."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/2", confirmed="5")
+    out = _round_slices(run_dir, "A:0/3,C:0/0")
+    assert out.returncode == 0, out.stderr
+    text = "\n".join(_warns(out))
+    assert "A claims shrank 11 → 3 since it was last stated" in text, out.stderr
+    assert "A verified fell 6 → 0" in text, out.stderr
+    assert "C is new — no earlier round stated it" in text, out.stderr
+    assert "B is missing — an omitted slice is open" in text, out.stderr
+    assert len(_warns(out)) == 4, out.stderr
+    assert _rec(run_dir)["rounds"][-1]["slices"][0] == {"name": "A", "verified": 0, "claims": 3}
+
+
+def test_a_changed_ledger_warns_once_never_on_every_later_round(run_dir: Path) -> None:
+    """Both design critiques executed this: against a round-1 baseline, a ledger that legitimately
+    grew (a fix hunk opens a claim, `/fabrik-review` § later passes) or shrank warned on every later
+    round, terminal one included — the warning teaches the lead to ignore it. Against the slice's
+    last stated row, it says the change once; restating the new ledger is silent. A slice first
+    stated in a later round is owed from then on, exactly as `_vanished_slices` owes it."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/0", confirmed="5")
+    grew = _round_slices(run_dir, "A:11/12,B:0/1,C:0/2", confirmed="1")
+    assert any("A claims grew 11 → 12" in w for w in _warns(grew)), grew.stderr
+    assert any("C is new" in w for w in _warns(grew)), grew.stderr
+    same = _round_slices(run_dir, "A:12/12,B:1/1,C:2/2")
+    assert _warns(same) == [], same.stderr
+    dropped = _round_slices(run_dir, "A:12/12,B:1/1")
+    assert [w for w in _warns(dropped) if "C is missing" in w], dropped.stderr
+
+
+def test_a_later_round_without_slices_is_told_every_owed_slice(run_dir: Path) -> None:
+    """The dominant omission: a later round that drops `--slices` altogether. The report's
+    missing-slice banner fires only on a quiet round, so a non-quiet one heard nothing at all."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/2", confirmed="5")
+    out = _round_slices(run_dir, None, confirmed="1")
+    assert out.returncode == 0, out.stderr
+    assert "[command_run] EXPECTED" in out.stderr, out.stderr
+    assert any("absent — every earlier slice is owed" in w for w in _warns(out)), out.stderr
+
+
+def test_a_first_sliced_round_that_undercounts_confirmed_is_told(run_dir: Path) -> None:
+    """Round 1's own ledger has nothing earlier to be checked against, but its claims must hold
+    every confirmed defect; a total below `--confirmed` is the undercount `_parse_slices` records
+    (measured, so a warning, not a refusal)."""
+    _start(run_dir)
+    out = _round_slices(run_dir, "A:0/3,B:0/1", confirmed="6")
+    assert out.returncode == 0, out.stderr
+    assert [w for w in _warns(out) if "claims total 4 < --confirmed 6" in w], out.stderr
+    ok = _round_slices(run_dir, "A:3/3,B:1/1")
+    assert not [w for w in _warns(ok) if "claims total" in w], ok.stderr
+
+
+def test_no_echo_before_a_ledger_or_on_a_refused_round(run_dir: Path) -> None:
+    """Nothing to echo before a ledger exists, and a round refused for another reason prints no
+    expectation: the echo comes after every refusal, so it only ever describes a round that is
+    recorded."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "2", "--confirmed", "1")
+    out = _round_slices(run_dir, "A:1/1", confirmed="1")
+    assert "EXPECTED" not in out.stderr and _warns(out) == [], out.stderr
+    refused = _cr(
+        run_dir, "round", "--findings", "0", "--confirmed", "0", "--new", "5", "--slices", "A:0/9"
+    )
+    assert refused.returncode == 2, refused.stderr
+    assert "EXPECTED" not in refused.stderr and _warns(refused) == [], refused.stderr
+
+
 def test_a_malformed_slice_ledger_is_refused(run_dir: Path) -> None:
     _start(run_dir)
     bad = _cr(
