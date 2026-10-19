@@ -288,16 +288,25 @@ def _lookback_s() -> float:
 # ── death evidence: the mesh's .errparked markers (hooks-index.md:36) ────────────────
 
 
-def _errparked_markers(lock_dir: Path) -> dict[str, tuple[str, float | None]]:
+def _errparked_markers(
+    lock_dir: Path, report: CoronerReport | None = None
+) -> dict[str, tuple[str, float | None]]:
     """``{safe_sid: (class, epoch|None)}`` from the lock dir's ``.errparked`` records.
 
     Content shape is ``<class> <epoch>`` (claude-sound.sh:146). A marker whose class
-    token does not look like a class is SKIPPED, never guessed at. Read-only.
+    token does not look like a class is SKIPPED, never guessed at. Read-only. A missing
+    lock dir or a marker cleared mid-sweep is no marker; a dir or marker that exists but
+    cannot be read is counted in ``report.errors`` (W-a14fd24f) — read as empty, it
+    hid a death and the sweep exited 0.
     """
     out: dict[str, tuple[str, float | None]] = {}
     try:
         entries = list(lock_dir.iterdir())
-    except OSError:
+    except FileNotFoundError:
+        return out
+    except OSError as exc:
+        if report is not None:
+            report.errors.append(f"lock dir unreadable ({exc!r}) — markers skipped")
         return out
     for path in entries:
         if not path.name.endswith(".errparked"):
@@ -305,7 +314,11 @@ def _errparked_markers(lock_dir: Path) -> dict[str, tuple[str, float | None]]:
         try:
             with open(path, "rb") as fh:
                 head = fh.read(256).decode("utf-8", "replace")
-        except OSError:
+        except FileNotFoundError:
+            continue  # the decider cleared it mid-sweep
+        except OSError as exc:
+            if report is not None:
+                report.errors.append(f"marker {path.name} unreadable ({exc!r}) — not judged")
             continue
         parts = head.split()
         if not parts or not _CLASS_RE.fullmatch(parts[0]):
@@ -623,9 +636,32 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
     ttl = _ttl_s()
     for path in record_files:
         stem = path.stem
+        # `command_run.load` returns {} for a missing, unreadable or corrupt record alike, and its
+        # read blocks forever on a FIFO: the file `load` reads is opened first, non-blocking, so an
+        # unjudgeable record is counted, never skipped as if closed (W-4c526386)
+        try:
+            fd = os.open(
+                command_run._record_path(stem), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            )
+        except FileNotFoundError:
+            continue  # vanished mid-sweep
+        except OSError as exc:
+            report.errors.append(f"record {stem} unreadable ({exc!r}) — not judged")
+            continue
+        try:
+            st = os.fstat(fd)
+        finally:
+            os.close(fd)
+        if not stat.S_ISREG(st.st_mode):
+            report.errors.append(f"record {stem} not a regular file — not judged")
+            continue
         # Pre-lock read is a CANDIDATE FILTER only — never the state the close trusts.
         scan = command_run.load(stem)
-        if not scan or scan.get("state") != "running":
+        if not scan:
+            if st.st_size > 0:
+                report.errors.append(f"record {stem} unparseable — not judged")
+            continue
+        if scan.get("state") != "running":
             continue
         try:
             # The close is lock-held end to end: re-load and re-check INSIDE
@@ -646,6 +682,10 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                         continue  # freshness unprovable → never close on it (fail open)
                     if now - float(ts) <= ttl:
                         continue  # a live busy session — untouched
+                    # the session_end lands BEFORE the save: a lost emit leaves the record
+                    # running (updated_ts untouched), so the next sweep retries (W-3cdc8bd6)
+                    if not _emit_ttl_end(sources, raw_sid, report):
+                        continue
                     rec["state"] = "expired"
                     rec["closed_by"] = "ttl"
                 rec["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -654,8 +694,6 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                     (report.records_died if dead else report.records_expired).append(raw_sid)
                     if dead:
                         _mark_run_folders_done(rec, raw_sid)
-                    else:
-                        _emit_ttl_end(sources, raw_sid, report)
                 else:
                     # the record stays running, so the next sweep retries it (W-6f46cebd)
                     report.errors.append(f"record close for {stem} not persisted")
@@ -666,19 +704,20 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
             continue
 
 
-def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None:
+def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> bool:
     """A TTL closure leaves an event trail too (M3): ``session_end`` with
     ``closed_by: ttl``, exposure joined from the session's own stream, idempotent
     (an existing ``session_end`` — this pass's or an earlier one's — is never
-    duplicated; a later sweep never re-reaches here because the record is no longer
-    ``running``)."""
+    duplicated). True when the stream holds the ``session_end`` (already, or now);
+    False is counted here, and the caller then leaves the record ``running`` so the
+    next sweep retries (W-3cdc8bd6)."""
     if kaizen_events is None:
         report.errors.append(f"kaizen_events unavailable — ttl session_end for {raw_sid} skipped")
-        return
+        return False
     try:
         has_end, _, _, last_exposure = _stream_state(sources.events_dir, raw_sid)
         if has_end:
-            return
+            return True
         if kaizen_events.emit(
             "session_end",
             sid=raw_sid,
@@ -688,12 +727,13 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
             closed_by="ttl",
         ):
             report.session_ends.append(raw_sid)
-        else:
-            # one-shot: the record is already `expired`, so no later sweep re-reaches here
-            report.errors.append(f"ttl session_end emit failed for {raw_sid}")
+            return True
+        report.errors.append(f"ttl session_end emit failed for {raw_sid}")
+        return False
     except Exception as exc:  # pragma: no cover - emit() itself never raises
         _warn(f"ttl session_end for {raw_sid} failed open: {exc!r}")
         report.errors.append(f"ttl session_end for {raw_sid} failed: {exc!r}")
+        return False
 
 
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
@@ -900,6 +940,7 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
             # transcripts dir is cleanly absent (ENOENT) is not an installation to measure.
             if report.holes_today is None and _transcripts_present(src.transcripts_dir):
                 report.errors.append("holes() unmeasurable (blind)")
+            _repair_open_streams(src, clock, report)
             _reconstruct(src, deaths, report)
             _close_records(src, evidence, clock, report)
     except Exception as exc:
@@ -945,7 +986,7 @@ def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None
     deaths: list[_Death] = []
     seen: set[str] = set()
 
-    markers = _errparked_markers(src.lock_dir)
+    markers = _errparked_markers(src.lock_dir, report)
     if report is not None:
         report.markers_seen = len(markers)
     for safe_sid, (cls, epoch) in sorted(markers.items()):
@@ -1026,7 +1067,7 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
                 ):
                     report.revivals.append(death.sid)
                 else:
-                    # one-shot: the death landed, so `has_recon` skips this block on every retry
+                    # `has_recon` skips this block on a retry: _repair_open_streams re-emits it
                     report.errors.append(f"revival emit failed for {death.sid}")
         if kaizen_events.emit(
             "session_end",
@@ -1039,6 +1080,87 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
             report.session_ends.append(death.sid)
         else:
             report.errors.append(f"session_end emit failed for {death.sid}")
+
+
+def _repair_open_streams(src: Sources, now: float, report: CoronerReport) -> None:
+    """Re-emit what a reconstruction lost, driven by the event STREAM (W-3cdc8bd6).
+
+    `_reconstruct` only revisits sessions still in this sweep's `deaths`, but a revived session
+    reads alive on the next sweep and an old marker ages out of the lookback — so a lost
+    ``revival`` or ``session_end`` used to stay lost, uncounted. Every stream touched inside the
+    lookback that holds a reconstructed ``death`` gets its missing ``revival`` (when the mesh log
+    still shows one) and its missing ``session_end``. A revival appended after its session_end
+    is fine: it carries its own ``revived_at``, and no reader depends on file order. Idempotent:
+    a stream with both is skipped, and `_reconstruct` re-reads the stream after this runs.
+    """
+    if kaizen_events is None:
+        return  # _reconstruct counts the missing emitter
+    try:
+        names = os.listdir(src.events_dir)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        report.errors.append(f"events dir unreadable ({exc!r}) — stream repair skipped")
+        return
+    horizon = now - _lookback_s()
+    for name in sorted(names):
+        if not name.endswith(".jsonl"):
+            continue
+        path = src.events_dir / name
+        try:
+            if path.stat().st_mtime < horizon:
+                continue
+        except OSError:
+            continue  # vanished mid-sweep
+        death_row: dict | None = None
+        has_end = has_revival = False
+        for raw in _tail_lines(path, EVENTS_SCAN_BYTES):
+            try:
+                row = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            event = row.get("event")
+            if event == "session_end":
+                has_end = True
+            elif event == "death" and row.get("reconstructed"):
+                death_row = row
+            elif event == "revival" and row.get("reconstructed"):
+                has_revival = True
+        sid = death_row.get("sid") if death_row is not None else None
+        if not isinstance(sid, str) or not sid or (has_end and has_revival):
+            continue
+        _, _, _, last_exposure = _stream_state(src.events_dir, sid)
+        joined = _join_exposure(last_exposure)
+        cls = death_row.get("class") if death_row is not None else None
+        if not has_revival:
+            revived_at = _log_revival(src.mesh_log, sid)
+            if revived_at is not None:
+                if kaizen_events.emit(
+                    "revival",
+                    sid=sid,
+                    exposure_override=joined,
+                    sid_source="join",
+                    reconstructed=True,
+                    revived_at=revived_at,
+                    **({"class": cls} if isinstance(cls, str) else {}),
+                ):
+                    report.revivals.append(sid)
+                else:
+                    report.errors.append(f"revival emit failed for {sid}")
+        if not has_end:
+            if kaizen_events.emit(
+                "session_end",
+                sid=sid,
+                exposure_override=joined,
+                sid_source="join",
+                reconstructed=True,
+                closed_by="coroner",
+            ):
+                report.session_ends.append(sid)
+            else:
+                report.errors.append(f"session_end emit failed for {sid}")
 
 
 # ── duplex selftest ──────────────────────────────────────────────────────────────────
