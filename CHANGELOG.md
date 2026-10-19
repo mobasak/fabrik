@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the reader run's pin diff reads an `Only in` line as a pinning difference (2026-10-19)
+
+- The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines that are not fix hunks. The bullet now says such a line is a difference in what was pinned unless the base-to-base `--name-only` list also names the path (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code; parts 1 and 4 were closed with no edit (no measured flaky reader; D-1051's rejection is of the range as the fix).
+
 ### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
 - PHASE 2's lock check found a command's fragments through `include:`, which cannot see the two fragments the assembler appends with none (`close-feedback.md` to every command, `agent-feedback.md` to every agent); and it said to test a write target against `owned_paths` without saying how, while locks hold paths, directories and `/`-aware globs that the lock-reading scripts each match differently. The check now names both appended fragments and states the three-shape ownership rule itself (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
