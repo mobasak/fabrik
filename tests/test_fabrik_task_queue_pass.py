@@ -363,3 +363,23 @@ def test_build_re_runs_the_population_measurement_for_a_changed_check_or_guard()
         "before phase 4, MEASURE's test slice re-runs on the built tree, and so does MEASURE's population measurement when the"
         " change adds, changes or removes a check, guard or threshold."
     ) in _norm(SRC)
+
+
+def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spellings_and_a_copied_mechanism() -> None:
+    """Rows 1792361074, 1792363058, 1792365690, 1792401257: each design was sent back by its critiques for a case
+    MEASURE never executed — what the reporter did next, a merge target that moved past the merge-base, a spelling
+    another command prescribes, a copied guard on the live host — so MEASURE executes each before design.md is
+    written, the grammar admits the recorded spellings, and the critiques run a copied mechanism."""
+    assert (
+        "a recipe's real target layout, the reported incident replayed on a copy one step past its symptom (what the"
+        " reporter did next), a tool that scopes by a commit or diff range run where the branch's merge-base is its merge"
+        " target's tip and where the target has moved past it, each spelling of a parsed input that the commands and docs"
+        " feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host"
+        " it will run on (a side-effecting step on a copy),"
+    ) in _section("## Phase 1", "## Phase 2")
+    phase2 = _section("## Phase 2", "## Phase 3")
+    assert "a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded." in phase2
+    assert (
+        "run a mechanism the design copies read-only against the live state of each host it will run on (a side-effecting"
+        " step on a copy);"
+    ) in phase2

@@ -66,64 +66,74 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 
 ## Phase 1 — MEASURE
 
-FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
-a reconstruction, and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it
-names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit
-can sit in dead code); a miss, or a replay on a copy carrying that state that does not fail as claimed, is a
-finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded
-unverified, never as refuted (MIRROR greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
-`<durable>/measure.md`, beside phase 2's `design.md`, never in
-it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
-import, grade or run the declared files (grep the tests for each file's name and every mode or flag
-the change extends, since a test that runs a script by subprocess never imports it), that slice and
-never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
-into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
-`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
-the rule already lives in; the population the change writes or thresholds measured (its readers
-are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on,
-every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), the transport handing a new env var to
-the process (compose `environment:`, `env_file`, a build arg, another launcher) read on the started process
-(e.g. `docker compose run --rm <svc> env`, its keys recorded, never its values), and
-the n behind any rate, bound or zero the design will claim; each external contract probed live
-once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
-the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
-source read or a proxy: the tests that drive it by subprocess, the completion gate's own command, a recipe's real
-target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
-what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on
-non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for a parsed format, its operator-facing strings
-in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate's
-new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code's
-10,000-character cap (https://code.claude.com/docs/en/hooks); a grader the design relies on is shown red on a
-deliberately broken input, since a pass proves nothing until it can fail. Then `python scripts/select_rules.py --changed
-<the declared paths>` — the path-scoped form — and READ the packs it prints.
+FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never a reconstruction,
+and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or
+error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code); a
+miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the
+item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR
+greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
+`<durable>/measure.md`, beside phase 2's `design.md`, never in it (a pasted line opening with a field word or a `#`
+moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file's
+name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that
+slice and never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the
+remote branch the work merges into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no
+remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
+`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack the rule already
+lives in; the population the change writes or thresholds measured (its readers are MIRROR's) — every writer, every
+occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in
+(grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`,
+`env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its
+keys recorded, never its values), and the n behind any rate, bound or zero the design will claim; each external
+contract probed live once, a list read whole, never a sample — each by EXECUTING the real path on real data (the
+producer's code, the tool's run output per mode, the design's own classifier, the writer of each state value it
+trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate's own
+command, a recipe's real target layout, the reported incident replayed on a copy one step past its symptom (what the
+reporter did next), a tool that scopes by a commit or diff range run where the branch's merge-base is its merge
+target's tip and where the target has moved past it, each spelling of a parsed input that the commands and docs
+feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it
+will run on (a side-effecting step on a copy), each callee a fail-open branch wraps and how it fails, whether a
+production path reaches the text, what a concurrent reader sees mid-write, a before/after hash of every file it
+writes, the codec a change touches run on non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for
+a parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
+and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field, with each hook
+output it grows sized against Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader
+the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
+`python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ the packs it
+prints.
 
 ## Phase 2 — DESIGN, where it will be minted
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
-`<durable>/design.md`. A mechanism copied from another script carries,
-as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled. Before
-such a copy, a rule another component already applies is tried as a read of its output (stdout, a record, an
-exported function); when the copy stays, DECISION says why the read cannot serve. Each
-input the design branches on is tabulated whole in a `design.md` table, outside the Behaviours list: every value a state it reads can hold, the unit another
-tool's rule is evaluated per (window, agent, repo), every path through a guard (a forced refresh after a write as
-well as the periodic one); a parser it adds takes a strict grammar and fails closed on the rest.
+`<durable>/design.md`. A mechanism copied from another script carries, as Behaviours tested here (several may share
+one), the failure directions its tests and D-rows settled. Before such a copy, a rule another component already
+applies is tried as a read of its output (stdout, a record, an exported function); when the copy stays, DECISION says
+why the read cannot serve. Each input the design branches on is tabulated whole in a `design.md` table, outside the
+Behaviours list: every value a state it reads can hold, the unit another tool's rule is evaluated per (window, agent,
+repo), every path through a guard (a forced refresh after a write as well as the periodic one); a parser it adds
+takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded.
 
 {{include:design-critique}}
 
-Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it
-is independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what
-each stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
-semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep sibling write paths and the tests
-pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle; execute one claim about
-every external dependency. It pins the tree (a commit or `git archive` copy) and any live state file the design
-reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small
-outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
-grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files,
-else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted. A second
-approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed and holding, is the § UPGRADE
-crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED. Then, before this
-call: read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in
-backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
+Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it is
+independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what each
+stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief
+also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
+semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep
+sibling write paths and the tests pinning a moved value; name each new guard's fail direction and any second approach
+the build cannot settle; run a mechanism the design copies read-only against the live state of each host it will run
+on (a side-effecting step on a copy); execute one claim about every external dependency. It pins the tree (a commit
+or `git archive` copy) and any live state file the design reads, names the unmerged branch owning a mirrored file,
+bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs. Wait for both
+in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is
+ACCEPTED only after the tests are grepped for every line it touches; an optional one adding behaviour only when
+provable inside the declared files, else filed to its owner; a later executed review finding may override it,
+recorded in the D-row with the drift noted. A second approach the build cannot settle (an equivalent implementation
+is not one), its seat's claim executed and holding, is the § UPGRADE crossing `tradeoffs`, taken here before
+`--design`, never folded in as ACCEPTED. Then, before this call: read the plan locks (no CLI does: each `*.json` in
+`.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another
+lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing
+and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in backticks
+under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \

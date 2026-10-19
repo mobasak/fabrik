@@ -125,7 +125,11 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # when the change adds or widens a check or guard (row 1792352977, a recurrence of held resweep-corpus-on-widened-guard).
 # D-1023 (kaizen, 2026-10-19): 24348 -> 24375 — supersedes D-1021's trigger: the re-measure fires when the change adds,
 # changes or removes a check, guard or threshold, and names MEASURE, since narrowing, re-thresholding or removing one moves a fire rate too (review round 1).
-SIZE_CAP = 24375
+# D-1035 (kaizen, 2026-10-19): 24375 -> 25020 — MEASURE executes the reported incident's next step on a copy, a range
+# tool where the merge target moved past the merge-base, each spelling the commands and docs feeding a parsed input
+# prescribe, and a copied mechanism read-only on each host's live state; phase 2's grammar admits those spellings and
+# the critiques run a copied mechanism (rows 1792361074, 1792363058, 1792365690, 1792401257).
+SIZE_CAP = 25020
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
