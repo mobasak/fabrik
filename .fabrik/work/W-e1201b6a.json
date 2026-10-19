@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — research engines fail while health reports live",
-  "status": "open",
+  "status": "done",
   "title": "WHAT: both tier-2 research engines assigned to trade-intelligence fail on credentials while mcp_health.py reports them live."
 }
