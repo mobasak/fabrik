@@ -10,7 +10,7 @@
   "legacy": false,
   "links": {
     "decision": "D-459",
-    "plan": "",
+    "plan": "docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md",
     "spec": ""
   },
   "next": "in src/fabrik/orchestrator/infrastructure.py payments-ingest-role block record status=pending when pi['grants'] is pending/unknown; extend tests/test_payments_ingest_role.py _prov_with with a grants key; /fabrik-review-scoped",
