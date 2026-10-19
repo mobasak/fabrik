@@ -26,6 +26,12 @@ W-17aac223, following D-1046 (automatic classification retired). `scripts/servic
 ### Changed — the external-services chain no longer runs the classifier; a catalog typo routes to triage (2026-10-19)
 D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is now gather_envs → registry_sync → gen_dashboard: the pool-only `classify_services.py` step and its reconsolidate re-run are gone (the pool has been OFF since 2026-09-07, so the step classified nothing), and the script stays a manual tool. The board's and the static file's "classifier has not run" attention entry and the `classified_at` input are removed. `gather_envs.real_category` accepts only the category enum (now one home, `gather_envs.CATEGORIES`) or `unidentified`: an off-enum category routes the provider to NEEDS-TRIAGE with a stderr warning, never a dashboard table of its own, and a test in `scripts/tests/test_gather_envs.py` fails on a committed catalog that carries one (a test, not a commit hook: no gate leg runs `scripts/tests/`). The manual classifier never pops, overwrites or dispatches an entry whose category is the operator's off-enum typo; it names it instead.
 
+### Fixed — the doc-stub advisory sees a seeded doc left as its template (2026-10-19)
+
+- `scripts/enforcement/check_doc_stubs.py` used to call a fired-trigger doc unfilled only by `[Project Name]`, `[PROJECT_NAME]` or `{PROJECT_NAME}`. Seeding substitutes most of those, so it saw 16 of the 174 covered docs across /opt. It now also applies D-593's "left as its scaffold template" rule, read from the hub's `scripts/fleet_doc_audit.py` (this tree, else the box-local `/opt/fabrik`) and never copied. That rule sees 84.
+- The new line reports what was measured: `<pct>% of its scaffold template is still verbatim in it (<share>% of the doc)`. Off the box the rule is skipped and the output says so, and so is a doc the rule raised on. Any failure in hub code, a `SystemExit` included, leaves the exit at 0.
+- `tests/test_fleet_doc_audit.py` pins every name the check reads (W-ad71f248).
+
 ### Fixed — the hub-side lock dir moved out of a fixed /tmp name (2026-10-19)
 
 - `fabrik.locks_local` defaulted its lock dir to `/tmp/fabrik-locks`, with a `nosec`/`noqa` silencing the scanners. On a multi-user hub, another local user could pre-create that dir and hold or swap every hub lock: state, reconcile, allocations, vultr/gpu state and sysadmin tokens. The default is now `~/.cache/fabrik-locks`, created 0700, one per user and shared by every hub process of that user, cron included.
