@@ -847,3 +847,50 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
     (proj / "not a session.jsonl").write_text("{}\n", encoding="utf-8")
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert "a newer session" not in out.stderr, out.stderr
+
+
+def test_the_exit_hint_never_runs_a_folder_name(tmp_path: Path) -> None:
+    """The hint a pane prints when claude exits names the repo folder inside double quotes; a `$(...)` in that name is
+    printed, never run."""
+    repo = _repo(tmp_path, {DEV1: "dev1"}, name="a$(touch pwned)b")
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
+    hint = re.search(r'echo "\[dev1 exited.*?\)\]"', run[0])
+    assert hint, run
+    said = subprocess.run(
+        ["bash", "-c", hint.group(0)], cwd=tmp_path, capture_output=True, text=True, timeout=30
+    )
+    assert not (tmp_path / "pwned").exists(), said.stdout
+    assert "touch" in said.stdout, said.stdout
+
+
+def test_an_undated_binding_is_not_older_than_every_transcript(tmp_path: Path) -> None:
+    """A binding whose `at` cannot be read (0) proves no age: the registry's id overrides it only when its transcript
+    is newer than the binding session's own transcript, and with neither dated the binding stands."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "not a time")])
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW1)))
+    _aged(home, repo, DEV1, 3600)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"], out.stderr
+    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+    (proj / f"{NEW1}.jsonl").unlink()
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} no-transcript"], out.stderr
+
+
+def test_a_session_the_store_gives_the_coordinator_is_never_a_builders(tmp_path: Path) -> None:
+    """A registry row naming a builder whose session the store says the coordinator now owns refuses the launch, the
+    same as a registry row naming the coordinator: one session, two processes."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    store = _store(
+        tmp_path, [_bind(DEV1, "dev1", scope, 100), _bind(DEV1, "coordinator", scope, NOW)]
+    )
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2, out.stdout
+    assert f"session {DEV1} would serve coordinator and dev1" in out.stderr, out.stderr

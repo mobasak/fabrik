@@ -145,12 +145,14 @@ identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads i
 - a builder's binding is the last line naming it in this repo's scope (the git common dir, found with git's own location
   variables unset) whose session it still owns;
 - the binding replaces the registry's id, and stderr names both, unless the registry's session was active after the
-  binding was written — its transcript is newer than the binding's `at`. The store trims rows after 30 days and never
-  sees a session the launcher started, so a registry id's absence from the store says nothing about its age; its
+  binding was written — its transcript is newer than both the binding's `at` and the bound session's own transcript.
+  A binding with no readable `at` and no transcript proves no age, so it stands. The store trims rows after 30 days and
+  never sees a session the launcher started, so a registry id's absence from the store says nothing about its age; its
   activity does;
 - the registry's id stands when the builder has no binding, the store is missing or is not a regular file, or the repo
   has no git scope, and each case is said on stderr;
-- any session that would serve two panes refuses the launch, the coordinator's sessions included, and so does a name
+- any session that would serve two panes refuses the launch, the coordinator's sessions included (the registry's
+  and every session the store gives the coordinator), and so does a name
   listed twice that no binding resolves.
 
 **After a /clear, re-bind the window:** `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force`, as the

@@ -174,14 +174,15 @@ for name in sorted(ids):
         chosen[name] = new
         continue
     if len(regs) == 1 and owner.get(regs[0], name) == name:
-        seen_at = active_at(name, regs[0])
-        if seen_at is not None and seen_at > new_at:
+        # an undated binding (`at` 0) proves no age: its own transcript's activity is the floor the registry's must pass
+        seen_at, floor = active_at(name, regs[0]), max(new_at, active_at(name, new) or 0)
+        if seen_at is not None and floor > 0 and seen_at > floor:
             note(f"{name}: the registry's {regs[0]} was active after its binding {new} — resuming {regs[0]}")
             chosen[name] = regs[0]
             continue
     note(f"{name}: resuming {new}, its newest whoami binding, not the registry's {' or '.join(r for r in regs if r != new)}")
     chosen[name] = new
-holders = {sid: ["coordinator"] for sid in coord_ids}
+holders = {sid: ["coordinator"] for sid in coord_ids | {s for s, n in owner.items() if coordinator(n)}}
 for name, sid in chosen.items():
     holders.setdefault(sid, []).append(name)
 for sid, names in sorted(holders.items()):
@@ -258,7 +259,8 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   if [ "$3" = running ]; then
     echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
-    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $SELF $ROOT)]\"; exec $env bash -l"
+    # the paths are %q-escaped: inside the hint's double quotes a `$(...)` in a folder name would run at pane exit
+    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]\"; exec $env bash -l"
   fi
 }
 
