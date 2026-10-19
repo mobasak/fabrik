@@ -119,6 +119,8 @@ def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
     assert run["dev1"].startswith('run dev1 echo "[dev1 is already running elsewhere'), run["dev1"]
     assert run["dev2"].startswith('run dev2 echo "[dev2 is already running elsewhere'), run["dev2"]
     assert run["sentinel"].startswith("run sentinel env -i "), run["sentinel"]
+    # the shell a running session's pane keeps is clean too, never the tmux server's environment
+    assert run["dev1"].rstrip().endswith("bash -l") and "; exec env -i " in run["dev1"], run["dev1"]
 
 
 def test_a_session_with_no_transcript_under_the_root_is_flagged(tmp_path: Path) -> None:
@@ -175,6 +177,11 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
     assert seen["TERM"] == "tmux-256color" and seen["PATH"].startswith(f"{home}/.local/bin:"), (
         got.stdout
     )
+    # the shell basics come from the pane's own shell; LANG falls back when the server has none
+    assert seen["USER"] == "u" and seen["LOGNAME"] == "u" and seen["SHELL"] == "/bin/bash", (
+        got.stdout
+    )
+    assert seen["LANG"] == "C.UTF-8", got.stdout
     # the shell a pane keeps after claude exits starts from the same allow-list
     assert run.rstrip().endswith("bash -l") and run.count("env -i ") == 2, run
 
@@ -242,3 +249,75 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
         env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
     )
     assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {repo} "), rel.stdout
+    # a relative path that starts with `-` is a folder, never an option to `cd`
+    dashed = _repo(tmp_path, {DEV1: "dev1"}, name="-lib")
+    rel = subprocess.run(
+        ["bash", str(UP), "--print", dashed.name],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=dashed.parent,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
+    )
+    assert rel.returncode == 0, rel.stderr
+    assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {dashed} "), rel.stdout
+
+
+FAKE_TMUX = """#!/bin/sh
+echo "$*" >> "$HOME/tmux.log"
+case "$1" in
+  has-session) [ -f "$HOME/tmux-has" ] ;;
+  show-options) cat "$HOME/tmux-owner" 2>/dev/null; exit 0 ;;
+  *) exit 0 ;;
+esac
+"""
+
+
+def _tmux_home(tmp: Path, repo: Path, has: bool, owner: str | None) -> Path:
+    """A HOME whose fake `tmux` logs every call and plays a session that exists (`has`) with an `@agents_up_root`."""
+    home = _home(tmp, transcripts=((repo, DEV1), (repo, DEV2)))
+    tmux = home / ".local" / "bin" / "tmux"
+    tmux.write_text(FAKE_TMUX, encoding="utf-8")
+    tmux.chmod(0o755)
+    if has:
+        (home / "tmux-has").write_text("", encoding="utf-8")
+    if owner is not None:
+        (home / "tmux-owner").write_text(owner + "\n", encoding="utf-8")
+    return home
+
+
+def _log(home: Path) -> list[str]:
+    return (home / "tmux.log").read_text(encoding="utf-8").splitlines()
+
+
+def test_a_new_grid_records_its_repo_and_attaches(tmp_path: Path) -> None:
+    """The launch path, against a fake tmux: one new session, its root recorded as `@agents_up_root`, one split per
+    further builder, every target exact (`=`), then attach."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    assert log[0] == "has-session -t =fabrik-lib", log
+    assert any(ln.startswith("new-session -d -s fabrik-lib -n agents -c ") for ln in log), log
+    assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in log, log
+    assert sum(ln.startswith("split-window -t =fabrik-lib:agents ") for ln in log) == 1, log
+    assert log[-1] == "attach -t =fabrik-lib", log
+
+
+def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Path) -> None:
+    """A session is named after the folder only, so a grid already up under the name must carry this repo's root: the
+    repo's own grid is reattached as it is (no pane rebuilt), another folder's is refused, and so is one that never
+    records a root (after the one re-read an in-progress launch is given)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    mine = _tmux_home(tmp_path / "mine", repo, has=True, owner=str(repo))
+    out = _run(str(repo), home=mine)
+    assert out.returncode == 0, out.stderr
+    assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(mine)), _log(mine)
+    assert _log(mine)[-1] == "attach -t =fabrik-lib", _log(mine)
+    for label, owner in (("other", "/opt/elsewhere/fabrik-lib"), ("none", None)):
+        home = _tmux_home(tmp_path / label, repo, has=True, owner=owner)
+        out = _run(str(repo), home=home)
+        assert out.returncode == 2, (label, out.stderr)
+        assert "not attaching" in out.stderr, (label, out.stderr)
+        assert not any(ln.startswith("attach") for ln in _log(home)), (label, _log(home))

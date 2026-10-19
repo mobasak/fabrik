@@ -126,13 +126,22 @@ if [ "$print" = 1 ]; then
   exit 0
 fi
 
-# a session is named after the folder only, so a grid already up under this name must be THIS repo's
-if tmux has-session -t "=$S" 2>/dev/null; then
+# A session is named after the folder only, so a grid already up under this name must be THIS repo's. The root is
+# recorded just after the session is created, so an empty owner may be a launch still building it: re-read once.
+owned_here() {
+  local owner
   owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
-  if [ "$owner" != "$ROOT" ]; then
-    echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
-    exit 2
+  if [ -z "$owner" ]; then
+    sleep 1
+    owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
   fi
+  [ "$owner" = "$ROOT" ] && return 0
+  echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
+  return 1
+}
+
+if tmux has-session -t "=$S" 2>/dev/null; then
+  owned_here || exit 2
   echo "agents_up: the $S grid is already up — attaching as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
 else
   first=1
@@ -142,8 +151,11 @@ else
     cmd="$(cmd_of "$name" "$sid" "$st")"
     if [ "$first" = 1 ]; then
       if ! tmux new-session -d -s "$S" -n "$W" -c "$ROOT" -x 240 -y 60 "$cmd"; then
-        # a second launch racing this one built the grid first: attach to it rather than fail
-        tmux has-session -t "=$S" 2>/dev/null && break
+        # a second launch racing this one built the grid first: attach to it (if it is this repo's) rather than fail
+        if tmux has-session -t "=$S" 2>/dev/null; then
+          owned_here || exit 2
+          break
+        fi
         exit 1
       fi
       tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null

@@ -93,12 +93,13 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
 
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` from the repo root.
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
-  `LOGNAME`, `SHELL`, `TERM`, `LANG`), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
+  `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
   `~/bin/hub-up`), and `CLAUDE_AGENT`. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
   the tmux server's environment, and a server first started from a VS Code session carries about 20 of that
   session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
 - A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
-  on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder. Run from
+  on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder or records
+  no root (another tool's session). Run from
   inside tmux, it switches the client to the grid instead of nesting.
 - The coordinator gets no pane. Its name must be `coordinator` or end in `-coordinator`: any other name gets a pane
   like a builder. The operator reaches it in VS Code, as at the hub.
@@ -138,7 +139,7 @@ the name `--print` shows on its first line. The hub has no registry and keeps
 ### The Windows side (installed by the operator)
 
 A Windows Terminal profile per repo calls the launcher by its absolute path in the hub's main checkout, so it runs
-what master holds. This is the fabrik-lib profile, an entry for `profiles.list` in Windows Terminal's
+what master holds, and works only once the launcher is merged there. This is the fabrik-lib profile, an entry for `profiles.list` in Windows Terminal's
 `settings.json`, beside the hub's "Fabrik Agents":
 
 ```json
