@@ -253,6 +253,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | Residual | Verdict |
 |---|---|
 | P1-length GATE_PINS adds about 3.5k characters to every finder and refuter prompt | RECORDED — by design (D-1033) — each sentence carries a rule a seat needs; a seat that cannot run the gate correctly costs more |
+| P3-ciarm the CI-arming sentence omits the gate's `tests/`-directory and empty-diff conditions | RECORDED — measured (both only narrow when the leg runs; a seat that looks for arming in a repo without `tests/` finds a leg that cannot run anyway, final_gate.py:1614-1632) |
 | P2-dollar `"${" not in p` scans the whole built prompt, not only GATE_PINS | RECORDED — by design (D-1033) — no part of a built prompt may carry an uninterpolated expression; a future literal `${` belongs in an escaped form |
 | P1-clone-spelling the paragraph's `git -C SCRATCH clone` and a plain `git clone` into SCRATCH both work | REFUTED (the paragraph defers to the history recipe's own clone step, which spells it once) |
 
