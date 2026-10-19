@@ -177,7 +177,7 @@ $ python scripts/review_rubric.py --changed src/fabrik/drivers/dns.py src/fabrik
 | Hunt: `tests/drivers/test_dns_client.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F15 own-key case echoes the bare key; F16 renamed `test_delete_record_reads_the_plaintext_500_as_absent`; F17 `_serve` is a context manager that closes its socket and joins its thread; F19-F24 graders for the rc-first order, 302, the straddle in the HTTP-error branch, `-S`, a bare `200`, and a proxy-proof curl env) |
 | Hunt: `tests/drivers/test_ssh.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/drivers/test_ssh.py:253 `{}\n200` fake still serves both `audit._ssh_check` and `_request_via_ssh`; B-sonnet traced it, F26 refuted) |
 | Hunt: `tests/orchestrator/test_destroyer.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F25 the 404 case carried "404" in its text, so it could not tell status from text: cases now include a 404 with no such text, httpx 404/500, curl missing, a status-less "404 not found", and an absent result) |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (F3 destroyer read any "not found" text as an absent record; the 500-plaintext mapping itself is F7's RECORDED row) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (F3 destroyer read any "not found" text as an absent record; the 500-plaintext mapping itself is F6b's RECORDED row) |
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (src/fabrik/drivers/dns.py `_request_via_ssh` carries no quota or cost counter; the 200-character excerpt cut is F21's boundary row) |
 | Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (F20 the 3xx edge of `200 <= status <= 299` and F23 the bare `200` sentinel now graded; F8 `000` refuted) |
 | Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B-sonnet's M2/M7/M9/M10 survivors and B-haiku's value-mask survivor each now have a grader; the round-1 battery kills all twelve fix mutants, probes/battery.out) |
@@ -225,6 +225,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | Id | Verdict |
 |---|---|
 | F5b | REFUTED (A1's claim that `delete_record` should read a 404 as absent: /opt/site-provisioner/api/cloudflare_client.py:465 answers an absent record 200 `{"action": "not_found"}`, so a 404 is a missing route and must raise) |
+| F6b | RECORDED — measured (the plaintext-500 → absent mapping stays on purpose until the provisioner answers a typed status; it can hide a real failed delete, which the docstring says — site-provisioner mail 01M59WTFS4) |
 | F7 | RECORDED — measured (the orchestrator falls back to direct Cloudflare on a provisioner 4xx; both transports share it, filed as W-1086d295) |
 | F8 | REFUTED (curl prints `000` only with a nonzero rc — a closed port gave rc=28 stdout `\n000`, and the rc check runs first) |
 | F9 | REFUTED (health_app.py `_check_dns_sync`: before the change a non-2xx body reached the payload uncleaned through `details`; now it is cleaned and capped at 200 characters) |
@@ -235,6 +236,9 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F14 | RECORDED — measured (`_destroy_dns` never closes its `DNSClient`; pre-existing and process-scoped, one hop out) |
 | F18 | REFUTED (a curl-less box FAILS the graders on purpose — a skip would drop the leak graders silently; the helper's docstring now says so) |
 | F26 | REFUTED (B-sonnet traced every old fake that gained `\n200`: each still reaches the branch its name claims) |
+| F28 | RECORDED — measured (`delete_record`'s docstring said a destroy re-run would "report ``ok``"; the sentence is from c48f3c077, one hop out, and went in pass 2's single docstring rewrite, 2c6d4071c) |
+| F29 | RECORDED — measured (the same docstring gave the plaintext 500 and the 200 `not_found` as two present-tense answers for an absent record; build-commit text, one hop out, rewritten in 2c6d4071c as the current answer plus the 2026-06-08 history) |
+| F30 | RECORDED — measured (A-haiku's "F6 BROKEN in its catch-all form" re-raises F6b, whose disposition holds — cited, never counted) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
