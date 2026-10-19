@@ -3,7 +3,7 @@
   "created": "2026-10-19T12:41:40.683190Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7967855b07433edb527dda584c0ab8b3dae40293",
   "id": "W-0c33e10f",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: review residue on the researcher agent's wording (intel rated it LOW); nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-researcher fetch-path residue (W-8bc61173 scoped review, routed by its scope-growth stop): INFERENCE is used as a mark in shapes 2 and 4 but is not in the return-format enum (VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE); the wrong-place directQuote re-ask has no cap on retries; Method's STALE definition ('the cited figure changed') does not mention a cached copy"
 }
