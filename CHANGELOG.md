@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve PHASE 2 names a fragment a command points at by path as a write and lock target (2026-10-19)
+
+- PHASE 2's write-target list and its lock check named the fragments a command renders but not one it points at by path, such as the probe catalogue, which commands read live and the renderer never installs. A row whose fix belongs there had no listed target and was never lock-checked. Both lists now name it, and the lock check gives the grep that lists those fragments. PHASE 3's reading sentence also binds its bounds to each paragraph it reads, including a place the pins sentence moves the text to (W-5048181b).
+
 ### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
 - Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).

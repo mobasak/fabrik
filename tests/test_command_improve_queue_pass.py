@@ -581,8 +581,33 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert span == (
         "Before the first draft, the files the target points at by path for the same subject are read too (a"
         " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
-        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — its"
-        " lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its"
-        " sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a place the pins"
+        " sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside the"
+        " new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
         " sentence below says. "
     ), span
+
+
+def test_a_fragment_pointed_at_by_path_is_a_write_and_lock_target() -> None:
+    """W-5048181b: PHASE 2's write-target list and its lock check named the fragments a command renders but not one it
+    points at by path (the probe catalogue, read live and never rendered), so a row whose fix belongs there had no
+    listed target and no lock check. Both lists now name it, and the lock check's grep is run against a real command
+    source so the command it prints finds that fragment."""
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "to one of the fragments that command renders or points at by path (a review command's probe catalogue), to"
+        " the rule pack it cites" in p2
+    )
+    lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
+    clause = (
+        "(`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep"
+        " -no '/opt/fabrik/commands/_fragments/[a-z0-9-]*\\.md' commands/_sources/<command>.md` names them), a seat"
+        " file under `commands/_agents/`"
+    )
+    assert clause in lock
+    assert lock.index("points at by path") < lock.index(".fabrik/plan-locks/")
+    pattern = re.search(r"grep -no '([^']+)'", lock).group(1)
+    scoped = (ROOT / "commands" / "_sources" / "fabrik-review-scoped.md").read_text()
+    found = set(re.findall(pattern, scoped))
+    assert "/opt/fabrik/commands/_fragments/review-probe-catalogue.md" in found, found
+    assert not any("include:" in f for f in found)
