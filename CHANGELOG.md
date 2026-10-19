@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a deploy no longer writes DNS straight to Cloudflare when the site-provisioner refuses the record (2026-10-19)
 W-1086d295, D-1053. `_provision_dns` used to fall back to the direct Cloudflare API on any DNS Manager error. So a provisioner refusal (401 bad API key, 422 rejected body, 429 its rate limiter) was bypassed with the hub's own token. A status in `PROVISIONER_REFUSALS` now fails the DNS step with a one-line `ProvisioningError`. A reverse-proxy 403/404, a 400, a 3xx, a 5xx or a transport failure still falls back. The provisioner's route answers an unmanaged zone with an unmapped 500, which still falls back; that is filed to site-provisioner and tracked as W-747f41c9.
 
+### Changed — the reader run's pin diff names every `Only in` line (2026-10-19)
+
+- The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines. The bullet now has the lead name each one too: a path the fix added, removed or renamed is the fix's own, and its readers run on both pins (a removal the `base_sha` still holds leaves them `unverified`); a path pinned in only one pass is another path; no line is exempted by the base-to-base `--name-only` list, which misses renames, directories and an uncommitted fix (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code. Parts 1 and 4 closed with no edit: no flaky reader has been measured, and D-1051's rejected range is, read in its own row, the range used as the fix form; the row is immutable and the operative bullet already uses the range only to name paths.
+
 ### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
 - PHASE 2's lock check found a command's fragments through `include:`, which cannot see the two fragments the assembler appends with none (`close-feedback.md` to every command, `agent-feedback.md` to every agent); and it said to test a write target against `owned_paths` without saying how, while locks hold paths, directories and `/`-aware globs that the lock-reading scripts each match differently. The check now names both appended fragments and states the three-shape ownership rule itself (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
@@ -24,6 +28,12 @@ W-17aac223, following D-1046 (automatic classification retired). `scripts/servic
 
 ### Changed — the external-services chain no longer runs the classifier; a catalog typo routes to triage (2026-10-19)
 D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is now gather_envs → registry_sync → gen_dashboard: the pool-only `classify_services.py` step and its reconsolidate re-run are gone (the pool has been OFF since 2026-09-07, so the step classified nothing), and the script stays a manual tool. The board's and the static file's "classifier has not run" attention entry and the `classified_at` input are removed. `gather_envs.real_category` accepts only the category enum (now one home, `gather_envs.CATEGORIES`) or `unidentified`: an off-enum category routes the provider to NEEDS-TRIAGE with a stderr warning, never a dashboard table of its own, and a test in `scripts/tests/test_gather_envs.py` fails on a committed catalog that carries one (a test, not a commit hook: no gate leg runs `scripts/tests/`). The manual classifier never pops, overwrites or dispatches an entry whose category is the operator's off-enum typo; it names it instead.
+
+### Fixed — the doc-stub advisory sees a seeded doc left as its template (2026-10-19)
+
+- `scripts/enforcement/check_doc_stubs.py` used to call a fired-trigger doc unfilled only by `[Project Name]`, `[PROJECT_NAME]` or `{PROJECT_NAME}`. Seeding substitutes most of those, so it saw 16 of the 174 covered docs across /opt. It now also applies D-593's "left as its scaffold template" rule, read from the hub's `scripts/fleet_doc_audit.py` (this tree, else the box-local `/opt/fabrik`) and never copied. That rule sees 84.
+- The new line reports what was measured: `<pct>% of its scaffold template is still verbatim in it (<share>% of the doc)`. Off the box the rule is skipped and the output says so, and so is a doc the rule raised on. Any failure in hub code, a `SystemExit` included, leaves the exit at 0.
+- `tests/test_fleet_doc_audit.py` pins every name the check reads (W-ad71f248).
 
 ### Fixed — the hub-side lock dir moved out of a fixed /tmp name (2026-10-19)
 

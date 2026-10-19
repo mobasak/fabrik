@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T17:29:28.301288Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0b09fae6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "intel: add base_sha to the MANIFEST.json review_loop_ledger.py writes per pass, with a test; reply to kaizen on the mail",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: another active agent's request (kaizen), needed by D-1051's review rule; LOW effort: one field plus a test",
+  "status": "open",
+  "tags": [
+    "mail-01m5ahvayzx5eywx76ybdeyw8s"
+  ],
+  "title": "mail 01M5AHVAYZX5EYWX76YBDEYW8S (kaizen → intel): review_loop_ledger.py writes no base_sha into MANIFEST.json, so the D-1051 reader-run check cannot name the previous pass's base_sha from the ledger"
+}
