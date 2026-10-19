@@ -92,12 +92,21 @@ W=agents
 # -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
 RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 
-# The builder's worktree only when it is a real one, in place: a git worktree (`.git` inside, so not a folder left behind
-# by `git worktree remove`) whose physical path is exactly <root>/.claude/worktrees/<name>, so a symlink can neither take
-# the pane out of the repo nor name a project folder claude never writes to. Anything else starts at the root.
+# The builder's worktree only when it is a linked git worktree in place: a `.git` FILE inside (the shape `git worktree
+# add` makes, so neither a folder left behind by `git worktree remove` nor a nested clone) and a physical path exactly
+# <root>/.claude/worktrees/<name>, so a symlink anywhere on it can neither take the pane out of the repo nor name a
+# project folder claude never writes to. Anything else starts at the root — said on stderr when something by that name
+# is there, because a builder resumed at the root works in the coordinator's checkout.
 dir_of() {  # $1 = name (validated: no `/` or `.`, so it names a folder directly under worktrees/)
   local d="$ROOT/.claude/worktrees/$1"
-  if [ -d "$d" ] && [ -e "$d/.git" ] && [ "$(cd -- "$d" && pwd -P)" = "$d" ]; then echo "$d"; else echo "$ROOT"; fi
+  if [ -d "$d" ] && [ -f "$d/.git" ] && [ "$(cd -- "$d" && pwd -P)" = "$d" ]; then
+    echo "$d"
+    return
+  fi
+  if [ -e "$d" ] || [ -L "$d" ]; then
+    echo "agents_up: $1: .claude/worktrees/$1 is not a linked git worktree in place — its pane starts at the repo root, the main checkout" >&2
+  fi
+  echo "$ROOT"
 }
 
 proj_of() {  # $1 = folder; claude stores a session under its start folder with every non-alphanumeric character as `-`

@@ -431,11 +431,15 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
 def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
     """W-6c7c3292 (fabrik-lib mail 01M59SWZGB): a builder works in `<repo>/.claude/worktrees/<name>`, and the main
     checkout is the coordinator's, so a builder resumed at the root would edit main's tree and read main's CLAUDE.md.
-    A pane starts in the builder's worktree when that folder exists and at the root otherwise, and its transcript is
-    looked for under the folder it starts in, since claude resumes by that folder. Only a git worktree in place counts:
-    a file, a folder with no `.git` (left behind by `git worktree remove`) and a symlink — which could take the pane out
-    of the repo, and names a project folder claude never writes to — all start at the root."""
-    third, fourth, fifth = (f"{c * 8}-{c * 4}-4{c * 3}-8{c * 3}-{c * 12}" for c in "abc")
+    A pane starts in the builder's worktree when it is a linked git worktree in place and at the root otherwise, and
+    its transcript is looked for under the folder it starts in, since claude resumes by that folder. A file, a folder
+    with no `.git` (left behind by `git worktree remove`), a nested clone (a `.git` FOLDER) and a symlink — which could
+    take the pane out of the repo, and names a project folder claude never writes to — all start at the root, and each
+    says so on stderr, because that builder then works in the main checkout; a builder with nothing by its name is
+    silent."""
+    third, fourth, fifth, sixth, seventh = (
+        f"{c * 8}-{c * 4}-4{c * 3}-8{c * 3}-{c * 12}" for c in "abcde"
+    )
     repo = _repo(
         tmp_path,
         {
@@ -445,14 +449,18 @@ def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
             third: "stale",
             fourth: "linked",
             fifth: "plain",
+            sixth: "clone",
+            seventh: "gone",
         },
     )
     wts = repo / ".claude" / "worktrees"
     wt1, sent_wt = _worktree(repo, "dev1"), _worktree(repo, "sentinel")
     (wts / "dev2").write_text("", encoding="utf-8")  # a file is not a worktree
     (wts / "stale").mkdir()  # a folder without .git is not a worktree
+    (wts / "clone" / ".git").mkdir(parents=True)  # a nested clone is not a linked worktree
     elsewhere = _worktree(tmp_path / "elsewhere", "linked")
     (wts / "linked").symlink_to(elsewhere)  # a symlink is not a worktree in place
+    (wts / "gone").symlink_to(tmp_path / "nowhere")  # nor is a dangling one, which -e cannot see
     # sentinel's worktree exists but its transcript sits only under the root: flagged, never silently the root
     home = _home(
         tmp_path,
@@ -463,18 +471,28 @@ def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
             (repo, third),
             (repo, fourth),
             (repo, fifth),
+            (repo, sixth),
+            (repo, seventh),
         ),
     )
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
+        f"pane clone {sixth} {repo} ok",
         f"pane dev1 {DEV1} {wt1} ok",
         f"pane dev2 {DEV2} {repo} ok",
+        f"pane gone {seventh} {repo} ok",
         f"pane linked {fourth} {repo} ok",
         f"pane plain {fifth} {repo} ok",
         f"pane sentinel {SENT} {sent_wt} no-transcript",
         f"pane stale {third} {repo} ok",
     ], out.stdout
+    warned = sorted(
+        ln.split(":")[1].strip()
+        for ln in out.stderr.splitlines()
+        if "is not a linked git worktree in place" in ln
+    )
+    assert warned == ["clone", "dev2", "gone", "linked", "stale"], out.stderr
 
 
 def _worktree(repo: Path, name: str) -> Path:

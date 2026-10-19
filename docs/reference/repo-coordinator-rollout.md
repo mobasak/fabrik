@@ -92,8 +92,9 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
 `[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
 
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` in the builder's worktree,
-  `.claude/worktrees/<name>`, when that folder is a git worktree in place (it holds `.git`, and it is not a symlink),
-  and from the repo root otherwise. The main checkout is the
+  `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
+  of its path is a symlink), and from the repo root otherwise. When something by that name is there but fails the
+  check, the launcher says so on stderr, because that builder then works in the main checkout. The main checkout is the
   coordinator's, and a builder resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
