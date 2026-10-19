@@ -127,8 +127,11 @@ def make_env(tmp: Path, root: Path, hosts: dict[str, str | None], now: int | Non
         textwrap.dedent(
             f"""\
             #!{sys.executable}
-            import sys, pathlib
+            import sys, pathlib, json, os
             args = sys.argv[1:]
+            seen = {{k: v for k, v in os.environ.items() if k.startswith(("FABRIK_SSH_JUMP_", "SECRET_"))}}
+            with open({str(tmp / "ssh-calls.log")!r}, "a") as log:
+                log.write(json.dumps({{"argv": args, "env": seen}}) + "\\n")
             host = None
             i = 0
             while i < len(args):
@@ -165,7 +168,7 @@ def make_env(tmp: Path, root: Path, hosts: dict[str, str | None], now: int | Non
         )
     )
     mail.chmod(0o755)
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("FABRIK_SSH_JUMP_")}
     env.update(
         {
             "PATH": f"{bindir}:{env['PATH']}",
@@ -324,6 +327,8 @@ def test_unreachable_mails_after_three(tmp_path):
         assert r.returncode == 2
         assert len(mails(tmp_path)) == expect, (i, r.stdout, r.stderr)
     assert "vps3" in mails(tmp_path)[0]["body"]
+    # the likeliest cause since D-973 is a missing or wrong jump, so the mail names it
+    assert "FABRIK_SSH_JUMP_VPS3" in mails(tmp_path)[0]["body"]
 
 
 # ── Behaviour 5: mail once per signature, re-nudge after 7 days, failure keeps watermark ─────────
@@ -980,3 +985,113 @@ def test_pre_sweep_waits_for_a_running_coroner_job(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     calls = (tmp_path / "calls.log").read_text().split()
     assert calls.index("kaizen_coroner.py") < calls.index("kaizen_collect_v2.py")
+
+
+# ── W-714bb1a5: the ssh honours FABRIK_SSH_JUMP_<ALIAS>, read from <root>/.env when not exported ──────
+
+
+def ssh_calls(tmp: Path) -> list[dict]:
+    log = tmp / "ssh-calls.log"
+    return [json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
+
+
+def _argv_for(tmp: Path, host: str) -> list[str]:
+    calls = [c["argv"] for c in ssh_calls(tmp) if host in c["argv"]]
+    assert len(calls) == 1, calls
+    return calls[0]
+
+
+def test_jump_from_env_file_routes_vps_only(tmp_path):
+    root = make_hub(tmp_path)
+    (root / ".env").write_text("SECRET_TOKEN=leak\nFABRIK_SSH_JUMP_VPS=vps2\n")
+    env = make_env(tmp_path, root, {"vps": remote_listing(), "vps2": remote_listing()})
+    r = run(env)
+    assert r.returncode == 0, r.stderr
+    assert _argv_for(tmp_path, "vps")[:6] == [
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "ProxyJump=vps2",
+    ]
+    assert "ProxyJump=vps2" not in " ".join(_argv_for(tmp_path, "vps2")[:-1])
+
+
+@pytest.mark.parametrize(
+    ("line", "exported", "jump"),
+    [
+        ("FABRIK_SSH_JUMP_VPS=vps2", {"FABRIK_SSH_JUMP_VPS": ""}, None),  # present-empty masks .env
+        ("FABRIK_SSH_JUMP_VPS=vps2", {"FABRIK_SSH_JUMP_VPS": "vps3"}, "vps3"),  # exported wins
+        ('export FABRIK_SSH_JUMP_VPS="vps2" # hub route', {}, "vps2"),
+        ("FABRIK_SSH_JUMP_VPS='deploy@vps2:22'", {}, "deploy@vps2:22"),
+        ("FABRIK_SSH_JUMP_VPS=vps2 # via vps2", {}, "vps2"),
+        ("FABRIK_SSH_JUMP_VPS", {}, None),  # a bare key is not a value
+        ("# FABRIK_SSH_JUMP_VPS=vps2", {}, None),
+    ],
+)
+def test_exported_jump_wins_and_only_jump_lines_are_read(tmp_path, line, exported, jump):
+    root = make_hub(tmp_path)
+    (root / ".env").write_text(f"SECRET_TOKEN=leak\n{line}\n")
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    env.update(exported)
+    r = run(env)
+    assert r.returncode == 0, r.stderr
+    argv = _argv_for(tmp_path, "vps")
+    assert (f"ProxyJump={jump}" in argv) if jump else not any("ProxyJump" in a for a in argv)
+    # only the jump lines are read: a .env secret never reaches ssh's environment
+    assert all("SECRET_TOKEN" not in c["env"] for c in ssh_calls(tmp_path))
+
+
+@pytest.mark.parametrize("bad", ["value", "unreadable"])
+def test_bad_jump_config_reaches_no_verdict_before_any_ssh(tmp_path, bad):
+    root = make_hub(tmp_path)
+    dotenv = root / ".env"
+    if bad == "value":
+        dotenv.write_text("FABRIK_SSH_JUMP_VPS3=not a host!\n")
+    else:
+        if os.geteuid() == 0:
+            pytest.skip("root reads a mode-000 file")
+        dotenv.write_text("FABRIK_SSH_JUMP_VPS=vps2\n")
+        dotenv.chmod(0)
+    env = make_env(tmp_path, root, {"vps": remote_listing(), "vps3": remote_listing()})
+    stamp = tmp_path / "drift.stamp"
+    try:
+        r = run(env, "--stamp", str(stamp))
+    finally:
+        dotenv.chmod(0o644)
+    assert r.returncode == 3, (r.stdout, r.stderr)
+    assert not stamp.exists()
+    assert ssh_calls(tmp_path) == []  # refused before any host was contacted
+
+
+def test_no_jump_leaves_argv_unchanged(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    assert run(env).returncode == 0
+    assert _argv_for(tmp_path, "vps")[:5] == [
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "vps",
+    ]
+
+
+@pytest.mark.skipif(not Path("/usr/bin/python3").exists(), reason="no system python3")
+def test_runs_by_hand_without_the_fabrik_package_or_dotenv(tmp_path):
+    """A by-hand `python3 scripts/sysadmin/vps_script_drift.py` (docs/infrastructure/vps-ai-sysadmin.md)
+    has neither `fabrik` nor python-dotenv. The jump helpers are loaded by PATH, so the package's
+    `fabrik.config` (and its load_dotenv of every hub secret) never runs."""
+    root = make_hub(tmp_path)
+    (root / ".env").write_text("FABRIK_SSH_JUMP_VPS=vps2\n")
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    r = subprocess.run(
+        ["/usr/bin/python3", "-I", str(SCRIPT)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "ProxyJump=vps2" in _argv_for(tmp_path, "vps")
