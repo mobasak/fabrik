@@ -7,6 +7,7 @@ merely merged master went red on a constant it never touched. Each such constant
 `# noqa`, as `orchestrator/verifier.py`'s identical Traefik constant already did.
 """
 
+import ast
 import sys
 from pathlib import Path
 
@@ -28,8 +29,13 @@ REMOTE_LOOPBACK = {
 @pytest.mark.parametrize(("rel", "constant"), sorted(REMOTE_LOOPBACK.items()))
 def test_a_remote_side_loopback_constant_passes_the_ban(rel, constant):
     path = ROOT / rel
-    line = next(
-        n for n, text in enumerate(path.read_text().splitlines(), 1) if text.startswith(constant)
+    # the whole assignment's span, so a value wrapped onto its own line is still covered
+    node = next(
+        n
+        for n in ast.parse(path.read_text()).body
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == constant for t in n.targets)
     )
-    flagged = [r.message for r in cev.check_file(path) if r.line_number == line]
-    assert flagged == [], f"{rel}:{line} ({constant}) trips the localhost ban: {flagged}"
+    span = range(node.lineno, node.end_lineno + 1)
+    flagged = [r.message for r in cev.check_file(path) if r.line_number in span]
+    assert flagged == [], f"{rel}:{node.lineno} ({constant}) trips the localhost ban: {flagged}"
