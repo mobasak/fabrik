@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:41:40.683190Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0c33e10f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one sentence each in commands/_agents/fabrik-researcher.md with a grader: (1) INFERENCE joins the return enum or every 'mark INFERENCE' names its verdict; (2) cap the directQuote re-ask (e.g. two locators, then the fallback); (3) STALE's Method definition covers an out-of-date exa copy; (4) shape 4: a URL DEAD on a live 404 while exa serves a copy, when that page was the claim's only source, returns NEEDS-RAW-FETCH naming the archive URL (Opus pass-4 one-hop, beside the since-deleted-page sentence)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fabrik-researcher fetch-path residue (W-8bc61173 scoped review, routed by its scope-growth stop): INFERENCE is used as a mark in shapes 2 and 4 but is not in the return-format enum (VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE); the wrong-place directQuote re-ask has no cap on retries; Method's STALE definition ('the cited figure changed') does not mention a cached copy"
+}
