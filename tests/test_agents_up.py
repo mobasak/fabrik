@@ -277,6 +277,10 @@ case "$1" in
     # tmux-newfail: another launch created the session first
     if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
     exit 0 ;;
+  set-option)
+    # tmux-setfail: the root cannot be recorded
+    [ -f "$HOME/tmux-setfail" ] && exit 1
+    exit 0 ;;
   *) exit 0 ;;
 esac
 """
@@ -311,7 +315,14 @@ def test_a_new_grid_records_its_repo_and_attaches(tmp_path: Path) -> None:
     assert any(ln.startswith("new-session -d -s fabrik-lib -n agents -c ") for ln in log), log
     assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in log, log
     assert sum(ln.startswith("split-window -t =fabrik-lib:agents ") for ln in log) == 1, log
+    assert "select-pane -t =fabrik-lib:agents.0" in log, log  # a fresh grid opens on its first pane
     assert log[-1] == "attach -t =fabrik-lib", log
+    # a root that cannot be recorded is said, because every later launch would refuse the grid
+    failed = _tmux_home(tmp_path / "setfail", repo, has=False, owner=None)
+    (failed / "tmux-setfail").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=failed)
+    assert out.returncode == 0 and "could not record the root" in out.stderr, out.stderr
+    assert _log(failed)[-1] == "attach -t =fabrik-lib", _log(failed)
 
 
 def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Path) -> None:
