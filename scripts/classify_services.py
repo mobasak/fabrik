@@ -86,10 +86,7 @@ def _enum_category(raw) -> str:
 
 COSTS = ("free", "freemium", "paid", "self-host", "?")  # the catalog's live value set (AP1)
 STATUSES = ("active", "retired", "retiring", "unidentified", "?")
-CATEGORIES = (
-    "ai-llm ai-image ai-audio ai-translate search scrape captcha proxy domains email "
-    "storage backup research-data media-stock infra-platform dev-tools comms payments"
-)
+CATEGORIES = gather_envs.CATEGORIES  # the enum's one home is the scan (D-1046)
 URL_KEY_RE = re.compile(r"(_URL|_BASE_URL|_ENDPOINT)$", re.I)
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 

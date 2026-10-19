@@ -88,6 +88,9 @@ CATEGORY_ORDER = [
     "comms",
     "payments",
 ]
+# The category enum as ONE space-separated string — classify_services imports it (its unit prompt
+# interpolates it, so it stays a string) and `real_category` splits it (D-1046: one home).
+CATEGORIES = " ".join(CATEGORY_ORDER)
 
 SECRET_KEY_RE = re.compile(
     r"(KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|_AUTH|APIKEY|DSN|SIGNING)",
@@ -837,6 +840,20 @@ def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
     (FC5)."""
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     validate_catalog_keys(catalog, where)
+    off_enum = sorted(
+        f"{p} ({m['category']!r})"
+        for p, m in catalog.items()
+        if isinstance(m.get("category"), str)
+        and m["category"].strip() not in ("", "?")
+        and not real_category(m["category"])
+    )
+    if off_enum:  # a display-only typo routes to triage by name; it never fails the scan (D-1046)
+        print(
+            f"WARNING {where}: category outside the enum, routed to NEEDS-TRIAGE: "
+            + "; ".join(off_enum)
+            + f" — allowed: {CATEGORIES} unidentified",
+            file=sys.stderr,
+        )
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)
@@ -1185,13 +1202,16 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
 
 
 def real_category(cat) -> bool:
-    """The ONE predicate for "this entry is catalogued": a non-empty string other than `?`. The
-    bucketing, the `catalogued` stat and the classifier's tombstone loop all apply it — three
-    hand-written variants once disagreed on `null`, a list and blank, so a block could count as
-    catalogued while rendering under NEEDS-TRIAGE (CM3)."""
-    return (
-        isinstance(cat, str) and bool(cat.strip()) and cat.strip() != "?"
-    )  # blank is `?` everywhere (CP1)
+    """The ONE predicate for "this entry is catalogued": a string whose stripped value is an enum
+    category or `unidentified` (a tombstone). The bucketing, the `catalogued` stat and the
+    classifier's tombstone loop all apply it — three hand-written variants once disagreed on `null`,
+    a list and blank, so a block could count as catalogued while rendering under NEEDS-TRIAGE (CM3).
+    Any other string — a typo, a case variant, a retired value — is NOT catalogued and routes to
+    triage by name, never to a table of its own (D-1046); parse_catalog warns about it."""
+    return isinstance(cat, str) and cat.strip() in _REAL_CATEGORIES  # blank and `?` are not (CP1)
+
+
+_REAL_CATEGORIES = frozenset(CATEGORIES.split()) | {"unidentified"}
 
 
 def refuse_emptied_catalog() -> None:

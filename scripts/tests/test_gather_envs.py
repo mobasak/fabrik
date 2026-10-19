@@ -1500,7 +1500,8 @@ def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
     )
     assert "\n" not in line and rs.SVC_RE.match(line), line
     m = rs.SVC_RE.match(line).groupdict()
-    assert m["cost"] == "free_tier" and m["category"] == "ai_llm" and m["used_by"] == "p"
+    # an off-enum category (`ai llm`) is not catalogued, so it is `?`, never a token of its own (D-1046)
+    assert m["cost"] == "free_tier" and m["category"] == "?" and m["used_by"] == "p"
     # the two fields _svc_token did not cover: the provider NAME (a bad one would fail the sync
     # closed every day, AS3) and each used_by member (a bad one silently mis-attributed, AS4)
     line = ge.svc_line("pro v", {"category": "search"}, {"pro j", "b"})
@@ -2484,7 +2485,7 @@ def test_only_on_a_curated_name_is_refused_and_the_scan_never_flags_it(tmp_path,
         )
     ]
     curated = {
-        "category": "ai-coding",
+        "category": "dev-tools",  # a REAL category (the docstring's premise; `ai-coding` is off-enum, D-1046)
         "cost": "?",
         "capability": "the operator's words",
         "url": "https://kilocode.ai",
@@ -2958,6 +2959,58 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
     )
     with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
         ge.refuse_emptied_catalog()  # the FIELD is real; the literal in the capability once hid it
+
+
+def test_an_off_enum_category_routes_to_triage_with_a_warning(tmp_path, monkeypatch, capsys):
+    """D-1046 (W-7e467f2d): with the classifier retired, the catalog is hand-written, and a typo'd
+    category once rendered as its own dashboard table. A category outside the enum (a typo, a case
+    variant, a retired value) is NOT catalogued: its keys go to NEEDS-TRIAGE as `?`, the provider
+    shows by name in the Untriaged queue, and parse_catalog warns naming it — the scan never fails,
+    because a display-only typo must not kill the chain or the registry's provenance."""
+    for cat, real in (
+        ("ai-llm", True),
+        (" ai-llm ", True),
+        ("unidentified", True),
+        ("AI-LLM", False),
+        ("ai-lm", False),
+        ("internal-config", False),
+    ):
+        assert ge.real_category(cat) is real, cat
+    assert "ai-llm" in ge.CATEGORIES.split() and cs.CATEGORIES is ge.CATEGORIES  # one home
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps(
+            {
+                "typo": {"category": "ai-lm", "match": ["TYPO"]},
+                "ok": {"category": "ai-llm", "match": ["OK"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", catalog)
+    env = tmp_path / "p" / ".env"
+    env.parent.mkdir()
+    env.write_text("TYPO_API_KEY=x\nOK_API_KEY=y\n", encoding="utf-8")
+    body, stats = ge.consolidate([env])  # never a CatalogError
+    assert "#svc name=typo category=?" in body and "ai-lm" not in body.replace("ai-llm", "")
+    assert stats["catalogued"] == 1 and stats["flagged"] == 1
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "typo" in err and "ai-lm" in err and "ai-llm" in err, err
+
+
+def test_the_committed_catalog_carries_only_real_categories():
+    """The commit-time half of D-1046's typo guard: hand curation (W-17aac223) is now the only
+    writer of scripts/service_catalog.json, so every category it carries must be an enum value or
+    `unidentified` — caught here, not by the 06:00 chain."""
+    raw = json.loads(
+        (Path(ge.__file__).parent / "service_catalog.json").read_text(encoding="utf-8")
+    )
+    catalog, _ = ge.parse_catalog(raw, "service_catalog.json")
+    bad = {
+        p: m.get("category") for p, m in catalog.items() if not ge.real_category(m.get("category"))
+    }
+    assert not bad, bad
+    assert "internal-config" not in raw["_README"]  # the README names the enum, not a retired value
 
 
 def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monkeypatch, capsys):
