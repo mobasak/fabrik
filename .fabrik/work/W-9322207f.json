@@ -3,7 +3,7 @@
   "created": "2026-10-19T11:24:24.208205Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "4b078cdb4cc135be690216ad2f198f9e6813edf9",
   "id": "W-9322207f",
   "impact": "low",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "coordinator",
   "priority": 3,
   "score_reason": "LOW: wording precision in my own charter; nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "coordinator charter follow-ups from the 9189c738f closing pass (plausible, low): (N1) a sync-path edit is /fabrik-task with the full /fabrik-review and ONE commit after it (CLAUDE.md lane row 1, D-369), not just 'the full /fabrik-review'; (N2) say kaizen works its feedback queues, not the pool (work.py _workers drops the feedback owner), so D-983 rebalancing never hands kaizen pool items. Charter is 12 bytes under the hook cap: trim first"
 }
