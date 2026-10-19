@@ -239,7 +239,7 @@ def test_every_summary_prints_the_registrar_warnings(tmp_path, invoke, failures,
     ctx.registrar_warnings = [_WARN]
     result = invoke(ctx, tmp_path)
     assert result.exit_code == code
-    assert f"⚠ {_WARN}" in result.output
+    assert result.output.count(f"⚠ {_WARN}") == 1  # printed, and printed once
 
 
 def test_glitchtip_no_dsn_degraded_return_is_recorded():

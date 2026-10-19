@@ -296,35 +296,26 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + _clause_suffix(depends_contradiction(spec, "postgres")),
         )
 
-    # payments-ingest role (scoped non-BYPASSRLS cross-tenant role for fabrik-lib
-    # payments webhook ingest; provisioned inside the postgres block, so it needs the DB)
-    if shape.get("needs_payments_ingest", False) and shape.get("needs_database", False):
-        out["payments_ingest"] = (True, "shape.needs_payments_ingest=true")
-    elif shape.get("needs_payments_ingest", False):
-        out["payments_ingest"] = (
-            False,
-            "not applicable: needs_payments_ingest=true but needs_database=false",
-        )
-    else:
-        out["payments_ingest"] = (
-            False,
-            "not applicable: shape.needs_payments_ingest=false",
-        )
-
-    # payments-fulfilment role (the fulfilment worker's scoped non-BYPASSRLS role; also
-    # provisioned inside the postgres block)
-    if shape.get("needs_payments_fulfilment", False) and shape.get("needs_database", False):
-        out["payments_fulfilment"] = (True, "shape.needs_payments_fulfilment=true")
-    elif shape.get("needs_payments_fulfilment", False):
-        out["payments_fulfilment"] = (
-            False,
-            "not applicable: needs_payments_fulfilment=true but needs_database=false",
-        )
-    else:
-        out["payments_fulfilment"] = (
-            False,
-            "not applicable: shape.needs_payments_fulfilment=false",
-        )
+    # payments roles (scoped non-BYPASSRLS roles for fabrik-lib payments: `ingest` for
+    # webhook ingest, `fulfilment` for the fulfilment worker). Both are provisioned INSIDE
+    # the postgres block, so each needs the DB and runs only when the postgres registrar
+    # runs: an `infra.postgres=false` override turns them off too, never a row that says
+    # RUNS while nothing runs.
+    for lane in ("ingest", "fulfilment"):
+        flag = f"needs_payments_{lane}"
+        if shape.get(flag, False) and shape.get("needs_database", False):
+            out[f"payments_{lane}"] = (
+                _enabled(infra, "postgres"),
+                f"shape.{flag}=true"
+                + ("" if _enabled(infra, "postgres") else " (infra.postgres=false override)"),
+            )
+        elif shape.get(flag, False):
+            out[f"payments_{lane}"] = (
+                False,
+                f"not applicable: {flag}=true but needs_database=false",
+            )
+        else:
+            out[f"payments_{lane}"] = (False, f"not applicable: shape.{flag}=false")
 
     # gatus
     if shape.get("is_public", False) and domain:

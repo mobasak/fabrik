@@ -410,6 +410,23 @@ def test_resolve_applicability_payments_fulfilment() -> None:
     assert "needs_database=false" in bad["payments_fulfilment"][1]
 
 
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_an_infra_postgres_override_turns_the_payments_row_off_too(lane: str) -> None:
+    """The role is minted inside the postgres block: a row that says RUNS while the postgres
+    registrar is overridden off would promise a role nothing provisions."""
+    out = resolve_applicability(
+        {
+            "shape": {"needs_database": True, f"needs_payments_{lane}": True},
+            "infra": {"postgres": False},
+        }
+    )
+    assert out["postgres"][0] is False
+    assert out[f"payments_{lane}"] == (
+        False,
+        f"shape.needs_payments_{lane}=true (infra.postgres=false override)",
+    )
+
+
 def test_provision_dispatches_the_fulfilment_flag_to_the_postgres_block() -> None:
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
     ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
@@ -450,7 +467,8 @@ def test_the_fulfilment_dsn_names_its_role_and_is_rewritten_for_a_spoke() -> Non
     injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
     url = injected["PAYMENTS_FULFILMENT_DATABASE_URL"]
     assert url.startswith("postgresql://ti_payments_fulfilment:PW@")
-    assert "postgres-main" not in url  # a spoke reaches the hub over the mesh, never by DNS
+    # a spoke reaches the hub over the mesh, never by the hub's container DNS name
+    assert url == "postgresql://ti_payments_fulfilment:PW@10.99.0.1:5432/ti"
 
 
 def test_an_existing_fulfilment_role_injects_nothing_and_still_grants() -> None:
@@ -483,8 +501,10 @@ def test_a_pending_path_records_pending_and_one_warning_never_a_failure(lane: st
     assert _status_of(ctx, lane) == ["pending"]
     assert _pay_failures(ctx) == []
     assert len(ctx.registrar_warnings) == 1
-    assert ctx.registrar_warnings[0].startswith(f"payments-{lane}-role: ")
-    assert "pending" in ctx.registrar_warnings[0]
+    assert ctx.registrar_warnings == [
+        f"payments-{lane}-role: grant pending — ti has not applied the fabrik-lib payments "
+        "schema yet; re-run `fabrik apply` after it does"
+    ]
 
 
 @pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
