@@ -212,26 +212,38 @@ def test_the_researcher_returns_a_bounded_inference_verdict():
         "- `NEEDS-RAW-FETCH` — the source exists (or existed) but this toolset",
         "· a redirect chain or page tail shape 6 could not finish · an only-source page dead on the live fetch, "
         "shape 4 · a changing figure no live arm reached, step 5)",
-        # W-c01b59db: exa's fetch sends no live-crawl setting, so any page may be its cache; WebFetch only confirms
-        "A claim about a figure's CURRENT value — one its publisher revises under the same URL: a price, a rate "
-        "limit or usage limit, a quota, a default, a current or supported version — read only from a cached arm "
-        "(exa, whose fetch sends no live-crawl setting, so any page it returns may be its crawl cache — measured "
-        "2026-10-20; firecrawl without `maxAge: 0`; a search snippet) is not live: neither `VERIFIED` nor `STALE` "
-        "rests on it without a live read.",
-        'Firecrawl `maxAge: 0` is that read (with `parsers: ["pdf"]` for a PDF); a `WebFetch` answer that agrees '
-        "with the figure you quoted grounds `VERIFIED`, but a figure it states differently is settled only by "
-        "firecrawl `maxAge: 0`, and when no live arm reaches a page that is not a live 404 (shape 4 decides that) "
-        "the verdict is `NEEDS-RAW-FETCH`.",
-        "A quote's wording stays shape 1's and a PDF's text shape 3's — only the claim about the figure's current "
-        "value needs the live read — and a figure inside a dated or immutable document (a published paper, a "
-        "filing, a changelog entry or versioned release note) is not a changing one.",
     ):
         assert method.count(span) == 1, span
     # the verdict list is ordered: INFERENCE sits between VERIFIED and STALE (review pass 1, M2)
     assert method.index("- `VERIFIED` —") < method.index(inference) < method.index("- `STALE` —")
     flat = " ".join(raw.split())
-    assert "exa can serve an out-of-date copy of any page (Method step 5)" in flat
     assert "version-specific figure on a docs page read only from exa" not in flat  # the narrow rule is gone
+    # W-c01b59db: exa's fetch sends no live-crawl setting, so any page may be its cache; WebFetch only confirms.
+    # Each sentence is held inside its own step or shape, so a sentence moved elsewhere goes red too.
+    step5 = " ".join(raw[raw.index("5. **Freshness binds:**") : raw.index("## Return format")].split())
+    for span in (
+        "A claim about a CURRENT value — one that can change after the page was written, such as a price, a rate "
+        "limit or usage limit, a quota, a default, a current or supported version, or a status (available, "
+        "deprecated) — read only from a cached arm (exa, whose fetch sends no live-crawl setting, so any page it "
+        "returns may be its crawl cache — measured 2026-10-20; firecrawl without `maxAge: 0`; a search result or "
+        "its answer) is not live: neither `VERIFIED`, `STALE` nor `WRONG` rests on it without a live read.",
+        'Firecrawl `maxAge: 0` is that read (with `parsers: ["pdf"]` for a PDF).',
+        "A `WebFetch` answer, asked for the value without being told it, only confirms: when it states the value "
+        "a raw arm quoted, that grounds `VERIFIED`; any other value it states (a different one, or one no raw arm "
+        "quoted) is settled by firecrawl `maxAge: 0`, else the verdict is `NEEDS-RAW-FETCH` — as it is when no "
+        "live arm reaches a page that is not a live 404 (shape 4 decides that).",
+        "A quote's wording stays shape 1's and a PDF's text shape 3's — only the claim about the current value "
+        "needs the live read — and a figure inside a document fixed once published (a published paper, a filing, "
+        "a dated changelog entry, a versioned release note) is not a changing one, though which entry or release "
+        'is the newest is a current value; a page\'s "last updated" stamp does not make it fixed.',
+    ):
+        assert step5.count(span) == 1, span
+    shape3 = " ".join(raw[raw.index("  3. ") : raw.index("  4. ⚠️")].split())
+    assert shape3.count(
+        "exa can serve an out-of-date copy of any page (Method step 5) — for a version-specific claim on a docs "
+        "page, cross-check live (step 5), which decides which version is current."
+    ) == 1
+    assert "cross-check with `WebFetch`" not in flat and "quote the arm carrying the newer version notes" not in flat
     # shape 2's markup quote is a NEEDS-RAW-FETCH, never INFERENCE (review pass 1: the bound and shape 2 clashed)
     assert (
         "Return `NEEDS-RAW-FETCH` (below) so the caller curls it — a curl settles a verbatim quote, so it is never "
@@ -301,8 +313,8 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             "The same bar binds a summariser's claim that a page DOCUMENTS something, when the verdict rests on "
             "that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return "
             "`INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies "
-            "it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either wherever a curl of a named URL would "
-            "settle it",
+            "it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could extract the line and a "
+            "curl of a named URL would settle it",
         ),
         (s4, s5, "JSON/XML keeps shape 3's routing."),
         (
