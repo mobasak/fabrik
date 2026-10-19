@@ -4,6 +4,7 @@ Each test pins one sentence in the phase that owns it.
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +81,7 @@ def test_phase_five_runs_every_test_that_names_the_edited_source() -> None:
     """Row 1791830357 (D-790): fabrik-task.md's size cap and verbatim pins sit in a test the queue-pass test is not."""
     text = re.sub(r"\s+", " ", SRC.read_text())
     assert (
-        "every test file that names the edited source or fragment, or a command that includes that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source"
+        "every test file that names the edited source or fragment, or a command that includes that fragment or points at it by path (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source"
         in text
     )
     import subprocess
@@ -581,8 +582,41 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert span == (
         "Before the first draft, the files the target points at by path for the same subject are read too (a"
         " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
-        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — its"
-        " lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its"
-        " sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a place the pins"
+        " sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside the"
+        " new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
         " sentence below says. "
     ), span
+
+
+def test_a_fragment_pointed_at_by_path_is_a_write_and_lock_target() -> None:
+    """W-5048181b: PHASE 2's write-target list and its lock check named the fragments a command renders but not one it
+    points at by path (the probe catalogue, read live and never rendered), so a row whose fix belongs there had no
+    listed target and no lock check. Both lists now name it; the lock check's printed grep is RUN here on a real command
+    source and must print the catalogue repo-relative, the form `owned_paths` uses, since an absolute path matches no
+    lock and fails open. The weight sentence and PHASE 5's test pick count a by-path reader too."""
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "to one of the fragments that command renders or points at by path (a review command's probe catalogue), to"
+        " the rule pack it cites" in p2
+    )
+    lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
+    assert (
+        "(`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep"
+        " -no 'commands/_fragments/[a-z0-9-]*\\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths`"
+        " is, names them), a seat file under `commands/_agents/`" in lock
+    )
+    assert lock.index("points at by path") < lock.index(".fabrik/plan-locks/")
+    pattern = re.search(r"grep -no '([^']+)'", lock).group(1)
+    scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
+    out = subprocess.run(
+        ["grep", "-no", pattern, str(scoped)], capture_output=True, text=True, check=True
+    ).stdout.split()
+    paths = {line.split(":", 1)[1] for line in out}
+    assert "commands/_fragments/review-probe-catalogue.md" in paths, paths
+    assert not any(p.startswith("/") for p in paths), paths
+    included = set(re.findall(r"\{\{include:([a-z0-9-]+)\}\}", scoped.read_text()))
+    assert "review-probe-catalogue" not in included, included
+    flat = re.sub(r"\s+", " ", SRC.read_text())
+    assert "renders into every command that INCLUDES it, and is read by every command that points at it by path" in flat
+    assert "or a command that includes that fragment or points at it by path (`command grep -rl" in flat
