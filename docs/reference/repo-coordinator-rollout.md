@@ -99,8 +99,8 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   check, the launcher says so on stderr, because that builder then works in the main checkout. The main checkout is the
   coordinator's, and a builder resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
-  `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
-  `~/bin/hub-up`), and `CLAUDE_AGENT`. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
+  `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the active
+  fleet account), `CLAUDE_AGENT`, and `AGENT_IDENTITY_FILE` when the launcher was given one. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
   the tmux server's environment, and a server first started from a VS Code session carries about 20 of that
   session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
 - A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
@@ -138,15 +138,22 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - no name may hold two session ids;
 - the file must name at least one builder.
 
-The registry is box-local state written as sessions start, and fabrik-lib's writer only ever adds a row. When an
-agent's session id changes, the old row stays behind and the launcher refuses until someone removes it. Then run the
-launcher again. If the grid is already up, close it first with `tmux kill-session -t =<session>`, where `<session>` is
-the name `--print` shows on its first line. The hub has no registry and keeps
-`~/bin/hub-up`.
+The registry is box-local state (gitignored) that names a repo's builders; each builder's SESSION comes from the
+identity store `whoami_agent.py` keeps (W-66e2f6a7). The launcher looks up the builder's newest binding whose scope
+is this repo's git common dir, and counts a binding only while it is still the latest row for its session (a session
+re-bound to another name belongs to that name). That binding replaces the registry's id when the registry's id is an
+older binding of the same name, or when the registry lists the name twice, and stderr names both ids. A registry id the
+store has never seen stands, since it is newer than anything the store knows, and stderr names the binding it
+outranked. The registry's id also stands when the builder has no binding, when the store cannot be read, and when the
+repo has no git scope; each case is said on stderr. Two builders that would resume one session refuse the launch, and
+so does a name listed twice that no binding resolves.
 
-Remove a session row only when that agent no longer uses its id. A relaunch mints a new id and leaves the old row
-stale. A move into a worktree during the session (EnterWorktree) keeps the id, so that row is the agent's only row, and
-removing it drops the agent's pane (fabrik-lib mail 01M59SWZGB).
+**After a /clear, re-bind the window:** `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force`, as the
+rotation step in `CLAUDE.md` already says. A pane started by the launcher carries `CLAUDE_AGENT`, and a session named
+that way writes no binding by itself (`session_orient.py`), so the re-bind is what keeps the store current. When the
+launcher sees a newer transcript in a pane's project folder that no binding or registry row names, it says so, because
+that is what a /clear without the re-bind leaves. The registry then needs no edit: fabrik-lib's writer may keep adding
+rows, and the stale ones no longer refuse while a binding resolves the name.
 
 ### The Windows side: one desktop launcher per repo
 
@@ -190,7 +197,16 @@ Moving a repo from a hand-made launcher to the generated one:
 - Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
   builder in its worktree, with no banner and no dialog.
 
-The hub's own `Fabrik Agents.bat` still opens `~/bin/hub-up` until the hub has a registry (W-66e2f6a7).
+The hub moves the same way (W-66e2f6a7). Once the change is merged:
+
+1. Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and their current session ids:
+   infra, intel, fleet and kaizen, and no coordinator row.
+2. Check the grid with `agents_up.sh --print /opt/fabrik`.
+3. Close the old `hub` grid (`tmux kill-session -t =hub`). The launcher names the hub's grid `fabrik`, after its
+   folder, so it never adopts `hub`.
+4. Generate the desktop launcher with `agents_bat.py --desktop … --replace "Fabrik Agents.bat"`, which replaces the
+   hand-made one.
+5. Retire `~/bin/hub-up`.
 
 ## What the rollout records
 

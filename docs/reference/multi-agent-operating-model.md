@@ -38,7 +38,9 @@ The env var still WINS where it is set, so a named launch never needs the comman
 
 To reopen a repo's existing builders side by side, each resuming its own session, run
 `scripts/sysadmin/agents_up.sh <repo>`. It reads the builders from `<repo>/.fabrik/session-agents.json` and gives the
-coordinator no pane. The hub keeps `~/bin/hub-up`. Setup and rollout: `docs/reference/repo-coordinator-rollout.md`.
+coordinator no pane; each builder resumes its newest `whoami_agent.py` binding for the repo, so after a /clear the
+re-bind is all it takes. The hub uses it too (W-66e2f6a7, replacing `~/bin/hub-up`). Setup and rollout:
+`docs/reference/repo-coordinator-rollout.md`.
 
 ⚠️ **A window that lands in the main checkout and is not the merge owner MOVES, it doesn't
 relaunch** (spec 2026-09-29-hub-worktree-cutover-design.md § D5(a)): `EnterWorktree` into

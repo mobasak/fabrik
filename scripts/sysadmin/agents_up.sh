@@ -2,18 +2,28 @@
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
 # agents_up.sh [--print] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
 #
-# The per-repo form of ~/bin/hub-up, which stays as it is for the hub. The builders come from the repo's own
-# registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), so a session-id change is one
-# registry edit, never a launcher edit. The coordinator gets no pane (a name equal to `coordinator` or ending in
-# `-coordinator`): the operator reaches it in VS Code, as hub-up states. A pane starts in the builder's own worktree,
+# Every repo's launcher, the hub's included (W-66e2f6a7 retires the hub's hand-made ~/bin/hub-up). The builders come
+# from the repo's own registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), and each one's
+# session id from the identity store `whoami_agent.py` keeps (below), so a /clear followed by the documented re-bind
+# (`whoami_agent.py --as <name> --force`) needs no registry or launcher edit. The coordinator gets no pane (a name equal
+# to `coordinator` or ending in `-coordinator`): the operator reaches it in VS Code. A pane starts in the builder's own worktree,
 # `<repo>/.claude/worktrees/<name>`, when that folder is a git worktree in place — the main checkout is the coordinator's, and a builder
 # resumed there would edit main's tree and read main's CLAUDE.md (W-6c7c3292) — and at the repo root otherwise; it
 # resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports the grid and
 # launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>` and `run <name> <command>`.
 #
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
-# lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31}, no name may hold two session ids and no key may repeat;
-# one bad row refuses the whole launch (exit 2) rather than silently leaving a builder out or resuming a stale session.
+# lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31} and no key may repeat; one bad row refuses the whole launch
+# (exit 2) rather than silently leaving a builder out or resuming a stale session.
+#
+# The session id each builder resumes (W-66e2f6a7): the newest binding of its name in the identity store
+# ($AGENT_IDENTITY_FILE, else ~/.claude/state/agent-identity.jsonl — whoami_agent.py::store_path) whose `toplevel` is
+# this repo's git common dir, counting only a row that is still the LAST row for its session (whoami's own reader:
+# a session re-bound to another name is that other name's), ties on `at` going to the later line. It replaces the
+# registry's id when that id is an older binding of the name, or when the registry lists the name twice; a registry id
+# the store does not know stands (it is newer than anything the store saw), and so does the registry when the store
+# has no binding, cannot be read, or the repo has no git scope — each said on stderr. A name listed twice with no
+# binding still refuses, and two builders resolving to one session refuse, as a repeated key does.
 #
 # A pane's status is `running` when a claude process already resumes that session — `--resume <sid>`, `-r <sid>` (a
 # terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes on one
@@ -43,13 +53,23 @@ fi
 ROOT="$(cd -- "$1" && pwd -P)" || exit 2
 REG="$ROOT/.fabrik/session-agents.json"
 if [ ! -f "$REG" ]; then
-  echo "agents_up: $REG does not exist — the repo names its agents there ({\"<session id>\": \"<name>\"}); the hub uses ~/bin/hub-up" >&2
+  echo "agents_up: $REG does not exist — the repo names its agents there ({\"<session id>\": \"<name>\"}), once; each builder's session comes from its whoami binding" >&2
   exit 2
 fi
 
-# "<name> <sid>" per builder, name-ordered; any malformed row refuses the launch
-AGENTS="$(python3 - "$REG" <<'PY'
+# "<name> <sid>" per builder, name-ordered, then "known <sid>" for every session the registry or the store gives this
+# repo (the newer-transcript warning skips those); any malformed registry row refuses the launch
+SCOPE="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
+STORE="${AGENT_IDENTITY_FILE:-$HOME/.claude/state/agent-identity.jsonl}"
+RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" <<'PY'
 import json, re, sys
+
+SID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
+reg_path, scope, store = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def note(msg):
+    print(f"agents_up: {msg}", file=sys.stderr)
 
 def no_repeats(pairs):
     seen = set()
@@ -60,30 +80,96 @@ def no_repeats(pairs):
     return dict(pairs)
 
 try:
-    reg = json.load(open(sys.argv[1], encoding="utf-8"), object_pairs_hook=no_repeats)
+    reg = json.load(open(reg_path, encoding="utf-8"), object_pairs_hook=no_repeats)
 except (OSError, ValueError) as exc:
-    sys.exit(f"agents_up: {sys.argv[1]} is not a valid registry ({exc})")
+    sys.exit(f"agents_up: {reg_path} is not a valid registry ({exc})")
 if not isinstance(reg, dict):
-    sys.exit(f"agents_up: {sys.argv[1]} must be an object of session id -> agent name")
-rows = []
+    sys.exit(f"agents_up: {reg_path} must be an object of session id -> agent name")
+ids = {}  # builder name -> its registry session ids, in file order
 for sid, name in reg.items():
-    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", sid):
+    if not SID.fullmatch(sid):
         sys.exit(f"agents_up: {sid!r} is not a session id (a lowercase UUID)")
-    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,31}", name):
+    if not isinstance(name, str) or not NAME.fullmatch(name):
         sys.exit(f"agents_up: {name!r} (session {sid}) is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
     if name == "coordinator" or name.endswith("-coordinator"):
         continue
-    rows.append((name, sid))
-names = [n for n, _ in rows]
-dup = sorted({n for n in names if names.count(n) > 1})
-if dup:
-    sys.exit(f"agents_up: {sys.argv[1]} gives {', '.join(dup)} more than one session id — remove the stale row")
-if not rows:
-    sys.exit(f"agents_up: {sys.argv[1]} names no builder (the coordinator gets no pane)")
-for name, sid in sorted(rows):
-    print(name, sid)
+    ids.setdefault(name, []).append(sid)
+if not ids:
+    sys.exit(f"agents_up: {reg_path} names no builder (the coordinator gets no pane)")
+
+def coerce_at(v):  # whoami_agent.py::_at — a non-bool int or a digit string; anything else is no time
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str) and v.isdigit():
+        return int(v)
+    return None
+
+rows = []  # (line no, sid, name, at) of this scope's well-formed rows, file order
+if not scope:
+    note(f"{reg_path.rsplit('/.fabrik/', 1)[0]} has no git scope — the identity store is not read; the registry's ids stand")
+else:
+    try:
+        with open(store, encoding="utf-8", errors="replace") as fh:
+            for i, line in enumerate(fh):
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict) or r.get("toplevel") != scope:
+                    continue
+                sid, name, at = r.get("session_id"), r.get("name"), coerce_at(r.get("at"))
+                if isinstance(sid, str) and SID.fullmatch(sid) and isinstance(name, str) and NAME.fullmatch(name) and at is not None:
+                    rows.append((i, sid, name, at))
+    except Exception as exc:  # a store that cannot be read is no store: the registry stands
+        if not isinstance(exc, FileNotFoundError):
+            note(f"the identity store {store} could not be read ({type(exc).__name__}) — the registry's ids stand")
+        rows = []
+last_name = {}  # session id -> the name of its LAST row: whoami's own reader
+for _, sid, name, _ in rows:
+    last_name[sid] = name
+bound = {}  # builder name -> (at, line, sid) of its newest counted row
+seen = {}  # builder name -> every session id this scope ever bound it to
+for i, sid, name, at in rows:
+    seen.setdefault(name, set()).add(sid)
+    if last_name[sid] != name:
+        continue  # re-bound to another name since: never this name's
+    if name not in bound or (at, i) >= bound[name][:2]:
+        bound[name] = (at, i, sid)
+chosen = {}
+for name in sorted(ids):
+    regs, b = ids[name], bound.get(name)
+    if b is None:
+        if len(regs) > 1:
+            sys.exit(f"agents_up: {reg_path} gives {name} more than one session id and the identity store names none — remove the stale row")
+        if scope:
+            note(f"{name}: no whoami binding in {scope} — resuming the registry's {regs[0]}")
+        chosen[name] = regs[0]
+        continue
+    new = b[2]
+    if len(regs) > 1 or regs[0] == new or regs[0] in seen.get(name, set()):
+        if new not in regs or len(regs) > 1:
+            note(f"{name}: resuming {new}, its newest whoami binding, not the registry's {' or '.join(r for r in regs if r != new)}")
+        chosen[name] = new
+    else:
+        note(f"{name}: the registry's {regs[0]} is not in the identity store — resuming it, not the binding {new}")
+        chosen[name] = regs[0]
+holders = {}
+for name, sid in chosen.items():
+    holders.setdefault(sid, []).append(name)
+clash = sorted((sid, names) for sid, names in holders.items() if len(names) > 1)
+if clash:
+    sid, names = clash[0]
+    sys.exit(f"agents_up: session {sid} would serve {' and '.join(sorted(names))} — two panes on one session fuse it; fix the registry or re-bind")
+for name in sorted(chosen):
+    print("agent", name, chosen[name])
+for sid in sorted(set(reg) | {sid for _, sid, _, _ in rows}):
+    print("known", sid)
 PY
 )" || exit 2
+AGENTS="$(printf '%s\n' "$RESOLVED" | sed -n 's/^agent //p')"
+KNOWN="$(printf '%s\n' "$RESOLVED" | sed -n 's/^known //p')"
 
 # tmux reads `.`, `:` and glob characters in a target, so the session name keeps [A-Za-z0-9_-] only
 base="$(basename "$ROOT")"
@@ -113,6 +199,18 @@ proj_of() {  # $1 = folder; claude stores a session under its start folder with 
   echo "$CLAUDE_CONFIG_DIR/projects/${1//[^A-Za-z0-9]/-}"
 }
 
+newer_unbound() {  # $1 = name, $2 = session id, $3 = the folder its pane starts in: a /clear without the re-bind
+  local proj newest base
+  proj="$(proj_of "$3")"
+  [ -f "$proj/$2.jsonl" ] || return 0
+  newest="$(ls -t -- "$proj"/*.jsonl 2>/dev/null | head -n 1)"
+  [ -n "$newest" ] || return 0
+  base="$(basename -- "$newest" .jsonl)"
+  [ "$base" = "$2" ] && return 0
+  printf '%s\n' "$KNOWN" | /usr/bin/grep -qxF -- "$base" && return 0
+  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run whoami_agent.py --as $1 there" >&2
+}
+
 status_of() {  # $1 = session id, $2 = the folder its pane starts in
   if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(--resume[= ]|-r )$1( |\$)"; then
     echo running
@@ -128,12 +226,14 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   local env
   env='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
   env="$env $(printf 'PATH=%q CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$PATH" "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
+  # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
+  [ -n "${AGENT_IDENTITY_FILE:-}" ] && env="$env $(printf 'AGENT_IDENTITY_FILE=%q' "$AGENT_IDENTITY_FILE")"
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
   if [ "$3" = running ]; then
     echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
-    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2]\"; exec $env bash -l"
+    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2 (after a /clear, run $(printf %q "$0") $(printf %q "$ROOT") again)]\"; exec $env bash -l"
   fi
 }
 
@@ -142,6 +242,7 @@ if [ "$print" = 1 ]; then
   while read -r name sid; do
     dir="$(dir_of "$name")"
     st="$(status_of "$sid" "$dir")"
+    newer_unbound "$name" "$sid" "$dir"
     echo "pane $name $sid $dir $st"
     echo "run $name $(cmd_of "$name" "$sid" "$st")"
   done <<< "$AGENTS"
@@ -193,6 +294,7 @@ else
   while read -r name sid; do
     dir="$(dir_of "$name")"
     st="$(status_of "$sid" "$dir")"
+    newer_unbound "$name" "$sid" "$dir"
     [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
     cmd="$(cmd_of "$name" "$sid" "$st")"
     if [ "$first" = 1 ]; then
