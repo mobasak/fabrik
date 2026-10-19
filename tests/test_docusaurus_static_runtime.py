@@ -575,6 +575,82 @@ def test_every_governed_docs_subtree_is_published_or_not_by_decision() -> None:
     )
 
 
+def test_every_governed_top_level_doc_is_unpublished() -> None:
+    # Every name governance allows directly in docs/ is an internal Fabrik doc (CONFIGURATION and
+    # DEPLOYMENT name the hub hosts), so the two exclude tuples together must equal check_structure's
+    # DOCS_ALLOWLIST: a new governed name fails here until someone classifies it (W-c2c2c35b). The
+    # template map is checked as well, because a scaffold without the doc registry seeds every entry.
+    import importlib.util
+
+    from fabrik.scaffold import (
+        _DOCUSAURUS_UNPUBLISHED_DOCS,
+        _DOCUSAURUS_UNPUBLISHED_TOP_DOCS,
+        SHARED_TEMPLATE_MAP,
+    )
+
+    spec = importlib.util.spec_from_file_location(
+        "check_structure", REPO_ROOT / "scripts" / "enforcement" / "check_structure.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    unpublished = set(_DOCUSAURUS_UNPUBLISHED_DOCS) | set(_DOCUSAURUS_UNPUBLISHED_TOP_DOCS)
+    governed = set(module.DOCS_ALLOWLIST)
+    assert "CONFIGURATION.md" in governed and "README.md" in governed, governed
+    assert unpublished == governed, (governed - unpublished, unpublished - governed)
+    seeded = {
+        d.removeprefix("docs/")
+        for d in SHARED_TEMPLATE_MAP.values()
+        if d.startswith("docs/") and "/" not in d.removeprefix("docs/")
+    }
+    assert seeded - unpublished == set(), seeded - unpublished
+
+
+def _docusaurus_excluded(path: str, patterns: list[str]) -> bool:
+    # The content-docs `exclude` globs, evaluated as Docusaurus's Globby does (both design-critique
+    # seats measured it with fast-glob): `**/X` is a file named X at any depth, a bare `X` is docs/X
+    # only, `d/**` is anything under d/, and the four re-listed Docusaurus defaults drop any
+    # `_`-prefixed segment or a `__tests__` directory. Any other shape fails here rather than guess.
+    parts = path.split("/")
+    for pat in patterns:
+        if pat in ("**/_*.{js,jsx,ts,tsx,md,mdx}", "**/_*/**"):
+            hit = any(p.startswith("_") for p in parts)
+        elif pat == "**/*.test.{js,jsx,ts,tsx}":
+            hit = re.search(r"\.test\.(js|jsx|ts|tsx)$", path) is not None
+        elif pat == "**/__tests__/**":
+            hit = "__tests__" in parts[:-1]
+        elif pat.startswith("**/") and "*" not in pat[3:] and "/" not in pat[3:]:
+            hit = parts[-1] == pat[3:]
+        elif pat.endswith("/**") and "*" not in pat[:-3] and "/" not in pat[:-3]:
+            hit = parts[0] == pat[:-3] and len(parts) > 1
+        elif "*" not in pat and "/" not in pat and "{" not in pat:
+            hit = path == pat
+        else:
+            raise AssertionError(f"unmodelled exclude pattern: {pat!r}")
+        if hit:
+            return True
+    return False
+
+
+def test_a_scaffolded_site_publishes_only_its_own_pages(scaffolded: Path) -> None:
+    # Read the exclude array the scaffold actually rendered and apply it to the real tree: only the
+    # site's own landing page publishes. A site author's nested README (a category index) and a
+    # nested or lowercase page whose name matches a governed doc must still publish, which is why
+    # the governed top-level names are rendered root-anchored, never `**/` (W-c2c2c35b).
+    cfg = (scaffolded / "docusaurus.config.js").read_text()
+    start = cfg.index("exclude: [")
+    patterns = re.findall(r"'([^']+)'", cfg[start : cfg.index("]", start)])
+    docs = scaffolded / "docs"
+    content = [
+        f.relative_to(docs).as_posix() for f in docs.rglob("*") if f.suffix in (".md", ".mdx")
+    ]
+    assert "README.md" in content and "CONFIGURATION.md" in content, content
+    published = {p for p in content if not _docusaurus_excluded(p, patterns)}
+    assert published == {"intro.md"}, published
+    for author_page in ("guides/README.md", "guides/CONFIGURATION.md", "faq.md"):
+        assert not _docusaurus_excluded(author_page, patterns), author_page
+
+
 def test_engines_floor_follows_the_registry_through_both_emitters(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

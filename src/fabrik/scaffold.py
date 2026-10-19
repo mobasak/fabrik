@@ -345,6 +345,34 @@ _DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
     "data-contract.md",
 )
 
+# Every OTHER name governance allows directly in docs/ (check_structure.py DOCS_ALLOWLIST: the doc
+# registry plus LEGACY_TOLERATED) is internal too: the seeded README index links the unpublished
+# trees, CONFIGURATION, DEPLOYMENT, SERVICES and RESILIENCE name the hub hosts (*.vps1.ocoron.com,
+# postgres-main, redis-main, 10.99.0.1), and the deploy commands write DEPLOYMENT/OPERATIONS into a
+# deployed site's docs/ (W-c2c2c35b). Rendered ROOT-ANCHORED as `'<name>'`, never `**/<name>`, so a
+# site author's own guides/README.md (a Docusaurus category index) still publishes. The two tuples
+# together are pinned to DOCS_ALLOWLIST by a test, so a new governed name fails until classified.
+_DOCUSAURUS_UNPUBLISHED_TOP_DOCS: tuple[str, ...] = (
+    "README.md",
+    "QUICKSTART.md",
+    "CONFIGURATION.md",
+    "TROUBLESHOOTING.md",
+    "FEATURES.md",
+    "DEPLOYMENT.md",
+    "OPERATIONS.md",
+    "SERVICES.md",
+    "RESILIENCE.md",
+    "API_REFERENCE.md",
+    "EXTERNAL_SYSTEMS.md",
+    "FAQ.md",
+    "FINANCIALS.md",
+    "HANDOVER.md",
+    "TESTING.md",
+    "lessons-learnt.md",
+    "lessons_learnt.md",
+    "owner_ozgur_basak.md",
+)
+
 # Whole docs/ SUBTREES the scaffold and the governance sync fill with internal Fabrik material
 # (SHARED_DIRS; scripts/fabrik_synced_manifest.py): reference/kilo carries the operator's AI vendor
 # access notes, reference/opt-project-catalog.md every /opt project and its dev URL. A file-name
@@ -7912,9 +7940,11 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     # Internal governance/strategy docs are seeded into docs/ but must NOT publish to the
     # world-readable site (see _DOCUSAURUS_UNPUBLISHED_DOCS). Rendered into the content-docs
     # `exclude` below, AFTER Docusaurus's own defaults so partial/test excludes are preserved.
-    _gov_excludes = "".join(
-        f"            '**/{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_DOCS
-    ) + "".join(f"            '{d}/**',\n" for d in _DOCUSAURUS_UNPUBLISHED_DIRS)
+    _gov_excludes = (
+        "".join(f"            '**/{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_DOCS)
+        + "".join(f"            '{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_TOP_DOCS)
+        + "".join(f"            '{d}/**',\n" for d in _DOCUSAURUS_UNPUBLISHED_DIRS)
+    )
 
     # Generate docusaurus.config.js (preserves full template contract including
     # OpenAPI plugin/theme, docItemComponent, and apiSidebar navbar item).
@@ -7935,12 +7965,12 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         f"  projectName: '{name}',\n"
         "\n"
         "  // B43: ``warn`` instead of ``throw``. The scaffold imports the\n"
-        "  // full Fabrik docs tree (BUSINESS_MODEL.md, STRATEGIC_BACKLOG.md,\n"
-        "  // README.md, etc.) which contain inter-doc links written for the\n"
-        "  // GitHub renderer (relative paths, ``.md`` suffixes, anchors that\n"
-        "  // don't match Docusaurus's slugified IDs). ``throw`` would block\n"
-        "  // every single proof-run on the first dangling link; ``warn``\n"
-        "  // surfaces the same information in build logs without failing.\n"
+        "  // full Fabrik docs tree; the internal docs are excluded below, so a\n"
+        "  // published page that links one (written for the GitHub renderer:\n"
+        "  // relative paths, ``.md`` suffixes, anchors that don't match\n"
+        "  // Docusaurus's slugified IDs) dangles. ``throw`` would block every\n"
+        "  // build on the first such link; ``warn`` surfaces the same\n"
+        "  // information in build logs without failing.\n"
         "  onBrokenLinks: 'warn',\n"
         "  onBrokenMarkdownLinks: 'warn',\n"
         "\n"
@@ -7948,10 +7978,9 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "  // Without this Docusaurus 3.x runs every ``.md`` through MDX 3,\n"
         "  // which rejects markdown tables containing ``[brackets]``,\n"
         "  // template-literal-like ``${var}`` strings, raw HTML attribute\n"
-        "  // values, and various other constructs that the scaffold's\n"
-        "  // standard meta-docs (``BUSINESS_MODEL.md``, ``CONFIGURATION.md``,\n"
-        "  // ``FEATURES.md``, ``QUICKSTART.md``) all contain. Surfaced by\n"
-        "  // proof-run on 2026-04-28.\n"
+        "  // values, and various other constructs that hand-written pages\n"
+        "  // copied from the Fabrik docs carry. Surfaced by proof-run on\n"
+        "  // 2026-04-28, when those meta-docs still published.\n"
         "  markdown: {\n"
         "    format: 'detect',\n"
         "  },\n"
