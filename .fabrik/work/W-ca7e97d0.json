@@ -1,0 +1,26 @@
+{
+  "block_digest": "87b741744fed2b26bd0d8642b503ef6622fd6599ffc8cfdfc1fbae263b0db814",
+  "blocked_by": [],
+  "created": "2026-10-19T10:44:36.770110Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-ca7e97d0",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "475317901f89a78b6942f4668ec5d85f459dac95216f9da0b098210a3a8d3674"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May I add the line `FABRIK_SSH_JUMP_VPS=vps2` to `/opt/fabrik/.env`, after backing the file up to `backups/.env.backup.<timestamp>`, so the drift check and deploys reach vps1 through vps2?",
+  "status": "awaiting-operator",
+  "title": "May I add the line `FABRIK_SSH_JUMP_VPS=vps2` to `/opt/fabrik/.env`, after backing the file up to `backups/.env.backup.<timestamp>`, so the drift check and deploys reach vps1 through vps2?"
+}
