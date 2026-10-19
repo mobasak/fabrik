@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T10:31:16.941524Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "d1076481bf4e070db83b7336f92c9fc8c6fcedc0",
   "id": "W-7c290366",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "commands/_fragments/term-coverage.md:16 (round zero: the fix's own INPUT space is enumerated and executed before the pin) is cited by 5 answered /fabrik-review feedback rejects (1792362611, 1792334541, 1791476664, 1791472245, 1790763372) — a line not followed (fabrik-command-improve PHASE 2's three-or-more bar)"
 }
