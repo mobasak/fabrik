@@ -2,7 +2,7 @@
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
 # agents_up.sh [--print] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
 #
-# Every repo's launcher, the hub's included (W-66e2f6a7 retires the hub's hand-made ~/bin/hub-up). The builders come
+# Every repo's launcher — the hub's too once its registry is seeded (W-66e2f6a7 retires ~/bin/hub-up). The builders come
 # from the repo's own registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), and each one's
 # session id from the identity store `whoami_agent.py` keeps (below), so a /clear followed by the documented re-bind
 # (`whoami_agent.py --as <name> --force`) needs no registry or launcher edit. The coordinator gets no pane (a name equal
@@ -16,14 +16,16 @@
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31} and no key may repeat; one bad row refuses the whole launch
 # (exit 2) rather than silently leaving a builder out or resuming a stale session.
 #
-# The session id each builder resumes (W-66e2f6a7): the newest binding of its name in the identity store
-# ($AGENT_IDENTITY_FILE, else ~/.claude/state/agent-identity.jsonl — whoami_agent.py::store_path) whose `toplevel` is
-# this repo's git common dir, counting only a row that is still the LAST row for its session (whoami's own reader:
-# a session re-bound to another name is that other name's), ties on `at` going to the later line. It replaces the
-# registry's id when that id is an older binding of the name, or when the registry lists the name twice; a registry id
-# the store does not know stands (it is newer than anything the store saw), and so does the registry when the store
-# has no binding, cannot be read, or the repo has no git scope — each said on stderr. A name listed twice with no
-# binding still refuses, and two builders resolving to one session refuse, as a repeated key does.
+# The session id each builder resumes (W-66e2f6a7) comes from the identity store ($AGENT_IDENTITY_FILE, else
+# ~/.claude/state/agent-identity.jsonl), read the way whoami_agent.py reads it: a regular file only, every row with a
+# session id, and a session belongs to the name on its LAST row anywhere in the store (`resolve_agent_name`). A
+# builder's binding is the LAST line, in file order, naming it in this repo's scope (`toplevel` = the git common dir)
+# whose session still belongs to it. The binding replaces the registry's id unless that session was active after the
+# binding was written (its transcript's mtime is later than the binding's `at` — the store trims rows after 30 days
+# and never sees a session the launcher started, so absence from the store is no evidence of age), or the registry's
+# id is itself the binding. With no binding, no readable store or no git scope, the registry's id stands; each case is
+# said on stderr. A name the registry lists twice with no binding refuses, and so does any session that would serve
+# two panes — the coordinator's sessions included.
 #
 # A pane's status is `running` when a claude process already resumes that session — `--resume <sid>`, `-r <sid>` (a
 # terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes on one
@@ -51,25 +53,32 @@ if [ ! -d "$1" ]; then
   exit 2
 fi
 ROOT="$(cd -- "$1" && pwd -P)" || exit 2
+SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")"
 REG="$ROOT/.fabrik/session-agents.json"
 if [ ! -f "$REG" ]; then
   echo "agents_up: $REG does not exist — the repo names its agents there ({\"<session id>\": \"<name>\"}), once; each builder's session comes from its whoami binding" >&2
   exit 2
 fi
 
-# "<name> <sid>" per builder, name-ordered, then "known <sid>" for every session the registry or the store gives this
-# repo (the newer-transcript warning skips those); any malformed registry row refuses the launch
-SCOPE="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
+# "agent <name> <sid>" per builder, name-ordered, then "known <sid>" for every session the registry or the store gives
+# this repo (the newer-transcript warning skips those); any malformed registry row refuses the launch. The scope query
+# runs with git's own location variables unset, so a GIT_DIR inherited from a hook or an IDE cannot redirect it.
+SCOPE="$(env -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
 STORE="${AGENT_IDENTITY_FILE:-$HOME/.claude/state/agent-identity.jsonl}"
-RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" <<'PY'
-import json, re, sys
+case "$STORE" in /*) ;; *) STORE="$PWD/$STORE" ;; esac
+RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" "$ROOT" "$CLAUDE_CONFIG_DIR" <<'PY'
+import json, os, re, sys
 
 SID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
-reg_path, scope, store = sys.argv[1], sys.argv[2], sys.argv[3]
+WHOAMI_NAME = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent.py::_NAME_RE — the names its reader honours
+reg_path, scope, store, root, config = sys.argv[1:6]
 
 def note(msg):
     print(f"agents_up: {msg}", file=sys.stderr)
+
+def coordinator(name):
+    return name == "coordinator" or name.endswith("-coordinator")
 
 def no_repeats(pairs):
     seen = set()
@@ -85,86 +94,102 @@ except (OSError, ValueError) as exc:
     sys.exit(f"agents_up: {reg_path} is not a valid registry ({exc})")
 if not isinstance(reg, dict):
     sys.exit(f"agents_up: {reg_path} must be an object of session id -> agent name")
-ids = {}  # builder name -> its registry session ids, in file order
+ids, coord_ids = {}, set()  # builder name -> its registry session ids (file order); the coordinator's ids
 for sid, name in reg.items():
     if not SID.fullmatch(sid):
         sys.exit(f"agents_up: {sid!r} is not a session id (a lowercase UUID)")
     if not isinstance(name, str) or not NAME.fullmatch(name):
         sys.exit(f"agents_up: {name!r} (session {sid}) is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
-    if name == "coordinator" or name.endswith("-coordinator"):
+    if coordinator(name):
+        coord_ids.add(sid)
         continue
     ids.setdefault(name, []).append(sid)
 if not ids:
     sys.exit(f"agents_up: {reg_path} names no builder (the coordinator gets no pane)")
 
-def coerce_at(v):  # whoami_agent.py::_at — a non-bool int or a digit string; anything else is no time
-    if isinstance(v, bool):
-        return None
-    if isinstance(v, int):
-        return v
-    if isinstance(v, str) and v.isdigit():
-        return int(v)
-    return None
+def at_of(row):  # whoami_agent.py::_at — never raises; an uncoercible time is 0
+    try:
+        return int(row.get("at") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
 
-rows = []  # (line no, sid, name, at) of this scope's well-formed rows, file order
+rows = []  # whoami_agent.py::_rows — every parseable row with a session id, file order
 if not scope:
-    note(f"{reg_path.rsplit('/.fabrik/', 1)[0]} has no git scope — the identity store is not read; the registry's ids stand")
-else:
+    note(f"{root} has no git scope — the identity store is not read; the registry's ids stand")
+elif os.path.lexists(store) and not os.path.isfile(store):
+    note(f"the identity store {store} is not a regular file — the registry's ids stand")
+elif os.path.isfile(store):
     try:
         with open(store, encoding="utf-8", errors="replace") as fh:
-            for i, line in enumerate(fh):
+            for line in fh:
                 try:
                     r = json.loads(line)
                 except ValueError:
                     continue
-                if not isinstance(r, dict) or r.get("toplevel") != scope:
-                    continue
-                sid, name, at = r.get("session_id"), r.get("name"), coerce_at(r.get("at"))
-                if isinstance(sid, str) and SID.fullmatch(sid) and isinstance(name, str) and NAME.fullmatch(name) and at is not None:
-                    rows.append((i, sid, name, at))
-    except Exception as exc:  # a store that cannot be read is no store: the registry stands
-        if not isinstance(exc, FileNotFoundError):
-            note(f"the identity store {store} could not be read ({type(exc).__name__}) — the registry's ids stand")
+                if isinstance(r, dict) and r.get("session_id"):
+                    rows.append(r)
+    except OSError as exc:
+        note(f"the identity store {store} could not be read ({exc.strerror or exc}) — the registry's ids stand")
         rows = []
-last_name = {}  # session id -> the name of its LAST row: whoami's own reader
-for _, sid, name, _ in rows:
-    last_name[sid] = name
-bound = {}  # builder name -> (at, line, sid) of its newest counted row
-seen = {}  # builder name -> every session id this scope ever bound it to
-for i, sid, name, at in rows:
-    seen.setdefault(name, set()).add(sid)
-    if last_name[sid] != name:
-        continue  # re-bound to another name since: never this name's
-    if name not in bound or (at, i) >= bound[name][:2]:
-        bound[name] = (at, i, sid)
+owner = {}  # session id -> the name on its LAST row anywhere in the store (whoami_agent.py::resolve_agent_name)
+for r in rows:
+    sid, name = str(r.get("session_id")), str(r.get("name") or "")
+    if WHOAMI_NAME.fullmatch(name):
+        owner[sid] = name
+binding = {}  # builder name -> (sid, at) of the LAST line naming it in this scope whose session it still owns
+for r in rows:
+    sid, name = r.get("session_id"), r.get("name")
+    if r.get("toplevel") != scope or not isinstance(sid, str) or not SID.fullmatch(sid):
+        continue
+    if isinstance(name, str) and owner.get(sid) == name:
+        binding[name] = (sid, at_of(r))
+
+def proj(folder):  # claude files a session under its start folder with every non-alphanumeric character as `-`
+    return os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", folder))
+
+def active_at(name, sid):  # the newest mtime of the session's transcript under the folders its pane can start in
+    best = None
+    for folder in (root, os.path.join(root, ".claude", "worktrees", name)):
+        try:
+            m = os.stat(os.path.join(proj(folder), sid + ".jsonl")).st_mtime
+        except OSError:
+            continue
+        best = m if best is None or m > best else best
+    return best
+
 chosen = {}
 for name in sorted(ids):
-    regs, b = ids[name], bound.get(name)
+    regs, b = ids[name], binding.get(name)
     if b is None:
         if len(regs) > 1:
             sys.exit(f"agents_up: {reg_path} gives {name} more than one session id and the identity store names none — remove the stale row")
-        if scope:
+        if scope and owner.get(regs[0], name) != name:
+            note(f"{name}: the registry's {regs[0]} is bound to {owner[regs[0]]} — resuming it anyway (no binding for {name})")
+        elif scope:
             note(f"{name}: no whoami binding in {scope} — resuming the registry's {regs[0]}")
         chosen[name] = regs[0]
         continue
-    new = b[2]
-    if len(regs) > 1 or regs[0] == new or regs[0] in seen.get(name, set()):
-        if new not in regs or len(regs) > 1:
-            note(f"{name}: resuming {new}, its newest whoami binding, not the registry's {' or '.join(r for r in regs if r != new)}")
+    new, new_at = b
+    if new in regs and len(regs) == 1:
         chosen[name] = new
-    else:
-        note(f"{name}: the registry's {regs[0]} is not in the identity store — resuming it, not the binding {new}")
-        chosen[name] = regs[0]
-holders = {}
+        continue
+    if len(regs) == 1 and owner.get(regs[0], name) == name:
+        seen_at = active_at(name, regs[0])
+        if seen_at is not None and seen_at > new_at:
+            note(f"{name}: the registry's {regs[0]} was active after its binding {new} — resuming {regs[0]}")
+            chosen[name] = regs[0]
+            continue
+    note(f"{name}: resuming {new}, its newest whoami binding, not the registry's {' or '.join(r for r in regs if r != new)}")
+    chosen[name] = new
+holders = {sid: ["coordinator"] for sid in coord_ids}
 for name, sid in chosen.items():
     holders.setdefault(sid, []).append(name)
-clash = sorted((sid, names) for sid, names in holders.items() if len(names) > 1)
-if clash:
-    sid, names = clash[0]
-    sys.exit(f"agents_up: session {sid} would serve {' and '.join(sorted(names))} — two panes on one session fuse it; fix the registry or re-bind")
+for sid, names in sorted(holders.items()):
+    if len(names) > 1:
+        sys.exit(f"agents_up: session {sid} would serve {' and '.join(sorted(names))} — two processes on one session fuse it; fix the registry or re-bind")
 for name in sorted(chosen):
     print("agent", name, chosen[name])
-for sid in sorted(set(reg) | {sid for _, sid, _, _ in rows}):
+for sid in sorted(set(reg) | {str(r.get("session_id")) for r in rows}):
     print("known", sid)
 PY
 )" || exit 2
@@ -203,12 +228,12 @@ newer_unbound() {  # $1 = name, $2 = session id, $3 = the folder its pane starts
   local proj newest base
   proj="$(proj_of "$3")"
   [ -f "$proj/$2.jsonl" ] || return 0
-  newest="$(ls -t -- "$proj"/*.jsonl 2>/dev/null | head -n 1)"
+  newest="$(ls -t -- "$proj"/*.jsonl 2>/dev/null | /usr/bin/grep -E -m 1 '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$')"
   [ -n "$newest" ] || return 0
   base="$(basename -- "$newest" .jsonl)"
   [ "$base" = "$2" ] && return 0
   printf '%s\n' "$KNOWN" | /usr/bin/grep -qxF -- "$base" && return 0
-  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run whoami_agent.py --as $1 there" >&2
+  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run there: python3 /opt/fabrik/scripts/whoami_agent.py --as $1 --force" >&2
 }
 
 status_of() {  # $1 = session id, $2 = the folder its pane starts in
@@ -227,13 +252,13 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   env='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
   env="$env $(printf 'PATH=%q CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$PATH" "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
   # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
-  [ -n "${AGENT_IDENTITY_FILE:-}" ] && env="$env $(printf 'AGENT_IDENTITY_FILE=%q' "$AGENT_IDENTITY_FILE")"
+  [ -n "${AGENT_IDENTITY_FILE:-}" ] && env="$env $(printf 'AGENT_IDENTITY_FILE=%q' "$STORE")"
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
   if [ "$3" = running ]; then
     echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
-    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2 (after a /clear, run $(printf %q "$0") $(printf %q "$ROOT") again)]\"; exec $env bash -l"
+    echo "$env claude -n $1 --resume $2; echo; echo \"[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $SELF $ROOT)]\"; exec $env bash -l"
   fi
 }
 

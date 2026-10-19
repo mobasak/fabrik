@@ -139,14 +139,19 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - the file must name at least one builder.
 
 The registry is box-local state (gitignored) that names a repo's builders; each builder's SESSION comes from the
-identity store `whoami_agent.py` keeps (W-66e2f6a7). The launcher looks up the builder's newest binding whose scope
-is this repo's git common dir, and counts a binding only while it is still the latest row for its session (a session
-re-bound to another name belongs to that name). That binding replaces the registry's id when the registry's id is an
-older binding of the same name, or when the registry lists the name twice, and stderr names both ids. A registry id the
-store has never seen stands, since it is newer than anything the store knows, and stderr names the binding it
-outranked. The registry's id also stands when the builder has no binding, when the store cannot be read, and when the
-repo has no git scope; each case is said on stderr. Two builders that would resume one session refuse the launch, and
-so does a name listed twice that no binding resolves.
+identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads it:
+- a session belongs to the name on its last row anywhere in the store, so a session re-bound to another name, in this
+  repo or another, is that name's;
+- a builder's binding is the last line naming it in this repo's scope (the git common dir, found with git's own location
+  variables unset) whose session it still owns;
+- the binding replaces the registry's id, and stderr names both, unless the registry's session was active after the
+  binding was written — its transcript is newer than the binding's `at`. The store trims rows after 30 days and never
+  sees a session the launcher started, so a registry id's absence from the store says nothing about its age; its
+  activity does;
+- the registry's id stands when the builder has no binding, the store is missing or is not a regular file, or the repo
+  has no git scope, and each case is said on stderr;
+- any session that would serve two panes refuses the launch, the coordinator's sessions included, and so does a name
+  listed twice that no binding resolves.
 
 **After a /clear, re-bind the window:** `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force`, as the
 rotation step in `CLAUDE.md` already says. A pane started by the launcher carries `CLAUDE_AGENT`, and a session named
