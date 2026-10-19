@@ -634,7 +634,8 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     entry matches a target while locks hold paths, directories and globs. Both sentences are pinned whole. Their facts
     are checked against the code: each append STATEMENT (deleting one fails here, the constant alone would not) and no
     source naming either fragment in an `include:`; and the three-shape ownership rule run through `_glob_matches` in
-    scripts/epic_order.py, the one lock reader that implements all three."""
+    scripts/epic_order.py, the epic `owned_paths` matcher, which implements all three; and the claim that neither
+    plan-lock reader matches a glob, run on both."""
     import importlib.util
     import re as _re
 
@@ -644,13 +645,14 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
         "The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):"
         " `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and"
         " `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the"
-        " shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source or"
-        " `commands/_fragments/close-chain.md`."
+        " shared FEEDBACK duty can target one of them, while close wording one command owns stays in its source."
     )
     owns = (
         "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
-        " matches (`dir/**`, with `*` inside one path segment), so test all three — the lock-reading scripts each match"
-        " a different subset, so none of them is the rule — and read an entry written as prose by hand."
+        " matches (`dir/**`, with `*` inside one path segment), so test all three — neither script that reads"
+        " `.fabrik/plan-locks/` matches a glob (`_owned` in `scripts/enforcement/check_phase_tests.py` also ignores case;"
+        " `_path_covers` in `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none"
+        " of them is the rule — and read an entry written as prose by hand."
     )
     assert lock.count(appended) == 1 and lock.count(owns) == 1
     assert lock.index(appended) < lock.index("ONLY THEN read the locks") < lock.index(owns)
@@ -663,7 +665,7 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
         "body = frags.get(_AGENT_FEEDBACK" in asm
         and 'text = text.rstrip("\\n") + "\\n\\n" + body + "\\n"' in asm
     )
-    for name in ("close-feedback", "agent-feedback", "close-chain"):
+    for name in ("close-feedback", "agent-feedback"):
         assert (ROOT / "commands" / "_fragments" / f"{name}.md").exists()
     for src in (ROOT / "commands" / "_sources").glob("*.md"):
         assert not _re.search(
@@ -680,3 +682,18 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     assert g("templates/chrome-extension/**", "templates/chrome-extension/src/a.ts")  # a glob
     assert not g("src/a/*", "src/a/b/deep.py")  # `*` stays inside one segment
     assert not g("commands/_fragments", "commands/_fragments_old/x.md")
+    import sys as _sys
+
+    readers = {}
+    for name, rel in (("cpt_lock", "check_phase_tests.py"), ("cpk_lock", "check_plan_tickets.py")):
+        sp = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "enforcement" / rel)
+        m = importlib.util.module_from_spec(sp)
+        _sys.modules[name] = m
+        sp.loader.exec_module(m)
+        readers[name] = m
+    glob_entry, target = "templates/chrome-extension/**", "templates/chrome-extension/src/a.ts"
+    assert not readers["cpt_lock"]._owned(target, [glob_entry])
+    assert not readers["cpk_lock"]._path_covers(glob_entry, target)
+    assert readers["cpt_lock"]._owned("Commands/_Fragments/a.md", ["commands/_fragments"])
+    assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
+    assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")

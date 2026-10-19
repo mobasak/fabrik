@@ -211,14 +211,16 @@ Three shapes are NOT yours to apply here, and each has a destination:
   still lands in one. The assembler also appends two fragments with no `include:` (`commands/assemble_commands.py`):
   `commands/_fragments/close-feedback.md` to every rendered command (`_CLOSE_FEEDBACK`) and
   `commands/_fragments/agent-feedback.md` to every agent definition (`_AGENT_FEEDBACK`), so a row about the shared
-  FEEDBACK duty can target one of them, while close wording one command owns stays in its source or `commands/_fragments/close-chain.md`.
+  FEEDBACK duty can target one of them, while close wording one command owns stays in its source.
   ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
   owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names, every path under it
   when it names a directory, and every path its glob matches (`dir/**`, with `*` inside one path segment), so test all
-  three — the lock-reading scripts each match a different subset, so none of them is the rule — and read an entry
-  written as prose by hand.
+  three — neither script that reads `.fabrik/plan-locks/` matches a glob (`_owned` in
+  `scripts/enforcement/check_phase_tests.py` also ignores case; `_path_covers` in
+  `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none of them is the rule — and
+  read an entry written as prose by hand.
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`
   are infra's; `docs/reference/agents/` has the charters) and name the lock file in the mail.
