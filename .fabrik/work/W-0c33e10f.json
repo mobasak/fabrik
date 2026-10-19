@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:41:40.683190Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0c33e10f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether INFERENCE joins the return enum or every 'mark INFERENCE' becomes a NEEDS-RAW-FETCH/UNVERIFIABLE reason; cap the directQuote re-ask (e.g. two locators, then the fallback); one sentence each in commands/_agents/fabrik-researcher.md with a grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fabrik-researcher fetch-path residue (W-8bc61173 scoped review, routed by its scope-growth stop): INFERENCE is used as a mark in shapes 2 and 4 but is not in the return-format enum (VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE); the wrong-place directQuote re-ask has no cap on retries; Method's STALE definition ('the cited figure changed') does not mention a cached copy"
+}
