@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the researcher re-reads every cached current value live (2026-10-20)
+W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a version figure on a docs page read from exa. It now covers any current value: a price, a rate or usage limit, a quota, a default, a current version or a status. That applies whenever the value was read from a cached source: exa (whose fetch can never be forced live), firecrawl without `maxAge: 0`, or a search result. Such a value needs a live firecrawl read before it is `VERIFIED`, `STALE` or `WRONG`. WebFetch may only confirm a value a raw source quoted, and a value no live source reaches is `NEEDS-RAW-FETCH`. Quotes, PDF text and figures in documents fixed once published are unaffected. Shape 4's `INFERENCE` clause now states step 4's bounds.
+
 ### Added — after a host sleep the rotation tick wakes every armed self-watch, and the posture shows the stamp the tick left (2026-10-20)
 
 - After a WSL hibernation nothing woke the idle sessions: the self-watch fires only on a death or a hold lift. Every `--tick` now records its end in `<state>/tick-last-end`. When the gap from that end to the next tick's start is over `CLAUDE_RESUME_GAP_MIN` (15 min, never under 12) and no hold stands, it writes `<epoch> resume` to every armed self-watch and a `resume-wake` ledger row with the gap (W-75cafe7a, D-1058).
