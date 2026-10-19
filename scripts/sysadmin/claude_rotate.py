@@ -2386,13 +2386,12 @@ def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
         )
         return 2
     canon = CLAUDE_DIR / name
-    if os.path.lexists(canon) and (canon.is_symlink() or not canon.is_dir()):
-        sys.stderr.write(f"claude_rotate: {canon} exists and is not a directory — nothing moved\n")
-        return 1
     if dry_run:
         return _merge_shared_locked(name, canon, dry_run=True)
-    if not _merge_shared_pending(name):  # nothing to do: touch nothing, not even the lock file
+    if not _merge_shared_pending(name, canon):  # nothing to do: touch nothing, not even the lock
         print(f"  nothing to merge — no account holds a REAL {name}/ dir or an unfinished merge")
+        for w in _shared_link_warnings():  # what the dashboard still says is not this verb's to fix
+            print(f"  {w}")
         return 0
     try:
         lock_fd = _assignments_lock_fd()
@@ -2409,14 +2408,53 @@ def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
             os.close(lock_fd)
 
 
-def _merge_shared_pending(name: str) -> bool:
-    """Whether any fleet account holds a REAL ``<name>/`` dir, an aside dir, or a missing link
-    beside one — the only states ``--merge-shared`` acts on."""
+def _aside_dirs(d: Path, name: str) -> list[Path]:
+    return [a for a in sorted(d.glob(_merge_aside_glob(name))) if a.is_dir() and not a.is_symlink()]
+
+
+def _strays(d: Path, name: str) -> list[Path]:
+    """The working names a swap killed mid-way leaves in *d* (every ERROR is rolled back)."""
+    return sorted([*d.glob(f".{name}.swap-*"), *d.glob(f".{name}.held-*")])
+
+
+def _merge_shared_pending(name: str, canon: Path) -> bool:
+    """Whether any state ``--merge-shared`` acts on exists: a REAL ``<name>/`` dir, an aside dir, a
+    working name a killed swap left, or a canonical that is still the swap's link."""
+    if canon.is_symlink():
+        return True
     for d in _fleet_dirs():
         p = d / name
-        if (p.is_dir() and not p.is_symlink()) or any(d.glob(_merge_aside_glob(name))):
+        if (p.is_dir() and not p.is_symlink()) or _aside_dirs(d, name) or _strays(d, name):
             return True
     return False
+
+
+def _finish_interrupted_swaps(name: str, canon: Path, stamp: str) -> list[str]:
+    """Finish what a HARD kill mid-swap left, so the operator never has to hand-rename around a
+    live list (review round 3): canonical still the cycle's link to ``<acct>/.<name>.held-*`` → the
+    last exchange and unlink of ``_make_canonical``; a held name left as a self-loop link (killed
+    after that exchange) → unlinked; a prepared ``.swap-*`` link never exchanged → unlinked; a
+    ``.swap-*`` holding the real dir (killed before its aside rename) → renamed to an aside dir,
+    which this run then drains. Returns what it did, one line each."""
+    done: list[str] = []
+    if canon.is_symlink():
+        target = Path(os.readlink(canon))
+        if target.name.startswith(f".{name}.held-") and target.is_dir() and not target.is_symlink():
+            _renameat2(target, canon, _RENAME_EXCHANGE)  # canon: the real dir; target: the old link
+            target.unlink()
+            done.append(
+                f"finished an interrupted swap: {canon} is the real dir again ({target.parent.name})"
+            )
+    for d in _fleet_dirs():
+        for stray in _strays(d, name):
+            if stray.is_symlink():
+                stray.unlink()  # a link holds no data: the self-loop or an unexchanged prepared link
+                done.append(f"removed {d.name}/{stray.name} (a leftover link)")
+            elif stray.is_dir() and stray.name.startswith(f".{name}.swap-"):
+                aside = d / f"{name}.merged-{stamp}"
+                _renameat2(stray, aside, _RENAME_NOREPLACE)
+                done.append(f"{d.name}/{stray.name} → {aside.name} (drained below)")
+    return done
 
 
 def _merge_shared_locked(name: str, canon: Path, dry_run: bool) -> int:
@@ -2424,16 +2462,27 @@ def _merge_shared_locked(name: str, canon: Path, dry_run: bool) -> int:
     park_root = fleet / "backups" / f"{name}-merged-from"
     active = _resolve_active()
     dirs = _fleet_dirs()
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f".{time.time_ns() % 10**9:09d}Z"
+    if dry_run:
+        for d in dirs:
+            for stray in _strays(d, name):
+                print(f"  {d.name}/{stray.name}: would finish a swap a hard kill interrupted")
+    else:
+        try:
+            for line in _finish_interrupted_swaps(name, canon, stamp):
+                print(f"  {line}")
+        except OSError as e:
+            sys.stderr.write(
+                f"claude_rotate: could not finish an interrupted swap ({e}) — nothing else moved\n"
+            )
+            return 1
+    if os.path.lexists(canon) and (canon.is_symlink() or not canon.is_dir()):
+        what = "a link" if canon.is_symlink() else "not a directory"
+        sys.stderr.write(f"claude_rotate: {canon} is {what} — nothing moved\n")
+        return 1
     real = [d for d in dirs if (d / name).is_dir() and not (d / name).is_symlink()]
-    leftovers = [
-        a
-        for d in dirs
-        for a in sorted(d.glob(_merge_aside_glob(name)))
-        if a.is_dir() and not a.is_symlink()
-    ]
-    unlinked = [
-        d for d in dirs if not os.path.lexists(d / name) and any(d.glob(_merge_aside_glob(name)))
-    ]
+    leftovers = [a for d in dirs for a in _aside_dirs(d, name)]
+    unlinked = [d for d in dirs if not os.path.lexists(d / name) and _aside_dirs(d, name)]
     if not real and not leftovers and not unlinked:
         print(f"  nothing to merge — no account holds a REAL {name}/ dir or an unfinished merge")
         return 0
@@ -2450,7 +2499,6 @@ def _merge_shared_locked(name: str, canon: Path, dry_run: bool) -> int:
         )
         return 1
 
-    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f".{time.time_ns() % 10**9:09d}Z"
     takes_canon = (
         None if os.path.lexists(canon) else next((d for d in real if d.name == active), None)
     )
@@ -5141,12 +5189,17 @@ def _shared_link_warnings() -> list[str]:
                 bad.append(
                     f"{d.name}/{aside.name} (an unfinished merge — run --merge-shared {name})"
                 )
-            if not os.path.lexists(d / name) and any(d.glob(_merge_aside_glob(name))):
+            if not os.path.lexists(d / name) and _aside_dirs(d, name):
                 bad.append(f"{d.name}/{name} (missing after a merge — run --merge-shared {name})")
             # a swap killed mid-way (SIGKILL between two renames) leaves its working name behind;
-            # every rename is undone on an ERROR, so this is only ever a hard kill — name it, by hand
-            for stray in sorted([*d.glob(f".{name}.swap-*"), *d.glob(f".{name}.held-*")]):
-                bad.append(f"{d.name}/{stray.name} (a swap stopped mid-way — restore it by hand)")
+            # every rename is undone on an ERROR, so this is only ever a hard kill — the verb finishes it
+            for stray in _strays(d, name):
+                bad.append(
+                    f"{d.name}/{stray.name} (a swap a hard kill interrupted — run --merge-shared {name})"
+                )
+    for name in _MERGE_SHARED_NAMES:
+        if (CLAUDE_DIR / name).is_symlink():
+            bad.append(f"{CLAUDE_DIR / name} (a link, not the dir — run --merge-shared {name})")
     if not bad:
         return []
     return [

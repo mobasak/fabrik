@@ -9267,3 +9267,56 @@ def test_merge_shared_with_nothing_to_merge_touches_nothing(tmp_path, monkeypatc
     assert cr.main(["--merge-shared", "tasks"]) == 0
     assert "nothing to merge" in capsys.readouterr().out
     assert sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*")) == before
+
+
+def test_a_swap_killed_mid_cycle_is_finished_by_the_next_run(tmp_path, monkeypatch, capsys):
+    """A hard kill between the canonical cycle's two exchanges leaves ~/.claude/tasks as the link to
+    `<active>/.tasks.held-*` (the live list resolves through it). The warning names it and the next
+    run finishes the cycle itself — no hand rename that would reopen a dangling moment (round 3)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (fleet / "b" / "tasks").rename(held)
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    (fleet / "b" / "tasks").symlink_to(cdir / "tasks", target_is_directory=True)
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and "a link, not the dir" in warns[0] and held.name in warns[0], warns
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert "finished an interrupted swap" in capsys.readouterr().out
+    canon = cdir / "tasks"
+    assert canon.is_dir() and not canon.is_symlink()
+    assert (canon / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert not os.path.lexists(held)
+    assert cr._shared_link_warnings() == []
+
+
+def test_leftover_working_names_are_cleaned_and_drained(tmp_path, monkeypatch, capsys):
+    """A held name left as a self-loop link (killed after the last exchange) is removed; a `.swap-*`
+    still holding a real dir (killed before its aside rename) is drained like an aside (round 3)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    loop = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    loop.symlink_to(loop)
+    swap = fleet / "a" / ".tasks.swap-20261001T000000.000000000Z"
+    (swap / "late").mkdir(parents=True)
+    (swap / "late" / "1.json").write_text("late")
+    assert len(cr._shared_link_warnings()) == 1
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert not os.path.lexists(loop) and not os.path.lexists(swap)
+    assert (cdir / "tasks" / "late" / "1.json").read_text() == "late"
+    assert cr._shared_link_warnings() == []
+
+
+def test_nothing_to_merge_ignores_a_file_and_still_shows_the_warning(tmp_path, monkeypatch, capsys):
+    """A FILE named like an aside dir is not a merge to finish (no lock taken), and when the dashboard
+    still warns about something this verb does not fix — a dangling link — the run says so instead
+    of reading as if all were clean (round 3)."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    (fleet / "a").mkdir(parents=True)
+    (fleet / "a" / "tasks.merged-20261001T000000Z").write_text("a file")
+    (fleet / "a" / "tasks").symlink_to(tmp_path / "gone", target_is_directory=True)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to merge" in out and "a/tasks (dangling link)" in out, out
+    assert not (fleet / "assignments.lock").exists()
