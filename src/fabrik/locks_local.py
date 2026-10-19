@@ -55,7 +55,7 @@ def _default_lock_dir() -> Path | None:
     """``<home>/.cache/fabrik-locks``: per user, under a private HOME, and the same dir for every hub process of
     that user — cron has no XDG_RUNTIME_DIR, and a per-checkout dir would stop worktrees excluding each other
     (W-1f70f2e9). A home counts only when it is absolute and not the filesystem root under any spelling (``/``,
-    ``//``, ``/..``, ``/.``, read lexically after ``normpath``): an empty or root one would mean the fixed
+    ``//``, ``/..``, ``/.``, or a symlink to ``/``, read through ``realpath``): an empty or root one would mean the fixed
     ``/.cache`` path (writable as root), a relative one the caller's cwd. HOME is tried first,
     then the passwd home (as under cron), each under that one rule. None when neither qualifies —
     :func:`file_lock` then refuses, so importing this module never fails."""
@@ -64,7 +64,7 @@ def _default_lock_dir() -> Path | None:
     except KeyError:
         passwd_home = ""
     for home in (os.environ.get("HOME", ""), passwd_home):
-        if os.path.isabs(home) and len(Path(os.path.normpath(home)).parts) > 1:
+        if os.path.isabs(home) and len(Path(os.path.realpath(home)).parts) > 1:
             return Path(home) / ".cache" / "fabrik-locks"
     return None
 

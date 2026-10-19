@@ -85,6 +85,20 @@ def test_default_lock_dir_without_an_absolute_home_uses_the_passwd_home(monkeypa
     assert expected == mod.LOCK_DIR
 
 
+@pytest.mark.parametrize("via", ["link", "link-dotdot"])
+def test_a_home_that_resolves_to_root_through_a_symlink_is_refused(tmp_path, monkeypatch, via):
+    """A lexical check passes ``<dir>/toroot`` and ``<dir>/l/x/..`` (x -> /); the kernel lands both on ``/``."""
+    import pwd
+
+    (tmp_path / "toroot").symlink_to("/")
+    (tmp_path / "l").mkdir()
+    (tmp_path / "l" / "x").symlink_to("/")
+    home = tmp_path / "toroot" if via == "link" else tmp_path / "l" / "x" / ".."
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=str(home))
+    expected = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
 def test_an_empty_override_counts_as_unset(tmp_path, monkeypatch):
     """``FABRIK_LOCK_DIR=""`` used to mean ``Path("")`` — the caller's cwd."""
     home = tmp_path / "home"
