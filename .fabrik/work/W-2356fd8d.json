@@ -3,7 +3,7 @@
   "created": "2026-10-19T10:24:16.373403Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fb1072af944a6860e833339bfe30a7c96e39cf89",
   "id": "W-2356fd8d",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "bug on a tool every repo uses; a one-line escape plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m59t9rxs1zeg3ghzf44zdf6d"
   ],
