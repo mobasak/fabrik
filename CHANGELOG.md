@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
+
+- Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
+
 ### Changed — /fabrik-review-scoped step 3 runs the rule-home search before a fix sentence is drafted (2026-10-19)
 
 - Seven or more answered review-scoped rejects cited step 3's point-or-quote rule and the probe catalogue's restatement sweep, because leads kept drafting a fix sentence first and found the rule's home only when a seat flagged it. Step 3 now says that before a fix writes a sentence stating a rule (a doc or command sentence, a code comment, a commit message), the catalogue's Sweep search runs first, and the report names its terms and hits or says the new sentence is the rule's home. Pinned by equality in `tests/test_review_scoped_queue_pass.py` (W-a634be1c).
