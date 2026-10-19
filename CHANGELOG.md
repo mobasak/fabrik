@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — the reader run's pin diff reads an `Only in` line as a pinning difference (2026-10-19)
+### Changed — the reader run's pin diff names every `Only in` line (2026-10-19)
 
-- The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines that are not fix hunks. The bullet now says such a line is a difference in what was pinned unless the base-to-base `--name-only` list also names the path (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code; parts 1 and 4 were closed with no edit (no measured flaky reader; D-1051's rejection is of the range as the fix).
+- The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines. The bullet now has the lead name each one too, as a path the fix added, removed or renamed, or as one only one pin was given; no line is exempted by the base-to-base `--name-only` list, which misses renames, directories and an uncommitted fix (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code. Parts 1 and 4 closed with no edit: no flaky reader has been measured, and D-1051's rejected range is, read in its own row, the range used as the fix form; the row is immutable and the operative bullet already uses the range only to name paths.
 
 ### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
