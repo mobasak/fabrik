@@ -283,6 +283,7 @@ class TestRequestViaSsh:
                 capture_output=True,
                 timeout=20,
                 check=False,
+                env=_isolated_curl_env(),
             )
 
         try:
@@ -723,21 +724,28 @@ def _serve(status: int, body: bytes, *, ctype: str = "application/json"):
         thread.join(timeout=5)
 
 
+def _isolated_curl_env() -> dict[str, str]:
+    """The environment every real-curl grader runs in: no proxy variables and no ~/.curlrc, so a box
+    with `http_proxy` set still reaches the local server."""
+    import os
+
+    env = {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy")}
+    env.update(NO_PROXY="*", no_proxy="*", CURL_HOME="/nonexistent-curl-home")
+    return env
+
+
 def _through_a_real_curl(monkeypatch, *, container: str | None = None):
     """A client, and a subprocess.run stand-in that runs the remote command in a local `sh -c` (a real curl).
 
     curl must FAIL the run when absent, never skip it: these are the graders of the real reply format.
-    It runs with no proxy variables and no ~/.curlrc, so a box with `http_proxy` set still reaches the
-    local server."""
-    import os
+    It runs in `_isolated_curl_env()`."""
     import shutil
     import subprocess
 
     if shutil.which("curl") is None:
         pytest.fail("curl is required: these graders drive the real curl reply format")
     real_run = subprocess.run
-    env = {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy")}
-    env.update(NO_PROXY="*", no_proxy="*", CURL_HOME="/nonexistent-curl-home")
+    env = _isolated_curl_env()
 
     def as_the_remote_shell(argv, **kw):
         return real_run(
