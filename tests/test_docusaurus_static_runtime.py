@@ -503,9 +503,7 @@ def test_scaffold_does_not_publish_the_internal_docs_trees(scaffolded: Path) -> 
     # of those files must fall under a content-docs exclude (closing pass C1).
     from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS
 
-    cfg = (scaffolded / "docusaurus.config.js").read_text()
-    start = cfg.index("exclude: [")
-    excludes = re.findall(r"'([^']+)'", cfg[start : cfg.index("]", start)])
+    excludes = _rendered_excludes((scaffolded / "docusaurus.config.js").read_text())
     for d in _DOCUSAURUS_UNPUBLISHED_DIRS:
         assert f"{d}/**" in excludes, d
     nested = [
@@ -573,6 +571,157 @@ def test_every_governed_docs_subtree_is_published_or_not_by_decision() -> None:
         governed - published - set(_DOCUSAURUS_UNPUBLISHED_DIRS),
         set(_DOCUSAURUS_UNPUBLISHED_DIRS) - governed,
     )
+
+
+def test_every_governed_top_level_doc_is_unpublished() -> None:
+    # Every name governance allows directly in docs/ is an internal Fabrik doc (CONFIGURATION and
+    # DEPLOYMENT name the hub hosts), so the two exclude tuples together must equal check_structure's
+    # DOCS_ALLOWLIST plus the top-level files the scaffold writes itself under a name governance does
+    # not list: a new name on either side fails here until someone classifies it (W-c2c2c35b). The
+    # template map is checked as well, because a scaffold without the doc registry seeds every entry.
+    import importlib.util
+
+    from fabrik.scaffold import (
+        _DOCUSAURUS_UNPUBLISHED_DOCS,
+        _DOCUSAURUS_UNPUBLISHED_TOP_DOCS,
+        SHARED_TEMPLATE_MAP,
+    )
+
+    spec = importlib.util.spec_from_file_location(
+        "check_structure", REPO_ROOT / "scripts" / "enforcement" / "check_structure.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    unpublished = set(_DOCUSAURUS_UNPUBLISHED_DOCS) | set(_DOCUSAURUS_UNPUBLISHED_TOP_DOCS)
+    governed = set(module.DOCS_ALLOWLIST)
+    assert "CONFIGURATION.md" in governed and "README.md" in governed, governed
+    # _layer_preplan_into_project writes docs/preplan.md, a name DOCS_ALLOWLIST does not carry.
+    scaffold_written = {"preplan.md"}
+    expected = governed | scaffold_written
+    assert unpublished == expected, (expected - unpublished, unpublished - expected)
+    seeded = {
+        d.removeprefix("docs/")
+        for d in SHARED_TEMPLATE_MAP.values()
+        if d.startswith("docs/") and "/" not in d.removeprefix("docs/")
+    }
+    assert seeded - unpublished == set(), seeded - unpublished
+
+
+def _rendered_excludes(cfg: str) -> list[str]:
+    # The content-docs `exclude` array as the scaffold rendered it, read strictly: exactly one
+    # `exclude` key spelled bare, single- or double-quoted, spaced before the colon or as an unspaced
+    # computed `['exclude']` (a later duplicate key replaces the array in JS); the array opened inside
+    # the `docs: {` options with no `}` between them; and every line of the array either a JS comment
+    # or one single-quoted pattern. A commented-out pattern is not counted, and any other line shape
+    # fails (review rounds 1 and 2). Boundary: this reads the text `_scaffold_docusaurus` renders, not
+    # arbitrary JS — a spaced, backtick, escaped or concatenated computed key, a getter, a later
+    # assignment, a nested object or a duplicate `docs` key is not detected; evaluating the config
+    # with node would be (W-c2c2c35b review, recorded on a backlog row).
+    keys = re.findall(r"""\bexclude\b['"\]]*\s*:""", cfg)
+    assert len(keys) == 1, keys
+    docs_at = cfg.index("        docs: {\n")
+    start = cfg.index("exclude: [\n") + len("exclude: [\n")
+    assert docs_at < start and "}" not in cfg[docs_at + len("        docs: {\n") : start], (
+        "the exclude array is not inside the docs preset options"
+    )
+    patterns: list[str] = []
+    for line in cfg[start:].splitlines():
+        text = line.strip()
+        if text == "],":
+            return patterns
+        if text.startswith("//"):
+            continue
+        match = re.fullmatch(r"'([^']+)',", text)
+        assert match, f"unparsed exclude line: {line!r}"
+        patterns.append(match.group(1))
+    raise AssertionError("the exclude array is never closed")
+
+
+def _docusaurus_excluded(path: str, patterns: list[str]) -> bool:
+    # The content-docs `exclude` globs, evaluated as Docusaurus's Globby does (the design-critique and
+    # review seats measured it with fast-glob 3.3.3): `**/X` is a file named X at any depth, a bare `X`
+    # is docs/X only, `d/**` is anything under d/ (Globby also prunes a DIRECTORY named like `**/X` or
+    # `X`, which this model does not, so it can only call such a page published — a false red, never
+    # a leak); of the four re-listed Docusaurus defaults,
+    # `**/_*.{…}` drops a `_`-prefixed file name and `**/_*/**` a file under a `_`-prefixed directory.
+    # Any other shape, a glob class, brace, `?` or `!` included, fails here rather than guess.
+    parts = path.split("/")
+    for pat in patterns:
+        if pat == "**/_*.{js,jsx,ts,tsx,md,mdx}":
+            hit = parts[-1].startswith("_") and parts[-1].rsplit(".", 1)[-1] in (
+                "js",
+                "jsx",
+                "ts",
+                "tsx",
+                "md",
+                "mdx",
+            )
+        elif pat == "**/_*/**":
+            hit = any(p.startswith("_") for p in parts[:-1])
+        elif pat == "**/*.test.{js,jsx,ts,tsx}":
+            hit = re.search(r"\.test\.(js|jsx|ts|tsx)$", path) is not None
+        elif pat == "**/__tests__/**":
+            hit = "__tests__" in parts[:-1]
+        elif any(c in pat for c in "?[]{}!()"):
+            raise AssertionError(f"unmodelled exclude pattern: {pat!r}")
+        elif pat.startswith("**/") and "*" not in pat[3:] and "/" not in pat[3:]:
+            hit = parts[-1] == pat[3:]
+        elif pat.endswith("/**") and "*" not in pat[:-3] and "/" not in pat[:-3]:
+            hit = parts[0] == pat[:-3] and len(parts) > 1
+        elif "*" not in pat and "/" not in pat:
+            hit = path == pat
+        else:
+            raise AssertionError(f"unmodelled exclude pattern: {pat!r}")
+        if hit:
+            return True
+    return False
+
+
+def test_a_scaffolded_site_publishes_only_its_own_pages(scaffolded: Path) -> None:
+    # Read the exclude array the scaffold actually rendered and apply it to the real tree: only the
+    # site's own landing page publishes. Every governed top-level name is excluded whether or not this
+    # scaffold seeded it (the deploy commands write DEPLOYMENT and OPERATIONS later). A site author's
+    # nested README (a category index) and a nested page named like a root-anchored governed doc must
+    # still publish, which is why those names are rendered root-anchored, never `**/` — a nested page
+    # named like a `**/` name (e.g. guides/flows.md) does not publish. A lowercase faq.md publishes
+    # because the patterns are case-sensitive (FAQ.md), not because of the anchoring (W-c2c2c35b).
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DOCS, _DOCUSAURUS_UNPUBLISHED_TOP_DOCS
+
+    patterns = _rendered_excludes((scaffolded / "docusaurus.config.js").read_text())
+    docs = scaffolded / "docs"
+    content = [
+        f.relative_to(docs).as_posix() for f in docs.rglob("*") if f.suffix in (".md", ".mdx")
+    ]
+    assert "README.md" in content and "CONFIGURATION.md" in content, content
+    published = {p for p in content if not _docusaurus_excluded(p, patterns)}
+    assert published == {"intro.md"}, published
+    for name in _DOCUSAURUS_UNPUBLISHED_TOP_DOCS:
+        assert name in patterns and f"**/{name}" not in patterns, name
+    for name in _DOCUSAURUS_UNPUBLISHED_DOCS:
+        assert f"**/{name}" in patterns, name
+    for author_page in ("guides/README.md", "guides/CONFIGURATION.md", "faq.md"):
+        assert not _docusaurus_excluded(author_page, patterns), author_page
+    assert _docusaurus_excluded("guides/flows.md", patterns)
+
+
+def test_a_scaffolded_preplan_is_not_published(scaffolded: Path, tmp_path: Path) -> None:
+    # _layer_preplan_into_project copies the operator's preplan (intent, shape, secret names) into
+    # docs/ at the top level; every top-level file it writes must be in the rendered exclude
+    # (review round 1, C4).
+    from types import SimpleNamespace
+
+    from fabrik.scaffold import _layer_preplan_into_project
+
+    source = tmp_path / "plan.md"
+    source.write_text("# preplan\n")
+    project = tmp_path / "site"
+    project.mkdir()
+    _layer_preplan_into_project(project, SimpleNamespace(path=source))
+    written = sorted(f.name for f in (project / "docs").iterdir() if f.is_file())
+    assert written == ["preplan.md"], written
+    patterns = _rendered_excludes((scaffolded / "docusaurus.config.js").read_text())
+    assert [w for w in written if not _docusaurus_excluded(w, patterns)] == []
 
 
 def test_engines_floor_follows_the_registry_through_both_emitters(
