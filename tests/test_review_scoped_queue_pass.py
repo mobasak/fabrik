@@ -821,7 +821,8 @@ def test_a_seat_never_disguises_a_refused_act() -> None:
     fabrik-reviewer agent) now say a git call does not belong in such a program at all, and that a command reshaped
     after any refusal never disguises the refused act. The sentence follows the refusal rule: directly in the agent's
     house-rules list, and as the next sentence in subagents-core, where the workflow test's pinned span now ends. The
-    workflow's SEAT_ISOLATION copy is intel's and is mailed, not checked here."""
+    workflow's SEAT_ISOLATION copy is intel's: tests/test_review_loop_workflow.py pins it (W-281e3ed2) and checks
+    these two homes still carry the sentence word for word."""
     body = (
         "command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing"
         " the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled,"
