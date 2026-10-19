@@ -3,7 +3,7 @@
   "created": "2026-10-18T20:54:01.757228Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d99ec675f821e79b56046f1cee2b765288b2fe5b",
   "id": "W-3cb69ae8",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "blocking bug: preflight.py:64 trips the localhost ban in every branch that merges master",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m57pddzg0mvgem0c8wnrryjj"
   ],
