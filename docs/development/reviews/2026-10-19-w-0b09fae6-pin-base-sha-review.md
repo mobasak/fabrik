@@ -1,7 +1,7 @@
 # Review — w-0b09fae6-pin-base-sha
 
 **Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = b92cc2ef9c9076294a8affc3c694b9a55d8a7ac8; range tip b92cc2ef9c9076294a8affc3c694b9a55d8a7ac8; `git diff bf8a8c586^..b92cc2ef9 -- scripts/review_loop_ledger.py tests/test_review_loop_ledger.py docs/reference/review-loop-workflow.md` md5 97f22929485f42ec45113205d8de1c85 (12874 bytes) — re-anchored from the init range tip bf8a8c586 to the pass-1 fix commit b92cc2ef9
+**Surface:** `git rev-parse HEAD` = 56a4d0813f0014bf66e127faf2904c021f0ae2e9; range tip 56a4d0813f0014bf66e127faf2904c021f0ae2e9; `git diff bf8a8c586^..56a4d0813 -- scripts/review_loop_ledger.py tests/test_review_loop_ledger.py docs/reference/review-loop-workflow.md` md5 9c5bf50c5122c0b9f51a926d9be4abbd (12998 bytes) — re-anchored from the init range tip bf8a8c586 to the last fix commit 56a4d0813
 **Command:** /fabrik-review · **Changed:** `scripts/review_loop_ledger.py`, `tests/test_review_loop_ledger.py`, `docs/reference/review-loop-workflow.md`
 
 ## Coverage Checklist
@@ -143,6 +143,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 11, new: 11, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation — every candidate executed by the lead (A-1 tree `--from` reproduced on the pinned script: rc 0, base_sha null; the `--base` case by the new test's red on bf8a8c586); seats: A-sonnet 2/5 · A-haiku 2/6; stop: confirmed 3; fix: +39 -9 lines for 3 confirmed (b92cc2ef9); shape: agent-tool; round-zero probe — ref-string, HEAD-for-from, short-sha and null mutants each red, then anchor-without-base, refusal-to-null and refusal-on-fresh-repo each red |
+| Pass 2 | native sonnet×1 + haiku×1 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — the round-1 seats re-verified their own claims (all DEFECT_ABSENT: 8 and 14 pin shapes probed) and raised 2 own-fix wording defects (the comment and doc said a `--from` naming no commit is refused, but a tree `--from` beside a commit `--base` pins; the test docstring omitted `--base`), own-fix: round 1; stop: confirmed 2; fix: +6 -5 lines, wording only (56a4d0813); shape: agent-tool |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -174,9 +176,19 @@ whether a `D-nnn` is a row of the ledger is checked only where `_ledger_ids` rea
 with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED — unexecuted` never enter
 `confirmed:`; `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+| Candidate | Verdict |
+|---|---|
+| P1-A2 (sonnet) | REFUTED (by execution of the workflow reader: `.claude/workflows/fabrik-review-loop.js` BASE_PIN copies `base_pin_dir` in place of archiving `base_sha`, so the two must agree — the claim was then CONFIRMED as haiku's P1-A1 and fixed; the sonnet framing "base_sha should be the diff basis" is not the fix taken) |
+| P1-A3 (sonnet) | RECORDED — measured (other git failures masked as null for a working-tree pin; the dirty check's `git show HEAD:<f>` runs on the same repo first, and null now arises only with no anchor flag) |
+| P1-A5 (sonnet) | RECORDED — measured (a dirty working-tree pin records HEAD because a seat archives HEAD and overlays the dirty bytes; DIRTY is printed; the doc row now says the commit a seat archives and overlays) |
+| P1-A2 (haiku) | REFUTED (same root as haiku P1-A1, fixed there: the workflow reads `args.base_sha`, which now names the `--base` commit) |
+| P1-A3 (haiku) | REFUTED (test coverage gap closed by the round-1 tests; not a separate defect) |
+| P1-A5 (haiku) | RECORDED — measured (a null base_sha would interpolate into a seat prompt, but null now occurs only for a working-tree pin with no commit, where no archive is possible anyway) |
+| P2 rmtree note (haiku) | RECORDED — unexecuted (one hop out, pre-existing: `_unlock_and_remove(base_dir)` on an archive failure before extraction; not reachable for a resolved commit; not in any fix hunk) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — base_sha recorded in the pin MANIFEST and fragment: FIXED r1, r2 (anchor rule, refusal, wording); closing pass pending at this write
 
 ## Gate
 
