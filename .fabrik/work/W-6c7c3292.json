@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:24:15.833235Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6c7c3292",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M59SWZGBSYTVZPW240RE31BY, fix it with a regression test, then ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "break on agents: the launcher opens builders in the wrong tree; one script",
+  "status": "open",
+  "tags": [
+    "mail-01m59swzgbsytvzpw240re31by"
+  ],
+  "title": "mail 01M59SWZGBSYTVZPW240RE31BY: agents_up.sh on fabrik-lib: every pane starts in the repo's main checkout instead of the builder's worktree, and the sentinel's pane vanished after its registry row was removed (coordinator addendum 2 was wrong for an in-session EnterWorktree move)"
+}
