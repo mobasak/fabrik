@@ -235,26 +235,26 @@ it, or name in the brief why the shape does not have it.
   argument as a write path), and the pin carries the changed files' one-hop callees that are repo files
   (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
-  takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it;
-  a pin taken `--from` or `--base` records that anchor instead, and an older pin has no `base_sha` (a repo with no
-  commit records null), so its brief names the commit itself) and pins_dir, for the bounded hop's reader run (a reader
-  passing on the previous round's pin and failing on it with only the fix hunks applied). The lead first diffs the two
-  pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this pins_dir>`) and the two `base_sha`s
-  (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the brief that the difference is the
-  round's fix alone, committed or not, naming any other hunk or path, which leaves every reader it touches `unverified`
-  (each `Only in` line, a path one pin holds and the other does not, is named too, and classed from `git diff
-  --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git status --short
-  --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), since a removed path cannot be
-  pinned and `change.diff` carries no entry for it: a path the fix added, modified, removed or renamed is the fix's own,
-  and its readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds leaving those
-  readers `unverified`; any other path pinned in only one pass is another path; a directory line covers every listed
-  path under it; a fix's own path's readers are the tests the `tests/` grep above finds and, for a document, the citers
-  the heading-or-term grep below finds, and an importer outside `tests/` is named and left `unverified`); the seat then
-  runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` recipe with that pin's own `base_sha`, and greps a
-  heading or term another section cites over each pin's tree, where its citers live; a reader the pre-pin section keeps
-  the lead's ("one that writes a live store, sends, commits, deploys or reaches a host") takes § Loop bookkeeping's
-  `unverified` route; and a reader that fails on the previous pin is no evidence of a break, and is `RECORDED` with its
-  destination.
+  takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
+  and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
+  records that commit (else its `--from` ref) and one written before `base_sha` was recorded has none) and pins_dir, for
+  the bounded hop's reader run (a reader passing on the previous round's pin and failing on it with only the fix hunks
+  applied). The lead first diffs the two pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this
+  pins_dir>`) and the two `base_sha`s (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the
+  brief that the difference is the round's fix alone, committed or not, naming any other hunk or path, which leaves
+  every reader it touches `unverified` (each `Only in` line, a path one pin holds and the other does not, is named too,
+  and classed from `git diff --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git
+  status --short --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), since a removed
+  path cannot be pinned and `change.diff` carries no entry for it: a path the fix added, modified, removed or renamed is
+  the fix's own, and its readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds
+  leaving those readers `unverified`; any other path pinned in only one pass is another path; a directory line covers
+  every listed path under it; a fix's own path's readers are the tests the `tests/` grep above finds and, for a
+  document, the citers the heading-or-term grep below finds, and an importer outside `tests/` is named and left
+  `unverified`); the seat then runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` recipe with that
+  pin's own `base_sha`, and greps a heading or term another section cites over each pin's tree, where its citers live; a
+  reader the pre-pin section keeps the lead's ("one that writes a live store, sends, commits, deploys or reaches a
+  host") takes § Loop bookkeeping's `unverified` route; and a reader that fails on the previous pin is no evidence of a
+  break, and is `RECORDED` with its destination.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
