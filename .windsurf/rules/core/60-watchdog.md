@@ -84,7 +84,7 @@ Tier-C **approved-write lane** (`actions.py::TIER_C_WRITE_HANDLERS`), fail-close
 `WATCHDOG_ALLOW_DB_WRITES` (default OFF) and a provisioned `WATCHDOG_DB_URL_RW`. Absent either, the
 handler returns `skipped`, not a mutation. § Architecture already said this ("Consumed only by the
 Tier-C approved-write lane"); this table had not caught up, so the pack promised two automatic
-DB-mutating actions that are impossible by default. Since fabrik-lib SB-103 the model is offered them only when the project `.env` lists them in `WATCHDOG_LLM_ACTIONS` AND a non-empty `WATCHDOG_DB_WRITE_ALLOWLIST` names the tables and columns each may touch; the spec's `watchdog.llm_actions` refuses them, because no spec field carries that allowlist. Offered, they still run only with both gates open.
+DB-mutating actions that are impossible by default. Since fabrik-lib SB-103 the model is offered one only when all four hold, all set in the project `.env`: it is listed in `WATCHDOG_LLM_ACTIONS` (with the spec's `watchdog.llm_actions` unset — a non-empty field overrides that line, and refuses the pair because no spec field carries the allowlist), `WATCHDOG_DB_WRITE_ALLOWLIST` has an entry for that action naming the tables and columns it may touch (a malformed value disables both), and both gates above are open.
 
 | Approved-write (Tier C lane) | What | Guards |
 |---|---|---|
