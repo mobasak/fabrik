@@ -699,3 +699,32 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
     assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
     assert not readers["cpt_lock"]._owned("commands/_fragments", ["commands/_fragments/a.md"])
+
+
+def test_the_lock_check_set_of_scripts_that_mention_owned_paths_is_pinned() -> None:
+    """W-bcf6fc2f part 1: the PHASE 2 lock bullet says neither script that tests a path against a lock's
+    `owned_paths` matches a glob, and names `_owned` and `_path_covers`. A new script reading `owned_paths` could
+    make that sentence false while every existing pin stayed green. This test lists every file under scripts/
+    that names `owned_paths` by that literal spelling (keyed on the field, not on how the lock directory is
+    spelled) and fails on one it has not met, so the bullet is re-read whenever that set changes. Its limit: it pins which files name
+    the field, not what they do with it. Whether the two named matchers miss a glob is pinned by
+    test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path, which runs them, and a new glob
+    matcher added inside a known file escapes both. The role beside each entry is a note for the reader who adds
+    the next one, not a checked fact. Cobra: the cheap way past it is to add a file without reading it."""
+    known = {
+        "scripts/enforcement/check_phase_tests.py": "lock reader: `_owned` matches a path (named in the bullet)",
+        "scripts/enforcement/check_plan_tickets.py": "lock reader: `_path_covers` matches a path (named); epics too",
+        "scripts/enforcement/check_plan_lock_release.py": "lock reader: compares owned_paths to ['**'] only",
+        "scripts/epic_order.py": "epic frontmatter owned_paths, not plan locks",
+        "scripts/doc_reconcile.py": "writes owned_paths for the docs it dispatches",
+        "scripts/sysadmin/canary_grounding.py": "writes owned_paths for canary specs",
+    }
+    found = set()
+    for path in sorted((ROOT / "scripts").rglob("*")):
+        # every regular file, not only .py: a shell or extensionless runner can read a lock too; a dangling
+        # symlink is not a file, and __pycache__ holds compiled copies of the .py files already scanned
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        if b"owned_paths" in path.read_bytes():
+            found.add(path.relative_to(ROOT).as_posix())
+    assert found == set(known), sorted(found ^ set(known))

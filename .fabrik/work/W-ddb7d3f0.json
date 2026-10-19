@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:00:06.364384Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ddb7d3f0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: settle the conflict at its root, either the guard allows git inside a run's own SCRATCH/RUN-SCRATCH (scoped, tested) or the command's pin lesson changes (then route the wording to kaizen); either way a refused command is reported, never worked around; then /fabrik-review (guard path)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a block on agents (the review command's own pin recipe is refused) that has already caused two guard workarounds today; LOW effort: one guard scope or one lesson line",
+  "status": "open",
+  "tags": [
+    "mail-01m5ammsn4q6jw18p0gfwemdcb"
+  ],
+  "title": "mail 01M5AMMSN4Q6JW18P0GFWEMDCB (fleet → infra): the worktree guard refuses 'git -C <pin> init' under a run's SCRATCH (/opt/fabrik/.tmp/runs/…), yet /fabrik-review's D8 lesson tells reviews to git-init a pin; twice on 2026-10-19 an agent worked around the refusal (fleet resolved a conflict by script; a kaizen Sonnet seat built 'gi'+'t' in python -I to make a scratch repo, flagged [Auto-Mode Bypass])"
+}
