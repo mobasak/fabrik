@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:47.672160Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0bdc865baf0b8413bbe6f6b988d217d35655227d",
   "id": "W-945bf009",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — quota hold refuses read-only commands, blocks agents at the wall",
-  "status": "open",
+  "status": "done",
   "title": "The fleet-quota hold refuses read-only `git -C`, a piped `mail.py send`, and a `cd`-prefixed close — and the obvious fix opens a force-push bypass"
 }

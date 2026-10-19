@@ -30,7 +30,7 @@ sys.path.insert(0, str(_ROOT / "scripts" / "sysadmin"))
 sys.path.insert(0, str(_ROOT / "scripts"))
 
 from dashboard_ui import inventory  # noqa: E402
-from dashboard_ui.strings import t  # noqa: E402
+from dashboard_ui.strings import CATALOGUE, t  # noqa: E402
 
 H = 3600.0
 NOW = CENSUS_NOW
@@ -105,10 +105,8 @@ def dom(markup: str) -> El:
     return p.root
 
 
-def render(rows, *, now=NOW, synced_at=NOW - H, classified_at=NOW - H, interactive=True):
-    return inventory.render(
-        rows, now=now, synced_at=synced_at, classified_at=classified_at, interactive=interactive
-    )
+def render(rows, *, now=NOW, synced_at=NOW - H, interactive=True):
+    return inventory.render(rows, now=now, synced_at=synced_at, interactive=interactive)
 
 
 def plural(key: str, n: int, **fields) -> str:
@@ -479,7 +477,7 @@ def test_the_fixture_is_the_census():
 
 def test_the_census_renders_attention_eighteen_tables_one_queue_and_the_counts_by_formula():
     rows = census_rows()
-    root = dom(render(rows, classified_at=NOW - 90 * 86400))
+    root = dom(render(rows))
     want = census_expectations(rows)
     assert (want["total"], want["paid"], want["free"], want["untriaged"], want["attention"]) == (
         466,
@@ -514,10 +512,11 @@ def test_the_census_renders_attention_eighteen_tables_one_queue_and_the_counts_b
     )
     table_rows = [tr for tr in root.find("tr") if tr.text().startswith("unid-")]
     assert len(table_rows) == 20
-    # census: the stalled classifier, "20 providers unidentified", and the one retiring provider by name
-    assert len(card.find("ul")[0].kids) == 3
+    # census: "20 providers unidentified" and the one retiring provider by name; the 331-row
+    # untriaged queue raises no source entry since D-1046 retired the classifier's
+    assert len(card.find("ul")[0].kids) == 2
     assert "real-003: retiring" in card.text()
-    assert plural("services.inv.attn.classifier_stale", 331, hours=48) in card.text()
+    assert "classifier" not in card.text().lower()
 
     # the summary counts and the More counts each equal their formula
     for name in ("total", "paid", "free", "untriaged", "attention"):
@@ -595,29 +594,20 @@ def test_each_provider_rule_is_an_entry_and_the_near_misses_are_not():
     ],
     ids=["49h", "47h", "none", "exactly-48h", "future"],
 )
-def test_the_registry_and_classifier_source_rules(at, entry):
+def test_the_registry_source_rule_and_no_classifier_rule(at, entry):
+    """The registry's source rule fires on no time or past 48 h. The classifier's rule is gone
+    (D-1046): its only engine was the pool, OFF since D-181, so the entry was permanent noise —
+    an untriaged queue (rule_rows carries one) never raises a source entry."""
     rows = rule_rows()
     reg = attention_card(dom(render(rows, synced_at=at))).text()
-    cls = attention_card(dom(render(rows, classified_at=at))).text()
     reg_words = (
         t("services.inv.attn.registry_never")
         if at is None
         else t("services.inv.attn.registry_stale", hours=48)
     )
-    cls_words = (
-        plural("services.inv.attn.classifier_never", 1, hours=48)
-        if at is None
-        else plural("services.inv.attn.classifier_stale", 1, hours=48)
-    )
-    assert (reg_words in reg) is entry and (cls_words in cls) is entry
-
-
-def test_a_stalled_classifier_over_an_empty_queue_is_not_an_entry():
-    rows = [r for r in rule_rows() if r["category"] != "?"]
-    text = attention_card(dom(render(rows, classified_at=NOW - 49 * H))).text()
-    assert "classifier" not in text
-    text = attention_card(dom(render(rows, classified_at=None))).text()
-    assert "classifier" not in text
+    assert (reg_words in reg) is entry
+    assert any(r["category"] == "?" for r in rows) and "classifier" not in reg.lower()
+    assert not any(k.startswith("services.inv.attn.classifier") for k in CATALOGUE)
 
 
 @pytest.mark.parametrize(("n", "collapsed"), [(5, False), (6, True)])
@@ -848,7 +838,7 @@ def test_render_is_pure_in_its_inputs_and_deterministic():
 
 def test_an_empty_registry_is_zeros_and_empty_states_never_a_blank_page():
     for interactive in (True, False):
-        root = dom(render([], interactive=interactive, synced_at=None, classified_at=None))
+        root = dom(render([], interactive=interactive, synced_at=None))
         for name in ("total", "paid", "free", "untriaged", "attention"):
             (li,) = root.find("li", data_count=name)
             assert re.search(r"\b0\b", li.text()), name
@@ -866,7 +856,7 @@ def test_render_refuses_a_now_that_is_not_a_finite_number():
 def test_an_unusable_time_reads_as_unknown_never_as_an_error(bad):
     rows = [base("c", balance=3.0, unit="usd", credit_at=bad)]
     for interactive in (True, False):
-        root = dom(render(rows, synced_at=bad, classified_at=bad, interactive=interactive))
+        root = dom(render(rows, synced_at=bad, interactive=interactive))
         heads = [th for th in root.find("th", scope="row") if th.text().startswith("c")]
         assert len(heads) == 1 and heads[0].find("a") == []
     assert (
@@ -972,7 +962,6 @@ def test_g2_a_time_the_reader_accepts_is_one_every_formatter_can_format(monkeypa
                 render(
                     [base("c", balance=3.0, unit="usd", credit_at=bad)],
                     synced_at=bad,
-                    classified_at=bad,
                     interactive=interactive,
                 )
             )
@@ -1022,11 +1011,10 @@ def test_g6_counts_read_naturally_for_zero_one_and_two(n):
     rows = [base(f"p{i}", category="a", cost="paid", keys=1) for i in range(n)]
     rows += [base(f"q{i}", category="?", cost="?", status="?", keys=n) for i in range(n)]
     for interactive in (True, False):
-        text = dom(render(rows, classified_at=None, interactive=interactive)).text()
+        text = dom(render(rows, interactive=interactive)).text()
         assert plural("services.inv.providers", 2 * n) in text
         if n:
             assert plural("services.inv.group.counts", n, paid=n, cred=n) in text
-            assert plural("services.inv.attn.classifier_never", n, hours=48) in text
             assert plural("services.inv.untriaged.keys", n) in text
         assert re.search(r"\b1 (providers|keys)\b", text) is None
     assert t("services.inv.providers.other", n=2) == "2 providers"

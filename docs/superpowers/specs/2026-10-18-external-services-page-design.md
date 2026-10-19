@@ -1,6 +1,9 @@
 # The external-services inventory, brought into the command centre (W-3e9e2f4c)
 
 Status: CONVERGED
+Superseded in part by D-1046 (2026-10-19, W-7e467f2d): the stalled-classifier attention rule (§ The design
+item 3, D10, the census's third entry) and the renderer's `classified_at` input are retired, and
+`classify_services.py` left the daily chain; the registry rule, the Untriaged count and the rest stand.
 Profile: full (the shared inventory renderer and the attention rules have no code behind them today)
 
 Owner: infra · Work item: W-3e9e2f4c (P2, high impact / high effort — the one major project in flight, D-954) ·
