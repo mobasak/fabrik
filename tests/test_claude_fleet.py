@@ -9356,9 +9356,10 @@ def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
     tmp_path, monkeypatch, capsys
 ):
     """When finishing what a hard kill left fails, the run names it, exits 1 and moves nothing else
-    (W-b3bad109). Case A, the canonical cycle's last exchange failing, is also stopped later by the
-    canon-link refusal; case B, a `.swap-*` stray whose drain fails while canonical is absent and
-    the active dir is real, is stopped by this guard alone."""
+    (W-b3bad109). In case A, the canonical cycle's last exchange failing, a guard that swallowed the
+    error and went on would still meet the canon-link refusal; in case B, a `.swap-*` stray whose
+    drain fails while canonical is absent and the active dir is real, nothing but this guard stops
+    the merge."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
     (fleet / "b" / "tasks").rename(held)
@@ -9431,19 +9432,24 @@ def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkey
 def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_step(
     tmp_path, monkeypatch, capsys
 ):
-    """After every rename, unlink or rmdir the merge makes — through `_renameat2` or not — each
-    non-active account's tasks/ is a directory that is either still its own real dir or a link
-    resolving to canonical, and each ends as that link (W-b3bad109: the existing atomicity test
-    checked these accounts only for existence, and only after `_renameat2` calls)."""
+    """After every `_renameat2`, `os.rename`, `os.replace`, `os.unlink`, `os.rmdir`, `Path.rename`,
+    `Path.unlink` and `Path.rmdir` the merge makes, each non-active account's tasks/ is either still
+    its own real dir or a link straight to canonical — never a hop through another link such as
+    `active/tasks`, which loops once the pointer names that account — and each ends as that link
+    (W-b3bad109: the existing atomicity test checked these accounts only for existence, and only
+    after `_renameat2` calls)."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     bad = []
+
+    def links_to_canon(p):
+        # lexical: a relative link is fine, a link to another link that resolves there is not
+        return os.path.normpath(os.path.join(p.parent, os.readlink(p))) == str(cdir / "tasks")
 
     def check(op, path):
         for s in ("a", "c"):
             p = fleet / s / "tasks"
             ok = p.is_dir() and (
-                not p.is_symlink()
-                or ((cdir / "tasks").is_dir() and p.resolve() == (cdir / "tasks").resolve())
+                not p.is_symlink() or ((cdir / "tasks").is_dir() and links_to_canon(p))
             )
             if not ok:
                 bad.append((s, op, Path(path).name))
@@ -9456,17 +9462,17 @@ def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_ste
 
         return run
 
-    monkeypatch.setattr(cr, "_renameat2", watched("renameat2", cr._renameat2))
-    monkeypatch.setattr(cr.os, "rename", watched("os.rename", os.rename))
-    monkeypatch.setattr(Path, "rename", watched("rename", Path.rename))
-    monkeypatch.setattr(Path, "unlink", watched("unlink", Path.unlink))
-    monkeypatch.setattr(Path, "rmdir", watched("rmdir", Path.rmdir))
-    assert cr.main(["--merge-shared", "tasks"]) == 0
-    monkeypatch.undo()
+    with monkeypatch.context() as m:  # a context, never a bare undo: the fixture's patches stay
+        m.setattr(cr, "_renameat2", watched("renameat2", cr._renameat2))
+        for name in ("rename", "replace", "unlink", "rmdir"):
+            m.setattr(cr.os, name, watched(f"os.{name}", getattr(os, name)))
+        for name in ("rename", "unlink", "rmdir"):
+            m.setattr(Path, name, watched(name, getattr(Path, name)))
+        assert cr.main(["--merge-shared", "tasks"]) == 0
     assert not bad, bad
     for s in ("a", "c"):
         p = fleet / s / "tasks"
-        assert p.is_symlink() and p.resolve() == (cdir / "tasks").resolve(), s
+        assert p.is_symlink() and links_to_canon(p), s
 
 
 def test_a_held_name_that_links_to_a_real_dir_is_never_promoted(tmp_path, monkeypatch, capsys):
