@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "decide whether INFERENCE joins the return enum or every 'mark INFERENCE' becomes a NEEDS-RAW-FETCH/UNVERIFIABLE reason; cap the directQuote re-ask (e.g. two locators, then the fallback); one sentence each in commands/_agents/fabrik-researcher.md with a grader",
+  "next": "one sentence each in commands/_agents/fabrik-researcher.md with a grader: (1) INFERENCE joins the return enum or every 'mark INFERENCE' names its verdict; (2) cap the directQuote re-ask (e.g. two locators, then the fallback); (3) STALE's Method definition covers an out-of-date exa copy; (4) shape 4: a URL DEAD on a live 404 while exa serves a copy, when that page was the claim's only source, returns NEEDS-RAW-FETCH naming the archive URL (Opus pass-4 one-hop, beside the since-deleted-page sentence)",
   "note": "",
   "owner": "",
   "priority": 3,
