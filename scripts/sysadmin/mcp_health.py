@@ -41,8 +41,10 @@ Usage: python3 /opt/fabrik/scripts/sysadmin/mcp_health.py [--repo <path>] [--tim
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
+import re
 import select
 import signal
 import subprocess
@@ -164,14 +166,20 @@ _AUTH_PROBES: dict[str, dict] = {
         "env": "EXA_API_KEY",
         "url": "https://api.exa.ai/websets/v0/websets?limit=1",
         "header": lambda key: {"x-api-key": key},
-        # its documented error body: {"requestId", "error", "tag"}
-        "refused": lambda b: isinstance(b.get("error"), str) or isinstance(b.get("tag"), str),
+        # its documented error body: {"requestId", "error", "tag"} — the tag a machine code such as
+        # INVALID_API_KEY; a gateway's bare {"error": "…"} is not exa's and must not read as a refused key
+        "refused": lambda b: (
+            isinstance(b.get("error"), str)
+            and isinstance(b.get("tag"), str)
+            and _EXA_TAG.fullmatch(b["tag"]) is not None
+        ),
         "accepted": lambda b: isinstance(b.get("data"), list),
     },
 }
 # A wall-clock bound on the key check: urllib's timeout is per socket operation (a trickling body held 11.9 s at a 1 s
 # timeout) and does not cover DNS. 5 s fits inside command_run's `--timeout 6` start probe without adding a round.
 _AUTH_DEADLINE_S = 5
+_EXA_TAG = re.compile(r"[A-Z][A-Z0-9_]{1,63}")
 _BODY_CAP = 65536
 
 
@@ -184,7 +192,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _probe_auth(name: str, entry: dict, timeout: float) -> tuple[str, str]:
     """``(outcome, detail)``: ``refused`` with ``HTTP 401|402``, ``accepted`` with its note, or ``unverified`` with
-    its reason. Never raises; never returns or logs the key or the body."""
+    its reason. Never raises — an escape would kill the daemon thread and read as a false `timeout` — and never
+    returns or logs the key or the body (the guard names only the exception's type)."""
+    try:
+        return _ask_provider(name, entry, timeout)
+    except Exception as exc:  # noqa: BLE001 — the advisory contract: a broken check is a reason, never a crash
+        return "unverified", f"error ({type(exc).__name__})"
+
+
+def _ask_provider(name: str, entry: dict, timeout: float) -> tuple[str, str]:
     probe = _AUTH_PROBES[name]
     key = (entry.get("env") or {}).get(probe["env"]) or os.environ.get(probe["env"]) or ""
     # Claude expands a `${…}` placeholder; this probe does not, so it never sends one
@@ -203,11 +219,16 @@ def _probe_auth(name: str, entry: dict, timeout: float) -> tuple[str, str]:
         status = exc.code
         try:
             raw = exc.read(_BODY_CAP)
-        except OSError:
+        except (OSError, http.client.HTTPException):
             raw = b""
     except TimeoutError:
         return "unverified", "timeout"
-    except (urllib.error.URLError, OSError, ValueError):
+    # a garbled status line or a cut body — not a provider's answer
+    except http.client.HTTPException:
+        return "unverified", "malformed reply"
+    except urllib.error.URLError as exc:  # a connect timeout arrives wrapped
+        return "unverified", "timeout" if isinstance(exc.reason, TimeoutError) else "unreachable"
+    except (OSError, ValueError):
         return "unverified", "unreachable"
     if 300 <= status < 400:
         return "unverified", "redirect"
@@ -278,10 +299,12 @@ def check(
     for name, (thread, box) in key_checks.items():
         thread.join(max(0.0, deadline - _time.monotonic()))
         outcome, detail = box.get("result", ("unverified", "timeout"))
-        if outcome == "refused":
-            # a dead transport is the louder fact; the key never relabels it
-            if report.get(name) == "CONNECTED":
-                report[name] = _REFUSED_VERDICT[detail]
+        if outcome == "refused" and report.get(name) == "CONNECTED":
+            report[name] = _REFUSED_VERDICT[detail]
+        elif outcome == "refused":
+            # a dead transport is the louder fact and keeps the verdict; the refusal is still said
+            if notes is not None:
+                notes[name] = f"refused ({detail})"
         elif notes is not None:
             notes[name] = detail if outcome == "accepted" else f"unverified ({detail})"
     return report

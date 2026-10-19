@@ -215,6 +215,7 @@ def _provider(status, body=b"", *, ctype="application/json", trickle=0.0, locati
     ``seen`` lists each request's (path, the auth headers it carried). ``trickle`` sends the body one byte per that
     many seconds — each read returns in time, so only a wall-clock deadline can cut it."""
     seen = []
+    stop = threading.Event()  # set on exit: a trickling handler stops instead of outliving its test
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802 — http.server's own name
@@ -231,9 +232,10 @@ def _provider(status, body=b"", *, ctype="application/json", trickle=0.0, locati
                 self.wfile.write(body)
                 return
             for i in range(len(body)):
+                if stop.wait(trickle):
+                    return
                 self.wfile.write(body[i : i + 1])
                 self.wfile.flush()
-                time.sleep(trickle)
 
         def log_message(self, *_a):
             pass
@@ -245,6 +247,7 @@ def _provider(status, body=b"", *, ctype="application/json", trickle=0.0, locati
     try:
         yield f"http://127.0.0.1:{server.server_address[1]}", seen
     finally:
+        stop.set()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
@@ -359,7 +362,7 @@ def test_a_slow_provider_is_cut_at_the_deadline(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("key", [None, "", "${EXA_API_KEY}"], ids=["unset", "empty", "placeholder"])
-def test_a_key_is_never_sent_unset_or_printed(key, tmp_path, monkeypatch):
+def test_a_key_is_never_sent_without_a_real_key(key, tmp_path, monkeypatch):
     notes: dict = {}
     with _provider(401, EXA_REFUSED) as (base, seen):
         monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
@@ -398,3 +401,172 @@ def test_main_prints_the_key_check_line(tmp_path, monkeypatch, capsys):
     assert "exa: CONNECTED" in out
     assert "MCP-HEALTH: exa key check — unverified (HTTP 403)" in out
     assert "MCP-HEALTH: all 1 probed servers live" in out
+
+
+@contextlib.contextmanager
+def _garbage_server(reply=b"GARBAGE\r\n\r\n"):
+    """A raw TCP stand-in that answers any request with ``reply`` — not HTTP at all."""
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(4)
+    stop = threading.Event()
+
+    def serve():
+        sock.settimeout(0.2)
+        while not stop.is_set():
+            try:
+                conn, _ = sock.accept()
+            except OSError:
+                continue
+            with conn:
+                conn.recv(4096)
+                conn.sendall(reply)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{sock.getsockname()[1]}"
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+        sock.close()
+
+
+def test_a_garbled_reply_is_unverified_not_a_crash(tmp_path, monkeypatch, capsys):
+    """A malformed status line raised BadStatusLine (an HTTPException, no OSError) out of the daemon thread: a
+    traceback on stderr and a false `timeout` (review pass 1, both slice-A seats)."""
+    notes: dict = {}
+    with _garbage_server() as base:
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "exa"), timeout=8, notes=notes)
+    assert report["exa"] == "CONNECTED" and notes["exa"] == "unverified (malformed reply)"
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_a_gateways_bare_json_401_is_not_exas_refusal(tmp_path, monkeypatch):
+    """Exa's error body carries a machine `tag`; a gateway's {"error": "…"} 401 is not exa refusing the key."""
+    notes: dict = {}
+    with _provider(401, b'{"error":"gateway auth required"}') as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "exa"), timeout=8, notes=notes)
+    assert report["exa"] == "CONNECTED" and notes["exa"] == "unverified (HTTP 401)"
+
+
+def test_a_refused_key_under_a_dead_transport_is_still_said(tmp_path, monkeypatch):
+    notes: dict = {}
+    with _provider(401, EXA_REFUSED) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "exa", command="/bin/false"), timeout=5, notes=notes)
+    assert report["exa"] == "DEAD" and notes["exa"] == "refused (HTTP 401)"
+
+
+def test_a_connect_timeout_reads_timeout(monkeypatch):
+    """urllib wraps a CONNECT timeout in URLError(reason=TimeoutError); only a read timeout arrives bare."""
+    import urllib.error
+
+    class _Opener:
+        def open(self, *_a, **_k):
+            raise urllib.error.URLError(TimeoutError("timed out"))
+
+    monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
+    entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
+    assert health._probe_auth("exa", entry, 1) == ("unverified", "timeout")
+
+
+def test_a_broken_check_is_a_reason_never_an_escape():
+    """Anything unexpected inside the check is reported by its type alone — never raised, never the key."""
+    assert health._probe_auth("exa", {"env": ["not", "a", "dict"]}, 1) == (
+        "unverified",
+        "error (AttributeError)",
+    )
+
+
+@pytest.mark.parametrize(
+    "name,status,body,expected",
+    [
+        # a status and a shape that disagree are never a verdict
+        ("exa", 200, EXA_REFUSED, ("unverified", "HTTP 200")),
+        ("firecrawl", 401, b'{"success":true,"data":{}}', ("unverified", "HTTP 401")),
+        # a provider-shaped refusal needs the WHOLE documented shape
+        ("firecrawl", 401, b'{"success":false}', ("unverified", "HTTP 401")),
+        # a 2xx that is not the provider's success shape proves nothing
+        ("exa", 200, b'{"websets":[]}', ("unverified", "HTTP 200")),
+        ("firecrawl", 200, b'{"data":{"remaining_credits":5}}', ("unverified", "HTTP 200")),
+        # a boolean is not a credit count
+        (
+            "firecrawl",
+            200,
+            b'{"success":true,"data":{"remaining_credits":false}}',
+            ("accepted", "accepted"),
+        ),
+    ],
+    ids=[
+        "exa-200-error-shape",
+        "fc-401-success-shape",
+        "fc-401-no-error",
+        "exa-200-other",
+        "fc-200-no-success",
+        "fc-bool-credit",
+    ],
+)
+def test_each_row_of_the_outcome_table(name, status, body, expected, monkeypatch):
+    """Review pass 1 (B-sonnet): ten single-clause mutants of the outcome table survived the whole file."""
+    with _provider(status, body) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES[name], "url", base + "/probe")
+        entry = {"env": {health._AUTH_PROBES[name]["env"]: "k-test-0123456789"}}
+        assert health._probe_auth(name, entry, 5) == expected
+
+
+def test_a_refused_connection_is_unreachable_not_a_refused_key(monkeypatch):
+    """A connection the network refuses is never the provider refusing the key. (A stand-in opener, not a closed
+    port: on this box's WSL loopback a closed port times out instead of refusing.)"""
+    import urllib.error
+
+    class _Opener:
+        def open(self, *_a, **_k):
+            raise urllib.error.URLError(ConnectionRefusedError(111, "Connection refused"))
+
+    monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
+    entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
+    assert health._probe_auth("exa", entry, 5) == ("unverified", "unreachable")
+
+
+def test_a_read_timeout_reads_timeout(monkeypatch):
+    class _Opener:
+        def open(self, *_a, **_k):
+            raise TimeoutError("timed out")
+
+    monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
+    entry = {"env": {"FIRECRAWL_API_KEY": "k-test-0123456789"}}
+    assert health._probe_auth("firecrawl", entry, 1) == ("unverified", "timeout")
+
+
+def test_the_key_falls_back_to_the_process_environment(tmp_path, monkeypatch):
+    """A server with no key in its own env inherits the process environment (`_probe_stdio` spawns with env=None),
+    so the check presents that key — as a Bearer token for firecrawl."""
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "k-from-the-shell-0123")
+    with _provider(200, b'{"success":true,"data":{"remaining_credits":3}}') as (base, seen):
+        monkeypatch.setitem(health._AUTH_PROBES["firecrawl"], "url", base + "/probe")
+        entry = {"type": "stdio", "command": sys.executable, "args": ["-c", FAKE_OK_SERVER]}
+        notes: dict = {}
+        report = health.check(_mk(tmp_path, {"firecrawl": entry}), timeout=8, notes=notes)
+    assert seen and seen[0][2] == "Bearer k-from-the-shell-0123" and seen[0][1] is None
+    assert report["firecrawl"] == "CONNECTED" and notes["firecrawl"] == "accepted"
+
+
+@pytest.mark.parametrize(
+    "timeout,bound", [(8, 6.0), (2, 3.5)], ids=["deadline-5s", "deadline-follows-timeout"]
+)
+def test_the_key_check_deadline_is_min_of_timeout_and_5s(timeout, bound, tmp_path, monkeypatch):
+    """5 s keeps the check inside command_run's `--timeout 6` start probe; a smaller --timeout shrinks it too."""
+    notes: dict = {}
+    body = b'{"data":[],"hasMore":false,"x":1}'[:30]
+    with _provider(200, body, trickle=0.4) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        t0 = time.monotonic()
+        health.check(_keyed(tmp_path, "exa"), timeout=timeout, notes=notes)
+        elapsed = time.monotonic() - t0
+    assert notes["exa"] == "unverified (timeout)"
+    assert elapsed < bound, f"{elapsed:.1f}s for a {min(timeout, 5)}s deadline"
