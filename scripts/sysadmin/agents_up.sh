@@ -5,9 +5,11 @@
 # The per-repo form of ~/bin/hub-up, which stays as it is for the hub. The builders come from the repo's own
 # registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), so a session-id change is one
 # registry edit, never a launcher edit. The coordinator gets no pane (a name equal to `coordinator` or ending in
-# `-coordinator`): the operator reaches it in VS Code, as hub-up states. Every pane starts at the repo root and resumes
-# the agent's EXISTING session; closing the terminal leaves them running. --print reports the grid and launches nothing:
-# a `session <name>` line, then per builder `pane <name> <sid> <repo root> <status>` and `run <name> <command>`.
+# `-coordinator`): the operator reaches it in VS Code, as hub-up states. A pane starts in the builder's own worktree,
+# `<repo>/.claude/worktrees/<name>`, when that folder exists — the main checkout is the coordinator's, and a builder
+# resumed there would edit main's tree and read main's CLAUDE.md (W-6c7c3292) — and at the repo root otherwise; it
+# resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports the grid and
+# launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>` and `run <name> <command>`.
 #
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31}, no name may hold two session ids and no key may repeat;
@@ -15,9 +17,9 @@
 #
 # A pane's status is `running` when a claude process already resumes that session — `--resume <sid>`, `-r <sid>` (a
 # terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes on one
-# session id fuse the transcript and the hooks; `no-transcript` when no transcript for the session sits under the repo
-# root's project folder (claude resumes by the folder it starts in; the user-level worktree_transcript_link.py hook
-# links a worktree session's transcript there), which the pane still tries; otherwise `ok`.
+# session id fuse the transcript and the hooks; `no-transcript` when no transcript for the session sits under the
+# project folder of the folder the pane starts in (claude resumes by that folder), which the pane still tries;
+# otherwise `ok`.
 #
 # The environment goes INSIDE each pane's command, as an ALLOW-list (`env -i`): a pane gets the tmux SERVER's
 # environment, and a server started from a VS Code session carries ~20 of that session's variables (CLAUDECODE, its
@@ -87,15 +89,21 @@ PY
 base="$(basename "$ROOT")"
 S="${base//[^A-Za-z0-9_-]/-}"
 W=agents
-# claude stores a session under its start folder with every non-alphanumeric character as `-`
-PROJ="$CLAUDE_CONFIG_DIR/projects/${ROOT//[^A-Za-z0-9]/-}"
 # -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
 RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 
-status_of() {  # $1 = session id
+dir_of() {  # $1 = name (validated: no `/` or `.`, so it names a folder directly under worktrees/)
+  if [ -d "$ROOT/.claude/worktrees/$1" ]; then echo "$ROOT/.claude/worktrees/$1"; else echo "$ROOT"; fi
+}
+
+proj_of() {  # $1 = folder; claude stores a session under its start folder with every non-alphanumeric character as `-`
+  echo "$CLAUDE_CONFIG_DIR/projects/${1//[^A-Za-z0-9]/-}"
+}
+
+status_of() {  # $1 = session id, $2 = the folder its pane starts in
   if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(--resume[= ]|-r )$1( |\$)"; then
     echo running
-  elif [ ! -f "$PROJ/$1.jsonl" ]; then
+  elif [ ! -f "$(proj_of "$2")/$1.jsonl" ]; then
     echo no-transcript
   else
     echo ok
@@ -119,8 +127,9 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
 if [ "$print" = 1 ]; then
   echo "session $S"
   while read -r name sid; do
-    st="$(status_of "$sid")"
-    echo "pane $name $sid $ROOT $st"
+    dir="$(dir_of "$name")"
+    st="$(status_of "$sid" "$dir")"
+    echo "pane $name $sid $dir $st"
     echo "run $name $(cmd_of "$name" "$sid" "$st")"
   done <<< "$AGENTS"
   exit 0
@@ -147,11 +156,12 @@ else
   first=1
   raced=0
   while read -r name sid; do
-    st="$(status_of "$sid")"
-    [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $PROJ — the pane will try anyway" >&2
+    dir="$(dir_of "$name")"
+    st="$(status_of "$sid" "$dir")"
+    [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
     cmd="$(cmd_of "$name" "$sid" "$st")"
     if [ "$first" = 1 ]; then
-      if ! tmux new-session -d -s "$S" -n "$W" -c "$ROOT" -x 240 -y 60 "$cmd"; then
+      if ! tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 "$cmd"; then
         # a second launch racing this one built the grid first: attach to it (if it is this repo's) rather than fail
         if tmux has-session -t "=$S" 2>/dev/null; then
           owned_here || exit 2
@@ -163,7 +173,7 @@ else
       tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null ||
         echo "agents_up: could not record the root on $S — a relaunch will refuse this grid until it is killed" >&2
       first=0
-    elif ! tmux split-window -t "=$S:$W" -c "$ROOT" "$cmd"; then
+    elif ! tmux split-window -t "=$S:$W" -c "$dir" "$cmd"; then
       echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
       continue
     fi

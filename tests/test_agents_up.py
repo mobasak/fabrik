@@ -426,3 +426,38 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     assert out.returncode == 0, out.stderr
     assert _log(inside)[-1] == "switch-client -t =fabrik-lib", _log(inside)
     assert not any(ln.startswith("attach") for ln in _log(inside)), _log(inside)
+
+
+def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
+    """W-6c7c3292 (fabrik-lib mail 01M59SWZGB): a builder works in `<repo>/.claude/worktrees/<name>`, and the main
+    checkout is the coordinator's, so a builder resumed at the root would edit main's tree and read main's CLAUDE.md.
+    A pane starts in the builder's worktree when that folder exists and at the root otherwise, and its transcript is
+    looked for under the folder it starts in, since claude resumes by that folder."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sentinel"})
+    wt1 = repo / ".claude" / "worktrees" / "dev1"
+    wt1.mkdir(parents=True)
+    sent_wt = repo / ".claude" / "worktrees" / "sentinel"
+    sent_wt.mkdir()
+    (repo / ".claude" / "worktrees" / "dev2").write_text("", encoding="utf-8")  # a file is not a worktree
+    # sentinel's worktree exists but its transcript sits only under the root: flagged, never silently the root
+    home = _home(tmp_path, transcripts=((wt1, DEV1), (repo, DEV2), (repo, SENT)))
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [
+        f"pane dev1 {DEV1} {wt1} ok",
+        f"pane dev2 {DEV2} {repo} ok",
+        f"pane sentinel {SENT} {sent_wt} no-transcript",
+    ], out.stdout
+
+
+def test_the_launch_starts_each_pane_in_its_folder(tmp_path: Path) -> None:
+    """The launch path hands tmux each pane's own folder: the first builder's to new-session, the next to its split."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    wt2 = repo / ".claude" / "worktrees" / "dev2"
+    wt2.mkdir(parents=True)
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    assert any(ln.startswith(f"new-session -d -s fabrik-lib -n agents -c {repo} ") for ln in log), log
+    assert any(ln.startswith(f"split-window -t =fabrik-lib:agents -c {wt2} ") for ln in log), log

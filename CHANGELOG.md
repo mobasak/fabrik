@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `agents_up.sh` starts each builder in its own worktree (2026-10-19)
+
+- Every pane used to start at the repo root, the coordinator's main checkout, so a builder resumed there edited main's tree and read main's `CLAUDE.md`. A pane now starts in `<repo>/.claude/worktrees/<name>` when that folder exists, and at the root otherwise. Its `no-transcript` check reads the project folder of the folder it starts in. The runbook now says to remove a registry row only when that agent no longer uses its id: an in-session EnterWorktree move keeps the id. Item W-6c7c3292 (fabrik-lib mail 01M59SWZGB).
+
 ### Fixed — `work.py --help` no longer crashes (2026-10-19)
 
 - `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans every literal `help=` under `scripts/` for a bare `%`; this was the only one of 666, across 289 files. Item W-2356fd8d (kaizen relay 01M59T9RXS).
