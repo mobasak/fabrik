@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+# what tests/conftest.py set for the whole process, read before any fixture of this file overrides it
+_PROCESS_LOCK_DIR = os.environ.get("FABRIK_LOCK_DIR", "")
+
 
 # Redirect lock dir to a tmpdir BEFORE importing the module so the
 # LOCK_DIR module-level constant is honored. Caller of file_lock will
@@ -23,6 +26,55 @@ def _isolate_lock_dir(tmp_path, monkeypatch):
 
     importlib.reload(fabrik.locks_local)
     yield
+    # undo then reload, so no later test inherits this test's deleted tmp LOCK_DIR (W-019e468b's shape)
+    monkeypatch.undo()
+    importlib.reload(fabrik.locks_local)
+
+
+def _reload_with(monkeypatch, **env):
+    """Reload locks_local under ``env`` (a None value deletes the variable) and return the module."""
+    import importlib
+
+    import fabrik.locks_local
+
+    for key, value in env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    return importlib.reload(fabrik.locks_local)
+
+
+def test_default_lock_dir_is_private_per_user_cache(tmp_path, monkeypatch):
+    """With no override the lock dir is ``~/.cache/fabrik-locks``, made 0700 — never a fixed /tmp name another
+    local user could pre-create (W-1f70f2e9). The umask is pinned so a dropped ``mode=`` cannot hide behind 077."""
+    home = tmp_path / "home"
+    home.mkdir()
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=str(home))
+    expected = home / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+    old = os.umask(0o022)
+    try:
+        with mod.file_lock("default-dir"):
+            pass
+    finally:
+        os.umask(old)
+    assert mod.LOCK_DIR.stat().st_mode & 0o777 == 0o700
+
+
+def test_default_lock_dir_without_home_uses_the_passwd_home(monkeypatch):
+    """Cron and other HOME-less callers resolve the same dir through the passwd entry; nothing is created."""
+    import pwd
+
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    expected = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
+def test_the_suite_never_locks_in_the_real_default_dir():
+    """tests/conftest.py pins FABRIK_LOCK_DIR for the whole process, so a test that takes the default lock
+    writes a tmp dir, never the operator's ~/.cache (the five state-*.lock leftovers in /tmp/fabrik-locks)."""
+    assert Path(_PROCESS_LOCK_DIR).name.startswith("pytest-lock-dir-"), _PROCESS_LOCK_DIR
 
 
 def _import_file_lock():

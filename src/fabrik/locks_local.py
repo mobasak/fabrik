@@ -19,7 +19,7 @@ Mechanics
   acquire, retry every ``poll_interval`` seconds until ``timeout_seconds``
   elapses, at which point :class:`TimeoutError` is raised.
 * One lock file per logical resource, under ``$FABRIK_LOCK_DIR`` (default
-  ``/tmp/fabrik-locks``). The name is sanitized to a safe filename.
+  ``~/.cache/fabrik-locks``). The name is sanitized to a safe filename.
 * The fd is closed on context exit, which releases the kernel-level lock.
   Exceptions inside the ``with`` body propagate; the lock is still released.
 
@@ -27,8 +27,11 @@ Environment
 -----------
 
 ``FABRIK_LOCK_DIR``: directory for the lock files. Defaults to
-``/tmp/fabrik-locks``. Override for tests or to relocate to a different
-filesystem if ``/tmp`` is unsuitable on a given host.
+``~/.cache/fabrik-locks`` (``Path.home()``, which falls back to the passwd home when ``HOME`` is unset, as
+under cron), so every hub process of one user shares it and no other local user can pre-create it the way
+a fixed ``/tmp`` name allowed (W-1f70f2e9). The dir is made 0700 when created; its privacy rests on a private
+HOME, since a missing ``~/.cache`` parent takes the umask's mode and an existing dir is left as it is. It
+fails closed: with HOME unwritable or empty, ``file_lock`` raises ``OSError`` — set ``FABRIK_LOCK_DIR``.
 """
 
 from __future__ import annotations
@@ -45,7 +48,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR", "/tmp/fabrik-locks"))  # nosec B108  # noqa: S108
+# Per user, under a private HOME, and the same dir for every hub process of that user: cron has no
+# XDG_RUNTIME_DIR, and a per-checkout dir would stop worktrees excluding each other (W-1f70f2e9).
+LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR") or Path.home() / ".cache" / "fabrik-locks")
 
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -78,7 +83,7 @@ def file_lock(
         TimeoutError: lock not acquired within ``timeout_seconds``.
         OSError: filesystem-level failure unrelated to lock contention.
     """
-    LOCK_DIR.mkdir(parents=True, exist_ok=True)
+    LOCK_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     safe = _sanitize(name)
     lock_path = LOCK_DIR / f"{safe}.lock"
     deadline = time.monotonic() + timeout_seconds
