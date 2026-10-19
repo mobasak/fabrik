@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:21:42.001503Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-90114e2a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: convert agents_bat.py's hub-root write to the hub write-root helper, or allowlist it with the reason the test asks for; re-run tests/test_hub_write_root.py green; scoped review; merge request",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a break on master (tests/test_hub_write_root.py red since 477a1d208, confirmed by the coordinator: 1 failed, 29 passed); LOW effort: one write path or one allowlist entry",
+  "status": "open",
+  "tags": [
+    "mail-01m5an1ezy809f8rzdm09xs5y2"
+  ],
+  "title": "master is RED: tests/test_hub_write_root.py::test_every_hub_root_write_hit_is_converted_or_allowlisted fails on scripts/sysadmin/agents_bat.py (merged 477a1d208, W-bb6c9d9a); reported by intel in mail 01M5AN1EZY809F8RZDM09XS5Y2"
+}
