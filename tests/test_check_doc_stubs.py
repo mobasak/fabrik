@@ -242,8 +242,13 @@ def test_a_doc_left_as_its_template_warns(monkeypatch, tmp_path, capsys):
 
 
 def test_a_hub_with_full_history_prints_no_history_note(monkeypatch, tmp_path, capsys):
-    """This tree is the hub with its whole git history: the WARN fires and no caveat is printed."""
-    monkeypatch.setattr(stubs, "_HUB_ROOTS", (REPO_ROOT,))
+    """A hub whose template history is complete: the WARN fires and no caveat is printed. The fixture
+    hub's audit is told its history is complete, so the test never depends on this checkout's git."""
+    hub = _fixture_hub(tmp_path / "hub")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    audit, reason = stubs._template_audit()
+    assert reason is None
+    monkeypatch.setattr(audit, "template_history_complete", lambda: True)
     rc = _run_doc(
         monkeypatch, _proj(tmp_path), ["compose.yaml"], "docs/SERVICES.md", _services_template()
     )
@@ -264,6 +269,8 @@ def test_a_hub_rule_that_raises_per_doc_is_said_and_exits_zero(monkeypatch, tmp_
     out = capsys.readouterr().out
     assert rc == 0 and TEMPLATE_LINE not in out and SKIP_LINE not in out
     assert "doc-stub: template rule raised on docs/SERVICES.md (SystemExit)" in out
+    # the hub still loaded, so its (incomplete: no git) history caveat is said beside the raise
+    assert "doc-stub: template history: unavailable" in out
 
 
 def test_a_filled_doc_keeping_template_lines_does_not_warn(monkeypatch, tmp_path, capsys):
