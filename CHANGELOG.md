@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py --help` no longer crashes (2026-10-19)
+
+- `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans every literal `help=` under `scripts/` for a bare `%`; this was the only one of 666, across 289 files. Item W-2356fd8d (kaizen relay 01M59T9RXS).
+
 ### Changed — `command_run.py round` shows the slice ledger it expects before recording (2026-10-19)
 
 - In a partitioned review, every later pass states `round --slices` by hand, and a wrong ledger used to be accepted silently. `round` now prints, before it records, the ledger it expects: each slice's first and last stated counts, and the classes still open. It warns on stderr when a slice's claims grew or shrank, verified fell, a slice is new or missing, `--slices` is absent, or a first round's claims total less than `--confirmed`. Warnings only; nothing new is refused. Decision D-1039; item W-2d704438 (mail 01M58H6DF7).
