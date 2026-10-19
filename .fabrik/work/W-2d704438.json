@@ -3,7 +3,7 @@
   "created": "2026-10-18T22:19:05.288962Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "218fa04f6b7c285ab4d2ede0d673156c8cf2f7a1",
   "id": "W-2d704438",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "another active agent's request (kaizen feedback row needing code); one verb's output, one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m58h6df71ssm1d358jtejw38"
   ],
