@@ -149,7 +149,7 @@ are live-researched (2026-07-26); GPU rates from RunPod/Vast.
 
 ### Pipeline 1 — Faceless (CPU, no GPU, `avatar.mode: none`)
 
-**Narrative.** A script (Claude via OpenRouter) becomes narration audio, laid over **stock B-roll**
+**Narrative.** A script (Claude through `claude -p` on the subscription) becomes narration audio, laid over **stock B-roll**
 keyword-matched to each scene, with lower-thirds / PMID citations / title-cards layered per
 `scene.layout`, and captions burned in — all muxed by **FFmpeg templated filter graphs** (one graph per
 aspect-ratio × layout, picked by the profile's `template_id`). No neural rendering happens, so there is
@@ -160,7 +160,7 @@ footage never visibly repeats across videos.
 
 | Stage | Tool | Reach | $/min |
 |---|---|---|--:|
-| Script | **Claude** via OpenRouter | ✅ OpenRouter key | ~$0.01/video |
+| Script | **Claude** through `claude -p` on the subscription, `haiku` first and escalating per the dispatch ladder (vendor `fabrik-lib/llm-dispatch`; OpenRouter only as an opted-in metered fallback — `.windsurf/rules/ai/00-ai-model-selection.md` § In-code AI agent calls) | ✅ subscription | no per-call bill (amortized rate: `scripts/kilo-benchmarks/claude_p_cost.json`, hub-only) |
 | Narration (TTS) | **ElevenLabs** (premium) · **Kokoro** self-host Apache-2.0 (cheap, CPU-capable) · **Chatterbox** MIT (cloned voice) | ✅ ElevenLabs key / self-host | ElevenLabs ~$0.09–0.16 · Kokoro ~$0.001 |
 | Visual (B-roll) | **Pexels + Pixabay** stock (keyword-matched) · gap-fill: self-host **LTX** for scenes stock can't cover | ✅ stock keys / own GPU | stock $0 · generative fill ~$0.10–0.50 |
 | Overlays | **FFmpeg** filter graphs — lower-thirds, PMID citation chips, title-cards, per `scene.layout` × `template_id` | CPU (VPS) | ~$0 |
