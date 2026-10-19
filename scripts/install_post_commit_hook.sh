@@ -74,20 +74,42 @@ done
 # custom driver. merge_request.py resolves item conflicts on its own (D-988) and needs none of this.
 DRIVER='python3 scripts/work.py merge-item %O %A %B || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'
 # Written only when it differs: a same-value `git config` still replaces the shared file under
-# config.lock, and this runs on every shell, racing every sibling's own config write.
+# config.lock, and this runs on every shell, racing every sibling's own config write. A write that
+# fails (a sibling holds the lock, or a stale lock) is reported and the run goes on, so the
+# attributes below are still copied; the non-zero exit is what wsl_startup_hook.sh prints.
+rc=0
 set_config() {
-  [ "$(git -C "$ROOT" config --get-all "$1" 2>/dev/null)" = "$2" ] || git -C "$ROOT" config --replace-all "$1" "$2"
+  [ "$(git -C "$ROOT" config --get-all "$1" 2>/dev/null)" = "$2" ] && return 0
+  git -C "$ROOT" config --replace-all "$1" "$2" ||
+    { echo "install_post_commit_hook: could not set $1 — the work-item merge driver is not registered; the next shell retries" >&2; rc=1; }
 }
 set_config merge.workitem.name "work.py merge-item (key-wise work-item merge)"
 set_config merge.workitem.driver "$DRIVER"
 # git reads .gitattributes from the tree as it was BEFORE the merge, so a branch cut before the file
 # existed would get no driver on the merge that brings it in; <common>/info/attributes applies to
-# every worktree at once. Copied from .gitattributes, the mapping's one hand-written home.
+# every worktree at once. Its merge=workitem lines are a block this installer OWNS, rebuilt from
+# .gitattributes (the mapping's one hand-written home) on every run — so a line removed there leaves
+# here too — and replaced atomically only when it changed; every other line is kept.
 info="$common/info/attributes"
-if [ -f "$ROOT/.gitattributes" ]; then
+BEGIN_MARK="# BEGIN work-item merge driver — managed by scripts/install_post_commit_hook.sh"
+END_MARK="# END work-item merge driver"
+want=""
+[ -f "$ROOT/.gitattributes" ] &&
+  want="$(grep -E '^[[:space:]]*[^#[:space:]].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true)"
+current=""
+[ -f "$info" ] && current="$(cat "$info")"
+kept="$(printf '%s\n' "$current" | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '$0 == b {skip = 1; next} $0 == e {skip = 0; next} !skip')"
+new="$kept"
+[ -n "$want" ] && new="${kept:+$kept
+}$BEGIN_MARK
+$want
+$END_MARK"
+if [ "$new" != "$current" ]; then
   mkdir -p "$common/info"
-  { grep -E '^[^#].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true; } |
-    while IFS= read -r line; do
-      grep -qxF -- "$line" "$info" 2>/dev/null || printf '%s\n' "$line" >> "$info"
-    done
+  tmp="$(mktemp "$common/info/.attributes.XXXXXX")"
+  if [ -n "$new" ]; then printf '%s\n' "$new" > "$tmp"; else : > "$tmp"; fi
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$info"
+  tmp=""
 fi
+exit "$rc"

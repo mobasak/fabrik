@@ -118,26 +118,88 @@ def _driver_values(repo: Path) -> list[str]:
     return res.stdout.splitlines()
 
 
-def test_the_hub_maps_item_files_to_the_driver():
-    out = _git(HUB, "check-attr", "merge", "--", ITEM).stdout
-    assert out.strip().endswith("merge: workitem"), out
+def _attr(repo: Path) -> str:
+    return _git(repo, "check-attr", "merge", "--", ITEM).stdout.strip().rsplit(": ", 1)[-1]
+
+
+def _bare_repo(tmp_path: Path, gitattributes: str | None = None) -> Path:
+    repo = tmp_path / "hub"
+    _git(tmp_path, "init", "-q", str(repo))
+    if gitattributes is None:
+        shutil.copy(HUB / ".gitattributes", repo / ".gitattributes")
+    else:
+        (repo / ".gitattributes").write_text(gitattributes, encoding="utf-8")
+    return repo
+
+
+def test_the_hub_maps_item_files_to_the_driver(tmp_path):
+    """The TRACKED file alone, in a repo with no info/attributes — the hub's own checkout carries the
+    installer's copy, which outranks `.gitattributes` and would pass with the file gone."""
+    repo = _bare_repo(tmp_path)
+    assert _attr(repo) == "workitem"
 
 
 def test_the_installer_registers_the_driver_without_rewriting_an_unchanged_config(tmp_path):
-    repo = tmp_path / "hub"
-    _git(tmp_path, "init", "-q", str(repo))
-    shutil.copy(HUB / ".gitattributes", repo / ".gitattributes")
+    repo = _bare_repo(tmp_path)
     assert _install(repo).returncode == 0
     assert len(_driver_values(repo)) == 1
     assert "scripts/work.py merge-item %O %A %B" in _driver_values(repo)[0]
     info = repo / ".git" / "info" / "attributes"
     assert info.read_text().count("merge=workitem") == 1, info.read_text()
     config = repo / ".git" / "config"
-    before = (os.stat(config).st_ino, os.stat(config).st_mtime_ns, info.read_bytes())
+
+    def state():
+        return [(os.stat(p).st_ino, os.stat(p).st_mtime_ns, p.read_bytes()) for p in (config, info)]
+
+    before = state()
     assert _install(repo).returncode == 0
     # a same-value `git config` replaces the shared file and takes config.lock on every shell
-    after = (os.stat(config).st_ino, os.stat(config).st_mtime_ns, info.read_bytes())
-    assert after == before
+    assert state() == before
+
+
+def test_a_changed_or_multi_valued_driver_is_replaced(tmp_path):
+    repo = _bare_repo(tmp_path)
+    _git(repo, "config", "merge.workitem.driver", "old")
+    _git(repo, "config", "--add", "merge.workitem.driver", "older")
+    assert _install(repo).returncode == 0
+    assert len(_driver_values(repo)) == 1 and "merge-item" in _driver_values(repo)[0]
+
+
+def test_the_attributes_copy_keeps_other_lines_and_follows_the_tracked_file(tmp_path):
+    """Review pass 1: an info/attributes without a final newline had the mapping glued onto its
+    last line (both broken), and a mapping removed from `.gitattributes` stayed in force forever."""
+    repo = _bare_repo(tmp_path)
+    info = repo / ".git" / "info" / "attributes"
+    info.parent.mkdir(exist_ok=True)
+    info.write_text("*.bin binary", encoding="utf-8")  # no final newline
+    assert _install(repo).returncode == 0
+    assert _attr(repo) == "workitem"
+    assert info.read_text().splitlines()[0] == "*.bin binary"
+    (repo / ".gitattributes").write_text("# the mapping retired\n", encoding="utf-8")
+    assert _install(repo).returncode == 0
+    assert _attr(repo) == "unspecified"
+    assert info.read_text().splitlines() == ["*.bin binary"]
+
+
+def test_an_indented_comment_is_not_copied(tmp_path):
+    repo = _bare_repo(tmp_path, "  # .fabrik/work/W-*.json merge=workitem\n")
+    assert _install(repo).returncode == 0
+    info = repo / ".git" / "info" / "attributes"
+    assert not info.exists() or "merge=workitem" not in info.read_text()
+    assert _attr(repo) == "unspecified"
+
+
+def test_a_held_config_lock_still_copies_the_attributes_and_fails_loudly(tmp_path):
+    """Review pass 1 (executed): a config.lock held by a sibling — or left stale — aborted the
+    installer under `set -e` before the attributes copy; the write fails, the rest still runs, and
+    the non-zero exit is what `wsl_startup_hook.sh` reports."""
+    repo = _bare_repo(tmp_path)
+    (repo / ".git" / "config.lock").write_text("", encoding="utf-8")
+    out = _install(repo)
+    assert out.returncode != 0
+    assert "merge.workitem" in out.stderr, out.stderr
+    assert _attr(repo) == "workitem"
+    assert (repo / ".git" / "hooks" / "post-merge").exists()
 
 
 def test_a_hand_merge_of_disjoint_item_keys_merges_clean(tmp_path):
