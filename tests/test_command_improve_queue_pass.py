@@ -579,9 +579,10 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert p3.count(head) == 1 and p3.count(tail) == 1
     span = p3[p3.index(head) + len(head) : p3.index(tail)]
     assert span == (
-        "The files the target points at by path for the same subject are read too (a review command's probe"
-        " catalogue, whose shape-matched lines every brief applies), and so are the row's own words, the rule the"
-        " edit extends, and the paragraph or list the new text joins, read whole — its lead-in and the items beside"
-        " the new text — for the bounds it sets and the acts it governs, which the new text leaves standing unless"
-        " the row is a decision settled as the decision sentence below says. "
+        "Before the first draft, the files the target points at by path for the same subject are read too (a"
+        " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — its"
+        " lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its"
+        " sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
+        " sentence below says. "
     ), span

@@ -237,28 +237,29 @@ includes (§ Drive's consistency rule says where a shared rule lives), the targe
 overlap), its fan-out paragraph and the section whose executor — lead, seat or fixer — acts on the sentence (place it
 where that reader looks, never contradicting who drives), every branch the sentence's subject can bind (a pronoun for
 "the review" binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot). The files the target points at by path for the same subject
-are read too (a review command's probe catalogue, whose shape-matched lines every brief applies), and so are the
-row's own words, the rule the edit extends, and the paragraph or list the new text joins, read whole — its lead-in
-and the items beside the new text — for the bounds it sets and the acts it governs, which the new text leaves
-standing unless the row is a decision settled as the decision sentence below says. The tests that pin a paragraph's
-sentences are read before a sentence is placed in it (`command grep -rn '<a phrase of each neighbour>' tests/`), and
-the new text goes where no pinned span runs, the gap between two sentences one pin joins included; a pin that ends at
-a sentence's period also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is
-rewrapped whole, at its width and never past the next list marker, blank line or fence, by a script that asserts its
-words unchanged, before PHASE 4's first pin. A row that prescribes how the command works — a step, an order, a commit
-or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW mechanism still routes
-per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the self-service sources first", then
-the Opus + Fable panel), and the draft is that answer. Before an edit widens a sentence's subject, splits the
-sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed
-part — in the sentence edited, in the sentence holding the pronoun, and in each later sentence or item pointing back
-into either — is read against what that clause will bind once the edit lands, since a clause written for one subject
-or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer.
-An edit to what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in the
-others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>' commands .claude/workflows
-.claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under `commands/_agents/`, the
-seat-brief lists in `fabrik-review.md` and `design-critique.md`, `convergence-prompts.md`, and intel's
-`SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
+works around (a mode may already cover the blind spot). Before the first draft, the files the target points at by
+path for the same subject are read too (a review command's probe catalogue), and so are the row's own words, the rule
+the edit extends, and the paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read
+whole — its lead-in and the items beside the new text — for the bounds that paragraph or list sets and the acts its
+sentences govern, which the new text leaves standing unless the row is a decision settled as the decision sentence
+below says. The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn
+'<a phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two
+sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is extended. A
+wrapped paragraph or bullet the edit lengthens is rewrapped whole, at its width and never past the next list marker,
+blank line or fence, by a script that asserts its words unchanged, before PHASE 4's first pin. A row that prescribes
+how the command works — a step, an order, a commit or a hand-off, not a wording — and contradicts a line that reading
+finds is a decision (a NEW mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md §
+Autonomy's order ("the self-service sources first", then the Opus + Fable panel), and the draft is that answer.
+Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and
+what it names, each clause that attaches to the changed part — in the sentence edited, in the sentence holding the
+pronoun, and in each later sentence or item pointing back into either — is read against what that clause will bind
+once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds,
+the split leaves beside it or the placed text puts nearer. An edit to what a SEAT may do lands everywhere seat rules
+live, since a rule in one home is not in force in the others: `command grep -rln -E '<two or more phrases of the
+neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today
+`subagents-core.md`, each seat file under `commands/_agents/`, the seat-brief lists in `fabrik-review.md` and
+`design-critique.md`, `convergence-prompts.md`, and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never
+edited here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
