@@ -6762,15 +6762,20 @@ def test_the_echo_reads_every_earlier_round_and_each_boundary(run_dir: Path) -> 
     longer reads shows as `?` and is never compared."""
     _start(run_dir)
     _round_slices(run_dir, "B:0/2,A:6/11,Z:0/0", confirmed="5")
-    _round_slices(run_dir, "B:2/2,A:9/11,Z:0/0", confirmed="1")
-    out = _round_slices(run_dir, "B:2/2,A:8/11,Z:0/1", confirmed="1")
+    # round 2 moves A's claims (11 → 12), so "round-1 claims" and "last stated" differ
+    _round_slices(run_dir, "B:2/2,A:9/12,Z:0/0", confirmed="1")
+    # a SECOND sliced round never reaches the undercount check, however far below
+    # --confirmed its total (15 < 20) sits
+    out = _round_slices(run_dir, "B:2/2,A:8/12,Z:0/1", confirmed="20")
     expected = next(ln for ln in out.stderr.splitlines() if "EXPECTED" in ln)
     assert "round-1 slices: B claims 2 · A claims 11 · Z claims 0" in expected, expected
-    assert "last stated: A 9/11 · B 2/2 · Z 0/0" in expected, expected
+    assert "last stated: A 9/12 · B 2/2 · Z 0/0" in expected, expected
     assert "classes open: none" in expected, expected
     text = "\n".join(_warns(out))
     assert "Z claims grew 0 → 1" in text, out.stderr
     assert "A verified fell 9 → 8" in text, out.stderr
+    assert "A claims" not in text, out.stderr  # 12 restated as it stood
+    assert "claims total" not in text, out.stderr
     assert "B verified fell" not in text and "B claims" not in text, (
         out.stderr
     )  # restated as it stood
@@ -6779,7 +6784,7 @@ def test_the_echo_reads_every_earlier_round_and_each_boundary(run_dir: Path) -> 
     rec = json.loads(f.read_text(encoding="utf-8"))
     rec["rounds"][-1]["slices"][0]["claims"] = None
     f.write_text(json.dumps(rec), encoding="utf-8")
-    edited = _round_slices(run_dir, "B:2/5,A:11/11,Z:1/1", confirmed="0")
+    edited = _round_slices(run_dir, "B:2/5,A:12/12,Z:1/1", confirmed="0")
     assert edited.returncode == 0, edited.stderr
     line = next(ln for ln in edited.stderr.splitlines() if "EXPECTED" in ln)
     assert "B 2/?" in line, line
@@ -6814,6 +6819,21 @@ def test_no_echo_before_a_ledger_or_on_a_refused_round(run_dir: Path) -> None:
     )
     assert seats.returncode == 2, seats.stderr
     assert "EXPECTED" not in seats.stderr and _warns(seats) == [], seats.stderr
+    # and so do the `--own-fix` refusals (an own-fix count above the confirmed count)
+    own = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--own-fix",
+        "5",
+        "--slices",
+        "A:0/9",
+    )
+    assert own.returncode == 2, own.stderr
+    assert "EXPECTED" not in own.stderr and _warns(own) == [], own.stderr
 
 
 def test_a_malformed_slice_ledger_is_refused(run_dir: Path) -> None:
