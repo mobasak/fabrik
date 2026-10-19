@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T11:03:03.960371Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-33b84ff0",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "kaizen wording edit so a new script's round-1 brief carries the one-mutant-per-guard sweep visibly; catalogue renders into 5 commands, so the full /fabrik-review",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work + rule wording (D-956); one fragment line",
   "status": "open",
   "title": "review-probe-catalogue.md § Before the first pin mutant line ('One mutant per clause … re-run every prior mutant') and its 'a counter or guard is gutted in the same round' line are cited by 3+ answered review-scoped rejects (1792401243, 1792273324, 1791852372, 1791939536) — a line not followed: infra's round 1 still ran a breadth read and found 11 untested guards over four closing passes"
 }

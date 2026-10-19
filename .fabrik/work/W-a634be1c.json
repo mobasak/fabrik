@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T11:03:03.409686Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-a634be1c",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "kaizen wording edit making the already-stated check a step the lead runs BEFORE drafting (findable, not a sweep clause); catalogue renders into 5 commands, so the full /fabrik-review",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work + rule wording (D-956); one fragment line",
   "status": "open",
   "title": "fabrik-review-scoped.md step 3 ('Something already stated … is pointed at, or … quoted whole, verbatim … never paraphrased') + review-probe-catalogue.md § Sweep ('each sentence a fix writes that restates a rule already stated elsewhere …') are cited by 7+ answered review-scoped rejects (latest 1792405274, 1792406856, 1792347400, 1792327648, 1792276704) — a line not followed: leads still draft a sentence before finding the rule's existing home"
 }
