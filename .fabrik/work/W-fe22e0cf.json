@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "competitor-intel: brief incompleteness note under a non-empty MATCH list (fabrik-lib SB-008, fabrik-lib D-459; branch worktree-fabrik-lib-dev2, Phase A 29d6574e, fixes e265175c — on main once merged)"
 }
