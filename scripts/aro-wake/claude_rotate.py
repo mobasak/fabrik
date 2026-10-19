@@ -3342,11 +3342,18 @@ def _cmd_tick() -> int:
 
     The battery hold (W-83a8ee68) runs in the ``finally``: a quota tick that returns early or
     raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
-    is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall."""
+    is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall. The fleet
+    tick also runs it in-line before its posture, so this call then arms and lifts nothing more
+    (it may repeat the "quota is unread" line when the advisory never read the quota).
+
+    The resume wake (W-75cafe7a) runs last in the ``finally``: :func:`_resume_leg` records this
+    tick's end and, after a sleep, wakes every armed self-watch."""
     global _QUOTA_HOT_THIS_TICK
     # UNKNOWN until the quota leg positively finds the active account cool on a real reading —
     # a blackout, a raise before the advisory, or a skipped advisory keeps the battery hold
     _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
+    # the resume wake's inputs (W-75cafe7a): read before anything can raise, acted on last
+    start, prev_end = _now(), _read_tick_last_end()
     try:
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
@@ -3361,6 +3368,7 @@ def _cmd_tick() -> int:
         return 0
     finally:
         _battery_leg(time.time(), lift=True)
+        _resume_leg(start, prev_end)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -5544,7 +5552,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
 # probe; each treats an absent, unreadable or stale file as ABSENT and fails OPEN — the same posture
 # ``quota_stop.py`` takes for the fleet-exhausted stamp. The band has NO cap clause: a cap reached
 # trips the flip leg, and with no successor the wall predicate counts the account as walled and the
-# advisory stamps — the posture reads WALL one tick later, and only at the `walled` TIER (D-306); the forecast already says ``wall in ~0m``.
+# advisory stamps — the posture, built after the advisory, reads WALL in that same tick (W-75cafe7a), and only at the `walled` TIER (D-306); the forecast already says ``wall in ~0m``.
 # ``_tick_burn`` (the flip leg's single-tick projection) and this smoothed burn answer two different
 # questions and neither reads the other. No statistics live here — the ledger is the source.
 _POSTURE_SCHEMA = 1
@@ -5587,7 +5595,9 @@ def _write_quota_posture(posture: dict) -> None:
     ⚠️ The pid in the tmp name is load-bearing. ``os.replace`` makes the PUBLISH atomic; it says
     nothing about the STAGING. With one shared ``<file>.tmp``, two overlapping ticks truncate each
     other mid-write and whoever replaces first publishes the mixture — and nothing serialises them:
-    ``_cmd_tick`` has no single-instance lock and the picture's probes have no wall-clock bound, so
+    ``_cmd_tick`` takes no lock itself (the cron line and the quota dashboard serialise their runs
+    through ``flock -n rotate.lock``; a hand-run tick does not) and the picture's probes have no
+    wall-clock bound, so
     a slow tick straddles the next 5-minute cron one. That is exactly when the fleet is degraded
     enough to matter. Measured under a 6-writer race: 3,471 of 4,000 concurrent reads unparseable
     with the shared name (review round 1). Readers fail open on a torn file, so the cost is a whole
@@ -7225,6 +7235,96 @@ def _cmd_battery_tick() -> int:
     return 0
 
 
+# ── the resume wake (W-75cafe7a) ───────────────────────────────────────────────────────────────
+# After a host sleep nothing woke the idle sessions: the self-watch fires on a death or a hold
+# lift only. The guest kernel does not account a host sleep (CLOCK_BOOTTIME − CLOCK_MONOTONIC
+# read 0 across two WSL sleeps, 2026-10-19), so the WALL clock is the signal: the gap from the
+# last tick's END to this tick's start. Measured over 3 days of ledger rows: ordinary slips are
+# 10-11 minutes (one missed */5 slot), every sleep ≥ 50 — hence 15, never under 12.
+# COBRA (D-253): the cheapest way to satisfy "every session woke after a resume" is to wake on
+# every tick or on any small gap; the floor, the END-based gap (a slow tick is not a sleep) and
+# write-the-record-before-the-wake (an unwritable record wakes nobody, never every tick) are the
+# counter, and each `resume-wake` row carries its gap so a storm shows in the ledger.
+_RESUME_KIND: Final = "resume"  # the `.holdlifted` field 2 the self-watch reads
+_RESUME_EVENT: Final = "resume-wake"  # its ledger row — never `hold-lifted`, an episode end
+_RESUME_GAP_FLOOR_MIN: Final = 12.0
+
+
+def _tick_last_end_path() -> Path:
+    return _rotate_state_dir() / "tick-last-end"
+
+
+def _resume_gap_s() -> float:
+    """`CLAUDE_RESUME_GAP_MIN` (default 15) in seconds; under the floor the default stands."""
+    mins = _env_float("CLAUDE_RESUME_GAP_MIN", 15.0)
+    return (mins if mins >= _RESUME_GAP_FLOOR_MIN else 15.0) * 60.0
+
+
+def _read_tick_last_end() -> float | None:
+    """The previous tick's end, or None — missing, unreadable, not a finite number, or a state
+    dir that cannot be made, or not a regular file. Never raises: a missed wake, never a broken
+    tick. `is_file()` before the read, as `_stamp_tier` does: a FIFO at this path blocks the read
+    forever, and a hang is not an OSError, so every cron tick would stall on it."""
+    try:
+        path = _tick_last_end_path()
+        if not path.is_file():
+            return None
+        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+        val = float(raw)
+    except (ValueError, *_STATE_DIR_ERRORS):
+        return None
+    return val if math.isfinite(val) else None
+
+
+def _write_tick_last_end(now: float) -> bool:
+    """Atomically record this tick's end; False when it could not be written (the per-process
+    staging file is then removed, so a state dir that refuses the publish never fills with them)."""
+    tmp = None
+    try:
+        path = _tick_last_end_path()
+        tmp = path.with_name(f".{path.name}.{os.getpid()}")
+        tmp.write_text(f"{now}\n")
+        os.replace(tmp, path)
+    except _STATE_DIR_ERRORS:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return False
+    return True
+
+
+def _resume_leg(start: float, prev_end: float | None) -> None:
+    """Record this tick's end, then — only when that write held and the gap from the previous
+    end to this tick's start is over the line — wake every armed self-watch with a `resume`
+    lift, unless a hold stands (its own lift wakes them; `_stamp_tier` reads a torn or unknown
+    stamp as walled). The quota is not consulted: no usage accrues while the box sleeps, and
+    the self-watch's connectivity gate waits for the API. Never raises."""
+    try:
+        if not _write_tick_last_end(_now()):
+            print("tick: the tick-end record could not be written — no resume wake this tick")
+            return
+        if prev_end is None:
+            return
+        gap = start - prev_end
+        if gap <= _resume_gap_s():
+            return
+        stamp = _fleet_exhaustion_stamp()
+        # `lexists`, not `exists`: a dangling link at the stamp path is a stamp `_stamp_tier`
+        # reads as walled (fail-closed), and `exists()` follows the link and says no
+        if os.path.lexists(stamp) and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+            print(
+                f"tick: resumed after {gap / 60:.0f} min — a hold stands; its lift wakes the sessions"
+            )
+            return
+        _wake_held_sessions(
+            _now(), _RESUME_KIND, True, event=_RESUME_EVENT, extra={"gap_s": round(gap)}
+        )
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
+        print(f"tick: resume leg ERROR {type(exc).__name__}: {exc}")
+
+
 def _selfwatch_lock_dir() -> Path:
     """The resume mesh's lock dir — the same default every pane's self-watch uses
     (`claude-selfwatch.sh:18`, `selfwatch_check.py:42-43`); cron runs the tick as the same user."""
@@ -7304,7 +7404,14 @@ def _armed_sids() -> tuple[list[str], list[str], list[str]]:
     return armed, dead, broken
 
 
-def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
+def _wake_held_sessions(
+    now: float,
+    reason: str,
+    reading_ok: bool,
+    *,
+    event: str | None = None,
+    extra: dict | None = None,
+) -> dict:
     """The RELIEF WAKE (D-177/D-178): the fleet-exhausted stamp just went away, so every session
     that stopped for the hold must be told. For every sid whose self-watch is ARMED, create
     `<lockdir>/<safe>.holdlifted` holding the lift epoch — a file of its OWN, never the death
@@ -7314,7 +7421,12 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
     ``reading_ok`` False (a probe blackout — `_active_account_walled` answers "not walled" on no
     data) NO lift is written: a blackout is not relief, and waking the fleet into the wall burns
     the turn the hold saved. Either way ONE ledger row (`hold-lifted`) records the denominator.
-    Fails OPEN on the mesh: an unusable lock dir is counted in ``errors`` and the tick goes on. ``reading_ok`` is DEFENSIVE since D-180 — the relief site keeps the stamp on a blackout and never passes ``False``; the ``no-reading`` row is reachable only by a direct call (unit-tested, never taken by the tick)."""
+    Fails OPEN on the mesh: an unusable lock dir is counted in ``errors`` and the tick goes on. ``reading_ok`` is DEFENSIVE since D-180 — the relief site keeps the stamp on a blackout and never passes ``False``; the ``no-reading`` row is reachable only by a direct call (unit-tested, never taken by the tick).
+
+    ``event`` names the ledger row: the hold lifts write ``hold-lifted`` (the default, the wall
+    episode's end event); the resume wake writes ``resume-wake`` so a sleep never ends an open
+    wall episode (W-75cafe7a). ``extra`` adds fields to that row (the resume's gap)."""
+    event = event or _WAKE_EVENT
     counts = {"armed": 0, "dead": 0, "woken": 0, "pending": 0, "errors": 0}
     site = reason  # which unlink fired — kept even when the reason becomes "no-reading"
     try:
@@ -7332,9 +7444,11 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
                 except OSError:
                     counts["errors"] += 1
                     continue
-                # the battery lift names itself so the self-watch's RESUME line can say which
-                # hold went; a quota lift keeps its byte-exact one-field shape (W-83a8ee68)
-                body = f"{int(now)} battery\n" if reason == _STAMP_TIER_BATTERY else f"{int(now)}\n"
+                # the battery lift and the resume wake name themselves so the self-watch's RESUME
+                # line can say which event woke it; a quota lift keeps its byte-exact one-field
+                # shape (W-83a8ee68, W-75cafe7a)
+                named = reason in (_STAMP_TIER_BATTERY, _RESUME_KIND)
+                body = f"{int(now)} {reason}\n" if named else f"{int(now)}\n"
                 try:
                     os.write(fd, body.encode())
                 finally:
@@ -7344,9 +7458,12 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
             reason = "no-reading"
     except OSError:
         counts["errors"] += 1
-    _ledger_append({"event": "hold-lifted", "ts": now, "reason": reason, "site": site, **counts})
+    _ledger_append(
+        {"event": event, "ts": now, "reason": reason, "site": site, **counts, **(extra or {})}
+    )
+    what = "resumed from sleep" if event == _RESUME_EVENT else f"hold lifted ({reason})"
     print(
-        f"tick: hold lifted ({reason}) — woke {counts['woken']} of {counts['armed']} armed "
+        f"tick: {what} — woke {counts['woken']} of {counts['armed']} armed "
         f"self-watch(es); dead {counts['dead']}, pending {counts['pending']}, errors {counts['errors']}"
     )
     return counts
@@ -8243,23 +8360,35 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             if _fv is not None:
                 _row["fable_pct"] = _fv
             _ledger_append(_row)
-    # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip pointer;
-    # at function level so the no-reading path writes too (band null). A picture error prints one
-    # line and never takes the tick down.
-    _active_slug = _resolve_active()
     try:
-        _pic = _fleet_picture(accounts, _active_slug, now)
-        _write_quota_posture(
-            _quota_posture(
-                accounts, _pic, now, _read_quota_posture(), hold=_hold_is_wall(_pic.get("hold"))
+        # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
+        # every agent is using) is walled with no auto-relief. A single account crossing the
+        # threshold is a non-event — the flip leg above already re-pointed to a sibling with headroom.
+        _fleet_active_wall_advisory(accounts, now, threshold)
+    finally:
+        # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK` (or raised,
+        # leaving it unknown), so the posture below carries a hold this tick lifted; it never
+        # raises, and `_cmd_tick`'s `finally` call then finds nothing left to do (W-75cafe7a)
+        _battery_leg(time.time(), lift=True)
+        # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip
+        # pointer, and AFTER the advisory and the battery leg so its hold is the stamp THIS tick
+        # left — built before them, every arm or clear reached the posture one tick late
+        # (W-75cafe7a: a battery lift at 00:50 still read band WALL until 00:55). In a `finally`
+        # so an advisory that raises still leaves a posture, and the no-reading path writes too
+        # (band null). A picture error prints one line and never takes the tick down.
+        try:
+            _pic = _fleet_picture(accounts, _resolve_active(), now)
+            _write_quota_posture(
+                _quota_posture(
+                    accounts,
+                    _pic,
+                    now,
+                    _read_quota_posture(),
+                    hold=_hold_is_wall(_pic.get("hold")),
+                )
             )
-        )
-    except Exception as exc:  # noqa: BLE001 — never silent, never fatal
-        print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
-    # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
-    # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
-    # non-event — the flip leg above already re-pointed to a sibling with headroom.
-    _fleet_active_wall_advisory(accounts, now, threshold)
+        except Exception as exc:  # noqa: BLE001 — never silent, never fatal
+            print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
     for warn in (
         _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings() + _shared_link_warnings()
     ):

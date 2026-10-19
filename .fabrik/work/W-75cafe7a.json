@@ -3,7 +3,7 @@
   "created": "2026-10-19T15:31:00.062105Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "95f9b319293d5a9d1fc32f1d1094a107087ff02b",
   "id": "W-75cafe7a",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: operator ask, and a block on every agent after each wake (all 7 sessions sat idle); LOW effort: one resume detector plus a forced tick, on existing pieces (wsl_startup_hook.sh, claude_rotate tick, the session registries)",
-  "status": "open",
+  "status": "done",
   "title": "Post-wake gaps (operator: 'machine woken up. implement these close the gaps.'): after a hibernation no builder or coordinator resumes by itself (selfwatch fires only on a death), the quota posture and fleet-exhausted stamp stay stale until the next tick, and a pane's TUI can freeze; add a resume detector that re-ticks the rotation and sends each registered coordinator and builder one wake message"
 }
