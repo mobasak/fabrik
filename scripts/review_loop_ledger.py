@@ -1058,9 +1058,9 @@ def pin(
     # the full commit a seat archives and overlays the pins on (D-1051's "that pin's own base_sha"), recorded so a
     # delta brief can read the previous pass's back from its pin (W-0b09fae6): the `--base` commit when given (the
     # same commit `base_pin_dir` holds, which seats copy in place of archiving base_sha), else the `--from` ref,
-    # else HEAD. Only a working-tree pin in a repo with no commit yet records null (A-H1); a `--from` that names
-    # no commit (ls-tree accepts a tree) is refused, since no seat could archive it. A bad `--base` was refused
-    # by _change_diff above.
+    # else HEAD. Only a working-tree pin in a repo with no commit yet records null (A-H1); an anchor given as
+    # `--from` or `--base` that names no commit (ls-tree accepts a tree) is refused, since no seat could archive
+    # it — a tree `--from` beside a commit `--base` pins, the `--base` commit being the anchor.
     anchor = base or ref or "HEAD"
     try:
         base_sha: str | None = (

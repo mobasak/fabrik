@@ -930,8 +930,9 @@ def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
 
 def test_pin_records_the_base_sha_it_was_read_against(tmp_path: Path) -> None:
     """W-0b09fae6 (kaizen 01M5AHVAYZ): D-1051's delta brief names each pass's `base_sha`, so the pin records it
-    — the full commit its bytes are read against: HEAD for a working-tree pin, the resolved `--from` ref
-    otherwise — in MANIFEST.json and in the printed fragment, where a seat or a resuming lead can check it."""
+    — the full commit a seat archives and overlays the pins on: the `--base` commit when given, else the
+    resolved `--from` ref, else HEAD — in MANIFEST.json and in the printed fragment, where a seat or a resuming
+    lead can read it back."""
     repo = _repo(tmp_path)
     first = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
