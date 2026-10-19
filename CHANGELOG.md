@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
 
-- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another the same HEAD-vs-new differential a byte-identical refactor gets, over the input types its callers pass. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
+- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another a HEAD-vs-new differential over the input types its callers pass, subclasses and registered virtual types included. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
 
 ### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
 

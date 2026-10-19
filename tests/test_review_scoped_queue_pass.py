@@ -851,7 +851,8 @@ def test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read() -> None:
         " the pin holds only the files it lists, so a seat reads any other file, the rest of a changed module's"
         " directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken"
         " `--base`, else the archive of its `base_sha`), never from the live tree beyond what the seat prompt's recipes"
-        " (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and name UNPINNED." in iso
+        " (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and name UNPINNED."
+        in iso
     )
 
 
@@ -863,7 +864,8 @@ def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
     core = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text())
     assert (
         "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and the brief tells each seat to"
-        " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;" in core
+        " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;"
+        in core
     )
 
 
@@ -871,15 +873,37 @@ def test_two_held_catalogue_subjects_recurred_and_are_edited() -> None:
     """D-711 recurrences: row 1792424989 repeats HELD:agent-recipe-probed-over-artifact-life-cycle (a pasted command
     run against the artifact the next step compares it with) and row 1792428944 repeats HELD:guard-cut-fuzz-differential
     (a differential over the input corpus before a replacement lands). Each extends the catalogue line its held reason
-    cited."""
-    cat = _norm(CAT)
-    assert (
-        "check the END STATE a recipe exists to produce, not only each step, against the artifact the next step"
-        " compares it with (a lock file, a manifest), not only the source it reads;" in cat
-    )
-    assert (
-        "a byte-identical refactor, and a fix that swaps one call, guard or protocol for another (`in` plus `[]` for"
-        " `.get`), gets a HEAD-vs-new differential harness over the input types its callers pass, subclasses and"
-        " registered virtual types included, before each pin;" in cat
-    )
+    cited; both bullets are pinned whole by equality, as the catalogue's own Graders rule asks of fixed prose, so a
+    clause added beside the new one reds too."""
 
+    def bullet(prefix: str) -> str:
+        lines = CAT.read_text().split("\n")
+        start = next(i for i, line in enumerate(lines) if line.startswith(prefix))
+        end = next(
+            i
+            for i in range(start + 1, len(lines))
+            if lines[i].startswith("- ") or lines[i].startswith("#") or not lines[i].strip()
+        )
+        return " ".join(line.strip() for line in lines[start:end])
+
+    assert bullet("- Run the changed artifact end to end when it can run") == (
+        "- Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its "
+        "real shell), and check the END STATE a recipe exists to produce, not only each step, against the "
+        "artifact the next step compares it with (a lock file, a manifest), not only the source it reads; run a "
+        "README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of "
+        "the brief that same command to run under § Seat isolation — one that writes a live store, sends, "
+        "commits, deploys or reaches a host stays the lead's — and probe each exception a rewritten docstring "
+        "says the function still raises."
+    )
+    assert bullet("- Test hygiene: a test stub records what it RECEIVED") == (
+        "- Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; "
+        "isolation is proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves "
+        "nothing on teardown; non-ASCII literals are checked by bytes; the whole suite directory of a changed "
+        "test runs; a golden value is pinned after printing its matched span; a byte-identical refactor gets a "
+        "HEAD-vs-new differential harness, and a fix that swaps one call, guard or protocol for another (`in` "
+        "plus `[]` for `.get`) gets one over the input types its callers pass, subclasses and registered virtual "
+        "types included, before each pin; two emitted artifacts are diffed whole for an alias change; a red's "
+        "failure message is diffed against the baseline and printed beside its FAILED line; an import-path fix is"
+        " graded from the root conftest and a child process; a grader exclusion says whether it matches an exact "
+        "name or a pattern."
+    )

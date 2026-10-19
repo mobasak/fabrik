@@ -153,12 +153,12 @@ it, or name in the brief why the shape does not have it.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned
-  after printing its matched span; a byte-identical refactor, and a fix that swaps one call, guard or protocol for
-  another (`in` plus `[]` for `.get`), gets a HEAD-vs-new differential harness over the input types its callers pass,
-  subclasses and registered virtual types included, before each pin; two emitted artifacts are diffed whole for an alias
-  change; a red's failure message is diffed against the baseline and printed beside its FAILED line; an import-path fix
-  is graded from the root conftest and a child process; a grader exclusion says whether it matches an exact name or a
-  pattern.
+  after printing its matched span; a byte-identical refactor gets a HEAD-vs-new differential harness, and a fix that
+  swaps one call, guard or protocol for another (`in` plus `[]` for `.get`) gets one over the input types its callers
+  pass, subclasses and registered virtual types included, before each pin; two emitted artifacts are diffed whole for an
+  alias change; a red's failure message is diffed against the baseline and printed beside its FAILED line; an
+  import-path fix is graded from the root conftest and a child process; a grader exclusion says whether it matches an
+  exact name or a pattern.
 
 ## Prose and docs fixes
 - Read a fragment's scope sentences, and a rule already in a fragment is quoted in its own words and pointed at; a
