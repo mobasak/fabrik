@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the external-services chain no longer runs the classifier; a catalog typo routes to triage (2026-10-19)
+D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is now gather_envs → registry_sync → gen_dashboard: the pool-only `classify_services.py` step and its reconsolidate re-run are gone (the pool has been OFF since 2026-09-07, so the step classified nothing), and the script stays a manual tool. The board's and the static file's "classifier has not run" attention entry and the `classified_at` input are removed. `gather_envs.real_category` accepts only the category enum (now one home, `gather_envs.CATEGORIES`) or `unidentified`: an off-enum category routes the provider to NEEDS-TRIAGE with a stderr warning, never a dashboard table of its own, and a grader refuses a committed catalog that carries one.
+
 ### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
 - Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
