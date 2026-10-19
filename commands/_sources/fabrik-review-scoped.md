@@ -39,29 +39,29 @@ proportionate answer.
 2. **Arm:** `python scripts/review_rubric.py --changed <the files>` — the injected mandates plus the
    four standing recurrence classes (fail-open/fail-closed · cost/limit edges · boundary/sentinel ·
    behavior-without-a-test) are your hunt list.
-3. **Pass 1 (wide):** read every changed hunk PLUS the enclosing function and its callers. Hunt the
-   armed classes. Every finding is FIXED in-run or REFUTED with the disproving line — no third
-   bucket, no "noted". A behaviour fix is proven by its test going red on the DEFECT (written first
-   and watched fail, or red-on-revert with the fix undone on a copy): a red the defect does not
-   cause, such as the test's own setup failing, or a test that stays green with the fix undone,
-   proves nothing. Name that test and its red in your report and the close's `--evidence`; a docs or
-   config fix owes none. Before a fix writes a sentence that states a rule (a doc or command
-   sentence, a code comment, a commit message), the probe catalogue's Sweep search for a rule
-   already stated elsewhere (its § Prose and docs fixes) runs first, on the terms of the rule the
-   sentence would state, never after the draft, and your report names its terms and hits, or that it
-   found none and the new sentence is the rule's home; what it finds is held to this step's rule
-   below for something already stated. Every checkable claim any fix adds (a doc or
-   command sentence, a code comment, a commit message) is either executed, with its command and
-   output named in your report, or deleted; a re-read is not execution. Something already stated, in
-   the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed at, or,
-   where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,
+3. **Pass 1 (wide):** read every changed hunk PLUS the enclosing function and its callers. Hunt the armed
+   classes. Every finding is FIXED in-run or REFUTED with the disproving line — no third bucket, no "noted". A
+   behaviour fix is proven by its test going red on the DEFECT (written first and watched fail, or
+   red-on-revert with the fix undone on a copy): a red the defect does not cause, such as the test's own setup
+   failing, or a test that stays green with the fix undone, proves nothing. Name that test and its red in your
+   report and the close's `--evidence`; a docs or config fix owes none. Before a fix writes a sentence that
+   states a rule (a doc or command sentence, a code comment, a commit message), the probe catalogue's Sweep
+   search for a rule already stated elsewhere (its § Prose and docs fixes) runs first, on the terms of the
+   rule the sentence would state, never after the draft, and your report names its terms and hits, or that it
+   found none and the new sentence is the rule's home; what it finds is held to this step's rule below for
+   something already stated. Every checkable claim any fix adds (a doc or command sentence, a code comment, a
+   commit message) is either executed, with its command and output named in your report, or deleted, and a
+   rule, recipe, command or guard a fix adds is run before the pin over the input classes round zero of
+   `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape; a re-read is not execution. Something
+   already stated, in the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed
+   at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,
    never paraphrased. **LOCAL findings (unambiguous, contained) you just fix — the common case; an
-   ARCHITECTURAL one — the correct fix moves a contract, boundary, data model or auth/isolation
-   posture ANOTHER module or repo depends on — you still fix, and it owes a ledger row per
-   `/fabrik-review` § Phase 3, which is canonical for that rule** (do not re-derive its terms here).
-   Cannot tell which side? Treat it as ARCHITECTURAL. ⚠️ **This adds no exit and is not a route-up
-   trigger** — the shape describes the FIX, never a permit to leave a finding standing. Routing up
-   happens on the triggers in steps 1 and 5, never because a finding was called architectural.
+   ARCHITECTURAL one — the correct fix moves a contract, boundary, data model or auth/isolation posture
+   ANOTHER module or repo depends on — you still fix, and it owes a ledger row per `/fabrik-review` § Phase 3,
+   which is canonical for that rule** (do not re-derive its terms here). Cannot tell which side? Treat it as
+   ARCHITECTURAL. ⚠️ **This adds no exit and is not a route-up trigger** — the shape describes the FIX, never
+   a permit to leave a finding standing. Routing up happens on the triggers in steps 1 and 5, never because a
+   finding was called architectural.
 4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <n> --own-fix <of those confirmed, how many lay in THIS review's own earlier fixes — D-278; a delta round that omits it leaves the scope-growth bar uncomputable> --classes-swept <…>
    --classes-new <…>` — `--findings` is raw recall; `--confirmed` is the EXIT counter as
    `/opt/fabrik/commands/_fragments/term-edit.md` defines it (D-206; the fragment is not installed —
