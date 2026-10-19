@@ -172,19 +172,19 @@ $ python scripts/review_rubric.py --changed src/fabrik/drivers/postgres.py src/f
 
 | Class | Status |
 |---|---|
-| Hunt: `src/fabrik/drivers/postgres.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `src/fabrik/spec_loader.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `src/fabrik/orchestrator/infrastructure.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_payments_fulfilment_real_pg.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_payments_ingest_role.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_payments_ingest_real_pg.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_app_role_provision.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `src/fabrik/drivers/postgres.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (mint is one CREATE ROLE; CONNECT/USAGE moved into grant_payments_role; re-apply ALTER ROLE re-asserts attributes) · FIXED r2 (NOREPLICATION, INHERIT, CONNECTION LIMIT -1, VALID UNTIL infinity, RESET ALL, foreign superuser/db-owner refusal) · FIXED r3 (IN DATABASE RESET ALL, recovery text in the refusal, docstring) |
+| Hunt: `src/fabrik/spec_loader.py` — every changed hunk, its enclosing function, its callers | CLEAN (src/fabrik/spec_loader.py needs_payments_fulfilment Field and _payments_fulfilment_needs_database validator hunted with its spec-loading callers; the description/StrictBool items are Phase B rows) |
+| Hunt: `src/fabrik/orchestrator/infrastructure.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (the ingest block injects PAYMENTS_INGEST_DATABASE_URL after mint and before grant_payments_role, so a raising grant never strands the one-time password) |
+| Hunt: `tests/test_payments_fulfilment_real_pg.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (drop test patches unregister_*, psycopg absence fails under FABRIK_REQUIRE_REAL_PG, partial-schema signature assert) · FIXED r2 (REVOKE CONNECT FROM PUBLIC before the failing-grant test, widened re-mint narrowing, foreign superuser/db-owner refusal test) |
+| Hunt: `tests/test_payments_ingest_role.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (duplicate unreadable-path test removed, delegate-only checks the DO block) · FIXED r2 (exact ALTER attribute string, refusal before ALTER, 4-line pre-DO region, grant on re-apply and dry run) · FIXED r3 (exact CREATE attribute string) |
+| Hunt: `tests/test_payments_ingest_real_pg.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_payments_ingest_real_pg.py moved from create_payments_ingest_role to mint_payments_role + grant_payments_role; hunted every changed call and its assert, 21 of 21 real-PG tests green on the closing build) |
+| Hunt: `tests/test_app_role_provision.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_app_role_provision.py ingest mocks moved to mint/grant; hunted the patched names against src/fabrik/orchestrator/infrastructure.py imports, every patch target resolves) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (a raising grant no longer loses the DSN) · FIXED r2 (a foreign superuser/db-owner role is refused, not silently stripped; the grant path's unreadable last line raises) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (no pool or seat accounting in src/fabrik/drivers/postgres.py or src/fabrik/orchestrator/infrastructure.py; native seats stamped per round with command_run.py dispatch) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r2 (exact attribute-string asserts replace the LOGIN/NOLOGIN substring trap; the pre-DO region is asserted as exactly 4 lines) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r2 (every pass-2 guard killed by its mutant: NOREPLICATION, RESET ALL, CONNECTION LIMIT, grant on re-apply; the refusal on real PG mutant 1 failed / unmutated 1 passed) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (every count in the seat reports and this receipt carries its population: 30 of 30 unit tests in tests/test_payments_ingest_role.py, 21 of 21 in tests/test_payments_ingest_real_pg.py) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every confirmed candidate reproduced by an executed test or a mutant run against real PostgreSQL in tests/test_payments_fulfilment_real_pg.py; no verdict rests on a read alone) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the

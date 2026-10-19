@@ -28,6 +28,12 @@ DB = "ti"
 FULFIL = "ti_payments_fulfilment"
 INGEST = "ti_payments_ingest"
 ORG = "11111111-1111-1111-1111-111111111111"
+# the refusal names its recovery; the foreign-role test then follows it
+_RECOVERY = (
+    r"refusing to re-assert its attributes\. Narrow it by hand \(ALTER ROLE "
+    rf"{FULFIL} NOSUPERUSER; give each database it owns another owner\) or drop it once it "
+    r"owns none, then re-apply"
+)
 _FN_BEGIN = "-- BEGIN payments grant functions"
 _FN_END = "-- END payments grant functions"
 
@@ -331,9 +337,12 @@ def test_a_foreign_superuser_role_of_the_same_name_is_refused_not_altered() -> N
     with scratch_pg() as s:
         _owner_db(s)
         s.run_sql(f'CREATE ROLE "{FULFIL}" WITH LOGIN SUPERUSER;')
-        with pytest.raises(RuntimeError, match="refusing to re-assert"):
+        with pytest.raises(RuntimeError, match=_RECOVERY):
             _mint(s, "fulfilment")
         assert _can(s, f"(SELECT rolsuper FROM pg_roles WHERE rolname = '{FULFIL}')")
+        # the recovery the message names works: narrowed by hand, the re-apply succeeds
+        s.run_sql(f'ALTER ROLE "{FULFIL}" NOSUPERUSER;')
+        assert _mint(s, "fulfilment")["status"] == "exists"
     with scratch_pg() as s:
         _owner_db(s)
         s.run_sql(
@@ -342,3 +351,6 @@ def test_a_foreign_superuser_role_of_the_same_name_is_refused_not_altered() -> N
         with pytest.raises(RuntimeError, match="owns a database"):
             _mint(s, "fulfilment")
         assert _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")
+        s.run_sql("ALTER DATABASE other OWNER TO postgres;")
+        assert _mint(s, "fulfilment")["status"] == "exists"
+        assert not _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")

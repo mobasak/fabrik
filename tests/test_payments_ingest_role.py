@@ -86,6 +86,10 @@ def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
         refusal = alter_sql.index("RAISE EXCEPTION")
         assert "r.rolsuper OR EXISTS" in alter_sql and "d.datdba = r.oid" in alter_sql
         assert refusal < alter_sql.index(f'ALTER ROLE "{role}"')
+        assert (
+            f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER; give each database it owns "
+            "another owner) or drop it once it owns none, then re-apply'"
+        ) in alter_sql
         assert "PASSWORD" not in alter_sql  # the password is never reset on re-apply
 
 

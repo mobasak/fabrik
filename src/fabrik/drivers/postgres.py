@@ -1035,8 +1035,8 @@ def mint_payments_role(
             "                                          WHERE d.datdba = r.oid))) THEN\n"
             f"    RAISE EXCEPTION 'payments-{lane} role {role} exists but is a superuser or owns a "
             "database, which this registrar never grants; refusing to re-assert its attributes. "
-            f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER, reassign its databases) or drop "
-            "it, then re-apply';\n"
+            f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER; give each database it owns another "
+            "owner) or drop it once it owns none, then re-apply';\n"
             "  END IF;\n"
             "END $$;\n"
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
