@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T10:40:17.137461Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "e5fb1a2a4bbea38e417c3860fc8d5fee9ff2c2ab",
   "id": "W-7b5a6a17",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "term-edit.md/term-coverage.md bounded-hop rule ('a defect one hop out — a caller, a callee … is RECORDED … and never counted') does not say whether a reader that misreads a fix's NEW output (W-42ddde8f: the commit leg joined the fixed _range_files output against _commit_files keys) is the fix hunk's defect (counted) or a caller's (recorded) — three seats of the fabrik-review queue pass read it both ways, 2026-10-19"
 }
