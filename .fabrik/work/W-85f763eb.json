@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:09:57.932222Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85f763eb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5A35K4M44CK55QQCMZ4F17X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: fabrik-lib's watchdog module retires the Tier-B action `install_log_drop_rule` (fabrik-lib SB-095; decisions fabrik-lib D-398 retire, D-444 remove field+env key together, D-462 design approval, D-465 executed). This mail is the hub request for the five hub-side references, and it is also the c"
+}

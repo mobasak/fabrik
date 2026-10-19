@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T17:54:19.386220Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-b3bad109",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "add a direct test per guard (refusal message + rc 1; a non-active account's resolve during the swap; R5-1: a held name that is a link to a real dir, the not-is_symlink clause in _finish_interrupted_swaps, mutant S10 survives — unreachable from the verb's own writes) and decide whether N3-1 needs a retry note in the doc",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: review residue on --merge-shared (single-test guards, one unreachable-state mutant); nobody blocked",
   "status": "open",
   "title": "claude_rotate --merge-shared residue (W-125b4e19 review, scope-growth stop): a CLI lock taken in the microsecond window between the canonical cycle's exchanges keeps a vanished realpath (N3-1); the canon-link refusal, the no-op warning print and the rollback/ordering guards each rest on one test, and the atomicity test watches only the active account"
 }
