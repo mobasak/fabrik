@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "command_run.py round --slices accepts slice ids without echoing the round-1 claim totals or open classes it expects (feedback row 1792361103, /fabrik-review)"
 }

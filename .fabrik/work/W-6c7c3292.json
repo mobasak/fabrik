@@ -16,7 +16,7 @@
   "next": "read mail 01M59SWZGBSYTVZPW240RE31BY, fix it with a regression test, then ack",
   "note": "",
   "owner": "infra",
-  "priority": 1,
+  "priority": 0,
   "score_reason": "break on agents: the launcher opens builders in the wrong tree; one script",
   "status": "open",
   "tags": [
