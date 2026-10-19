@@ -52,6 +52,9 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
         "The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`."
         in p4
     )
+    # W-e2ff8f36: the bounded hop's reader run takes the previous pass's pin; the inputs live in § Seat isolation.
+    pointer = "It also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat isolation says."
+    assert _norm(SRC).count(pointer) == 1 and pointer in p4
 
 
 def test_the_callers_hunt_line_names_the_join_against_another_producer() -> None:

@@ -681,7 +681,8 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     rule4 = tc[tc.index("(4) **A GRADER IS PROVEN") : tc.index("(5) **A GRADER OBSERVES")]
     assert (
-        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it" in rule4
+        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"
+        in rule4
     )
     pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
     assert (
@@ -690,8 +691,8 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
     assert bullet == (
         "- One mutant per clause the edit states and one per guard it adds or alters (that guard removed —"
-        " term-coverage rule (4): \"each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an"
-        " expression inside it\"), written as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
+        ' term-coverage rule (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an'
+        ' expression inside it"), written as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta'
         " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
         " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
         " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
@@ -718,3 +719,59 @@ def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
     ), span
     # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
     assert "Something already stated, in the code" in step3[step3.index(tail) :]
+
+
+def test_a_delta_brief_carries_the_bounded_hops_reader_run_inputs() -> None:
+    """W-e2ff8f36: D-1047's reader run (a reader passing on the previous round's pin and failing on it with only the fix
+    hunks applied) had no inputs in any brief. § Seat isolation now names them, has the lead state that the two pins
+    differ by the round's fix alone (committed or not), and runs each reader once on each pin by the seat's archive
+    recipe, pinned whole by equality; both review commands point at it; step 4's own-fix pin diff waits on the same
+    check. The `unverified` route the bullet sends a barred reader to is checked to sit in § Loop bookkeeping."""
+    cat = _norm(CAT)
+    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
+    assert iso.count("- A delta brief also names") == 1
+    bullet = iso[iso.index("- A delta brief also names") : iso.index("- No `uv`/`pip`")].strip()
+    assert bullet == (
+        "- A delta brief also names the previous pass's `base_sha` and pins_dir, for the bounded hop's reader run (a"
+        " reader passing on the previous round's pin and failing on it with only the fix hunks applied). The lead first"
+        " diffs the two pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this pins_dir>`) and"
+        " the two `base_sha`s (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the brief that"
+        " the difference is the round's fix alone, committed or not, naming any other hunk or path, which leaves every"
+        " reader it touches `unverified`; the seat then runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS`"
+        " recipe with that pin's own `base_sha`, and greps a heading or term another section cites over each pin's tree,"
+        " where its citers live; a reader the pre-pin section keeps the lead's (\"one that writes a live store, sends,"
+        " commits, deploys or reaches a host\") takes § Loop bookkeeping's `unverified` route; and a reader that fails on"
+        " the previous pin is no evidence of a break, and is `RECORDED` with its destination."
+    ), bullet
+    pre = _section(cat, "## Before the first pin", "## The brief's hunt lines")
+    assert (
+        "one that writes a live store, sends, commits, deploys or reaches a host stays the lead's"
+        in pre
+    )
+    ledger = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    row = ledger[ledger.index("| D-1051 |") :]
+    row = row[: row.index("\n")]
+    assert (
+        "§ Loop bookkeeping's `unverified` route" in row
+        and "§ Seat isolation's existing `unverified`" not in row
+    )
+    assert iso.index("The brief names the fix as `git show <sha>`") < iso.index(
+        "- A delta brief also names"
+    )
+    route = "a refuter that needs a forbidden surface marks it `unverified` naming the surface, and the lead executes it"
+    assert route in cat[cat.index("## Loop bookkeeping") :]
+    assert "git apply" not in bullet
+    src = _norm(SRC)
+    pointer = (
+        "A delta pass's brief also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat"
+        " isolation says."
+    )
+    assert src.count(pointer) == 1
+    step5 = _section(src, "5. **Loop:**", "6. **Gate + close:**")
+    assert pointer in step5
+    step4 = _section(src, "4. **Record each pass:**", "5. **Loop:**")
+    assert (
+        "shown by diffing that round's pin against the next pass's pin once the lead has stated the difference is that"
+        " round's fix alone, as the probe catalogue's § Seat isolation says, or for a broken reader by"
+        in step4
+    )

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a delta review brief carries the bounded hop's reader-run inputs (2026-10-19)
+
+- D-1047 let a delta round count a break its fix created in a reader, shown on the previous round's pin with the fix applied, but no brief named that pin. The probe catalogue's § Seat isolation now has the brief name the previous pass's `base_sha` and pins_dir, has the lead state that the two pins differ by the round's fix alone (committed or not), and has the seat run each reader once on each pin by its archive recipe; a barred reader takes the existing `unverified` route and a reader failing on the previous pin is RECORDED. `/fabrik-review` Phase 4 and `/fabrik-review-scoped` step 5 point at it, and the scoped own-fix pin diff waits on the same check (D-1051, W-e2ff8f36).
+
 ### Changed — /fabrik-command-improve PHASE 2 names a fragment a command points at by path as a write and lock target (2026-10-19)
 
 - PHASE 2's write-target list and its lock check named the fragments a command renders but not one it points at by path, such as the probe catalogue, which commands read live and the renderer never installs. A row whose fix belongs there had no listed target and was never lock-checked. Both lists now name it, and the lock check gives the grep that lists those fragments. PHASE 3's reading sentence also binds its bounds to each paragraph it reads, including a place the pins sentence moves the text to (W-5048181b).
