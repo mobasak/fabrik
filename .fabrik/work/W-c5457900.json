@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Workflow seat prompt needs the bounded-hop clause the review contracts now carry (W-7b5a6a17, D-row in this MR)"
 }
