@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the daily VPS script-drift check reaches vps1 through the ssh jump (2026-10-19)
+
+- `scripts/sysadmin/vps_script_drift.py` used raw `ssh`. With vps1 unreachable directly since W-2b657bee, the check failed to reach `vps` for three daily runs, so drift on vps1 went unchecked.
+- It now routes each host through `FABRIK_SSH_JUMP_<ALIAS>`, the per-alias jump the fabrik CLI already uses (D-973). The variable is read from the environment or from the `FABRIK_SSH_JUMP_*` lines of the hub `.env`, and no other `.env` key is read. A malformed value is exit 3 before any ssh.
+- The unreachable mail now names the variable.
+- The check still needs `FABRIK_SSH_JUMP_VPS=vps2` in `/opt/fabrik/.env`, the operator's step from W-2b657bee (W-714bb1a5, D-1037).
+
 ### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
 
 - `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
