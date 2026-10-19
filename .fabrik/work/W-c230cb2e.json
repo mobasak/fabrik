@@ -3,7 +3,7 @@
   "created": "2026-10-18T07:59:19.353156Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "592efed66550c0e5a1bb92cce8a76a0023442377",
   "id": "W-c230cb2e",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: merge_request now resolves item conflicts itself (W-5f3617e6); only rare hand merges remain",
-  "status": "open",
+  "status": "done",
   "title": "Register work.py merge-item as a git merge driver (.gitattributes .fabrik/work/W-*.json merge=workitem + merge.workitem.driver config) so a builder's hand 'git merge master' also merges item files key-wise; follow-up to W-5f3617e6"
 }

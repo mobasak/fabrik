@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[infra]** **A confidence gate between one model answer and the curated catalog** (external-services review pass 39, DI3): the classifier writes a paid pool model's single answer straight into `scripts/service_catalog.json` as `status: active` — the first production run filed `argusmedia` (a commodities price-reporting agency) under `media-stock` on the word \"media\", and `--only` cannot re-dispatch a curated name, so a misfile is permanent without a hand edit (1 of 4 identifications that run; all 10 units were code-only hosts — 6 came back `unidentified` and were tombstoned once, never re-billed, 4 became permanent entries; the queue composition is by design, and until pass 40 the units ran with NO web tools — provider names where tool names go — so every answer was model recall). Options measured before building: a second-model vote on `category` only, or a `status: proposed` state the dashboard shows and a human flips. Blocked by: measuring the misfile rate over the next ~30 runs (338 queued at 10/run).",
-  "note": "migrated-digest:0c2d02443c4d",
+  "note": "obsolete under D-1046/D-1050: automatic classification is retired (classify_services.py left the daily chain, now a manual tool), so no paid model answer is written unattended and the item's blocker — measuring the misfile rate over ~30 automatic runs — can never be met; categories are hand-curated and gather_envs.real_category routes an off-enum category to triage",
   "owner": "intel",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — dormant while pool off",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06",
     "waits-misfile-30-runs",

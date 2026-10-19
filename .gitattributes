@@ -1,0 +1,3 @@
+# Work-item files merge key-wise on a hand merge (W-c230cb2e): the driver is `work.py merge-item`,
+# registered by scripts/install_post_commit_hook.sh; any non-zero exit falls back to the text merge.
+.fabrik/work/W-*.json merge=workitem
