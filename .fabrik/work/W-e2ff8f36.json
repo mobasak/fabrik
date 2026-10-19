@@ -3,7 +3,7 @@
   "created": "2026-10-19T12:57:13.777107Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d976f43b250f6b02fd5e7c55bed47a3b78ad014a",
   "id": "W-e2ff8f36",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work, the inputs the new reader-run review check needs (D-1047); LOW effort: wording in a few review fragments",
-  "status": "open",
+  "status": "done",
   "title": "the bounded hop's new two-pin test (D-230 refinement, W-7b5a6a17) needs inputs no brief supplies: a delta brief names only this pass's pin, not the previous pass's pins_dir the seat must run the reader on (fabrik-review-scoped step 5, fabrik-review Phase 4), and readers outside the pinned surface, flaky readers and doc cross-references have no defined executor — Opus seat of the 2026-10-19 review"
 }
