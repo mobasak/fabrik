@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T15:49:27.588575Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-ddf1839c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen wording edit to the PHASE 2 lock bullet (name the appended fragments, say a directory entry owns everything under it) and the review-scoped term-edit sentence, with pins",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fabrik-command-improve PHASE 2 lock check, three gaps the W-5048181b review recorded (pre-existing): (1) 'command grep -n include:' misses the fragments assemble_commands.py appends to every command (close-feedback, _CLOSE_FEEDBACK at assemble_commands.py:31), and :133 says command-improve 'also renders' close-feedback with no include; (2) 'testing your write target against their owned_paths' never says prefix or exact, while locks own directories ('commands/_fragments/'); (3) fabrik-review-scoped.md:67 says term-edit 'is not installed' though commands/_fragments/term-edit.md exists"
+}
