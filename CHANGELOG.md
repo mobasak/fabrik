@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a deploy no longer writes DNS straight to Cloudflare when the site-provisioner refuses the record (2026-10-19)
+W-1086d295, D-1053. `_provision_dns` used to fall back to the direct Cloudflare API on any DNS Manager error. So a provisioner refusal (401 bad API key, 422 rejected body, 429 its rate limiter) was bypassed with the hub's own token. A status in `PROVISIONER_REFUSALS` now fails the DNS step with a one-line `ProvisioningError`. A reverse-proxy 403/404, a 400, a 3xx, a 5xx or a transport failure still falls back. The provisioner's route answers an unmanaged zone with an unmapped 500, which still falls back; that is filed to site-provisioner and tracked as W-747f41c9.
+
 ### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
 - PHASE 2's lock check found a command's fragments through `include:`, which cannot see the two fragments the assembler appends with none (`close-feedback.md` to every command, `agent-feedback.md` to every agent); and it said to test a write target against `owned_paths` without saying how, while locks hold paths, directories and `/`-aware globs that the lock-reading scripts each match differently. The check now names both appended fragments and states the three-shape ownership rule itself (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
