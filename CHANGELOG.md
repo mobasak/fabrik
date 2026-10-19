@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `claude_rotate.py --merge-shared tasks` joins the fragmented per-account tasks/ dirs into ~/.claude/tasks (2026-10-19)
+
+- D-399 listed `tasks` among the shared links, but the scaffolder links only absent pieces, so every account that already had a real `tasks/` kept it, and the dashboard warned "shared state fragmented" for five accounts. The new verb merges them under the assignments lock. The active account's dir becomes the canonical one through a two-exchange link cycle, so a live session never sees its list missing or dangling. Every other account is swapped for the link atomically. Each entry is then moved in by content: one that is absent is moved, and one that differs or is identical is parked under `~/.claude-fleet/backups/tasks-merged-from/`, so nothing is deleted. A rollback runs on any failure, and the next run finishes a swap a hard kill interrupted. `--dry-run` prints the plan, and the dashboard warning names unfinished merges and leftover working names (W-125b4e19).
+
 ### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
 - Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
