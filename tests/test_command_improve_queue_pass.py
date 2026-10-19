@@ -618,5 +618,46 @@ def test_a_fragment_pointed_at_by_path_is_a_write_and_lock_target() -> None:
     included = set(re.findall(r"\{\{include:([a-z0-9-]+)\}\}", scoped.read_text()))
     assert "review-probe-catalogue" not in included, included
     flat = re.sub(r"\s+", " ", SRC.read_text())
-    assert "renders into every command that INCLUDES it, and is read by every command that points at it by path" in flat
-    assert "or a command that includes that fragment or points at it by path (`command grep -rl" in flat
+    assert (
+        "renders into every command that INCLUDES it, and is read by every command that points at it by path"
+        in flat
+    )
+    assert (
+        "or a command that includes that fragment or points at it by path (`command grep -rl"
+        in flat
+    )
+
+
+def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path() -> None:
+    """W-ddf1839c: the lock check's `include:` grep cannot see `close-feedback.md`, which the assembler appends to every
+    rendered command with no include, and the bullet never said how an `owned_paths` entry matches a target while locks
+    own directories. Both sentences are pinned, and each fact they state is checked against the code that holds it: the
+    assembler's `_CLOSE_FEEDBACK` constant, and `_owned` in check_phase_tests.py (exact path or directory subtree,
+    case-insensitive), run on a directory entry."""
+    import importlib.util
+
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    lock = p2[p2.index("the file you would WRITE is lock-owned") : p2.index("STOP and mail")]
+    appended = (
+        "Every rendered command also carries `commands/_fragments/close-feedback.md`, which the assembler appends with"
+        " no `include:` (`_CLOSE_FEEDBACK` in `commands/assemble_commands.py`), so a row about the close's FEEDBACK duty"
+        " targets that fragment."
+    )
+    owns = (
+        "An entry owns the path it names and, when it names a directory, every path under it, case-insensitively, as"
+        " `_owned` in `scripts/enforcement/check_phase_tests.py` matches it."
+    )
+    assert lock.count(appended) == 1 and lock.count(owns) == 1
+    assert lock.index(appended) < lock.index("ONLY THEN read the locks") < lock.index(owns)
+    asm = (ROOT / "commands" / "assemble_commands.py").read_text()
+    assert '_CLOSE_FEEDBACK = "close-feedback"' in asm
+    assert (ROOT / "commands" / "_fragments" / "close-feedback.md").exists()
+    spec = importlib.util.spec_from_file_location(
+        "cpt", ROOT / "scripts" / "enforcement" / "check_phase_tests.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod._owned("commands/_fragments/term-edit.md", ["commands/_fragments/"])
+    assert mod._owned("Commands/_Fragments/term-edit.md", ["commands/_fragments"])
+    assert mod._owned("commands/_fragments/term-edit.md", ["commands/_fragments/term-edit.md"])
+    assert not mod._owned("commands/_fragments_old/x.md", ["commands/_fragments"])
