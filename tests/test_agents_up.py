@@ -804,7 +804,9 @@ def test_the_store_path_and_the_rebind_reach_the_panes(tmp_path: Path) -> None:
     assert out.returncode == 0, out.stderr
     run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
     assert len(run) == 1 and f"AGENT_IDENTITY_FILE={store}" in run[0], run
-    assert f"after a /clear: whoami_agent.py --as dev1 --force, then {UP} {repo}" in run[0], run
+    assert f"after a /clear: whoami_agent.py --as dev1 --force, then {UP} {repo})]" in _hint(
+        run[0], tmp_path
+    )
     out = _run("--print", str(repo), home=home)
     run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
     assert "AGENT_IDENTITY_FILE" not in run[0], run
@@ -818,7 +820,7 @@ def test_the_store_path_and_the_rebind_reach_the_panes(tmp_path: Path) -> None:
         env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
     )
     run = [ln for ln in rel.stdout.splitlines() if ln.startswith("run dev1 ")]
-    assert len(run) == 1 and f"then {UP} {repo}" in run[0], (run, rel.stderr)
+    assert len(run) == 1 and f"then {UP} {repo})]" in _hint(run[0], tmp_path), (run, rel.stderr)
 
 
 def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) -> None:
@@ -849,21 +851,40 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
     assert "a newer session" not in out.stderr, out.stderr
 
 
-def test_the_exit_hint_never_runs_a_folder_name(tmp_path: Path) -> None:
-    """The hint a pane prints when claude exits names the repo folder inside double quotes; a `$(...)` in that name is
-    printed, never run."""
-    repo = _repo(tmp_path, {DEV1: "dev1"}, name="a$(touch pwned)b")
-    home = _home(tmp_path, transcripts=((repo, DEV1),))
-    out = _run("--print", str(repo), home=home)
-    assert out.returncode == 0, out.stderr
-    run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
-    hint = re.search(r'echo "\[dev1 exited.*?\)\]"', run[0])
-    assert hint, run
+def _hint(run_line: str, cwd: Path) -> str:
+    """What a pane prints when claude exits: the hint command from its `run` line, executed by bash."""
+    cmd = re.search(r"; echo; (printf '%s\\n' .*?); exec env ", run_line)
+    assert cmd, run_line
     said = subprocess.run(
-        ["bash", "-c", hint.group(0)], cwd=tmp_path, capture_output=True, text=True, timeout=30
+        ["bash", "-c", cmd.group(1)], cwd=cwd, capture_output=True, text=True, timeout=30
     )
-    assert not (tmp_path / "pwned").exists(), said.stdout
-    assert "touch" in said.stdout, said.stdout
+    return said.stdout.strip()
+
+
+def test_the_exit_hint_never_runs_a_folder_name(tmp_path: Path) -> None:
+    """The hint a pane prints when claude exits names the repo folder; a `$(...)`, a backtick or a `$NAME` in that name
+    is printed, never run, and the printed command pastes back to the real folder."""
+    for i, name in enumerate(("a$(touch pwned)b", "a`touch pwned`b", "a$HOME b")):
+        base = tmp_path / str(i)
+        base.mkdir()
+        repo = _repo(base, {DEV1: "dev1"}, name=name)
+        home = _home(base, transcripts=((repo, DEV1),))
+        out = _run("--print", str(repo), home=home)
+        assert out.returncode == 0, out.stderr
+        run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
+        said = _hint(run[0], base)
+        assert not (base / "pwned").exists(), said
+        tail = said.rsplit(" --force, then ", 1)[1].removesuffix(")]")
+        # pasted into a shell, the printed command names the launcher and this folder, and runs nothing
+        pasted = subprocess.run(
+            ["bash", "-c", f"printf '%s\\n' {tail}"],
+            cwd=base,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert pasted.stdout.splitlines() == [str(UP), str(repo)], (said, pasted.stderr)
+        assert not (base / "pwned").exists(), said
 
 
 def test_an_undated_binding_is_not_older_than_every_transcript(tmp_path: Path) -> None:
@@ -872,10 +893,14 @@ def test_an_undated_binding_is_not_older_than_every_transcript(tmp_path: Path) -
     repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
     store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "not a time")])
     home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW1)))
-    _aged(home, repo, DEV1, 3600)
+    _aged(home, repo, DEV1, 60)
+    _aged(home, repo, NEW1, 30)  # both transcripts dated; the binding's own is the newer
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"], out.stderr
+    _aged(home, repo, NEW1, 3600)  # ...and once the registry's is the newer, it stands
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], out.stderr
     proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
     (proj / f"{NEW1}.jsonl").unlink()
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
