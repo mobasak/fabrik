@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T17:08:18.607151Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-b81263e8",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide whether the SLD fallback should require the SLD to equal the token (not merely start with it) and whether paddle needs a PaddlePaddle carve-out entry; measure over the 592-host scan first",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
+  "score_reason": "LOW: two latent mis-attributions in gather_envs (foreign-domain host fallback, Paddle vs PaddlePaddle) that hit no live key or host today; nobody blocked",
   "status": "open",
   "tags": [
     "registry"
