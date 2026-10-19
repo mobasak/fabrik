@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: catch both at their call sites with the verb's own 'nothing moved' message, add a test per path proven red, extend test 3's spy to os.remove and os.symlink; scoped review",
+  "next": "infra: catch both at their call sites with the verb's own 'nothing moved' message, add a test per path proven red, extend test 3's spy to os.remove and os.symlink; scoped review ALSO from W-75cafe7a's review (06af04cd5): (4) a FIFO planted at the per-pid staging name; (5) an exception in the tick-row block skips the posture write (pre-existing).",
   "note": "",
   "owner": "infra",
   "priority": 3,
