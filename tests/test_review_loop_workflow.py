@@ -2627,4 +2627,5 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         assert "after copying the gitignored inputs, look for that arming" in p, label
         # review pass 3: the bare-base run has an EMPTY diff, which arms a CI-named pytest leg on its own
         assert "treat that pair as armed whatever the diff" in p, label
+        assert "`tests/` plus a CI file naming pytest" in p and "on an empty diff" in p, label
         assert "${" not in p, f"{label}: an uninterpolated template expression"
