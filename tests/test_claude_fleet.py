@@ -9495,3 +9495,196 @@ def test_a_held_name_that_links_to_a_real_dir_is_never_promoted(tmp_path, monkey
     assert (elsewhere / "foreign" / "1.json").read_text() == "not the fleet's"
     assert not os.path.lexists(held)
     assert cr._shared_link_warnings() == []
+
+
+# --- the resume wake (W-75cafe7a): a sleep wakes every armed self-watch once ------------------------
+
+
+def _resume_box(tmp_path, monkeypatch, *, hot=None):
+    """A stub fleet tick (the quota leg reads cool unless *hot*), one armed watch and a settable
+    clock; returns (clock, locks, fd). The record lives in the conftest-pinned state dir."""
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    clock = {"now": FLEET_NOW}
+    monkeypatch.setattr(cr, "_now", lambda: clock["now"])
+
+    def inner(_dirs):
+        cr._QUOTA_HOT_THIS_TICK = hot
+        return 0
+
+    monkeypatch.setattr(cr, "_fleet_dirs", lambda: [tmp_path / "acct"])
+    monkeypatch.setattr(cr, "_fleet_tick_inner", inner)
+    return clock, locks, fd
+
+
+def _resume_rows():
+    path = cr._rotate_state_dir() / "rotate-ledger.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(x) for x in path.read_text().splitlines() if '"resume-wake"' in x]
+
+
+def test_a_tick_after_a_sleep_wakes_every_armed_watch_once(tmp_path, monkeypatch, capsys):
+    """A gap over 15 minutes from the last tick's END wakes every armed watch once with a
+    `<epoch> resume` lift and one `resume-wake` row carrying the gap (W-75cafe7a)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    try:
+        assert cr._cmd_tick() == 0  # the first tick only records
+        assert not (locks / "pane1.holdlifted").exists()
+        clock["now"] += 64 * 60  # the box slept 64 minutes
+        capsys.readouterr()
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").read_text() == f"{int(clock['now'])} resume\n"
+        rows = _resume_rows()
+        assert len(rows) == 1 and rows[0]["woken"] == 1 and rows[0]["gap_s"] == 64 * 60, rows
+        assert "resumed from sleep" in capsys.readouterr().out
+        assert not _lifted_rows(), "a resume is never a hold-lifted row"
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize(
+    "record, gap_min, env",
+    [
+        (None, 64, None),  # the first tick ever: no record
+        ("ok", 15, None),  # exactly the line is not over it
+        ("ok", 11, None),  # an ordinary slip
+        ("ok", -30, None),  # the clock went back
+        ("garbage", 64, None),
+        ("nan", 64, None),
+        ("ok", 14, "10"),  # under the 12-minute floor the default 15 stands
+    ],
+    ids=["first", "at-line", "slip", "negative", "garbage", "nan", "floor"],
+)
+def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, gap_min, env):
+    """No wake on a first tick, a gap of 15 minutes or less, a negative gap, an unreadable record,
+    or a `CLAUDE_RESUME_GAP_MIN` under the floor (W-75cafe7a)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    if env is not None:
+        monkeypatch.setenv("CLAUDE_RESUME_GAP_MIN", env)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        if record == "ok":
+            rec.write_text(f"{FLEET_NOW - gap_min * 60}\n")
+        elif record is not None:
+            rec.write_text(f"{record}\n")
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists()
+        assert not _resume_rows()
+        assert float(rec.read_text()) == FLEET_NOW, "every tick still records its end"
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize(
+    "stamp, wakes",
+    [("0\nwalled\n", False), ("0\nbattery\n", False), ("garbage", False), ("0\nurgent-90\n", True)],
+    ids=["walled", "battery", "torn", "urgent"],
+)
+def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
+    """While the stamp reads walled (a wall, the battery, a torn file) a resume wakes nobody and
+    says so — the hold's own lift wakes them; `urgent-90` holds nothing (W-75cafe7a)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
+    try:
+        (cr._rotate_state_dir() / "tick-last-end").write_text(f"{FLEET_NOW - 3600}\n")
+        cr._fleet_exhaustion_stamp().write_text(stamp)
+        capsys.readouterr()
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").exists() is wakes
+        if not wakes:
+            assert "a hold stands" in capsys.readouterr().out
+    finally:
+        os.close(fd)
+
+
+def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monkeypatch):
+    """The tick after the resume tick wakes nobody; a pending `.holdlifted` stays as it was; a
+    record that cannot be written wakes nobody, so a broken state file can never storm."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        rec.write_text(f"{FLEET_NOW - 3600}\n")
+        (locks / "pane1.holdlifted").write_text("1 battery\n")  # a lift the watch has not read
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").read_text() == "1 battery\n"
+        assert _resume_rows()[-1]["pending"] == 1
+        (locks / "pane1.holdlifted").unlink()
+        clock["now"] += 300
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists(), "one wake per resume"
+        clock["now"] += 3600
+        real_replace = os.replace
+
+        def no_write(src, dst, *a, **k):
+            if Path(dst) == rec:
+                raise OSError(30, "Read-only file system", str(dst))
+            return real_replace(src, dst, *a, **k)
+
+        monkeypatch.setattr(cr.os, "replace", no_write)
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists(), "an unwritable record wakes nobody"
+    finally:
+        os.close(fd)
+
+
+def test_the_posture_reflects_the_stamp_this_tick_left(tmp_path, monkeypatch):
+    """A battery hold lifted on mains: the posture the SAME tick writes carries no hold and its
+    band is not WALL (it read WALL until the next tick before W-75cafe7a)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    bat, ac = tmp_path / "BAT1", tmp_path / "AC1"
+    bat.mkdir()
+    ac.mkdir()
+    (bat / "status").write_text("Charging\n")
+    (bat / "capacity").write_text("6\n")
+    (ac / "online").write_text("1\n")
+    monkeypatch.setenv("CLAUDE_BATTERY_DIR", str(bat))
+    monkeypatch.setenv("CLAUDE_AC_DIR", str(ac))
+    cr._fleet_exhaustion_stamp().write_text("0\nbattery\n")
+    assert cr._cmd_tick() == 0
+    assert not cr._fleet_exhaustion_stamp().exists(), "mains lifted the battery hold"
+    posture = json.loads(cr._posture_path().read_text())
+    assert posture["fleet"]["hold"] is None, posture["fleet"]["hold"]
+    assert posture["active"]["band"] != "WALL", posture["active"]["band"]
+
+
+def test_an_advisory_error_still_writes_the_posture(tmp_path, monkeypatch):
+    """The posture step runs in a `finally` around the advisory: an advisory that raises still
+    leaves this tick's posture, and the tick still exits 0 (W-75cafe7a)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    _point(fleet, "seo")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("advisory broke")
+
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", boom)
+    assert cr._cmd_tick() == 0
+    posture = json.loads(cr._posture_path().read_text())
+    assert posture["ts"] == FLEET_NOW
+
+
+def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):
+    """A `resume-wake` row is not one of the episode's end events: an open wall episode stays open
+    across it (a `hold-lifted` row with any site but dwell/battery would have ended it)."""
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    cr._ledger_append({"event": "fleet-active-wall", "ts": FLEET_NOW - 600, "account": "a@x"})
+    before = cr._open_wall_rows(FLEET_NOW)[0]
+    assert "a@x" in before
+    cr._ledger_append({"event": "resume-wake", "ts": FLEET_NOW - 60, "reason": "resume"})
+    assert cr._open_wall_rows(FLEET_NOW)[0] == before
