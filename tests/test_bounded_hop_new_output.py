@@ -3,8 +3,9 @@
 A round-1 fix changed the path form `_range_files` returns and the commit leg that joined it against `_commit_files`
 keys broke (W-42ddde8f); three review seats then read the rule both ways, and a review could close `confirmed: 0` on
 a regression its own fix introduced. Each corpus home of the rule now counts that break, discriminated by the reader
-passing on the previous round's pin and failing on this one. Cheapest bypass: a reviewer who relabels a pre-existing
-caller defect as "the hunk broke it" — the two-pin run is what refutes that label, so a claim without it is RECORDED.
+passing on the previous round's pin and failing on that pin with only those hunks applied. Cheapest bypass: a reviewer
+who relabels a pre-existing caller defect as "the hunk broke it" — that reader run is what refutes the label, so a
+claim without it is RECORDED.
 """
 
 import re

@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "kaizen wording: delta briefs name the previous pass's pins_dir and the fix diff; define the doc-reader executor (an anchor that resolves) and a re-run for a flaky reader; full /fabrik-review (two fragments)",
+  "next": "kaizen wording: delta briefs name the previous pass's pins_dir and the fix diff (and the git apply --exclude for out-of-pin paths); define the doc-reader executor and a flaky-reader re-run; own-fix evidence for an in-hunk defect diffs the round's own commit, not two working-tree pins (a sibling edit between pins inflates --own-fix); full /fabrik-review (two fragments)",
   "note": "",
   "owner": "",
   "priority": 2,
