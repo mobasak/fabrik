@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the fabrik-researcher agent returns a bounded INFERENCE verdict and hands an only-source dead page to the archive (2026-10-19)
+W-0c33e10f, D-1056. The researcher's return format gains `INFERENCE`. It covers a claim that no line states but what was read implies, after a raw fetch or a second arm. It is never used for an absence, and never where a curl of a named URL would settle the claim. Its wrong-place quote re-ask is capped at one. A version-specific docs figure read only from exa grounds neither `VERIFIED` nor `STALE`. A claim whose only source now answers 404 on a live fetch is a `NEEDS-RAW-FETCH` naming `https://web.archive.org/web/2/<url>`.
+
 ### Changed — the review-loop pin records base_sha, the commit a seat archives (2026-10-19)
 W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writes `base_sha` into `<pins_dir>/MANIFEST.json` and the printed fragment, so a D-1051 delta brief can read the previous pass's `base_sha` back from its pin. It is the commit a seat archives and overlays the pins on: the `--base` commit when given (the same commit `base_pin_dir` holds), else the resolved `--from` ref, else HEAD. Only a working-tree pin in a repo with no commit records `null`. An anchor naming no commit, such as a tree `--from`, is refused. It is recorded, not digested; `docs/reference/review-loop-workflow.md` says so.
 
