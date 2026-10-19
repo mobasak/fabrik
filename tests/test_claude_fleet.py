@@ -12,6 +12,7 @@ Everything is tmp_path-isolated — ``CLAUDE_FLEET_ROOT``, ``ROTATE_STATE_DIR``,
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import importlib.util
 import json
@@ -9354,9 +9355,10 @@ def test_nothing_to_merge_ignores_a_file_and_still_shows_the_warning(tmp_path, m
 def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
     tmp_path, monkeypatch, capsys
 ):
-    """When the exchange that finishes a killed cycle fails, the run names it, exits 1 and moves
-    nothing else — no account is merged in front of a canonical that is still the cycle's link
-    (W-b3bad109: the guard rested on no test of its own)."""
+    """When finishing what a hard kill left fails, the run names it, exits 1 and moves nothing else
+    (W-b3bad109). Case A, the canonical cycle's last exchange failing, is also stopped later by the
+    canon-link refusal; case B, a `.swap-*` stray whose drain fails while canonical is absent and
+    the active dir is real, is stopped by this guard alone."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
     (fleet / "b" / "tasks").rename(held)
@@ -9366,7 +9368,8 @@ def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
     real_rename = cr._renameat2
 
     def finish_fails(src, dst, flags):
-        if flags == cr._RENAME_EXCHANGE and Path(dst) == cdir / "tasks":
+        # either argument order: an exchange is symmetric
+        if flags == cr._RENAME_EXCHANGE and cdir / "tasks" in (Path(src), Path(dst)):
             raise OSError(5, "Input/output error", str(src))
         return real_rename(src, dst, flags)
 
@@ -9376,8 +9379,6 @@ def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
     err = capsys.readouterr().err
     assert "could not finish an interrupted swap" in err and "nothing else moved" in err, err
     assert _tree(tmp_path) == before
-    # a `.swap-*` stray whose drain rename fails leaves canonical sound, so only this guard stops
-    # the merge from going ahead around the stray
     monkeypatch.setattr(cr, "_renameat2", real_rename)
     (cdir / "tasks").unlink()
     (fleet / "b" / "tasks").unlink()
@@ -9387,24 +9388,37 @@ def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
     before = _tree(tmp_path)
 
     def drain_fails(src, dst, flags):
-        if Path(src) == swap:
+        if swap in (Path(src), Path(dst)):
             raise OSError(5, "Input/output error", str(src))
         return real_rename(src, dst, flags)
 
     monkeypatch.setattr(cr, "_renameat2", drain_fails)
     assert cr.main(["--merge-shared", "tasks"]) == 1
-    assert "nothing else moved" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "could not finish an interrupted swap" in err and "nothing else moved" in err, err
     assert _tree(tmp_path) == before
 
 
-def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkeypatch, capsys):
-    """A fleet root whose assignments lock cannot be opened is refused before anything moves, and
-    the exit is 1 (W-b3bad109)."""
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(errno.EROFS, "Read-only file system"),
+        OSError(errno.ELOOP, "Too many levels of symbolic links"),
+        ValueError("embedded null byte"),
+        RuntimeError("fleet root unresolvable"),
+    ],
+    ids=["erofs", "eloop", "valueerror", "runtimeerror"],
+)
+def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkeypatch, capsys, exc):
+    """Every error the fleet-root lock can raise (`_STATE_DIR_ERRORS`, not only a permission
+    error) is refused before anything moves — a stray a hard kill left included — and the exit is
+    1 (W-b3bad109)."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "a" / ".tasks.swap-20261001T000000.000000000Z" / "late").mkdir(parents=True)
     before = _tree(tmp_path)
 
     def no_lock():
-        raise OSError(13, "Permission denied", str(fleet / "assignments.lock"))
+        raise exc
 
     monkeypatch.setattr(cr, "_assignments_lock_fd", no_lock)
     capsys.readouterr()
@@ -9417,33 +9431,49 @@ def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkey
 def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_step(
     tmp_path, monkeypatch, capsys
 ):
-    """After every rename, each non-active account's tasks/ is a directory that is either still its
-    own real dir or the link to canonical — never a link to its aside, a working name or anything
-    else (W-b3bad109: the atomicity test watched only the active account's list)."""
+    """After every rename, unlink or rmdir the merge makes — through `_renameat2` or not — each
+    non-active account's tasks/ is a directory that is either still its own real dir or a link
+    resolving to canonical, and each ends as that link (W-b3bad109: the existing atomicity test
+    checked these accounts only for existence, and only after `_renameat2` calls)."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
-    real_rename = cr._renameat2
     bad = []
 
-    def watch(src, dst, flags):
-        real_rename(src, dst, flags)
+    def check(op, path):
         for s in ("a", "c"):
             p = fleet / s / "tasks"
             ok = p.is_dir() and (
                 not p.is_symlink()
-                or (os.readlink(p) == str(cdir / "tasks") and (cdir / "tasks").is_dir())
+                or ((cdir / "tasks").is_dir() and p.resolve() == (cdir / "tasks").resolve())
             )
             if not ok:
-                bad.append((s, Path(src).name, Path(dst).name))
+                bad.append((s, op, Path(path).name))
 
-    monkeypatch.setattr(cr, "_renameat2", watch)
+    def watched(op, fn, path_arg=0):
+        def run(*a, **k):
+            out = fn(*a, **k)
+            check(op, a[path_arg])
+            return out
+
+        return run
+
+    monkeypatch.setattr(cr, "_renameat2", watched("renameat2", cr._renameat2))
+    monkeypatch.setattr(cr.os, "rename", watched("os.rename", os.rename))
+    monkeypatch.setattr(Path, "rename", watched("rename", Path.rename))
+    monkeypatch.setattr(Path, "unlink", watched("unlink", Path.unlink))
+    monkeypatch.setattr(Path, "rmdir", watched("rmdir", Path.rmdir))
     assert cr.main(["--merge-shared", "tasks"]) == 0
+    monkeypatch.undo()
     assert not bad, bad
+    for s in ("a", "c"):
+        p = fleet / s / "tasks"
+        assert p.is_symlink() and p.resolve() == (cdir / "tasks").resolve(), s
 
 
 def test_a_held_name_that_links_to_a_real_dir_is_never_promoted(tmp_path, monkeypatch, capsys):
     """~/.claude/tasks a link to a `.tasks.held-*` that is itself a link to a real dir elsewhere is
     not the cycle's half-finished state: both links are cleared, the dir they pointed at is left as
-    it is, and the run merges afresh (W-b3bad109, R5-1 — the not-is_symlink clause; mutant S10)."""
+    it is, and the run merges afresh (W-b3bad109 — the W-125b4e19 review's R5-1: the
+    not-is_symlink clause in `_finish_interrupted_swaps`, whose removal was its mutant S10)."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     elsewhere = tmp_path / "elsewhere" / "tasks"
     (elsewhere / "foreign").mkdir(parents=True)
