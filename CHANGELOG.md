@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
+
+- `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
+
 ### Changed — review-probe-catalogue: a review brief names the tests that load each changed module, for every seat to run (2026-10-19)
 
 - § Seat isolation said HOW a seat runs tests (the `PIN_IMPORT`/`PYTEST_PINS` recipe) but never WHICH. A new import that breaks a stubbed loader could pass every review run, because only the tests loading the module by path exercise it. A brief over changed code now names the tests that load each changed module, found by grepping `tests/` for each changed file's stem (or an `__init__.py`'s package dotted name) and keeping the hits that import or load it, for every seat to run by that recipe. A test the recipe leaves unrun stays unverified. This answers row 1792359501, a recurrence of the held subject full-suite-import-time-registration. It reaches `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-execute-plan`, `/fabrik-docs-review` and `/fabrik-spec-review`.
