@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — `agents_up.sh` starts each builder in its own worktree (2026-10-19)
 
-- Every pane used to start at the repo root, the coordinator's main checkout, so a builder resumed there edited main's tree and read main's `CLAUDE.md`. A pane now starts in `<repo>/.claude/worktrees/<name>` when that folder exists, and at the root otherwise. Its `no-transcript` check reads the project folder of the folder it starts in. The runbook now says to remove a registry row only when that agent no longer uses its id: an in-session EnterWorktree move keeps the id. Item W-6c7c3292 (fabrik-lib mail 01M59SWZGB).
+- Every pane used to start at the repo root, the coordinator's main checkout, so a builder resumed there edited main's tree and read main's `CLAUDE.md`. A pane now starts in `<repo>/.claude/worktrees/<name>` when that folder is a linked git worktree in place (a `.git` file, no symlink on the path). Otherwise it starts at the root, and when something by that name is there, the launcher says so on stderr. Its `no-transcript` check reads the project folder of the folder it starts in. The runbook now says to remove a registry row only when that agent no longer uses its id: an in-session EnterWorktree move keeps the id. Item W-6c7c3292 (fabrik-lib mail 01M59SWZGB).
 
 ### Fixed — `work.py --help` no longer crashes (2026-10-19)
 
