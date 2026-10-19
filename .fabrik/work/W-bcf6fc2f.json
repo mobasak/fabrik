@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T16:55:52.302974Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-bcf6fc2f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "(1) kaizen: a test that greps scripts/ for owned_paths matchers and fails on an unnamed one; (2) mail infra the scalar-guard defect with the line",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-command-improve lock check (W-ddf1839c scope-growth backlog): (1) the pin test checks only the two named owned_paths matchers (_owned in check_phase_tests.py, _path_covers in check_plan_tickets.py), so a third script that starts matching paths against a lock's owned_paths would leave the sentence false and the test green; (2) check_plan_tickets.py:2740 reads data.get('owned_paths', []) with no scalar guard (check_phase_tests.py:223-229 has one), so a hand-edited string entry is iterated per character — infra's code"
+}
