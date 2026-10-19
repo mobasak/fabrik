@@ -3,7 +3,7 @@
   "created": "2026-10-17T22:39:12.086160Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "147370dcc3524e523be20cc6fccc40a6f4f3eb72",
   "id": "W-7e467f2d",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: bug, classify_services.py has classified nothing since 2026-09-07; one script",
-  "status": "open",
+  "status": "done",
   "title": "classify_services.py has classified nothing since 2026-09-07 (the day the OpenRouter pool went OFF, D-181): its last-run record .tmp/external-services/classify_last.json is dated 2026-09-07 while the chain heartbeat is 2026-10-17, so 331 of 466 registry providers (71%) stay uncategorised with no path out — give the classifier a pool-free path (native seats or the free-tier providers) or retire it and say how a provider gets a category"
 }
