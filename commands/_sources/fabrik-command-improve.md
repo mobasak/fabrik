@@ -206,7 +206,7 @@ Three shapes are NOT yours to apply here, and each has a destination:
 - **the file you would WRITE is lock-owned.** RESOLVE THE TARGET FIRST, THEN READ THE LOCKS. Key it
   on the write TARGET — `commands/_sources/<command>.md`, one of the fragments that command renders
   (`command grep -n 'include:' commands/_sources/<command>.md` names them) or points at by path (`command grep -no
-  '/opt/fabrik/commands/_fragments/[a-z0-9-]*\.md' commands/_sources/<command>.md` names them), a seat file under `commands/_agents/`,
+  'commands/_fragments/[a-z0-9-]*\.md' commands/_sources/<command>.md`, repo-relative as `owned_paths` is, names them), a seat file under `commands/_agents/`,
   § Drive's home for a shared rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
   still lands in one. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
@@ -267,7 +267,7 @@ DELETE what it replaces. The history lives in git.
 
 ⚠️ **Weight is a cost, and piece 3 measures it.** Every byte you add to `commands/_sources/` or
 `commands/_fragments/` is loaded on every invocation of that command, box-wide — a `_fragments/` edit renders into every command that
-INCLUDES it — 5 commands or 34, so count before you assume — so an edit that adds a
+INCLUDES it, and is read by every command that points at it by path — 5 commands or 34, so count before you assume — so an edit that adds a
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
@@ -332,7 +332,7 @@ and each hit is reworded with the sentence.
 ## PHASE 5 — Commit, naming what you answered
 
 Run the edit's tests — the queue-pass test plus every test file that names the edited source or fragment, or a command that includes
-that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
+that fragment or points at it by path (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
 source — after the last edit, in the shell that commits, so a refused write cannot carry a red grader into the commit. The trailer's `rows` and the `--mark-answered` list below name the same rows: only those PHASE 4's seats found answered in the new text.
 
 The commit is the PROVENANCE — immutable, and what a later reader (and axis 5, continuous
