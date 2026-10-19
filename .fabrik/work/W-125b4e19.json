@@ -3,7 +3,7 @@
   "created": "2026-10-19T13:15:45.246554Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c97ae928d7b60a0ae3bdb5b0443eb1b6617a5cba",
   "id": "W-125b4e19",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: operator ask (dashboard warning); LOW effort: five small dirs plus a root-cause check in claude_rotate.py; not URGENT: only the CLI's native task lists fragment (1-3 entries per account), the peer list (sessions/) is intact, so no agent is blocked",
-  "status": "open",
+  "status": "done",
   "title": "Shared-state fragmentation on the dashboard quota tab: every ~/.claude-fleet/<acct>/tasks is a real dir, not the link to ~/.claude/tasks (which does not exist); merge the five into ~/.claude/tasks (backup first, resolve the ozgurbasak/sarp name collision), replace each with the symlink, and fix the root cause so it cannot recur (D-399)"
 }

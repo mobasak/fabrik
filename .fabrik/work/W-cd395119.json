@@ -1,11 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-19T18:35:13.810120Z",
   "creator": "fleet",
   "effort": "low",
   "evidence": "",
   "id": "W-cd395119",
-  "impact": "high",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -16,11 +18,12 @@
   "next": "UPGRADED to /fabrik-spec (tradeoffs, 2026-10-19): seed /opt/fabrik/.tmp/runs/f57f3e25-3c69-4aee-b93b-cb9754686abf/fabrik-task-2026-10-19T22-25-30-0330/design.md — reach is zero today (the .j2 config cannot load: openapi plugin absent from package.json.j2, no docs/ shipped); choose exclude-only vs rendering the whole config from the .j2 (D-476)",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "HIGH: security issue, the same internal-doc exposure W-c2c2c35b fixed but through the .j2 config emitter, which renders no exclude; LOW effort: one template",
+  "priority": 3,
+  "score_reason": "MEDIUM, zero reach today (fleet's two design critiques: the .j2 config cannot load in any reachable state; no openapi plugin, and a template deploy ships no docs/); really HIGH effort (upgraded to /fabrik-spec: one-source D-476 render vs exclude-only), which the store cannot score until W-1bfb4623, so scored low/low, tagged medium and held behind the in-flight major W-d146dd3c",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "medium"
   ],
   "title": "templates/docusaurus/docusaurus.config.js.j2 renders a docs preset with no exclude (not even Docusaurus's defaults) and the pre-B38 openapi plugin; TemplateRenderer emits it for template-source deploys, which deployer_ssh writes to /opt/<name> on the VPS — a deploy whose dir holds a docs/ tree would publish it whole (review of W-c2c2c35b, 2026-10-19, owner: fleet)"
 }
