@@ -673,10 +673,15 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
 
 def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     """Row 1792406410: a mutation runner's `-k` filter cut before a fix added a test never ran that test, so a
-    re-run mutant read as killed or surviving on a stale selection."""
+    re-run mutant read as killed or surviving on a stale selection. The whole bullet is pinned by equality, so an
+    added licence or a negation fails here."""
     pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
-    assert (
-        "re-run every prior mutant and the reproducing probe after each fix, each against every touched test file"
-        " whole, never a `-k` or node-id list cut before the fix added a test; probe each new grader with its mutant."
-        in pin
-    )
+    bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
+    assert bullet == (
+        "- One mutant per clause the edit states, written as a literal before/after (an ordering claim names its"
+        " mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
+        " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
+        " with no `-k`, node-id, `--lf`, `--deselect` or `-m` selection beyond term-coverage rule (4)'s"
+        " environment-bound deselection (§ Seat isolation's exact node ids are for every other run); probe each new"
+        " grader with its mutant."
+    ), bullet
