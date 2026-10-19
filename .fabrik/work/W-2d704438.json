@@ -20,7 +20,8 @@
   "score_reason": "another active agent's request (kaizen feedback row needing code); one verb's output, one session",
   "status": "open",
   "tags": [
-    "mail-01m58h6df71ssm1d358jtejw38"
+    "mail-01m58h6df71ssm1d358jtejw38",
+    "waits-quota-reset"
   ],
   "title": "mail 01M58H6DF71SSM1D358JTEJW38: command_run.py round --slices accepts slice ids without echoing the round-1 claim totals or open classes it expects (feedback row 1792361103, /fabrik-review)"
 }
