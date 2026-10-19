@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "read the receipt docs/development/reviews/2026-10-19-w7e467f2d-retire-classifier-review.md § Residual for rows routed here; fix each with a red-first test",
-  "note": "",
+  "note": "empty: the W-7e467f2d review's closing pass 3 found no own-fix residue past the scope-growth stop (receipt 147370dcc), so nothing was ever routed here",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "registry"
   ],
