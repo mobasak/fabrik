@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
+
+- `/fabrik-command-improve` PHASE 2's lock bullet names the two scripts that test a path against a lock's `owned_paths`. A new test lists every script under `scripts/` that mentions both `owned_paths` and the plan-lock directory, and fails on one it has not met, so the bullet is re-checked when that set changes (W-bcf6fc2f part 1; part 2, check_plan_tickets.py's missing scalar guard, is infra's item).
+
 ### Changed — the reader run's pin diff names every `Only in` line (2026-10-19)
 
 - The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines. The bullet now has the lead name each one too: a path the fix added, removed or renamed is the fix's own, and its readers run on both pins (a removal the `base_sha` still holds leaves them `unverified`); a path pinned in only one pass is another path; no line is exempted by the base-to-base `--name-only` list, which misses renames, directories and an uncommitted fix (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code. Parts 1 and 4 closed with no edit: no flaky reader has been measured, and D-1051's rejected range is, read in its own row, the range used as the fix form; the row is immutable and the operative bullet already uses the range only to name paths.

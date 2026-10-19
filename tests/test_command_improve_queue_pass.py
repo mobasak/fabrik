@@ -699,3 +699,33 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
     assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
     assert not readers["cpt_lock"]._owned("commands/_fragments", ["commands/_fragments/a.md"])
+
+
+def test_the_lock_check_names_every_script_that_matches_a_path_against_a_lock() -> None:
+    """W-bcf6fc2f part 1: the PHASE 2 lock bullet says neither script that tests a path against a lock's
+    `owned_paths` matches a glob, and names `_owned` and `_path_covers`. A third script that starts reading a lock's
+    `owned_paths` would leave that sentence false and the existing pin green. This test lists every script under
+    scripts/ that mentions both `owned_paths` and the plan-lock directory and fails on one it has not met, so the
+    sentence is re-checked whenever that set changes. Cobra: the cheap way past it is to add the new file to KNOWN
+    without reading it; each entry therefore states what the script does with owned_paths, and the one non-matcher
+    is checked to compare against ["**"] only."""
+    known = {
+        "scripts/enforcement/check_phase_tests.py": "_owned matches a path against owned_paths (the bullet names it)",
+        "scripts/enforcement/check_plan_tickets.py": "_path_covers matches a path against owned_paths (named)",
+        "scripts/enforcement/check_plan_lock_release.py": "compares owned_paths to ['**'] only; matches no path",
+    }
+    found = set()
+    for path in sorted((ROOT / "scripts").rglob("*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "owned_paths" in text and re.search(r"plan-locks|plan_locks|LOCK_DIR", text):
+            found.add(path.relative_to(ROOT).as_posix())
+    assert found == set(known), sorted(found ^ set(known))
+    release = (ROOT / "scripts" / "enforcement" / "check_plan_lock_release.py").read_text(
+        encoding="utf-8"
+    )
+    uses = [
+        ln.strip()
+        for ln in release.splitlines()
+        if "owned_paths" in ln and not ln.strip().startswith("#")
+    ]
+    assert uses and all('== ["**"]' in ln for ln in uses), uses
