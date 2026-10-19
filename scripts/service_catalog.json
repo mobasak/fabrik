@@ -440,6 +440,10 @@
     "status": "active",
     "match": [
       "B2_"
+    ],
+    "hosts": [
+      "f004.backblazeb2.com",
+      "s3.us-west-004.backblazeb2.com"
     ]
   },
   "cloudflare-r2": {
@@ -1350,5 +1354,476 @@
     "url": "?",
     "status": "unidentified",
     "match": []
+  },
+  "axiom": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "log and event analytics / observability",
+    "url": "https://axiom.co",
+    "status": "active",
+    "match": [
+      "AXIOM"
+    ]
+  },
+  "brightdata": {
+    "category": "scrape",
+    "cost": "paid",
+    "capability": "scraper + dataset APIs (LinkedIn profiles); also a proxy network",
+    "url": "https://brightdata.com",
+    "status": "active",
+    "match": [
+      "BRIGHTDATA"
+    ]
+  },
+  "cerebras": {
+    "category": "ai-llm",
+    "cost": "paid",
+    "capability": "fast LLM inference API",
+    "url": "https://www.cerebras.ai",
+    "status": "active",
+    "match": [
+      "CEREBRAS"
+    ]
+  },
+  "deepgram": {
+    "category": "ai-audio",
+    "cost": "paid",
+    "capability": "speech-to-text and voice API",
+    "url": "https://deepgram.com",
+    "status": "active",
+    "match": [
+      "DEEPGRAM"
+    ]
+  },
+  "dub": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "link shortening, management and click analytics",
+    "url": "https://dub.co",
+    "status": "active",
+    "match": [],
+    "hosts": [
+      "www.dubcdn.com"
+    ]
+  },
+  "formbricks": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "open-source survey and feedback platform",
+    "url": "https://formbricks.com",
+    "status": "active",
+    "match": [
+      "FORMBRICKS"
+    ]
+  },
+  "groq": {
+    "category": "ai-llm",
+    "cost": "freemium",
+    "capability": "fast LLM inference API (rate-limited free plan)",
+    "url": "https://groq.com",
+    "status": "active",
+    "match": [
+      "GROQ"
+    ]
+  },
+  "healthchecks": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "cron job and heartbeat monitoring",
+    "url": "https://healthchecks.io",
+    "status": "active",
+    "match": [],
+    "hosts": [
+      "hc-ping.com"
+    ]
+  },
+  "heygen": {
+    "category": "ai-image",
+    "cost": "freemium",
+    "capability": "AI avatar video generation",
+    "url": "https://www.heygen.com",
+    "status": "active",
+    "match": [
+      "HEYGEN"
+    ]
+  },
+  "hubspot": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "CRM and marketing/sales suite",
+    "url": "https://www.hubspot.com",
+    "status": "active",
+    "match": [
+      "HUBSPOT"
+    ],
+    "hosts": [
+      "f.hubspotusercontent00.net"
+    ]
+  },
+  "hyperbolic": {
+    "category": "ai-llm",
+    "cost": "?",
+    "capability": "GPU rental and open-model inference API",
+    "url": "https://www.hyperbolic.ai",
+    "status": "active",
+    "match": [
+      "HYPERBOLIC"
+    ],
+    "hosts": [
+      "hyperbolic.xyz"
+    ]
+  },
+  "ideogram": {
+    "category": "ai-image",
+    "cost": "freemium",
+    "capability": "text-to-image generation with typography",
+    "url": "https://ideogram.ai",
+    "status": "active",
+    "match": [
+      "IDEOGRAM"
+    ]
+  },
+  "imgix": {
+    "category": "infra-platform",
+    "cost": "paid",
+    "capability": "image CDN and real-time processing",
+    "url": "https://imgix.com",
+    "status": "active",
+    "match": [
+      "IMGIX"
+    ],
+    "hosts": [
+      "ph-avatars.imgix.net"
+    ]
+  },
+  "klingai": {
+    "category": "ai-image",
+    "cost": "freemium",
+    "capability": "AI video generation from text or image",
+    "url": "https://kling.ai",
+    "status": "active",
+    "match": [
+      "KLING",
+      "KLINGAI"
+    ],
+    "hosts": [
+      "klingai.com"
+    ]
+  },
+  "lemonsqueezy": {
+    "category": "payments",
+    "cost": "paid",
+    "capability": "merchant of record (per-sale fees)",
+    "url": "https://www.lemonsqueezy.com",
+    "status": "active",
+    "match": [
+      "LEMONSQUEEZY"
+    ]
+  },
+  "linkedin": {
+    "category": "comms",
+    "cost": "free",
+    "capability": "professional social network",
+    "url": "https://www.linkedin.com",
+    "status": "active",
+    "match": [
+      "LINKEDIN"
+    ]
+  },
+  "lumalabs": {
+    "category": "ai-image",
+    "cost": "paid",
+    "capability": "AI video and 3D generation (Dream Machine)",
+    "url": "https://lumalabs.ai",
+    "status": "active",
+    "match": [
+      "LUMAAI",
+      "LUMALABS"
+    ]
+  },
+  "modal": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "serverless GPU/CPU compute",
+    "url": "https://modal.com",
+    "status": "active",
+    "match": [
+      "MODAL"
+    ]
+  },
+  "monday": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "work management and project boards",
+    "url": "https://monday.com",
+    "status": "active",
+    "match": []
+  },
+  "mux": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "video streaming and encoding API",
+    "url": "https://www.mux.com",
+    "status": "active",
+    "match": [
+      "MUX"
+    ]
+  },
+  "notion": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "docs, wiki and project workspace",
+    "url": "https://www.notion.com",
+    "status": "active",
+    "match": [
+      "NOTION"
+    ]
+  },
+  "novita": {
+    "category": "ai-llm",
+    "cost": "?",
+    "capability": "open-model inference API + GPU cloud",
+    "url": "https://novita.ai",
+    "status": "active",
+    "match": [
+      "NOVITA"
+    ]
+  },
+  "openai": {
+    "category": "ai-llm",
+    "cost": "paid",
+    "capability": "GPT models + embeddings API",
+    "url": "https://openai.com",
+    "status": "active",
+    "match": [
+      "OPENAI"
+    ]
+  },
+  "paddle": {
+    "category": "payments",
+    "cost": "paid",
+    "capability": "merchant of record (per-checkout fees)",
+    "url": "https://www.paddle.com",
+    "status": "active",
+    "match": [
+      "PADDLE"
+    ],
+    "hosts": [
+      "paddle.net"
+    ]
+  },
+  "paytr": {
+    "category": "payments",
+    "cost": "paid",
+    "capability": "Turkish payment gateway / virtual POS (commission only)",
+    "url": "https://www.paytr.com",
+    "status": "active",
+    "match": [
+      "PAYTR"
+    ]
+  },
+  "pika": {
+    "category": "ai-image",
+    "cost": "freemium",
+    "capability": "AI video generation",
+    "url": "https://pika.art",
+    "status": "active",
+    "match": [
+      "PIKA"
+    ]
+  },
+  "pipedream": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "developer workflow automation with code steps",
+    "url": "https://pipedream.com",
+    "status": "active",
+    "match": [
+      "PIPEDREAM"
+    ],
+    "hosts": [
+      "mcp.pipedream.net"
+    ]
+  },
+  "posthog": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "product analytics, session replay, feature flags",
+    "url": "https://posthog.com",
+    "status": "active",
+    "match": [
+      "NEXT_PUBLIC_POSTHOG",
+      "POSTHOG"
+    ]
+  },
+  "revenuecat": {
+    "category": "payments",
+    "cost": "freemium",
+    "capability": "in-app subscription management",
+    "url": "https://www.revenuecat.com",
+    "status": "active",
+    "match": [
+      "REVENUECAT"
+    ]
+  },
+  "runpod": {
+    "category": "infra-platform",
+    "cost": "paid",
+    "capability": "pay-as-you-go GPU cloud + serverless endpoints",
+    "url": "https://www.runpod.io",
+    "status": "active",
+    "match": [
+      "RUNPOD"
+    ],
+    "hosts": [
+      "api.runpod.ai"
+    ]
+  },
+  "runwayml": {
+    "category": "ai-image",
+    "cost": "paid",
+    "capability": "AI video generation (free credits are one-time)",
+    "url": "https://runwayml.com",
+    "status": "active",
+    "match": [
+      "RUNWAYML"
+    ]
+  },
+  "sanity": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "headless CMS with hosted content store",
+    "url": "https://www.sanity.io",
+    "status": "active",
+    "match": [
+      "SANITY"
+    ]
+  },
+  "serper": {
+    "category": "search",
+    "cost": "paid",
+    "capability": "Google SERP API (free queries are one-time)",
+    "url": "https://serper.dev",
+    "status": "active",
+    "match": [
+      "SERPER"
+    ]
+  },
+  "slack": {
+    "category": "comms",
+    "cost": "freemium",
+    "capability": "team chat and messaging",
+    "url": "https://slack.com",
+    "status": "active",
+    "match": [
+      "SLACK"
+    ]
+  },
+  "speechmatics": {
+    "category": "ai-audio",
+    "cost": "freemium",
+    "capability": "speech-to-text API",
+    "url": "https://www.speechmatics.com",
+    "status": "active",
+    "match": [
+      "SPEECHMATICS"
+    ]
+  },
+  "stripe": {
+    "category": "payments",
+    "cost": "paid",
+    "capability": "online payment processing (per-transaction fees)",
+    "url": "https://stripe.com",
+    "status": "active",
+    "match": [
+      "STRIPE"
+    ]
+  },
+  "suno": {
+    "category": "ai-audio",
+    "cost": "freemium",
+    "capability": "AI music generation",
+    "url": "https://suno.com",
+    "status": "active",
+    "match": [
+      "SUNO"
+    ]
+  },
+  "tiktok": {
+    "category": "comms",
+    "cost": "free",
+    "capability": "short-video social network",
+    "url": "https://www.tiktok.com",
+    "status": "active",
+    "match": [
+      "TIKTOK"
+    ]
+  },
+  "tinybird": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "real-time analytics data API",
+    "url": "https://www.tinybird.co",
+    "status": "active",
+    "match": [
+      "TINYBIRD"
+    ]
+  },
+  "twitter": {
+    "category": "comms",
+    "cost": "free",
+    "capability": "social network (Twitter / X)",
+    "url": "https://x.com",
+    "status": "active",
+    "match": [
+      "TWITTER"
+    ],
+    "hosts": [
+      "twitter.com"
+    ]
+  },
+  "udio": {
+    "category": "ai-audio",
+    "cost": "freemium",
+    "capability": "AI music generation",
+    "url": "https://www.udio.com",
+    "status": "active",
+    "match": [
+      "UDIO"
+    ]
+  },
+  "vercel": {
+    "category": "infra-platform",
+    "cost": "freemium",
+    "capability": "frontend hosting platform",
+    "url": "https://vercel.com",
+    "status": "active",
+    "match": [
+      "VERCEL"
+    ],
+    "hosts": [
+      "swr.vercel.app",
+      "your-app.vercel.app"
+    ]
+  },
+  "vultr": {
+    "category": "infra-platform",
+    "cost": "paid",
+    "capability": "cloud VPS and compute",
+    "url": "https://www.vultr.com",
+    "status": "active",
+    "match": [
+      "VULTR"
+    ]
+  },
+  "yandex": {
+    "category": "search",
+    "cost": "free",
+    "capability": "search engine + webmaster tools",
+    "url": "https://yandex.com",
+    "status": "active",
+    "match": [
+      "YANDEX"
+    ]
   }
 }
