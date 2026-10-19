@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T13:03:20.544677Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "307d19c194225dcbcda759956756d68dad61be2f",
   "id": "W-17aac223",
   "impact": "low",
   "kind": "backlog",
@@ -17,7 +17,7 @@
   "owner": "intel",
   "priority": 2,
   "score_reason": "MEDIUM: real value (45 real vendors get a category on the dashboard), nobody blocked; LOW effort: hand-written catalog entries, validated at scan time (D-1046)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium",
     "registry"
