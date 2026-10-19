@@ -74,7 +74,8 @@ proportionate answer.
    reports; this one's proof is the record the Stop hook reads (that asymmetry is the lightness,
    stated so nobody "fixes" it). `--own-fix` is EVIDENCED, never asserted: each defect it counts names
    the round whose fix hunk holds the defect's line or created the contradiction or the break in a reader it reports
-   (`own-fix: round k`, shown by that round's fix commits (`git show <sha> -- <the surface>`), or for a broken reader by
+   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin once the lead has stated the
+   difference is that round's fix alone, as the probe catalogue's § Seat isolation says, or for a broken reader by
    the reader run the review contracts' bounded hop names: passing on that round's pin and failing on it with only
    that round's hunks applied), in your
    report and the close's `--evidence`; any other defect is never own-fix.
