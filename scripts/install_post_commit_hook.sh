@@ -98,7 +98,14 @@ want=""
   want="$(grep -E '^[[:space:]]*[^#[:space:]].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true)"
 current=""
 [ -f "$info" ] && current="$(cat "$info")"
-kept="$(printf '%s\n' "$current" | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '$0 == b {skip = 1; next} $0 == e {skip = 0; next} !skip')"
+# A block's lines are dropped only when its END arrives; an unclosed BEGIN (a hand-trimmed END)
+# keeps every line after it, so a person's attribute lines are never deleted.
+kept="$(printf '%s\n' "$current" | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+  $0 == b { inblk = 1; n = 0; next }
+  inblk && $0 == e { inblk = 0; next }
+  inblk { held[++n] = $0; next }
+  { print }
+  END { for (i = 1; i <= n && inblk; i++) print held[i] }')"
 new="$kept"
 [ -n "$want" ] && new="${kept:+$kept
 }$BEGIN_MARK

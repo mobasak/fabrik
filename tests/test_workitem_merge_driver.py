@@ -181,6 +181,19 @@ def test_the_attributes_copy_keeps_other_lines_and_follows_the_tracked_file(tmp_
     assert info.read_text().splitlines() == ["*.bin binary"]
 
 
+def test_an_unclosed_block_never_deletes_the_lines_after_it(tmp_path):
+    """Review pass 2 (executed): a BEGIN marker whose END was hand-trimmed made the strip drop
+    every line to the end of the file — a person's attribute lines silently lost."""
+    repo = _bare_repo(tmp_path)
+    info = repo / ".git" / "info" / "attributes"
+    assert _install(repo).returncode == 0
+    lines = [ln for ln in info.read_text().splitlines() if not ln.startswith("# END")]
+    info.write_text("\n".join(lines + ["*.dat -text"]) + "\n", encoding="utf-8")
+    assert _install(repo).returncode == 0
+    assert "*.dat -text" in info.read_text().splitlines()
+    assert _attr(repo) == "workitem"
+
+
 def test_an_indented_comment_is_not_copied(tmp_path):
     repo = _bare_repo(tmp_path, "  # .fabrik/work/W-*.json merge=workitem\n")
     assert _install(repo).returncode == 0
