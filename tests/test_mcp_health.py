@@ -570,3 +570,50 @@ def test_the_key_check_deadline_is_min_of_timeout_and_5s(timeout, bound, tmp_pat
         elapsed = time.monotonic() - t0
     assert notes["exa"] == "unverified (timeout)"
     assert elapsed < bound, f"{elapsed:.1f}s for a {min(timeout, 5)}s deadline"
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["gateway says no", "invalid_api_key", "INVALID-API-KEY", "X" + "Y" * 70],
+    ids=["prose", "lower", "hyphen", "overlong"],
+)
+def test_only_a_machine_tag_makes_an_exa_refusal(tag, monkeypatch):
+    """Exa's tags are machine codes (INVALID_API_KEY, NO_MORE_CREDITS, X402_…); any other string is a gateway's."""
+    body = json.dumps({"error": "x", "tag": tag}).encode()
+    with _provider(401, body) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
+        assert health._probe_auth("exa", entry, 5) == ("unverified", "HTTP 401")
+
+
+def test_a_bare_socket_error_is_unreachable(monkeypatch):
+    """An OSError that urllib does not wrap (a reset mid-handshake) is the network, never a refused key."""
+
+    class _Opener:
+        def open(self, *_a, **_k):
+            raise ConnectionResetError(104, "Connection reset by peer")
+
+    monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
+    entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
+    assert health._probe_auth("exa", entry, 5) == ("unverified", "unreachable")
+
+
+def test_an_error_body_cut_short_is_read_as_empty(monkeypatch):
+    """A 401 whose body breaks mid-read is a status with no provider shape — unverified, not a probe `error`."""
+    import http.client
+    import urllib.error
+
+    class _CutBody:
+        def read(self, *_a):
+            raise http.client.IncompleteRead(b"{")
+
+        def close(self):
+            pass
+
+    class _Opener:
+        def open(self, req, *_a, **_k):
+            raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, _CutBody())
+
+    monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
+    entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
+    assert health._probe_auth("exa", entry, 5) == ("unverified", "HTTP 401")
