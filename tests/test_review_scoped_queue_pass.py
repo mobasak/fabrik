@@ -657,11 +657,34 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
     anchor = "never `/opt/fabrik` from a worktree."
     start = iso.find(anchor)
     end = iso.find("The pins line follows", start)
-    assert start != -1 and end != -1, "the worktree clause and the pins-line sentence still bound the note"
+    assert start != -1 and end != -1, (
+        "the worktree clause and the pins-line sentence still bound the note"
+    )
     sentence = iso[start + len(anchor) : end].strip()
     assert sentence == (
         "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
         " instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo"
         " (`PYTEST_PINS`) and a child process started with its own `env=`, which resolves the `.pth` again."
     ), sentence
-    assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"
+    assert "is a false red without it) and names the live repo" in iso, (
+        "the roots parenthesis holds no import-order note"
+    )
+
+
+def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
+    """Row 1792406410: a mutation runner's `-k` filter cut before a fix added a test never ran that test, so a
+    re-run mutant read as killed or surviving on a stale selection. The whole bullet is pinned by equality, so an
+    added licence or a negation fails here."""
+    pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
+    assert (
+        pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
+    )
+    bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
+    assert bullet == (
+        "- One mutant per clause the edit states, written as a literal before/after (an ordering claim names its"
+        " mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
+        " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
+        " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
+        " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
+        " other test runs); probe each new grader with its mutant."
+    ), bullet

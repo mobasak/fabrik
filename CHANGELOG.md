@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: a re-run mutant is killed against freshly collected whole test files (2026-10-19)
+
+- A fleet review's mutation runner re-ran its mutants through a `-k` filter cut before a fix added a test, so the new test never ran. The catalogue's mutant line now re-runs every prior mutant (a seat re-running a delta brief's mutant ids too) against every test file the change touched or added, collected again after the fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s environment-bound deselection. Pinned by equality over the whole bullet in `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — review probe catalogue: the Callers hunt line names the join of a changed output against another producer's (2026-10-19)
 
 - A `/fabrik-review` close spent an extra closing pass because a fix changed the path form one function returned, and the line that joined that output with a second producer's keys (`final_gate_stop.py`'s commit leg) was never re-derived. The catalogue's "Callers and consumers" hunt line, which every review brief applies, now names every line that joins, compares or keys a changed output against another producer's, with the form each side's values take. Pinned in `tests/test_review_queue_pass.py`.
