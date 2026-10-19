@@ -51,6 +51,14 @@ All notable changes to this project will be documented in this file.
 - The unreachable mail now names the variable.
 - The check still needs `FABRIK_SSH_JUMP_VPS=vps2` in `/opt/fabrik/.env`, the operator's step from W-2b657bee (W-714bb1a5, D-1037).
 
+### Fixed — `agents_up.sh` starts each builder in its own worktree (2026-10-19)
+
+- Every pane used to start at the repo root, the coordinator's main checkout, so a builder resumed there edited main's tree and read main's `CLAUDE.md`. A pane now starts in `<repo>/.claude/worktrees/<name>` when that folder is a linked git worktree in place (a `.git` file, no symlink on the path). Otherwise it starts at the root, and when something by that name is there, the launcher says so on stderr. Its `no-transcript` check reads the project folder of the folder it starts in. The runbook now says to remove a registry row only when that agent no longer uses its id: an in-session EnterWorktree move keeps the id. Item W-6c7c3292 (fabrik-lib mail 01M59SWZGB).
+
+### Fixed — `work.py --help` no longer crashes (2026-10-19)
+
+- `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans `scripts/` for a bare `%` in every argparse text argparse formats: `help=` and `usage=` always, `description=` and `epilog=` beside `%(prog)`, and f-strings by their literal parts. It accepts argparse's own `%(name)` fields with any conversion spec. Across 289 files and 687 texts, this was the only one. Item W-2356fd8d (kaizen relay 01M59T9RXS).
+
 ### Changed — `command_run.py round` shows the slice ledger it expects before recording (2026-10-19)
 
 - In a partitioned review, every later pass states `round --slices` by hand, and a wrong ledger used to be accepted silently. `round` now prints, before it records, the ledger it expects: each slice's first and last stated counts, and the classes still open. It warns on stderr when a slice's claims grew or shrank, verified fell, a slice is new or missing, `--slices` is absent, or a first round's claims total less than `--confirmed`. Warnings only; nothing new is refused. Decision D-1039; item W-2d704438 (mail 01M58H6DF7).

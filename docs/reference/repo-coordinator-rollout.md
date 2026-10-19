@@ -91,7 +91,11 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 The launcher builds one tmux session per repo, named after the repo's folder (every character other than
 `[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
 
-- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` from the repo root.
+- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` in the builder's worktree,
+  `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
+  of its path is a symlink), and from the repo root otherwise. When something by that name is there but fails the
+  check, the launcher says so on stderr, because that builder then works in the main checkout. The main checkout is the
+  coordinator's, and a builder resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
   `~/bin/hub-up`), and `CLAUDE_AGENT`. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
@@ -115,11 +119,13 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
 |---|---|
 | `ok` | It will resume. |
 | `running` | The session is already open elsewhere, so the pane only says so. |
-| `no-transcript` | There is no transcript for the session under the repo root's project folder. |
+| `no-transcript` | There is no transcript for the session under the project folder of the folder its pane starts in. |
 
-`claude --resume` finds a session through the folder it starts in. A session that moved into a worktree is reachable
-from the repo root only through the user-level `worktree_transcript_link.py` hook. That hook links the transcript back
-to the root once the session's next hook runs, so a builder that has just moved can show `no-transcript` until then.
+`claude --resume` finds a session through the folder it starts in, so the transcript is looked for there. A session
+started in its worktree keeps its transcript under the worktree's project folder. A session that moved into its
+worktree during the session (EnterWorktree) is reachable from both folders only through the user-level
+`worktree_transcript_link.py` hook, which links the transcript once the session's next hook runs, so a builder that
+has just moved can show `no-transcript` until then.
 
 Each row of the registry is checked before it reaches a shell command, and one bad row refuses the whole launch
 (exit 2):
@@ -135,6 +141,10 @@ agent's session id changes, the old row stays behind and the launcher refuses un
 launcher again. If the grid is already up, close it first with `tmux kill-session -t =<session>`, where `<session>` is
 the name `--print` shows on its first line. The hub has no registry and keeps
 `~/bin/hub-up`.
+
+Remove a session row only when that agent no longer uses its id. A relaunch mints a new id and leaves the old row
+stale. A move into a worktree during the session (EnterWorktree) keeps the id, so that row is the agent's only row, and
+removing it drops the agent's pane (fabrik-lib mail 01M59SWZGB).
 
 ### The Windows side (installed by the operator)
 
