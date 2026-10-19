@@ -17,6 +17,7 @@ already owns `~/.claude/commands` and `~/.claude/skills`.
 from __future__ import annotations
 
 import importlib.util
+import re
 import tempfile
 from pathlib import Path
 
@@ -188,14 +189,37 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
 
 
 def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
-    """W-8bc61173 (mail 01M4VHFP7S, 3 of 4 seats in one pass): firecrawl's directQuote mode is the quote arm for a
-    long page, and a summariser's POSITIVE synthesis or a WebFetch 404 on a raw URL needs the raw arm before a
-    verdict — both inside the existing shapes, so the count stays six."""
-    researcher = " ".join((SRC / "fabrik-researcher.md").read_text(encoding="utf-8").split())
-    assert "six measured failure shapes" in researcher
-    assert (
-        '`queryOptions: {"mode": "directQuote", "prompt": "<the exact span or symbol>"}`'
-        in researcher
+    """W-8bc61173 (mail 01M4VHFP7S, 3 of 4 seats in one pass): exa's `maxCharacters` lever; firecrawl's directQuote
+    call FIRST for a long page, prompted by a locator and compared character by character; and a summariser's
+    "documents X" claim or a WebFetch 404 held to shape 4's bar — the whole directives, inside shapes 1 and 4, and
+    still six shapes (review pass 1: phrase-only asserts passed with the substance removed)."""
+    raw = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    researcher = " ".join(raw.split())
+    block = raw[raw.index("Fetch-path routing") : raw.index("- **Library/API docs:**")]
+    assert len(re.findall(r"(?m)^  \d\. ", block)) == 6
+    for span in (
+        "on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less",
+        "A source file longer than that goes to shape 1's directQuote call or a `NEEDS-RAW-FETCH`",
+        'go to firecrawl FIRST — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, '
+        '`queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits '
+        'under>"}` and `maxAge: 0`',
+        "Never put the claimed wording in the prompt: compare the returned excerpt character by character",
+        "An empty or not-found reply is an ABSENCE answer under shape 4.",
+        "The same bar binds a summariser's claim that a page DOCUMENTS something",
+        "quote the line from a raw fetch or a second arm, or the verdict is an INFERENCE",
+        "JSON/XML keeps shape 3's routing.",
+        "a `WebFetch` 404 is not `DEAD` until `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0`",
+        "`STALE` or a `NEEDS-RAW-FETCH`, never `VERIFIED`",
+    ):
+        assert span in researcher, span
+    flat = " ".join(block.split())
+    s1, s2 = (
+        flat.index("1. A `WebFetch` reply"),
+        flat.index("2. **The raw arm silently drops angle-bracket"),
     )
-    assert "a summariser's POSITIVE synthesis" in researcher
-    assert "a `WebFetch` 404 on a raw source URL" in researcher
+    s4, s5 = (
+        flat.index("4. ⚠️ **A summariser answering ABSENCE"),
+        flat.index("5. **The raw arm silently DROPS"),
+    )
+    assert s1 < flat.index("go to firecrawl FIRST") < s2
+    assert s4 < flat.index("a `WebFetch` 404 is not `DEAD`") < s5
