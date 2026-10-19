@@ -4,10 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — the probe catalogue asks one mutant per guard before the pin, and its Sweep runs before the draft (2026-10-19)
+### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
-- Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, because the lead's pre-pin mutant line asked one mutant per clause the edit states and the gutted-guard rule sat only under § Graders. The pre-pin line now asks one mutant per guard the change adds or alters too (each refusal, check or branch it accepts), run before the pin (W-33b84ff0).
-- The catalogue's Sweep for a restated rule now says that in `/fabrik-review-scoped` the search runs before the sentence is drafted, on the terms of the rule it would state, matching step 3 (W-32efa59c).
+- Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
 
 ### Changed — /fabrik-review-scoped step 3 runs the rule-home search before a fix sentence is drafted (2026-10-19)
 

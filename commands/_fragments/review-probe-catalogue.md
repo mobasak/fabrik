@@ -31,14 +31,13 @@ it, or name in the brief why the shape does not have it.
   code, or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable
   diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix
   lands, never a model from memory.
-- One mutant per clause the edit states and one per guard the change adds or alters (each refusal, check or branch it
-  accepts, so a new script is swept guard by guard here, never only read for breadth: § Graders' "a counter or guard
-  is gutted in the same round", run before the pin), written as a literal before/after (an ordering claim names
-  its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta brief's
-  mutant ids too) against every test file the change touched or added, collected again after the fix with no selection
-  that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s
-  environment-bound deselection (§ Seat isolation's exact node ids are for a seat's other test runs); probe each new
-  grader with its mutant.
+- One mutant per clause the edit states and one per guard it adds or alters (that guard removed — term-coverage rule
+  (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"), written
+  as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe
+  after each fix (a seat re-running a delta brief's mutant ids too) against every test file the change touched or
+  added, collected again after the fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`,
+  `-m`, `--ignore`) beyond term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids
+  are for a seat's other test runs); probe each new grader with its mutant.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
   and the completion gate on the pinned files; feed a sample row through every grader that parses the artifact; a
   synced hook change is checked for its fleet copies' md5.
@@ -171,17 +170,16 @@ it, or name in the brief why the shape does not have it.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
   wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
   writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
-  rewordings of them (in `/fabrik-review-scoped`, searched before the sentence is drafted, on the terms of the rule it
-  would state) and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
-  docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a
-  module that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its
-  hunks, in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix
-  outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since a
-  paraphrase names neither the verb nor a removed name; every statement of a changed number or count in the whole
-  file; same-subject lines in the pack, doc summary rows and artifact generators that restate it; residue words of a
-  flipped decision; a cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit
-  shifted, remapped by CONTENT in one script over every doc that cites the file (find the symbol the prose names,
-  compare it with the target line), never renumbered by hand.
+  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
+  docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
+  that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
+  the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
+  every comment and docstring of a function whose behaviour a fix changes re-read whole, since a paraphrase names
+  neither the verb nor a removed name; every statement of a changed number or count in the whole file; same-subject
+  lines in the pack, doc summary rows and artifact generators that restate it; residue words of a flipped decision; a
+  cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by
+  CONTENT in one script over every doc that cites the file (find the symbol the prose names, compare it with the target
+  line), never renumbered by hand.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a

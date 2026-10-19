@@ -89,7 +89,7 @@ def test_the_catalogue_sections_hold_their_probes() -> None:
     cat = _norm(CAT)
     pin = _section(cat, "## Before the first pin", "## The brief's hunt lines")
     assert "Trace the entry path: the first caller that reaches the fixed function" in pin
-    assert "One mutant per clause the edit states and one per guard the change adds or alters" in pin
+    assert "One mutant per clause the edit states and one per guard it adds or alters" in pin
     hunt = _section(cat, "## The brief's hunt lines", "## Graders")
     assert "every caller of a changed exit code, output line or gated script" in hunt
     assert "who waits on a new lock and behind what" in hunt
@@ -675,18 +675,22 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     """Row 1792406410: a mutation runner's `-k` filter cut before a fix added a test never ran that test, so a
     re-run mutant read as killed or surviving on a stale selection. W-33b84ff0: rows 1792401243, 1792273324,
     1792034388, 1791852372 and 1791939536 found a new script's or a fix's guards untested over several closing passes
-    while the bullet asked one mutant per clause only, so it now asks one per guard the change adds or alters, swept
-    before the pin. The whole bullet is pinned by equality, so an added licence or a negation fails here."""
+    while the bullet asked one mutant per clause only, so it now asks one per guard it adds or alters, quoting
+    term-coverage rule (4)'s removed-guard proof rather than restating it. The whole bullet is pinned by equality, so
+    an added licence or a negation fails here, and the quote is checked against rule (4)'s own text."""
+    rule4 = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it" in rule4
+    )
     pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
     assert (
         pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
     )
     bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
     assert bullet == (
-        "- One mutant per clause the edit states and one per guard the change adds or alters (each refusal, check or"
-        " branch it accepts, so a new script is swept guard by guard here, never only read for breadth: § Graders'"
-        " \"a counter or guard is gutted in the same round\", run before the pin), written as a literal before/after"
-        " (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
+        "- One mutant per clause the edit states and one per guard it adds or alters (that guard removed —"
+        " term-coverage rule (4): \"each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an"
+        " expression inside it\"), written as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
         " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
         " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
         " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
