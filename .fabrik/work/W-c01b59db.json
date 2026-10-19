@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T18:55:09.461664Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-c01b59db",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure whether mcp__exa__web_fetch_exa serves a PDF or a pricing page from crawl cache or a live crawl (its livecrawl option), then widen step 5 to every cached changing figure without re-blocking shape 1's short-page quotes and shape 3's PDFs; also (W-0c33e10f remainder round, recorded) restate step 4's curl exclusion and arms-tried clause in shape 4's INFERENCE sentence, which today only cites Method step 4",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
+  "score_reason": "LOW: researcher-rule residue (a freshness rule for a cached non-docs figure, a restated curl exclusion); nobody blocked",
   "status": "open",
   "tags": [
     "researcher"
