@@ -2625,4 +2625,6 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         assert "a diff-sensed skip (nothing in its scope changed) is scope" in p, label
         assert "the verdict is some 25 KB" in p and "launch both runs with `--lean`" in p, label
         assert "after copying the gitignored inputs, look for that arming" in p, label
+        # review pass 3: the bare-base run has an EMPTY diff, which arms a CI-named pytest leg on its own
+        assert "treat that pair as armed whatever the diff" in p, label
         assert "${" not in p, f"{label}: an uninterpolated template expression"

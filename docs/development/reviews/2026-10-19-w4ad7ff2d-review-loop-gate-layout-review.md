@@ -237,6 +237,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native sonnet×1 + haiku×1 | found: 8, new: 8, confirmed: 6, fixed: 6, unexecuted: 0 | method: citation; shape: agent-tool (D-961, hub); one slice (the paragraph and its test), both seats reading both files; seats: sonnet 5/5 · haiku 2/3, a candidate both raised credits both; stop: confirmed 6; fix: one paragraph rewrite + 5 test lines (4c57bf3cf); the band turned AMBER after this pass and the run was parked, resumed at GREEN |
 | Pass 2 | native sonnet×1 + haiku×1 | found: 5, new: 5, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation by the round-1 seats over fix 4c57bf3cf; four pass-1 claims CLOSED; the Haiku seat ran the test mutants and found five rules the test left unpinned, and that an armed pytest leg would still run before its row was labelled (own-fix 2: both in pass 1's own text); intel executed eight paragraph mutants after the fix, all killed; stop: confirmed 4; fix: one sentence + 5 test lines (6d7e33b65) |
+| Pass 3 | native sonnet×1 + haiku×1 | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation by the round-1 seats over fix 6d7e33b65, both executing the tier-1 early return and ten and eight paragraph mutants (all killed); the Sonnet seat found the bare-base run has an EMPTY diff, which arms a CI-named pytest leg on its own (own-fix 1: pass 2's arming sentence), the Haiku seat the same gap ranked low; stop: confirmed 1; fix: one sentence + one test line |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -253,7 +254,6 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | Residual | Verdict |
 |---|---|
 | P1-length GATE_PINS adds about 3.5k characters to every finder and refuter prompt | RECORDED — by design (D-1033) — each sentence carries a rule a seat needs; a seat that cannot run the gate correctly costs more |
-| P3-ciarm the CI-arming sentence omits the gate's `tests/`-directory and empty-diff conditions | RECORDED — measured (both only narrow when the leg runs; a seat that looks for arming in a repo without `tests/` finds a leg that cannot run anyway, final_gate.py:1614-1632) |
 | P2-dollar `"${" not in p` scans the whole built prompt, not only GATE_PINS | RECORDED — by design (D-1033) — no part of a built prompt may carry an uninterpolated expression; a future literal `${` belongs in an escaped form |
 | P1-clone-spelling the paragraph's `git -C SCRATCH clone` and a plain `git clone` into SCRATCH both work | REFUTED (the paragraph defers to the history recipe's own clone step, which spells it once) |
 
@@ -279,7 +279,7 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 ### Phase 1 — W-4ad7ff2d build and review fixes: IN-PROGRESS
 
-Pass 1 confirmed 6 of 8 and fixed all 6 in 4c57bf3cf; pass 2 confirmed 4 (own-fix 2) and fixed them in 6d7e33b65.
+Pass 1 confirmed 6 of 8 and fixed all 6 in 4c57bf3cf; pass 2 confirmed 4 (own-fix 2) and fixed them in 6d7e33b65; pass 3 confirmed 1 (own-fix 1), fixed.
 
 ## Gate
 
