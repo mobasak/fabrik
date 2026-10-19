@@ -235,8 +235,9 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s1,
             s2,
             "An excerpt from the wrong place proves nothing either way: narrow the locator and ask again; if "
-            "firecrawl still misses, refuses or errors, fall back to exa (a 25000-character slice) or return "
-            "`NEEDS-RAW-FETCH` — never `WRONG` on one excerpt.",
+            "firecrawl still misses, refuses or errors, fall back to exa, which reads only the first 25000 "
+            "characters (no offset, shape 4), so a span past them is a `NEEDS-RAW-FETCH` — never `WRONG` on one "
+            "excerpt.",
         ),
         (s1, s2, "An empty or not-found reply is an ABSENCE answer under shape 4."),
         (
@@ -251,13 +252,14 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s4,
             s5,
             "a `WebFetch` 404 is not `DEAD` until `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` (a live "
-            "fetch) also answers 404; a firecrawl error that is not a 404 (credit, auth, a timeout) decides "
-            "nothing, and a page firecrawl serves live is not dead.",
+            "fetch) also answers 404 — then it is `DEAD`, even if exa still serves a copy (cite that copy as "
+            "exa's crawl cache); a page firecrawl serves live is not dead.",
         ),
         (
             s4,
             s5,
-            "A copy only exa serves is its crawl cache: return `NEEDS-RAW-FETCH`, never `VERIFIED`",
+            "A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then "
+            "`NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED`",
         ),
     ):
         at = flat.find(span)
