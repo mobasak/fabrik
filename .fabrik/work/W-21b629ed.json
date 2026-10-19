@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T19:01:45.209632Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-21b629ed",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: add the two verdict rows to fabrik-docs-review's table, with how the review treats each; render, --check, scoped review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work and another active agent's request (intel); LOW effort: two table rows in one command",
+  "status": "open",
+  "tags": [
+    "mail-01m5aq4754nvbwvb9e1a31fhc7"
+  ],
+  "title": "mail 01M5AQ4754NVBWVB9E1A31FHC7 (intel → kaizen): /fabrik-docs-review's verdict table has no row for the fabrik-researcher verdicts INFERENCE and NEEDS-RAW-FETCH, added by W-0c33e10f (D-1056, merged d490f5047)"
+}
