@@ -639,10 +639,15 @@ serialize WSL-side Python orchestration — for example, `fabrik reconcile-all`
 walking specs and `state.save()` writing `.fabrik/state/<id>.json` under
 contention.
 
-- **Default:** `/tmp/fabrik-locks`
-- **When to override:** if `/tmp` is on a filesystem without flock support
-  (rare on modern WSL2; possible on some containers/CI), point at a path
-  on the same filesystem as `FABRIK_ROOT`.
+- **Default:** `~/.cache/fabrik-locks`, created 0700 (W-1f70f2e9). It is one dir per user, shared by every hub
+  process of that user. The home is an absolute `HOME` that is not the root under any spelling or symlink (`/`, `//`,
+  `/..`, a link to `/`, read through `realpath`), else the passwd home under the same rule, which is what cron uses, so an empty, relative or root home
+  never moves it. Under a private HOME no other local user can pre-create it, as they
+  could the old fixed `/tmp/fabrik-locks`. An empty value counts as unset.
+- **When to override:** when the home is unwritable, or no home resolves at all (no absolute `HOME` and no
+  passwd entry), where `file_lock` fails closed with `OSError`; or when the home filesystem lacks flock support.
+  Every process that must exclude each other needs the same value. The test suite sets its own per-process
+  value in `tests/conftest.py`.
 
 Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
 which operates over SSH on the VPS and lives in the root-owned

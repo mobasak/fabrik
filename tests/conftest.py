@@ -49,6 +49,11 @@ for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL
 # process-level default below survives any undo; a test that wants a root still sets its own.
 os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
 
+# Likewise no test takes a lock in the operator's real lock dir (fabrik.locks_local, now ~/.cache/fabrik-locks,
+# W-1f70f2e9): tests that call state.save or an allocation without pinning one left state-*.lock files in the old
+# /tmp default. Set at the top, before any collected module imports locks_local and reads it.
+os.environ["FABRIK_LOCK_DIR"] = tempfile.mkdtemp(prefix="pytest-lock-dir-")
+
 settings.register_profile(
     "ci",
     max_examples=100,

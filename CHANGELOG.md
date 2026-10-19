@@ -15,6 +15,12 @@ All notable changes to this project will be documented in this file.
 ### Changed — the external-services chain no longer runs the classifier; a catalog typo routes to triage (2026-10-19)
 D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is now gather_envs → registry_sync → gen_dashboard: the pool-only `classify_services.py` step and its reconsolidate re-run are gone (the pool has been OFF since 2026-09-07, so the step classified nothing), and the script stays a manual tool. The board's and the static file's "classifier has not run" attention entry and the `classified_at` input are removed. `gather_envs.real_category` accepts only the category enum (now one home, `gather_envs.CATEGORIES`) or `unidentified`: an off-enum category routes the provider to NEEDS-TRIAGE with a stderr warning, never a dashboard table of its own, and a test in `scripts/tests/test_gather_envs.py` fails on a committed catalog that carries one (a test, not a commit hook: no gate leg runs `scripts/tests/`). The manual classifier never pops, overwrites or dispatches an entry whose category is the operator's off-enum typo; it names it instead.
 
+### Fixed — the hub-side lock dir moved out of a fixed /tmp name (2026-10-19)
+
+- `fabrik.locks_local` defaulted its lock dir to `/tmp/fabrik-locks`, with a `nosec`/`noqa` silencing the scanners. On a multi-user hub, another local user could pre-create that dir and hold or swap every hub lock: state, reconcile, allocations, vultr/gpu state and sysadmin tokens. The default is now `~/.cache/fabrik-locks`, created 0700, one per user and shared by every hub process of that user, cron included.
+- The test suite pins its own lock dir in `tests/conftest.py`, so tests no longer lock in the real one. Earlier runs had left `state-*.lock` files in `/tmp/fabrik-locks`.
+- W-1f70f2e9, D-1049.
+
 ### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
 - Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
