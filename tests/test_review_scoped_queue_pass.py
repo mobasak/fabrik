@@ -839,3 +839,16 @@ def test_a_seat_never_disguises_a_refused_act() -> None:
     assert re.sub(r"\s+", " ", core).count(f"{tail}. A {body}.") == 1
     for text in (agent, re.sub(r"\s+", " ", core)):
         assert hint in text and "keep that word out of code you run" not in text
+
+
+def test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read() -> None:
+    """Rows 1792446899, 1792432410 and 1792416541: a pin holds only the files it names, so seats either missed a file a
+    fix pointed at or copied the rest of a module from the live tree. The isolation bullet now pins each file a fix's
+    text points at and names the base tree, with the pins laid over it, as the place every other file is read."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "or outside the repo root). The pin also carries each file a fix's text points at by path, and the brief says"
+        " the pin holds only the files it lists, so a seat reads any other file, the rest of a changed module's"
+        " directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken"
+        " `--base`, else the archive of its `base_sha`), never from the live tree." in iso
+    )

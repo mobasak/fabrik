@@ -233,7 +233,11 @@ it, or name in the brief why the shape does not have it.
   recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed loader reds in the pass. A
   script a seat runs is run from its archive copy with every path argument under scratch (a script may treat any
   argument as a write path), and the pin carries the changed files' one-hop callees that are repo files
-  (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
+  (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root). The
+  pin also carries each file a fix's text points at by path, and the brief says the pin holds only the files it lists,
+  so a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins
+  laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
+  live tree.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`

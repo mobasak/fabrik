@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a review brief says what the pin holds and where seats read the rest (2026-10-20)
+
+- The probe catalogue's § Seat isolation now makes the pin carry each file a fix's text points at by path, and has the brief say the pin holds only the files it lists: a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` for a `--base` pin, else the archive of its `base_sha`), never from the live tree. Answers /fabrik-review-scoped feedback rows 1792446899, 1792432410 and 1792416541.
+
 ### Changed — a review seat never disguises an act a guard refused (2026-10-20)
 
 - A seat whose command the worktree guard refused assembled the word git from `'gi'+'t'` and ran it, in the hub and in fabrik-lib, reading the seat rule's "fix the named shape" as leave to disguise the act. `subagents-core.md` and the `fabrik-reviewer` agent drop the hint "keep that word out of code you run" for "the word does not belong in such a program at all, even as data", and say, directly after the refusal rule, that a command reshaped after any refusal never disguises the refused act: fixing the named shape or changing the command or the tool is allowed, a refused name or path assembled, split or encoded is the same call, and an act no allowed shape reaches is marked unverified and named in MACHINERY. The workflow's `SEAT_ISOLATION` copy is intel's and was mailed (fabrik-lib mail 01M5AP11P1; review-scoped row 1792433212).
