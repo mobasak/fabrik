@@ -120,20 +120,20 @@ stubs; the existing suites run against a throwaway scratch build of a new refusa
 also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
 semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep
 sibling write paths and the tests pinning a moved value; name each new guard's fail direction and any second approach
-the build cannot settle; run a mechanism the design copies read-only against the live state it will meet; execute one
-claim about every external dependency. It pins the tree (a commit or `git archive` copy) and any live state file the
-design reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no
-provider client built) and asks for small outputs. Wait for both in-turn: with stamped seats out, the Stop hook's
-run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are grepped for every
-line it touches; an optional one adding behaviour only when provable inside the declared files, else filed to its
-owner; a later executed review finding may override it, recorded in the D-row with the drift noted. A second approach
-the build cannot settle (an equivalent implementation is not one), its seat's claim executed and holding, is the §
-UPGRADE crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED. Then, before this call: read
-the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`) — a declared path or one
-backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose
-`owned_paths` is empty or absent (it matches nothing and passes everything); re-read `design.md`; each Behaviour
-names its test; every touched path is bare in backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record
-them:
+the build cannot settle; run a mechanism the design copies read-only against the live state of each host it will run
+on (a side-effecting step on a copy); execute one claim about every external dependency. It pins the tree (a commit
+or `git archive` copy) and any live state file the design reads, names the unmerged branch owning a mirrored file,
+bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs. Wait for both
+in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is
+ACCEPTED only after the tests are grepped for every line it touches; an optional one adding behaviour only when
+provable inside the declared files, else filed to its owner; a later executed review finding may override it,
+recorded in the D-row with the drift noted. A second approach the build cannot settle (an equivalent implementation
+is not one), its seat's claim executed and holding, is the § UPGRADE crossing `tradeoffs`, taken here before
+`--design`, never folded in as ACCEPTED. Then, before this call: read the plan locks (no CLI does: each `*.json` in
+`.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another
+lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing
+and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in backticks
+under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \

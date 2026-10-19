@@ -379,4 +379,7 @@ def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spelli
     ) in _section("## Phase 1", "## Phase 2")
     phase2 = _section("## Phase 2", "## Phase 3")
     assert "a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded." in phase2
-    assert "run a mechanism the design copies read-only against the live state it will meet;" in phase2
+    assert (
+        "run a mechanism the design copies read-only against the live state of each host it will run on (a side-effecting"
+        " step on a copy);"
+    ) in phase2
