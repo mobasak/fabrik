@@ -343,6 +343,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/provision_glitchtip_project.sh": "untracked: reads gitignored .env only; provisions a REMOTE GlitchTip project, no local tracked-file write",
     "scripts/provision_watchdog_ro.py": "untracked: reads gitignored .env.sysadmin only; provisions a remote target, no local tracked-file write",
     "scripts/snapshot_vps_state.py": "untracked: writes .tmp/vps-snapshot-<label>.json (gitignored `.tmp/`)",
+    "scripts/sysadmin/agents_bat.py": "no-hub-write: `/opt/fabrik/scripts/sysadmin/agents_up.sh` is the main checkout's script the generated .bat runs inside WSL (D-1048), baked in on purpose; it writes only the Windows desktop .bat and the Windows Terminal Fragments json, never the repo",
     "scripts/sysadmin/archive_transcripts.py": "untracked: reads the gitignored .env (SESSION_ARCHIVE_ENV_FILE); writes the archive under ~/.claude/archive and uploads it to B2, no tracked-file write",
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
