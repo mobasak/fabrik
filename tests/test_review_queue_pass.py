@@ -54,6 +54,16 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
     )
 
 
+def test_the_delta_brief_names_each_reader_of_a_fixed_functions_output() -> None:
+    """Row 1792365642: a reader inside the same file is outside the one-hop FILE set, so the brief names it."""
+    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
+    assert (
+        "It also names each function a fix changed and every reader of that function's output, "
+        "another branch or leg in the same file included, for the seat owning that slice to "
+        "re-verify against the new output." in p4
+    )
+
+
 def test_next_rows_merge_into_slices_by_name() -> None:
     """Row 1791493834: `next` prints `{name, ledger}` rows, merged by name; the quiet-round-1 shape is intel's."""
     p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
