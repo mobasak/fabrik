@@ -993,11 +993,11 @@ def mint_payments_role(
 ) -> dict[str, Any]:
     """Mint the per-project NOBYPASSRLS payments role for ``lane`` (``ingest`` · ``fulfilment``).
 
-    On create: ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`` with a
-    CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
+    On create: ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS
+    NOREPLICATION`` with a CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
     password before the caller holds it. On re-apply (the returned ``password`` is ``None``):
     ``ALTER ROLE`` re-asserts the same attributes (with INHERIT, no connection limit, no expiry)
-    and resets role-level settings, so a role altered out of band (e.g. to BYPASSRLS or
+    and resets its role settings (global and in this database), so a role altered out of band (e.g. to BYPASSRLS or
     REPLICATION) is narrowed again rather than granted as it stands; the password is never
     reset. A role of that name that is a superuser or owns a database was not minted here, so
     re-apply RAISES rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
@@ -1037,7 +1037,8 @@ def mint_payments_role(
             "  END IF;\n"
             "END $$;\n"
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
-            f'ALTER ROLE "{role}" RESET ALL;',  # nosec B608 — role is _validate_identifier-gated
+            f'ALTER ROLE "{role}" RESET ALL;\n'  # nosec B608 — role is _validate_identifier-gated
+            f'ALTER ROLE "{role}" IN DATABASE "{db_name}" RESET ALL;',  # nosec B608
             container=container,
         )
     status = "created" if not exists else "exists"

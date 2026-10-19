@@ -51,8 +51,11 @@ def test_create_role_sql_is_non_bypassrls() -> None:
         ):
             pg.mint_payments_role("ti", lane)
         create_sql = run.call_args_list[0].args[0]
-        assert "CREATE ROLE" in create_sql and "NOBYPASSRLS" in create_sql
-        assert "NOSUPERUSER" in create_sql
+        # the exact attribute list, never a substring check (`LOGIN` would match `NOLOGIN`)
+        assert (
+            f'CREATE ROLE "ti_payments_{lane}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            "NOBYPASSRLS NOREPLICATION PASSWORD '"
+        ) in create_sql
         # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
         assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
         assert " IN ROLE " not in create_sql
@@ -78,6 +81,7 @@ def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
             "NOREPLICATION INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';"
         ) in alter_sql
         assert f'ALTER ROLE "{role}" RESET ALL;' in alter_sql
+        assert f'ALTER ROLE "{role}" IN DATABASE "ti" RESET ALL;' in alter_sql
         # a role that is a superuser or owns a database is refused BEFORE the ALTER runs
         refusal = alter_sql.index("RAISE EXCEPTION")
         assert "r.rolsuper OR EXISTS" in alter_sql and "d.datdba = r.oid" in alter_sql
