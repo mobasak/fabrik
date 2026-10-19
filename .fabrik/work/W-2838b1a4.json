@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:10:44.072894Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2838b1a4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59M89RVBM0Q6NCRVK15E82D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "hub scripts/work.py: `work.py --help` raises ValueError (a stray % in an argparse help string)"
+}

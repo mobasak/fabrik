@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-a48f253f"
+  ],
+  "created": "2026-10-19T10:11:35.242822Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-cf005f94",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1036",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "once W-a48f253f (fabrik-lib pilot) is confirmed, list every repo with active agents (PROJECT_CATALOG + live sessions), then mail each repo the runbook docs/reference/repo-coordinator-rollout.md as a request, one repo at a time, and track each to confirmed",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "operator ask, fleet-wide (every repo): a major; waits on the fabrik-lib pilot",
+  "status": "open",
+  "tags": [
+    "operator-ask"
+  ],
+  "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
+}
