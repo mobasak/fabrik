@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
+
+- The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), as the review already does for a standard, and a conflict no primary source settles is UNVERIFIABLE naming both (W-7c2ca4e1).
+
 ### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
 
 - `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for a working-tree pin (it is HEAD there), read back, never verified, since no md5 manifest covers it; for any other pin the brief names the commit itself, since a `--base` pin records that commit (else its `--from` ref) and an older pin has none (W-86f03ace).
