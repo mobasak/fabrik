@@ -7,8 +7,12 @@ Advisory only: always exits 0; fail-safe on any error.
 from __future__ import annotations
 
 import importlib.util
+import re
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENFORCE = REPO_ROOT / "scripts" / "enforcement"
@@ -176,3 +180,147 @@ def test_filled_data_contract_with_date_format_does_not_warn(monkeypatch, tmp_pa
         "# Acme data contract\n\n`created_at` DATE — format YYYY-MM-DD (e.g. 2026-07-11).\n",
     )
     assert rc == 0 and "data-contract.md" not in capsys.readouterr().out
+
+
+# ── the second signal: a doc left as its scaffold template (D-593's rule, read from the hub) ──
+
+TEMPLATE_LINE = "of its scaffold template is still verbatim in it"
+SKIP_LINE = "doc-stub: template rule skipped"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_template_audit():
+    """Each test resolves the hub afresh — the loader caches the module it found."""
+    stubs._template_audit.cache_clear()
+    yield
+    stubs._template_audit.cache_clear()
+
+
+def _fixture_hub(root: Path, audit_source: str | None = None) -> Path:
+    """A hub-shaped tree: the real scaffold doc templates, the registry and fleet_doc_audit.py
+    (or ``audit_source`` in its place). Not a git repo, so only the current templates count."""
+    shutil.copytree(
+        REPO_ROOT / "templates" / "scaffold" / "docs", root / "templates" / "scaffold" / "docs"
+    )
+    (root / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(ENFORCE / "_doc_registry.py", root / "scripts" / "enforcement" / "_doc_registry.py")
+    target = root / "scripts" / "fleet_doc_audit.py"
+    if audit_source is None:
+        shutil.copy(REPO_ROOT / "scripts" / "fleet_doc_audit.py", target)
+    else:
+        target.write_text(audit_source)
+    return root
+
+
+def _proj(tmp_path: Path) -> Path:
+    """The project the check runs in — a sibling of the fixture hub, never inside it."""
+    proj = tmp_path / "proj"
+    proj.mkdir(exist_ok=True)
+    return proj
+
+
+def _services_template() -> str:
+    """SERVICES_TEMPLATE.md as a scaffold seeds it: the project name substituted, nothing filled."""
+    raw = (REPO_ROOT / "templates" / "scaffold" / "docs" / "SERVICES_TEMPLATE.md").read_text()
+    return raw.replace("[Project Name]", "acme-shop")
+
+
+def test_a_doc_left_as_its_template_warns(monkeypatch, tmp_path, capsys):
+    """The seeded-unfilled state the placeholder tokens miss: the real loader, a fixture hub."""
+    hub = _fixture_hub(tmp_path / "hub")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    body = _services_template()
+    assert not any(ph in body for ph in stubs.PLACEHOLDERS)  # the case the old rule could not see
+    rc = _run_doc(monkeypatch, _proj(tmp_path), ["compose.yaml"], "docs/SERVICES.md", body)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "docs/SERVICES.md" in out and TEMPLATE_LINE in out
+    assert re.search(r"\b100% of its scaffold template .*\(\d+% of the doc\)", out), out
+    assert SKIP_LINE not in out
+
+
+def test_a_filled_doc_keeping_template_lines_does_not_warn(monkeypatch, tmp_path, capsys):
+    hub = _fixture_hub(tmp_path / "hub")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    kept = [ln for ln in _services_template().splitlines() if len(ln.strip()) > 25][:3]
+    own = [
+        f"- service-{i}: runs the acme worker pool number {i} on vps1 behind traefik"
+        for i in range(40)
+    ]
+    rc = _run_doc(
+        monkeypatch,
+        _proj(tmp_path),
+        ["compose.yaml"],
+        "docs/SERVICES.md",
+        "\n".join(["# Acme", *kept, *own]),
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and "SERVICES.md" not in out and SKIP_LINE not in out
+
+
+def test_a_template_left_doc_without_its_trigger_is_silent(monkeypatch, tmp_path, capsys):
+    hub = _fixture_hub(tmp_path / "hub")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    rc = _run_doc(
+        monkeypatch, _proj(tmp_path), ["src/app/foo.py"], "docs/SERVICES.md", _services_template()
+    )
+    assert rc == 0 and capsys.readouterr().out == ""
+
+
+def test_without_a_hub_the_skip_is_said(monkeypatch, tmp_path, capsys):
+    """Off the box: placeholders still count, and the missing second signal is said, not hidden.
+    compose.yaml fires both SERVICES (a placeholder) and OPERATIONS (seeded, so only the template
+    rule could see it) — the skip is owed only for a doc the placeholder rule cannot judge."""
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (tmp_path / "no-hub",))
+    proj = _proj(tmp_path)
+    (proj / "docs").mkdir()
+    (proj / "docs" / "OPERATIONS.md").write_text("# acme-shop operations\n\nseeded, never filled\n")
+    rc = _run_doc(
+        monkeypatch, proj, ["compose.yaml"], "docs/SERVICES.md", "# [Project Name] Services\n"
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and "docs/SERVICES.md" in out and "placeholders" in out
+    assert SKIP_LINE in out and "no hub" in out and "OPERATIONS" not in out
+
+
+def test_a_placeholder_doc_alone_owes_no_skip_line(monkeypatch, tmp_path, capsys):
+    """The placeholder rule already judged the only fired doc, so the hub is never consulted."""
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (tmp_path / "no-hub",))
+    rc = _run_doc(
+        monkeypatch,
+        _proj(tmp_path),
+        ["compose.yaml"],
+        "docs/SERVICES.md",
+        "# [Project Name] Services\n",
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and "placeholders" in out and SKIP_LINE not in out
+
+
+def test_a_failing_template_audit_fails_open_loudly(monkeypatch, tmp_path, capsys):
+    """A SystemExit at load (a future top-level argparse) must not turn the warn_only exit non-zero."""
+    hub = _fixture_hub(tmp_path / "hub", audit_source="raise SystemExit(2)\n")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    rc = _run_doc(
+        monkeypatch, _proj(tmp_path), ["compose.yaml"], "docs/SERVICES.md", _services_template()
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and TEMPLATE_LINE not in out
+    assert SKIP_LINE in out and "SystemExit" in out
+
+
+def test_the_first_complete_hub_root_is_read(tmp_path, monkeypatch):
+    """A project tree (templates without the audit, or the reverse) is skipped; the next complete root is read."""
+    only_templates = tmp_path / "a"
+    (only_templates / "templates" / "scaffold").mkdir(parents=True)
+    only_audit = tmp_path / "b"
+    (only_audit / "scripts").mkdir(parents=True)
+    shutil.copy(
+        REPO_ROOT / "scripts" / "fleet_doc_audit.py", only_audit / "scripts" / "fleet_doc_audit.py"
+    )
+    hub = _fixture_hub(tmp_path / "hub")
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (only_templates, only_audit, hub))
+    audit, reason = stubs._template_audit()
+    assert reason is None
+    assert Path(audit.__file__) == hub / "scripts" / "fleet_doc_audit.py"
+    assert hub == audit.FABRIK_ROOT

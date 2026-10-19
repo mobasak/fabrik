@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the doc-stub advisory sees a seeded doc left as its template (2026-10-19)
+
+- `scripts/enforcement/check_doc_stubs.py` used to call a fired-trigger doc unfilled only by `[Project Name]`, `[PROJECT_NAME]` or `{PROJECT_NAME}`. Seeding substitutes most of those, so it saw 16 of the 174 covered docs across /opt. It now also applies D-593's "left as its scaffold template" rule, read from the hub's `scripts/fleet_doc_audit.py` (this tree, else the box-local `/opt/fabrik`) and never copied. That rule sees 84.
+- The new line reports what was measured: `<pct>% of its scaffold template is still verbatim in it (<share>% of the doc)`. Off the box the rule is skipped and the output says so. Any failure in hub code, a `SystemExit` included, leaves the exit at 0.
+- `tests/test_fleet_doc_audit.py` pins every name the check reads (W-ad71f248).
+
 ### Fixed — the hub-side lock dir moved out of a fixed /tmp name (2026-10-19)
 
 - `fabrik.locks_local` defaulted its lock dir to `/tmp/fabrik-locks`, with a `nosec`/`noqa` silencing the scanners. On a multi-user hub, another local user could pre-create that dir and hold or swap every hub lock: state, reconcile, allocations, vultr/gpu state and sysadmin tokens. The default is now `~/.cache/fabrik-locks`, created 0700, one per user and shared by every hub process of that user, cron included.

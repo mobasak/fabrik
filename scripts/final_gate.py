@@ -2140,13 +2140,14 @@ def run_consistency_checks(
         finally:
             if _mutmut_leak is not None:
                 os.environ["FABRIK_MUTMUT"] = _mutmut_leak
-        # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
-        # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
+        # Doc stub force-fill — WARN when a seeded doc is still unfilled (a template placeholder,
+        # or D-593's "left as its scaffold template" rule read from the hub) AFTER its Doc-Sync
+        # trigger fired (a scaffolded stub that rotted past relevance).
         # ADVISORY (B, 2026-08-16 registration audit). Fail-safe by design — every path of
         # `main()` returns 0 — so `warn_only=True` is a statement of the check's real
-        # contract, not a downgrade. Measured before deciding: 16 of 44 /opt repos still
-        # ship a stub `docs/QUICKSTART.md`, so promoting it would red a third of the fleet
-        # the next time any of them touches a route.
+        # contract, not a downgrade. Measured 2026-10-19 (W-ad71f248): 85 of the 174 covered
+        # docs across the /opt projects are still unfilled, so promoting it would red most of
+        # the fleet the next time any of them touches a trigger.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_doc_stubs.py",
