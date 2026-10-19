@@ -9589,17 +9589,26 @@ def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, 
 
 @pytest.mark.parametrize(
     "stamp, wakes",
-    [("0\nwalled\n", False), ("0\nbattery\n", False), ("garbage", False), ("0\nurgent-90\n", True)],
-    ids=["walled", "battery", "torn", "urgent"],
+    [
+        ("0\nwalled\n", False),
+        ("0\nbattery\n", False),
+        ("garbage", False),
+        (None, False),  # a dangling link at the stamp path
+        ("0\nurgent-90\n", True),
+    ],
+    ids=["walled", "battery", "torn", "dangling", "urgent"],
 )
 def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
-    """While the stamp reads walled (a wall, the battery, a torn file) a resume wakes nobody and
-    says so — the hold's own lift wakes them; `urgent-90` holds nothing (W-75cafe7a)."""
+    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
+    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` holds nothing."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
     try:
         (cr._rotate_state_dir() / "tick-last-end").write_text(f"{FLEET_NOW - 3600}\n")
-        cr._fleet_exhaustion_stamp().write_text(stamp)
+        if stamp is None:
+            cr._fleet_exhaustion_stamp().symlink_to(tmp_path / "nowhere")
+        else:
+            cr._fleet_exhaustion_stamp().write_text(stamp)
         capsys.readouterr()
         assert cr._cmd_tick() == 0
         assert (locks / "pane1.holdlifted").exists() is wakes
@@ -9635,8 +9644,30 @@ def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monke
         monkeypatch.setattr(cr.os, "replace", no_write)
         assert cr._cmd_tick() == 0
         assert not (locks / "pane1.holdlifted").exists(), "an unwritable record wakes nobody"
+        assert not list(rec.parent.glob(".tick-last-end.*")), "the staging file is removed"
     finally:
         os.close(fd)
+
+
+def test_a_fifo_record_never_hangs_the_tick(tmp_path, monkeypatch):
+    """A FIFO at the record path reads as no record: the read never blocks (a hang is not an
+    OSError), so the tick goes on and wakes nobody (W-75cafe7a review)."""
+    import threading
+
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    os.mkfifo(rec)
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("v", cr._read_tick_last_end()), daemon=True)
+    try:
+        t.start()
+        t.join(5)
+        assert not t.is_alive(), "the record read blocked on a FIFO"
+        assert out["v"] is None
+    finally:
+        os.close(fd)
+        if t.is_alive():  # unblock the reader so the test process can exit
+            os.close(os.open(rec, os.O_WRONLY | os.O_NONBLOCK))
 
 
 def test_the_posture_reflects_the_stamp_this_tick_left(tmp_path, monkeypatch):
@@ -9671,7 +9702,8 @@ def test_the_posture_reflects_the_stamp_this_tick_left(tmp_path, monkeypatch):
 
 def test_an_advisory_error_still_writes_the_posture(tmp_path, monkeypatch):
     """The posture step runs in a `finally` around the advisory: an advisory that raises still
-    leaves this tick's posture, and the tick still exits 0 (W-75cafe7a)."""
+    leaves this tick's posture, and the battery leg still runs before it, so a hold armed on a
+    low battery in that tick is in that tick's posture (W-75cafe7a)."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
@@ -9686,9 +9718,19 @@ def test_an_advisory_error_still_writes_the_posture(tmp_path, monkeypatch):
         raise RuntimeError("advisory broke")
 
     monkeypatch.setattr(cr, "_fleet_active_wall_advisory", boom)
+    bat = tmp_path / "BAT1"
+    bat.mkdir()
+    (bat / "status").write_text("Discharging\n")
+    (bat / "capacity").write_text("5\n")
+    monkeypatch.setenv("CLAUDE_BATTERY_DIR", str(bat))
     assert cr._cmd_tick() == 0
     posture = json.loads(cr._posture_path().read_text())
     assert posture["ts"] == FLEET_NOW
+    assert cr._fleet_exhaustion_stamp().read_text() == cr._stamp_body("0", "battery")
+    # the picture reads the battery tier as walled (`_stamp_tier`); present is the point
+    assert posture["fleet"]["hold"] is not None, (
+        "the hold armed this tick is in this tick's posture"
+    )
 
 
 def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):

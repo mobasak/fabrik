@@ -3343,7 +3343,8 @@ def _cmd_tick() -> int:
     The battery hold (W-83a8ee68) runs in the ``finally``: a quota tick that returns early or
     raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
     is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall. The fleet
-    tick also runs it in-line before its posture, so this call is then a no-op.
+    tick also runs it in-line before its posture, so this call then arms and lifts nothing more
+    (it may repeat the "quota is unread" line when the advisory never read the quota).
 
     The resume wake (W-75cafe7a) runs last in the ``finally``: :func:`_resume_leg` records this
     tick's end and, after a sleep, wakes every armed self-watch."""
@@ -7261,9 +7262,14 @@ def _resume_gap_s() -> float:
 
 def _read_tick_last_end() -> float | None:
     """The previous tick's end, or None — missing, unreadable, not a finite number, or a state
-    dir that cannot be made. Never raises: a missed wake, never a broken tick."""
+    dir that cannot be made, or not a regular file. Never raises: a missed wake, never a broken
+    tick. `is_file()` before the read, as `_stamp_tier` does: a FIFO at this path blocks the read
+    forever, and a hang is not an OSError, so every cron tick would stall on it."""
     try:
-        raw = _tick_last_end_path().read_text(encoding="utf-8", errors="replace").strip()
+        path = _tick_last_end_path()
+        if not path.is_file():
+            return None
+        raw = path.read_text(encoding="utf-8", errors="replace").strip()
         val = float(raw)
     except (ValueError, *_STATE_DIR_ERRORS):
         return None
@@ -7271,13 +7277,20 @@ def _read_tick_last_end() -> float | None:
 
 
 def _write_tick_last_end(now: float) -> bool:
-    """Atomically record this tick's end; False when it could not be written."""
+    """Atomically record this tick's end; False when it could not be written (the per-process
+    staging file is then removed, so a state dir that refuses the publish never fills with them)."""
+    tmp = None
     try:
         path = _tick_last_end_path()
         tmp = path.with_name(f".{path.name}.{os.getpid()}")
         tmp.write_text(f"{now}\n")
         os.replace(tmp, path)
     except _STATE_DIR_ERRORS:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
         return False
     return True
 
@@ -7298,7 +7311,9 @@ def _resume_leg(start: float, prev_end: float | None) -> None:
         if gap <= _resume_gap_s():
             return
         stamp = _fleet_exhaustion_stamp()
-        if stamp.exists() and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+        # `lexists`, not `exists`: a dangling link at the stamp path is a stamp `_stamp_tier`
+        # reads as walled (fail-closed), and `exists()` follows the link and says no
+        if os.path.lexists(stamp) and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
             print(
                 f"tick: resumed after {gap / 60:.0f} min — a hold stands; its lift wakes the sessions"
             )
@@ -8350,11 +8365,11 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         # every agent is using) is walled with no auto-relief. A single account crossing the
         # threshold is a non-event — the flip leg above already re-pointed to a sibling with headroom.
         _fleet_active_wall_advisory(accounts, now, threshold)
-        # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK`, so the
-        # posture below carries a hold this tick lifted; `_cmd_tick`'s `finally` call is then a
-        # no-op (W-75cafe7a)
-        _battery_leg(time.time(), lift=True)
     finally:
+        # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK` (or raised,
+        # leaving it unknown), so the posture below carries a hold this tick lifted; it never
+        # raises, and `_cmd_tick`'s `finally` call then finds nothing left to do (W-75cafe7a)
+        _battery_leg(time.time(), lift=True)
         # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip
         # pointer, and AFTER the advisory and the battery leg so its hold is the stamp THIS tick
         # left — built before them, every arm or clear reached the posture one tick late
