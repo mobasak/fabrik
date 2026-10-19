@@ -45,15 +45,16 @@ proportionate answer.
    and watched fail, or red-on-revert with the fix undone on a copy): a red the defect does not
    cause, such as the test's own setup failing, or a test that stays green with the fix undone,
    proves nothing. Name that test and its red in your report and the close's `--evidence`; a docs or
-   config fix owes none. Before a fix's sentence is drafted, the home of the rule it would state is
-   found first — in the file being fixed, the fragments and packs that file names, and the doc that
-   owns the subject, by the rule's own terms and two rewordings of them — and the sentence is then
-   written from what that search found. Every checkable claim any fix adds (a doc or command
-   sentence, a code comment, a commit message) is either executed, with its command and output named
-   in your report, or deleted; a re-read is not execution. Something already stated, in the code,
-   the doc that owns the subject or elsewhere in the file being fixed, is pointed at, or, where the
-   fix must carry its words, quoted whole, verbatim, with no gloss and naming its source, never
-   paraphrased. **LOCAL findings (unambiguous, contained) you just fix — the common case; an
+   config fix owes none. Before a fix writes a sentence that states a rule (a doc or command
+   sentence, a code comment, a commit message), the probe catalogue's Sweep search for a rule
+   already stated elsewhere (its § Prose and docs fixes) runs first, never after the draft, and your
+   report names its terms and hits, or that it found none and the new sentence is the rule's home;
+   the next sentence's rule governs what it finds. Every checkable claim any fix adds (a doc or
+   command sentence, a code comment, a commit message) is either executed, with its command and
+   output named in your report, or deleted; a re-read is not execution. Something already stated, in
+   the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed at, or,
+   where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,
+   never paraphrased. **LOCAL findings (unambiguous, contained) you just fix — the common case; an
    ARCHITECTURAL one — the correct fix moves a contract, boundary, data model or auth/isolation
    posture ANOTHER module or repo depends on — you still fix, and it owes a ledger row per
    `/fabrik-review` § Phase 3, which is canonical for that rule** (do not re-derive its terms here).
