@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T21:57:17.658546Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "c482901d74244b736cbb0c4098dc3f0d5b57174c",
   "id": "W-7c2ca4e1",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-docs-review NEEDS-RAW-FETCH row: say which verdict applies when the re-dispatched researcher's other live sources conflict (one states the claim, another contradicts it) — W-21b629ed review pass 7 opus note"
 }
