@@ -21,6 +21,7 @@ Design notes
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -313,3 +314,35 @@ def remote_mktemp(ssh_fn: Callable[..., str], *, directory: bool = False) -> str
             except Exception:  # noqa: BLE001, S110 — best-effort; the refusal below is the error
                 pass
     raise RuntimeError(f"remote mktemp returned an unexpected path: {path!r}")
+
+
+def install_world_readable(
+    ssh_fn: Callable[..., str], scp_fn: Callable[..., None], local_path: str, dest: str
+) -> None:
+    """Install a local file at ``dest`` on the VPS as root:root 0644 (world-readable), via a mktemp stage.
+
+    The stage comes from :func:`remote_mktemp`, so no other VPS user can pre-create or swap it
+    (W-42e79070). It is made root:root 0644 BEFORE the ``sudo mv``, so ``dest`` never carries another
+    owner or mode, and a failure before the move leaves ``dest`` as it was. When ``/tmp`` and
+    ``dest`` share a filesystem the move is one rename, so a watcher of its directory (Gatus) never
+    sees a partial file; across filesystems ``mv`` copies, as the old fixed-name staging did. The
+    content is readable by every VPS user once the
+    stage is 0644, exactly as the installed file is; a file that must not be is not for this
+    helper. The stage is removed (``sudo rm -f``: it may be root's by then) on every failure, an
+    interrupt included; after a successful ``mv`` there is nothing left to remove. ``ssh_fn`` and
+    ``scp_fn`` are the caller's own callables, so a test patching the caller's names still
+    intercepts them.
+    """
+    stage = remote_mktemp(ssh_fn)
+    quoted = shlex.quote(stage)
+    try:
+        scp_fn(local_path, stage)
+        ssh_fn(
+            f"sudo chown root:root {quoted} && sudo chmod 644 {quoted} && "
+            f"sudo mv {quoted} {shlex.quote(dest)}"
+        )
+    except BaseException:
+        # best-effort: a failing cleanup never masks the original error
+        with contextlib.suppress(Exception):
+            ssh_fn(f"sudo rm -f {quoted}", timeout=5)
+        raise

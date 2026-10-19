@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:21:50.879316Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3d834ded",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1038",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each site (sudo tee into a pre-planted symlink?) then route the staging through drivers.ssh.remote_mktemp / install_world_readable; the lock path needs its own design (a lock must be a stable name)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "Authelia and lock drivers still use predictable VPS /tmp names: authelia.py:292-305 and 390-468 stage /tmp/authelia.{cur,bak,new}.$TS.yml via sudo tee/cp (a timestamp is guessable, so a pre-planted file or symlink applies); locks.py:109 uses a fixed /tmp/fabrik-<resource>.lock (D-1000/D-1038 class; found by the W-42e79070 review)"
+}

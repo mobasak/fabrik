@@ -142,7 +142,14 @@ class TestWriteRegistry:
                 captured["body"] = fh.read()
 
         with (
-            patch.object(redis_driver, "ssh", return_value=""),
+            # mktemp's answer is the staging file (ssh.install_world_readable)
+            patch.object(
+                redis_driver,
+                "ssh",
+                side_effect=lambda cmd, **_kw: (
+                    "/tmp/fabrik-Ab3dE5gH7j" if cmd.startswith("mktemp") else ""
+                ),
+            ),
             patch.object(redis_driver, "scp_to_vps", side_effect=fake_scp),
         ):
             redis_driver._write_registry({"authelia": 3, "tryton-crm": 5})

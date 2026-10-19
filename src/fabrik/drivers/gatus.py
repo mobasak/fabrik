@@ -21,10 +21,10 @@ Design notes
   container (which would be a ~2 s service blip for every re-apply).
 * **Rollback** is handled by :func:`remove_endpoint`, invoked from
   ``DeploymentRollback._rollback_gatus``. Best-effort; never raises.
-* **Atomic write.** The config is staged to ``/tmp/gatus-endpoint-<project>.yaml``
-  on the VPS, then ``sudo mv``'d into the final path so Gatus never
-  observes a partially-written file (critical because Gatus watches the
-  directory for changes).
+* **Atomic write.** The config is staged in a random ``mktemp`` file on the
+  VPS (``ssh.install_world_readable``), made 0644, then ``sudo mv``'d into
+  the final path so Gatus never observes a partially-written file (critical
+  because Gatus watches the directory for changes).
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from pathlib import Path
 
 import yaml as yaml_lib
 
-from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.drivers.ssh import install_world_readable, scp_to_vps, ssh
 
 logger = logging.getLogger(__name__)
 
@@ -193,20 +193,8 @@ def add_endpoint(
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(yaml_body)
         local_tmp = f.name
-    # Hardcoded VPS-side /tmp path is intentional: this is a transient
-    # staging file on the remote (YAML body scp'd up, then mv'd into
-    # /opt/monitoring/configs/gatus/apps/, then the tmp is removed). The
-    # remote VPS is a single-tenant host (no other user sessions), so /tmp
-    # symlink-attack vectors do not apply. `project_name` is validated
-    # upstream by the spec loader's `id` regex.
-    vps_tmp = f"/tmp/gatus-endpoint-{project_name}.yaml"  # nosec B108
-
     try:
-        scp_to_vps(local_tmp, vps_tmp)
-        ssh(
-            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(config_file)} && "
-            f"sudo chown root:root {shlex.quote(config_file)}"
-        )
+        install_world_readable(ssh, scp_to_vps, local_tmp, config_file)
         # Restart Gatus — prefix-matched because the Coolify UUID changes on recreate.
         ssh(
             "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep -E '^gatus(-|$)') "
@@ -383,13 +371,8 @@ def add_aro_wake_endpoint(spoke_name: str, mesh_ip: str, *, dry_run: bool = Fals
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(yaml_body)
         local_tmp = f.name
-    vps_tmp = f"/tmp/gatus-endpoint-{endpoint_name}.yaml"  # nosec B108 — single-tenant staging
     try:
-        scp_to_vps(local_tmp, vps_tmp)
-        ssh(
-            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(config_file)} && "
-            f"sudo chown root:root {shlex.quote(config_file)}"
-        )
+        install_world_readable(ssh, scp_to_vps, local_tmp, config_file)
         ssh(
             "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep -E '^gatus(-|$)') "
             '&& sudo docker restart "$GATUS_CONTAINER"'
