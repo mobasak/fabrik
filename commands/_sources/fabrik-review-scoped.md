@@ -47,9 +47,10 @@ proportionate answer.
    proves nothing. Name that test and its red in your report and the close's `--evidence`; a docs or
    config fix owes none. Before a fix writes a sentence that states a rule (a doc or command
    sentence, a code comment, a commit message), the probe catalogue's Sweep search for a rule
-   already stated elsewhere (its § Prose and docs fixes) runs first, never after the draft, and your
-   report names its terms and hits, or that it found none and the new sentence is the rule's home;
-   the next sentence's rule governs what it finds. Every checkable claim any fix adds (a doc or
+   already stated elsewhere (its § Prose and docs fixes) runs first, on the terms of the rule the
+   sentence would state, never after the draft, and your report names its terms and hits, or that it
+   found none and the new sentence is the rule's home; what it finds is held to this step's rule
+   below for something already stated. Every checkable claim any fix adds (a doc or
    command sentence, a code comment, a commit message) is either executed, with its command and
    output named in your report, or deleted; a re-read is not execution. Something already stated, in
    the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed at, or,

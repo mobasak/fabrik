@@ -703,6 +703,9 @@ def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
     assert span == (
         "Before a fix writes a sentence that states a rule (a doc or command sentence, a code comment, a commit"
         " message), the probe catalogue's Sweep search for a rule already stated elsewhere (its § Prose and docs fixes)"
-        " runs first, never after the draft, and your report names its terms and hits, or that it found none and the"
-        " new sentence is the rule's home; the next sentence's rule governs what it finds. "
+        " runs first, on the terms of the rule the sentence would state, never after the draft, and your report names"
+        " its terms and hits, or that it found none and the new sentence is the rule's home; what it finds is held to"
+        " this step's rule below for something already stated. "
     ), span
+    # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
+    assert "Something already stated, in the code" in step3[step3.index(tail) :]
