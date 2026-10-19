@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — after a host sleep the rotation tick wakes every armed self-watch, and the posture shows the stamp the tick left (2026-10-20)
+
+- After a WSL hibernation nothing woke the idle sessions: the self-watch fires only on a death or a hold lift. Every `--tick` now records its end in `<state>/tick-last-end`. When the gap from that end to the next tick's start is over `CLAUDE_RESUME_GAP_MIN` (15 min, never under 12) and no hold stands, it writes `<epoch> resume` to every armed self-watch and a `resume-wake` ledger row with the gap (W-75cafe7a, D-1058).
+- An unwritable or non-regular record, a first tick, a clock that went back, or a stamp that reads walled (including a torn file or a dangling link) wakes nobody. The wake lands at the first `*/5` tick after the resume.
+- The fleet tick now runs its battery leg and writes the quota posture after the wall advisory, in a `finally`, so a hold the tick arms or lifts shows in that tick's posture. The posture used to lag by one tick, and after tonight's battery lift it read WALL for five minutes.
+- The box-local watcher still prints its quota-lift text for a `resume` wake until the operator approves its `resume)` case. Tests: 8 new resume tests in `tests/test_claude_fleet.py`, each proven red on its own mutant.
+
 ### Added — direct tests for the `--merge-shared` guards that rested on no test of their own (2026-10-20)
 
 - Four tests in `tests/test_claude_fleet.py` (seven cases) guard `claude_rotate.py --merge-shared tasks`. A failed finish of a swap a hard kill interrupted exits 1 with nothing else moved. Every error the fleet-root lock can raise is refused before anything moves. Each non-active account's `tasks/` stays its own real dir or a direct link to `~/.claude/tasks` after every rename, unlink or rmdir. A `.tasks.held-*` that links to a real dir elsewhere is cleared, never adopted (W-b3bad109).
