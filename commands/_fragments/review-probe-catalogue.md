@@ -236,12 +236,14 @@ it, or name in the brief why the shape does not have it.
   (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
 - A delta brief also names the previous pass's `base_sha` and pins_dir, for the bounded hop's reader run (a reader
   passing on the previous round's pin and failing on it with only the fix hunks applied). The lead first diffs the two
-  pins (`diff -r <previous pins_dir> <this pins_dir>`) and states in the brief that the difference is the round's fix
-  alone, committed or not, naming any other hunk, which leaves every reader it touches `unverified`; the seat then
-  runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` recipe with that pin's own `base_sha`, and greps
-  a heading or term another section cites over each pin's tree, where its citers live; a reader this section bars the
-  seat from running takes § Loop bookkeeping's `unverified` route; and a reader that fails on the previous pin is no
-  evidence of a break, and is `RECORDED` with its destination.
+  pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this pins_dir>`) and the two `base_sha`s
+  (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the brief that the difference is the
+  round's fix alone, committed or not, naming any other hunk or path, which leaves every reader it touches
+  `unverified`; the seat then runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` recipe with that
+  pin's own `base_sha`, and greps a heading or term another section cites over each pin's tree, where its citers live;
+  a reader the pre-pin section keeps the lead's ("one that writes a live store, sends, commits, deploys or reaches a
+  host") takes § Loop bookkeeping's `unverified` route; and a reader that fails on the previous pin is no evidence of
+  a break, and is `RECORDED` with its destination.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
