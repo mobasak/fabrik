@@ -144,6 +144,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×2 + haiku×2 (slice A src+roster: A-sonnet, A-haiku; slice B tests: B-sonnet, then B-haiku in a second wave — dispatch_headroom trimmed the first wave to 3 seats), dispatched 4, returned 4, shape: agent-tool | found: 19, new: 19, confirmed: 16, fixed: 16, unexecuted: 0 | method: citation — every candidate executed by the orchestrator or by the seat's own probe re-read; seats: A-sonnet 4/6 · A-haiku 4/5 · B-sonnet 10/10 · B-haiku 2/2 (confirmed/raised, a shared candidate credits both); stop: confirmed 16; fix: +207 -12 lines for 16 confirmed (d16c90f28: src +32 -9, tests +174 -2, roster +1 -1); round-zero probe — 14 single-clause mutants of the fix, 14 killed by their named graders (battery_r1.py) |
+| Pass 2 | native sonnet×2 + haiku×2 (the round-1 seats on their own slices), dispatched 4, returned 4, shape: agent-tool | found: 7, new: 7, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation — every pass-1 ledger claim re-executed on pin2 (d16c90f28): A F1-F5 hold (A-sonnet and A-haiku probes), B F9-F19 hold (B-sonnet re-ran its 11 surviving mutants, 10 now red; B-haiku re-ran F9-F17 by mutant and F19 by a thread-count probe); confirmed F20-F23 (own-fix: round 1 — three clauses of the pass-1 fix without a grader, and the roster missing the new `refused` note); stop: scope-growth advisory (in-lane, round 2 own-fix 4/4); fix: +48 -1 lines for 4 confirmed (299d21b9f); round-zero probe — 3 mutants, 3 killed (battery_r2.py) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -161,6 +162,13 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 |---|---|
 | F6 | REFUTED (the key-check deadline is taken at `check()` entry, scripts/sysadmin/mcp_health.py ~:264, before the transport pool starts, and each join waits only the remainder; the trickle grader's elapsed bound executes it) |
 | F7 | RECORDED — measured (a `${…}` placeholder in a server's own env reads `no key` without consulting os.environ — the design keeps a placeholder unsent and unexpanded; 0 of 96 measured config values are placeholders) |
+| F20 | FIXED r2 (exa's machine-tag pattern now graded: prose, lowercase, hyphenated and overlong tags read unverified — `test_only_a_machine_tag_makes_an_exa_refusal`) |
+| F21 | FIXED r2 (the bare OSError branch graded — `test_a_bare_socket_error_is_unreachable`) |
+| F22 | FIXED r2 (the HTTPException catch around an error body graded — `test_an_error_body_cut_short_is_read_as_empty`) |
+| F23 | FIXED r2 (the roster row names the `refused (HTTP 401/402)` note printed under a dead transport) |
+| F24 | REFUTED (A-haiku's '5 s … without adding a round' comment: it claims only that the key check adds no transport round — the transport pool's own length is unchanged by this work) |
+| F25 | RECORDED — measured (`min(timeout, 5)` passed to `_probe_auth` survives as an equivalent mutant: the join deadline in `check()` caps the wait either way, so the per-socket value changes no outcome) |
+| F26 | RECORDED — measured (B-haiku one-hop: no test asserts that an unset, empty or placeholder key stays off stdout — such a key returns the fixed reason `no key` before any request is built, and no output line formats a key value — one hop out of the fix diff) |
 | F8 | REFUTED (the os.environ fallback presents the key the spawned stdio server itself inherits — `_probe_stdio` spawns with `env=None` when the entry has no env) |
 
 ### Verdict grammar — an EXAMPLE, never rows
