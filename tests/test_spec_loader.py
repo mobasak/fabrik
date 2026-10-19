@@ -465,6 +465,7 @@ class TestWatchdogConfig:
         [
             (["bogus"], "unknown"),
             (["scale_concurrency"], "never offered"),
+            (["install_log_drop_rule"], "unknown"),  # removed from the sidecar (fabrik-lib D-465)
             (["create_fix_pr"], "propose_fix_prs"),
             (["escalate_apprise"], "default menu"),
             (["restart_container"], "default menu"),

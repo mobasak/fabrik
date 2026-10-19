@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — the retired watchdog action `install_log_drop_rule` from the hub's validator and docs (2026-10-19)
+
+- fabrik-lib's watchdog removed the Tier-B action (its D-398/D-465; it posted to a Promtail update URL no spec sets, and Alloy has no rule-push endpoint), so its sidecar now reports the name as unknown. The hub's `llm_actions` refusal table, the `60-watchdog` allow-list row, the `self-healing` never-offered list, `docs/CONFIGURATION.md` and the `vps-ai-sysadmin` permissions table still described it as "being retired". They are dropped, and a spec naming it is now refused as unknown, as the sidecar does (fabrik-lib mail 01M5A35K4M).
+
 ### Fixed — `claude_rotate.py --merge-shared tasks` joins the fragmented per-account tasks/ dirs into ~/.claude/tasks (2026-10-19)
 
 - D-399 listed `tasks` among the shared links, but the scaffolder links only absent pieces, so every account that already had a real `tasks/` kept it, and the dashboard warned "shared state fragmented" for five accounts. The new verb merges them under the assignments lock. The active account's dir becomes the canonical one through a two-exchange link cycle, so a live session never sees its list missing or dangling. Every other account is swapped for the link atomically. Each entry is then moved in by content: one that is absent is moved, and one that differs or is identical is parked under `~/.claude-fleet/backups/tasks-merged-from/`, so nothing is deleted. A rollback runs on any failure, and the next run finishes a swap a hard kill interrupted. `--dry-run` prints the plan, and the dashboard warning names unfinished merges and leftover working names (W-125b4e19).
