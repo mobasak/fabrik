@@ -62,13 +62,39 @@ def test_default_lock_dir_is_private_per_user_cache(tmp_path, monkeypatch):
     assert mod.LOCK_DIR.stat().st_mode & 0o777 == 0o700
 
 
-def test_default_lock_dir_without_home_uses_the_passwd_home(monkeypatch):
-    """Cron and other HOME-less callers resolve the same dir through the passwd entry; nothing is created."""
+@pytest.mark.parametrize("home", [None, "", "relative/home"], ids=["unset", "empty", "relative"])
+def test_default_lock_dir_without_an_absolute_home_uses_the_passwd_home(monkeypatch, home):
+    """Cron and other HOME-less callers resolve the same dir through the passwd entry. An empty HOME would
+    otherwise mean ``/`` (a fixed ``/.cache`` path as root) and a relative one the cwd; nothing is created."""
     import pwd
 
-    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=home)
     expected = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "fabrik-locks"
     assert expected == mod.LOCK_DIR
+
+
+def test_an_empty_override_counts_as_unset(tmp_path, monkeypatch):
+    """``FABRIK_LOCK_DIR=""`` used to mean ``Path("")`` — the caller's cwd."""
+    home = tmp_path / "home"
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR="", HOME=str(home))
+    expected = home / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
+def test_no_resolvable_home_imports_cleanly_and_refuses_to_lock(monkeypatch):
+    """No absolute HOME and no passwd entry: the import still succeeds (seven modules import this one) and
+    ``file_lock`` refuses with OSError, never falling back to a shared fixed path."""
+    import pwd
+
+    def no_entry(uid):
+        raise KeyError(uid)
+
+    monkeypatch.setattr(pwd, "getpwuid", no_entry)
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    assert mod.LOCK_DIR is None
+    with pytest.raises(OSError, match="FABRIK_LOCK_DIR"):
+        with mod.file_lock("no-home"):
+            pass
 
 
 def test_the_suite_never_locks_in_the_real_default_dir():

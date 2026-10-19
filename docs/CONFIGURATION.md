@@ -640,11 +640,13 @@ walking specs and `state.save()` writing `.fabrik/state/<id>.json` under
 contention.
 
 - **Default:** `~/.cache/fabrik-locks`, created 0700 (W-1f70f2e9). It is one dir per user, shared by every hub
-  process of that user: cron resolves it through the passwd home. No other local user can pre-create it, as they
+  process of that user. The home is an absolute `HOME`, else the passwd home, which is what cron uses, so an
+  empty or relative `HOME` never moves it. Under a private HOME no other local user can pre-create it, as they
   could the old fixed `/tmp/fabrik-locks`. An empty value counts as unset.
-- **When to override:** when HOME is unwritable or empty, where `file_lock` fails closed with `OSError`; or when
-  the home filesystem lacks flock support. Every process that must exclude each other needs the same value.
-  The test suite sets its own per-process value in `tests/conftest.py`.
+- **When to override:** when the home is unwritable, or no home resolves at all (no absolute `HOME` and no
+  passwd entry), where `file_lock` fails closed with `OSError`; or when the home filesystem lacks flock support.
+  Every process that must exclude each other needs the same value. The test suite sets its own per-process
+  value in `tests/conftest.py`.
 
 Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
 which operates over SSH on the VPS and lives in the root-owned

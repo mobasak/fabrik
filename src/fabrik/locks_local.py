@@ -27,11 +27,12 @@ Environment
 -----------
 
 ``FABRIK_LOCK_DIR``: directory for the lock files. Defaults to
-``~/.cache/fabrik-locks`` (``Path.home()``, which falls back to the passwd home when ``HOME`` is unset, as
-under cron), so every hub process of one user shares it and no other local user can pre-create it the way
-a fixed ``/tmp`` name allowed (W-1f70f2e9). The dir is made 0700 when created; its privacy rests on a private
-HOME, since a missing ``~/.cache`` parent takes the umask's mode and an existing dir is left as it is. It
-fails closed: with HOME unwritable or empty, ``file_lock`` raises ``OSError`` — set ``FABRIK_LOCK_DIR``.
+``~/.cache/fabrik-locks`` (an absolute ``HOME``, else the passwd home — as under cron — so an empty or
+relative ``HOME`` never moves it), so every hub process of one user shares it and, under a private HOME, no
+other local user can pre-create it the way a fixed ``/tmp`` name allowed (W-1f70f2e9). An empty value counts as
+unset. The dir is made 0700 when created; its privacy rests on a private HOME, since a missing ``~/.cache``
+parent takes the umask's mode and an existing dir is left as it is. It fails closed: an unwritable home, or no
+resolvable home at all, makes ``file_lock`` raise ``OSError`` — set ``FABRIK_LOCK_DIR``.
 """
 
 from __future__ import annotations
@@ -40,6 +41,7 @@ import errno
 import fcntl
 import logging
 import os
+import pwd
 import re
 import time
 from collections.abc import Iterator
@@ -48,9 +50,24 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Per user, under a private HOME, and the same dir for every hub process of that user: cron has no
-# XDG_RUNTIME_DIR, and a per-checkout dir would stop worktrees excluding each other (W-1f70f2e9).
-LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR") or Path.home() / ".cache" / "fabrik-locks")
+
+def _default_lock_dir() -> Path | None:
+    """``<home>/.cache/fabrik-locks``: per user, under a private HOME, and the same dir for every hub process of
+    that user — cron has no XDG_RUNTIME_DIR, and a per-checkout dir would stop worktrees excluding each other
+    (W-1f70f2e9). HOME counts only when it is absolute: an empty one would mean ``/`` (as root, a fixed
+    ``/.cache`` path again) and a relative one the caller's cwd. Otherwise the passwd home, as under cron.
+    None when neither resolves — :func:`file_lock` then refuses, so importing this module never fails."""
+    home = os.environ.get("HOME", "")
+    if not os.path.isabs(home):
+        try:
+            home = pwd.getpwuid(os.getuid()).pw_dir
+        except KeyError:
+            return None
+    return Path(home) / ".cache" / "fabrik-locks"
+
+
+_override = os.environ.get("FABRIK_LOCK_DIR")
+LOCK_DIR = Path(_override) if _override else _default_lock_dir()
 
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -83,6 +100,10 @@ def file_lock(
         TimeoutError: lock not acquired within ``timeout_seconds``.
         OSError: filesystem-level failure unrelated to lock contention.
     """
+    if LOCK_DIR is None:
+        raise OSError(
+            "file_lock: no absolute HOME and no passwd home to put the lock dir in; set FABRIK_LOCK_DIR"
+        )
     LOCK_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     safe = _sanitize(name)
     lock_path = LOCK_DIR / f"{safe}.lock"
