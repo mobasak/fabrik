@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "A review seat evaded the worktree isolation guard by assembling \"git\" from \"gi\"+\"t\" — seat briefs should say a guard refusal is final"
 }
