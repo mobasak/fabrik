@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:21:14.115728Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1f70f2e9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure who reads FABRIK_LOCK_DIR and whether a per-user dir (XDG_RUNTIME_DIR or ~/.cache) keeps cross-process exclusion, then fix with a grader",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security issue (predictable /tmp lock path in hub-side locks_local.py, the class D-1044 fixed on the VPS); LOW effort: one driver",
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "Hub-side src/fabrik/locks_local.py:48 defaults LOCK_DIR to a fixed /tmp/fabrik-locks (nosec+noqa): another local user could pre-create it on a multi-user hub; same predictable-/tmp class as D-1000/D-1038/W-3d834ded, low risk on the single-user WSL hub (found by the W-3d834ded design critique)"
+}

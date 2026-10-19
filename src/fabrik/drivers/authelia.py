@@ -100,9 +100,18 @@ SHAPE_FLAG = "is_admin_dashboard"
 (``has_search_feature``, ``has_error_tracking``)."""
 
 _LOCK_RESOURCE = "authelia-config"
-"""``/tmp/fabrik-authelia-config.lock`` on the VPS. Distinct from other
-drivers' locks so e.g. a concurrent backrest mutation does not serialize
-against an authelia one."""
+"""``/var/lib/fabrik-locks/fabrik-authelia-config.lock`` on the VPS (``locks.run_locked``).
+Distinct from other drivers' locks so e.g. a concurrent backrest mutation does not
+serialize against an authelia one."""
+
+_WORK_TEMPLATE = "/tmp/fabrik-XXXXXXXXXX"  # nosec B108 — the REMOTE `sudo mktemp -d` template: a random root 0700 dir
+"""Each script stages the live config (it holds Authelia's JWT and session secrets) inside a
+private root work dir made from this template, never under a guessable name: sudo's umask on
+the VPS is 0022, so a ``sudo tee`` into ``/tmp`` left the secrets world-readable (W-3d834ded)."""
+
+_BACKUP_DIR = "/var/backups/fabrik-authelia"
+"""Root 0700; each backup is 0600 under a unique name. ``/tmp`` copies never survived tmp
+cleanup, so the rollback copies the add script promised were already gone (W-3d834ded)."""
 
 _LOCK_TIMEOUT = 180
 """Seconds. Authelia restart observed ~15 s; config read + python merge
@@ -245,6 +254,21 @@ def _resolve_container() -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _work_dir_block() -> str:
+    """The private root work dir both scripts stage in, and its EXIT trap.
+
+    ``sudo mktemp -d`` makes a random root 0700 dir (W-3d834ded). The trap removes it on every
+    exit and keeps the script's exit code: under ``set -e`` a failing command inside an EXIT
+    trap would otherwise replace it, so a cleanup failure after a successful restart would
+    read as a failed mutation. ``WORK`` is exported because ``sudo -E`` passes only exported
+    variables to the Python block.
+    """
+    return f"""# 1. A private root work dir (random name, 0700) — the config holds secrets.
+WORK=$(sudo mktemp -d {shlex.quote(_WORK_TEMPLATE)})
+export WORK
+trap 'rc=$?; sudo rm -rf -- "$WORK" || echo "WARN: cleanup failed: $WORK" >&2; exit $rc' EXIT"""
+
+
 def _build_add_script(container: str, rule_b64: str, domain: str, insert_mode: str) -> str:
     """Build the bash+python script that mutates Authelia's config.
 
@@ -253,8 +277,10 @@ def _build_add_script(container: str, rule_b64: str, domain: str, insert_mode: s
 
     The script:
 
-    1. ``docker exec cat`` the current config out to host ``/tmp``.
-    2. Makes a timestamped backup; prunes to the last 10 backups.
+    1. Makes a private root work dir (``sudo mktemp -d``, 0700) that an EXIT trap removes
+       on every exit, keeping the script's exit code; every touch of it goes through
+       ``sudo``, because the ssh user cannot search it.
+    2. ``docker exec cat`` the current config into the work dir.
     3. Runs a heredoc Python block that parses the YAML, checks for
        the exact (domain, policy, resources) tuple, and either:
 
@@ -264,13 +290,14 @@ def _build_add_script(container: str, rule_b64: str, domain: str, insert_mode: s
          it round-trips through ``yaml.safe_load``.
 
     4. If Python signaled idempotence by not creating the new file,
-       exit ``ok-noop``.
-    5. ``docker cp`` the new config into the container.
-    6. ``docker restart`` (Authelia does not hot-reload access_control).
-    7. Clean up staging files; backups stay for the 10-file rotation.
+       exit ``ok-noop`` (no backup, no copy, no restart).
+    5. Backs the pre-change config up, 0600 under a unique name, into
+       :data:`_BACKUP_DIR` (0700), pruned to the last 10.
+    6. ``docker cp`` the new config into the container.
+    7. ``docker restart`` (Authelia does not hot-reload access_control).
 
     The "did it produce a new file?" flag is the *presence* of
-    ``/tmp/authelia.new.$TS.yml`` — an out-of-band signal that
+    ``$WORK/new.yml`` (read with ``sudo test -f``) — an out-of-band signal that
     survives Python exiting 0 in both paths. We deliberately do NOT
     ``exit 1`` from Python on idempotence because that would trip
     ``set -euo pipefail``.
@@ -279,6 +306,10 @@ def _build_add_script(container: str, rule_b64: str, domain: str, insert_mode: s
     # base64 payload is [A-Za-z0-9+/=] so it's inherently safe but
     # we still pass it via env var to avoid it ending up on the wire
     # in command-line form.
+    bak = shlex.quote(_BACKUP_DIR)
+    prune = shlex.quote(
+        f"ls -1t {bak}/authelia.bak.*.yml 2>/dev/null | tail -n +11 | xargs -r rm -f"
+    )
     return f"""set -euo pipefail
 TS=$(date +%Y%m%d-%H%M%S)
 CONT={shlex.quote(container)}
@@ -287,22 +318,19 @@ export DOMAIN={shlex.quote(domain)}
 export INSERT_MODE={shlex.quote(insert_mode)}
 export TS
 
-# 1. Read current config out of the container to /tmp (owned by root).
-sudo docker exec "$CONT" cat /config/configuration.yml \\
-    | sudo tee "/tmp/authelia.cur.$TS.yml" >/dev/null
+{_work_dir_block()}
 
-# 2. Timestamped backup; prune to last 10.
-sudo cp "/tmp/authelia.cur.$TS.yml" "/tmp/authelia.bak.$TS.yml"
-sudo bash -c 'ls -1t /tmp/authelia.bak.*.yml 2>/dev/null | tail -n +11 | xargs -r rm -f'
+# 2. Read the current config out of the container into the work dir.
+sudo docker exec "$CONT" cat /config/configuration.yml \\
+    | sudo tee "$WORK/cur.yml" >/dev/null
 
 # 3. Merge via Python (PyYAML available on VPS; variables arrive via env).
 #    Quoted heredoc <<'PY' — bash does NOT expand $var into the Python body.
 sudo -E python3 <<'PY'
 import base64, os, sys, yaml
 
-ts = os.environ['TS']
-cur_path = f"/tmp/authelia.cur.{{ts}}.yml"
-new_path = f"/tmp/authelia.new.{{ts}}.yml"
+cur_path = os.path.join(os.environ['WORK'], 'cur.yml')
+new_path = os.path.join(os.environ['WORK'], 'new.yml')
 
 rule_b64 = os.environ['RULE_B64']
 domain = os.environ['DOMAIN']
@@ -382,25 +410,27 @@ with open(new_path) as f:
 sys.stdout.write("WROTE_NEW\\n")
 PY
 
-# 4. If Python printed IDEMPOTENT_NOOP, /tmp/authelia.new.$TS.yml doesn't
-#    exist — that's our out-of-band "no changes" signal.
-#    The staging files are owned by root (created via sudo tee / sudo python3);
-#    cleanup MUST use sudo rm or set -e will abort the script with
-#    "Operation not permitted" (LESSONS_LEARNT §8.17).
-if [ ! -f "/tmp/authelia.new.$TS.yml" ]; then
+# 4. If Python printed IDEMPOTENT_NOOP, $WORK/new.yml doesn't exist — that's our
+#    out-of-band "no changes" signal. The work dir is root 0700, so the test runs
+#    under sudo: a bare [ -f ] by the ssh user would always read "no file".
+if ! sudo test -f "$WORK/new.yml"; then
     echo "idempotent-noop"
-    sudo rm -f "/tmp/authelia.cur.$TS.yml"
     exit 0
 fi
 
-# 5. Copy new config into the container volume.
-sudo docker cp "/tmp/authelia.new.$TS.yml" "$CONT":/config/configuration.yml
+# 5. Back the pre-change config up — only now that it changes — 0600, uniquely
+#    named, in a root 0700 dir; prune to the last 10.
+sudo install -d -m 700 -o root -g root {bak}
+BAK=$(sudo mktemp --suffix=.yml {bak}/authelia.bak."$TS".XXXXXX)
+sudo install -m 600 -o root -g root "$WORK/cur.yml" "$BAK"
+sudo bash -c {prune}
 
-# 6. Restart Authelia — access_control does NOT hot-reload.
+# 6. Copy new config into the container volume.
+sudo docker cp "$WORK/new.yml" "$CONT":/config/configuration.yml
+
+# 7. Restart Authelia — access_control does NOT hot-reload. The EXIT trap
+#    removes the work dir.
 sudo docker restart "$CONT" >/dev/null
-
-# 7. Cleanup staging files (backups stay for the 10-file rotation).
-sudo rm -f "/tmp/authelia.cur.$TS.yml" "/tmp/authelia.new.$TS.yml"
 echo "ok"
 """
 
@@ -418,15 +448,16 @@ CONT={shlex.quote(container)}
 export DOMAIN={shlex.quote(domain)}
 export TS
 
+{_work_dir_block()}
+
 sudo docker exec "$CONT" cat /config/configuration.yml \\
-    | sudo tee "/tmp/authelia.cur.$TS.yml" >/dev/null
+    | sudo tee "$WORK/cur.yml" >/dev/null
 
 sudo -E python3 <<'PY'
 import os, sys, yaml
 
-ts = os.environ['TS']
-cur_path = f"/tmp/authelia.cur.{{ts}}.yml"
-new_path = f"/tmp/authelia.new.{{ts}}.yml"
+cur_path = os.path.join(os.environ['WORK'], 'cur.yml')
+new_path = os.path.join(os.environ['WORK'], 'new.yml')
 domain = os.environ['DOMAIN']
 
 with open(cur_path) as f:
@@ -455,17 +486,15 @@ with open(new_path) as f:
 sys.stdout.write(f"REMOVED {{before - after}} rule(s)\\n")
 PY
 
-# Staging files are root-owned (created by sudo tee / sudo python3);
-# cleanup MUST use sudo rm — see LESSONS_LEARNT §8.17.
-if [ ! -f "/tmp/authelia.new.$TS.yml" ]; then
+# The work dir is root 0700: the presence test runs under sudo (a bare [ -f ]
+# by the ssh user would always read "no file"); the EXIT trap removes it.
+if ! sudo test -f "$WORK/new.yml"; then
     echo "idempotent-noop"
-    sudo rm -f "/tmp/authelia.cur.$TS.yml"
     exit 0
 fi
 
-sudo docker cp "/tmp/authelia.new.$TS.yml" "$CONT":/config/configuration.yml
+sudo docker cp "$WORK/new.yml" "$CONT":/config/configuration.yml
 sudo docker restart "$CONT" >/dev/null
-sudo rm -f "/tmp/authelia.cur.$TS.yml" "/tmp/authelia.new.$TS.yml"
 echo "ok"
 """
 

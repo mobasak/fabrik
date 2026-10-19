@@ -17,6 +17,8 @@ def test_add_aro_wake_endpoint_writes_per_spoke_file_with_correct_shape(monkeypa
     written_yaml: list[str] = []
 
     def _fake_ssh(cmd: str, *args, **kwargs) -> str:
+        if cmd.startswith("mktemp"):  # the staging file (ssh.install_world_readable)
+            return "/tmp/fabrik-Ab3dE5gH7j"
         # Idempotency probe -> missing (so write proceeds)
         if "test -f" in cmd:
             return "missing"

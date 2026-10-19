@@ -45,18 +45,23 @@ proportionate answer.
    and watched fail, or red-on-revert with the fix undone on a copy): a red the defect does not
    cause, such as the test's own setup failing, or a test that stays green with the fix undone,
    proves nothing. Name that test and its red in your report and the close's `--evidence`; a docs or
-   config fix owes none. Every checkable claim any fix adds (a doc or command sentence, a code
-   comment, a commit message) is either executed, with its command and output named in your report,
-   or deleted; a re-read is not execution. Something already stated, in the code, the doc that owns
-   the subject or elsewhere in the file being fixed, is pointed at, or, where the fix must carry its
-   words, quoted whole, verbatim, with no gloss and naming its source, never paraphrased. **LOCAL
-   findings (unambiguous, contained) you just fix — the common case; an ARCHITECTURAL one — the
-   correct fix moves a contract, boundary, data model or auth/isolation posture ANOTHER module or
-   repo depends on — you still fix, and it owes a ledger row per `/fabrik-review` § Phase 3, which
-   is canonical for that rule** (do not re-derive its terms here). Cannot tell which side? Treat it
-   as ARCHITECTURAL. ⚠️ **This adds no exit and is not a route-up trigger** — the shape describes
-   the FIX, never a permit to leave a finding standing. Routing up happens on the triggers in steps
-   1 and 5, never because a finding was called architectural.
+   config fix owes none. Before a fix writes a sentence that states a rule (a doc or command
+   sentence, a code comment, a commit message), the probe catalogue's Sweep search for a rule
+   already stated elsewhere (its § Prose and docs fixes) runs first, on the terms of the rule the
+   sentence would state, never after the draft, and your report names its terms and hits, or that it
+   found none and the new sentence is the rule's home; what it finds is held to this step's rule
+   below for something already stated. Every checkable claim any fix adds (a doc or
+   command sentence, a code comment, a commit message) is either executed, with its command and
+   output named in your report, or deleted; a re-read is not execution. Something already stated, in
+   the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed at, or,
+   where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,
+   never paraphrased. **LOCAL findings (unambiguous, contained) you just fix — the common case; an
+   ARCHITECTURAL one — the correct fix moves a contract, boundary, data model or auth/isolation
+   posture ANOTHER module or repo depends on — you still fix, and it owes a ledger row per
+   `/fabrik-review` § Phase 3, which is canonical for that rule** (do not re-derive its terms here).
+   Cannot tell which side? Treat it as ARCHITECTURAL. ⚠️ **This adds no exit and is not a route-up
+   trigger** — the shape describes the FIX, never a permit to leave a finding standing. Routing up
+   happens on the triggers in steps 1 and 5, never because a finding was called architectural.
 4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <n> --own-fix <of those confirmed, how many lay in THIS review's own earlier fixes — D-278; a delta round that omits it leaves the scope-growth bar uncomputable> --classes-swept <…>
    --classes-new <…>` — `--findings` is raw recall; `--confirmed` is the EXIT counter as
    `/opt/fabrik/commands/_fragments/term-edit.md` defines it (D-206; the fragment is not installed —
@@ -68,8 +73,10 @@ proportionate answer.
    which persists a report) — deliberately no review file: `check_review_coverage.py` grades the heavy command's
    reports; this one's proof is the record the Stop hook reads (that asymmetry is the lightness,
    stated so nobody "fixes" it). `--own-fix` is EVIDENCED, never asserted: each defect it counts names
-   the round whose fix hunk holds the defect's line or created the contradiction it reports
-   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin), in your
+   the round whose fix hunk holds the defect's line or created the contradiction or the break in a reader it reports
+   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin, or for a broken reader by
+   the reader run the review contracts' bounded hop names: passing on that round's pin and failing on it with only
+   that round's hunks applied), in your
    report and the close's `--evidence`; any other defect is never own-fix.
 5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA round exactly as the
    fragment defines it (COUNTED under D-230, SIZED under D-335 — the floor paragraph below), over the

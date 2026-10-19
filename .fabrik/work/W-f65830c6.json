@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:10:42.001178Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f65830c6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59KBE9S38784TGXY0P3A702",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "re: Carry D-892 — landed in fabrik-lib at 8d567621"
+}

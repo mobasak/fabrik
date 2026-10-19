@@ -61,7 +61,7 @@ DEFAULT_VPS_IP = "172.93.160.197"
 PUBLIC_DNS_RESOLVER = "1.1.1.1"
 """Cloudflare public resolver, used for out-of-band DNS propagation checks."""
 
-TRAEFIK_API_LOCAL_URL = "http://127.0.0.1:8080/api/http/routers"
+TRAEFIK_API_LOCAL_URL = "http://127.0.0.1:8080/api/http/routers"  # noqa — the VPS's own Traefik admin API, reached over SSH, never from this host
 """Traefik API endpoint. Bound to VPS loopback only; reached via SSH."""
 
 

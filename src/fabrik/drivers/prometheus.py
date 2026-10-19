@@ -55,7 +55,7 @@ from typing import Any
 
 import yaml as yaml_lib
 
-from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.drivers.ssh import install_world_readable, scp_to_vps, ssh
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ try:
 except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
-PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"  # noqa — prometheus's own loopback, called inside its container
 """Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
 container (its own loopback). The VPS host does not join the monitoring
 network, and the old route — wget from the ``alertmanager`` container to
@@ -168,14 +168,8 @@ def _write_config(data: dict[str, Any]) -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write(body)
         local_tmp = f.name
-    vps_tmp = "/tmp/prometheus.yml.staged"  # nosec B108 — single-tenant VPS staging file for scp+mv into /opt/monitoring/configs/prometheus/
     try:
-        scp_to_vps(local_tmp, vps_tmp)
-        ssh(
-            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
-            f"sudo chown root:root {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
-            f"sudo chmod 644 {shlex.quote(PROMETHEUS_CONFIG_PATH)}"
-        )
+        install_world_readable(ssh, scp_to_vps, local_tmp, PROMETHEUS_CONFIG_PATH)
     finally:
         Path(local_tmp).unlink(missing_ok=True)
     # Git mirror — best-effort. A read-only filesystem, missing directory,

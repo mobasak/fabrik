@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:24:16.373403Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "fb1072af944a6860e833339bfe30a7c96e39cf89",
+  "id": "W-2356fd8d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M59T9RXS1ZEG3GHZF44ZDF6D, fix it with a regression test, then ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "bug on a tool every repo uses; a one-line escape plus a test",
+  "status": "done",
+  "tags": [
+    "mail-01m59t9rxs1zeg3ghzf44zdf6d"
+  ],
+  "title": "mail 01M59T9RXS1ZEG3GHZF44ZDF6D: scripts/work.py --help crashes: unescaped % in the merge-driver subparser help (work.py:6556, argparse treats help as a format string); reported by fabrik-lib 01M59M89RV"
+}

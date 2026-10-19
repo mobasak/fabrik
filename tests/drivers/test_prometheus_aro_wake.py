@@ -163,14 +163,19 @@ def test_write_config_mirrors_to_git_after_vps_write(monkeypatch, tmp_path):
         "scp_to_vps",
         lambda src, dst, **kw: scp_calls.append((src, dst)),
     )
-    monkeypatch.setattr(prom, "ssh", lambda cmd, **kw: ssh_calls.append(cmd) or "")
+    stage = "/tmp/fabrik-Ab3dE5gH7j"  # what the VPS's mktemp answers
+    monkeypatch.setattr(
+        prom,
+        "ssh",
+        lambda cmd, **kw: ssh_calls.append(cmd) or (stage if cmd.startswith("mktemp") else ""),
+    )
 
     cfg = {"scrape_configs": [{"job_name": "demo", "static_configs": [{"targets": ["x:1"]}]}]}
     prom._write_config(cfg)
 
     # vps1 leg: scp staged + sudo mv into PROMETHEUS_CONFIG_PATH ran
     assert len(scp_calls) == 1
-    assert scp_calls[0][1] == "/tmp/prometheus.yml.staged"
+    assert scp_calls[0][1] == stage
     assert any("sudo mv" in c and prom.PROMETHEUS_CONFIG_PATH in c for c in ssh_calls)
 
     # Git mirror leg: file exists, contains the same YAML body
@@ -190,7 +195,9 @@ def test_write_config_does_not_raise_when_mirror_write_fails(monkeypatch, tmp_pa
     fake_mirror = blocker / "prometheus.yml"
     monkeypatch.setattr(prom, "_LOCAL_PROMETHEUS_CONFIG_PATH", fake_mirror)
     monkeypatch.setattr(prom, "scp_to_vps", lambda *a, **k: None)
-    monkeypatch.setattr(prom, "ssh", lambda *a, **k: "")
+    monkeypatch.setattr(
+        prom, "ssh", lambda cmd, **k: "/tmp/fabrik-Ab3dE5gH7j" if cmd.startswith("mktemp") else ""
+    )
 
     # Must not raise even though the mirror parent is unwriteable
     prom._write_config({"scrape_configs": []})

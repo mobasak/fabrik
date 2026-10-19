@@ -1,6 +1,6 @@
 # Plan — saas-skeleton chat that only a signed-in, rate-limited user can spend, slice 2 (W-ab242b11)
 
-Status: CONVERGED
+Status: EXECUTED 2026-10-19 — whole-plan review `docs/development/reviews/2026-10-18-plan-2-saas-chat-auth-review.md` (CONVERGED, 4 passes, 15→3→2→0)
 Profile: small
 **Owner:** fleet
 **Surface:** `git rev-parse HEAD` = 3974671ef at authoring (master, the CONVERGED spec merged).
@@ -125,7 +125,7 @@ Every selection below cites a row or is unconstrained:
 
 🆕 fabrik-lib candidate: none new. The spec's upstream note asks for a general Redis limiter module (spec § fabrik-lib verdict, Rate limiting). Phase C step 6 sends it with the `client_ip` export request.
 
-## Phase A — the hub venv can load the vendored auth modules (W-0ae9b7e1)
+## Phase A — the hub venv can load the vendored auth modules (W-0ae9b7e1) — ✅ EXECUTED 2026-10-19 (7a1ef3cf2, spec note 95522811c; the shared-venv install was the narrower `uv pip install` of the three lock pins, coordinator-approved, after the `uv sync` dry run showed it would repoint the fabrik editable install; wiring tests 21 passed)
 Appetite: 30
 
 Implements: W-0ae9b7e1 and the spec § Validation precondition ("Fleet's open item W-0ae9b7e1 … the slice-2 plan sequences it before the hub chat test").
@@ -155,7 +155,7 @@ Steps:
 **Behavior Contract.**
 - **Given** the hub venv after Phase A, **When** `tests/test_scaffold_saas_web_wiring.py` runs, **Then** all 21 tests pass, including the four CSRF origin cases that fail today on `settings.py:13` (W-0ae9b7e1).
 
-## Phase B — the backend chat route, its limiter and its tests
+## Phase B — the backend chat route, its limiter and its tests — ✅ EXECUTED 2026-10-19 (8536dff52..a00f69ea5; /fabrik-review-scoped fixes 17e2f0da6, f3640a1fb, 70df52533; D-1022 records the step-9 defaults and the deviations; gate set 148 passed)
 Appetite: 180
 
 Implements spec § Chosen approach (Identity, CSRF, The order of checks, Limits, Body, The system prompt, Upstream, Observability, Key placement) and spec § Validation (Hub tests, the limiter test, the emitted tests, the slice-1 graders).
@@ -207,7 +207,7 @@ Steps (the highest-risk behaviour first, test-first):
    - **The SSE relay.** It reads only `data:` lines.
    - **The counters**, on `REGISTRY` (`src/fabrik/scaffold.py:1728`).
    - **One log line per request**, through `get_logger`.
-   - **Counting, and its limit.** The counters see every request that reaches the route. Two kinds of request are refused by middleware before the route and are not counted there:
+   - **Counting, and its limit.** The counters see every request that reaches the route. These requests are refused by middleware before the route and are not counted there:
      - a bearer token `TenantMiddleware` already refused (`src/fabrik/scaffold.py:2530-2538`);
      - a `TenantMiddleware` 403 for a tenant the user is not a member of (`:2549-2550`);
      - a CSRF 403.
@@ -258,7 +258,7 @@ Steps (the highest-risk behaviour first, test-first):
 - **Given** a client disconnect mid-stream, **When** the stream is open, **Then** the upstream `httpx` stream is closed (spec § Upstream).
 - **Given** a malformed `CHAT_RATE_*` value, **When** `load_chat_settings` reads the environment, **Then** it raises `ValueError`, so the app fails at start (spec § Limits).
 
-## Phase C — the template's chat client, then the whole-plan close
+## Phase C — the template's chat client, then the whole-plan close — ✅ EXECUTED 2026-10-19 (fe9a90850..a4a0386e2; /fabrik-review-scoped 3 rounds 18→7→0; whole-plan /fabrik-review 4 rounds; /fabrik-docs-review; fabrik-lib request 01M58ESKE9; D-1025 records the executed-client grader)
 Appetite: 120
 
 Implements spec § Chosen approach, Client, and spec § Validation, The template grader.

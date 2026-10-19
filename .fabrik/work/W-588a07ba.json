@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:19:00.094411Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-588a07ba",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M58F27JYPYXNJB0XZ14XQ2C3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "done — web-ecommerce-factory deleted its /api/chat route (W-46afa9c4, W-ab242b11 interim; local D-484)"
+}

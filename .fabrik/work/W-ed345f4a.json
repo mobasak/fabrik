@@ -1,0 +1,26 @@
+{
+  "block_digest": "a4f8d8ade4b04853faf7a8bf2fd44fea574f9840e41581c997888ee43aef1bfc",
+  "blocked_by": [],
+  "created": "2026-10-19T07:25:08.268003Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-ed345f4a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1076bc83bab9345df62462850e07b6f00742d3a10ad9bb56b36b921145a641d7"
+  ],
+  "next": "",
+  "note": "dev1, dev2, sentinel will remain and move to separate worktrees, and we need to create a promote a new agent window with coordinator role. then i want all 3 agents in there managed by the new coordinator ras like you do here but the charter must be adapted to their repo needs ... a bat file for fabrik-lib too ... full atuonomous work ... i dont want to see them asking questions on the screen, they must ask you, i dont want to see them asking for command run permissions, loop run permissions",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fabrik-lib get its own coordinator, its main-checkout agent `fabrik-lib-sentinel` converted to the role, with its 21 modules split between dev1 and dev2 and both of them moved into `.claude/worktrees/`?",
+  "status": "done",
+  "title": "Should fabrik-lib get its own coordinator, its main-checkout agent `fabrik-lib-sentinel` converted to the role, with its 21 modules split between dev1 and dev2 and both of them moved into `.claude/worktrees/`?"
+}

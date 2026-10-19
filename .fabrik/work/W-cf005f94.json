@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-a48f253f"
+  ],
+  "created": "2026-10-19T10:11:35.242822Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-cf005f94",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1036",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST: its coordinator is named wef2-coordinator (agents_up.sh skips only *-coordinator names), which needs a 'supersedes D-198: MERGE OWNER: wef2-coordinator' row in wef's docs/DECISIONS.md; wef1 and wef3 are the builders (wef1 is currently off its worktree-wef1 branch). Then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "operator ask, fleet-wide (every repo): a major; waits on the fabrik-lib pilot",
+  "status": "open",
+  "tags": [
+    "operator-ask"
+  ],
+  "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:35:47.335848Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5048181b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen wording edit to PHASE 2's target list (one clause: or a file the command points at by path), with its pin; also carry the 2026-10-19 review's recorded residue on PHASE 3's new reading sentence: P-1 the new-paragraph case's bounds read through singular 'that paragraph or list', P-2 the placement the pins sentence can move after the reading",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work, a command-wording gap that leaves catalogue fixes unlock-checked (step 3); LOW effort: one command file",
+  "status": "open",
+  "title": "fabrik-command-improve.md PHASE 2's write-target list and lock check name 'one of the fragments that command renders (command grep -n include: names them)' but not a fragment the command points at by path (review-probe-catalogue.md, not installed), so a row whose fix belongs in the catalogue has no listed target and is never lock-checked — found by the Opus seat of the 2026-10-19 command-improve review"
+}

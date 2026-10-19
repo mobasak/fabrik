@@ -3,7 +3,7 @@
   "created": "2026-10-07T06:39:59.000625Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "356b83fce657891aa9943333ff047c10f48ce9ab",
   "id": "W-3350006b",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — mcp_health false green on rejected keys",
-  "status": "open",
+  "status": "done",
   "title": "exa and firecrawl connect but reject their keys while mcp_health reports CONNECTED (mail 01M49YT4T5): add an authenticated no-op probe to scripts/sysadmin/mcp_health.py and a 'connected but unauthorized' roster row; the key re-provision itself is the operator's (credentials gate)"
 }

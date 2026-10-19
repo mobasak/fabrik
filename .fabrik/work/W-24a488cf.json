@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:06:41.780220Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-24a488cf",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1034",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: add the rule to the coordinator paragraph in CLAUDE.md and the template (byte-identical, D-888), full /fabrik-review (governance-sync path), main checkout commits once",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "operator ask + rule update (D-956); one sentence in a governance-sync paragraph, full review",
+  "status": "open",
+  "tags": [
+    "operator-ask"
+  ],
+  "title": "Operator ruling D-1034: in every repo the agents ask their coordinator, never the operator (D-943 extended fleet-wide, permission prompts included) — carry it into templates/governance/CLAUDE.md (and the hub CLAUDE.md coordinator paragraph, byte-identical per D-888)"
+}

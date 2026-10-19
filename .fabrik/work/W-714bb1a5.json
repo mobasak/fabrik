@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:19:04.552966Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "0a0d18d0dfdba7efb4d209e77461b929c0879135",
+  "id": "W-714bb1a5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: route scripts/sysadmin/vps_script_drift.py:322's raw ssh through src/fabrik/drivers/ssh.py's jump helper (FABRIK_SSH_JUMP_VPS, D-973) with a grader; host 'vps' (vps1) times out direct, works via -J vps2 (fleet read-only diagnosis 2026-10-19). Start at GREEN.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "monitoring blind for 3 days on a fleet host (a break); one diagnosis, one session",
+  "status": "done",
+  "tags": [
+    "mail-01m58gbtz07ph1m3cydrdx5bhh"
+  ],
+  "title": "mail 01M58GBTZ07PH1M3CYDRDX5BHH: vps_script_drift.py cannot ssh to a VPS (BatchMode) on 3 consecutive daily runs, so script drift there is unchecked — likely the vps1 SSH path that needs FABRIK_SSH_JUMP_VPS=vps2 in /opt/fabrik/.env (W-2b657bee, D-973)"
+}

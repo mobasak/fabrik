@@ -89,7 +89,7 @@ def test_the_catalogue_sections_hold_their_probes() -> None:
     cat = _norm(CAT)
     pin = _section(cat, "## Before the first pin", "## The brief's hunt lines")
     assert "Trace the entry path: the first caller that reaches the fixed function" in pin
-    assert "One mutant per clause the edit states, written as a literal before/after" in pin
+    assert "One mutant per clause the edit states and one per guard it adds or alters" in pin
     hunt = _section(cat, "## The brief's hunt lines", "## Graders")
     assert "every caller of a changed exit code, output line or gated script" in hunt
     assert "who waits on a new lock and behind what" in hunt
@@ -657,11 +657,64 @@ def test_seat_isolation_names_where_the_editable_pth_sits() -> None:
     anchor = "never `/opt/fabrik` from a worktree."
     start = iso.find(anchor)
     end = iso.find("The pins line follows", start)
-    assert start != -1 and end != -1, "the worktree clause and the pins-line sentence still bound the note"
+    assert start != -1 and end != -1, (
+        "the worktree clause and the pins-line sentence still bound the note"
+    )
     sentence = iso[start + len(anchor) : end].strip()
     assert sentence == (
         "An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs"
         " instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo"
         " (`PYTEST_PINS`) and a child process started with its own `env=`, which resolves the `.pth` again."
     ), sentence
-    assert "is a false red without it) and names the live repo" in iso, "the roots parenthesis holds no import-order note"
+    assert "is a false red without it) and names the live repo" in iso, (
+        "the roots parenthesis holds no import-order note"
+    )
+
+
+def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
+    """Row 1792406410: a mutation runner's `-k` filter cut before a fix added a test never ran that test, so a
+    re-run mutant read as killed or surviving on a stale selection. W-33b84ff0: rows 1792401243, 1792273324,
+    1792034388, 1791852372 and 1791939536 found a new script's or a fix's guards untested over several closing passes
+    while the bullet asked one mutant per clause only, so it now asks one per guard it adds or alters, quoting
+    term-coverage rule (4)'s removed-guard proof rather than restating it. The whole bullet is pinned by equality, so
+    an added licence or a negation fails here, and the quote is checked against rule (4)'s own text."""
+    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    rule4 = tc[tc.index("(4) **A GRADER IS PROVEN") : tc.index("(5) **A GRADER OBSERVES")]
+    assert (
+        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it" in rule4
+    )
+    pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
+    assert (
+        pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
+    )
+    bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
+    assert bullet == (
+        "- One mutant per clause the edit states and one per guard it adds or alters (that guard removed —"
+        " term-coverage rule (4): \"each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an"
+        " expression inside it\"), written as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
+        " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
+        " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
+        " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
+        " other test runs); probe each new grader with its mutant."
+    ), bullet
+
+
+def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
+    """W-a634be1c: step 3's point-or-quote rule and the catalogue's restatement sweep were cited by 7+ answered rejects
+    while leads kept drafting a sentence first and finding the rule's home only at review. The search now comes first,
+    in its own sentence between its two neighbours, pointing at the catalogue's Sweep rather than restating its
+    method, pinned by equality so a licence added inside that span fails here. Limit of a text pin: it cannot show the
+    search ran before the draft — the report line it requires is what a seat checks."""
+    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
+    head, tail = "config fix owes none. ", "Every checkable claim any fix adds"
+    assert step3.count(head) == 1 and step3.count(tail) == 1
+    span = step3[step3.index(head) + len(head) : step3.index(tail)]
+    assert span == (
+        "Before a fix writes a sentence that states a rule (a doc or command sentence, a code comment, a commit"
+        " message), the probe catalogue's Sweep search for a rule already stated elsewhere (its § Prose and docs fixes)"
+        " runs first, on the terms of the rule the sentence would state, never after the draft, and your report names"
+        " its terms and hits, or that it found none and the new sentence is the rule's home; what it finds is held to"
+        " this step's rule below for something already stated. "
+    ), span
+    # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
+    assert "Something already stated, in the code" in step3[step3.index(tail) :]

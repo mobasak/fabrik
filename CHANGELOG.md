@@ -4,6 +4,112 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
+
+- Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
+
+### Changed — /fabrik-review-scoped step 3 runs the rule-home search before a fix sentence is drafted (2026-10-19)
+
+- Seven or more answered review-scoped rejects cited step 3's point-or-quote rule and the probe catalogue's restatement sweep, because leads kept drafting a fix sentence first and found the rule's home only when a seat flagged it. Step 3 now says that before a fix writes a sentence stating a rule (a doc or command sentence, a code comment, a commit message), the catalogue's Sweep search runs first, and the report names its terms and hits or says the new sentence is the rule's home. Pinned by equality in `tests/test_review_scoped_queue_pass.py` (W-a634be1c).
+
+### Changed — the review contracts' bounded hop counts a break a fix's own hunks created in a reader (2026-10-19)
+
+- A review could close `confirmed: 0` on a regression its own fix introduced: a fix changed a returned path form, the unchanged caller that joined it broke, and the counting rule read the caller as "one hop out", so it was recorded, not counted. `term-edit.md`, `term-coverage.md` and the `fabrik-reviewer` seat file now count the break a fix's hunks created in a reader of what they changed, shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied; `/fabrik-review-scoped`'s own-fix rule names it too. The review-loop workflow's seat prompt follows when intel lands it. Pinned in `tests/test_bounded_hop_new_output.py`.
+
+### Changed — term-coverage round zero leads with the fix's own input-space duty (2026-10-19)
+
+- Two of five `/fabrik-review` closes lost rounds to an input shape the author never ran before the pin (the other three asked for seat-side duties — D-1045), and the duty that asks for it sat fourth of about ten in one round-zero paragraph. `commands/_fragments/term-coverage.md` round zero now opens with it, bold; no word was added or lost. Placement is the reversible first step: W-1dc074b6 measures whether it works and holds the observable-record cure. Pinned in `tests/test_term_coverage_round_zero.py`.
+
+### Fixed — the Authelia driver no longer leaves its secret config world-readable in /tmp, and VPS locks moved out of /tmp (2026-10-19)
+
+- The Authelia add and remove scripts staged the live config, which holds the JWT and session secrets, in `/tmp/authelia.{cur,new}.$TS.yml` via `sudo tee`. sudo's umask on vps1 is 0022, so the copies were 0644. The ten backups sat in `/tmp` too, where they never survived tmp cleanup.
+- Both scripts now stage in a private root `mktemp -d` dir, removed by an EXIT trap that keeps the exit code, and check for the new file with `sudo test -f`.
+- The add script backs up only when the config changes: 0600, uniquely named, in the root 0700 `/var/backups/fabrik-authelia`, pruned to ten.
+- `locks.run_locked` now flocks a root-owned file in `/var/lib/fabrik-locks` and refuses a resource outside `[A-Za-z0-9_-]+`. Another VPS user can no longer pre-create the lock and block every Authelia and Backrest mutation.
+- `vps_sync` reports leftover `/tmp` locks as legacy.
+- W-3d834ded, D-1044.
+
+### Added — a desktop launcher per repo from `agents_bat.py` (2026-10-19)
+
+- `scripts/sysadmin/agents_bat.py` writes one self-contained `<Repo> Agents.bat` for every /opt repo with a `.fabrik/session-agents.json`. It prints by default and writes only under `--desktop`. A double-click opens the repo's `agents_up.sh` grid maximized, each builder resuming its own session in its own worktree, with nothing asked on screen. The .bat carries its own Windows Terminal profile (font 9) as a JSON fragment, so no hand-made profile is needed and settings.json is never edited. `agents_up.sh` adopts a grid an older hand-built launcher left running when every pane is one of the repo's builders. Decision D-1048; item W-bb6c9d9a (D-1042).
+
+### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
+
+- Three kaizen closes each paid a review round for a draft its reading step never put in front of it: a sentence restating the probe catalogue's own hunt line (pointed at by path, never included), a flag list and scope that overruled the next bullet, and items that narrowed their paragraph's bounds. PHASE 3 now reads, before the first draft, the files the target points at by path for the same subject, the row's own words, the rule the edit extends, and the paragraph or list the new text joins (its lead-in and the items beside the new text), leaving their bounds standing unless the row is a decision. Pinned by equality in `tests/test_command_improve_queue_pass.py`.
+
+### Changed — review probe catalogue: a re-run mutant is killed against freshly collected whole test files (2026-10-19)
+
+- A fleet review's mutation runner re-ran its mutants through a `-k` filter cut before a fix added a test, so the new test never ran. The catalogue's mutant line now re-runs every prior mutant (a seat re-running a delta brief's mutant ids too) against every test file the change touched or added, collected again after the fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s environment-bound deselection. Pinned by equality over the whole bullet in `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — review probe catalogue: the Callers hunt line names the join of a changed output against another producer's (2026-10-19)
+
+- A `/fabrik-review` close spent an extra closing pass because a fix changed the path form one function returned, and the line that joined that output with a second producer's keys (`final_gate_stop.py`'s commit leg) was never re-derived. The catalogue's "Callers and consumers" hunt line, which every review brief applies, now names every line that joins, compares or keys a changed output against another producer's, with the form each side's values take. Pinned in `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-task: MEASURE runs the incident's next step, both branch geometries, the prescribed spellings and a copied mechanism (2026-10-19)
+
+- Four `/fabrik-task` closes reported a design that both critiques sent back for a case MEASURE never ran. MEASURE now runs each of those cases before `design.md` is written:
+  - the reported incident's next step (what the reporter did next), on a copy;
+  - a commit- or diff-range tool both where the branch's merge-base is its merge target's tip and where the target has moved past it;
+  - each spelling the commands and docs feeding a parsed input prescribe;
+  - a mechanism copied from another script, read-only against the live state of each host it will run on, with any side-effecting step on a copy.
+- Phase 2's strict grammar admits every spelling MEASURE recorded. The critique brief runs a copied mechanism under the same read-only bound.
+- This answers rows 1792361074, 1792363058, 1792365690 and 1792401257. Decision D-1035.
+- The same queue pass rejected two rows:
+  - a seat base tree that missed a test helper, already stated by the review recipe's whole-`tests/` rule;
+  - one project's own clone recipe, off-topic for this command.
+
+### Fixed — the monitoring drivers no longer stage on the VPS under fixed /tmp names (2026-10-19)
+
+- Gatus's endpoint writers, Prometheus's config writer and Redis's assignments writer staged under `/tmp/gatus-endpoint-<name>.yaml`, `/tmp/prometheus.yml.staged` and `/tmp/redis-assignments.json`. Another VPS user could pre-create or swap one before the `sudo mv` installed it as root (W-42e79070).
+- All four now go through the new `drivers.ssh.install_world_readable`. It stages in a `remote_mktemp` file and makes it root:root 0644 before the move, so the file never carries another owner or mode, and a failure before the move leaves the old file as it was. The move is one rename when `/tmp` and the destination share a filesystem; across filesystems `mv` copies, as the old fixed-name staging did. It removes the stage on any failure.
+- Gatus's files now land 0644 explicitly; before, they inherited whatever mode scp gave them.
+- `tests/drivers/test_monitoring_remote_staging.py` guards it.
+
+### Fixed — two remote-side loopback constants no longer red the localhost ban on every master merge (2026-10-19)
+
+- The completion gate's localhost ban scans every file a change lists, and a merge of master lists all of them. So two correct loopback constants turned red any branch that merged master:
+  - `drivers/preflight.py`'s `TRAEFIK_API_LOCAL_URL`, the VPS's own Traefik admin API, reached over SSH;
+  - `drivers/prometheus.py`'s `PROMETHEUS_RELOAD_URL`, prometheus's in-container reload URL.
+- Each now carries the reasoned `# noqa` that `orchestrator/verifier.py`'s identical Traefik constant already had.
+- `tests/test_drivers_remote_loopback_constants.py` keeps all three passing (W-3cb69ae8).
+
+### Fixed — the daily VPS script-drift check reaches vps1 through the ssh jump (2026-10-19)
+
+- `scripts/sysadmin/vps_script_drift.py` used raw `ssh`. With vps1 unreachable directly since W-2b657bee, the check failed to reach `vps` for three daily runs, so drift on vps1 went unchecked.
+- It now routes each host through `FABRIK_SSH_JUMP_<ALIAS>`, the per-alias jump the fabrik CLI already uses (D-973). The variable is read from the environment or from the `FABRIK_SSH_JUMP_*` lines of the hub `.env`, and no other `.env` key is read. A malformed value is exit 3 before any ssh.
+- The unreachable mail now names the variable.
+- The check still needs `FABRIK_SSH_JUMP_VPS=vps2` in `/opt/fabrik/.env`, the operator's step from W-2b657bee (W-714bb1a5, D-1037).
+
+### Fixed — `agents_up.sh` starts each builder in its own worktree (2026-10-19)
+
+- Every pane used to start at the repo root, the coordinator's main checkout, so a builder resumed there edited main's tree and read main's `CLAUDE.md`. A pane now starts in `<repo>/.claude/worktrees/<name>` when that folder is a linked git worktree in place (a `.git` file, no symlink on the path). Otherwise it starts at the root, and when something by that name is there, the launcher says so on stderr. Its `no-transcript` check reads the project folder of the folder it starts in. The runbook now says to remove a registry row only when that agent no longer uses its id: an in-session EnterWorktree move keeps the id. Item W-6c7c3292 (fabrik-lib mail 01M59SWZGB).
+
+### Fixed — `work.py --help` no longer crashes (2026-10-19)
+
+- `scripts/work.py --help` failed with `ValueError: unsupported format character 'O'`. argparse %-formats every help string, and the `merge-item` help quoted git's merge-driver placeholders `%O %A %B` unescaped. They are now `%%O %%A %%B`. A new test runs the top-level `--help`, which the per-subcommand test never reached. `tests/test_argparse_help_percent.py` scans `scripts/` for a bare `%` in every argparse text argparse formats: `help=` and `usage=` always, `description=` and `epilog=` beside `%(prog)`, and f-strings by their literal parts. It accepts argparse's own `%(name)` fields with any conversion spec. Across 289 files and 687 texts, this was the only one. Item W-2356fd8d (kaizen relay 01M59T9RXS).
+
+### Changed — `command_run.py round` shows the slice ledger it expects before recording (2026-10-19)
+
+- In a partitioned review, every later pass states `round --slices` by hand, and a wrong ledger used to be accepted silently. `round` now prints, before it records, the ledger it expects: each slice's first and last stated counts, and the classes still open. It warns on stderr when a slice's claims grew or shrank, verified fell, a slice is new or missing, `--slices` is absent, or a first round's claims total less than `--confirmed`. Warnings only; nothing new is refused. Decision D-1039; item W-2d704438 (mail 01M58H6DF7).
+
+### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
+
+- `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
+
+### Changed — review-probe-catalogue: a review brief names the tests that load each changed module, for every seat to run (2026-10-19)
+
+- § Seat isolation said HOW a seat runs tests (the `PIN_IMPORT`/`PYTEST_PINS` recipe) but never WHICH. A new import that breaks a stubbed loader could pass every review run, because only the tests loading the module by path exercise it. A brief over changed code now names the tests that load each changed module, found by grepping `tests/` for each changed file's stem (or an `__init__.py`'s package dotted name) and keeping the hits that import or load it, for every seat to run by that recipe. A test the recipe leaves unrun stays unverified. This answers row 1792359501, a recurrence of the held subject full-suite-import-time-registration. It reaches `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-execute-plan`, `/fabrik-docs-review` and `/fabrik-spec-review`.
+- The same queue pass rejected five rows:
+  - three already stated in § Seat isolation, a line not followed, filed as W-f512daeb;
+  - one routed to infra (`round --slices` echo, mail 01M58H6DF7);
+  - one that would lengthen the review loop (waiting for another beat's ruling).
+
+### Changed — CLAUDE.md and the project template: the halt list names the quota wall and an operator's pause; coordinator job (7) waits for the builder's confirmation (2026-10-19)
+
+- Both contracts said "The ONLY legitimate halts are the three BLOCKED cases" while their own RED band closes a run `blocked --wall` and hub D-993 closes an operator's pause `blocked --paused`. The plan-execution override now names those two stops beside the three cases. § COMMAND RUN-RECORD gives their runnable form, the same `blocked` close with `--wall` or `--paused` (W-8008e144).
+- Coordinator job (7) gave the coordinator a finished plan's EXECUTED flip and archive move with no condition. It now does both only "once every ticket is merged and its builder confirms no run will resume it" (coordinator rulings D-1026 and D-1027, refining D-1024 after this change's review found that "no run is live" admitted a parked run). `/fabrik-execute-plan` Finish step 5 quotes the same words (W-77812e10, feedback row 1792345477).
+- `tests/test_governance_template_split.py` pins the halt sentence, the run-record close, the hub's "keep going" clause and job (7) in both contracts. `tests/test_execute_plan_queue_pass.py` pins step 5's quote. Full /fabrik-review: `docs/development/reviews/2026-10-19-w8008e144-halt-list-and-job7-review.md`.
+
 ### Changed — Workflow review seats count the reader break a fix created, as the corpus now does (2026-10-19)
 `.claude/workflows/fabrik-review-loop.js`: the later-pass finder head and the refuter's `recorded` verdict carry the bounded-hop clause kaizen landed in `term-edit.md`, `term-coverage.md` and `fabrik-reviewer.md` (W-7b5a6a17): a reader of what the fix's hunks changed, passing on the previous round's pin and failing on this one, is a counted candidate, never one hop out. `tests/test_review_loop_workflow.py` pins both prompts.
 
@@ -30,11 +136,34 @@ All notable changes to this project will be documented in this file.
 - MEASURE measured the population a change writes or thresholds only at design time. A check changed during the build therefore shipped with a fire rate nobody re-measured. BUILD now re-runs that population measurement on the built tree, beside the test slice, when the change adds, changes or removes a check, guard or threshold. This answers row 1792352977, a recurrence of the held subject resweep-corpus-on-widened-guard (D-1021, refined by D-1023 in review; `SIZE_CAP` 24260 → 24375).
 - The same queue pass rejected four rows: three already stated (1792350346, 1792356869, 1792357566) and one held as advice (1792352429, `gate-dirty-path-rule-before-writing-checkout`).
 
+### Fixed — Stop hook: a review whose surface names a commit range no longer blocks its own files (2026-10-19)
+
+- A right-now fix is committed before its review starts. When the review's `--surface` named a range (`range <a>..<b>`) and no file path, the Stop hook still reported the fix's files as unreviewed work, up to three blocked turns per fix. The hook now has git list the files a running review's range changed, in every spelling the hub's commands use (`@{upstream}...HEAD`, `main...HEAD`, `HEAD~3..HEAD`, two commit ids), and exempts them; the uncommitted-work cause reads the same list. A closed review's range counts only between two commit ids. Decision D-1030; item W-42ddde8f (mail 01M55CM91H).
+
+### Fixed — Stop hook: a joint plan + spec PANEL APPROVED verdict can pass (2026-10-19)
+
+- The design-gate panel check read only the first word after a verdict's dash, so a heading naming a plan and a spec together could never be approved. It now reads the heading's ` + `-joined path list as a set and requires each seat's verdict to name exactly that set, on one line of the seat's own text. A heading with no path, or with prose, approves nothing. Decision D-1029; item W-f253a5eb (mail 01M553BN2D).
+
 ### Changed — /fabrik-execute-plan: a worktree's gate does not grade a shared runtime's code; Finish step 5 says the run flips and archives its own plan (2026-10-18)
 
 - In a linked worktree, a gate or live request served by a shared runtime runs the main checkout's code. Step 8's isolation bullet now says this and points at `docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated for how to prove the tree's own code. D7's live-request rule points a worktree reader at it. How a worktree run meets D7's live request is filed as W-1c8b3ebd for a panel decision. This answers row 1792337134, a recurrence of the held subject clone-proof-uses-docker-run.
 - Finish step 5 now says the run flips its own plan, and archives it as step 6 allows, at every position. It quotes the hub charter's condition for the coordinator doing either: "once no run is live on it and every ticket is merged". This answers row 1792345477. The project template's coordinator job (7) lacks that condition and is filed as W-77812e10.
 - Row 1792332816 was rejected as landed: `check_review_coverage.py` reads `fable` seats since 7186c590f.
+
+### Added — saas-skeleton: an authenticated, rate-limited backend chat route, POST /api/v1/chat (2026-10-19)
+
+- Every new saas-skeleton backend now emits `server/src/<pkg>/chat.py`. It streams an OpenRouter completion on the app's key only for a signed-in user, checked through the vendored `build_current_user` with a fail-closed denylist.
+- The checks run in order:
+  - a CSRF pass for cookie requests;
+  - the body (413/400);
+  - the key and model (503);
+  - one Lua script that checks the app, tenant (for a user who has one), user and IP (when it parses) buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
+- The emitted `_http_exc` now keeps an exception's headers, so `Retry-After` reaches the client.
+- Defaults are env-overridable: 1200 requests per fixed hourly window app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens per window, up to twice that in a rolling hour that spans two windows (D-1022).
+- The project gets its own `server/tests/test_chat.py`, run against a throwaway `TEST_REDIS_URL` DB.
+- The template client (`components/chat/SSEStream.tsx`, `ChatUI.tsx`) and README target `/api/v1/chat`: the session cookie plus the CSRF header, one refresh on a 401, a 429's bucket and `Retry-After`, and a cut-off or empty reply all reach the user (D-1025).
+- The emitted test's throwaway-DB guard refuses a `TEST_REDIS_URL` on the app's own server and DB, whichever of the environment, the root `.env`, `.env.local` or `server/.env` names it, and refuses an app URL it cannot read.
+- The hub proves the route and the limiter on a real throwaway `redis-server`, and the client by running its hook under node: `tests/test_saas_chat_backend.py`, `tests/test_saas_chat_limiter_lua.py` and `tests/test_saas_chat_client_template.py` (W-ab242b11 slice 2, D-1013, D-1022, D-1025).
 
 ### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
 

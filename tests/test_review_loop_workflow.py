@@ -1168,9 +1168,12 @@ def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
         text = " ".join(
             (ROOT / "commands" / "_fragments" / name).read_text(encoding="utf-8").split()
         )
+        # term-coverage leads its round zero with this duty, bold (W-7c290366); term-edit keeps it in place
+        lead = "**" if name == "term-coverage.md" else ""
         for needle in (
             "the fix's own INPUT space is enumerated and executed before the pin, so no seat is the first to meet it"
-            " — for example a matcher or replacer",
+            + lead
+            + " — for example a matcher or replacer",
             "a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs",
             "and against its live population before it widens or narrows",
             "a parser against every form its grammar admits",

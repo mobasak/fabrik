@@ -3,7 +3,7 @@
   "created": "2026-10-07T21:12:22.423726Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7a1ef3cf2fd46fa5d0aa0ffe4ce1f135cf65ccbf",
   "id": "W-0ae9b7e1",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on hub venv (missing email-validator)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "infra",
     "scaffold"
