@@ -437,7 +437,6 @@ def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pi
     assert classes in re.sub(r"\s+", " ", coverage.read_text())
 
 
-
 def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() -> None:
     """Rows 1792227360 (an audit seat told to grep the rendered ~/.claude command, which no seat may open),
     1792199420 (recurring held multi-span-coherence: the audit seat's proposed wording was not checked against the
@@ -459,7 +458,8 @@ def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() ->
     p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
     assert (
         "For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each"
-        " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have." in p4
+        " source or fragment that names the fragment), so no seat hunts for homes the fragment does not have."
+        in p4
     )
 
 
@@ -485,7 +485,12 @@ def test_test_fragment_and_removed_word_rules() -> None:
     test names)."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert "and its mail id goes in the FEEDBACK line. " + TEST_PROBE_RULE + " A rule whose" in p3
-    assert "may find none of the new one. " + FRAGMENT_SCOPE_RULE + " Then, **from the main master checkout only**" in p3
+    assert (
+        "may find none of the new one. "
+        + FRAGMENT_SCOPE_RULE
+        + " Then, **from the main master checkout only**"
+        in p3
+    )
     assert "A reworded sentence's removed words" not in p3
     p4 = _phase("## PHASE 4", "## PHASE 5")
     assert "it returns the line that states the row's step. " + REMOVED_WORDS_RULE in p4
@@ -562,3 +567,19 @@ def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None
         'every branch the sentence\'s subject can bind (a pronoun for "the review" binds each review the step can pick), and'
         in p3
     )
+
+
+def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -> None:
+    """Rows 1792407169, 1792408957, 1792405310: a draft restated the probe catalogue's own hunt line (pointed at by
+    path, never included), and two drafts narrowed or overruled the bullet or paragraph bound beside them. The
+    sentence between its two neighbours is pinned by equality, so an added licence fails here."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    head = "(a mode may already cover the blind spot). "
+    tail = "The tests that pin a paragraph's sentences are read before"
+    assert p3.count(head) == 1 and p3.count(tail) == 1
+    span = p3[p3.index(head) + len(head) : p3.index(tail)]
+    assert span == (
+        "The files it points at by path for the same subject are read too (a review command's probe catalogue, whose"
+        " lines every brief applies), and so are the sentences and list items beside the one it joins, read whole for"
+        " the bounds they set and the acts they govern, which the new text neither narrows nor overrules. "
+    ), span

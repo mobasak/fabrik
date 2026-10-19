@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:23:51.568974Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6547ce78",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "feedback queue /fabrik-command-improve"
+}
