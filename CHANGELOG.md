@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
+
+- fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
+- The text now says what the sidecar does. The spec's `llm_actions` still refuses the pair, because no spec field carries the allowlist, so the refusal stays fail-closed. `scale_concurrency` is now refused as unknown.
+- A new assertion in `test_llm_opt_ins_match_the_sidecar` fails when a refusal row names an action the sidecar no longer has; like the rest of that test, it skips where `/opt/fabrik-lib` is absent (W-9191cc39).
+
 ### Changed — the fabrik-researcher agent returns a bounded INFERENCE verdict and hands an only-source dead page to the archive (2026-10-19)
 W-0c33e10f, D-1056. The researcher's return format gains `INFERENCE`. It covers a claim that no line states but what was read implies, after a raw fetch or a second arm. It is never used for an absence, and never where a curl of a named URL would settle the claim. Its wrong-place quote re-ask is capped at one. A version-specific docs figure read only from exa grounds neither `VERIFIED` nor `STALE`. A claim whose only source now answers 404 on a live fetch is a `NEEDS-RAW-FETCH` naming `https://web.archive.org/web/2/<url>`.
 
