@@ -1481,3 +1481,26 @@ def test_an_empty_or_misaddressed_record_counts_an_error(sources):
     assert any(e.startswith("record dotted.stem not addressable") for e in report.errors), (
         report.errors
     )
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 file")
+def test_an_unreadable_stream_older_than_the_lookback_is_not_counted(sources):
+    """Review pass 2 (haiku, executed): the probe ran before the horizon check, so an old
+    unreadable stream the repair is meant to ignore counted an error on every sweep, forever."""
+    path = _open_death_stream(sources)
+    old = time.time() - kc._lookback_s() - 3600
+    os.utime(path, (old, old))
+    with _unreadable(path):
+        report = kc.sweep(sources)
+    assert not any(e.startswith("event stream") for e in report.errors), report.errors
+
+
+def test_a_dangling_lock_dir_counts_an_error(sources, tmp_path):
+    """Review pass 2 (haiku, mutant survived): a lock dir that is a dangling symlink is broken,
+    not absent — read as no markers it hid every death and exited 0."""
+    link = tmp_path / "dangling-locks"
+    link.symlink_to(tmp_path / "nowhere")
+    report = kc.sweep(dataclasses.replace(sources, lock_dir=link))
+    assert any(e.endswith("is a dangling symlink — markers skipped") for e in report.errors), (
+        report.errors
+    )

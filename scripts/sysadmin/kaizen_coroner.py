@@ -1133,13 +1133,18 @@ def _repair_open_streams(src: Sources, now: float, report: CoronerReport) -> Non
         if not name.endswith(".jsonl"):
             continue
         path = src.events_dir / name
+        try:  # lstat never opens, so a FIFO cannot block it; an out-of-horizon stream is not judged
+            if path.lstat().st_mtime < horizon:
+                continue
+        except FileNotFoundError:
+            continue  # vanished mid-sweep
+        except OSError:
+            pass  # _unjudgeable names the reason
         reason, st = _unjudgeable(path)
         if reason == "":
             continue  # vanished mid-sweep
         if reason is not None or st is None:
             report.errors.append(f"event stream {name} {reason} — not repaired")
-            continue
-        if st.st_mtime < horizon:
             continue
         death_row: dict | None = None
         has_end = has_revival = False
