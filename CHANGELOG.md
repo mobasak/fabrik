@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
+
+- Three kaizen closes each paid a review round for a draft its reading step never put in front of it: a sentence restating the probe catalogue's own hunt line (pointed at by path, never included), a flag list and scope that overruled the next bullet, and items that narrowed their paragraph's bounds. PHASE 3 now reads, before the first draft, the files the target points at by path for the same subject, the row's own words, the rule the edit extends, and the paragraph or list the new text joins (its lead-in and the items beside the new text), leaving their bounds standing unless the row is a decision. Pinned by equality in `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — review probe catalogue: a re-run mutant is killed against freshly collected whole test files (2026-10-19)
 
 - A fleet review's mutation runner re-ran its mutants through a `-k` filter cut before a fix added a test, so the new test never ran. The catalogue's mutant line now re-runs every prior mutant (a seat re-running a delta brief's mutant ids too) against every test file the change touched or added, collected again after the fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s environment-bound deselection. Pinned by equality over the whole bullet in `tests/test_review_scoped_queue_pass.py`.
