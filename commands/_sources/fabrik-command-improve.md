@@ -217,7 +217,7 @@ Three shapes are NOT yours to apply here, and each has a destination:
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
   owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names, every path under it
   when it names a directory, and every path its glob matches (`dir/**`, with `*` inside one path segment), so test all
-  three — neither script that reads `.fabrik/plan-locks/` matches a glob (`_owned` in
+  three — neither script that tests a path against a lock's `owned_paths` matches a glob (`_owned` in
   `scripts/enforcement/check_phase_tests.py` also ignores case; `_path_covers` in
   `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none of them is the rule — and
   read an entry written as prose by hand.

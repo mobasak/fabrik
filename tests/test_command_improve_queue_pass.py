@@ -634,8 +634,8 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     entry matches a target while locks hold paths, directories and globs. Both sentences are pinned whole. Their facts
     are checked against the code: each append STATEMENT (deleting one fails here, the constant alone would not) and no
     source naming either fragment in an `include:`; and the three-shape ownership rule run through `_glob_matches` in
-    scripts/epic_order.py, the epic `owned_paths` matcher, which implements all three; and the claim that neither
-    plan-lock reader matches a glob, run on both."""
+    scripts/epic_order.py, an epic `owned_paths` matcher, which implements all three; and the claim that neither script
+    testing a path against a lock's `owned_paths` matches a glob, run on both, each side of the "also" included."""
     import importlib.util
     import re as _re
 
@@ -649,8 +649,9 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     )
     owns = (
         "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
-        " matches (`dir/**`, with `*` inside one path segment), so test all three — neither script that reads"
-        " `.fabrik/plan-locks/` matches a glob (`_owned` in `scripts/enforcement/check_phase_tests.py` also ignores case;"
+        " matches (`dir/**`, with `*` inside one path segment), so test all three — neither script that tests a path"
+        " against a lock's `owned_paths` matches a glob (`_owned` in `scripts/enforcement/check_phase_tests.py` also"
+        " ignores case;"
         " `_path_covers` in `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none"
         " of them is the rule — and read an entry written as prose by hand."
     )
@@ -697,3 +698,4 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     assert readers["cpt_lock"]._owned("Commands/_Fragments/a.md", ["commands/_fragments"])
     assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
     assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
+    assert not readers["cpt_lock"]._owned("commands/_fragments", ["commands/_fragments/a.md"])
