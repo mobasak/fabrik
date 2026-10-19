@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "coordinator",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review_loop_ledger.py pin records no base_sha in MANIFEST.json, though D-1051's delta brief needs the previous pass's base_sha"
 }

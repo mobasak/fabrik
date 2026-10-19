@@ -351,7 +351,7 @@ were never at risk.
 | `check_env_example` | ADVISORY | 2223 undeclared vars, 44/44 repos — a real uncovered Doc-Sync rule, unpromotable |
 | `check_script_headers` | ADVISORY | 427 headerless scripts, 36/44 repos (107 in the hub); CLAUDE.md documents it as WARN |
 | `check_retired_terms` | ADVISORY | 73 open WARNs in the hub; `return 0  # ALWAYS` is its written contract |
-| `check_doc_stubs` | ADVISORY | 16/44 repos still ship a stub `docs/QUICKSTART.md` |
+| `check_doc_stubs` | ADVISORY | 85 of 174 covered docs fleet-wide are still unfilled (placeholder or left as template, 2026-10-19) |
 | `check_env_updates` | UNWIRED | asserts about `.env` — gitignored, machine-local, never part of the commit; 482 divergences, 17/44 repos |
 | `check_test_coverage` | UNWIRED | 2063 findings, 20/44 repos; its rule is the 100%-coverage dogma the Behavior Contract rejects |
 | `check_compose_services` | UNWIRED | blind to a service added to an EXISTING compose; `service_documented` is a substring match; covered by `check_doc_sync` |

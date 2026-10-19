@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:21:43.321671Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b8398b8b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AN1EZY809F8RZDM09XS5Y2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "master red — tests/test_hub_write_root.py flags scripts/sysadmin/agents_bat.py (hard-coded hub write root, no disposition)"
+}

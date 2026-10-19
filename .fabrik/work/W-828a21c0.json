@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:28:55.720528Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-828a21c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AFQB3RSD73R7J552TTBV7P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "Two hub rule packs say i18n Level 2 is \"never a gate\"; since fabrik-lib SB-107 a Level-2 run that could not complete exits 1"
+}

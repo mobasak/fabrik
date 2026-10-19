@@ -20,6 +20,7 @@ from fabrik.drivers.preflight import (
 from fabrik.drivers.ssh import JumpConfigError, _ssh_host
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
+from fabrik.orchestrator.destroyer import _http_status
 from fabrik.orchestrator.exceptions import (
     DeployError,
     DeploymentError,
@@ -37,6 +38,13 @@ from fabrik.orchestrator.validator import SpecValidator
 from fabrik.orchestrator.verifier import DeploymentVerifier
 
 logger = logging.getLogger(__name__)
+
+# The statuses the site-provisioner ITSELF answers its subdomain route with to refuse a write: 401 its
+# API-key middleware, 422 body validation, 429 its rate limiter. Any other status — a reverse-proxy
+# 403/404, a 400, a 3xx, a 5xx — is not its refusal and keeps the direct-Cloudflare fallback
+# (W-1086d295). The route answers an unmanaged zone with an unmapped 500 today; when site-provisioner
+# maps it to a 4xx (mail 01M5AKKR79), that status joins this set.
+PROVISIONER_REFUSALS = frozenset({401, 422, 429})
 
 __all__ = [
     "DeploymentState",
@@ -658,8 +666,10 @@ class DeploymentOrchestrator:
 
         # Primary: create the A record via site-provisioner's CLOUDFLARE route —
         # DNSClient.add_subdomain POSTs /api/cloudflare/dns/{domain}/subdomain
-        # (drivers/dns.py:294), NOT a Namecheap/registrar path. Fallback on any
-        # error: the CloudflareClient direct API. NB the record is a rolled-back
+        # (drivers/dns.py:294), NOT a Namecheap/registrar path. Fallback: the
+        # CloudflareClient direct API — on any error EXCEPT a refusal the provisioner
+        # itself emits (PROVISIONER_REFUSALS), which is a gate, never bypassed with the
+        # hub's own token (W-1086d295). NB the record is a rolled-back
         # resource (ctx.add_resource("dns", …) below), so a later-step failure
         # DELETES it — a rollback artifact, not a provisioning miss.
         try:
@@ -677,6 +687,13 @@ class DeploymentOrchestrator:
             # a malformed FABRIK_SSH_JUMP_<ALIAS> is config, never a reason to fall back
             raise
         except Exception as dns_err:
+            status = _http_status(dns_err)
+            if status in PROVISIONER_REFUSALS:
+                raise ProvisioningError(
+                    # one line: httpx's text carries a second "For more information" line
+                    f"DNS Manager refused {domain} (HTTP {status}): {' '.join(str(dns_err).split())}",
+                    resource_type="dns",
+                ) from dns_err
             logger.warning("DNS Manager failed (%s), trying Cloudflare...", dns_err)
             try:
                 cf = CloudflareClient()

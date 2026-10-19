@@ -8856,3 +8856,496 @@ def test_the_rearm_orphan_sweep_judges_by_wall_time_not_the_tick_clock(tmp_path,
     assert fresh.exists(), "a fresh sibling temp was swept as an orphan"
     assert not old.exists(), "a two-hour-old orphan must still be swept"
     assert stamp.read_text(encoding="utf-8").endswith("\nwalled\n"), stamp.read_text()
+
+
+# --- --merge-shared (W-125b4e19): the migration D-399 left to "by hand" -----------------------------
+
+
+def _fragmented(tmp_path, monkeypatch):
+    """Three fleet accounts with REAL tasks/ dirs, `active` -> b. Per-session lists are numbered per
+    account, as the CLI does: the same session id in two accounts holds DIFFERENT 1.json files."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    for slug in ("a", "b", "c"):
+        (fleet / slug).mkdir(parents=True)
+    (fleet / "active").symlink_to(fleet / "b", target_is_directory=True)
+
+    def task(slug, sid, n, body, age):
+        d = fleet / slug / "tasks" / sid
+        d.mkdir(parents=True, exist_ok=True)
+        (d / ".lock").write_text("")
+        f = d / f"{n}.json"
+        f.write_text(body)
+        os.utime(f, (time.time() - age, time.time() - age))
+
+    task("b", "live", 1, '{"id": "1", "subject": "b live 1"}', 300)  # what live sessions see now
+    task("a", "live", 1, '{"id": "1", "subject": "a live 1"}', 60)  # newer, but not active
+    task("c", "live", 1, '{"id": "1", "subject": "b live 1"}', 30)  # same bytes as b's
+    task("a", "only-a", 1, '{"id": "1", "subject": "a only"}', 900)
+    task("c", "only-c", 2, '{"id": "2", "subject": "c only"}', 900)
+    # the CLI resets a finished list to a lone .highwatermark: the active account holds that reset copy
+    (fleet / "b" / "tasks" / "reset").mkdir()
+    (fleet / "b" / "tasks" / "reset" / ".highwatermark").write_text("3")
+    task("a", "reset", 1, '{"id": "1", "subject": "a reset 1"}', 600)
+    return fleet, cdir
+
+
+def _tree(root):
+    """Every path under *root* and whether it is a link — the task data, without the fleet lock file
+    the real run takes or the per-test sound-lock dir the conftest pins."""
+    return sorted(
+        (str(p.relative_to(root)), p.is_symlink())
+        for p in root.rglob("*")
+        if p.name != "assignments.lock" and p.relative_to(root).parts[0] != "sound-locks"
+    )
+
+
+def _every_task_file(root):
+    return sorted(f.read_text() for f in root.rglob("*.json"))
+
+
+def test_merge_shared_keeps_the_active_list_and_loses_nothing(tmp_path, monkeypatch, capsys):
+    """The active account's dir becomes the canonical one WHOLE, so the list live sessions see does
+    not change (newest-mtime-wins would have put another account's copy in front of them); every
+    account's tasks/ becomes the link; and every task file still exists somewhere."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    before = _every_task_file(fleet)
+    assert cr.main(["--merge-shared", "tasks"]) == 0, capsys.readouterr()
+    for slug in ("a", "b", "c"):
+        link = fleet / slug / "tasks"
+        assert link.is_symlink() and link.resolve() == (cdir / "tasks").resolve(), slug
+    assert (cdir / "tasks" / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    after = _every_task_file(cdir / "tasks") + _every_task_file(fleet)
+    assert sorted(set(after)) == sorted(set(before)), "a task file was lost"
+
+
+def test_merge_shared_ranks_the_active_copy_first_when_canonical_already_exists(
+    tmp_path, monkeypatch, capsys
+):
+    """When ~/.claude/tasks already exists (an earlier partial merge, a hand-made dir) the active
+    account's dir is merged like the rest, but its copy of an entry still outranks a newer copy
+    from another account — what live sessions see stays in front."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (cdir / "tasks").mkdir()
+    # without c's copy (byte-identical to b's) a's copy is the newest — the active b must still win
+    shutil.rmtree(fleet / "c" / "tasks" / "live")
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert (cdir / "tasks" / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert len(list((fleet / "backups" / "tasks-merged-from").glob("*/a/*/live/1.json"))) == 1
+
+
+def test_merge_shared_parks_a_different_copy_whole_and_moves_the_rest(
+    tmp_path, monkeypatch, capsys
+):
+    """An entry absent from canonical moves in; a DIFFERENT copy is parked whole under a timestamped
+    root beside the backups, never mixed in; a byte-identical copy is kept there too, as a copy, so
+    every aside dir drains and none goes stale once the live list changes (round 2, NEW-5)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    out = capsys.readouterr().out
+    canon = cdir / "tasks"
+    assert sorted(p.name for p in canon.iterdir()) == ["live", "only-a", "only-c", "reset"]
+    parks = fleet / "backups" / "tasks-merged-from"
+    parked = sorted(parks.glob("*/a/*/live/1.json"))
+    assert len(parked) == 1 and parked[0].read_text() == '{"id": "1", "subject": "a live 1"}'
+    copies = sorted(parks.glob("*/c/*/live/1.json"))
+    assert len(copies) == 1 and copies[0].read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert "live: identical c" in out, out
+    assert not list(fleet.glob("*/tasks.merged-*")), "every aside dir drains and is removed"
+    assert cr._shared_link_warnings() == []
+
+
+def test_merge_shared_dry_run_moves_nothing(tmp_path, monkeypatch, capsys):
+    """--dry-run prints one plan line per entry and source, and the tree is byte-for-byte unchanged."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    snapshot = _tree(tmp_path)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert _tree(tmp_path) == snapshot
+    assert not (cdir / "tasks").exists()
+    assert "live: keep b" in out and "live: park a" in out and "live: identical c" in out, out
+    assert "only-a: move a" in out and "only-c: move c" in out, out
+    # a populated copy parked behind a kept list with no task file is flagged BEFORE anything moves
+    flagged = [ln for ln in out.splitlines() if ln.strip().startswith("reset: park a")]
+    assert len(flagged) == 1 and "⚠ the kept list has no task file" in flagged[0], out
+
+
+def test_a_half_finished_merge_is_flagged_and_finished_by_the_next_run(
+    tmp_path, monkeypatch, capsys
+):
+    """A run that stopped after swapping a dir aside, before merging it, must not read clean: the
+    warning names the unfinished aside, and the next run drains it."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (cdir / "tasks").mkdir()
+    for slug in ("a", "b", "c"):
+        real = fleet / slug / "tasks"
+        real.rename(fleet / slug / "tasks.merged-20261019T000000Z")
+        real.symlink_to(cdir / "tasks", target_is_directory=True)
+    warns = cr._shared_link_warnings()
+    assert (
+        len(warns) == 1 and "unfinished merge" in warns[0] and "--merge-shared tasks" in warns[0]
+    ), warns
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert cr._shared_link_warnings() == []
+    assert (cdir / "tasks" / "only-a" / "1.json").exists() and (
+        cdir / "tasks" / "only-c" / "2.json"
+    ).exists()
+
+
+def test_merge_shared_clears_the_warning_and_is_idempotent(tmp_path, monkeypatch, capsys):
+    """The dashboard warning names every fragmented account before, nothing after, and a second
+    run changes nothing on disk."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and all(f"{s}/tasks" in warns[0] for s in "abc"), warns
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert cr._shared_link_warnings() == []
+    snapshot = _tree(tmp_path)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert _tree(tmp_path) == snapshot
+
+
+def test_merge_shared_refuses_without_moving_anything(tmp_path, monkeypatch, capsys):
+    """A name with no merge rule (projects holds whole transcripts; agents/commands/skills are the
+    operator's), a FILE at the canonical path, or dirs on different devices: refused, nothing moved."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    snapshot = _tree(tmp_path)
+    # sessions/ too: which pid record is right depends on liveness, not on the account (round 1, F8)
+    for name in ("projects", "skills", "agents", "sessions"):
+        assert cr.main(["--merge-shared", name]) == 2, name
+    (cdir / "tasks").write_text("not a dir")
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    (cdir / "tasks").unlink()
+    real_stat = os.stat
+
+    def two_devices(path, *a, **k):
+        st = real_stat(path, *a, **k)
+        if str(path).startswith(str(fleet / "c")):
+            return os.stat_result((st.st_mode, st.st_ino, st.st_dev + 1, *tuple(st)[3:]))
+        return st
+
+    monkeypatch.setattr(cr.os, "stat", two_devices)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    monkeypatch.setattr(cr.os, "stat", real_stat)
+    assert _tree(tmp_path) == snapshot
+
+
+def test_the_real_dir_note_warning_and_usage_name_the_merge_verb(tmp_path, monkeypatch, capsys):
+    """The scaffolder's REAL-dir note and the dashboard warning point at the verb, not "by hand",
+    for the names it merges; the bare usage line lists it."""
+    fleet, _cdir = _fragmented(tmp_path, monkeypatch)
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "a", "a@b.com"]) == 0
+    out = capsys.readouterr().out
+    assert "tasks/ is a REAL directory" in out and "--merge-shared tasks" in out, out
+    assert "--merge-shared" in cr._shared_link_warnings()[0]
+    assert cr.main([]) == 2
+    assert "--merge-shared" in capsys.readouterr().err
+
+
+def test_merge_shared_ranks_non_active_copies_by_their_files_not_their_dir(
+    tmp_path, monkeypatch, capsys
+):
+    """Among non-active accounts the copy whose FILES are newest wins; a dir's own mtime moves on
+    create/delete only, so it is set the other way round here. Copies differing only in a lock file
+    are the same copy."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    for slug, body, file_age, dir_age in (("a", "older", 900, 10), ("c", "newer", 100, 5000)):
+        d = fleet / slug / "tasks" / "x"
+        d.mkdir()
+        (d / "1.json").write_text(body)
+        os.utime(d / "1.json", (time.time() - file_age, time.time() - file_age))
+        os.utime(d, (time.time() - dir_age, time.time() - dir_age))
+    (fleet / "a" / "tasks" / "only-a" / ".lock").write_text("held")  # lock bytes differ from none
+    (fleet / "c" / "tasks" / "only-a").mkdir()
+    (fleet / "c" / "tasks" / "only-a" / "1.json").write_text('{"id": "1", "subject": "a only"}')
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    out = capsys.readouterr().out
+    assert (cdir / "tasks" / "x" / "1.json").read_text() == "newer", out
+    assert "only-a: identical" in out, out  # the lock file is not content
+    # the identical copy is kept as a copy beside the backups, so a's aside drains
+    assert not list(fleet.glob("a/tasks.merged-*")), out
+    assert len(list((fleet / "backups" / "tasks-merged-from").glob("*/a/*/only-a/.lock"))) == 1
+
+
+def test_merge_shared_finishes_what_a_stopped_run_left(tmp_path, monkeypatch, capsys):
+    """Every state a stop can leave is reported and repaired: an account left with NO link beside
+    its aside dir, and an aside whose remaining entries canonical holds DIFFERENTLY (round 1, F1/F3/F5)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    # a stop after the swap, before the link and the merge
+    (fleet / "a" / "tasks").unlink()
+    aside = fleet / "a" / "tasks.merged-20261001T000000Z"
+    (aside / "live").mkdir(parents=True)
+    (aside / "live" / "1.json").write_text("different from canonical")
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1, warns
+    assert (
+        "a/tasks (missing after a merge" in warns[0]
+        and "a/tasks.merged-20261001T000000Z" in warns[0]
+    ), warns
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert (fleet / "a" / "tasks").is_symlink()
+    assert cr._shared_link_warnings() == []
+    parked = list(
+        (fleet / "backups" / "tasks-merged-from").glob(
+            "*/a/tasks.merged-20261001T000000Z/live/1.json"
+        )
+    )
+    assert len(parked) == 1 and parked[0].read_text() == "different from canonical"
+
+
+def test_two_parked_copies_from_one_account_never_overwrite_each_other(
+    tmp_path, monkeypatch, capsys
+):
+    """Two aside dirs of one account holding different copies of the same entry both park — each
+    under its own aside's name — and neither is overwritten or raises (round 1, F4)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    for stamp, body in (("20261001T000000Z", "first"), ("20261002T000000Z", "second")):
+        d = fleet / "a" / f"tasks.merged-{stamp}" / "live"
+        d.mkdir(parents=True)
+        (d / "1.json").write_text(body)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    bodies = sorted(
+        f.read_text() for f in (fleet / "backups" / "tasks-merged-from").glob("*/a/*/live/1.json")
+    )
+    assert "first" in bodies and "second" in bodies, bodies
+
+
+def test_an_entry_a_live_session_creates_meanwhile_is_never_clobbered(
+    tmp_path, monkeypatch, capsys
+):
+    """A move into canonical refuses to replace an entry that appeared after the plan was read —
+    a live session's new list wins and the incoming copy is parked (no-replace rename)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    real_rename = cr._renameat2
+
+    def live_write_first(src, dst, flags):
+        if (
+            flags == cr._RENAME_NOREPLACE
+            and Path(dst).name == "only-c"
+            and Path(dst).parent == cdir / "tasks"
+        ):
+            (cdir / "tasks" / "only-c").mkdir()
+            (cdir / "tasks" / "only-c" / "1.json").write_text("live")
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", live_write_first)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert (cdir / "tasks" / "only-c" / "1.json").read_text() == "live"
+    assert len(list((fleet / "backups" / "tasks-merged-from").glob("*/c/*/only-c/2.json"))) == 1
+
+
+def test_merge_shared_exits_1_when_an_account_is_left_unmerged(tmp_path, monkeypatch, capsys):
+    """A file where the dir belongs is named and left, the other accounts are still merged, and the
+    exit is 1 — a script reading the exit never takes a skipped account for success."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "d").mkdir()
+    (fleet / "d" / "tasks").write_text("a file")
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    assert "d/tasks is a file" in capsys.readouterr().err
+    assert (fleet / "a" / "tasks").is_symlink() and (fleet / "d" / "tasks").is_file()
+
+
+def test_a_failed_swap_is_reported_and_leaves_that_account_untouched(tmp_path, monkeypatch, capsys):
+    """When the atomic exchange fails for one account (a filesystem without renameat2, a racing
+    rename), that account keeps its real dir untouched with no stray swap link, the others are
+    still merged, the failure is named, and the exit is 1 so a re-run is due."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    real_rename = cr._renameat2
+
+    def c_cannot_swap(src, dst, flags):
+        if flags == cr._RENAME_EXCHANGE and Path(dst) == fleet / "c" / "tasks":
+            raise OSError(22, "Invalid argument", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", c_cannot_swap)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    assert "c/tasks not swapped" in capsys.readouterr().err
+    c = fleet / "c" / "tasks"
+    assert c.is_dir() and not c.is_symlink() and (c / "only-c" / "2.json").exists()
+    assert not list((fleet / "c").glob(".tasks.swap-*")), "the prepared link must not stay behind"
+    assert (fleet / "a" / "tasks").is_symlink()
+    monkeypatch.setattr(cr, "_renameat2", real_rename)
+    assert cr.main(["--merge-shared", "tasks"]) == 0 and (fleet / "c" / "tasks").is_symlink()
+
+
+def test_a_failed_active_swap_moves_nothing_at_all(tmp_path, monkeypatch, capsys):
+    """If the active account's dir cannot become canonical, no other account is touched — merging
+    them first would put their copies in front of the live list and a re-run would park it
+    (round 2, NEW-3)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    before = _tree(tmp_path)
+    real_rename = cr._renameat2
+
+    def active_cannot_swap(src, dst, flags):
+        if flags == cr._RENAME_EXCHANGE and Path(dst) == fleet / "b" / "tasks":
+            raise OSError(22, "Invalid argument", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", active_cannot_swap)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    assert "the active account) not swapped" in capsys.readouterr().err
+    assert _tree(tmp_path) == before
+
+
+def test_a_failure_after_an_exchange_puts_the_real_dir_back(tmp_path, monkeypatch, capsys):
+    """When the step after an exchange fails — the active dir's second exchange onto canonical, or
+    another account's rename to its aside name — the real dir returns to where it was, no working
+    name is left behind, and a re-run finishes (round 2, NEW-1/NEW-2)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    real_rename = cr._renameat2
+
+    def second_step_fails(src, dst, flags):
+        if flags == cr._RENAME_EXCHANGE and Path(dst) == cdir / "tasks":
+            raise OSError(5, "Input/output error", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", second_step_fails)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    b = fleet / "b" / "tasks"
+    assert b.is_dir() and not b.is_symlink() and (b / "live" / "1.json").exists()
+    assert not os.path.lexists(cdir / "tasks")
+    assert not list(fleet.glob("*/.tasks.*")), "a working name was left behind"
+
+    def aside_rename_fails(src, dst, flags):
+        dst = Path(dst)
+        if (
+            flags == cr._RENAME_NOREPLACE
+            and dst.name.startswith("tasks.merged-")
+            and dst.parent == fleet / "c"
+        ):
+            raise OSError(5, "Input/output error", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", aside_rename_fails)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    c = fleet / "c" / "tasks"
+    assert c.is_dir() and not c.is_symlink() and (c / "only-c" / "2.json").exists()
+    assert not list(fleet.glob("*/.tasks.*"))
+    monkeypatch.setattr(cr, "_renameat2", real_rename)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert all((fleet / s / "tasks").is_symlink() for s in "abc")
+    assert cr._shared_link_warnings() == []
+
+
+def test_the_live_list_resolves_at_every_step_of_the_swap(tmp_path, monkeypatch, capsys):
+    """After every rename the merge makes, the active account's tasks/ resolves to a dir holding
+    the live list — never missing, never dangling (the CLI realpath()s its lock before retrying,
+    round 2, NEW-4) — and every other account's tasks/ still exists."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    real_rename = cr._renameat2
+    seen = []
+
+    def watch(src, dst, flags):
+        real_rename(src, dst, flags)
+        live = fleet / "b" / "tasks" / "live" / "1.json"
+        seen.append(live.exists() and all(os.path.exists(fleet / s / "tasks") for s in "abc"))
+
+    monkeypatch.setattr(cr, "_renameat2", watch)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert seen and all(seen), seen
+
+
+def test_a_stray_working_name_is_warned(tmp_path, monkeypatch):
+    """A hard kill between two renames leaves `.tasks.swap-*` or `.tasks.held-*` behind; nothing
+    reads it, so the warning names it."""
+    fleet, _cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "a" / ".tasks.swap-20261001T000000.000000000Z").mkdir()
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and ".tasks.swap-20261001T000000.000000000Z" in warns[0], warns
+
+
+def test_merge_shared_with_nothing_to_merge_touches_nothing(tmp_path, monkeypatch, capsys):
+    """No REAL tasks/ and no unfinished merge: the run creates no fleet root, no canonical dir and
+    no lock file."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    before = sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*"))
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert "nothing to merge" in capsys.readouterr().out
+    assert sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*")) == before
+
+
+def test_a_swap_killed_mid_cycle_is_finished_by_the_next_run(tmp_path, monkeypatch, capsys):
+    """A hard kill between the canonical cycle's two exchanges leaves ~/.claude/tasks as the link to
+    `<active>/.tasks.held-*` (the live list resolves through it). The warning names it and the next
+    run finishes the cycle itself — no hand rename that would reopen a dangling moment (round 3)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (fleet / "b" / "tasks").rename(held)
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    (fleet / "b" / "tasks").symlink_to(cdir / "tasks", target_is_directory=True)
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and "a link, not the dir" in warns[0] and held.name in warns[0], warns
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert "finished an interrupted swap" in capsys.readouterr().out
+    canon = cdir / "tasks"
+    assert canon.is_dir() and not canon.is_symlink()
+    assert (canon / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert not os.path.lexists(held)
+    assert cr._shared_link_warnings() == []
+
+
+def test_a_swap_killed_before_any_exchange_is_cleared_and_merged(tmp_path, monkeypatch, capsys):
+    """A hard kill between the cycle's two symlinks leaves ~/.claude/tasks a link to
+    `<active>/.tasks.held-*`, which is a link back (or missing) and holds no data; the active dir is
+    still real. The next run clears both links and merges afresh — it never strands (round 4)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    held.symlink_to(cdir / "tasks", target_is_directory=True)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    canon = cdir / "tasks"
+    assert canon.is_dir() and not canon.is_symlink()
+    assert (canon / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert not os.path.lexists(held)
+    assert cr._shared_link_warnings() == []
+
+
+def test_a_canonical_link_that_is_not_the_swaps_is_refused(tmp_path, monkeypatch, capsys):
+    """A canonical link to a real dir NOT named as the cycle's held name is someone else's: the verb
+    never promotes it, and exits 1 with nothing moved (round 4, mutant S8)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "x" / "tasks").mkdir(parents=True)
+    (cdir / "tasks").symlink_to(fleet / "x" / "tasks", target_is_directory=True)
+    before = _tree(fleet)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    assert "is a link — nothing moved" in capsys.readouterr().err
+    assert (cdir / "tasks").is_symlink() and (fleet / "x" / "tasks").is_dir()
+    assert _tree(fleet) == before
+
+
+def test_leftover_working_names_are_cleaned_and_drained(tmp_path, monkeypatch, capsys):
+    """A held name left as a self-loop link (killed after the last exchange) is removed; a `.swap-*`
+    still holding a real dir (killed before its aside rename) is drained like an aside (round 3)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    loop = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    loop.symlink_to(loop)
+    swap = fleet / "a" / ".tasks.swap-20261001T000000.000000000Z"
+    (swap / "late").mkdir(parents=True)
+    (swap / "late" / "1.json").write_text("late")
+    assert len(cr._shared_link_warnings()) == 1
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert not os.path.lexists(loop) and not os.path.lexists(swap)
+    assert (cdir / "tasks" / "late" / "1.json").read_text() == "late"
+    assert cr._shared_link_warnings() == []
+
+
+def test_nothing_to_merge_ignores_a_file_and_still_shows_the_warning(tmp_path, monkeypatch, capsys):
+    """A FILE named like an aside dir is not a merge to finish (no lock taken), and when the dashboard
+    still warns about something this verb does not fix — a dangling link — the run says so instead
+    of reading as if all were clean (round 3)."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    (fleet / "a").mkdir(parents=True)
+    (fleet / "a" / "tasks.merged-20261001T000000Z").write_text("a file")
+    (fleet / "a" / "tasks").symlink_to(tmp_path / "gone", target_is_directory=True)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to merge" in out and "a/tasks (dangling link)" in out, out
+    assert not (fleet / "assignments.lock").exists()

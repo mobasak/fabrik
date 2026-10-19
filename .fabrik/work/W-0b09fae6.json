@@ -3,7 +3,7 @@
   "created": "2026-10-19T17:29:28.301288Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bf8a8c586a9fd4088fe56b73e2e56f6e33e5390a",
   "id": "W-0b09fae6",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: another active agent's request (kaizen), needed by D-1051's review rule; LOW effort: one field plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5ahvayzx5eywx76ybdeyw8s"
   ],

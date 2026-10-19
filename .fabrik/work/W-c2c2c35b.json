@@ -3,7 +3,7 @@
   "created": "2026-10-01T20:17:27.396986Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bd90ae258a519e6f2b9ed17abd5db976809aa888",
   "id": "W-c2c2c35b",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — data exposure of hub hosts in published docs",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

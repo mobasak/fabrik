@@ -20,7 +20,8 @@
   "score_reason": "security: an unauthenticated route spends the repo's model key; one cross-repo request mail",
   "status": "open",
   "tags": [
-    "security"
+    "security",
+    "waits-adoption-reply"
   ],
   "title": "adopt W-ab242b11 in test-saas-platform: /opt/test-saas-platform/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail test-saas-platform to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
 }

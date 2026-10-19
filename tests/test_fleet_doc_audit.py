@@ -382,3 +382,21 @@ def test_weekly_report_carries_the_history_note(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(fda, "OPT", tmp_path)
     assert fda.run(write_report=False) == 0
     assert "template history: unavailable" in capsys.readouterr().out
+
+
+def test_the_names_check_doc_stubs_reads_exist():
+    """check_doc_stubs (fleet-synced) loads this hub file in every project and reads these names;
+    a rename here would silently skip its template rule fleet-wide (W-ad71f248)."""
+    import importlib.util
+
+    stubs_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "enforcement" / "check_doc_stubs.py"
+    )
+    spec = importlib.util.spec_from_file_location("_names_probe_check_doc_stubs", stubs_path)
+    assert spec and spec.loader
+    stubs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stubs)
+    assert stubs.AUDIT_NAMES
+    for name in stubs.AUDIT_NAMES:
+        value = getattr(fda, name)
+        assert callable(value) or isinstance(value, str), name

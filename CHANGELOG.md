@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
+
+- fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
+- The text now says what the sidecar does. The spec's `llm_actions` still refuses the pair, because no spec field carries the allowlist, so the refusal stays fail-closed. `scale_concurrency` is now refused as unknown.
+- A new assertion in `test_llm_opt_ins_match_the_sidecar` fails when a refusal row names an action the sidecar no longer has; like the rest of that test, it skips where `/opt/fabrik-lib` is absent (W-9191cc39).
+
+### Changed — the fabrik-researcher agent returns a bounded INFERENCE verdict and hands an only-source dead page to the archive (2026-10-19)
+W-0c33e10f, D-1056. The researcher's return format gains `INFERENCE`. It covers a claim that no line states but what was read implies, after a raw fetch or a second arm. It is never used for an absence, and never where a curl of a named URL would settle the claim. Its wrong-place quote re-ask is capped at one. A version-specific docs figure read only from exa grounds neither `VERIFIED` nor `STALE`. A claim whose only source now answers 404 on a live fetch is a `NEEDS-RAW-FETCH` naming `https://web.archive.org/web/2/<url>`.
+
+### Changed — the review-loop pin records base_sha, the commit a seat archives (2026-10-19)
+W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writes `base_sha` into `<pins_dir>/MANIFEST.json` and the printed fragment, so a D-1051 delta brief can read the previous pass's `base_sha` back from its pin. It is the commit a seat archives and overlays the pins on: the `--base` commit when given (the same commit `base_pin_dir` holds), else the resolved `--from` ref, else HEAD. Only a working-tree pin in a repo with no commit records `null`. An anchor naming no commit, such as a tree `--from`, is refused. It is recorded, not digested; `docs/reference/review-loop-workflow.md` says so.
+
+### Fixed — a scaffolded docusaurus site no longer publishes the governed top-level docs (2026-10-19)
+
+- A docusaurus site published the seeded README, QUICKSTART, CONFIGURATION, TROUBLESHOOTING and FEATURES, and CONFIGURATION names the hub hosts. Every name governance allows directly in `docs/`, plus the `docs/preplan.md` the scaffold writes itself, is now in the content-docs `exclude`, root-anchored so a site author's nested `guides/README.md` still publishes (D-1055, W-c2c2c35b). Graders pin the exclude lists to `check_structure.py`'s DOCS_ALLOWLIST and evaluate the rendered `exclude` array, read strictly, against the real scaffolded tree.
+
 ### Changed — a scoped review runs what a fix adds over round zero's input classes (2026-10-19)
 
 - `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, on a scratch copy of what it reads (a scratch repo for diff output, § Seat isolation's archive or clone with the pins laid over it for a seat recipe), over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
@@ -15,6 +31,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — the reader run's pin diff names every `Only in` line (2026-10-19)
 
 - The probe catalogue's § Seat isolation has the lead diff two pins and name any other hunk or path, but two pins can hold different file sets, so `diff -r` prints `Only in` lines. The bullet now has the lead name each one too: a path the fix added, removed or renamed is the fix's own, and its readers run on both pins (a removal or rename whose old path this pass's `base_sha` still holds leaves them `unverified`); any other path pinned in only one pass is another path; each line is classed from the base-to-base `--name-status` list for what the fix committed and `git status --untracked-files=all --ignored` for what it did not, a modified path counting as the fix's own too, a document's readers are its citers, and an importer outside `tests/` is named and left `unverified` (W-cc24fdde); no line is exempted by the base-to-base `--name-only` list, which misses renames, directories and an uncommitted fix (W-44f02840 part 3). Part 2 (MANIFEST `base_sha`) went to intel as code. Parts 1 and 4 closed with no edit: no flaky reader has been measured, and D-1051's rejected range is, read in its own row, the range used as the fix form; the row is immutable and the operative bullet already uses the range only to name paths.
+
+### Fixed — a deploy no longer writes DNS straight to Cloudflare when the site-provisioner refuses the record (2026-10-19)
+W-1086d295, D-1053. `_provision_dns` used to fall back to the direct Cloudflare API on any DNS Manager error. So a provisioner refusal (401 bad API key, 422 rejected body, 429 its rate limiter) was bypassed with the hub's own token. A status in `PROVISIONER_REFUSALS` now fails the DNS step with a one-line `ProvisioningError`. A reverse-proxy 403/404, a 400, a 3xx, a 5xx or a transport failure still falls back. The provisioner's route answers an unmanaged zone with an unmapped 500, which still falls back; that is filed to site-provisioner and tracked as W-747f41c9.
 
 ### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
 
@@ -34,11 +53,25 @@ W-17aac223, following D-1046 (automatic classification retired). `scripts/servic
 ### Changed — the external-services chain no longer runs the classifier; a catalog typo routes to triage (2026-10-19)
 D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is now gather_envs → registry_sync → gen_dashboard: the pool-only `classify_services.py` step and its reconsolidate re-run are gone (the pool has been OFF since 2026-09-07, so the step classified nothing), and the script stays a manual tool. The board's and the static file's "classifier has not run" attention entry and the `classified_at` input are removed. `gather_envs.real_category` accepts only the category enum (now one home, `gather_envs.CATEGORIES`) or `unidentified`: an off-enum category routes the provider to NEEDS-TRIAGE with a stderr warning, never a dashboard table of its own, and a test in `scripts/tests/test_gather_envs.py` fails on a committed catalog that carries one (a test, not a commit hook: no gate leg runs `scripts/tests/`). The manual classifier never pops, overwrites or dispatches an entry whose category is the operator's off-enum typo; it names it instead.
 
+### Fixed — the doc-stub advisory sees a seeded doc left as its template (2026-10-19)
+
+- `scripts/enforcement/check_doc_stubs.py` used to call a fired-trigger doc unfilled only by `[Project Name]`, `[PROJECT_NAME]` or `{PROJECT_NAME}`. Seeding substitutes most of those, so it saw 16 of the 174 covered docs across /opt. It now also applies D-593's "left as its scaffold template" rule, read from the hub's `scripts/fleet_doc_audit.py` (this tree, else the box-local `/opt/fabrik`) and never copied. That rule sees 84.
+- The new line reports what was measured: `<pct>% of its scaffold template is still verbatim in it (<share>% of the doc)`. Off the box the rule is skipped and the output says so, and so is a doc the rule raised on. Any failure in hub code, a `SystemExit` included, leaves the exit at 0.
+- `tests/test_fleet_doc_audit.py` pins every name the check reads (W-ad71f248).
+
 ### Fixed — the hub-side lock dir moved out of a fixed /tmp name (2026-10-19)
 
 - `fabrik.locks_local` defaulted its lock dir to `/tmp/fabrik-locks`, with a `nosec`/`noqa` silencing the scanners. On a multi-user hub, another local user could pre-create that dir and hold or swap every hub lock: state, reconcile, allocations, vultr/gpu state and sysadmin tokens. The default is now `~/.cache/fabrik-locks`, created 0700, one per user and shared by every hub process of that user, cron included.
 - The test suite pins its own lock dir in `tests/conftest.py`, so tests no longer lock in the real one. Earlier runs had left `state-*.lock` files in `/tmp/fabrik-locks`.
 - W-1f70f2e9, D-1049.
+
+### Removed — the retired watchdog action `install_log_drop_rule` from the hub's validator and docs (2026-10-19)
+
+- fabrik-lib's watchdog removed the Tier-B action (its D-398/D-465; it posted to a Promtail update URL no spec sets, and Alloy has no rule-push endpoint), so its sidecar now logs the name as an unknown action and ignores it. The hub still named it in five places: the `llm_actions` refusal table, the `60-watchdog` allow-list row and the `vps-ai-sysadmin` permissions table (all three called it "being retired"), and the `self-healing` and `docs/CONFIGURATION.md` never-offered lists (which listed it without that note). All five are dropped. `fabrik apply` now refuses a spec naming it as an unknown entry instead of as never offered (fabrik-lib mail 01M5A35K4M).
+
+### Fixed — `claude_rotate.py --merge-shared tasks` joins the fragmented per-account tasks/ dirs into ~/.claude/tasks (2026-10-19)
+
+- D-399 listed `tasks` among the shared links, but the scaffolder links only absent pieces, so every account that already had a real `tasks/` kept it, and the dashboard warned "shared state fragmented" for five accounts. The new verb merges them under the assignments lock. The active account's dir becomes the canonical one through a two-exchange link cycle, so a live session never sees its list missing or dangling. Every other account is swapped for the link atomically. Each entry is then moved in by content: one that is absent is moved, and one that differs or is identical is parked under `~/.claude-fleet/backups/tasks-merged-from/`, so nothing is deleted. A rollback runs on any failure, and the next run finishes a swap a hard kill interrupted. `--dry-run` prints the plan, and the dashboard warning names unfinished merges and leftover working names (W-125b4e19).
 
 ### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
