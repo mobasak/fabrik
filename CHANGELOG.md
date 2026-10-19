@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
+
+- `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for the previous pass's `base_sha`, and says it is read back, never verified, since no md5 manifest covers it (W-86f03ace).
+
 ### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
 
 - The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but what the seat read implies it) is not VERIFIED: the claim is rewritten to what a line states and re-verified. NEEDS-RAW-FETCH is the orchestrator's curl of the named URL and section (or the archive URL of a source that existed), classified by the other rows; when that curl cannot read the source either, a re-dispatched researcher seat checks other live sources and the claim is classified by what they say (a source that seat cannot read either counts as none), UNVERIFIABLE only when none states or contradicts it. A grader fails when the agent's Return line and Method step 4 disagree, or name a verdict the table lacks (W-21b629ed).
