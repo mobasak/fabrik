@@ -185,7 +185,30 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
     assert "Paging is necessary, not sufficient" in researcher
     assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
     assert "judging the claim on the final page like any other" in researcher
-    assert "VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher
+    assert "VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher
+
+
+def test_the_researcher_returns_a_bounded_inference_verdict():
+    """W-0c33e10f (W-8bc61173 residue; Opus + Fable critiques): the INFERENCE that shapes 2 and 4 mark is a return
+    verdict, bounded so it is no escape from a raw fetch, an ABSENCE bar or a NEEDS-RAW-FETCH handoff; a figure
+    read only from exa's crawl cache grounds neither VERIFIED nor STALE; NEEDS-RAW-FETCH admits shape 4's
+    only-source dead page. Each sentence is pinned whole inside its section (Method, Return format)."""
+    raw = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    method = " ".join(raw[raw.index("## Method") : raw.index("## Return format")].split())
+    returns = " ".join(raw[raw.index("## Return format") :].split())
+    assert "`<claim> → VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE ·" in returns
+    for span in (
+        "- `INFERENCE` — the claim rests on reasoning from what you read, not a line you quoted: only after a raw "
+        "fetch or a second arm still quotes no line (name the arms tried), never for an ABSENCE (shape 4's bar), "
+        "and never where `NEEDS-RAW-FETCH` would settle it — give the reasoning AND the URL the caller can curl.",
+        "· a redirect chain or page tail shape 6 could not finish · an only-source page dead on the live fetch, "
+        "shape 4)",
+        "A figure read only from exa's crawl cache is not live: neither `VERIFIED` nor `STALE` rests on it without "
+        "`WebFetch` or firecrawl `maxAge: 0`, and when only the cache reaches the page the verdict is "
+        "`NEEDS-RAW-FETCH`.",
+    ):
+        assert span in method, span
+    assert "exa can serve an out-of-date copy of a docs page" in " ".join(raw.split())
 
 
 def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
@@ -234,8 +257,8 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
         (
             s1,
             s2,
-            "An excerpt from the wrong place proves nothing either way: narrow the locator and ask again; if "
-            "firecrawl still misses, refuses or errors, fall back to exa, which reads only the first 25000 "
+            "An excerpt from the wrong place proves nothing either way: narrow the locator and ask again — once: a "
+            "second wrong-place excerpt, or an empty or not-found reply, counts as a miss; if firecrawl still misses, refuses or errors, fall back to exa, which reads only the first 25000 "
             "characters (no offset, shape 4), so a span past them is a `NEEDS-RAW-FETCH` — never `WRONG` on one "
             "excerpt.",
         ),
@@ -252,8 +275,16 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s4,
             s5,
             "a `WebFetch` 404 is not `DEAD` until `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` (a live "
-            "fetch) also answers 404 — then it is `DEAD`, even if exa still serves a copy (cite that copy as "
-            "exa's crawl cache); a page firecrawl serves live is not dead.",
+            "fetch) also answers 404 — then it is `DEAD` (unless it was the claim's only source — below), even if "
+            "exa still serves a copy (cite that copy as exa's crawl cache); a page firecrawl serves live is not dead.",
+        ),
+        (
+            s4,
+            s5,
+            "so a claim whose only source is a since-deleted page — a live 404 included, with no other source after "
+            "Method step 3's search — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` "
+            "on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, "
+            "which redirects to the newest capture (measured 2026-10-19).",
         ),
         (
             s4,
