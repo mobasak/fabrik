@@ -237,6 +237,33 @@ def test_a_doc_left_as_its_template_warns(monkeypatch, tmp_path, capsys):
     assert "docs/SERVICES.md" in out and TEMPLATE_LINE in out
     assert re.search(r"\b100% of its scaffold template .*\(\d+% of the doc\)", out), out
     assert SKIP_LINE not in out
+    # the fixture hub is no git repo, so only the current templates were compared — and it is said
+    assert "doc-stub: template history: unavailable" in out
+
+
+def test_a_hub_with_full_history_prints_no_history_note(monkeypatch, tmp_path, capsys):
+    """This tree is the hub with its whole git history: the WARN fires and no caveat is printed."""
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (REPO_ROOT,))
+    rc = _run_doc(
+        monkeypatch, _proj(tmp_path), ["compose.yaml"], "docs/SERVICES.md", _services_template()
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and TEMPLATE_LINE in out
+    assert "template history" not in out and SKIP_LINE not in out
+
+
+def test_a_hub_rule_that_raises_per_doc_is_said_and_exits_zero(monkeypatch, tmp_path, capsys):
+    """A loaded hub whose rule raises SystemExit mid-verdict: rc 0, the doc named, no false WARN."""
+    real = (REPO_ROOT / "scripts" / "fleet_doc_audit.py").read_text()
+    raising = real + "\n\ndef template_verdict(text, template):\n    raise SystemExit(3)\n"
+    hub = _fixture_hub(tmp_path / "hub", audit_source=raising)
+    monkeypatch.setattr(stubs, "_HUB_ROOTS", (hub,))
+    rc = _run_doc(
+        monkeypatch, _proj(tmp_path), ["compose.yaml"], "docs/SERVICES.md", _services_template()
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and TEMPLATE_LINE not in out and SKIP_LINE not in out
+    assert "doc-stub: template rule raised on docs/SERVICES.md (SystemExit)" in out
 
 
 def test_a_filled_doc_keeping_template_lines_does_not_warn(monkeypatch, tmp_path, capsys):

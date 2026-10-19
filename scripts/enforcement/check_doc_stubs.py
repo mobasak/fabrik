@@ -117,9 +117,12 @@ def _template_audit() -> tuple[ModuleType | None, str | None]:
     return None, "no hub with templates/scaffold and scripts/fleet_doc_audit.py"
 
 
-def _left_as_template(audit: ModuleType, doc: str, path: Path) -> tuple[int, int] | None:
-    """``(pct, share)`` when ``doc`` is left as its scaffold template under D-593's rule —
-    ``pct`` of the template still verbatim, ``share`` of the doc that is template text — else None."""
+def _left_as_template(
+    audit: ModuleType, doc: str, path: Path
+) -> tuple[tuple[int, int] | None, str | None]:
+    """``((pct, share), None)`` when ``doc`` is left as its scaffold template under D-593's rule —
+    ``pct`` of the template still verbatim, ``share`` of the doc that is template text —
+    ``(None, None)`` when it is not, ``(None, <error class>)`` when the hub code raised."""
 
     def _verdict() -> tuple[int, int] | None:
         template = dict(audit.templated_docs()).get(doc)
@@ -134,7 +137,7 @@ def _left_as_template(audit: ModuleType, doc: str, path: Path) -> tuple[int, int
         share = round(100 * len(lines & every) / len(lines)) if lines else 0
         return pct, share
 
-    return _guarded(_verdict)[0]
+    return _guarded(_verdict)
 
 
 def _trigger_detectors() -> dict[str, object]:
@@ -199,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         lines: list[str] = []
         audit: ModuleType | None = None
         skipped: str | None = None
+        raised: list[str] = []  # docs the template rule could not judge — said, never dropped
         for doc, fired in _trigger_detectors().items():
             if registry_names is not None and doc not in registry_names:
                 continue  # doc left the registry SSOT → no longer checked
@@ -216,8 +220,12 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 if audit is None and skipped is None:
                     audit, skipped = _template_audit()
-                left = _left_as_template(audit, doc, p) if audit is not None else None
-                if left is not None:
+                if audit is None:
+                    continue
+                left, err = _left_as_template(audit, doc, p)
+                if err:
+                    raised.append(f"{doc} ({err})")
+                elif left is not None:
                     pct, share = left
                     lines.append(
                         f"⚠️  {doc}: its Doc-Sync trigger fired but {pct}% of its scaffold template "
@@ -230,8 +238,13 @@ def main(argv: list[str] | None = None) -> int:
             print(line)
         if skipped:
             print(f"doc-stub: template rule skipped ({skipped}) — placeholders only")
-        elif audit is not None and not _guarded(audit.template_history_complete)[0]:
-            print(f"doc-stub: {audit._HISTORY_NOTE}")
+        if raised:
+            print(
+                f"doc-stub: template rule raised on {', '.join(raised)} — judged by placeholders only"
+            )
+        if audit is not None and not _guarded(audit.template_history_complete)[0]:
+            note = getattr(audit, "_HISTORY_NOTE", None)
+            print(f"doc-stub: {note if isinstance(note, str) else 'template history incomplete'}")
     except Exception:  # noqa: BLE001 — fail-safe: never block a gate on a doc-stub check
         return 0
     return 0
