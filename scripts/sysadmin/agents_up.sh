@@ -6,7 +6,7 @@
 # registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), so a session-id change is one
 # registry edit, never a launcher edit. The coordinator gets no pane (a name equal to `coordinator` or ending in
 # `-coordinator`): the operator reaches it in VS Code, as hub-up states. A pane starts in the builder's own worktree,
-# `<repo>/.claude/worktrees/<name>`, when that folder exists — the main checkout is the coordinator's, and a builder
+# `<repo>/.claude/worktrees/<name>`, when that folder is a git worktree in place — the main checkout is the coordinator's, and a builder
 # resumed there would edit main's tree and read main's CLAUDE.md (W-6c7c3292) — and at the repo root otherwise; it
 # resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports the grid and
 # launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>` and `run <name> <command>`.
@@ -92,8 +92,12 @@ W=agents
 # -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
 RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 
+# The builder's worktree only when it is a real one, in place: a git worktree (`.git` inside, so not a folder left behind
+# by `git worktree remove`) whose physical path is exactly <root>/.claude/worktrees/<name>, so a symlink can neither take
+# the pane out of the repo nor name a project folder claude never writes to. Anything else starts at the root.
 dir_of() {  # $1 = name (validated: no `/` or `.`, so it names a folder directly under worktrees/)
-  if [ -d "$ROOT/.claude/worktrees/$1" ]; then echo "$ROOT/.claude/worktrees/$1"; else echo "$ROOT"; fi
+  local d="$ROOT/.claude/worktrees/$1"
+  if [ -d "$d" ] && [ -e "$d/.git" ] && [ "$(cd -- "$d" && pwd -P)" = "$d" ]; then echo "$d"; else echo "$ROOT"; fi
 }
 
 proj_of() {  # $1 = folder; claude stores a session under its start folder with every non-alphanumeric character as `-`

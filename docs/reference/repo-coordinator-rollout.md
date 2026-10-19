@@ -92,7 +92,8 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
 `[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
 
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` in the builder's worktree,
-  `.claude/worktrees/<name>`, when that folder exists, and from the repo root otherwise. The main checkout is the
+  `.claude/worktrees/<name>`, when that folder is a git worktree in place (it holds `.git`, and it is not a symlink),
+  and from the repo root otherwise. The main checkout is the
   coordinator's, and a builder resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the same values as
@@ -135,13 +136,14 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - the file must name at least one builder.
 
 The registry is box-local state written as sessions start, and fabrik-lib's writer only ever adds a row. When an
-agent's session id changes, the old row stays behind and the launcher refuses until someone removes it. Remove a
-session row only when that agent no longer uses its id. A relaunch mints a new id and leaves the old row stale. A move
-into a worktree during the session (EnterWorktree) keeps the id, so that row is the agent's only row: removing it
-drops the agent's pane (fabrik-lib mail 01M59SWZGB). Then run the
+agent's session id changes, the old row stays behind and the launcher refuses until someone removes it. Then run the
 launcher again. If the grid is already up, close it first with `tmux kill-session -t =<session>`, where `<session>` is
 the name `--print` shows on its first line. The hub has no registry and keeps
 `~/bin/hub-up`.
+
+Remove a session row only when that agent no longer uses its id. A relaunch mints a new id and leaves the old row
+stale. A move into a worktree during the session (EnterWorktree) keeps the id, so that row is the agent's only row, and
+removing it drops the agent's pane (fabrik-lib mail 01M59SWZGB).
 
 ### The Windows side (installed by the operator)
 

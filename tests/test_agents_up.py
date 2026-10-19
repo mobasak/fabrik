@@ -432,32 +432,86 @@ def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
     """W-6c7c3292 (fabrik-lib mail 01M59SWZGB): a builder works in `<repo>/.claude/worktrees/<name>`, and the main
     checkout is the coordinator's, so a builder resumed at the root would edit main's tree and read main's CLAUDE.md.
     A pane starts in the builder's worktree when that folder exists and at the root otherwise, and its transcript is
-    looked for under the folder it starts in, since claude resumes by that folder."""
-    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sentinel"})
-    wt1 = repo / ".claude" / "worktrees" / "dev1"
-    wt1.mkdir(parents=True)
-    sent_wt = repo / ".claude" / "worktrees" / "sentinel"
-    sent_wt.mkdir()
-    (repo / ".claude" / "worktrees" / "dev2").write_text("", encoding="utf-8")  # a file is not a worktree
+    looked for under the folder it starts in, since claude resumes by that folder. Only a git worktree in place counts:
+    a file, a folder with no `.git` (left behind by `git worktree remove`) and a symlink — which could take the pane out
+    of the repo, and names a project folder claude never writes to — all start at the root."""
+    third, fourth, fifth = (f"{c * 8}-{c * 4}-4{c * 3}-8{c * 3}-{c * 12}" for c in "abc")
+    repo = _repo(
+        tmp_path,
+        {
+            DEV1: "dev1",
+            DEV2: "dev2",
+            SENT: "sentinel",
+            third: "stale",
+            fourth: "linked",
+            fifth: "plain",
+        },
+    )
+    wts = repo / ".claude" / "worktrees"
+    wt1, sent_wt = _worktree(repo, "dev1"), _worktree(repo, "sentinel")
+    (wts / "dev2").write_text("", encoding="utf-8")  # a file is not a worktree
+    (wts / "stale").mkdir()  # a folder without .git is not a worktree
+    elsewhere = _worktree(tmp_path / "elsewhere", "linked")
+    (wts / "linked").symlink_to(elsewhere)  # a symlink is not a worktree in place
     # sentinel's worktree exists but its transcript sits only under the root: flagged, never silently the root
-    home = _home(tmp_path, transcripts=((wt1, DEV1), (repo, DEV2), (repo, SENT)))
+    home = _home(
+        tmp_path,
+        transcripts=(
+            (wt1, DEV1),
+            (repo, DEV2),
+            (repo, SENT),
+            (repo, third),
+            (repo, fourth),
+            (repo, fifth),
+        ),
+    )
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
         f"pane dev1 {DEV1} {wt1} ok",
         f"pane dev2 {DEV2} {repo} ok",
+        f"pane linked {fourth} {repo} ok",
+        f"pane plain {fifth} {repo} ok",
         f"pane sentinel {SENT} {sent_wt} no-transcript",
+        f"pane stale {third} {repo} ok",
     ], out.stdout
 
 
+def _worktree(repo: Path, name: str) -> Path:
+    """A git worktree's folder as the launcher sees it: `.claude/worktrees/<name>` holding a `.git` file."""
+    wt = repo / ".claude" / "worktrees" / name
+    wt.mkdir(parents=True)
+    (wt / ".git").write_text(f"gitdir: {repo}/.git/worktrees/{name}\n", encoding="utf-8")
+    return wt.resolve()
+
+
 def test_the_launch_starts_each_pane_in_its_folder(tmp_path: Path) -> None:
-    """The launch path hands tmux each pane's own folder: the first builder's to new-session, the next to its split."""
+    """The launch path hands tmux each pane's own folder — the first builder's to new-session, the next to its split —
+    and reads each transcript under that folder, naming it when it is missing."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
-    wt2 = repo / ".claude" / "worktrees" / "dev2"
-    wt2.mkdir(parents=True)
+    wt1, wt2 = _worktree(repo, "dev1"), _worktree(repo, "dev2")
     home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    # dev1's transcript sits under its worktree; dev2's only under the root, where its pane does not start
+    (home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt1))).mkdir(
+        parents=True
+    )
+    (
+        home
+        / ".claude-fleet"
+        / "active"
+        / "projects"
+        / re.sub(r"[^A-Za-z0-9]", "-", str(wt1))
+        / f"{DEV1}.jsonl"
+    ).write_text("{}\n", encoding="utf-8")
     out = _run(str(repo), home=home)
     assert out.returncode == 0, out.stderr
     log = _log(home)
-    assert any(ln.startswith(f"new-session -d -s fabrik-lib -n agents -c {repo} ") for ln in log), log
+    assert any(ln.startswith(f"new-session -d -s fabrik-lib -n agents -c {wt1} ") for ln in log), (
+        log
+    )
     assert any(ln.startswith(f"split-window -t =fabrik-lib:agents -c {wt2} ") for ln in log), log
+    wt2_proj = (
+        home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt2))
+    )
+    assert f"dev2: no transcript for session {DEV2} under {wt2_proj} " in out.stderr, out.stderr
+    assert "dev1: no transcript" not in out.stderr, out.stderr
