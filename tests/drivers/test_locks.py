@@ -78,12 +78,21 @@ class TestVpsSyncLegacyLocks:
 
         mod = self._load(monkeypatch)
         tree = ast.parse(textwrap.dedent(inspect.getsource(mod.verify_residue)))
-        calls = {
-            node.func.id
+        # exactly `findings.extend(_legacy_lock_findings())`: the result reaches the report
+        extends = [
+            node
             for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-        }
-        assert "_legacy_lock_findings" in calls
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "extend"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "findings"
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Call)
+            and isinstance(node.args[0].func, ast.Name)
+            and node.args[0].func.id == "_legacy_lock_findings"
+        ]
+        assert len(extends) == 1
         sections = [
             node.args[0].value
             for node in ast.walk(tree)

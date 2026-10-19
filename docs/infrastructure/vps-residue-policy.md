@@ -92,7 +92,7 @@ The script prints exact remediation commands per finding. Common patterns:
 | Orphan Gatus endpoint | delete the file under `/opt/monitoring/configs/gatus/apps/<svc>.yaml`; Gatus auto-reloads within 30 s |
 | Dangling Docker volume | `ssh vps 'sudo docker volume rm <name>'` after confirming no live container references it |
 | Memory limit reset (post-reboot) | `ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'` |
-| Legacy `/tmp` lock | per file, `ssh vps 'sudo fuser <lk> \|\| rm <lk>'` (removes it only when no process holds it); never touch `/var/lib/fabrik-locks` |
+| Legacy `/tmp` lock | per file, run `ssh vps 'sudo fuser <lk>'` and `rm <lk>` only when it exits 1 (no process holds it); exit 0 means held, any other exit (127: `fuser` missing) means leave it. Never touch `/var/lib/fabrik-locks` |
 
 ## Pre-migration residue still on disk (vps1)
 
