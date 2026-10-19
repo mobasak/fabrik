@@ -32,7 +32,8 @@ it, or name in the brief why the shape does not have it.
   diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix
   lands, never a model from memory.
 - One mutant per clause the edit states, written as a literal before/after (an ordering claim names its mutant);
-  re-run every prior mutant and the reproducing probe after each fix; probe each new grader with its mutant.
+  re-run every prior mutant and the reproducing probe after each fix, each against every touched test file
+  whole, never a `-k` or node-id list cut before the fix added a test; probe each new grader with its mutant.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
   and the completion gate on the pinned files; feed a sample row through every grader that parses the artifact; a
   synced hook change is checked for its fleet copies' md5.
