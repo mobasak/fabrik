@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:54:13.580258Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-1086d295",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide which provisioner refusals may fall back: a ProvisionerHTTPError/HTTPStatusError 4xx should raise ProvisioningError, a transport failure may fall back",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "orchestrator add_subdomain falls back to direct Cloudflare on ANY DNS Manager error, a 4xx refusal included — a provisioner that refuses a record (policy, auth) is bypassed (W-8bb683e6 residue; src/fabrik/orchestrator/__init__.py:679-686)"
+}
