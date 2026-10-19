@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A credential check that cannot tell a refused key from a refused network must say so, not guess (2026-10-19)
+
+W-3350006b made mcp_health present exa's and firecrawl's keys.
+- **The box answered the question for us, wrongly.** From a blocked egress, exa returned the same Cloudflare 403 for the real key, a bogus key and no key, and firecrawl timed out for all three. A check reading "not 200" as "bad key" would have told the operator to rotate good keys. Only a provider-shaped JSON 401/402 is a refused key; everything else is `unverified`, and that word is the honest result.
+- **urllib sends your auth header to wherever a redirect points.** Both design critiques showed the default redirect handler copying `Authorization` and `x-api-key` to a second host. Any request carrying a credential needs a no-redirect opener.
+- **urllib's timeout is per socket operation, and a pool task past its deadline still holds process exit.** A trickling body ran 11.9 s at a 1 s timeout; a ThreadPoolExecutor task held exit 5 s past a 0.5 s deadline. A hard deadline is a daemon thread joined against the wall clock.
+- **`build_opener()` reads the proxy environment when it runs.** Built at import, it pinned whatever proxy the importing process had, and 15 tests failed under `http_proxy` even with the fixture clearing it. Build it per call.
+
 ## A success that is only an exit code hides every error the tool exits 0 on (2026-10-19)
 
 W-8bb683e6 made the DNS driver's SSH proxy check the provisioner's HTTP status.

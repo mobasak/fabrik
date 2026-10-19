@@ -25,6 +25,13 @@ list` said 15/15 Connected) and each is fixed here, not documented around:
      bounded so the probe measures the server, not the probe's own load.
 A verdict this probe cannot MEASURE is never reported as a death — see main().
 
+THE KEY CHECK (W-3350006b): a transport proves nothing about the credential — on 2026-10-07 exa and firecrawl
+both answered `initialize` while refusing every call with their key (mail 01M49YT4T5). For the servers in
+`_AUTH_PROBES` the probe also presents the configured key with one body-less, no-credit GET; only a
+provider-shaped JSON 401/402 turns the verdict `UNAUTHORIZED (…)`. Everything a blocked egress, a portal or a
+gateway produces (HTML, a 403, an unshaped JSON, a redirect, a timeout) is a `key check — unverified` note under a
+transport verdict left as it was, never a death: the same answer comes back for a good key and a bad one.
+
 ADVISORY CONTRACT: always exits 0 — it reports, run records cite it, nothing
 blocks on it until its fire rate earns promotion (the measured-rollout law).
 
@@ -39,6 +46,7 @@ import os
 import select
 import signal
 import subprocess
+import threading
 import time as _time
 import urllib.error
 import urllib.request
@@ -139,9 +147,122 @@ def _probe_http(entry: dict, timeout: int) -> str:
         return "DEAD"
 
 
-def check(repo: Path, timeout: int = CLAUDE_CONNECT_TIMEOUT_S) -> dict[str, str]:
-    """{server: CONNECTED|DEAD|TIMEOUT|SKIPPED …} for every ASSIGNED server of ``repo``."""
+# The key check, per server NAME (every config on the box names them so — 48 of 48 measured 2026-10-19; a server
+# renamed away from these keeps its transport check and gets no key check). One body-less GET each, spending nothing:
+# firecrawl's credit read (quota_dashboard.py's no-credit call) and exa's websets list — never exa /search (metered;
+# D-337 keeps tier 2 "for a miss, never a habit") and never a body the provider might validate before the key.
+_AUTH_PROBES: dict[str, dict] = {
+    "firecrawl": {
+        "env": "FIRECRAWL_API_KEY",
+        "url": "https://api.firecrawl.dev/v1/team/credit-usage",
+        "header": lambda key: {"Authorization": f"Bearer {key}"},
+        # its documented error body: {"success": false, "error": "…"}
+        "refused": lambda b: b.get("success") is False and isinstance(b.get("error"), str),
+        "accepted": lambda b: b.get("success") is True,
+    },
+    "exa": {
+        "env": "EXA_API_KEY",
+        "url": "https://api.exa.ai/websets/v0/websets?limit=1",
+        "header": lambda key: {"x-api-key": key},
+        # its documented error body: {"requestId", "error", "tag"}
+        "refused": lambda b: isinstance(b.get("error"), str) or isinstance(b.get("tag"), str),
+        "accepted": lambda b: isinstance(b.get("data"), list),
+    },
+}
+# A wall-clock bound on the key check: urllib's timeout is per socket operation (a trickling body held 11.9 s at a 1 s
+# timeout) and does not cover DNS. 5 s fits inside command_run's `--timeout 6` start probe without adding a round.
+_AUTH_DEADLINE_S = 5
+_BODY_CAP = 65536
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every 30x: urllib's default handler re-sends the request's headers — the key — to the Location host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001 — urllib's signature
+        return None
+
+
+def _probe_auth(name: str, entry: dict, timeout: float) -> tuple[str, str]:
+    """``(outcome, detail)``: ``refused`` with ``HTTP 401|402``, ``accepted`` with its note, or ``unverified`` with
+    its reason. Never raises; never returns or logs the key or the body."""
+    probe = _AUTH_PROBES[name]
+    key = (entry.get("env") or {}).get(probe["env"]) or os.environ.get(probe["env"]) or ""
+    # Claude expands a `${…}` placeholder; this probe does not, so it never sends one
+    if not key or "${" in key:
+        return "unverified", "no key"
+    req = urllib.request.Request(
+        probe["url"], headers={"accept": "application/json", **probe["header"](key)}
+    )
+    # built per call: build_opener reads the proxy environment when it runs, so an import-time opener would pin the
+    # proxy settings of whoever imported the module first
+    opener = urllib.request.build_opener(_NoRedirect())
+    try:
+        with opener.open(req, timeout=timeout) as resp:  # noqa: S310 — a fixed https provider URL
+            status, raw = resp.status, resp.read(_BODY_CAP)
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        try:
+            raw = exc.read(_BODY_CAP)
+        except OSError:
+            raw = b""
+    except TimeoutError:
+        return "unverified", "timeout"
+    except (urllib.error.URLError, OSError, ValueError):
+        return "unverified", "unreachable"
+    if 300 <= status < 400:
+        return "unverified", "redirect"
+    try:
+        body = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        body = None
+    if not isinstance(body, dict):
+        return "unverified", f"HTTP {status}"
+    if status in (401, 402) and probe["refused"](body):
+        return "refused", f"HTTP {status}"
+    if 200 <= status < 300 and probe["accepted"](body):
+        left = (
+            (body.get("data") or {}).get("remaining_credits")
+            if isinstance(body.get("data"), dict)
+            else None
+        )
+        if isinstance(left, (int, float)) and not isinstance(left, bool) and left <= 0:
+            return "accepted", "accepted (0 credits left)"
+        return "accepted", "accepted"
+    return "unverified", f"HTTP {status}"
+
+
+_REFUSED_VERDICT = {
+    "HTTP 401": "UNAUTHORIZED (HTTP 401: the provider refused the key)",
+    "HTTP 402": "UNAUTHORIZED (HTTP 402: the provider refused the account — no credit)",
+}
+
+
+def _start_key_checks(servers: dict, timeout: int) -> dict[str, tuple[threading.Thread, dict]]:
+    """One DAEMON thread per key-checked server, started before the transport probes: a daemon thread past the deadline
+    is abandoned without holding process exit (a pool task held exit 5.0 s past a 0.5 s deadline, measured)."""
+    started = {}
+    for name, entry in servers.items():
+        if name not in _AUTH_PROBES or not isinstance(entry, dict):
+            continue
+        box: dict = {}
+
+        def run(name=name, entry=entry, box=box) -> None:
+            box["result"] = _probe_auth(name, entry, min(timeout, _AUTH_DEADLINE_S))
+
+        thread = threading.Thread(target=run, name=f"mcp-key-{name}", daemon=True)
+        thread.start()
+        started[name] = (thread, box)
+    return started
+
+
+def check(
+    repo: Path, timeout: int = CLAUDE_CONNECT_TIMEOUT_S, notes: dict[str, str] | None = None
+) -> dict[str, str]:
+    """{server: CONNECTED|DEAD|TIMEOUT|SKIPPED|UNAUTHORIZED …} for every ASSIGNED server of ``repo``; ``notes`` (when
+    given) receives each key-checked server's `accepted …` or `unverified (<reason>)`."""
     servers = json.loads((repo / ".mcp.json").read_text()).get("mcpServers", {})
+    deadline = _time.monotonic() + min(timeout, _AUTH_DEADLINE_S)
+    key_checks = _start_key_checks(servers, timeout)
 
     def one(item: tuple[str, dict]) -> tuple[str, str]:
         name, entry = item
@@ -153,7 +274,17 @@ def check(repo: Path, timeout: int = CLAUDE_CONNECT_TIMEOUT_S) -> dict[str, str]
     # probe ends up measuring its own contention (media-engine: TIMEOUT in a
     # 15-server batch, CONNECTED in 4.4s alone — measured 2026-08-30).
     with ThreadPoolExecutor(max_workers=4) as pool:
-        return dict(pool.map(one, servers.items()))
+        report = dict(pool.map(one, servers.items()))
+    for name, (thread, box) in key_checks.items():
+        thread.join(max(0.0, deadline - _time.monotonic()))
+        outcome, detail = box.get("result", ("unverified", "timeout"))
+        if outcome == "refused":
+            # a dead transport is the louder fact; the key never relabels it
+            if report.get(name) == "CONNECTED":
+                report[name] = _REFUSED_VERDICT[detail]
+        elif notes is not None:
+            notes[name] = detail if outcome == "accepted" else f"unverified ({detail})"
+    return report
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,8 +301,9 @@ def main(argv: list[str] | None = None) -> int:
             f"mcp-health: no .mcp.json in {repo} — universal user-level set only, nothing to diff"
         )
         return 0
+    notes: dict[str, str] = {}
     try:
-        report = check(repo, args.timeout)
+        report = check(repo, args.timeout, notes)
     except Exception as exc:  # advisory: a broken probe never blocks anyone
         print(f"mcp-health: probe failed open ({type(exc).__name__}) — no verdict")
         return 0
@@ -194,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     bad = {n: v for n, v in report.items() if v != "CONNECTED" and n not in unprobed}
     for name, verdict in sorted(report.items()):
         print(f"{name}: {verdict}")
+    for name, note in sorted(notes.items()):
+        print(f"MCP-HEALTH: {name} key check — {note}")
     probed = len(report) - len(unprobed)
     if bad:
         print(

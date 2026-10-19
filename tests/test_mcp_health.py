@@ -181,3 +181,220 @@ def test_server_that_dies_on_stdin_close_is_connected(tmp_path):
         },
     )
     assert health.check(repo, timeout=20)["jvm-ish"] == "CONNECTED"
+
+
+# ── W-3350006b: the key check — a connected server whose provider refuses its key is NOT live ─────────────────
+import contextlib  # noqa: E402
+import http.server  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+import pytest  # noqa: E402
+
+EXA_REFUSED = b'{"requestId":"r1","error":"Invalid API key","tag":"INVALID_API_KEY"}'
+FIRECRAWL_REFUSED = b'{"success":false,"error":"Unauthorized: Invalid token"}'
+
+
+@pytest.fixture(autouse=True)
+def _no_real_provider(monkeypatch):
+    """Every test in this file: no proxy, no box key, and both probe URLs pointed at a closed local port, so no test
+    can present a real key to a real provider (a test below repoints a URL at its own stand-in)."""
+    import os
+
+    for var in list(os.environ):
+        if var.lower().endswith("_proxy"):
+            monkeypatch.delenv(var, raising=False)
+    for probe in health._AUTH_PROBES.values():
+        monkeypatch.delenv(probe["env"], raising=False)
+        monkeypatch.setitem(probe, "url", "http://127.0.0.1:9/closed")
+
+
+@contextlib.contextmanager
+def _provider(status, body=b"", *, ctype="application/json", trickle=0.0, location=None):
+    """A stand-in provider on 127.0.0.1: answers every GET with ``status`` and ``body``; yields (base url, seen), where
+    ``seen`` lists each request's (path, the auth headers it carried). ``trickle`` sends the body one byte per that
+    many seconds — each read returns in time, so only a wall-clock deadline can cut it."""
+    seen = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 — http.server's own name
+            seen.append(
+                (self.path, self.headers.get("x-api-key"), self.headers.get("authorization"))
+            )
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            if location:
+                self.send_header("Location", location)
+            self.end_headers()
+            if not trickle:
+                self.wfile.write(body)
+                return
+            for i in range(len(body)):
+                self.wfile.write(body[i : i + 1])
+                self.wfile.flush()
+                time.sleep(trickle)
+
+        def log_message(self, *_a):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", seen
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def _keyed(tmp_path, name, *, key="k-test-0123456789", command=None):
+    """A repo whose one server, named ``name``, answers the handshake and carries ``key`` in its env."""
+    entry = {
+        "type": "stdio",
+        "command": command or sys.executable,
+        "args": [] if command else ["-c", FAKE_OK_SERVER],
+    }
+    if key is not None:
+        entry["env"] = {health._AUTH_PROBES[name]["env"]: key}
+    return _mk(tmp_path, {name: entry})
+
+
+@pytest.mark.parametrize(
+    "name,status,body,word",
+    [
+        ("exa", 401, EXA_REFUSED, "HTTP 401"),
+        ("firecrawl", 401, FIRECRAWL_REFUSED, "HTTP 401"),
+        ("firecrawl", 402, b'{"success":false,"error":"Payment required"}', "HTTP 402"),
+        (
+            "exa",
+            402,
+            b'{"requestId":"r2","error":"No credits","tag":"NO_MORE_CREDITS"}',
+            "HTTP 402",
+        ),
+    ],
+)
+def test_a_refused_key_reads_unauthorized(name, status, body, word, tmp_path, monkeypatch):
+    """The 2026-10-07 incident (mail 01M49YT4T5): the transport connects, the provider refuses the key."""
+    with _provider(status, body) as (base, seen):
+        monkeypatch.setitem(health._AUTH_PROBES[name], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, name), timeout=8)
+    assert report[name].startswith(f"UNAUTHORIZED ({word}")
+    assert len(seen) == 1, "exactly one call presents the key"
+
+
+@pytest.mark.parametrize(
+    "status,body,ctype,reason",
+    [
+        (
+            403,
+            b"<!DOCTYPE html><title>Attention Required! | Cloudflare</title>",
+            "text/html",
+            "HTTP 403",
+        ),
+        (401, b"<html>captive portal</html>", "text/html", "HTTP 401"),
+        (401, b'{"message":"gateway says no"}', "application/json", "HTTP 401"),
+        (401, b"not json at all", "application/json", "HTTP 401"),
+        (503, b'{"success":false,"error":"overloaded"}', "application/json", "HTTP 503"),
+    ],
+    ids=["cloudflare-html-403", "html-401", "gateway-json-401", "fake-json-401", "json-503"],
+)
+def test_a_network_or_gateway_answer_is_unverified(
+    status, body, ctype, reason, tmp_path, monkeypatch
+):
+    """What a blocked egress, a portal or an interposed gateway sends is never a refused key."""
+    notes: dict = {}
+    with _provider(status, body, ctype=ctype) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["firecrawl"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "firecrawl"), timeout=8, notes=notes)
+    assert report["firecrawl"] == "CONNECTED"
+    assert notes["firecrawl"] == f"unverified ({reason})"
+
+
+@pytest.mark.parametrize(
+    "name,body,note",
+    [
+        ("firecrawl", b'{"success":true,"data":{"remaining_credits":420}}', "accepted"),
+        (
+            "firecrawl",
+            b'{"success":true,"data":{"remaining_credits":0}}',
+            "accepted (0 credits left)",
+        ),
+        ("exa", b'{"data":[],"hasMore":false,"nextCursor":null}', "accepted"),
+    ],
+)
+def test_an_accepted_key_stays_connected(name, body, note, tmp_path, monkeypatch):
+    notes: dict = {}
+    with _provider(200, body) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES[name], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, name), timeout=8, notes=notes)
+    assert report[name] == "CONNECTED" and notes[name] == note
+
+
+def test_a_redirect_never_forwards_the_key(tmp_path, monkeypatch):
+    """urllib's default redirect handler re-sends every header to the Location host (both critiques executed it)."""
+    notes: dict = {}
+    with _provider(200, b'{"data":[]}') as (elsewhere, seen_there):
+        with _provider(302, b"", ctype="text/html", location=elsewhere + "/grab") as (base, _seen):
+            monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+            report = health.check(_keyed(tmp_path, "exa"), timeout=8, notes=notes)
+    assert seen_there == [], "the Location host never sees a request, let alone the key"
+    assert report["exa"] == "CONNECTED" and notes["exa"] == "unverified (redirect)"
+
+
+def test_a_slow_provider_is_cut_at_the_deadline(tmp_path, monkeypatch):
+    """urllib's timeout is per socket operation, so a body trickling one byte every 0.4 s never trips it (30 bytes:
+    12 s); the key check holds a wall-clock deadline of min(timeout, 5)."""
+    notes: dict = {}
+    body = b'{"data":[],"hasMore":false,"x":1}'[:30]
+    with _provider(200, body, trickle=0.4) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        t0 = time.monotonic()
+        report = health.check(_keyed(tmp_path, "exa"), timeout=8, notes=notes)
+        elapsed = time.monotonic() - t0
+    assert notes["exa"] == "unverified (timeout)" and report["exa"] == "CONNECTED"
+    assert elapsed < 7, f"the probe waited {elapsed:.1f}s for a provider past its 5s deadline"
+
+
+@pytest.mark.parametrize("key", [None, "", "${EXA_API_KEY}"], ids=["unset", "empty", "placeholder"])
+def test_a_key_is_never_sent_unset_or_printed(key, tmp_path, monkeypatch):
+    notes: dict = {}
+    with _provider(401, EXA_REFUSED) as (base, seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "exa", key=key), timeout=8, notes=notes)
+    assert seen == [], "no request is made without a real key"
+    assert report["exa"] == "CONNECTED" and notes["exa"] == "unverified (no key)"
+
+
+def test_no_key_or_body_reaches_stdout_or_the_cache(tmp_path, monkeypatch, capsys):
+    key = "k-secret-0123456789abcdef"
+    echo = b'{"requestId":"r1","error":"Invalid API key k-secret-0123456789abcdef","tag":"INVALID_API_KEY"}'
+    cache = tmp_path / "cache.json"
+    with _provider(401, echo) as (base, seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        repo = _keyed(tmp_path, "exa", key=key)
+        assert health.main(["--repo", str(repo), "--timeout", "8", "--cache-out", str(cache)]) == 0
+    out = capsys.readouterr().out + cache.read_text()
+    assert seen and seen[0][1] == key, "the key was presented to the provider"
+    assert "exa: UNAUTHORIZED (HTTP 401" in out
+    assert key not in out and "Invalid API key" not in out
+
+
+def test_a_dead_transport_wins_over_the_key_check(tmp_path, monkeypatch):
+    with _provider(401, EXA_REFUSED) as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        report = health.check(_keyed(tmp_path, "exa", command="/bin/false"), timeout=5)
+    assert report["exa"] == "DEAD"
+
+
+def test_main_prints_the_key_check_line(tmp_path, monkeypatch, capsys):
+    """An unverified key check is visible under its CONNECTED verdict, and never counted as a death."""
+    with _provider(403, b"<html>blocked</html>", ctype="text/html") as (base, _seen):
+        monkeypatch.setitem(health._AUTH_PROBES["exa"], "url", base + "/probe")
+        assert health.main(["--repo", str(_keyed(tmp_path, "exa")), "--timeout", "8"]) == 0
+    out = capsys.readouterr().out
+    assert "exa: CONNECTED" in out
+    assert "MCP-HEALTH: exa key check — unverified (HTTP 403)" in out
+    assert "MCP-HEALTH: all 1 probed servers live" in out

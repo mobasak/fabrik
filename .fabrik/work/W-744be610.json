@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:49:33.809025Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-744be610",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when api.ipify.org shows a non-blocked egress, run the two GETs (no body, no credit) and record status, content type and body shape in the D-row for W-3350006b; a 403 FEATURE_DISABLED on exa websets means the call is plan-gated and needs another no-credit read",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Measure mcp_health's key check live from an OPEN egress (W-3350006b residue): run the firecrawl /v1/team/credit-usage and exa /websets/v0/websets?limit=1 GETs once with the real key and once with a bogus key (keys masked) and confirm 200 + provider-shaped 401 — the build could only be graded against local stand-ins because the box egressed through a blocked network (217.218.153.224) on 2026-10-19"
+}
