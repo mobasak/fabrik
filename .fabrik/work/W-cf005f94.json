@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST (wef2 coordinator + merge owner, wef1 and wef3 builders), then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
+  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST: its coordinator is named wef2-coordinator (agents_up.sh skips only *-coordinator names), which needs a 'supersedes D-198: MERGE OWNER: wef2-coordinator' row in wef's docs/DECISIONS.md; wef1 and wef3 are the builders (wef1 is currently off its worktree-wef1 branch). Then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
   "note": "",
   "owner": "fleet",
   "priority": 2,
