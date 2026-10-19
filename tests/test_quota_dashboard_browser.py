@@ -688,7 +688,7 @@ def _static_file(tmp_path, monkeypatch) -> Path:
     )
     gd = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gd)
-    monkeypatch.setattr(gd, "_read", lambda: (census_rows(), CENSUS_NOW - 3600, CENSUS_NOW - 7200))
+    monkeypatch.setattr(gd, "_read", lambda: (census_rows(), CENSUS_NOW - 3600))
     out = tmp_path / "external-services-dashboard.html"
     assert gd.main([str(out)]) == 0
     return out

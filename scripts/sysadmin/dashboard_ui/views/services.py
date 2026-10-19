@@ -194,7 +194,6 @@ def _inventory(inv: object, now: float):
         inv.get("rows") or [],
         now=now,
         synced_at=inv.get("synced_at"),
-        classified_at=inv.get("classified_at"),
         interactive=True,
     )
 

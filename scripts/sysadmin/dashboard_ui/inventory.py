@@ -2,7 +2,7 @@
 (plan 2026-10-18-plan-1, T02; spec docs/superpowers/specs/2026-10-18-external-services-page-design.md).
 
 ``load(conn, *, before_query=None)`` reads the registry through a connection the CALLER owns (it never
-connects, commits, rolls back or closes). ``render(rows, *, now, synced_at, classified_at, interactive)``
+connects, commits, rolls back or closes). ``render(rows, *, now, synced_at, interactive)``
 builds the section from components only, body-only: no page shell, no file, database or environment
 read. Every time argument and row time is an epoch float; a value that is not a finite, non-negative
 number reads as unknown (``None``), never as an error.
@@ -11,9 +11,9 @@ This module imports neither ``registry_db`` nor ``psycopg2`` (the board's proces
 never ``quota_dashboard``.
 
 Cobra check (D-253): the cheapest way to pass "the attention list shows what needs action" without
-the outcome is to list everything (or nothing). The rules are the four provider rules and the two
-data-source rules of spec § The design item 3, each pinned in both directions (49 h in, 47 h out, the
-healthy and the paid-without-credential rows out); a reason with more than ``_NAMED_LIMIT`` rows
+the outcome is to list everything (or nothing). The rules are the four provider rules and the
+registry's data-source rule of spec § The design item 3 (D-1046 retired the classifier's), each
+pinned in both directions (49 h in, 47 h out, the healthy and the paid-without-credential rows out); a reason with more than ``_NAMED_LIMIT`` rows
 collapses to a count that still lists every name, so collapsing never hides a provider.
 """
 
@@ -129,7 +129,7 @@ def _credit_stale(balance: object, credit_at: object, now: float) -> bool:
 
 
 def _source_stale(at: object, now: float) -> bool:
-    """A data source (the registry, the classifier) with no usable time, or strictly past 48 h."""
+    """A data source (the registry) with no usable time, or strictly past 48 h."""
     age = _age_h(at, now)
     return age is None or age > STALE_AFTER_H
 
@@ -395,17 +395,12 @@ def _li(body: object, data: dict | None = None) -> Safe:
 
 
 def _attention(
-    rows: list[_Row], now: float, synced_at, classified_at, queue: int, ids: _Ids, interactive: bool
+    rows: list[_Row], now: float, synced_at, ids: _Ids, interactive: bool
 ) -> tuple[Safe, int]:
     entries: list[Safe] = []
     if _source_stale(synced_at, now):
         key = "registry_never" if _epoch(synced_at) is None else "registry_stale"
         entries.append(_li(badge("warning", t(f"services.inv.attn.{key}", hours=STALE_AFTER_H))))
-    if queue > 0 and _source_stale(classified_at, now):
-        key = "classifier_never" if _epoch(classified_at) is None else "classifier_stale"
-        entries.append(
-            _li(badge("warning", _plural(f"services.inv.attn.{key}", queue, hours=STALE_AFTER_H)))
-        )
     by_rule: dict[str, list[_Row]] = {rule: [] for rule in _RULES}
     flagged: set[int] = set()
     for row in rows:
@@ -658,7 +653,6 @@ def render(
     *,
     now: float,
     synced_at: float | None,
-    classified_at: float | None,
     interactive: bool,
 ) -> Safe:
     """The inventory section (body-only). ``interactive`` adds the filter bar and its wire for the
@@ -680,9 +674,7 @@ def render(
     if _UNIDENTIFIED in cats:
         order.append(_UNIDENTIFIED)
 
-    attention, needing = _attention(
-        recs, now, synced_at, classified_at, len(queue), ids, interactive
-    )
+    attention, needing = _attention(recs, now, synced_at, ids, interactive)
     paid = sum(1 for r in recs if r.cost in ("paid", "freemium"))
     free = sum(1 for r in recs if r.cost in ("free", "self-host"))
     summary = group(

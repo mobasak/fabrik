@@ -177,7 +177,6 @@ def _services_data(**kw) -> dict:
         "inventory": {
             "rows": census_rows(),
             "synced_at": NOW - 3600,
-            "classified_at": NOW - 7200,
         },
     }
     data.update(kw)

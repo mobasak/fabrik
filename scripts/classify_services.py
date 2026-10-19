@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry.md
-"""Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
+"""A manual tool since D-1046 (not in the daily chain): web-ground the uncatalogued services via the pool.
+
+The daily chain no longer runs this script: its only engine is the OpenRouter pool, OFF by ruling
+since 2026-09-07 (D-181/D-182), so it dispatches nothing while that ruling stands, and a provider
+gets its category from a hand-written scripts/service_catalog.json entry.
 
 For every NEEDS-TRIAGE provider in secrets/all-envs.env, dispatch ONE cheap pool research
 unit (family-diverse models under the <=$1.5/Mtok cap, web-grounded via exa/brave) that

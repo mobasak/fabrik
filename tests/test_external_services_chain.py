@@ -217,7 +217,7 @@ def test_gen_dashboard_help_writes_no_file(tmp_path, monkeypatch):
 
 def test_gen_dashboard_writes_the_named_output(tmp_path, monkeypatch):
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
     monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>ok</p>")
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
@@ -230,7 +230,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     leaves the old file untouched (a half-written dashboard is never served). Discriminating: the pre-fix
     `out.write_text(render(rows))` makes no `os.replace` call and truncates the target (H9)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
     monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>new</p>")
     out = tmp_path / "dash.html"
     out.write_text("old", encoding="utf-8")
@@ -716,7 +716,7 @@ def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_
         "    time.sleep(0.7)\n"
         "    return r\n"
         "pathlib.Path.write_text = slow\n"
-        "gd._read = lambda: ([], None, None)\n",
+        "gd._read = lambda: ([], None)\n",
         encoding="utf-8",
     )
     out = tmp_path / "dash.html"
@@ -879,7 +879,7 @@ def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_lin
     raw traceback (EZ4)."""
     gd = _load_gen_dashboard()
     monkeypatch.setattr(
-        gd, "_read", lambda: ([{"provider": "x"}], None, None)
+        gd, "_read", lambda: ([{"provider": "x"}], None)
     )  # every other key absent
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     assert "ERROR: registry unreadable" in capsys.readouterr().out
@@ -951,7 +951,7 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
             pass
 
     monkeypatch.setattr(gd.registry_db, "connect", lambda: _Conn())
-    rows, synced_at, _ = gd._read()
+    rows, synced_at = gd._read()
     assert rows[0]["balance"] == 12.5 and rows[0]["credit_at"] == old.timestamp(), rows
     assert synced_at == fresh.timestamp()
     page = gd.render(rows, synced_at=synced_at, now=now.timestamp())
@@ -2337,7 +2337,7 @@ def _document_problems(page: str) -> list[str]:
 
 def test_the_static_file_is_a_scriptless_self_contained_document(pinned_zone):
     gd = _load_gen_dashboard()
-    page = gd.render(_fixture_rows(), synced_at=_SYNCED, classified_at=_NOW, now=_NOW)
+    page = gd.render(_fixture_rows(), synced_at=_SYNCED, now=_NOW)
     assert page.startswith('<!doctype html>\n<html lang="en">')
     assert "<title>External services</title>" in page and "<h1>External services</h1>" in page
     assert 'name="viewport"' in page
@@ -2485,17 +2485,14 @@ def test_the_reader_closes_its_connection_on_both_paths(monkeypatch):
     assert closed == [True, True, True]
 
 
-def test_the_classifier_stamp_is_its_files_mtime_or_none(monkeypatch, tmp_path):
+def test_the_static_file_reads_no_classifier_stamp():
+    """D-1046 retired the classifier's source rule: gen_dashboard no longer stats
+    classify_last.json, and the section takes no classifier time (a caller still passing one is
+    a TypeError, never a silently ignored argument)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "REPO", tmp_path)
-    assert gd._classified_at() is None
-    stamp = tmp_path / ".tmp" / "external-services" / "classify_last.json"
-    stamp.parent.mkdir(parents=True)
-    stamp.write_text("{}", encoding="utf-8")
-    os.utime(stamp, (1_700_000_000, 1_700_000_000))
-    assert gd._classified_at() == 1_700_000_000
-    monkeypatch.setattr(gd, "REPO", tmp_path / "missing" / "\x00")
-    assert gd._classified_at() is None, "a stat that cannot run is None, never an exception"
+    assert not hasattr(gd, "_classified_at") and not hasattr(gd, "CLASSIFY_STAMP")
+    with pytest.raises(TypeError):
+        gd.render([], synced_at=_SYNCED, classified_at=_NOW, now=_NOW)
 
 
 def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
@@ -2504,7 +2501,7 @@ def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
     gd = _load_gen_dashboard()
     out = tmp_path / "dash.html"
     out.write_text("previous", encoding="utf-8")
-    monkeypatch.setattr(gd, "_read", lambda: ([_row("a")], None, None))
+    monkeypatch.setattr(gd, "_read", lambda: ([_row("a")], None))
 
     def boom(rows, **kw):
         raise ValueError("cannot render")
@@ -2520,7 +2517,7 @@ def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
 
 def test_main_writes_the_whole_document_through_the_real_renderer(monkeypatch, tmp_path):
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "_read", lambda: (_fixture_rows(), _SYNCED, None))
+    monkeypatch.setattr(gd, "_read", lambda: (_fixture_rows(), _SYNCED))
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
     page = out.read_text(encoding="utf-8")
@@ -2691,7 +2688,8 @@ _NEVER = "The classifier has no recorded run and 1 provider waits for a category
 
 
 def _write_through_main(monkeypatch, tmp_path, *, stamp_age_s):
-    """`main()` over the fake registry, with the clock at _NOW and the classifier stamp aged as asked."""
+    """`main()` over the fake registry, with the clock at _NOW and a LEFTOVER classifier stamp
+    (classify_last.json from before D-1046) aged as asked — the page must ignore it."""
     import datetime as dt
     from types import SimpleNamespace
 
@@ -2711,27 +2709,21 @@ def _write_through_main(monkeypatch, tmp_path, *, stamp_age_s):
     return out.read_text(encoding="utf-8")
 
 
-def test_the_registry_sync_and_classifier_times_reach_the_written_file(
+def test_the_registry_sync_time_reaches_the_written_file_and_no_classifier_entry_does(
     pinned_zone, monkeypatch, tmp_path
 ):
     stalled = _write_through_main(monkeypatch, tmp_path / "a", stamp_age_s=5 * 86400)
     assert "Registry synced 2026-10-17 14:30 +03:00" in stalled, "the reader's max(last_seen)"
-    assert _STALL in stalled and _NEVER not in stalled
     never = _write_through_main(monkeypatch, tmp_path / "b", stamp_age_s=None)
-    assert _NEVER in never and _STALL not in never
-    fresh = _write_through_main(monkeypatch, tmp_path / "c", stamp_age_s=3600)
-    assert _NEVER not in fresh and _STALL not in fresh and "The classifier" not in fresh
+    for page in (stalled, never):  # D-1046: an old stamp, or none, raises no entry
+        assert _STALL not in page and _NEVER not in page and "The classifier" not in page
 
 
-def test_render_hands_the_classifier_time_to_the_section(pinned_zone):
+def test_an_untriaged_provider_raises_no_classifier_entry(pinned_zone):
+    """The queue that used to raise the stalled-classifier entry renders without one (D-1046)."""
     gd = _load_gen_dashboard()
-    rows = [_row("a", category="?", cost="?")]
-    stale = gd.render(rows, synced_at=_SYNCED, classified_at=_NOW - 5 * 86400, now=_NOW)
-    assert _STALL in stale
-    assert _NEVER in gd.render(rows, synced_at=_SYNCED, classified_at=None, now=_NOW)
-    assert "The classifier" not in gd.render(
-        rows, synced_at=_SYNCED, classified_at=_NOW - 60, now=_NOW
-    )
+    page = gd.render([_row("a", category="?", cost="?")], synced_at=_SYNCED, now=_NOW)
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
 
 
 def test_a_stylesheet_that_would_close_its_style_element_is_one_typed_line(
@@ -2747,7 +2739,7 @@ def test_a_stylesheet_that_would_close_its_style_element_is_one_typed_line(
             gd.render([], now=_NOW)
         out = tmp_path / "dash.html"
         out.write_text("previous", encoding="utf-8")
-        monkeypatch.setattr(gd, "_read", lambda: ([], None, None))
+        monkeypatch.setattr(gd, "_read", lambda: ([], None))
         assert gd.main([str(out)]) == 1
         printed = capsys.readouterr().out
         assert printed.count("\n") == 1 and "ERROR: registry unreadable" in printed
