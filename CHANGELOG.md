@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Authelia driver no longer leaves its secret config world-readable in /tmp, and VPS locks moved out of /tmp (2026-10-19)
+
+- The Authelia add and remove scripts staged the live config, which holds the JWT and session secrets, in `/tmp/authelia.{cur,new}.$TS.yml` via `sudo tee`. sudo's umask on vps1 is 0022, so the copies were 0644. The ten backups sat in `/tmp` too, where they never survived tmp cleanup.
+- Both scripts now stage in a private root `mktemp -d` dir, removed by an EXIT trap that keeps the exit code, and check for the new file with `sudo test -f`.
+- The add script backs up only when the config changes: 0600, uniquely named, in the root 0700 `/var/backups/fabrik-authelia`, pruned to ten.
+- `locks.run_locked` now flocks a root-owned file in `/var/lib/fabrik-locks` and refuses a resource outside `[A-Za-z0-9_-]+`. Another VPS user can no longer pre-create the lock and block every Authelia and Backrest mutation.
+- `vps_sync` reports leftover `/tmp` locks as legacy.
+- W-3d834ded, D-1044.
+
 ### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
 
 - Three kaizen closes each paid a review round for a draft its reading step never put in front of it: a sentence restating the probe catalogue's own hunt line (pointed at by path, never included), a flag list and scope that overruled the next bullet, and items that narrowed their paragraph's bounds. PHASE 3 now reads, before the first draft, the files the target points at by path for the same subject, the row's own words, the rule the edit extends, and the paragraph or list the new text joins (its lead-in and the items beside the new text), leaving their bounds standing unless the row is a decision. Pinned by equality in `tests/test_command_improve_queue_pass.py`.

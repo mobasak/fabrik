@@ -48,11 +48,17 @@ They won't. See the module docstring above for proof.
 from __future__ import annotations
 
 import logging
+import re
 import shlex
 
 from fabrik.drivers.ssh import ssh
 
 logger = logging.getLogger(__name__)
+
+LOCK_DIR = "/var/lib/fabrik-locks"
+"""Root 0755 on the VPS; each lock file is root 0644, created once by ``sudo touch``."""
+
+_RESOURCE_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 GIT_VERSIONED_DIRS: set[str] = {"/opt/monitoring/configs/gatus"}
 """Whitelist of VPS paths that may be committed to git by :func:`git_commit_config`.
@@ -73,7 +79,8 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
     Do not try to chain multiple ``ssh()`` calls from Python and expect
     them to share a lock; see the module docstring for why that fails.
 
-    The lock file lives at ``/tmp/fabrik-{resource}.lock`` on the VPS.
+    The lock file lives at ``/var/lib/fabrik-locks/fabrik-{resource}.lock`` on
+    the VPS (a root-owned dir, so no other user can pre-create or replace it).
     ``flock -x -w <timeout>`` is used: an exclusive (write) lock with a
     bounded wait. If the lock can't be acquired in ``timeout`` seconds,
     ``flock`` exits 1 and this function raises :class:`RuntimeError`.
@@ -81,8 +88,9 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
     Args:
         resource: Logical name of the resource being mutated
             (e.g. ``"backrest-config"``, ``"authelia-config"``). Becomes
-            ``/tmp/fabrik-{resource}.lock`` on the VPS. Use distinct names
-            for distinct resources so unrelated mutations don't serialize.
+            ``/var/lib/fabrik-locks/fabrik-{resource}.lock`` on the VPS, so it
+            must match ``[A-Za-z0-9_-]+``. Use distinct names for distinct
+            resources so unrelated mutations don't serialize.
         script: Full bash script. MUST start with ``set -euo pipefail`` so
             any failed step aborts the whole script (and releases the lock).
         timeout: Seconds to wait for lock acquisition AND for the entire
@@ -93,6 +101,8 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
         stdout from the script (stripped of trailing whitespace).
 
     Raises:
+        ValueError: ``resource`` is not one plain word (``[A-Za-z0-9_-]+``);
+            raised before any ssh.
         RuntimeError: Lock acquisition timed out, or the script exited
             non-zero. The ``ssh()`` wrapper re-raises its own RuntimeError
             with stderr included in the message.
@@ -101,13 +111,19 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
         >>> run_locked("test-demo", "set -euo pipefail; echo hello")  # doctest: +SKIP
         'hello'
     """
-    # Hardcoded VPS-side /tmp path is intentional: this is the VPS's lock
-    # file for a `flock -x -w` advisory lock, used to serialize Fabrik
-    # orchestrator operations on the single-tenant VPS. The remote host has
-    # no other user sessions, so /tmp symlink-attack vectors do not apply.
-    # `resource` is validated upstream (spec.id regex).
-    lock_file = f"/tmp/fabrik-{resource}.lock"  # nosec B108
-    cmd = f"flock -x -w {timeout} {lock_file} bash -c {shlex.quote(script)}"
+    # The name becomes a path component, so it is confined to one plain word here, before any
+    # ssh: a `/`, `..` or shell metacharacter would escape the lock dir or the command.
+    if not _RESOURCE_RE.fullmatch(resource):
+        raise ValueError(f"lock resource must match [A-Za-z0-9_-]+, got {resource!r}")
+    # A root-owned shared dir, never /tmp: another VPS user could pre-create a /tmp lock file,
+    # and with fs.protected_regular the O_CREAT open then fails, blocking every mutation
+    # (W-3d834ded). Every SSH login shares one lock per resource; `touch` never replaces a held
+    # lock's inode, and flock locks the root 0644 file through a read-only open.
+    lock_file = f"{LOCK_DIR}/fabrik-{resource}.lock"
+    cmd = (
+        f"sudo install -d -m 755 -o root -g root {LOCK_DIR} && sudo touch {lock_file} && "
+        f"flock -x -w {timeout} {lock_file} bash -c {shlex.quote(script)}"
+    )
     # Give ssh() a slightly larger timeout than flock's so the flock error
     # surfaces as "lock acquisition timed out" rather than "SSH timed out".
     return ssh(cmd, timeout=timeout + 10)

@@ -27,6 +27,58 @@ from fabrik.drivers.locks import (
 )
 
 
+class TestRunLockedLocation:
+    """The lock lives in a root-owned shared dir, never a predictable /tmp name (W-3d834ded)."""
+
+    @patch("fabrik.drivers.locks.ssh")
+    def test_run_locked_takes_a_root_owned_shared_lock(self, mock_ssh):
+        mock_ssh.return_value = ""
+        run_locked("backrest-config", "true", timeout=120)
+        cmd = mock_ssh.call_args[0][0]
+        lock = "/var/lib/fabrik-locks/fabrik-backrest-config.lock"
+        assert cmd.startswith(
+            "sudo install -d -m 755 -o root -g root /var/lib/fabrik-locks && "
+            f"sudo touch {lock} && flock -x -w 120 {lock} bash -c "
+        ), cmd
+        assert "/tmp" not in cmd
+
+    @pytest.mark.parametrize(
+        "resource", ["", "a/../../etc/x", "a b", "$(id)", "x;rm", "back`tick`", "a\nb"]
+    )
+    @patch("fabrik.drivers.locks.ssh")
+    def test_run_locked_refuses_a_bad_resource(self, mock_ssh, resource):
+        with pytest.raises(ValueError, match="resource"):
+            run_locked(resource, "true")
+        mock_ssh.assert_not_called()
+
+
+class TestVpsSyncLegacyLocks:
+    """vps_sync reports only the LEGACY /tmp locks; the new dir's files persist and may be held."""
+
+    def test_vps_sync_reports_only_legacy_tmp_locks(self, monkeypatch):
+        import importlib.util
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parents[2] / "scripts" / "vps_sync.py"
+        spec = importlib.util.spec_from_file_location("_w3d8_vps_sync", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        asked: list[str] = []
+
+        def fake_lines(cmd, timeout=20):
+            asked.append(cmd)
+            return ["/tmp/fabrik-authelia-config.lock"]
+
+        monkeypatch.setattr(mod, "_ssh_lines", fake_lines)
+        out = mod._legacy_lock_findings()
+        assert asked == ["sudo find /tmp -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null"]
+        assert out == [
+            "  legacy /tmp lock: /tmp/fabrik-authelia-config.lock — nothing takes /tmp locks "
+            "since W-3d834ded; rm /tmp/fabrik-authelia-config.lock"
+        ]
+        assert "/var/lib/fabrik-locks" not in " ".join(asked)
+
+
 class TestRunLockedContract:
     """Verify the bash command run_locked builds — no live VPS needed."""
 
@@ -36,7 +88,7 @@ class TestRunLockedContract:
         run_locked("backrest-config", "set -euo pipefail; echo hi", timeout=120)
         sent_cmd = mock_ssh.call_args[0][0]
         # Lock file path
-        assert "/tmp/fabrik-backrest-config.lock" in sent_cmd
+        assert "/var/lib/fabrik-locks/fabrik-backrest-config.lock" in sent_cmd
         # Exclusive lock with bounded wait
         assert "flock -x -w 120" in sent_cmd
         # Script body is shlex-quoted so embedded single quotes can't escape
@@ -59,8 +111,8 @@ class TestRunLockedContract:
         run_locked("backrest-config", "true")
         run_locked("authelia-config", "true")
         cmds = [c.args[0] for c in mock_ssh.call_args_list]
-        assert "/tmp/fabrik-backrest-config.lock" in cmds[0]
-        assert "/tmp/fabrik-authelia-config.lock" in cmds[1]
+        assert "/var/lib/fabrik-locks/fabrik-backrest-config.lock" in cmds[0]
+        assert "/var/lib/fabrik-locks/fabrik-authelia-config.lock" in cmds[1]
 
     @patch("fabrik.drivers.locks.ssh")
     def test_returns_ssh_stdout_verbatim(self, mock_ssh):
