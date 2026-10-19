@@ -81,5 +81,8 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     assert returned <= rows, sorted(returned - rows)
     assert "rewrite the claim to what a source line states and re-verify it" in table
     assert "The orchestrator curls the named URL and section (a seat never curls)" in table
-    assert "not live-checkable, so it is UNVERIFIABLE, naming what a human should check" in table
+    assert (
+        "for a claim no other live source states, leaves the claim not live-checkable, so it is UNVERIFIABLE"
+        in table
+    )
     assert "/ DEAD-removed / UNVERIFIABLE)" in src
