@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — a scoped review runs what a fix adds over round zero's input classes (2026-10-19)
 
-- `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
+- `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, on a scratch copy of what it reads (a scratch repo for diff output, a copy of this session's pins for a seat recipe), over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
 
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 

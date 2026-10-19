@@ -799,8 +799,9 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
     end = "a re-read is not execution."
     sentence = step3[step3.index(head) : step3.index(end) + len(end)]
     assert (
-        "a rule, recipe, command or guard a fix adds being executed so before the pin over the input classes"
-        " round zero of"
+        "a rule, recipe, command or guard a fix adds being executed so before the pin, on a scratch copy of what it"
+        " reads (a scratch repo for one that reads diff output, a copy of this session's pins for a seat recipe),"
+        " over the input classes round zero of"
         " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
     ), sentence
     zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
