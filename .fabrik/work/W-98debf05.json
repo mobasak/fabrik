@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T22:20:45.637325Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-98debf05",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide narrow-vs-refuse for an escalated registrar role (a design call the review could not settle — two Opus rounds disagreed); add REVOKE of memberships and a ownership check; add the rolname-filter unit assert",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "payments role re-apply hardening, routed from the plan-2 Phase A review scope-growth stop (2026-10-20): mint_payments_role's re-assert does not revoke out-of-band role memberships (e.g. GRANT pg_write_all_data or a superuser role) or table/schema ownership; the foreign-role refusal keys only on rolsuper and database ownership, and refuses (fail-closed) a role this registrar minted and someone escalated, leaving it privileged until an operator acts; the unit test does not pin the r.rolname filter (a never-firing guard stays green there, only the real-PG test catches it) (owner: fleet)"
+}
