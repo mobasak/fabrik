@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "decide narrow-vs-refuse for an escalated registrar role (a design call the review could not settle — two Opus rounds disagreed); add REVOKE of memberships and a ownership check; add the rolname-filter unit assert",
+  "next": "decide narrow-vs-refuse for an escalated registrar role (two Opus rounds disagreed); REVOKE memberships + an ownership check; the rolname-filter unit assert; reset per-database settings in EVERY database, not only the project's (pass 4); widen the refusal's 'drop it once it owns none' to REASSIGN OWNED BY / DROP OWNED BY first, since DROP ROLE fails 2BP01 while it owns any object (pass 5)",
   "note": "",
   "owner": "",
   "priority": 2,
