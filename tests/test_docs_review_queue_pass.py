@@ -59,3 +59,22 @@ def test_seat_briefs_and_the_orchestrator_apply_the_probe_catalogue() -> None:
         "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
         in p2
     )
+
+
+def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() -> None:
+    """W-21b629ed (intel mail 01M5AQ4754, D-1056): the fabrik-researcher agent returns INFERENCE and NEEDS-RAW-FETCH,
+    which the docs review's verdict table had no row for. Each now has one, and every verdict the agent returns has a
+    row, so a new agent verdict with no table row fails here. NEEDS-RAW-FETCH resolves into another row and so has no
+    self-audit count; INFERENCE can stand as a residual and does."""
+    src = _norm()
+    table = src[src.index("### Verdict taxonomy") : src.index("A seat's return cites")]
+    rows = set(re.findall(r"\| \*\*([A-Z-]+)\*\* \|", table))
+    agent = (ROOT / "commands" / "_agents" / "fabrik-researcher.md").read_text()
+    returned = re.search(r"`<claim> → ([A-Z|-]+) ·", agent).group(1).split("|")
+    assert set(returned) <= rows, sorted(set(returned) - rows)
+    assert "Not VERIFIED: rewrite the claim to what a source line states" in table
+    assert (
+        "Yours to curl: fetch the named URL and section, then classify the claim by the rows above"
+        in table
+    )
+    assert "/ DEAD-removed / UNVERIFIABLE / INFERENCE)" in src

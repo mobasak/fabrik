@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
+
+- The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but the page implies it) is not VERIFIED: the claim is rewritten to what a line states, or listed as residual naming the URL, and the self-audit counts it. NEEDS-RAW-FETCH is the lead's curl of the named URL and section, classified by the other rows and never left standing. A grader fails when the agent's verdict list names one the table lacks (W-21b629ed).
+
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 
 - fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".

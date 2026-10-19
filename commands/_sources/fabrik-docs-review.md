@@ -116,6 +116,8 @@ Classify every claim with one of:
 | **WRONG** | Never true or inverted | Fix to reality, cite `path:line` |
 | **DEAD** | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |
 | **UNVERIFIABLE** | Can't be checked mechanically | State why; list as residual |
+| **INFERENCE** | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states, or list it as residual naming the URL and the inference |
+| **NEEDS-RAW-FETCH** | A `fabrik-researcher` return: the source exists but the seat's tools cannot extract it | Yours to curl: fetch the named URL and section, then classify the claim by the rows above; never left standing |
 
 A seat's return cites every `path:line` with a short fragment of that line, unique in its
 file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or
@@ -199,7 +201,7 @@ Your final message MUST embed structured proof — not a summary, not "all looks
    subset if >100 claims, with totals).
 2. **Gate output** — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals.
 3. **Self-audit** — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed
-   / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero
+   / DEAD-removed / UNVERIFIABLE / INFERENCE), and the line-coverage reconciliation showing zero
    skipped lines.
 
 Per CLAUDE.md's convergence HARD STOP, do NOT say "reviewed" / "in-sync" / "converged"
