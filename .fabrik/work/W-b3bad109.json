@@ -3,7 +3,7 @@
   "created": "2026-10-19T17:54:19.386220Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3a17be99666cceeb08db7a880e963ae23e8cc84c",
   "id": "W-b3bad109",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "LOW: review residue on --merge-shared (single-test guards, one unreachable-state mutant); nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "claude_rotate --merge-shared residue (W-125b4e19 review, scope-growth stop): a CLI lock taken in the microsecond window between the canonical cycle's exchanges keeps a vanished realpath (N3-1); the canon-link refusal, the no-op warning print and the rollback/ordering guards each rest on one test, and the atomicity test watches only the active account"
 }
