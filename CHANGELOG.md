@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 
-- `/fabrik-command-improve` PHASE 2's lock bullet names the two scripts that test a path against a lock's `owned_paths`. A new test lists every script under `scripts/` that mentions `owned_paths` and fails on one it has not met, so the bullet is re-read when that set changes; it pins which files touch the field, not what they do with it (W-bcf6fc2f part 1; part 2, check_plan_tickets.py's missing scalar guard, is infra's item).
+- `/fabrik-command-improve` PHASE 2's lock bullet names the two scripts that test a path against a lock's `owned_paths`. A new test lists every file under `scripts/` (shell and extensionless runners included) that names `owned_paths` by that literal spelling and fails on one it has not met, so the bullet is re-read when that set changes; it pins which files name the field, not what they do with it (W-bcf6fc2f part 1; part 2, check_plan_tickets.py's missing scalar guard, is infra's item).
 
 ### Changed — the reader run's pin diff names every `Only in` line (2026-10-19)
 
