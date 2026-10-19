@@ -403,11 +403,12 @@ def test_the_destroyer_reads_a_provisioner_http_error_by_its_status(
     ],
     ids=["provisioner-not-found", "driver-absent", "deleted"],
 )
-def test_the_destroyer_reports_an_already_absent_record_as_not_found(
+def test_the_destroyer_tells_an_absent_record_from_a_deleted_one(
     result, expected, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """An already-absent record is not a removal: the provisioner's 200 {"action": "not_found"}
-    (/opt/site-provisioner api/cloudflare_client.py) and the driver's {"status": "absent"} (W-8bb683e6
+    (site-provisioner's api/cloudflare_client.py) and the driver's {"status": "absent"} report
+    not_found, while the provisioner's {"action": "deleted"} still reports removed (W-8bb683e6
     review)."""
     mocks = _install_stub_drivers(monkeypatch)
     mocks["dns.client"].delete_record.return_value = result
