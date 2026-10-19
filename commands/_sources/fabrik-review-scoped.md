@@ -53,7 +53,7 @@ proportionate answer.
    commit message) is either executed, with its command and output named in your report, or deleted, a rule,
    recipe, command or guard a fix adds being executed so before the pin, on a scratch copy of what it reads (a
    scratch repo for one that reads diff output, the archive or clone the probe catalogue's § Seat isolation
-   stages, the fix's files laid over it, for a seat recipe), over the input classes round zero of
+   stages, with the pins laid over it, for a seat recipe), over the input classes round zero of
    `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape; a re-read is not execution. Something
    already stated, in the code, the doc that owns the subject or elsewhere in the file being fixed, is pointed
    at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its source,

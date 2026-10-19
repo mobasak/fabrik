@@ -792,7 +792,7 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
     """Rows 1792430884 and 1792427348: leads ran a new classification rule and a new seat recipe on one case, and
     seats met the rest. Step 3's execute-or-delete sentence now has what a fix adds executed, with its command and
     output in the report, on a scratch copy of what it reads (a scratch repo, or § Seat isolation's archive or
-    clone for a seat recipe), over the input classes term-coverage's round zero gives its shape; it stays inside that
+    clone with the pins laid over it for a seat recipe), over the input classes term-coverage's round zero gives its shape; it stays inside that
     sentence, so the pointer-or-quote sentence still follows "a re-read is not execution." Limit of a text pin: it
     cannot show the run happened, nor add an input class round zero lacks."""
     step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
@@ -802,7 +802,7 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
     assert (
         "a rule, recipe, command or guard a fix adds being executed so before the pin, on a scratch copy of what it"
         " reads (a scratch repo for one that reads diff output, the archive or clone the probe catalogue's § Seat"
-        " isolation stages, the fix's files laid over it, for a seat recipe), over the input classes round zero of"
+        " isolation stages, with the pins laid over it, for a seat recipe), over the input classes round zero of"
         " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
     ), sentence
     zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
