@@ -3,7 +3,7 @@
   "created": "2026-10-19T10:54:13.580258Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "865f247b02861c2c0cb64d61f198ed4cb163ebdb",
   "id": "W-1086d295",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: fallback edge on a provisioner 4xx; nobody blocked (intel's residue from W-8bb683e6)",
-  "status": "open",
+  "status": "done",
   "title": "orchestrator add_subdomain falls back to direct Cloudflare on ANY DNS Manager error, a 4xx refusal included — a provisioner that refuses a record (policy, auth) is bypassed (W-8bb683e6 residue; src/fabrik/orchestrator/__init__.py:679-686)"
 }
