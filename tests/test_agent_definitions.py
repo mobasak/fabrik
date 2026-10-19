@@ -196,19 +196,37 @@ def test_the_researcher_returns_a_bounded_inference_verdict():
     raw = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
     method = " ".join(raw[raw.index("## Method") : raw.index("## Return format")].split())
     returns = " ".join(raw[raw.index("## Return format") :].split())
-    assert "`<claim> → VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE ·" in returns
+    assert (
+        "`<claim> → VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE ·" in returns
+    )
+    inference = (
+        "- `INFERENCE` — no line states the claim but what you read implies it (a mapping, a derived figure): only "
+        "after a raw fetch or a second arm still quotes no line (name the arms tried), never for an ABSENCE (shape "
+        "4's bar), and never where a curl of a named URL would settle it — that is a `NEEDS-RAW-FETCH`. Give the "
+        "reasoning and the URL it rests on."
+    )
     for span in (
-        "- `INFERENCE` — the claim rests on reasoning from what you read, not a line you quoted: only after a raw "
-        "fetch or a second arm still quotes no line (name the arms tried), never for an ABSENCE (shape 4's bar), "
-        "and never where `NEEDS-RAW-FETCH` would settle it — give the reasoning AND the URL the caller can curl.",
+        inference,
+        "- `WRONG` / `DEAD` — the citation doesn't support the claim / the URL 404s on a live fetch too (shape 4: "
+        "a `WebFetch` 404 alone is not `DEAD`; a claim's only source dead live is a `NEEDS-RAW-FETCH`).",
+        "- `NEEDS-RAW-FETCH` — the source exists (or existed) but this toolset",
         "· a redirect chain or page tail shape 6 could not finish · an only-source page dead on the live fetch, "
         "shape 4)",
-        "A figure read only from exa's crawl cache is not live: neither `VERIFIED` nor `STALE` rests on it without "
-        "`WebFetch` or firecrawl `maxAge: 0`, and when only the cache reaches the page the verdict is "
-        "`NEEDS-RAW-FETCH`.",
+        "A version-specific figure on a docs page read only from exa (shape 3: an out-of-date copy) is not live: "
+        "neither `VERIFIED` nor `STALE` rests on it without `WebFetch` or firecrawl `maxAge: 0`, and when neither "
+        "live arm reaches a page that is not a live 404 (shape 4 decides that) the verdict is `NEEDS-RAW-FETCH`.",
     ):
-        assert span in method, span
-    assert "exa can serve an out-of-date copy of a docs page" in " ".join(raw.split())
+        assert method.count(span) == 1, span
+    # the verdict list is ordered: INFERENCE sits between VERIFIED and STALE (review pass 1, M2)
+    assert method.index("- `VERIFIED` —") < method.index(inference) < method.index("- `STALE` —")
+    flat = " ".join(raw.split())
+    assert "exa can serve an out-of-date copy of a docs page" in flat
+    # shape 2's markup quote is a NEEDS-RAW-FETCH, never INFERENCE (review pass 1: the bound and shape 2 clashed)
+    assert (
+        "Return `NEEDS-RAW-FETCH` (below) so the caller curls it — a curl settles a verbatim quote, so it is never "
+        "`INFERENCE`." in flat
+    )
+    assert "Mark the mapping INFERENCE" not in flat
 
 
 def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
@@ -235,9 +253,12 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
         "A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to "
         "shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch",
         "- `WRONG` / `DEAD` — the citation doesn't support the claim / the URL 404s on a live fetch too "
-        "(shape 4: a `WebFetch` 404 alone is not `DEAD`).",
+        "(shape 4: a `WebFetch` 404 alone is not `DEAD`;",
     ):
         assert span in researcher, span
+    # shape 1 asks again ONCE: no second re-ask clause survives anywhere in the shape (review pass 1, M6)
+    shape1 = " ".join(block[block.index("  1. ") : block.index("  2. ")].split())
+    assert shape1.count("ask again") == 1 and "as many times" not in shape1
     for lo, hi, span in (
         (s1, s2, "use `mcp__exa__web_fetch_exa` on a SHORT page"),
         (
@@ -267,8 +288,8 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s4,
             s5,
             "The same bar binds a summariser's claim that a page DOCUMENTS something, when the verdict rests on "
-            "that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or mark "
-            "the claim INFERENCE and say why, as shape 2 does",
+            "that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return "
+            "`INFERENCE` (Method step 4) when no line states it",
         ),
         (s4, s5, "JSON/XML keeps shape 3's routing."),
         (
@@ -282,7 +303,7 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s4,
             s5,
             "so a claim whose only source is a since-deleted page — a live 404 included, with no other source after "
-            "Method step 3's search — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` "
+            "searching both engines for one — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` "
             "on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, "
             "which redirects to the newest capture (measured 2026-10-19).",
         ),
