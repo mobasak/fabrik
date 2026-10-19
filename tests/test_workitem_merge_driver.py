@@ -192,6 +192,11 @@ def test_an_unclosed_block_never_deletes_the_lines_after_it(tmp_path):
     assert _install(repo).returncode == 0
     assert "*.dat -text" in info.read_text().splitlines()
     assert _attr(repo) == "workitem"
+    # review pass 3: a second BEGIN while the first is still open discarded what the first held
+    begin = next(ln for ln in info.read_text().splitlines() if ln.startswith("# BEGIN"))
+    info.write_text(f"{begin}\nuser-inside -text\n{begin}\nstale\n# END work-item merge driver\n", encoding="utf-8")
+    assert _install(repo).returncode == 0
+    assert "user-inside -text" in info.read_text().splitlines()
 
 
 def test_an_indented_comment_is_not_copied(tmp_path):

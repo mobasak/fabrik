@@ -99,9 +99,10 @@ want=""
 current=""
 [ -f "$info" ] && current="$(cat "$info")"
 # A block's lines are dropped only when its END arrives; an unclosed BEGIN (a hand-trimmed END)
-# keeps every line after it, so a person's attribute lines are never deleted.
+# keeps every line after it — up to the next BEGIN too, which proves the first was never closed — so a
+# person's attribute lines are never deleted.
 kept="$(printf '%s\n' "$current" | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
-  $0 == b { inblk = 1; n = 0; next }
+  $0 == b { for (i = 1; i <= n && inblk; i++) print held[i]; inblk = 1; n = 0; next }
   inblk && $0 == e { inblk = 0; next }
   inblk { held[++n] = $0; next }
   { print }
