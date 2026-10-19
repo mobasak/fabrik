@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve's lock check names the fragments the assembler appends and how a lock entry owns a path (2026-10-19)
+
+- PHASE 2's lock check found a command's fragments through `include:`, which cannot see the two fragments the assembler appends with none (`close-feedback.md` to every command, `agent-feedback.md` to every agent); and it said to test a write target against `owned_paths` without saying how, while locks hold paths, directories and `/`-aware globs that the lock-reading scripts each match differently. The check now names both appended fragments and states the three-shape ownership rule itself (W-ddf1839c). The item's third point was refuted: `/fabrik-review-scoped`'s "the fragment is not installed" is true, since fragments are not rendered into `~/.claude/commands`.
+
 ### Changed — a delta review brief carries the bounded hop's reader-run inputs (2026-10-19)
 
 - D-1047 let a delta round count a break its fix created in a reader, shown on the previous round's pin with the fix applied, but no brief named that pin. The probe catalogue's § Seat isolation now has the brief name the previous pass's `base_sha` and pins_dir, has the lead state that the two pins differ by the round's fix alone (committed or not), and has the seat run each reader once on each pin by its archive recipe; a barred reader takes the existing `unverified` route and a reader failing on the previous pin is RECORDED. `/fabrik-review` Phase 4 and `/fabrik-review-scoped` step 5 point at it, and the scoped own-fix pin diff waits on the same check (D-1051, W-e2ff8f36).

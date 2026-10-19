@@ -3,7 +3,7 @@
   "created": "2026-10-19T15:49:27.588575Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b0fb893fbd3671fa5bc03056e10165a415aa09d0",
   "id": "W-ddf1839c",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (D-956 step 3; three lock-check gaps in /fabrik-command-improve PHASE 2); LOW effort: wording in one command",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-command-improve PHASE 2 lock check, three gaps the W-5048181b review recorded (pre-existing): (1) 'command grep -n include:' misses the fragments assemble_commands.py appends to every command (close-feedback, _CLOSE_FEEDBACK at assemble_commands.py:31), and :133 says command-improve 'also renders' close-feedback with no include; (2) 'testing your write target against their owned_paths' never says prefix or exact, while locks own directories ('commands/_fragments/'); (3) fabrik-review-scoped.md:67 says term-edit 'is not installed' though commands/_fragments/term-edit.md exists"
 }
