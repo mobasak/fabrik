@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:30:09.163388Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-59a54acc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AFMZV49BV49BRSCFTPT6ZJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: fabrik-lib i18n `scripts/validate_i18n.py --validate` changed its exit behaviour for Level 2 (back-translation), SB-107 (fabrik-lib D-467 approval, D-468 executed; branch worktree-fabrik-lib-dev2 commits 6b41dbd3, 0adbedd1, 37e789b9, 585ba853, 6764b053 (ledgers e821b760), on fabrik-lib main on"
+}
