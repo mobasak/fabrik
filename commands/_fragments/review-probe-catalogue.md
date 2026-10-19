@@ -33,9 +33,10 @@ it, or name in the brief why the shape does not have it.
   lands, never a model from memory.
 - One mutant per clause the edit states, written as a literal before/after (an ordering claim names its mutant);
   re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta brief's mutant ids
-  too) against every test file the change touched or added, collected again after the fix with no `-k`, node-id,
-  `--lf`, `--deselect` or `-m` selection beyond term-coverage rule (4)'s environment-bound deselection (§ Seat
-  isolation's exact node ids are for every other run); probe each new grader with its mutant.
+  too) against every test file the change touched or added, collected again after the fix with no selection that
+  leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s
+  environment-bound deselection (§ Seat isolation's exact node ids are for a seat's other test runs); probe each new
+  grader with its mutant.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
   and the completion gate on the pinned files; feed a sample row through every grader that parses the artifact; a
   synced hook change is checked for its fleet copies' md5.

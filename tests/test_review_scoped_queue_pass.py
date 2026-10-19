@@ -676,12 +676,15 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     re-run mutant read as killed or surviving on a stale selection. The whole bullet is pinned by equality, so an
     added licence or a negation fails here."""
     pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
+    assert (
+        pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
+    )
     bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
     assert bullet == (
         "- One mutant per clause the edit states, written as a literal before/after (an ordering claim names its"
         " mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta"
         " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
-        " with no `-k`, node-id, `--lf`, `--deselect` or `-m` selection beyond term-coverage rule (4)'s"
-        " environment-bound deselection (§ Seat isolation's exact node ids are for every other run); probe each new"
-        " grader with its mutant."
+        " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
+        " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
+        " other test runs); probe each new grader with its mutant."
     ), bullet
