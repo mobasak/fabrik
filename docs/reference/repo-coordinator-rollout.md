@@ -48,7 +48,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
      - D-961: no Workflow tool; review seats go through the Agent tool.
      - The quota bands.
 9. Register every agent's session id in `.fabrik/session-agents.json` (`{"<session id>": "<agent name>"}`). The
-   launcher below reads this file.
+   launcher below reads this file. When the repo gets its FIRST registry, also generate its desktop launcher (§ The
+   Windows side); a later registry change needs no new one, because the launcher reads the registry at every start.
 
 ### 3 — Worktrees
 
@@ -146,32 +147,44 @@ Remove a session row only when that agent no longer uses its id. A relaunch mint
 stale. A move into a worktree during the session (EnterWorktree) keeps the id, so that row is the agent's only row, and
 removing it drops the agent's pane (fabrik-lib mail 01M59SWZGB).
 
-### The Windows side (installed by the operator)
+### The Windows side: one desktop launcher per repo
 
-A Windows Terminal profile per repo calls the launcher by its absolute path in the hub's main checkout, so it runs
-what master holds, and works only once the launcher is merged there. This is the fabrik-lib profile, an entry for `profiles.list` in Windows Terminal's
-`settings.json`, beside the hub's "Fabrik Agents":
+`scripts/sysadmin/agents_bat.py` writes one `<Repo> Agents.bat` for every repo under `/opt` that has a
+`.fabrik/session-agents.json`; `<Repo>` is the folder name with its first letter upper-cased, so fabrik-lib's is
+`Fabrik-lib Agents.bat` (W-bb6c9d9a, D-1042). A double-click opens that repo's grid maximized, each builder resuming
+its own session in its own worktree, and asks nothing on screen. Run it from WSL:
 
-```json
-{
-  "guid": "{3e8b6f1c-5a2d-4c7e-9b40-fab11b0a9e16}",
-  "name": "Fabrik-lib Agents",
-  "commandline": "wsl.exe -d Ubuntu-24.04 -- bash -lc \"/opt/fabrik/scripts/sysadmin/agents_up.sh /opt/fabrik-lib\"",
-  "font": { "size": 9 },
-  "tabTitle": "Fabrik-lib Agents",
-  "suppressApplicationTitle": true,
-  "hidden": false
-}
+```bash
+python3 /opt/fabrik/scripts/sysadmin/agents_bat.py                     # show each .bat it would write; writes nothing
+python3 /opt/fabrik/scripts/sysadmin/agents_bat.py \
+  --desktop "/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"  # write them to the operator's desktop
 ```
 
-The matching desktop launcher, `fabrik-lib.bat`, opens that profile:
+It writes only under `--desktop`, because the desktop is outside every repo. A desktop file it did not write — the
+hand-made launchers from before — is left untouched (exit 2) until it is named once with
+`--replace "<Repo> Agents.bat"`; a file it wrote is rewritten when its text changes and left alone otherwise. The WSL
+distro comes from `--distro`, else `$WSL_DISTRO_NAME`.
 
-```bat
-@echo off
-start "" wt.exe -M -p "Fabrik-lib Agents"
-```
+Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
+.bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
+holding a profile named `<Repo> Agents` at font size 9, and then starts
+`wt.exe -M -w new new-tab -p "<Repo> Agents" … wsl.exe --distribution <distro> --exec bash -l
+/opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>`. The command line is given in full, so the grid opens even
+before Windows Terminal has loaded the fragment, at the default font. The fragment loads when Windows Terminal starts,
+so 9pt applies once Windows Terminal has been closed and reopened after the first run. Nobody edits `settings.json`;
+Windows Terminal itself adds a `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own.
+The launcher runs what the hub's main checkout holds, so it works only once `agents_up.sh` is merged there.
 
-For another repo, copy both and change the name, the path and the guid (any new guid).
+Moving a repo from a hand-made launcher to the generated one, once:
+
+- If an old grid with the same tmux session name is up (fabrik-lib's `~/bin/fabrik-lib-up` builds one named
+  `fabrik-lib`), close it with `tmux kill-session -t =<repo>`: `agents_up.sh` attaches only to a grid it built.
+- Retire the hand-made Windows Terminal profile of the same name and its `~/bin/<repo>-up` script; the generated
+  fragment profile replaces both.
+- Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
+  builder in its worktree, with no banner and no dialog.
+
+The hub's own `Fabrik Agents.bat` still opens `~/bin/hub-up` until the hub has a registry (W-66e2f6a7).
 
 ## What the rollout records
 
