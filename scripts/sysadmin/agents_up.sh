@@ -145,6 +145,7 @@ if tmux has-session -t "=$S" 2>/dev/null; then
   echo "agents_up: the $S grid is already up — attaching as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
 else
   first=1
+  raced=0
   while read -r name sid; do
     st="$(status_of "$sid")"
     [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $PROJ — the pane will try anyway" >&2
@@ -154,11 +155,13 @@ else
         # a second launch racing this one built the grid first: attach to it (if it is this repo's) rather than fail
         if tmux has-session -t "=$S" 2>/dev/null; then
           owned_here || exit 2
+          raced=1
           break
         fi
         exit 1
       fi
-      tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null
+      tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null ||
+        echo "agents_up: could not record the root on $S — a relaunch will refuse this grid until it is killed" >&2
       first=0
     elif ! tmux split-window -t "=$S:$W" -c "$ROOT" "$cmd"; then
       echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
@@ -167,7 +170,8 @@ else
     tmux select-layout -t "=$S:$W" even-horizontal >/dev/null
     tmux set -p -t "=$S:$W" @agent "$name"
   done <<< "$AGENTS"
-  tmux select-pane -t "=$S:$W.0"
+  # a launch that lost the race leaves the other launch's grid as that launch arranges it
+  [ "$raced" = 1 ] || tmux select-pane -t "=$S:$W.0"
 fi
 tmux source-file "$HOME/.tmux.conf" 2>/dev/null
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead

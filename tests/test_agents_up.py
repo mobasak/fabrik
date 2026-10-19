@@ -267,7 +267,16 @@ FAKE_TMUX = """#!/bin/sh
 echo "$*" >> "$HOME/tmux.log"
 case "$1" in
   has-session) [ -f "$HOME/tmux-has" ] ;;
-  show-options) cat "$HOME/tmux-owner" 2>/dev/null; exit 0 ;;
+  show-options)
+    # tmux-owner-late: the owner appears only on the second read (a launch still building the grid)
+    if [ -f "$HOME/tmux-owner-late" ] && [ ! -f "$HOME/tmux-read-once" ]; then
+      : > "$HOME/tmux-read-once"; exit 0
+    fi
+    cat "$HOME/tmux-owner" 2>/dev/null; exit 0 ;;
+  new-session)
+    # tmux-newfail: another launch created the session first
+    if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
+    exit 0 ;;
   *) exit 0 ;;
 esac
 """
@@ -321,3 +330,36 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
         assert out.returncode == 2, (label, out.stderr)
         assert "not attaching" in out.stderr, (label, out.stderr)
         assert not any(ln.startswith("attach") for ln in _log(home)), (label, _log(home))
+
+
+def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path) -> None:
+    """Two launches of one repo (a double-clicked `.bat`): the loser's `new-session` fails because the winner just
+    created the session, whose root the winner records a moment later. The loser re-reads an empty owner once, then
+    attaches to its own repo's grid without touching it — or refuses a same-named grid of another folder."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    cases = {
+        "race-mine": (True, str(repo), 0),
+        "race-other": (True, "/opt/elsewhere/fabrik-lib", 2),
+        "late-owner-mine": (False, str(repo), 0),
+    }
+    for label, (race, owner, rc) in cases.items():
+        home = _tmux_home(tmp_path / label, repo, has=not race, owner=owner)
+        if race:
+            (home / "tmux-newfail").write_text("", encoding="utf-8")
+        (home / "tmux-owner-late").write_text("", encoding="utf-8")
+        out = _run(str(repo), home=home)
+        log = _log(home)
+        assert out.returncode == rc, (label, out.stderr, log)
+        reads = [ln for ln in log if ln.startswith("show-options")]
+        assert len(reads) == 2, (label, log)  # the empty first read is re-read once
+        assert not any(
+            ln.startswith(("split-window", "select-pane", "set-option")) for ln in log
+        ), (
+            label,
+            log,
+        )
+        if rc == 0:
+            assert log[-1] == "attach -t =fabrik-lib", (label, log)
+        else:
+            assert not any(ln.startswith("attach") for ln in log), (label, log)
+            assert "belongs to /opt/elsewhere/fabrik-lib" in out.stderr, (label, out.stderr)
