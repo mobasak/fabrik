@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a desktop launcher per repo from `agents_bat.py` (2026-10-19)
+
+- `scripts/sysadmin/agents_bat.py` writes one self-contained `<Repo> Agents.bat` for every /opt repo with a `.fabrik/session-agents.json`. It prints by default and writes only under `--desktop`. A double-click opens the repo's `agents_up.sh` grid maximized, each builder resuming its own session in its own worktree, with nothing asked on screen. The .bat carries its own Windows Terminal profile (font 9) as a JSON fragment, so no hand-made profile is needed and settings.json is never edited. `agents_up.sh` adopts a grid an older hand-built launcher left running when every pane is one of the repo's builders. Decision D-1048; item W-bb6c9d9a (D-1042).
+
 ### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
 
 - Three kaizen closes each paid a review round for a draft its reading step never put in front of it: a sentence restating the probe catalogue's own hunt line (pointed at by path, never included), a flag list and scope that overruled the next bullet, and items that narrowed their paragraph's bounds. PHASE 3 now reads, before the first draft, the files the target points at by path for the same subject, the row's own words, the rule the edit extends, and the paragraph or list the new text joins (its lead-in and the items beside the new text), leaving their bounds standing unless the row is a decision. Pinned by equality in `tests/test_command_improve_queue_pass.py`.
