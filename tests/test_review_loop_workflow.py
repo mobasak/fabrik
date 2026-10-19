@@ -2617,6 +2617,12 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         assert "Run the gate TWICE" in p and "MANIFEST.md5" in p, label
         # strings only GATE_PINS carries (review pass 1: two above also occur in PIN_IMPORT)
         assert 'KAIZEN_EVENTS_DIR"]="SCRATCH/events"' in p and '"--check","--json"' in p, label
-        assert "> SCRATCH/gate-pins.json" in p and "a pin-set row" in p, label
-        assert "WITHOUT any of the pytest recipe's guards" in p and "`warnings`" in p, label
+        assert "> SCRATCH/gate-base.json" in p and "> SCRATCH/gate-pins.json" in p, label
+        assert "a pin-set row" in p and "WITHOUT any of the pytest recipe's guards" in p, label
+        assert "then `failures`, `warnings`, `skipped_checks` and `advisory`" in p, label
+        # review pass 2: each remaining rule a seat acts on, pinned by its own words
+        assert "a check whose script is missing is a green row reported only in `warnings`" in p, label
+        assert "a diff-sensed skip (nothing in its scope changed) is scope" in p, label
+        assert "the verdict is some 25 KB" in p and "launch both runs with `--lean`" in p, label
+        assert "after copying the gitignored inputs, look for that arming" in p, label
         assert "${" not in p, f"{label}: an uninterpolated template expression"
