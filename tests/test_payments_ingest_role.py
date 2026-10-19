@@ -263,20 +263,27 @@ def test_resolve_applicability_payments_ingest() -> None:
     )
 
 
-def _prov_with(pi_result, flag=True, grant=None, dry_run=False):
-    """Drive the ingest block with the driver boundary mocked; ``prov.events`` records the
-    order of mint, DSN injection and grant (``grant`` may raise to model a failing batch)."""
+def _prov_with(pi_result, flag=True, grant=None, dry_run=False, fulfil=False, paths=None, vps=None):
+    """Drive the payments blocks with the driver boundary mocked; ``prov.events`` records the
+    order of mint, DSN injection and grant (``grant`` may raise to model a failing batch;
+    ``paths`` maps a lane to the grant path it returns, or to an exception it raises)."""
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
     ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
+    if vps:
+        ctx.target_vps = vps
     events: list[tuple[str, ...]] = []
 
     def _mint(db, lane, dry_run=False, **k):
         events.append(("mint", lane))
-        return pi_result(db)
+        return {**pi_result(db), "user": f"{db}_payments_{lane}"}
 
     def _grant(db, lane, dry_run=False, **k):
         events.append(("grant", lane, "dry_run") if dry_run else ("grant", lane))
-        return grant(db) if grant else {"grants": "module"}
+        if paths and lane in paths:
+            if isinstance(paths[lane], Exception):
+                raise paths[lane]
+            return {"grants": paths[lane]}
+        return grant(db) if grant else {"grants": "dry_run" if dry_run else "module"}
 
     prov.deployer.inject_env.side_effect = lambda c, env: events.append(("inject", *sorted(env)))
     with (
@@ -288,7 +295,14 @@ def _prov_with(pi_result, flag=True, grant=None, dry_run=False):
         _mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=_mint) as m,
         _mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=_grant),
     ):
-        prov._provision_postgres("ti", {}, ctx, dry_run=dry_run, provision_payments_ingest=flag)
+        prov._provision_postgres(
+            "ti",
+            {},
+            ctx,
+            dry_run=dry_run,
+            provision_payments_ingest=flag,
+            provision_payments_fulfilment=fulfil,
+        )
     prov.events = events  # type: ignore[attr-defined]
     return prov, ctx, m
 
@@ -365,6 +379,148 @@ def test_not_provisioned_when_flag_false() -> None:
         lambda db: {"user": "x", "password": "PW", "status": "created"}, flag=False
     )
     m.assert_not_called()
+
+
+# ── plan-2 Phase B: the fulfilment block, and both blocks' status from the grant path ──
+_FRESH = lambda db: {"user": "-", "password": "PW", "status": "created"}  # noqa: E731
+_EXISTS = lambda db: {"user": "-", "password": None, "status": "exists"}  # noqa: E731
+_URL = {"ingest": "PAYMENTS_INGEST_DATABASE_URL", "fulfilment": "PAYMENTS_FULFILMENT_DATABASE_URL"}
+
+
+def _pay_failures(ctx):
+    return [f for f in ctx.registrar_failures if f.startswith("payments-")]
+
+
+def _status_of(ctx, lane):
+    recs = ctx.get_resources_by_type(f"payments-{lane}-role")
+    return [r.metadata.get("status") for r in recs]
+
+
+def test_resolve_applicability_payments_fulfilment() -> None:
+    on = resolve_applicability(
+        {"shape": {"needs_database": True, "needs_payments_fulfilment": True}}
+    )
+    assert on["payments_fulfilment"] == (True, "shape.needs_payments_fulfilment=true")
+    off = resolve_applicability({"shape": {"needs_database": True}})
+    assert off["payments_fulfilment"][0] is False
+    bad = resolve_applicability(
+        {"shape": {"needs_payments_fulfilment": True, "needs_database": False}}
+    )
+    assert bad["payments_fulfilment"][0] is False
+    assert "needs_database=false" in bad["payments_fulfilment"][1]
+
+
+def test_provision_dispatches_the_fulfilment_flag_to_the_postgres_block() -> None:
+    prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
+    ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
+    ctx.spec = {
+        "name": "ti",
+        "shape": {"needs_database": True, "needs_payments_fulfilment": True},
+        "watchdog": {"enabled": False},
+    }
+    with (
+        _mock.patch.object(prov, "_provision_shared_analytics"),
+        _mock.patch.object(prov, "_provision_postgres") as pp,
+        _mock.patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={}),
+    ):
+        prov.provision(ctx)
+    assert pp.call_args.kwargs["provision_payments_fulfilment"] is True
+    assert pp.call_args.kwargs["provision_payments_ingest"] is False
+
+
+def test_the_fulfilment_dsn_is_injected_after_its_mint_and_before_its_grant_ingest_first() -> None:
+    prov, _ctx, _m = _prov_with(_FRESH, fulfil=True)
+    pay = [
+        e
+        for e in prov.events
+        if e[0] in ("mint", "grant") or any(k.startswith("PAYMENTS_") for k in e[1:])
+    ]
+    assert pay == [
+        ("mint", "ingest"),
+        ("inject", "PAYMENTS_INGEST_DATABASE_URL"),
+        ("grant", "ingest"),
+        ("mint", "fulfilment"),
+        ("inject", "PAYMENTS_FULFILMENT_DATABASE_URL"),
+        ("grant", "fulfilment"),
+    ]
+
+
+def test_the_fulfilment_dsn_names_its_role_and_is_rewritten_for_a_spoke() -> None:
+    prov, _ctx, _m = _prov_with(_FRESH, flag=False, fulfil=True, vps="vps2")
+    injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
+    url = injected["PAYMENTS_FULFILMENT_DATABASE_URL"]
+    assert url.startswith("postgresql://ti_payments_fulfilment:PW@")
+    assert "postgres-main" not in url  # a spoke reaches the hub over the mesh, never by DNS
+
+
+def test_an_existing_fulfilment_role_injects_nothing_and_still_grants() -> None:
+    prov, _ctx, _m = _prov_with(_EXISTS, flag=False, fulfil=True)
+    assert not any("PAYMENTS_FULFILMENT_DATABASE_URL" in e for e in prov.events)
+    assert ("grant", "fulfilment") in prov.events
+
+
+@pytest.mark.parametrize(
+    ("lane", "path", "status"),
+    [
+        ("ingest", "module", "provisioned"),
+        ("ingest", "legacy", "provisioned"),
+        ("fulfilment", "module", "provisioned"),
+    ],
+)
+def test_a_granted_path_records_provisioned(lane: str, path: str, status: str) -> None:
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: path}
+    )
+    assert _status_of(ctx, lane) == [status]
+    assert _pay_failures(ctx) == [] and ctx.registrar_warnings == []
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_a_pending_path_records_pending_and_one_warning_never_a_failure(lane: str) -> None:
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: "pending"}
+    )
+    assert _status_of(ctx, lane) == ["pending"]
+    assert _pay_failures(ctx) == []
+    assert len(ctx.registrar_warnings) == 1
+    assert ctx.registrar_warnings[0].startswith(f"payments-{lane}-role: ")
+    assert "pending" in ctx.registrar_warnings[0]
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+@pytest.mark.parametrize(
+    "path",
+    [RuntimeError("grant path unreadable"), "unknown", "legacy-ish", ""],
+    ids=["raises", "unknown", "unrecognised", "empty"],
+)
+def test_an_unknown_path_or_a_raise_records_failed(lane: str, path) -> None:
+    if lane == "fulfilment" and path == "legacy-ish":
+        path = "legacy"  # the fulfilment lane has no legacy path: reading one is unknown
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: path}
+    )
+    assert _status_of(ctx, lane) == ["failed"]
+    assert len(_pay_failures(ctx)) == 1
+    assert _pay_failures(ctx)[0].startswith(f"payments-{lane}-role: ")
+    assert ctx.registrar_warnings == []
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_a_dry_run_records_dry_run_for_either_lane(lane: str) -> None:
+    prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", dry_run=True
+    )
+    assert ("grant", lane, "dry_run") in prov.events
+    assert _status_of(ctx, lane) == ["dry_run"]
+    assert _pay_failures(ctx) == [] and ctx.registrar_warnings == []
+
+
+def test_a_failing_ingest_block_still_runs_the_fulfilment_block() -> None:
+    prov, ctx, _m = _prov_with(
+        _EXISTS, fulfil=True, paths={"ingest": RuntimeError("boom"), "fulfilment": "module"}
+    )
+    assert _status_of(ctx, "ingest") == ["failed"]
+    assert _status_of(ctx, "fulfilment") == ["provisioned"]
 
 
 # ── Phase B/review: drop_database must not orphan the payments-ingest role ──

@@ -64,6 +64,10 @@ class DeploymentContext:
     # finishes, but a required step that did not happen must not exit green —
     # the CLI reads this to refuse the ✅ banner and exit nonzero; 01M1CKEK).
     registrar_failures: list[str] = field(default_factory=list)
+    # Applicable registrars that ran but could not finish yet for a reason outside the
+    # deploy (a payments grant `pending` until the project applies its schema). Printed
+    # under every summary, never a failure: the run still exits 0 on these alone.
+    registrar_warnings: list[str] = field(default_factory=list)
 
     @property
     def app_name(self) -> str | None:

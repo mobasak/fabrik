@@ -375,6 +375,16 @@ def plan(spec_path: str, secrets: tuple):
     click.echo("=" * 60)
 
 
+def _echo_registrar_warnings(ctx: Any) -> None:
+    """Print each ``ctx.registrar_warnings`` line under a completed run's summary.
+
+    A warning is a registrar that could not finish for a reason outside the deploy (a
+    payments grant left ``pending``); it never changes the exit code (W-4b1dfd76).
+    """
+    for warning in ctx.registrar_warnings:
+        click.echo(f"⚠ {warning}")
+
+
 def _emit_glitchtip_webhook_reminder(spec_path: str) -> None:
     """Phase 7 (deploy-readiness-gaps): after a successful ``fabrik apply`` of a
     watchdog ``error_webhook`` spec, print the one-time operator-manual GlitchTip
@@ -513,10 +523,12 @@ def apply(
             )
             for failure in ctx.registrar_failures:
                 click.echo(f"   ✗ {failure}")
+            _echo_registrar_warnings(ctx)
             _emit_glitchtip_webhook_reminder(spec_path)
             _post_deploy_sync()
             raise SystemExit(2)
         click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+        _echo_registrar_warnings(ctx)
         _emit_glitchtip_webhook_reminder(spec_path)
         _post_deploy_sync()
         raise SystemExit(0)
@@ -1154,9 +1166,11 @@ def redeploy(
                 )
                 for failure in ctx.registrar_failures:
                     click.echo(f"   ✗ {failure}")
+                _echo_registrar_warnings(ctx)
                 _post_deploy_sync()
                 raise SystemExit(2)
             click.echo(f"✅ Infrastructure refreshed for {ctx.spec.get('name')} ({ctx.app_name})")
+            _echo_registrar_warnings(ctx)
             if ctx.created_resources:
                 click.echo(f"   Tracked resources: {len(ctx.created_resources)}")
                 for r in ctx.created_resources:
