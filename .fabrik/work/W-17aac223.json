@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T13:03:20.544677Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "307d19c194225dcbcda759956756d68dad61be2f",
   "id": "W-17aac223",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "registry"
   ],
