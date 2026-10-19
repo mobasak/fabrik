@@ -66,8 +66,15 @@ def test_round_zero_cites_the_callee_in_both_review_contracts() -> None:
     }
     for frag, at in pin.items():
         zero = _between(_norm(FRAG / frag), "**Round zero", "bind the probe:")
+        # term-coverage's input-space duty moved to the head of its round zero (W-7c290366), so the
+        # interface duty now follows the class sweep there; term-edit keeps the input-space duty before it
+        before = (
+            "not to run another round; "
+            if frag == "term-coverage.md"
+            else "listed before the probe runs; "
+        )
         want = (
-            "listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the "
+            before + "a fix that names an interface (a function, flag, field or verb) cites the "
             f"callee's signature and line range read {at}, and is re-read against that range before the pin; "
             "a fix to a matcher, replacer, predicate or filter, a regex included"
         )

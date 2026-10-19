@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:08:17.485405Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-1dc074b6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide after the next ~10 /fabrik-review closes: count rejects citing term-coverage.md round zero's input-space duty; if they recur, kaizen words the note's input-class field and infra adds the grader (mail infra with the measurement)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "term-coverage.md round zero's Pass Ledger note ('; round-zero probe — <what>') is free text no gate reads (grep of scripts/ for 'round-zero probe': 0 hits), so whether a lead enumerated the fix's input space is unobservable — the 2026-10-19 W-7c290366 critiques (Opus + Fable) both named an observable record (the note names the input classes enumerated, graded by check_review_hygiene/check_convergence) as the cure placement cannot prove"
+}
