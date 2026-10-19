@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:35:47.335848Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5048181b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen wording edit to PHASE 2's target list (one clause: or a file the command points at by path), with its pin",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-command-improve.md PHASE 2's write-target list and lock check name 'one of the fragments that command renders (command grep -n include: names them)' but not a fragment the command points at by path (review-probe-catalogue.md, not installed), so a row whose fix belongs in the catalogue has no listed target and is never lock-checked — found by the Opus seat of the 2026-10-19 command-improve review"
+}

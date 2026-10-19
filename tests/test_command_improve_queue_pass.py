@@ -570,7 +570,7 @@ def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None
 
 
 def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -> None:
-    """Rows 1792407169, 1792408957, 1792405310: a draft restated the probe catalogue's own hunt line (pointed at by
+    """Rows 1792407169, 1792408957, 1792405310, 1792358510: a draft restated the probe catalogue's own hunt line (pointed at by
     path, never included), and two drafts narrowed or overruled the bullet or paragraph bound beside them. The
     sentence between its two neighbours is pinned by equality, so an added licence fails here."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
@@ -579,7 +579,9 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert p3.count(head) == 1 and p3.count(tail) == 1
     span = p3[p3.index(head) + len(head) : p3.index(tail)]
     assert span == (
-        "The files it points at by path for the same subject are read too (a review command's probe catalogue, whose"
-        " lines every brief applies), and so are the sentences and list items beside the one it joins, read whole for"
-        " the bounds they set and the acts they govern, which the new text neither narrows nor overrules. "
+        "The files the target points at by path for the same subject are read too (a review command's probe"
+        " catalogue, whose shape-matched lines every brief applies), and so are the row's own words, the rule the"
+        " edit extends, and the paragraph or list the new text joins, read whole — its lead-in and the items beside"
+        " the new text — for the bounds it sets and the acts it governs, which the new text leaves standing unless"
+        " the row is a decision settled as the decision sentence below says. "
     ), span
