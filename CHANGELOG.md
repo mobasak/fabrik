@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: the Callers hunt line names the join of a changed output against another producer's (2026-10-19)
+
+- A `/fabrik-review` close spent an extra closing pass because a fix changed the path form one function returned, and the line that joined that output with a second producer's keys (`final_gate_stop.py`'s commit leg) was never re-derived. The catalogue's "Callers and consumers" hunt line, which every review brief applies, now names every line that joins, compares or keys a changed output against another producer's, with the form each side's values take. Pinned in `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-task: MEASURE runs the incident's next step, both branch geometries, the prescribed spellings and a copied mechanism (2026-10-19)
 
 - Four `/fabrik-task` closes reported a design that both critiques sent back for a case MEASURE never ran. MEASURE now runs each of those cases before `design.md` is written:
