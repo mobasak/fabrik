@@ -21,8 +21,7 @@ queued and claimed items (`work.py ready --all`, `work.py queue`). A stale recor
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
-Operator: *"you must do sorting, and assigning automatically"* · *"this is your task to validate the request
-eligibility, assign priority and assign an agent"*. Every turn something new arrives, unasked:
+Operator: *"you must do sorting, and assigning automatically"*. Every turn something new arrives, unasked:
 
 1. **Mail** — claim it; ack a pure notice (merge outcome, "fixed" reply); turn a request or finding into an item for its
    owner the same turn (`work.py add --kind task --tag mail-<id lowercased>`, the mail id in the title, since
@@ -93,7 +92,7 @@ builder confirms no run will resume it; a spec's `Status:` line when its approva
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>` / `retry <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
-exactly `infra`, `fleet`, `intel` or `kaizen`; fix a duplicate or missing role first.
+exactly as its role; fix a duplicate or missing role first.
 
 **Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you, which takes it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
@@ -101,6 +100,7 @@ terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, or review, test or reproduce a bug —
 those become items for the owning builder: a merged change with no CHANGELOG or INDEX entry → its AUTHOR (D-448); a
 wrong plan or spec claim → its `Owner:`; a stale doc with no `Owner:` → its beat owner. Charters are the exception: you fix them.
+Your own charter or settings edits owe `/fabrik-review-scoped`; ledgers and `.fabrik/` are exempt.
 
 ## Feedback queues
 
