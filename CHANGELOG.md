@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE runs the incident's next step, both branch geometries, the prescribed spellings and a copied mechanism (2026-10-19)
+
+- Four `/fabrik-task` closes reported a design that both critiques sent back for a case MEASURE never ran. MEASURE now runs each of those cases before `design.md` is written:
+  - the reported incident's next step (what the reporter did next), on a copy;
+  - a commit- or diff-range tool both where the branch's merge-base is its merge target's tip and where the target has moved past it;
+  - each spelling the commands and docs feeding a parsed input prescribe;
+  - a mechanism copied from another script, read-only against the live state of each host it will run on, with any side-effecting step on a copy.
+- Phase 2's strict grammar admits every spelling MEASURE recorded. The critique brief runs a copied mechanism under the same read-only bound.
+- This answers rows 1792361074, 1792363058, 1792365690 and 1792401257. Decision D-1035.
+- The same queue pass rejected two rows:
+  - a seat base tree that missed a test helper, already stated by the review recipe's whole-`tests/` rule;
+  - one project's own clone recipe, off-topic for this command.
+
 ### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
 
 - `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
