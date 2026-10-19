@@ -2114,10 +2114,15 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
         if link.exists():
             # a REAL dir where the link belongs is the D-287 state; a silent resume kept it
             # invisible (scoped review, seat A F2) — say it, never touch it (it may hold live records)
+            how = (
+                f"run `claude_rotate.py --merge-shared {name}` (it links the dir, merges its entries and "
+                "parks what differs; --dry-run shows the plan)"
+                if name in _MERGE_SHARED_NAMES
+                else f"merge it into {CLAUDE_DIR / name} by hand and replace it with the symlink"
+            )
             notes.append(
                 f"{name}/ is a REAL directory, not the shared link — its contents are invisible "
-                f"to every other account; merge it into {CLAUDE_DIR / name} by hand and replace "
-                "it with the symlink"
+                f"to every other account; {how}"
             )
             continue
         src = CLAUDE_DIR / name
@@ -2253,6 +2258,192 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
         extra = (" + " + ", ".join(pushed)) if pushed else ""
         print(f"  {d.name}: {len(roster)} MCP servers{extra}")
     return 1 if failures else 0
+
+
+# The shared names `--merge-shared` may merge: each top-level entry is one session's dir (tasks/) or
+# one pid's record (sessions/), so an entry is a unit that can be moved or parked whole. projects/
+# holds whole transcripts and agents/commands/skills are operator content — no merge rule (W-125b4e19).
+_MERGE_SHARED_NAMES: Final = ("tasks", "sessions")
+
+
+def _merge_aside_glob(name: str) -> str:
+    return f"{name}.merged-*"
+
+
+def _is_lock_part(part: str) -> bool:
+    # the CLI's proper-lockfile writes `<x>.lock` FILES and `<x>.lock` DIRS beside what it locks
+    return part.endswith(".lock")
+
+
+def _entry_files(p: Path) -> list[Path]:
+    if p.is_file():
+        return [p]
+    return [
+        f
+        for f in sorted(p.rglob("*"))
+        if f.is_file()
+        and not f.is_symlink()
+        and not any(_is_lock_part(x) for x in f.relative_to(p).parts)
+    ]
+
+
+def _entry_signature(p: Path) -> dict[str, bytes]:
+    """An entry's content, lock files ignored: two copies with the same signature are the same."""
+    if p.is_file():
+        return {"": p.read_bytes()}
+    return {str(f.relative_to(p)): f.read_bytes() for f in _entry_files(p)}
+
+
+def _entry_age(p: Path) -> float:
+    """The newest mtime over an entry's files — never the dir's own, which moves on a create or a
+    delete but not on a rewrite in place."""
+    return max((f.stat().st_mtime for f in _entry_files(p)), default=0.0)
+
+
+def _task_files(p: Path) -> int:
+    return len(list(p.glob("*.json"))) if p.is_dir() else 0
+
+
+def _nearest_existing(p: Path) -> Path:
+    while not os.path.lexists(p) and p != p.parent:
+        p = p.parent
+    return p
+
+
+def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
+    """Merge every fleet account's REAL ``<name>/`` dir into the canonical ``~/.claude/<name>`` and
+    link it — the step the scaffolder leaves to the operator (it never touches a real dir).
+
+    The ACTIVE account's dir becomes the canonical one WHOLE (a rename), so what live sessions see
+    through ``active`` does not change; a live write in the rename→link gap meets ENOENT and the
+    CLI's lockfile retry outlasts it. Every other account's dir is renamed aside to
+    ``<name>.merged-<stamp>``, linked, and merged entry by entry: absent from canonical → moved in;
+    byte-identical (lock files ignored) → left in the aside dir; different → moved WHOLE under
+    ``<fleet>/backups/<name>-merged-from/<stamp>/<account>/``, never mixed in (the CLI numbers a
+    session's tasks per config dir, so two ``1.json`` are two tasks). Leftover aside dirs of an
+    earlier, stopped run are drained the same way. Nothing is ever deleted; an emptied aside dir is
+    removed. ``--dry-run`` prints the plan and moves nothing.
+
+    COBRA (D-253): the cheapest way to clear the dashboard warning is to link every account and
+    merge nothing — every list becomes invisible and the warning reads clean. The counter is the
+    warning itself: it also names an aside dir still holding an entry absent from canonical.
+    """
+    if name not in _MERGE_SHARED_NAMES:
+        sys.stderr.write(
+            f"claude_rotate: --merge-shared takes {' or '.join(_MERGE_SHARED_NAMES)} — {name}/ has no "
+            "merge rule (merge it by hand)\n"
+        )
+        return 2
+    canon = CLAUDE_DIR / name
+    if os.path.lexists(canon) and (canon.is_symlink() or not canon.is_dir()):
+        sys.stderr.write(f"claude_rotate: {canon} exists and is not a directory — nothing moved\n")
+        return 1
+    fleet = _fleet_root()
+    park_root = fleet / "backups" / f"{name}-merged-from"
+    active = _resolve_active()
+    real: list[Path] = []
+    bad: list[str] = []
+    for d in _fleet_dirs():
+        p = d / name
+        if not os.path.lexists(p):
+            continue
+        if p.is_symlink():
+            if not (p.exists() and os.path.lexists(canon) and p.resolve() == canon.resolve()):
+                bad.append(f"{d.name}/{name} is a dangling or foreign link — left as it is")
+            continue
+        if p.is_dir():
+            real.append(d)
+        else:
+            bad.append(f"{d.name}/{name} is a file — left as it is")
+    leftovers = [
+        a for d in _fleet_dirs() for a in sorted(d.glob(_merge_aside_glob(name))) if a.is_dir()
+    ]
+    devices = {os.stat(d / name).st_dev for d in real}
+    devices |= {os.stat(a).st_dev for a in leftovers}
+    devices |= {
+        os.stat(_nearest_existing(canon)).st_dev,
+        os.stat(_nearest_existing(park_root)).st_dev,
+    }
+    if len(devices) > 1:
+        sys.stderr.write(
+            f"claude_rotate: the {name}/ dirs, {canon.parent} and {park_root} are not on one filesystem "
+            "— a rename cannot merge them; nothing moved\n"
+        )
+        return 1
+
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    takes_canon = (
+        None if os.path.lexists(canon) else next((d for d in real if d.name == active), None)
+    )
+    # (account, the dir its entries come from) — the plan reads it, the real run renames it first
+    sources = [(d.name, d / name) for d in real if d is not takes_canon]
+    sources += [(a.parent.name, a) for a in leftovers]
+    if not dry_run:
+        if takes_canon is not None:
+            os.rename(takes_canon / name, canon)
+            (takes_canon / name).symlink_to(canon, target_is_directory=True)
+            print(
+                f"  {takes_canon.name}: {name}/ became {canon} (the active account's list, unchanged)"
+            )
+        elif not os.path.lexists(canon):
+            canon.mkdir(mode=0o700, parents=True)
+        moved_sources = []
+        for acct, src in sources:
+            if src.name == name:  # a live real dir: aside, then link at once
+                aside = src.parent / f"{name}.merged-{stamp}"
+                os.rename(src, aside)
+                src.symlink_to(canon, target_is_directory=True)
+                moved_sources.append((acct, aside))
+            else:
+                moved_sources.append((acct, src))
+        sources = moved_sources
+    # the plan's picture of canonical: each entry's signature and task-file count, so a dry run
+    # computes the same actions and flags as the real run without touching anything
+    kept = canon if canon.is_dir() else None
+    if dry_run and takes_canon is not None:
+        kept = takes_canon / name
+    view = {e.name: _entry_signature(e) for e in kept.iterdir()} if kept else {}
+    view_tasks = {e.name: _task_files(e) for e in kept.iterdir()} if kept else {}
+    if dry_run and takes_canon is not None:
+        for e in sorted(view):
+            print(f"  {e}: keep {takes_canon.name} ({view_tasks[e]} task files)")
+    entries = [(acct, e) for acct, src in sources for e in src.iterdir()]
+    # an account's copy that reaches canonical first wins; newest files first among the rest
+    entries.sort(key=lambda ae: (ae[0] != active, -_entry_age(ae[1]), ae[0], ae[1].name))
+    counts: dict[str, dict[str, int]] = {}
+    for acct, e in entries:
+        sig = _entry_signature(e)
+        if e.name not in view:
+            action, view[e.name], view_tasks[e.name] = "move", sig, _task_files(e)
+        elif view[e.name] == sig:
+            action = "identical"
+        else:
+            action = "park"
+        counts.setdefault(acct, {"move": 0, "identical": 0, "park": 0})[action] += 1
+        flag = ""
+        if action == "park" and _task_files(e) and not view_tasks.get(e.name):
+            flag = f" ⚠ the kept list has no task file — this parked copy has {_task_files(e)}"
+        print(f"  {e.name}: {action} {acct} ({_task_files(e)} task files){flag}")
+        if dry_run or action == "identical":
+            continue
+        dest = canon / e.name if action == "move" else park_root / stamp / acct / e.name
+        dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.rename(e, dest)
+    for acct, n in sorted(counts.items()):
+        print(
+            f"  {acct}: moved {n['move']} · identical (left aside) {n['identical']} · parked {n['park']}"
+        )
+    if not dry_run:
+        for _acct, src in sources:
+            try:
+                src.rmdir()  # only an emptied aside dir; one holding copies stays
+            except OSError:
+                print(f"  kept {src} (it holds copies identical to canonical entries)")
+        if any(c["park"] for c in counts.values()):
+            print(f"  parked under {park_root / stamp}")
+    for line in bad:
+        sys.stderr.write(f"claude_rotate: {line}\n")
+    return 1 if bad else 0
 
 
 def _is_claude_process(argv: list[str]) -> bool:
@@ -4768,13 +4959,25 @@ def _shared_link_warnings() -> list[str]:
                 bad.append(f"{d.name}/{name}")
             else:
                 bad.append(f"{d.name}/{name} (a FILE, not a dir)")
+        # a merge that stopped after a swap: its aside dir still holds an entry canonical lacks, which
+        # every account's link now hides — never read clean (W-125b4e19)
+        for name in _MERGE_SHARED_NAMES:
+            for aside in sorted(d.glob(_merge_aside_glob(name))):
+                if aside.is_dir() and any(
+                    not os.path.lexists(CLAUDE_DIR / name / e.name) for e in aside.iterdir()
+                ):
+                    bad.append(
+                        f"{d.name}/{aside.name} (an unfinished merge — run --merge-shared {name})"
+                    )
     if not bad:
         return []
     return [
         f"⚠ shared state fragmented: {', '.join(bad)} — where the link to {CLAUDE_DIR}/<name>/ "
-        "belongs (sessions/: the peer list shrinks to one after a flip, D-287); a REAL dir is "
-        "merged into the canonical dir by hand and replaced with the symlink; a dangling link "
-        "heals on --new-dir resume when the canonical dir exists or the scaffolder creates it"
+        "belongs (sessions/: the peer list shrinks to one after a flip, D-287); a REAL tasks/ or "
+        "sessions/ dir, or an unfinished merge, is finished by `claude_rotate.py --merge-shared "
+        "<name>` (--dry-run first); any other REAL dir is merged by hand and replaced with the "
+        "symlink; a dangling link heals on --new-dir resume when the canonical dir exists or the "
+        "scaffolder creates it"
     ]
 
 
@@ -8443,6 +8646,9 @@ def main(argv: list[str] | None = None) -> int:
         ``--new-dir <slug> <email> [--project /opt/<repo>]``  scaffold a dir + its carrier
         ``--sync-mcp``      re-push the MCP roster into every fleet dir
         ``--sync-shared``   …and the settings.json copy with it
+        ``--merge-shared <tasks|sessions> [--dry-run]``  merge every account's REAL dir of that
+                            name into ~/.claude/<name> and link it (the active account's copy
+                            wins; a different copy is parked, nothing deleted)
         ``--keepalive``     RETIRED 2026-09-12 — a no-op that says why (rc 0): a ping never
                             extends a refresh chain; re-login monthly per account instead
         ``--touch``         RETIRED 2026-09-13 — a no-op that says why (rc 0): the temp-dir COPY
@@ -8462,7 +8668,8 @@ def main(argv: list[str] | None = None) -> int:
             "usage: claude_rotate.py [--list | --switch <name> | --park|--unpark <email> | --next | --capture-current"
             " | --drift-check | --status | --probe-current | --tick | --battery-tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
-            " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
+            " | --sync-mcp | --sync-shared | --merge-shared <tasks|sessions> [--dry-run]"
+            " | --keepalive | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -8512,6 +8719,14 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_sync_shared(
             include_settings=args[0] == "--sync-shared", source=opts.get("--from")
         )
+    if args[0] == "--merge-shared":
+        rest = [a for a in args[1:] if a != "--dry-run"]
+        if len(rest) != 1 or rest[0].startswith("-"):
+            sys.stderr.write(
+                "usage: claude_rotate.py --merge-shared <tasks|sessions> [--dry-run]\n"
+            )
+            return 2
+        return _cmd_merge_shared(rest[0], dry_run="--dry-run" in args[1:])
     if args[0] == "--pause-switch":
         # A broken state dir is exactly the situation the fail-closed messages send the operator
         # here to fix — report it, never traceback out of main().
