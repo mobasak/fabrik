@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:50:45.672114Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-630b4a3e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
+  },
+  "next": "send exam-coach a request mail (mail.py send --to exam-coach --kind finding) naming the route, the spec and the template change; ack when exam-coach replies it is removed",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "security: an unauthenticated route spends the repo's model key; one cross-repo request mail",
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "adopt W-ab242b11 in exam-coach: /opt/exam-coach/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail exam-coach to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
+}

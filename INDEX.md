@@ -361,7 +361,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-15T09:46 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:20 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -428,6 +428,7 @@ docs/
 │   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
 │   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
+│   │   ├── 2026-10-14-plan-1-chrome-extension-devmode-release-kit.md
 │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement
 │   │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement.md
 │   │   │   ├── T01-deployer-helpers.md
@@ -446,16 +447,9 @@ docs/
 │   │   ├── 2026-10-14-plan-2-one-door-lane.md
 │   │   ├── 2026-10-15-plan-1-coordinator-role.md
 │   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
+│   │   ├── 2026-10-15-plan-2-apply-template-defaults-parity.md
+│   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
-│   │   ├── 2026-10-17-plan-1-command-centre-dashboard
-│   │   │   ├── 2026-10-17-plan-1-command-centre-dashboard.md
-│   │   │   ├── T01-ui-kit.md
-│   │   │   ├── T02-server-wiring.md
-│   │   │   ├── T03-overview-view.md
-│   │   │   ├── T04-work-view.md
-│   │   │   ├── T05-accounts-view.md
-│   │   │   ├── T06-usage-commands-services.md
-│   │   │   └── T07-integration.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1165,6 +1159,7 @@ docs/
 │       ├── 2026-10-14-lane-default-sentence-review.md
 │       ├── 2026-10-14-one-door-lane-plan-review.md
 │       ├── 2026-10-14-phase-receipt-worktrees-review.md
+│       ├── 2026-10-14-plan-1-chrome-extension-devmode-release-kit-plan-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T01-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T02-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T03-review.md
@@ -1187,13 +1182,105 @@ docs/
 │       ├── 2026-10-14-schema-sync-migration-governance-review.md
 │       ├── 2026-10-14-two-sided-lane-gate-review.md
 │       ├── 2026-10-14-w-c687ce60-lib-routing-review.md
+│       ├── 2026-10-15-agent-status-reader-review.md
+│       ├── 2026-10-15-apply-template-defaults-parity-plan-review.md
 │       ├── 2026-10-15-by-design-ledger-owner-review.md
+│       ├── 2026-10-15-chrome-ext-release-kit-review.md
+│       ├── 2026-10-15-dashboard-agents-table-review.md
+│       ├── 2026-10-15-dashboard-item-verdict-review.md
+│       ├── 2026-10-15-dashboard-pause-buttons-review.md
+│       ├── 2026-10-15-gate-act-halt-review.md
+│       ├── 2026-10-15-held-major-in-flight-review.md
+│       ├── 2026-10-15-paused-workers-review.md
+│       ├── 2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md
 │       ├── 2026-10-15-plan-1-coordinator-role-review.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
 │       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
+│       ├── 2026-10-15-plan-2-apply-template-defaults-parity-review.md
+│       ├── 2026-10-15-run-scratch-clause-review.md
+│       ├── 2026-10-15-scratch-close-vouch-review.md
+│       ├── 2026-10-15-scratch-lifecycle-conformance-review.md
 │       ├── 2026-10-15-scratch-lifecycle-spec-review.md
+│       ├── 2026-10-15-seat-run-scratch-review.md
+│       ├── 2026-10-15-w-2bc42fc3-operator-named-trigger-review.md
+│       ├── 2026-10-15-w-8dd25072-remote-mktemp-staging-review.md
+│       ├── 2026-10-15-w-b9c91cc5-split-table-review.md
+│       ├── 2026-10-15-w-fc3eddd8-spoke-registrars-review.md
+│       ├── 2026-10-16-agent-role-payload-sid-review.md
+│       ├── 2026-10-16-battery-hold-review.md
+│       ├── 2026-10-16-cert-runtime-md-review.md
+│       ├── 2026-10-16-mesh-network-death-review.md
+│       ├── 2026-10-16-scratch-partials-review.md
+│       ├── 2026-10-16-scratch-write-after-close-review.md
+│       ├── 2026-10-17-command-centre-dashboard-plan-review.md
+│       ├── 2026-10-17-command-centre-dashboard-spec-review.md
+│       ├── 2026-10-17-command-run-capture-verb-review.md
+│       ├── 2026-10-17-command-scratch-home-and-d335-reason-review.md
+│       ├── 2026-10-17-next-carry-corpus-review.md
+│       ├── 2026-10-17-oauth-transport-latch-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T01-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T02-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-T03-T06-review.md
+│       ├── 2026-10-17-plan-1-command-centre-dashboard-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
+│       ├── 2026-10-17-stop-hook-uncommitted-vs-running-review-review.md
+│       ├── 2026-10-17-test-caps-w162398ef-review.md
+│       ├── 2026-10-17-w-177082fc-review-loop-candidate-file-review.md
+│       ├── 2026-10-17-w-2118e9c9-adopt-undeclared-review.md
+│       ├── 2026-10-17-w-6399d1a3-retry-slice-review.md
+│       ├── 2026-10-17-w-9f436e18-next-edges-review.md
+│       ├── 2026-10-17-w-b1f67743-ids-help-review.md
+│       ├── 2026-10-17-w-b1f67743-next-carries-open-claims-r-review.md
+│       ├── 2026-10-17-w-c5f39b74-ids-carry-meaning-review.md
+│       ├── 2026-10-17-w51d6c153-redeploy-validate-final-review.md
+│       ├── 2026-10-17-w6f690b90-env-file-optional-review.md
+│       ├── 2026-10-17-w807287f1-deploy-local-validate-final-review.md
+│       ├── 2026-10-18-d961-no-workflow-in-the-hub-review.md
+│       ├── 2026-10-18-external-services-inventory-plan-review.md
+│       ├── 2026-10-18-external-services-page-spec-review.md
+│       ├── 2026-10-18-file-worker-heartbeat-healthcheck-review.md
+│       ├── 2026-10-18-ledger-not-a-link-source-review.md
+│       ├── 2026-10-18-ledger-read-seat-notes-review.md
+│       ├── 2026-10-18-merge-check-live-box-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T01-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T02-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-T03-review.md
+│       ├── 2026-10-18-plan-1-external-services-inventory-review.md
+│       ├── 2026-10-18-plan-2-saas-chat-auth-review.md
+│       ├── 2026-10-18-plan-2-saas-chat-auth-round1-findings.md
+│       ├── 2026-10-18-reply-exemption-wording-review.md
+│       ├── 2026-10-18-rule-grounding-all-review.md
+│       ├── 2026-10-18-saas-chat-auth-spec-review.md
+│       ├── 2026-10-18-scratch-line-wording-review.md
+│       ├── 2026-10-18-seat-guard-network-review.md
+│       ├── 2026-10-18-seat-home-read-rule-review.md
+│       ├── 2026-10-18-ssh-jump-preflight-w2b657bee-review.md
+│       ├── 2026-10-18-ssh-residue-w6a96f699-final-review.md
+│       ├── 2026-10-18-uv-seat-exception-review.md
+│       ├── 2026-10-18-v11-fable-seat-token-review.md
+│       ├── 2026-10-18-w-a846021a-doc-sync-tracked-review.md
+│       ├── 2026-10-18-w-ab242b11-slice1-template-chat-review.md
+│       ├── 2026-10-18-w393ffefa-seat-pin-fabrik-lib-review.md
+│       ├── 2026-10-18-w3c60b7db-seat-size-scope-review.md
+│       ├── 2026-10-18-w3d6a6236-manifest-baseexception-review.md
+│       ├── 2026-10-18-w5f3617e6-item-key-merge-review.md
+│       ├── 2026-10-18-w5feb6e9c-synced-manifest-loader-review.md
+│       ├── 2026-10-18-w719b2678-remote-staging-review.md
+│       ├── 2026-10-18-w79638b4a-paused-close-review.md
+│       ├── 2026-10-18-w7ae1169a-doc-index-percent-encoding-review.md
+│       ├── 2026-10-18-w8c57e84a-manifest-from-head-review.md
+│       ├── 2026-10-18-w8d98265e-halt-list-final-review.md
+│       ├── 2026-10-18-w945bf009-quota-hold-resolver-review.md
+│       ├── 2026-10-18-w98204c50-main-store-claim-review.md
+│       ├── 2026-10-18-wdd091f0d-commonmark-link-reader-review.md
+│       ├── 2026-10-18-wdeb8eb0f-exception-name-guard-committed-review.md
+│       ├── 2026-10-18-wf11e740e-link-readers-review.md
+│       ├── 2026-10-18-work-edit-render-review.md
+│       ├── 2026-10-19-panel-joint-artifact-review.md
+│       ├── 2026-10-19-w8008e144-halt-list-and-job7-review.md
+│       ├── 2026-10-19-wba306861-head-source-unread-review.md
+│       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1434,11 +1521,14 @@ docs/
 │   │   ├── 2026-10-08-review-coverage-commit-scope-ledger.md
 │   │   ├── 2026-10-12-owner-dsn-split-ledger.md
 │   │   ├── 2026-10-13-mail-routing-ledger.md
+│   │   ├── 2026-10-14-chrome-ext-devmode-release-kit-ledger.md
 │   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
 │   │   ├── 2026-10-14-coordinator-role-ledger.md
 │   │   ├── 2026-10-14-one-door-lane-ledger.md
+│   │   ├── 2026-10-15-apply-template-defaults-ledger.md
 │   │   ├── 2026-10-16-command-centre-dashboard-ledger.md
 │   │   ├── 2026-10-18-external-services-page-ledger.md
+│   │   ├── 2026-10-18-saas-chat-auth-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1544,12 +1634,17 @@ docs/
 │       ├── 2026-10-08-review-coverage-commit-scope-design.md
 │       ├── 2026-10-12-owner-dsn-split-design.md
 │       ├── 2026-10-13-mail-routing-design.md
+│       ├── 2026-10-14-chrome-extension-devmode-release-kit-design.md
 │       ├── 2026-10-14-coolify-verb-retirement-design.md
 │       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
+│       ├── 2026-10-15-apply-template-defaults-parity-design.md
+│       ├── 2026-10-15-review-seat-write-isolation-design.md
 │       ├── 2026-10-15-scratch-lifecycle-design.md
-│       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-16-command-centre-dashboard-design.md
+│       ├── 2026-10-17-merge-owner-grammar-design.md
+│       ├── 2026-10-18-external-services-page-design.md
+│       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1803,6 +1898,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_scaffold_ports_md.py](tests/test_scaffold_ports_md.py) | a new project's `PORTS.md` is byte-identical to the hub's port registry, never a per-project file (D-380); a missing hub registry is logged, not swallowed |
 | [test_scaffold_saas_worker_retry.py](tests/test_scaffold_saas_worker_retry.py) | the saas-skeleton worker's retry backoff: base before the first retry then doubling, jitter that survives the cap, no overflow, zero/negative/out-of-order knobs refused at import, the SQL binding checked structurally, `init: true` on the worker service and every knob in `.env.example` (75 §Retry) |
 | [test_scaffold_saas_web_wiring.py](tests/test_scaffold_saas_web_wiring.py) | a new saas-skeleton works as emitted: a real web login through the emitted IdP's CSRF middleware (own origin passes, foreign and unconfigured refused), /auth routed to the backend, the i18n provider mounted (saas-skeleton only), the theme script run in node, sign-in landing on /app, billing through the portal, one i18n kit in the hub |
+| [test_saas_chat_backend.py](tests/test_saas_chat_backend.py) | the saas-skeleton's emitted `/api/v1/chat` end to end on a real throwaway redis-server: 401/403/400/413/429/503 refusals spend nothing, the stream relays only `data:` frames, every outcome is counted, and the emitted throwaway-DB guard refuses DB 0 |
+| [test_saas_chat_limiter_lua.py](tests/test_saas_chat_limiter_lua.py) | the chat limiter's Lua script on a real redis-server: every bucket is checked before any is incremented, a key with no TTL gets its window back |
+| [test_saas_chat_client_template.py](tests/test_saas_chat_client_template.py) | the template chat client sends the session cookie and CSRF header, refreshes once on a 401, buffers frames across chunks, calls onComplete once and shows a 429's Retry-After; five spellings per check |
 | [test_scaffold_gpu_handler.py](tests/test_scaffold_gpu_handler.py) | python-api-gpu's emitted `gpu_handler.py`, imported the way the service would and driven through `httpx.MockTransport`: no `fabrik` import, submit to `/run`, polling, cancel on give-up, one `GpuJobError` for every failure, ids that could change the URL path refused, both RUNPOD variables in `.env.example`, compose and the spec (D-437) |
 | [wait_for_network.sh](scripts/wait_for_network.sh) | boot-time DNS guard for the WSL startup pipeline — bounded wait, always exits 0; closes the race that lost a drift alert, stranded an auto-commit and emptied a pool round in one boot (2026-09-04) |
 | [test_wait_for_network.py](tests/test_wait_for_network.py) | the guard must wait, bound the wait, never hang a login, and actually be wired into the hook before the alerting; plus the retired-windsurf skip that reclaims 60s of every boot |
@@ -1959,6 +2057,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [selfwatch_check.py](scripts/sysadmin/selfwatch_check.py) | User-level UserPromptSubmit hook (every window): is this session's self-watch ARMED? Reads a HELD per-sid `selfwatch.lock` flock as armed; unarmed → the arm order with the literal sid on every prompt; compact-resume not exempt. Fail-open. |
 | [feedback_watch_arm.sh](scripts/sysadmin/feedback_watch_arm.sh) | The kaizen window's ONE-WAKE feedback watch (the selfwatch_arm shape): holds `<sid>.feedbackwatch.lock`, wakes only when a command-feedback queue's depth rises, kaizen-addressed `ack: required` mail lands or a kaizen series file changes; the wake line names the `/fabrik-command-improve <cmd>` or the mail id |
 | [selfwatch_arm.sh](scripts/sysadmin/selfwatch_arm.sh) | Arms the resume-mesh self-watch as ONE background Bash task: runs `~/.claude/bin/claude-selfwatch.sh` unchanged, exits on its first line after stopping the watcher and its children (the lock is free for the re-arm), cuts the watcher's STAYS-ARMED clause and prints the re-arm order; `setpriv --pdeathsig` where present; D-356 |
+| [agents_up.sh](scripts/sysadmin/agents_up.sh) | Opens a repo's builder agents side by side in one tmux window, one pane per builder resuming its own session id, read from `<repo>/.fabrik/session-agents.json` (the coordinator gets no pane); validates every row before it reaches a shell, `--print` shows the grid and launches nothing; the per-repo form of `~/bin/hub-up` (D-1031) |
 | [doc-script-baseline.json](.fabrik/doc-script-baseline.json) | The doc↔script coverage ratchet's tracked floor (headerless-script count; may only go DOWN; 0 locks) — written by `render_doc_script_links.py --coverage`, read by the blocking gate row. |
 | [user_hook_gate.py](scripts/sysadmin/user_hook_gate.py) | User-level gate: runs a hub hook (`mcp_watch.py` / `quota_stop.py`) only when the project at cwd does not already wire it — sync-excluded repos get the MCP banner and the quota hold, synced repos never double-fire. Exit code and stdout pass through. |
 | [install_user_hooks.py](scripts/sysadmin/install_user_hooks.py) | Installs / verifies (`--check` — the warn-only `User-Level Hooks Registered` gate row, hub-only) the user-level hook entries (self-watch, MCP banner, quota hold, scratch advisory, worktree link, MCP reaper, the ROTATE advisory — D-736) in the canonical `~/.claude/settings.json` and every `~/.claude-fleet/*/settings.json`; idempotent, registration timeout 10 s (above the gate's inner 8 s). Review B10: the entries had no creator, verifier or restorer. |
@@ -1989,6 +2088,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [product-adoption-forces.md](docs/reference/product-adoption-forces.md) | The citable taxonomy of why people decide to use a product — 32 forces with stable `AF-n` ids under the JTBD four-forces umbrella (push/pull vs anxiety/habit), grouped pain/economics/emotion/social/timing/experience. Consumed at spec time (`/fabrik-spec` Phase 5's `Why this exists` names the primary persona's forces by id), rivals time (which force a competitor rides), and distribution time (channels follow the timing forces). |
 | [plan-lock-lifecycle.md](docs/reference/plan-lock-lifecycle.md) | The plan-lock subsystem reference — what writes a lock (prose, not code: three readers, zero writers), the writer-derived status partition, the eight labels, why `FINDINGS` must outrank `NOTHING VERIFIED`, the anchoring rule that makes the finished-token list safe, the `FOREIGN LOCK` jurisdiction boundary, and the two named exits (promote to blocking, or delete in favour of a mechanical writer). |
 | [multi-agent-operating-model.md](docs/reference/multi-agent-operating-model.md) | The multi-agent-per-repo operating model — N named sessions, one linked worktree each, one merge owner in the main checkout: the launch recipe per window (`CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`), the four sync-emitted artifacts (`.worktreeinclude`, the `settings.json` worktree block, the `.claude/worktrees/` ignore line, `rerere`/`push.autoSetupRemote`), the ownership surfaces + PLANS.md Owner column, the rebase-first `--no-ff` merge protocol in `epic_order` phase order, why `.fabrik/plan-locks/` stays per working tree (D-117), the shared-DB caveat, the tail, retirement, and the residual probes' results (R1/R2/R3/R6/R7) |
+| [repo-coordinator-rollout.md](docs/reference/repo-coordinator-rollout.md) | The runbook for rolling the hub's coordinator model out to a repo (D-1031): the five phases (tooling, roles and records, worktrees, autonomy, the first coordinator run), launching a repo's builders with `scripts/sysadmin/agents_up.sh`, and the Windows Terminal profile and `.bat` the operator installs |
 | [2026-08-26-session-plan-lock-release-surface-review.md](docs/development/reviews/2026-08-26-session-plan-lock-release-surface-review.md) | Adversarial review of the shipped plan-lock-release surface through the FLEET lens — the check exits 0 in all 48 projects and `examined` matches the on-disk lock count in every one (the two classes that made a sibling check red every project's gate and silently examine nothing). 15 adjudicated classes; the one proposed fix was rejected because measuring it against the whole corpus showed it loses a real finished plan. |
 | [2026-10-03-w-b5ba0c37-ledger-flock-review.md](docs/development/reviews/2026-10-03-w-b5ba0c37-ledger-flock-review.md) | /fabrik-review (phase 4 of /fabrik-task W-b5ba0c37) over the rotate-ledger flock in `claude_rotate.py` — 2 passes, 2 confirmed (the trim emptied the ledger when its window held no whole row, and that case's missing guard), closed at confirmed:0 by the round-1 seats (A 2/2) |
 | [2026-10-03-work-triage-wave1.md](docs/development/reviews/2026-10-03-work-triage-wave1.md) | Work-store triage wave 1 (D-531): 351 of 390 open items triaged against HEAD 2f5f570f5; the 36 closes a refuting verifier agreed with (33 fixed, 2 obsolete, 1 duplicate), each with its evidence |
@@ -2150,6 +2250,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_claude_stop_decider_selfwatch.py](tests/test_claude_stop_decider_selfwatch.py) | Graders for the Stop decider's self-watch arm exclusion (D-359): every real arm shape left out of the pending wakers, commands that only read the script kept, row order and a missing tool_use id |
 | [test_kaizen_agent_wiring.py](tests/test_kaizen_agent_wiring.py) | Graders for the fourth hub agent's wiring: `--to-agent kaizen`, the Stop ladder's feedback rung following `feedback_owner`, `--reject`, the relay's recipient, the one-wake feedback watch, its per-prompt check, the charter injection (count them with pytest --collect-only) |
 | [test_selfwatch_arm.py](tests/test_selfwatch_arm.py) | Graders for the self-watch arm wrapper over a stub watcher: wake, duplicate, missing watcher, TERM and SIGKILL of the task, no setpriv, silent watcher, a line without a newline |
+| [test_agents_up.py](tests/test_agents_up.py) | Graders for `agents_up.sh` through `--print`: one pane per builder in name order without the coordinator, a malformed registry refusing the launch, a repo with no registry refusing, the tmux-safe session name |
 | [test_user_hook_gate.py](tests/test_user_hook_gate.py) | Graders (count them with pytest --collect-only, a number here rots — closing review E7): defers only on a same-event registration at the resolved project root (substring in a comment/other event does not), a subdirectory cwd resolves the root, the REAL `quota_stop.py` deny passes through byte for byte (stdout JSON + exit code), a hang is fail-open with a stderr line, a missing hook is fail-open with a stderr line, the helper payload shapes. |
 | [test_install_user_hooks.py](tests/test_install_user_hooks.py) | Graders (count them with pytest --collect-only, a number here rots — closing review E7): `--check` fails on absence and install makes it pass; idempotent and preserves other keys; registration timeout exceeds the gate's inner timeout; a fleet dir added later is covered by the next run. |
 | [test_mcp_orphan_reaper.py](tests/test_mcp_orphan_reaper.py) | Graders for the MCP orphan reaper on a synthetic process table — signatures per stdio command, reparented-only selection, dry run kills nothing, TERM then KILL |

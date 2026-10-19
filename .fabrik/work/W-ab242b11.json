@@ -3,7 +3,7 @@
   "created": "2026-10-18T02:19:57.886448Z",
   "creator": "fleet",
   "effort": "high",
-  "evidence": "",
+  "evidence": "8a3c13bdf3b1563ec66860b967e64171d72b5461",
   "id": "W-ab242b11",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 2,
   "score_reason": "HIGH security; effort high on fleet's evidence: Pattern A auth means a design trade-off (backend route vs /auth/me check vs Next-side limiter), a /fabrik-spec; major, held behind the one in flight; interim mitigation (leave OPENROUTER_API_KEY unset) mailed to the 4 live projects",
-  "status": "open",
+  "status": "done",
   "tags": [
     "interim-mail-01m56g1k5b",
     "interim-mail-01m56g1kjw",

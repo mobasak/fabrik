@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
+
+- `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
+
 ### Changed — review-probe-catalogue: a review brief names the tests that load each changed module, for every seat to run (2026-10-19)
 
 - § Seat isolation said HOW a seat runs tests (the `PIN_IMPORT`/`PYTEST_PINS` recipe) but never WHICH. A new import that breaks a stubbed loader could pass every review run, because only the tests loading the module by path exercise it. A brief over changed code now names the tests that load each changed module, found by grepping `tests/` for each changed file's stem (or an `__init__.py`'s package dotted name) and keeping the hits that import or load it, for every seat to run by that recipe. A test the recipe leaves unrun stays unverified. This answers row 1792359501, a recurrence of the held subject full-suite-import-time-registration. It reaches `/fabrik-review`, `/fabrik-review-scoped`, `/fabrik-execute-plan`, `/fabrik-docs-review` and `/fabrik-spec-review`.
@@ -26,6 +30,10 @@ All notable changes to this project will be documented in this file.
 - MEASURE measured the population a change writes or thresholds only at design time. A check changed during the build therefore shipped with a fire rate nobody re-measured. BUILD now re-runs that population measurement on the built tree, beside the test slice, when the change adds, changes or removes a check, guard or threshold. This answers row 1792352977, a recurrence of the held subject resweep-corpus-on-widened-guard (D-1021, refined by D-1023 in review; `SIZE_CAP` 24260 → 24375).
 - The same queue pass rejected four rows: three already stated (1792350346, 1792356869, 1792357566) and one held as advice (1792352429, `gate-dirty-path-rule-before-writing-checkout`).
 
+### Fixed — Stop hook: a review whose surface names a commit range no longer blocks its own files (2026-10-19)
+
+- A right-now fix is committed before its review starts. When the review's `--surface` named a range (`range <a>..<b>`) and no file path, the Stop hook still reported the fix's files as unreviewed work, up to three blocked turns per fix. The hook now has git list the files a running review's range changed, in every spelling the hub's commands use (`@{upstream}...HEAD`, `main...HEAD`, `HEAD~3..HEAD`, two commit ids), and exempts them; the uncommitted-work cause reads the same list. A closed review's range counts only between two commit ids. Decision D-1030; item W-42ddde8f (mail 01M55CM91H).
+
 ### Fixed — Stop hook: a joint plan + spec PANEL APPROVED verdict can pass (2026-10-19)
 
 - The design-gate panel check read only the first word after a verdict's dash, so a heading naming a plan and a spec together could never be approved. It now reads the heading's ` + `-joined path list as a set and requires each seat's verdict to name exactly that set, on one line of the seat's own text. A heading with no path, or with prose, approves nothing. Decision D-1029; item W-f253a5eb (mail 01M553BN2D).
@@ -35,6 +43,21 @@ All notable changes to this project will be documented in this file.
 - In a linked worktree, a gate or live request served by a shared runtime runs the main checkout's code. Step 8's isolation bullet now says this and points at `docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated for how to prove the tree's own code. D7's live-request rule points a worktree reader at it. How a worktree run meets D7's live request is filed as W-1c8b3ebd for a panel decision. This answers row 1792337134, a recurrence of the held subject clone-proof-uses-docker-run.
 - Finish step 5 now says the run flips its own plan, and archives it as step 6 allows, at every position. It quotes the hub charter's condition for the coordinator doing either: "once no run is live on it and every ticket is merged". This answers row 1792345477. The project template's coordinator job (7) lacks that condition and is filed as W-77812e10.
 - Row 1792332816 was rejected as landed: `check_review_coverage.py` reads `fable` seats since 7186c590f.
+
+### Added — saas-skeleton: an authenticated, rate-limited backend chat route, POST /api/v1/chat (2026-10-19)
+
+- Every new saas-skeleton backend now emits `server/src/<pkg>/chat.py`. It streams an OpenRouter completion on the app's key only for a signed-in user, checked through the vendored `build_current_user` with a fail-closed denylist.
+- The checks run in order:
+  - a CSRF pass for cookie requests;
+  - the body (413/400);
+  - the key and model (503);
+  - one Lua script that checks the app, tenant (for a user who has one), user and IP (when it parses) buckets before it increments any (429 with `Retry-After`; 503 on a Redis error).
+- The emitted `_http_exc` now keeps an exception's headers, so `Retry-After` reaches the client.
+- Defaults are env-overridable: 1200 requests per fixed hourly window app-wide and `CHAT_MAX_TOKENS` 1024, a ceiling of 1,228,800 output tokens per window, up to twice that in a rolling hour that spans two windows (D-1022).
+- The project gets its own `server/tests/test_chat.py`, run against a throwaway `TEST_REDIS_URL` DB.
+- The template client (`components/chat/SSEStream.tsx`, `ChatUI.tsx`) and README target `/api/v1/chat`: the session cookie plus the CSRF header, one refresh on a 401, a 429's bucket and `Retry-After`, and a cut-off or empty reply all reach the user (D-1025).
+- The emitted test's throwaway-DB guard refuses a `TEST_REDIS_URL` on the app's own server and DB, whichever of the environment, the root `.env`, `.env.local` or `server/.env` names it, and refuses an app URL it cannot read.
+- The hub proves the route and the limiter on a real throwaway `redis-server`, and the client by running its hook under node: `tests/test_saas_chat_backend.py`, `tests/test_saas_chat_limiter_lua.py` and `tests/test_saas_chat_client_template.py` (W-ab242b11 slice 2, D-1013, D-1022, D-1025).
 
 ### Changed — /fabrik-task: MEASURE replays a work item's claimed failure beside the grep; a phase-2 unsettled second approach is the UPGRADE crossing (2026-10-18)
 
