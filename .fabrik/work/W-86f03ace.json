@@ -3,7 +3,7 @@
   "created": "2026-10-19T18:29:30.785076Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "38c8c3718bd850a50df77d17a76086ffa5742e05",
   "id": "W-86f03ace",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (D-956), point the probe catalogue's delta-brief reader run at the pin MANIFEST's base_sha now that review_loop_ledger.py records it (ec549daf5); LOW effort: one bullet",
-  "status": "open",
+  "status": "done",
   "title": "probe catalogue § Seat isolation: point the delta-brief reader run at the pin's MANIFEST base_sha now that review_loop_ledger.py pin records it (intel W-0b09fae6, ec549daf5; mail 01M5AP9XBB)"
 }
