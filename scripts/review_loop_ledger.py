@@ -1054,6 +1054,16 @@ def pin(
             blobs[f] = (root / f).read_bytes()
     # computed before anything is written, so a refused basis leaves no pins dir behind
     basis = base or ("HEAD" if ref is None else f"{ref}^")
+    # the full commit the pinned bytes are read against — HEAD for a working-tree pin, the `--from` ref
+    # otherwise — recorded so a delta brief's `base_sha` (D-1051) is checkable from the pin (W-0b09fae6). A
+    # fresh repo's HEAD names no commit and still pins (A-H1): null, never a refusal; a bad `--from` ref is
+    # already refused by ls-tree above
+    try:
+        base_sha = (
+            _vcs(root, "rev-parse", "--verify", f"{ref or 'HEAD'}^{{commit}}").decode().strip()
+        )
+    except subprocess.CalledProcessError:
+        base_sha = None
     change, unchanged = _change_diff(root, basis, blobs, explicit=base is not None)
     # the tree a seat could write into, taken BEFORE any write so the pins dir and its base are never in it
     tree = _tree(root) if top is not None else None
@@ -1088,6 +1098,7 @@ def pin(
                 {
                     "root": str(root),
                     "source": ref or "working-tree",
+                    "base_sha": base_sha,
                     "files": manifest,
                     "change_diff": hashlib.md5(change, usedforsecurity=False).hexdigest(),
                     "tree": tree,
@@ -1108,6 +1119,7 @@ def pin(
         "change_diff": str(pins_dir / "change.diff"),
         "change_diff_md5": _md5(pins_dir / "change.diff"),
         "basis": basis,
+        "base_sha": base_sha,
         "unchanged": unchanged,
     }
     _lock_tree(pins_dir)

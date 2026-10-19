@@ -928,6 +928,34 @@ def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["source"] != "working-tree"
 
 
+def test_pin_records_the_base_sha_it_was_read_against(tmp_path: Path) -> None:
+    """W-0b09fae6 (kaizen 01M5AHVAYZ): D-1051's delta brief names each pass's `base_sha`, so the pin records it
+    — the full commit its bytes are read against: HEAD for a working-tree pin, the resolved `--from` ref
+    otherwise — in MANIFEST.json and in the printed fragment, where a seat or a resuming lead can check it."""
+    repo = _repo(tmp_path)
+    first = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    (repo / "a.py").write_text("A = 2\n")
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qam", "second"],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    wt = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "wt"), "a.py")
+    ref = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "ref"), "--from", "HEAD~1", "a.py")
+    assert wt.returncode == 0 and ref.returncode == 0, wt.stderr + ref.stderr
+    assert json.loads((tmp_path / "wt" / "MANIFEST.json").read_text())["base_sha"] == head
+    assert json.loads((tmp_path / "ref" / "MANIFEST.json").read_text())["base_sha"] == first
+    assert json.loads(wt.stdout.strip().splitlines()[-1])["base_sha"] == head
+    assert json.loads(ref.stdout.strip().splitlines()[-1])["base_sha"] == first
+
+
 def test_pin_from_a_ref_ignores_the_working_tree_shape(tmp_path: Path) -> None:
     """Review A-S1 (pin-refusal wording): `--from` reads the bytes from the commit, so a working-tree
     symlink or deletion at that path is irrelevant — the committed regular file is pinned. A path that
@@ -1441,6 +1469,7 @@ def test_pin_in_a_repo_with_no_commit_diffs_from_nothing(tmp_path: Path) -> None
     got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p"), "a.py")
     assert got.returncode == 0, got.stderr
     assert "--- /dev/null" in (tmp_path / "p" / "change.diff").read_text()
+    assert json.loads((tmp_path / "p" / "MANIFEST.json").read_text())["base_sha"] is None
 
 
 def test_read_pins_flags_a_mutated_change_diff(tmp_path: Path) -> None:
