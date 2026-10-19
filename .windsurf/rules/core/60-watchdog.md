@@ -98,7 +98,6 @@ DB-mutating actions that are impossible by default. Both are also never offered 
 |---|---|---|
 | `wipe_redis_cache` | `SCAN` + `DEL` pattern | Project-prefixed forcibly; 100k key safety cap |
 | `reset_db_pool` | POST `/admin/reset-db-pool` with `X-Internal-Token` | Requires `SERVICE_INTERNAL_SECRET_KEY` env |
-| `install_log_drop_rule` | Add regex drop to promtail via hub update service | Never offered to the model (being retired, fabrik-lib SB-095) — not an `llm_actions` entry; refuses too-broad patterns (`.*`, `.+`, `^.*$`) |
 
 **Tier C** — escalate-only by default. With `propose_fix_prs: true`, also pushes branch `watchdog/<incident_id>`.
 
