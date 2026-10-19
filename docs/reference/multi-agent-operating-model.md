@@ -36,6 +36,10 @@ python3 /opt/fabrik/scripts/whoami_agent.py --as alpha   # then --who to confirm
 The env var still WINS where it is set, so a named launch never needs the command. Detail:
 `docs/workstation/agent-identity.md`.
 
+To reopen a repo's existing builders side by side, each resuming its own session, run
+`scripts/sysadmin/agents_up.sh <repo>`. It reads the builders from `<repo>/.fabrik/session-agents.json` and gives the
+coordinator no pane. The hub keeps `~/bin/hub-up`. Setup and rollout: `docs/reference/repo-coordinator-rollout.md`.
+
 ⚠️ **A window that lands in the main checkout and is not the merge owner MOVES, it doesn't
 relaunch** (spec 2026-09-29-hub-worktree-cutover-design.md § D5(a)): `EnterWorktree` into
 `.claude/worktrees/<name>` carries the running conversation forward ("the transcript follows" — see
