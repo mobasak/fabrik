@@ -319,24 +319,28 @@ def remote_mktemp(ssh_fn: Callable[..., str], *, directory: bool = False) -> str
 def install_world_readable(
     ssh_fn: Callable[..., str], scp_fn: Callable[..., None], local_path: str, dest: str
 ) -> None:
-    """Install a NON-SECRET local file at ``dest`` on the VPS as root:root 0644, via a mktemp stage.
+    """Install a local file at ``dest`` on the VPS as root:root 0644 (world-readable), via a mktemp stage.
 
     The stage comes from :func:`remote_mktemp`, so no other VPS user can pre-create or swap it
-    (W-42e79070). It is made 0644 BEFORE the ``sudo mv``, so a watcher of ``dest``'s directory
-    (Gatus) never sees the file at any other mode. It is removed on every failure, an interrupt
-    included; after a successful ``mv`` there is nothing left to remove. ``ssh_fn`` and ``scp_fn``
-    are the caller's own callables, so a test patching the caller's names still intercepts them.
+    (W-42e79070). It is made root:root 0644 BEFORE the ``sudo mv``, so ``dest`` appears in one
+    rename with its final owner and mode: a watcher of its directory (Gatus) never sees another,
+    and a failure leaves ``dest`` as it was. The content is readable by every VPS user once the
+    stage is 0644, exactly as the installed file is; a file that must not be is not for this
+    helper. The stage is removed (``sudo rm -f``: it may be root's by then) on every failure, an
+    interrupt included; after a successful ``mv`` there is nothing left to remove. ``ssh_fn`` and
+    ``scp_fn`` are the caller's own callables, so a test patching the caller's names still
+    intercepts them.
     """
     stage = remote_mktemp(ssh_fn)
+    quoted = shlex.quote(stage)
     try:
         scp_fn(local_path, stage)
         ssh_fn(
-            f"chmod 644 {shlex.quote(stage)} && "
-            f"sudo mv {shlex.quote(stage)} {shlex.quote(dest)} && "
-            f"sudo chown root:root {shlex.quote(dest)}"
+            f"sudo chown root:root {quoted} && sudo chmod 644 {quoted} && "
+            f"sudo mv {quoted} {shlex.quote(dest)}"
         )
     except BaseException:
         # best-effort: a failing cleanup never masks the original error
         with contextlib.suppress(Exception):
-            ssh_fn(f"rm -f {shlex.quote(stage)}", timeout=5)
+            ssh_fn(f"sudo rm -f {quoted}", timeout=5)
         raise

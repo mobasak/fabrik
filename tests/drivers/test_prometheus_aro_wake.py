@@ -195,7 +195,9 @@ def test_write_config_does_not_raise_when_mirror_write_fails(monkeypatch, tmp_pa
     fake_mirror = blocker / "prometheus.yml"
     monkeypatch.setattr(prom, "_LOCAL_PROMETHEUS_CONFIG_PATH", fake_mirror)
     monkeypatch.setattr(prom, "scp_to_vps", lambda *a, **k: None)
-    monkeypatch.setattr(prom, "ssh", lambda cmd, **k: "/tmp/fabrik-Ab3dE5gH7j" if cmd.startswith("mktemp") else "")
+    monkeypatch.setattr(
+        prom, "ssh", lambda cmd, **k: "/tmp/fabrik-Ab3dE5gH7j" if cmd.startswith("mktemp") else ""
+    )
 
     # Must not raise even though the mirror parent is unwriteable
     prom._write_config({"scrape_configs": []})

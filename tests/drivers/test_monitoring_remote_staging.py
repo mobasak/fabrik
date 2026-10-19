@@ -3,7 +3,8 @@
 A fixed name (`/tmp/prometheus.yml.staged`, `/tmp/redis-assignments.json`,
 `/tmp/gatus-endpoint-<name>.yaml`) let another VPS user pre-create or swap the file before the
 `sudo mv` installed it as root. `ssh.install_world_readable` stages in a `remote_mktemp` file, makes
-it 0644 before the move and removes it on every failure (D-1000's slice 2).
+it root:root 0644 before the move, so the destination appears in one rename with its final owner
+and mode, and removes it on every failure (D-1000's slice 2, D-1038).
 """
 
 from __future__ import annotations
@@ -13,6 +14,13 @@ import pytest
 from fabrik.drivers import gatus, prometheus, redis, ssh
 
 STAGE = "/tmp/fabrik-Ab3dE5gH7j"  # what the VPS's mktemp answers
+
+
+def _install(dest_quoted):
+    """The one command that installs the stage; ``dest_quoted`` as shlex.quote renders it."""
+    return (
+        f"sudo chown root:root {STAGE} && sudo chmod 644 {STAGE} && sudo mv {STAGE} {dest_quoted}"
+    )
 
 
 class _Remote:
@@ -39,20 +47,20 @@ class _Remote:
         return [c for kind, c in self.calls if kind == "ssh"]
 
 
-def test_the_helper_stages_in_mktemp_and_installs_0644_before_the_move(tmp_path):
+def test_the_helper_stages_in_mktemp_and_sets_owner_and_mode_before_the_move(tmp_path):
     r = _Remote()
     ssh.install_world_readable(r.ssh, r.scp, str(tmp_path / "f"), "/opt/x/conf.yml")
-    assert r.calls[0] == ("ssh", "mktemp /tmp/fabrik-XXXXXXXXXX")
-    assert r.calls[1] == ("scp", STAGE)
-    install = r.calls[2][1]
-    chmod, mv, chown = (
-        install.index(s) for s in ("chmod 644 " + STAGE, "sudo mv " + STAGE, "sudo chown root:root")
-    )
-    assert chmod < mv < chown
-    assert install.endswith("/opt/x/conf.yml")
-    assert not any("rm -f" in c for c in r.ssh_cmds()), (
-        "a successful install leaves nothing to remove"
-    )
+    assert r.calls == [
+        ("ssh", "mktemp /tmp/fabrik-XXXXXXXXXX"),
+        ("scp", STAGE),
+        ("ssh", _install("/opt/x/conf.yml")),
+    ], "a successful install leaves nothing to remove"
+
+
+def test_the_helper_quotes_the_destination_for_the_shell(tmp_path):
+    r = _Remote()
+    ssh.install_world_readable(r.ssh, r.scp, str(tmp_path / "f"), "/opt/x/my conf;id.yml")
+    assert r.ssh_cmds()[-1] == _install("'/opt/x/my conf;id.yml'")
 
 
 @pytest.mark.parametrize(
@@ -67,7 +75,7 @@ def test_the_helper_stages_in_mktemp_and_installs_0644_before_the_move(tmp_path)
 def test_the_helper_removes_the_stage_on_every_failure(remote, tmp_path):
     with pytest.raises((RuntimeError, KeyboardInterrupt)):
         ssh.install_world_readable(remote.ssh, remote.scp, str(tmp_path / "f"), "/opt/x/conf.yml")
-    assert remote.ssh_cmds()[-1] == f"rm -f {STAGE}"
+    assert remote.ssh_cmds()[-1] == f"sudo rm -f {STAGE}"
 
 
 def test_a_cleanup_failure_never_masks_the_original_error(tmp_path):
@@ -92,7 +100,7 @@ DRIVERS = {
     "gatus.add_aro_wake_endpoint": (
         gatus,
         lambda: gatus.add_aro_wake_endpoint("vps4", "10.99.0.4"),
-        gatus.GATUS_CONFIG_DIR,
+        gatus.GATUS_CONFIG_DIR + "/aro-wake-vps4.yaml",
     ),
     "prometheus._write_config": (
         prometheus,
@@ -119,5 +127,4 @@ def test_each_monitoring_driver_stages_through_mktemp(name, monkeypatch, tmp_pat
         )
     call()
     assert [remote for kind, remote in r.calls if kind == "scp"] == [STAGE]
-    install = next(c for c in r.ssh_cmds() if "sudo mv" in c)
-    assert install.startswith(f"chmod 644 {STAGE} && sudo mv {STAGE} {dest}")
+    assert [c for c in r.ssh_cmds() if "sudo mv" in c] == [_install(dest)]
