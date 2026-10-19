@@ -289,7 +289,7 @@ def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
             s5,
             "The same bar binds a summariser's claim that a page DOCUMENTS something, when the verdict rests on "
             "that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return "
-            "`INFERENCE` (Method step 4) when no line states it",
+            "`INFERENCE` (Method step 4) when no line states it but what you read implies it, else `WRONG`",
         ),
         (s4, s5, "JSON/XML keeps shape 3's routing."),
         (
