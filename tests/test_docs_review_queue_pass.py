@@ -59,3 +59,32 @@ def test_seat_briefs_and_the_orchestrator_apply_the_probe_catalogue() -> None:
         "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
         in p2
     )
+
+
+def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() -> None:
+    """W-21b629ed (intel mail 01M5AQ4754, D-1056): the fabrik-researcher agent returns INFERENCE and NEEDS-RAW-FETCH,
+    which the docs review's verdict table had no row for. Each now has one, and every verdict the agent names, in its
+    Return line and in Method step 4's list, has a row, so a new agent verdict with no table row fails here. Both
+    resolve into the other rows (a live-checkable claim is VERIFIED-or-WRONG), so neither has a self-audit count, and
+    only the orchestrator curls."""
+    src = _norm()
+    table = src[src.index("### Verdict taxonomy") : src.index("A seat's return cites")]
+    rows = set(re.findall(r"\| \*\*([A-Za-z0-9_-]+)\*\* \|", table))
+    agent = (ROOT / "commands" / "_agents" / "fabrik-researcher.md").read_text()
+    line = re.search(r"`<claim> → ([^ `]+) ·", agent)
+    assert line, "the agent's Return line moved"
+    returned = set(line.group(1).split("|"))
+    step4 = agent[agent.index("4. **Report a verdict**") : agent.index("5. **Freshness binds:**")]
+    leads = re.findall(r"^\s+- (.+?) —", step4, re.M)
+    listed = {name for lead in leads for name in re.findall(r"`([A-Za-z0-9_-]+)`", lead)}
+    assert listed == returned, sorted(listed ^ returned)
+    assert returned <= rows, sorted(returned - rows)
+    assert "rewrite the claim to what a source line states and re-verify it" in table
+    assert "The orchestrator curls the named URL and section (a seat never curls)" in table
+    assert (
+        "the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by"
+        " what they say, by the rows above, a source that seat cannot read either counting as none; only when none"
+        " of them states or contradicts it is it UNVERIFIABLE,"
+        " naming what a human should check" in table
+    )
+    assert "/ DEAD-removed / UNVERIFIABLE)" in src
