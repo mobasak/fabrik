@@ -31,12 +31,13 @@ it, or name in the brief why the shape does not have it.
   code, or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable
   diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix
   lands, never a model from memory.
-- One mutant per clause the edit states, written as a literal before/after (an ordering claim names its mutant);
-  re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta brief's mutant ids
-  too) against every test file the change touched or added, collected again after the fix with no selection that
-  leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond term-coverage rule (4)'s
-  environment-bound deselection (§ Seat isolation's exact node ids are for a seat's other test runs); probe each new
-  grader with its mutant.
+- One mutant per clause the edit states and one per guard it adds or alters (that guard removed — term-coverage rule
+  (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"), written
+  as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe
+  after each fix (a seat re-running a delta brief's mutant ids too) against every test file the change touched or
+  added, collected again after the fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`,
+  `-m`, `--ignore`) beyond term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids
+  are for a seat's other test runs); probe each new grader with its mutant.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
   and the completion gate on the pinned files; feed a sample row through every grader that parses the artifact; a
   synced hook change is checked for its fleet copies' md5.

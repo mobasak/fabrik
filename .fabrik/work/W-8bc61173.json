@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — researcher fetch-path rule gaps measured by four seats",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-researcher fetch-path rules: three gaps measured by four seats in one /fabrik-spec-review pass (2026-10-14)"
 }

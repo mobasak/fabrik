@@ -4,14 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — the Authelia driver no longer leaves its secret config world-readable in /tmp, and VPS locks moved out of /tmp (2026-10-19)
+### Changed — the probe catalogue's pre-pin mutant line asks one mutant per guard the change adds or alters (2026-10-19)
 
-- The Authelia add and remove scripts staged the live config, which holds the JWT and session secrets, in `/tmp/authelia.{cur,new}.$TS.yml` via `sudo tee`. sudo's umask on vps1 is 0022, so the copies were 0644. The ten backups sat in `/tmp` too, where they never survived tmp cleanup.
-- Both scripts now stage in a private root `mktemp -d` dir, removed by an EXIT trap that keeps the exit code, and check for the new file with `sudo test -f`.
-- The add script backs up only when the config changes: 0600, uniquely named, in the root 0700 `/var/backups/fabrik-authelia`, pruned to ten.
-- `locks.run_locked` now flocks a root-owned file in `/var/lib/fabrik-locks` and refuses a resource outside `[A-Za-z0-9_-]+`. Another VPS user can no longer pre-create the lock and block every Authelia and Backrest mutation.
-- `vps_sync` reports leftover `/tmp` locks as legacy.
-- W-3d834ded, D-1044.
+- Five answered review-scoped rejects (1792401243, 1792273324, 1792034388, 1791852372, 1791939536) found a new script's or a fix's guards untested across several closing passes, while the lead's pre-pin mutant line asked one mutant per clause the edit states. That line now asks one per guard the change adds or alters too, quoting term-coverage rule (4) for how each is proven (the guard removed) rather than restating it (W-33b84ff0).
+
+### Changed — /fabrik-review-scoped step 3 runs the rule-home search before a fix sentence is drafted (2026-10-19)
+
+- Seven or more answered review-scoped rejects cited step 3's point-or-quote rule and the probe catalogue's restatement sweep, because leads kept drafting a fix sentence first and found the rule's home only when a seat flagged it. Step 3 now says that before a fix writes a sentence stating a rule (a doc or command sentence, a code comment, a commit message), the catalogue's Sweep search runs first, and the report names its terms and hits or says the new sentence is the rule's home. Pinned by equality in `tests/test_review_scoped_queue_pass.py` (W-a634be1c).
 
 ### Changed — the review contracts' bounded hop counts a break a fix's own hunks created in a reader (2026-10-19)
 
@@ -20,6 +19,15 @@ All notable changes to this project will be documented in this file.
 ### Changed — term-coverage round zero leads with the fix's own input-space duty (2026-10-19)
 
 - Two of five `/fabrik-review` closes lost rounds to an input shape the author never ran before the pin (the other three asked for seat-side duties — D-1045), and the duty that asks for it sat fourth of about ten in one round-zero paragraph. `commands/_fragments/term-coverage.md` round zero now opens with it, bold; no word was added or lost. Placement is the reversible first step: W-1dc074b6 measures whether it works and holds the observable-record cure. Pinned in `tests/test_term_coverage_round_zero.py`.
+
+### Fixed — the Authelia driver no longer leaves its secret config world-readable in /tmp, and VPS locks moved out of /tmp (2026-10-19)
+
+- The Authelia add and remove scripts staged the live config, which holds the JWT and session secrets, in `/tmp/authelia.{cur,new}.$TS.yml` via `sudo tee`. sudo's umask on vps1 is 0022, so the copies were 0644. The ten backups sat in `/tmp` too, where they never survived tmp cleanup.
+- Both scripts now stage in a private root `mktemp -d` dir, removed by an EXIT trap that keeps the exit code, and check for the new file with `sudo test -f`.
+- The add script backs up only when the config changes: 0600, uniquely named, in the root 0700 `/var/backups/fabrik-authelia`, pruned to ten.
+- `locks.run_locked` now flocks a root-owned file in `/var/lib/fabrik-locks` and refuses a resource outside `[A-Za-z0-9_-]+`. Another VPS user can no longer pre-create the lock and block every Authelia and Backrest mutation.
+- `vps_sync` reports leftover `/tmp` locks as legacy.
+- W-3d834ded, D-1044.
 
 ### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
 
