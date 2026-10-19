@@ -55,11 +55,37 @@ def test_create_role_sql_is_non_bypassrls() -> None:
         assert "NOSUPERUSER" in create_sql
         # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
         assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
-        # the mint grants CONNECT and USAGE only, and never a membership
-        mint_sql = run.call_args_list[1].args[0]
-        assert 'GRANT CONNECT ON DATABASE "ti"' in mint_sql
-        assert "GRANT USAGE ON SCHEMA public" in mint_sql
-        assert " IN ROLE " not in create_sql and "GRANT ti_" not in mint_sql
+        assert " IN ROLE " not in create_sql
+        # the CREATE is the mint's ONLY statement: nothing after it can raise and lose the
+        # one-time password before the caller holds it (review round 1, A-haiku P-1)
+        assert len(run.call_args_list) == 1
+
+
+def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
+    """A role altered out of band (e.g. BYPASSRLS) is narrowed again, never trusted as-is."""
+    for lane in ("ingest", "fulfilment"):
+        with (
+            patch.object(pg, "_role_exists", return_value=True),
+            patch.object(pg, "_run_sql") as run,
+        ):
+            res = pg.mint_payments_role("ti", lane)
+        assert res["password"] is None and res["status"] == "exists"
+        alter_sql = run.call_args_list[0].args[0]
+        assert f'ALTER ROLE "ti_payments_{lane}"' in alter_sql
+        for attr in ("NOSUPERUSER", "NOCREATEDB", "NOCREATEROLE", "NOBYPASSRLS", "LOGIN"):
+            assert attr in alter_sql, attr
+        assert "PASSWORD" not in alter_sql  # the password is never reset on re-apply
+
+
+def test_the_grant_batch_grants_connect_and_usage_before_the_lane_grants() -> None:
+    for lane in ("ingest", "fulfilment"):
+        with patch.object(pg, "_run_sql", return_value="module") as run:
+            pg.grant_payments_role("ti", lane)
+        sql = run.call_args_list[0].args[0]
+        connect = sql.index(f'GRANT CONNECT ON DATABASE "ti" TO "ti_payments_{lane}"')
+        usage = sql.index(f'GRANT USAGE ON SCHEMA public TO "ti_payments_{lane}"')
+        assert connect < sql.index("\\c ti") < usage < sql.index("DO $$")
+        assert 'GRANT "ti_payments_' not in sql  # never a role membership
 
 
 def test_grant_batch_pins_the_three_tables_readwrite() -> None:
@@ -121,8 +147,9 @@ def test_the_fulfilment_batch_delegates_to_the_module_and_has_no_fallback() -> N
         in grant_sql
     )
     assert "to_regprocedure('payments_grant_fulfilment(pg_catalog.regrole)')" in grant_sql
-    # delegate-only: the hub writes no grant or policy of its own for the fulfilment lane
-    assert "GRANT " not in grant_sql.replace("payments_grant_fulfilment", "")
+    # delegate-only: beyond CONNECT and USAGE the hub writes no grant or policy of its own
+    lane_sql = grant_sql[grant_sql.index("DO $$") :]
+    assert "GRANT " not in lane_sql.replace("payments_grant_fulfilment", "")
     assert "CREATE POLICY" not in grant_sql
 
 
@@ -166,7 +193,7 @@ def test_fresh_password_only_on_create() -> None:
     with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
         res = pg.mint_payments_role("ti", "ingest")
     assert res["password"] is None and res["status"] == "exists"
-    # re-apply still re-runs the idempotent CONNECT/USAGE grants, but skips CREATE ROLE
+    # re-apply re-asserts the attributes (ALTER ROLE) but never CREATEs or resets the password
     assert not any("CREATE ROLE" in c.args[0] for c in run.call_args_list)
 
 
@@ -214,26 +241,65 @@ def test_resolve_applicability_payments_ingest() -> None:
     )
 
 
-def _prov_with(pi_result, flag=True):
+def _prov_with(pi_result, flag=True, grant=None):
+    """Drive the ingest block with the driver boundary mocked; ``prov.events`` records the
+    order of mint, DSN injection and grant (``grant`` may raise to model a failing batch)."""
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
     ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
+    events: list[tuple[str, ...]] = []
+
+    def _mint(db, lane, dry_run=False, **k):
+        events.append(("mint", lane))
+        return pi_result(db)
+
+    def _grant(db, lane, dry_run=False, **k):
+        events.append(("grant", lane))
+        return grant(db) if grant else {"grants": "module"}
+
+    prov.deployer.inject_env.side_effect = lambda c, env: events.append(("inject", *sorted(env)))
     with (
         _mock.patch(
             "fabrik.drivers.postgres.create_database",
             side_effect=lambda db, *a, **k: {"status": "exists", "database": db},
         ),
         _mock.patch("fabrik.drivers.postgres.database_exists", side_effect=lambda *a, **k: False),
-        _mock.patch(
-            "fabrik.drivers.postgres.mint_payments_role",
-            side_effect=lambda db, lane, dry_run=False, **k: pi_result(db),
-        ) as m,
-        _mock.patch(
-            "fabrik.drivers.postgres.grant_payments_role",
-            side_effect=lambda db, lane, dry_run=False, **k: {"grants": "module"},
-        ),
+        _mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=_mint) as m,
+        _mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=_grant),
     ):
         prov._provision_postgres("ti", {}, ctx, dry_run=False, provision_payments_ingest=flag)
+    prov.events = events  # type: ignore[attr-defined]
     return prov, ctx, m
+
+
+def test_the_dsn_is_injected_after_the_mint_and_before_the_grant() -> None:
+    prov, _ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"}
+    )
+    pay = [
+        e for e in prov.events if e[0] in ("mint", "grant") or "PAYMENTS_INGEST_DATABASE_URL" in e
+    ]
+    assert pay == [
+        ("mint", "ingest"),
+        ("inject", "PAYMENTS_INGEST_DATABASE_URL"),
+        ("grant", "ingest"),
+    ]
+
+
+def test_a_raising_grant_still_leaves_the_fresh_dsn_delivered() -> None:
+    """A grant that raises after a fresh mint must not strand the one-time password."""
+
+    def _boom(db):
+        raise RuntimeError("payments-ingest grant: grant path unreadable")
+
+    prov, ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"},
+        grant=_boom,
+    )
+    injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
+    assert injected["PAYMENTS_INGEST_DATABASE_URL"].startswith(
+        "postgresql://ti_payments_ingest:PW@"
+    )
+    assert ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "failed"
 
 
 def test_provision_injects_dsn_and_records_resource_on_fresh_create() -> None:

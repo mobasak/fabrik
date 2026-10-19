@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 
 import pytest
@@ -138,7 +137,12 @@ def test_the_function_path_grants_and_the_worker_claims_then_scopes() -> None:
 
 def test_the_fulfilment_login_passes_verify_service_role_and_bypasses_nothing() -> None:
     schema = _schema()
-    psycopg = pytest.importorskip("psycopg")
+    try:
+        import psycopg
+    except ImportError:
+        if os.environ.get("FABRIK_REQUIRE_REAL_PG") == "1":
+            pytest.fail("FABRIK_REQUIRE_REAL_PG=1 but psycopg is not installed")
+        pytest.skip("psycopg is not installed")
     sys.path.insert(0, str(_PAYMENTS))
     try:
         from payments.store import verify_service_role  # type: ignore[import-not-found]
@@ -211,6 +215,10 @@ def test_a_changed_signature_raises_the_signature_error_not_the_migration_one() 
         ) as e:
             _grant(s, "fulfilment")
         assert "2026-09-29-scoped-service-roles.sql" not in str(e.value)
+        # spec item 3.2 precedes 3.3: a changed signature raises even on a partial schema
+        _in_db(s, "DROP TABLE payments_audit_log CASCADE;")
+        with pytest.raises(RuntimeError, match="the signature the hub calls"):
+            _grant(s, "fulfilment")
 
 
 def test_a_public_fulfilment_insert_policy_refuses() -> None:
@@ -236,7 +244,7 @@ def test_a_legacy_ingest_install_migrated_grants_both_lanes_ingest_first() -> No
         _in_db(s, f"SET ROLE {DB};\n{_grant_functions()}")  # fabrik-lib's migration lands
         _mint(s, "fulfilment")
         # granted first, fulfilment's postcondition refuses the still-widened ingest role
-        with pytest.raises(RuntimeError, match="payments_grant_fulfilment"):
+        with pytest.raises(RuntimeError, match="reach the cross-tenant ingest policy"):
             _grant(s, "fulfilment")
         assert _grant(s, "ingest") == "module"  # narrows the ingest role to its columns
         assert _grant(s, "fulfilment") == "module"
@@ -277,18 +285,26 @@ def test_drop_database_drops_both_payments_roles(exists: bool) -> None:
 
     from unittest.mock import patch
 
-    with patch.object(pg, "_run_sql", side_effect=_capture):
+    with (
+        patch.object(pg, "_run_sql", side_effect=_capture),
+        patch.object(pg, "unregister_allocation"),
+        patch.object(pg, "unregister_postgres_plan"),
+    ):
         pg.drop_database(DB)
     joined = "\n".join(sqls)
     assert f'DROP ROLE IF EXISTS "{INGEST}"' in joined
     assert f'DROP ROLE IF EXISTS "{FULFIL}"' in joined
 
 
-def test_an_unreadable_grant_path_raises() -> None:
-    from unittest.mock import patch
-
-    for lane in ("ingest", "fulfilment"):
-        with patch.object(pg, "_run_sql", return_value="GRANT\nsomething else"):
-            with pytest.raises(RuntimeError, match="unreadable"):
-                pg.grant_payments_role(DB, lane)
-    assert uuid.UUID(ORG)  # the fixture org is a valid UUID
+def test_a_role_altered_out_of_band_is_narrowed_again_on_re_mint() -> None:
+    """mint re-asserts NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS on an existing role."""
+    _schema()
+    with scratch_pg() as s:
+        _owner_db(s)
+        _mint(s, "fulfilment")
+        s.run_sql(f'ALTER ROLE "{FULFIL}" BYPASSRLS CREATEDB;')
+        assert _can(s, f"(SELECT rolbypassrls FROM pg_roles WHERE rolname = '{FULFIL}')")
+        again = _mint(s, "fulfilment")
+        assert again["status"] == "exists" and again["password"] is None
+        assert not _can(s, f"(SELECT rolbypassrls FROM pg_roles WHERE rolname = '{FULFIL}')")
+        assert not _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")

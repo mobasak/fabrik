@@ -939,13 +939,14 @@ class InfrastructureProvisioner:
             # shape.needs_payments_ingest, mint a scoped NON-BYPASSRLS cross-tenant role
             # + inject PAYMENTS_INGEST_DATABASE_URL so PgWebhookStore.resolve_org() can
             # attribute unsigned-provider (iyzico) webhooks. DSN injected only on a fresh
-            # password (mirrors the watchdog lifecycle). Own try/except: non-fatal.
+            # password (mirrors the watchdog lifecycle) and BEFORE the grant runs, so a grant
+            # that raises never strands the one-time password (D-464 item 2). Own
+            # try/except: non-fatal.
             if provision_payments_ingest:
                 try:
                     from fabrik.drivers.postgres import grant_payments_role, mint_payments_role
 
                     pi = mint_payments_role(db_name, "ingest", dry_run=dry_run)
-                    grant_payments_role(db_name, "ingest", dry_run=dry_run)
                     if pi.get("password") and not dry_run:
                         pi_url = (
                             f"postgresql://{pi['user']}:{pi['password']}"
@@ -960,6 +961,7 @@ class InfrastructureProvisioner:
                             db_name,
                             pi["user"],
                         )
+                    grant_payments_role(db_name, "ingest", dry_run=dry_run)
                     ctx.add_resource(
                         "payments-ingest-role",
                         db_name,

@@ -993,11 +993,13 @@ def mint_payments_role(
 ) -> dict[str, Any]:
     """Mint the per-project NOBYPASSRLS payments role for ``lane`` (``ingest`` · ``fulfilment``).
 
-    ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`` with a CSPRNG
-    password on create only (``None`` on re-apply), then ``CONNECT`` on the database and
-    ``USAGE`` on ``public``; no membership is granted. The grants that give the role its reach
-    run separately in :func:`grant_payments_role`, AFTER the caller has delivered the DSN, so a
-    grant that raises never strands the one-time password (spec D-464 item 2).
+    On create: ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`` with a
+    CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
+    password before the caller holds it. On re-apply (``password`` ``None``): ``ALTER ROLE``
+    re-asserts the same attributes, so a role altered out of band (e.g. to BYPASSRLS) is
+    narrowed again rather than granted as it stands; the password is never reset. No membership
+    is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
+    AFTER the caller has delivered the DSN (spec D-464 item 2).
 
     Returns ``{"user", "password"|None, "status"}`` — ``status`` is ``created`` · ``exists`` ·
     ``dry_run``.
@@ -1007,23 +1009,19 @@ def mint_payments_role(
         logger.info("[DRY RUN] Would ensure payments-%s role %s on %s", lane, role, db_name)
         return {"user": role, "password": None, "status": "dry_run"}
 
+    attrs = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS"
     exists = _role_exists(role, container)
     pw = None if exists else _generate_password()
     if not exists:
         _run_sql(
-            "\\set ON_ERROR_STOP on\n"
-            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
-            f"NOBYPASSRLS PASSWORD '{pw}';",  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+            f"\\set ON_ERROR_STOP on\nCREATE ROLE \"{role}\" WITH {attrs} PASSWORD '{pw}';",  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
             container=container,
         )
-    # nosec B608 — db_name/role are _validate_identifier-gated.
-    _run_sql(
-        "\\set ON_ERROR_STOP on\n"
-        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{role}";\n'  # nosec B608
-        f"\\c {db_name}\n"
-        f'GRANT USAGE ON SCHEMA public TO "{role}";\n',
-        container=container,
-    )
+    else:
+        _run_sql(
+            f'\\set ON_ERROR_STOP on\nALTER ROLE "{role}" WITH {attrs};',  # nosec B608 — role is _validate_identifier-gated
+            container=container,
+        )
     status = "created" if not exists else "exists"
     logger.info("payments-%s role on %s: %s (%s) — NOBYPASSRLS", lane, db_name, role, status)
     return {"user": role, "password": pw, "status": status}
@@ -1033,6 +1031,10 @@ def grant_payments_role(
     db_name: str, lane: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
 ) -> dict[str, Any]:
     """Run ``lane``'s grant batch for the minted role and return ``{"grants": <path>}``.
+
+    The batch first grants ``CONNECT`` on the database and ``USAGE`` on ``public`` (idempotent;
+    they run here, not in :func:`mint_payments_role`, so nothing after the CREATE can strand
+    the password), then the lane's grants.
 
     ``ingest``: where the install carries fabrik-lib's ``payments_grant_ingest`` that function
     grants (policies extended, never replaced; column-level SELECT only) and the legacy
@@ -1047,7 +1049,12 @@ def grant_payments_role(
         logger.info("[DRY RUN] Would grant payments-%s role %s on %s", lane, role, db_name)
         return {"grants": "dry_run"}
 
-    parts: list[str] = ["\\set ON_ERROR_STOP on", f"\\c {db_name}"]
+    parts: list[str] = [
+        "\\set ON_ERROR_STOP on",
+        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{role}";',
+        f"\\c {db_name}",
+        f'GRANT USAGE ON SCHEMA public TO "{role}";',
+    ]
     if lane == "ingest":
         for t in _PAYMENTS_INGEST_READ_TABLES:
             parts.append(_payments_ingest_policy_block(t, role, write=False))
