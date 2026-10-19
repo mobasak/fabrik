@@ -6553,7 +6553,7 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser(
         "merge-item",
-        help="key-wise 3-way merge of one item file (git merge-driver convention: %O %A %B)",
+        help="key-wise 3-way merge of one item file (git merge-driver convention: %%O %%A %%B)",
     )
     s.add_argument("base", help="the merge base's copy (empty when both sides added the item)")
     s.add_argument("ours", help="our copy — the merged item is written here on success")

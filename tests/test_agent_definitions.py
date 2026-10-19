@@ -17,6 +17,7 @@ already owns `~/.claude/commands` and `~/.claude/skills`.
 from __future__ import annotations
 
 import importlib.util
+import re
 import tempfile
 from pathlib import Path
 
@@ -185,3 +186,82 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
     assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
     assert "judging the claim on the final page like any other" in researcher
     assert "VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher
+
+
+def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
+    """W-8bc61173 (mail 01M4VHFP7S, 3 of 4 seats in one pass): exa's `maxCharacters` lever and its cut reply;
+    exa for a short page and firecrawl's directQuote call FIRST for a long one, prompted by a locator, compared
+    character by character, re-asked on a wrong-place excerpt; and a summariser's "documents X" claim or a WebFetch
+    404 held to shape 4's bar. Each directive is asserted whole and inside its shape, and there are still six
+    shapes (scoped review passes 1 and 2: partial spans survived meaning-reversing mutants)."""
+    raw = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    researcher = " ".join(raw.split())
+    block = raw[raw.index("Fetch-path routing") : raw.index("- **Library/API docs:**")]
+    assert len(re.findall(r"(?m)^  \d\. ", block)) == 6
+    flat = " ".join(block.split())
+    s1, s2 = (
+        flat.index("1. A `WebFetch` reply"),
+        flat.index("2. **The raw arm silently drops angle-bracket"),
+    )
+    s4, s5 = (
+        flat.index("4. ⚠️ **A summariser answering ABSENCE"),
+        flat.index("5. **The raw arm silently DROPS"),
+    )
+    for span in (
+        "on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less",
+        "A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to "
+        "shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch",
+        "- `WRONG` / `DEAD` — the citation doesn't support the claim / the URL 404s on a live fetch too "
+        "(shape 4: a `WebFetch` 404 alone is not `DEAD`).",
+    ):
+        assert span in researcher, span
+    for lo, hi, span in (
+        (s1, s2, "use `mcp__exa__web_fetch_exa` on a SHORT page"),
+        (
+            s1,
+            s2,
+            "On a LONG page (a source file, a long reference page — anything longer than exa's cap) go to firecrawl "
+            'FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions: {"mode": '
+            '"directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}` and `maxAge: 0`',
+        ),
+        (
+            s1,
+            s2,
+            "compare the returned excerpt character by character with the claimed quote, and name the fetch path "
+            "in the verdict.",
+        ),
+        (s1, s2, "Never put the claimed quote's wording in the prompt"),
+        (
+            s1,
+            s2,
+            "An excerpt from the wrong place proves nothing either way: narrow the locator and ask again; if "
+            "firecrawl still misses, refuses or errors, fall back to exa, which reads only the first 25000 "
+            "characters (no offset, shape 4), so a span past them is a `NEEDS-RAW-FETCH` — never `WRONG` on one "
+            "excerpt.",
+        ),
+        (s1, s2, "An empty or not-found reply is an ABSENCE answer under shape 4."),
+        (
+            s4,
+            s5,
+            "The same bar binds a summariser's claim that a page DOCUMENTS something, when the verdict rests on "
+            "that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or mark "
+            "the claim INFERENCE and say why, as shape 2 does",
+        ),
+        (s4, s5, "JSON/XML keeps shape 3's routing."),
+        (
+            s4,
+            s5,
+            "a `WebFetch` 404 is not `DEAD` until `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` (a live "
+            "fetch) also answers 404 — then it is `DEAD`, even if exa still serves a copy (cite that copy as "
+            "exa's crawl cache); a page firecrawl serves live is not dead.",
+        ),
+        (
+            s4,
+            s5,
+            "A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then "
+            "`NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED`",
+        ),
+    ):
+        at = flat.find(span)
+        assert at != -1, span
+        assert lo < at < hi, ("misplaced", span)

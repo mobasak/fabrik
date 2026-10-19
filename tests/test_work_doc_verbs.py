@@ -65,3 +65,16 @@ def test_every_doc_named_verb_help_runs_clean() -> None:
         )
         assert proc.returncode == 0, f"`work.py {verb} --help` failed:\n{proc.stderr}"
         assert proc.stdout.startswith("usage:"), f"`work.py {verb} --help` printed no usage line"
+
+
+def test_the_top_level_help_runs_clean() -> None:
+    """W-2356fd8d (kaizen relay 01M59T9RXS): `work.py --help` crashed with `ValueError:
+    unsupported format character 'O'` — argparse %-formats every subcommand's `help=`, and the
+    merge-item line quoted git's `%O %A %B` unescaped. Only the TOP-level help formats the
+    subcommand list, so the per-verb test above never reached it; every repo's coordinator runs
+    this command."""
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, timeout=10
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "merge-item" in proc.stdout and "%O %A %B" in proc.stdout, proc.stdout

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:37:29.809149Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-66e2f6a7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: after or with W-bb6c9d9a. hub-up today hardcodes session ids (stale after a /clear; kaizen's was wrong). Done: hub builders open via agents_up.sh from the registry, each in its worktree resuming its session; a /clear + whoami --force updates the registry; the coordinator still gets no pane; runbook updated",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a break on agents (stale hardcoded session ids open the wrong chat after a /clear) and an operator ask (D-1042 launchers); LOW effort: one script onto the merged launcher plus a registry write in whoami",
+  "status": "open",
+  "title": "Move the hub's ~/bin/hub-up onto scripts/sysadmin/agents_up.sh: a hub .fabrik/session-agents.json registry that whoami_agent.py --force keeps current, so a /clear never needs a hand edit of session ids; keep the 'Fabrik Agents' WT profile/.bat working (W-6c7c3292's unbuilt second slice; overlaps W-bb6c9d9a, which then gives the hub its .bat)"
+}

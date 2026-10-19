@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "once W-a48f253f (fabrik-lib pilot) is confirmed, list every repo with active agents (PROJECT_CATALOG + live sessions), then mail each repo the runbook docs/reference/repo-coordinator-rollout.md as a request, one repo at a time, and track each to confirmed",
+  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST (wef2 coordinator + merge owner, wef1 and wef3 builders), then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
   "note": "",
   "owner": "fleet",
   "priority": 2,
