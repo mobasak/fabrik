@@ -3,7 +3,7 @@
   "created": "2026-10-19T12:00:52.835760Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c9da2f564aae7408a515ca101ea300f9dfa1f15d",
   "id": "W-172faaa3",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: operator ask (D-1042); LOW effort: one generated doc from read-only records, one session; fleet owns projects and W-cf005f94",
-  "status": "open",
+  "status": "done",
   "title": "Per-repo coordinator rollout document for all 42 /opt projects except fabrik and fabrik-lib (D-1042): docs/reference/repo-coordinator-rollout-repos.md, one section per repo (agents, coordinator/merge owner, worktrees, missing tooling, remaining steps), web-ecommerce-factory first (wef1, wef2, wef3; wef2 coordinator and merge owner)"
 }
