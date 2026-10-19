@@ -2435,16 +2435,23 @@ def _finish_interrupted_swaps(name: str, canon: Path, stamp: str) -> list[str]:
     last exchange and unlink of ``_make_canonical``; a held name left as a self-loop link (killed
     after that exchange) → unlinked; a prepared ``.swap-*`` link never exchanged → unlinked; a
     ``.swap-*`` holding the real dir (killed before its aside rename) → renamed to an aside dir,
-    which this run then drains. Returns what it did, one line each."""
+    which this run then drains; canonical a link to a held name that holds NO real dir (killed
+    between the cycle's two symlinks, before any exchange) → unlinked, and this run merges afresh
+    (review round 4). A canonical link to anything else is not the cycle's and stays refused.
+    Returns what it did, one line each."""
     done: list[str] = []
     if canon.is_symlink():
         target = Path(os.readlink(canon))
-        if target.name.startswith(f".{name}.held-") and target.is_dir() and not target.is_symlink():
-            _renameat2(target, canon, _RENAME_EXCHANGE)  # canon: the real dir; target: the old link
-            target.unlink()
-            done.append(
-                f"finished an interrupted swap: {canon} is the real dir again ({target.parent.name})"
-            )
+        if target.name.startswith(f".{name}.held-"):
+            if target.is_dir() and not target.is_symlink():
+                _renameat2(target, canon, _RENAME_EXCHANGE)  # canon: the real dir; target: the old link
+                target.unlink()
+                done.append(
+                    f"finished an interrupted swap: {canon} is the real dir again ({target.parent.name})"
+                )
+            else:
+                canon.unlink()  # the cycle's first link, before any exchange: it holds no data
+                done.append(f"removed {canon} (a swap's first link — no exchange had run)")
     for d in _fleet_dirs():
         for stray in _strays(d, name):
             if stray.is_symlink():

@@ -9290,6 +9290,35 @@ def test_a_swap_killed_mid_cycle_is_finished_by_the_next_run(tmp_path, monkeypat
     assert cr._shared_link_warnings() == []
 
 
+def test_a_swap_killed_before_any_exchange_is_cleared_and_merged(tmp_path, monkeypatch, capsys):
+    """A hard kill between the cycle's two symlinks leaves ~/.claude/tasks a link to
+    `<active>/.tasks.held-*`, which is a link back (or missing) and holds no data; the active dir is
+    still real. The next run clears both links and merges afresh — it never strands (round 4)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    held.symlink_to(cdir / "tasks", target_is_directory=True)
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    canon = cdir / "tasks"
+    assert canon.is_dir() and not canon.is_symlink()
+    assert (canon / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert not os.path.lexists(held)
+    assert cr._shared_link_warnings() == []
+
+
+def test_a_canonical_link_that_is_not_the_swaps_is_refused(tmp_path, monkeypatch, capsys):
+    """A canonical link to a real dir NOT named as the cycle's held name is someone else's: the verb
+    never promotes it, and exits 1 with nothing moved (round 4, mutant S8)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "x" / "tasks").mkdir(parents=True)
+    (cdir / "tasks").symlink_to(fleet / "x" / "tasks", target_is_directory=True)
+    before = _tree(fleet)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    assert "is a link — nothing moved" in capsys.readouterr().err
+    assert (cdir / "tasks").is_symlink() and (fleet / "x" / "tasks").is_dir()
+    assert _tree(fleet) == before
+
+
 def test_leftover_working_names_are_cleaned_and_drained(tmp_path, monkeypatch, capsys):
     """A held name left as a self-loop link (killed after the last exchange) is removed; a `.swap-*`
     still holding a real dir (killed before its aside rename) is drained like an aside (round 3)."""
