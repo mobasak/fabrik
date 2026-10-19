@@ -158,8 +158,30 @@ owned_here() {
     owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
   fi
   [ "$owner" = "$ROOT" ] && return 0
+  # a grid a hand-built launcher made (fabrik-lib's ~/bin/fabrik-lib-up) records no root but tags each pane with its
+  # agent: adopt it when every pane is one of THIS repo's builders, so moving to the generated launcher never shows an
+  # error pane; any other unrecorded session is still refused (W-bb6c9d9a)
+  if [ -z "$owner" ] && adoptable; then
+    tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null
+    echo "agents_up: adopted the $S grid a hand-built launcher made — every pane is one of this repo's builders" >&2
+    # its panes were started without this script's env allow-list, so they may carry the VS Code session's variables
+    echo "agents_up: those panes keep the environment they started with; for clean panes: tmux kill-session -t =$S, then launch again" >&2
+    return 0
+  fi
   echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
   return 1
+}
+
+adoptable() {  # every pane of the session carries an @agent that names one of this repo's builders
+  local panes id p
+  # the pane id leads each line: `$(...)` drops trailing empty lines, so a bare tag list would lose an untagged pane
+  panes="$(tmux list-panes -s -t "=$S" -F '#{pane_id} #{@agent}' 2>/dev/null)" || return 1
+  [ -n "$panes" ] || return 1
+  while read -r id p; do
+    # names are validated [a-z0-9-] above, so a pane tag outside that set is never a builder
+    [[ "$p" =~ ^[a-z0-9][a-z0-9-]*$ ]] || return 1
+    printf '%s\n' "$AGENTS" | /usr/bin/grep -q -- "^$p " || return 1
+  done <<< "$panes"
 }
 
 if tmux has-session -t "=$S" 2>/dev/null; then

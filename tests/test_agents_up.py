@@ -298,6 +298,14 @@ case "$1" in
     # tmux-splitfail: no room for another pane
     [ -f "$HOME/tmux-splitfail" ] && exit 1
     exit 0 ;;
+  list-panes)
+    # tmux-panes: one '<pane id> <@agent tag>' line per pane of an existing grid (a hand-built grid's panes)
+    # honours the asked format: without #{pane_id} only the tag column prints, as real tmux would
+    case "$*" in
+      *pane_id*) cat "$HOME/tmux-panes" 2>/dev/null ;;
+      *) cut -d' ' -f2- "$HOME/tmux-panes" 2>/dev/null ;;
+    esac
+    exit 0 ;;
   *) exit 0 ;;
 esac
 """
@@ -352,12 +360,48 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
     assert out.returncode == 0, out.stderr
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(mine)), _log(mine)
     assert _log(mine)[-1] == "attach -t =fabrik-lib", _log(mine)
-    for label, owner in (("other", "/opt/elsewhere/fabrik-lib"), ("none", None)):
+    # "other-tagged": another folder's recorded grid is never adopted, even when its panes carry this repo's names
+    for label, owner in (
+        ("other", "/opt/elsewhere/fabrik-lib"),
+        ("none", None),
+        ("other-tagged", "/opt/elsewhere/fabrik-lib"),
+    ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=owner)
+        if label == "other-tagged":
+            (home / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
         out = _run(str(repo), home=home)
         assert out.returncode == 2, (label, out.stderr)
         assert "not attaching" in out.stderr, (label, out.stderr)
         assert not any(ln.startswith("attach") for ln in _log(home)), (label, _log(home))
+
+
+def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> None:
+    """W-bb6c9d9a: fabrik-lib's ~/bin/fabrik-lib-up builds a grid under the same name with no recorded root, but tags
+    every pane with its agent. That grid is adopted — its root recorded, reattached as it is — only when every pane is
+    one of this repo's builders; a stranger pane, an untagged pane or no pane at all still refuses."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    ours = _tmux_home(tmp_path / "ours", repo, has=True, owner=None)
+    (ours / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
+    out = _run(str(repo), home=ours)
+    assert out.returncode == 0 and "adopted" in out.stderr, out.stderr
+    # its panes skipped the env allow-list, and the operator is told how to get clean ones
+    assert "keep the environment they started with" in out.stderr, out.stderr
+    assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in _log(ours), _log(ours)
+    assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(ours)), _log(ours)
+    assert _log(ours)[-1] == "attach -t =fabrik-lib", _log(ours)
+    for label, panes in (
+        ("stranger", "%1 dev1\n%2 stranger\n"),
+        ("untagged", "%1 dev1\n%2 \n"),
+        ("prefix", "%1 dev\n"),
+    ):
+        home = _tmux_home(tmp_path / label, repo, has=True, owner=None)
+        (home / "tmux-panes").write_text(panes, encoding="utf-8")
+        out = _run(str(repo), home=home)
+        assert out.returncode == 2 and "not attaching" in out.stderr, (label, out.stderr)
+        assert not any(ln.startswith(("attach", "set-option")) for ln in _log(home)), (
+            label,
+            _log(home),
+        )
 
 
 def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path) -> None:
