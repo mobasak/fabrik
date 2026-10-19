@@ -40,33 +40,16 @@ def _steps(text: str) -> list[str]:
 
 def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     text = CHAIN.read_text(encoding="utf-8")
-    assert _steps(text) == [
-        "gather_envs",
-        "classify_services",
-        "gather_envs_reconsolidate",
-        "registry_sync",
-        "gen_dashboard",
-    ]
-    assert re.search(r"_step classify_services.*--max-per-run \d+", text), (
-        "daily classify must be bounded"
-    )
+    # D-1046 retired the pool-only classify step and its reconsolidate re-run: a category comes
+    # from a hand-written service_catalog.json entry, so neither the step nor its budget remains
+    assert _steps(text) == ["gather_envs", "registry_sync", "gen_dashboard"]
+    code_only = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert "classify_services" not in code_only and "CLASSIFY_TIMEOUT" not in text
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
-    # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
-    # ALL in parallel — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
-    budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
-    # one unit's wall clock is the pool's default (1800 s) + 30 s of outer grace: the budget must
-    # EXCEED it, or the kill lands exactly when a hung unit would have returned (DO1)
-    wall = re.search(
-        r"^\s*wall_clock_s: float = (\d+)",
-        (REPO / "libs" / "subagents" / "agent.py").read_text(encoding="utf-8"),
-        re.M,
-    )
-    assert wall and budget and int(budget.group(1)) > int(wall.group(1)) + 30, (budget, wall)
     step_fn = re.search(r"^_step\(\) \{[^\n]*\n(.*?)^\}", text, re.M | re.S).group(
         1
     )  # scoped INSIDE _step (DO2)
-    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', step_fn)
-    assert 'timeout -k 30 "$budget"' in step_fn
+    assert 'local budget="$STEP_TIMEOUT"' in step_fn and 'timeout -k 30 "$budget"' in step_fn
     # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
@@ -81,9 +64,9 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
     assert code.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
-    # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
+    # the DATA steps the dashboard depends on — every step but the dashboard itself
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
-    assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
+    assert set(core.split("|")) == {"gather_envs", "registry_sync"}
     assert (
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
@@ -96,13 +79,6 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert "125-127 wrapper" in alert_line, (
         alert_line
     )  # in the BODY the operator reads, not anywhere in the file (EU3/EY7)
-    # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
-    )
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step classify_services', text
-    )
 
 
 def _shell_code(text: str) -> str:
@@ -291,7 +267,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
 
 
 def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
-    """A failed scan skips the sync like it skips classify and the reconsolidate: a stale file
+    """A failed scan skips the sync (and the dashboard): a stale file
     re-pages the same cause and, on a catalog error, flips every credential unattributed (BR4).
     And the operator-facing reference doc names every `kind` the schema carries plus the sync's
     exit 2 — it named 3 of 4 and 0 of 1 (BR5)."""
@@ -339,14 +315,12 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # contract's ~500 chars (CC5)
     fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
     assert "*" not in fixed and "_" not in fixed, fixed
-    # the heartbeat clause is rendered PER LABEL: the paid step never ages the heartbeat, so its
-    # alert must not send the operator hunting a dead chain that is fresh (G9/DA2)
+    # every step is a DATA step now (D-1046 retired the paid classify step, the one label whose
+    # failure left the heartbeat fresh), so the heartbeat clause is one for every label
     hb_default = re.search(r'local hb="([^"]*)"', text)
-    hb_classify = re.search(r'\[ "\$label" = classify_services \] && hb="([^"]*)"', text)
-    assert hb_default and hb_classify and "$hb" in body, "the per-label heartbeat clause"
-    assert "DEAD" in hb_default.group(1) and "unaffected" in hb_classify.group(1)
-    for clause in (hb_default.group(1), hb_classify.group(1)):
-        assert "*" not in clause and "_" not in clause, clause
+    assert hb_default and "$hb" in body, "the heartbeat clause"
+    assert "DEAD" in hb_default.group(1) and "classify_services" not in text
+    assert "*" not in hb_default.group(1) and "_" not in hb_default.group(1), hb_default.group(1)
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
     # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM2) ×
@@ -375,7 +349,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # underscores cancel); a copy-edit dropping one passed the template-level check (DE1)
     for label in _steps(text):
         for log_path in log_paths:
-            hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
+            hb = hb_default.group(1)
 
             def _render(tpl: str, label=label, log_path=log_path, hb=hb) -> str:
                 return (
@@ -428,7 +402,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         clauses,
     )
     assert "cannot read or write its own output path" in doc, "the doc's step-1 cell (CC5)"
-    for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
+    for step in ("registry_sync.py", "gen_dashboard.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (
             row
@@ -438,8 +412,8 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
 def test_the_chain_script_executes_its_gating(tmp_path):
     """The chain EXECUTED under bash with a fake interpreter (every sibling test regex-matches the
     script; a bash syntax error or a gate that only LOOKS right passed them all — BU1): a failed
-    scan skips classify, the reconsolidate, the sync and the dashboard, alerts once, exits 1; a
-    clean run writes the dashboard and exits 0."""
+    scan skips the sync and the dashboard, alerts once, exits 1; a clean run writes the
+    dashboard and exits 0, and never runs the classifier (D-1046)."""
     import os
     import subprocess
 
@@ -454,14 +428,13 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         f'echo "$*" >> "{log}"\n'
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
-        '  *classify_services.py*) [ "${FAIL_CLASSIFY:-0}" = 1 ] && exit 1 ;;\n'
         '  *gen_dashboard.py*) [ "${FAIL_DASHBOARD:-0}" = 1 ] && exit 7; echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
     )
     fake.chmod(0o755)
-    # a fake `timeout` on PATH logs the budget each step ran under: the classify budget is proven
+    # a fake `timeout` on PATH logs the budget each step ran under: every step's budget is proven
     # by execution, not by a text pin (DO2)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -480,7 +453,6 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "FABRIK_ROOT": str(root),
         "VENV_PY": str(fake),
         "STEP_TIMEOUT": "30",
-        "CLASSIFY_TIMEOUT": "4321",
         "LOG_FILE": str(tmp_path / "chain.log"),
     }
     dash = root / "external-services-dashboard.html"
@@ -507,40 +479,21 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp.read_text(encoding="utf-8").strip()
     ), "the heartbeat is stamped by the chain after a clean run"
     assert (
-        calls.count("gather_envs.py") == 2
+        calls.count("gather_envs.py") == 1
         and "registry_sync.py" in calls
         and "send_alert(" not in calls
     )
     assert [re.search(r"scripts/(\S+\.py)", ln).group(1) for ln in calls.splitlines()] == [
         "gather_envs.py",
-        "classify_services.py",
-        "gather_envs.py",
         "registry_sync.py",
         "gen_dashboard.py",
-    ]
+    ]  # no classify, no reconsolidate (D-1046)
     by_step: dict[str, list[str]] = {}
     for b, script in (ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()):
         by_step.setdefault(Path(script).name, []).append(b)
-    assert by_step["classify_services.py"] == ["4321"], by_step
-    assert by_step["gather_envs.py"] == ["30", "30"], by_step  # BOTH gather runs, never collapsed
-    assert {b for k, v in by_step.items() if k != "classify_services.py" for b in v} == {"30"}, (
-        by_step
-    )
-    # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
-    # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
-    log.write_text("", encoding="utf-8")
-    dash.unlink()
-    stamp.unlink()
-    r = subprocess.run(
-        ["bash", str(CHAIN)], env={**env, "FAIL_CLASSIFY": "1"}, capture_output=True, text=True
-    )
-    calls = log.read_text(encoding="utf-8")
-    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
-    assert dash.exists() and stamp.exists() and "registry_sync.py" in calls
-    assert calls.count("gather_envs.py") == 2
-    assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls
-    assert "liveness DEAD" not in calls and "heartbeat unaffected" in calls, calls  # DA2
-    # 4. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
+    assert set(by_step) == {"gather_envs.py", "registry_sync.py", "gen_dashboard.py"}, by_step
+    assert {b for v in by_step.values() for b in v} == {"30"}, by_step
+    # 3. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
     # sits behind, executed in the failing direction (a regex-only proof, DA3)
     log.write_text("", encoding="utf-8")
     dash.unlink()
@@ -551,7 +504,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
     assert calls.count("send_alert(") == 1 and "step gen_dashboard FAILED (exit 7)" in calls
-    # 5. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
+    # 4. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
     # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
     log.write_text("", encoding="utf-8")
 
@@ -563,7 +516,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert calls.count("send_alert(") == 1 and "heartbeat NOT stamped" in calls, calls
     assert "heartbeat NOT stamped" in r.stdout
     (root / ".tmp").unlink()
-    # 6. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
+    # 5. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
     # stamp that read LIVE. The previous stamp must survive untouched, no tmp left behind (DA3)
     stamp.parent.mkdir(parents=True)
     stamp.write_text("2026-08-01T00:00:00Z\n", encoding="utf-8")
@@ -1189,13 +1142,13 @@ def test_a_zero_step_budget_never_disables_the_timeout():
     text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
     head = text[: text.index("LOG_FILE=")]
     proc = subprocess.run(
-        ["bash", "-c", head + '\necho "$STEP_TIMEOUT $CLASSIFY_TIMEOUT"'],
-        env={**os.environ, "STEP_TIMEOUT": "0", "CLASSIFY_TIMEOUT": "abc"},
+        ["bash", "-c", head + '\necho "$STEP_TIMEOUT"'],
+        env={**os.environ, "STEP_TIMEOUT": "0"},
         capture_output=True,
         text=True,
         timeout=30,
     )
-    assert proc.stdout.strip() == "900 2100", (proc.stdout, proc.stderr)
+    assert proc.stdout.strip() == "900", (proc.stdout, proc.stderr)
 
 
 def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
@@ -1432,7 +1385,7 @@ def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_pa
     fn = text[text.index("_step() {") : text.index("\n}\n", text.index("_step() {")) + 3]
     harness = tmp_path / "h.sh"
     harness.write_text(
-        "STEP_TIMEOUT=30\nCLASSIFY_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
+        "STEP_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
         '_alert() { echo "ALERT: $1 [$3]"; }\n'
         + fn
         + '\n_step registry_sync bash -c "exit 3"\necho "chain_failed=$chain_failed core_failed=$core_failed"\n'

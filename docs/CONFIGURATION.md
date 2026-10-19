@@ -1077,7 +1077,6 @@ in `docs/reference/external-services-registry.md`.
 | Var | Default | Effect |
 |---|---|---|
 | `STEP_TIMEOUT` | `900` | seconds per chain step; must be positive (`0` switches `timeout(1)` off) |
-| `CLASSIFY_TIMEOUT` | `2100` | seconds for the paid classify step |
 | `REGISTRY_PRUNE_FORCE` | unset | `1`/`true`/`yes` overrides the bounded-prune refusal — **disables a data-loss guard** |
 | `REGISTRY_WRITE_TESTS` | unset | `1` opts the live-registry tests in; unset they skip (they WRITE to `fabrik_services`) |
 | `FABRIK_NO_AUTOLOAD` | unset | `1` stops `libs/alerting` autoloading a `.env` from the cwd, and `fabrik.config` loading `.env` at import (the root `conftest.py` sets it for every test process) |
