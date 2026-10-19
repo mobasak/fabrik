@@ -2597,3 +2597,35 @@ def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -
     )
     assert quote in body
     assert quote in " ".join(source.read_text(encoding="utf-8").split())
+
+
+def test_seat_prompts_carry_the_gate_layout() -> None:
+    """W-4ad7ff2d (kaizen row 1792192144): a seat asked to run the completion gate had no layout for it. The gate
+    grades its WORKING DIRECTORY and scopes itself through git (`PROJECT_ROOT = Path.cwd()`), so run from the live
+    repo it graded the live tree, and a bare run auto-fixes the live checkout. Every finder and refuter prompt now
+    says: run it only inside the pinned shared clone, `--check`, with the directory changed inside the program,
+    and name a result resting on the synced set UNPINNED. Read from the BUILT prompts, never the source text."""
+    _, prompts = _two_seat_union("a.py")
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "scripts/final_gate.py" in p and "--check" in p, label
+        assert 'os.chdir("SCRATCH/clone")' in p, label
+        assert "never from the live repo" in p and "UNPINNED" in p, label
+        assert "skipped_checks" in p and "setup-error" in p, label
+        # the two scopes the gate reads (critiques, executed): the index, and the range against @{upstream}
+        assert "--set-upstream-to=base pins" in p and "NEVER commit the pins" in p, label
+        assert "Run the gate TWICE" in p and "MANIFEST.md5" in p, label
+        # strings only GATE_PINS carries (review pass 1: two above also occur in PIN_IMPORT)
+        assert 'KAIZEN_EVENTS_DIR"]="SCRATCH/events"' in p and '"--check","--json"' in p, label
+        assert "> SCRATCH/gate-base.json" in p and "> SCRATCH/gate-pins.json" in p, label
+        assert "a pin-set row" in p and "WITHOUT any of the pytest recipe's guards" in p, label
+        assert "then `failures`, `warnings`, `skipped_checks` and `advisory`" in p, label
+        # review pass 2: each remaining rule a seat acts on, pinned by its own words
+        assert "a check whose script is missing is a green row reported only in `warnings`" in p, label
+        assert "a diff-sensed skip (nothing in its scope changed) is scope" in p, label
+        assert "the verdict is some 25 KB" in p and "launch both runs with `--lean`" in p, label
+        assert "after copying the gitignored inputs, look for that arming" in p, label
+        # review pass 3: the bare-base run has an EMPTY diff, which arms a CI-named pytest leg on its own
+        assert "treat that pair as armed whatever the diff" in p, label
+        assert "`tests/` plus a CI file naming pytest" in p and "on an empty diff" in p, label
+        assert "${" not in p, f"{label}: an uninterpolated template expression"

@@ -1,6 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A tool that scopes itself two ways needs a layout tested against both (2026-10-19)
+
+W-4ad7ff2d gave review-loop seats a layout for running `final_gate.py` on pinned code.
+- **The two critiques each broke the other's fix.** Opus showed that committing the pins empties the index, which most
+  enforcement checks read, so a pinned `print()` passed. Fable showed the gate also reads the range against
+  `origin/master`, which in a clone is the live master, so a pre-merge review graded 292 branch files whether the pins
+  were staged or not. A pins branch whose upstream is the base, with the pins staged, satisfies both, and only executing
+  it at a base behind master proved that.
+- **My own measurement had the lucky geometry.** The first probe ran where master equalled the base, so it could not
+  see the range scope. When a probe passes, write down which state made it pass, and run the other states too.
+
 ## A record written before a move needs a recovery path that knows which move it was waiting on (2026-10-19)
 
 W-c751bca6 added `merge_request.py retry <id>`, which writes a fresh `claiming` record and then re-opens the mail.
