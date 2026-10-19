@@ -71,13 +71,12 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
 
 ## Action allow-list (Tier A / B / C / D)
 
-**Tier A** — no `auto_tier_b` needed. `restart_container` is always offered; `clear_file_cache` and `pause_worker` only once listed in `watchdog.llm_actions`; `scale_concurrency` is never offered (fabrik-lib SB-103). Bounded by the daily caps (`daily_budget_usd`, `daily_invocations_cap`) on the ops-only path; `per_incident_budget_usd` is accepted and ignored (§ Cost behavior).
+**Tier A** — no `auto_tier_b` needed. `restart_container` is always offered; `clear_file_cache` and `pause_worker` only once listed in `watchdog.llm_actions`; `scale_concurrency` is retired (fabrik-lib SB-103: the sidecar no longer has it). Bounded by the daily caps (`daily_budget_usd`, `daily_invocations_cap`) on the ops-only path; `per_incident_budget_usd` is accepted and ignored (§ Cost behavior).
 
 | Action | What | Guards |
 |---|---|---|
 | `restart_container` | `docker restart <main>` | Refuses 14-entry shared-infra list (postgres-main, redis-main, traefik, authelia, …) |
 | `clear_file_cache` | `rm -rf /project/<subpath>/*` | Path-escape rejected; scoped under `/project/` |
-| `scale_concurrency` | env edit + `compose up -d <main>` | Never offered to the model (fabrik-lib SB-103) — not an `llm_actions` entry; CONST_CASE env-key validation |
 | `pause_worker` | Redis SETEX `<project_prefix>:pause:<resource>` | Matches `pause-state` vendor read contract; TTL ∈ [5, 3600]s |
 
 ⚠️ **`drop_queue_items` and `rotate_locks` are NO LONGER Tier A** — the module moved them to the
@@ -85,12 +84,12 @@ Tier-C **approved-write lane** (`actions.py::TIER_C_WRITE_HANDLERS`), fail-close
 `WATCHDOG_ALLOW_DB_WRITES` (default OFF) and a provisioned `WATCHDOG_DB_URL_RW`. Absent either, the
 handler returns `skipped`, not a mutation. § Architecture already said this ("Consumed only by the
 Tier-C approved-write lane"); this table had not caught up, so the pack promised two automatic
-DB-mutating actions that are impossible by default. Both are also never offered to the model (fabrik-lib SB-103, `actions.py::NEVER_OFFERED`), so today neither runs even with both gates open.
+DB-mutating actions that are impossible by default. Since fabrik-lib SB-103 the model is offered them only when the project `.env` lists them in `WATCHDOG_LLM_ACTIONS` AND a non-empty `WATCHDOG_DB_WRITE_ALLOWLIST` names the tables and columns each may touch; the spec's `watchdog.llm_actions` refuses them, because no spec field carries that allowlist. Offered, they still run only with both gates open.
 
 | Approved-write (Tier C lane) | What | Guards |
 |---|---|---|
-| `drop_queue_items` | `DELETE … ORDER BY <age_col> LIMIT N` | Both gates above; identifier validation; row cap 1..10000 |
-| `rotate_locks` | `UPDATE … SET locked_at = NULL WHERE locked_at < now() − interval` | Both gates above; identifier validation; age ∈ [30, 86400]s |
+| `drop_queue_items` | `DELETE … ORDER BY <age_col> LIMIT N` | Both gates above; the table and columns in `WATCHDOG_DB_WRITE_ALLOWLIST`; identifier validation; row cap 1..10000 |
+| `rotate_locks` | `UPDATE … SET locked_at = NULL WHERE locked_at < now() − interval` | Both gates above; the table and columns in `WATCHDOG_DB_WRITE_ALLOWLIST`; identifier validation; age ∈ [30, 86400]s |
 
 **Tier B** — opt-in per spec: list the action in `watchdog.llm_actions` (e.g. `llm_actions: [reset_db_pool]`) AND set `watchdog.auto_tier_b: true` — the sidecar offers the model only `restart_container` + `escalate_apprise` (plus `create_fix_pr` on the code-fix lane) until an action is listed — or, with the field unset or empty, a `WATCHDOG_LLM_ACTIONS` line in the project `.env` (fabrik-lib D-412; the allowed names are `src/fabrik/spec_loader.py::WATCHDOG_LLM_OPT_INS`). `auto_tier_b: false` stays the one revert switch: a listed Tier-B action is then held and not offered. Without opt-in, Tier B diagnosis escalates as Tier C.
 

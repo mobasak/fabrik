@@ -453,9 +453,8 @@ WATCHDOG_LLM_OPT_INS: dict[str, str] = {
 }
 # Names the sidecar knows but this variable cannot enable — refused with the reason, not as unknown.
 _LLM_ACTION_REFUSALS: dict[str, str] = {
-    "drop_queue_items": "is never offered to the model (fabrik-lib SB-103)",
-    "rotate_locks": "is never offered to the model (fabrik-lib SB-103)",
-    "scale_concurrency": "is never offered to the model (fabrik-lib SB-103)",
+    "drop_queue_items": "needs WATCHDOG_DB_WRITE_ALLOWLIST, which no spec field carries — enable it in the project .env (fabrik-lib SB-103)",
+    "rotate_locks": "needs WATCHDOG_DB_WRITE_ALLOWLIST, which no spec field carries — enable it in the project .env (fabrik-lib SB-103)",
     "create_fix_pr": "is offered by its own lane — set propose_fix_prs instead",
     "escalate_apprise": "is already in the default menu",
     "restart_container": "is already in the default menu",
