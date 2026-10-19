@@ -26,7 +26,7 @@ Operator: *"you must do sorting, and assigning automatically"*. Every turn somet
 1. **Mail** — claim it; ack a pure notice (merge outcome, "fixed" reply); turn a request or finding into an item for its
    owner the same turn (`work.py add --kind task --tag mail-<id lowercased>`, the mail id in the title, since
    `--kind mail` is claim-only until W-c842bf9a), and route the mail to that owner — never wait for the owner to claim it.
-2. **Eligible?** From RECORDS only — never by running or reproducing anything:
+2. **Eligible?** From RECORDS only — never by running anything:
    - *done* — a merged fix commit or a D-row settles it. A mere mention is NOT proof: ask the owner, close only on its
      yes (`work.py done --evidence <sha>`);
    - *duplicate* — another open item covers the same mail, file or symptom → keep the older, drop the other with the reason;
@@ -47,7 +47,7 @@ Operator: *"you must do sorting, and assigning automatically"*. Every turn somet
    push, park and take it), the only interrupt. Inside HIGH: security, blocking bugs, agents' requests, rule updates,
    kaizen, the rest. Merges and operator approvals are fast lanes, never queued; all else waits for the current job.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
-   gets nothing (its URGENT goes to the operator). Give an idle builder the unclaimed, unblocked HIGH items another
+   gets nothing (its URGENT goes to the operator). Give an idle pool builder (kaizen is not one, D-627) the unclaimed, unblocked HIGH items another
    cannot reach (`work.py assign <id> --owner <idle>`), in step 4's in-HIGH order, and message both (D-983). A LOW time sink is dropped (`work.py drop --why`; `work.py add`
    re-files it; D-955), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
    operator's word; `--blocked-by`, when its blocker lands or is dropped.
@@ -81,12 +81,11 @@ characters of that ask verbatim. On their answer, `work.py assign <id> --untag w
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
 ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a new row, what-cell
-`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters: hook output caps at 10,000.
+`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters (hook cap 10,000).
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
-`commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus the INDEX block
-`docs_updater.py --sync` writes); a finished plan's `Status: EXECUTED` and archive move (locks are the operator's), once every ticket is merged and its
+`commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus `docs_updater.py --sync`'s INDEX block); a finished plan's `Status: EXECUTED` and archive move (locks are the operator's), once every ticket is merged and its
 builder confirms no run will resume it; a spec's `Status:` line when its approval or retirement is recorded.
 
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>` / `retry <id>`), then `commands/assemble_commands.py` + `--check`
@@ -94,14 +93,14 @@ when `commands/` changed and the fleet sync after a synced merge; push master; m
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
 exactly as its role; fix a duplicate or missing role first.
 
-**Never name another agent's item in your `NEXT:` line** — `NEXT: W-<id>` claims it for you, which takes it from its builder. End on `none —
+**Never name another agent's item in your `NEXT:` line** — naming it claims it, taking it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
 
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, or review others' work, test or reproduce a bug —
 those become items for the owning builder: a merged change with no CHANGELOG or INDEX entry → its AUTHOR (D-448); a
 wrong plan or spec claim → its `Owner:`; a stale doc with no `Owner:` → its beat owner. Charters are the exception: you fix them.
-Your own repo edits (any charter, PLANS.md, `Status:` lines, archive moves) owe `/fabrik-review-scoped`, a sync path the full
-`/fabrik-review`; only `final_gate_stop.py::_review_exempt` paths are exempt.
+Your own repo edits (any charter, PLANS.md, `Status:` lines, archive moves) owe `/fabrik-review-scoped` (none is a sync path);
+only `final_gate_stop.py::_review_exempt` paths are exempt.
 
 **Feedback queues** are kaizen's (`feedback_owner`); never answer verdicts.
 
