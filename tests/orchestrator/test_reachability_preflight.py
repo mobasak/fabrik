@@ -177,8 +177,11 @@ def _dns_ctx():
 
 def _direct_status_error(status: int):
     request = httpx.Request("POST", "https://dns.example/api/cloudflare/dns/example.com/subdomain")
-    response = httpx.Response(status, request=request)
-    return httpx.HTTPStatusError(f"HTTP {status}", request=request, response=response)
+    try:  # httpx's own raise, so the error carries its real (two-line) text
+        httpx.Response(status, request=request).raise_for_status()
+    except httpx.HTTPStatusError as err:
+        return err
+    raise AssertionError(f"httpx did not raise on {status}")
 
 
 _SPEC = {"id": "demo", "name": "demo", "domain": "demo.example.com"}
@@ -186,8 +189,9 @@ _SPEC = {"id": "demo", "name": "demo", "domain": "demo.example.com"}
 
 @pytest.mark.parametrize("status", [400, 401, 422, 429])
 def test_dns_step_refuses_a_provisioner_refusal_without_cloudflare(status):
-    """W-1086d295: a refusal the site-provisioner emits on its subdomain route (400 SDK error, 401 API
-    key, 422 body, 429 limiter) is a gate — the record is never written straight to Cloudflare."""
+    """W-1086d295: a refusal the site-provisioner emits on its subdomain route (401 API key, 422 body,
+    429 limiter; 400 the sibling route's zone mapping, requested for this one) is a gate — the record
+    is never written straight to Cloudflare."""
     from fabrik.drivers.dns import ProvisionerHTTPError
     from fabrik.orchestrator.exceptions import ProvisioningError
 
@@ -199,7 +203,9 @@ def test_dns_step_refuses_a_provisioner_refusal_without_cloudflare(status):
         patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=refusal),
         patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
     ):
-        with pytest.raises(ProvisioningError, match=f"HTTP {status}"):
+        with pytest.raises(
+            ProvisioningError, match=rf"^DNS Manager refused demo\.example\.com \(HTTP {status}\): "
+        ):
             _orchestrator()._provision_dns(ctx, _SPEC)
     cloudflare.assert_not_called()
     assert ctx.created_resources == []  # rollback has nothing to delete through Cloudflare
@@ -215,10 +221,13 @@ def test_dns_step_refuses_a_direct_path_refusal_without_cloudflare():
         patch("fabrik.orchestrator.DNSClient.add_subdomain", side_effect=_direct_status_error(401)),
         patch("fabrik.orchestrator.CloudflareClient") as cloudflare,
     ):
-        with pytest.raises(ProvisioningError, match="HTTP 401"):
+        with pytest.raises(
+            ProvisioningError, match=r"^DNS Manager refused demo\.example\.com \(HTTP 401\): "
+        ) as refused:
             _orchestrator()._provision_dns(ctx, _SPEC)
     cloudflare.assert_not_called()
     assert ctx.created_resources == []
+    assert "\n" not in str(refused.value)  # httpx's two-line text is folded to one
 
 
 @pytest.mark.parametrize("status", [0, 301, 403, 404, 500, 502])

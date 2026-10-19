@@ -39,10 +39,12 @@ from fabrik.orchestrator.verifier import DeploymentVerifier
 
 logger = logging.getLogger(__name__)
 
-# The statuses the site-provisioner ITSELF answers its subdomain route with to refuse a write: 400 its
-# SDK error mapping (api/main.py handle_error), 401 its API-key middleware, 422 body validation, 429
-# its rate limiter. Any other status — a reverse-proxy 403/404, a 3xx, a 5xx — is not its refusal and
-# keeps the direct-Cloudflare fallback (W-1086d295).
+# The statuses the site-provisioner ITSELF answers its subdomain route with to refuse a write: 401 its
+# API-key middleware, 422 body validation, 429 its rate limiter — and 400, which that route does not
+# emit today but is what its sibling Cloudflare route's error mapping returns for an unmanaged zone
+# (api/main.py:4120-4141), the mapping site-provisioner was asked to add here (mail 01M5AKKR79). Any
+# other status — a reverse-proxy 403/404, a 3xx, a 5xx — is not its refusal and keeps the
+# direct-Cloudflare fallback (W-1086d295).
 PROVISIONER_REFUSALS = frozenset({400, 401, 422, 429})
 
 __all__ = [
@@ -689,7 +691,8 @@ class DeploymentOrchestrator:
             status = _http_status(dns_err)
             if status in PROVISIONER_REFUSALS:
                 raise ProvisioningError(
-                    f"DNS Manager refused {domain} (HTTP {status}): {dns_err}",
+                    # one line: httpx's text carries a second "For more information" line
+                    f"DNS Manager refused {domain} (HTTP {status}): {' '.join(str(dns_err).split())}",
                     resource_type="dns",
                 ) from dns_err
             logger.warning("DNS Manager failed (%s), trying Cloudflare...", dns_err)
