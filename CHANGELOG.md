@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — direct tests for the `--merge-shared` guards that rested on no test of their own (2026-10-20)
+
+- Four tests in `tests/test_claude_fleet.py` (seven cases) guard `claude_rotate.py --merge-shared tasks`. A failed finish of a swap a hard kill interrupted exits 1 with nothing else moved. Every error the fleet-root lock can raise is refused before anything moves. Each non-active account's `tasks/` stays its own real dir or a direct link to `~/.claude/tasks` after every rename, unlink or rmdir. A `.tasks.held-*` that links to a real dir elsewhere is cleared, never adopted (W-b3bad109).
+- Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
+- `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
+
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 
 - fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
