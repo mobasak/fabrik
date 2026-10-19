@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T16:24:15.598035Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-7599c374",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read the receipt docs/development/reviews/2026-10-19-w7e467f2d-retire-classifier-review.md § Residual for rows routed here; fix each with a red-first test",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: a residue holder for the classifier review, empty today per intel; nobody blocked",
   "status": "open",
   "tags": [
     "registry"
