@@ -65,3 +65,29 @@ SHIM
   legacy="$common/hooks/$name.legacy"
   if [ -f "$legacy" ] && grep -qF "$MARK" "$legacy"; then rm -f "$legacy"; fi
 done
+
+# The work-item merge driver (W-c230cb2e): `.gitattributes` maps .fabrik/work/W-*.json to `workitem`,
+# and a hand merge, rebase or cherry-pick in any hub worktree then merges an item key-wise with
+# `work.py merge-item` — the tree's OWN copy, since git runs the driver at the worktree top level.
+# Any non-zero exit (a key both sides changed, a work.py without the verb, no python3) falls back to
+# git's text merge, so a conflict keeps its markers and never picks a side. `-X ours|theirs` reach no
+# custom driver. merge_request.py resolves item conflicts on its own (D-988) and needs none of this.
+DRIVER='python3 scripts/work.py merge-item %O %A %B || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'
+# Written only when it differs: a same-value `git config` still replaces the shared file under
+# config.lock, and this runs on every shell, racing every sibling's own config write.
+set_config() {
+  [ "$(git -C "$ROOT" config --get-all "$1" 2>/dev/null)" = "$2" ] || git -C "$ROOT" config --replace-all "$1" "$2"
+}
+set_config merge.workitem.name "work.py merge-item (key-wise work-item merge)"
+set_config merge.workitem.driver "$DRIVER"
+# git reads .gitattributes from the tree as it was BEFORE the merge, so a branch cut before the file
+# existed would get no driver on the merge that brings it in; <common>/info/attributes applies to
+# every worktree at once. Copied from .gitattributes, the mapping's one hand-written home.
+info="$common/info/attributes"
+if [ -f "$ROOT/.gitattributes" ]; then
+  mkdir -p "$common/info"
+  { grep -E '^[^#].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true; } |
+    while IFS= read -r line; do
+      grep -qxF -- "$line" "$info" 2>/dev/null || printf '%s\n' "$line" >> "$info"
+    done
+fi
