@@ -36,6 +36,10 @@ All notable changes to this project will be documented in this file.
 - The unreachable mail now names the variable.
 - The check still needs `FABRIK_SSH_JUMP_VPS=vps2` in `/opt/fabrik/.env`, the operator's step from W-2b657bee (W-714bb1a5, D-1037).
 
+### Changed — `command_run.py round` shows the slice ledger it expects before recording (2026-10-19)
+
+- In a partitioned review, every later pass states `round --slices` by hand, and a wrong ledger used to be accepted silently. `round` now prints, before it records, the ledger it expects: each slice's first and last stated counts, and the classes still open. It warns on stderr when a slice's claims grew or shrank, verified fell, a slice is new or missing, `--slices` is absent, or a first round's claims total less than `--confirmed`. Warnings only; nothing new is refused. Decision D-1039; item W-2d704438 (mail 01M58H6DF7).
+
 ### Added — `agents_up.sh`: open any repo's builder agents in one tmux grid (2026-10-19)
 
 - `scripts/sysadmin/agents_up.sh <repo>` is the per-repo form of `~/bin/hub-up`, for the coordinator rollout (D-1031). It reads the builders from the repo's own `.fabrik/session-agents.json`, gives the coordinator no pane, and resumes each builder's existing session in its own pane. It never starts a second process on a session already open in a terminal or in VS Code, gives each pane a clean environment, and refuses a malformed registry. `--print` shows the grid and each pane's status without launching anything. `docs/reference/repo-coordinator-rollout.md` is the runbook for bringing a repo onto the coordinator model, with the Windows Terminal profile and `.bat`. Decision D-1032.
