@@ -13,8 +13,9 @@ never ``quota_dashboard``.
 Cobra check (D-253): the cheapest way to pass "the attention list shows what needs action" without
 the outcome is to list everything (or nothing). The rules are the four provider rules and the
 registry's data-source rule of spec § The design item 3 (D-1046 retired the classifier's), each
-pinned in both directions (49 h in, 47 h out, the healthy and the paid-without-credential rows out); a reason with more than ``_NAMED_LIMIT`` rows
-collapses to a count that still lists every name, so collapsing never hides a provider.
+pinned in both directions (49 h in, 47 h out, the healthy and the paid-without-credential rows
+out); a reason with more than ``_NAMED_LIMIT`` rows collapses to a count that still lists every
+name, so collapsing never hides a provider.
 """
 
 # AFTER-EDIT: docs/workstation/quota-dashboard.md docs/reference/external-services-registry.md

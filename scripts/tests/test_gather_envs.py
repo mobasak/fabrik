@@ -1227,6 +1227,23 @@ def test_restub_keeps_a_curated_match_list(tmp_path, monkeypatch):
     assert out["category"] == "unidentified" and out["match"] == ["ZZZ", "ZZZ_LEGACY"]
 
 
+def test_the_classifier_never_pops_or_restubs_an_operators_off_enum_category(tmp_path, monkeypatch):
+    """D-1050 review (A-sonnet C4, A-haiku C1): an off-enum category is no longer CATALOGUED (it routes
+    to triage), but it is still the OPERATOR'S field — a typo to correct, never a tombstone the merge
+    path may pop or the re-stub may overwrite with `unidentified`."""
+    assert cs.tombstone_of({"p": {"category": "ai-lm"}}, "p") is False
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
+    cat, _ = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], [_Res("not json")]
+    )
+    cat.write_text(json.dumps({"zzz": {"category": "ai-lm", "cost": "paid"}}), encoding="utf-8")
+    assert cs.main() == 0
+    assert json.loads(cat.read_text(encoding="utf-8"))["zzz"] == {
+        "category": "ai-lm",
+        "cost": "paid",
+    }
+
+
 def test_identified_env_keyed_provider_joins_the_existing_vendors_match_list(tmp_path, monkeypatch):
     """`OPENAI2_API_KEY` (flagged `openai2`) identified as `openai` (catalogued) lends its prefix to
     openai's `match` list instead of minting a second vendor (AD2)."""
@@ -2994,12 +3011,14 @@ def test_an_off_enum_category_routes_to_triage_with_a_warning(tmp_path, monkeypa
     body, stats = ge.consolidate([env])  # never a CatalogError
     assert "#svc name=typo category=?" in body and "ai-lm" not in body.replace("ai-llm", "")
     assert stats["catalogued"] == 1 and stats["flagged"] == 1
+    ge.load_catalog()  # the run's second load (the emptied-catalog guard) says nothing new
     err = capsys.readouterr().err
     assert "WARNING" in err and "typo" in err and "ai-lm" in err and "ai-llm" in err, err
+    assert err.count("WARNING") == 1, err  # once per process, never once per load
 
 
 def test_the_committed_catalog_carries_only_real_categories():
-    """The commit-time half of D-1046's typo guard: hand curation (W-17aac223) is now the only
+    """The suite-time half of D-1046's typo guard (a test, not a commit hook): hand curation (W-17aac223) is now the only
     writer of scripts/service_catalog.json, so every category it carries must be an enum value or
     `unidentified` — caught here, not by the 06:00 chain."""
     raw = json.loads(

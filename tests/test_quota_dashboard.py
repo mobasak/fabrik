@@ -2799,7 +2799,11 @@ def test_the_inventory_carries_no_classifier_time(tmp_path, monkeypatch):
     """D-1046 retired the classifier's source rule: the board no longer stats classify_last.json
     and its inventory payload carries no `classified_at`."""
     qd = _load(tmp_path, monkeypatch)
-    assert "classified_at" not in _inv_data(qd)
+    data = _inv_data(qd)
+    assert "rows" in data and "synced_at" in data, (
+        data
+    )  # the read succeeded: the negative is not vacuous
+    assert "classified_at" not in data
     assert not hasattr(qd, "_CLASSIFY_STAMP") and not hasattr(qd, "_inventory_classified_at")
 
 

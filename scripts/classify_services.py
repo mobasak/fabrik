@@ -342,9 +342,16 @@ def tombstone_of(catalog: dict, prov: str) -> bool:
     category = meta.get("category")
     if isinstance(category, str) and category.strip() == "unidentified":
         return True
-    return not gather_envs.real_category(category) and not any(  # the ONE predicate (CU3)
+    return not _operator_category(category) and not any(
         meta.get(k) not in (None, "", "?", []) for k in ("match", "hosts", "url")
     )
+
+
+def _operator_category(cat) -> bool:
+    """A category the OPERATOR wrote: any string but blank or `?`. Since D-1050 an off-enum string is
+    not CATALOGUED (gather_envs.real_category routes it to triage), but it is still the operator's
+    field — a typo to correct, never a tombstone the merge path may pop or a stub may overwrite."""
+    return isinstance(cat, str) and cat.strip() not in ("", "?")
 
 
 def _tokens_elsewhere(catalog: dict, prov: str) -> set[str]:
@@ -362,8 +369,8 @@ def _tokens_elsewhere(catalog: dict, prov: str) -> set[str]:
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
     """A catalog stub for a provider the WEB genuinely could not identify.
 
-    The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets the
-    NEEDS-TRIAGE block SOLELY on category=="?", so a "?" stub would stay in triage and get
+    The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets into the
+    NEEDS-TRIAGE block every entry `real_category` rejects, `?` included, so a "?" stub would stay in triage and get
     re-dispatched (re-billed) every daily run — the exact loop this closes (C2). The match
     prefix is the FULL provider name (not `prov.split("_")[0]`) so a compound name like
     `aws_bedrock` tombstones only AWS_BEDROCK_* keys, never every AWS_* key (C5)."""
@@ -846,14 +853,14 @@ def main() -> int:
         if args.tombstone_unresolved:
             # Persist a stub for a provider the WEB genuinely could not identify (not one that
             # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
-            # re-dispatching a paid pool call for it forever. The category MUST be non-"?" —
-            # gather_envs buckets NEEDS-TRIAGE purely on category=="?", so a "?" stub would
+            # re-dispatching a paid pool call for it forever. The category MUST be `unidentified` —
+            # gather_envs buckets into NEEDS-TRIAGE whatever real_category rejects, so a "?" stub would
             # stay in triage and defeat the whole point (C2). The full provider name is the
             # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
             for prov in names:
                 if prov in identified or prov in errored or prov in merged_into:
                     continue  # a merged host joined its vendor — never also a stub (AF2)
-                if prov in catalog and gather_envs.real_category(catalog[prov].get("category")):
+                if prov in catalog and _operator_category(catalog[prov].get("category")):
                     # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
                     # non-str category buckets to `?` there, so treating it as real here re-billed it daily
                     continue

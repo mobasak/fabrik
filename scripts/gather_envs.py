@@ -832,6 +832,9 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     return parse_catalog(raw, str(CATALOG_PATH))
 
 
+_WARNED_OFF_ENUM: set[tuple[str, tuple[str, ...]]] = set()
+
+
 def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
     """Every rule the chain applies to a catalog, on an already-decoded object — the key rules
     (`validate_catalog_keys`) AND the prefix-tie rule below. ONE function for the loader and for
@@ -847,7 +850,10 @@ def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
         and m["category"].strip() not in ("", "?")
         and not real_category(m["category"])
     )
-    if off_enum:  # a display-only typo routes to triage by name; it never fails the scan (D-1046)
+    if off_enum and (where, tuple(off_enum)) not in _WARNED_OFF_ENUM:
+        # a display-only typo routes to triage by name and never fails the scan (D-1050); one line per
+        # process — a gather run loads the catalog twice (consolidate, then the emptied-catalog guard)
+        _WARNED_OFF_ENUM.add((where, tuple(off_enum)))
         print(
             f"WARNING {where}: category outside the enum, routed to NEEDS-TRIAGE: "
             + "; ".join(off_enum)

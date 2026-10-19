@@ -428,6 +428,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         f'echo "$*" >> "{log}"\n'
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
+        '  *registry_sync.py*) [ "${FAIL_SYNC:-0}" = 1 ] && exit 1 ;;\n'
         '  *gen_dashboard.py*) [ "${FAIL_DASHBOARD:-0}" = 1 ] && exit 7; echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
@@ -504,6 +505,17 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
     assert calls.count("send_alert(") == 1 and "step gen_dashboard FAILED (exit 7)" in calls
+    # 3b. the SYNC step fails: a DATA step, so the dashboard is skipped and the heartbeat ages — the
+    # only EXECUTED proof of the core_failed case list since D-1046 removed the paid step whose
+    # failure case carried it (BX6; review W-7e467f2d B2)
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_SYNC": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
+    assert "gen_dashboard.py" not in calls and "liveness DEAD" in calls, calls
+    assert calls.count("send_alert(") == 1 and "step registry_sync FAILED (exit 1)" in calls
     # 4. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
     # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
     log.write_text("", encoding="utf-8")
@@ -878,9 +890,7 @@ def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_lin
     """EY6 wrapped `load()` only; a row shape `render()` cannot take (a column drift) was still a
     raw traceback (EZ4)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(
-        gd, "_read", lambda: ([{"provider": "x"}], None)
-    )  # every other key absent
+    monkeypatch.setattr(gd, "_read", lambda: ([{"provider": "x"}], None))  # every other key absent
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     assert "ERROR: registry unreadable" in capsys.readouterr().out
     assert not (tmp_path / "dash.html").exists()
@@ -2687,23 +2697,16 @@ _STALL = "The classifier has not run for over 48 hours and 1 provider waits for 
 _NEVER = "The classifier has no recorded run and 1 provider waits for a category."
 
 
-def _write_through_main(monkeypatch, tmp_path, *, stamp_age_s):
-    """`main()` over the fake registry, with the clock at _NOW and a LEFTOVER classifier stamp
-    (classify_last.json from before D-1046) aged as asked — the page must ignore it."""
+def _write_through_main(monkeypatch, tmp_path):
+    """`main()` over the fake registry (its rows carry an untriaged provider), with the clock at _NOW."""
     import datetime as dt
     from types import SimpleNamespace
 
     gd = _load_gen_dashboard()
     tmp_path.mkdir(parents=True)
-    monkeypatch.setattr(gd, "REPO", tmp_path)
     monkeypatch.setattr(gd, "time", SimpleNamespace(time=lambda: _NOW))
     last_seen = dt.datetime.fromtimestamp(_SYNCED, dt.UTC)
     monkeypatch.setattr(gd.registry_db, "connect", lambda: _RegistryConn(last_seen))
-    if stamp_age_s is not None:
-        stamp = tmp_path / ".tmp" / "external-services" / "classify_last.json"
-        stamp.parent.mkdir(parents=True, exist_ok=True)
-        stamp.write_text("{}", encoding="utf-8")
-        os.utime(stamp, (_NOW - stamp_age_s, _NOW - stamp_age_s))
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
     return out.read_text(encoding="utf-8")
@@ -2712,11 +2715,10 @@ def _write_through_main(monkeypatch, tmp_path, *, stamp_age_s):
 def test_the_registry_sync_time_reaches_the_written_file_and_no_classifier_entry_does(
     pinned_zone, monkeypatch, tmp_path
 ):
-    stalled = _write_through_main(monkeypatch, tmp_path / "a", stamp_age_s=5 * 86400)
-    assert "Registry synced 2026-10-17 14:30 +03:00" in stalled, "the reader's max(last_seen)"
-    never = _write_through_main(monkeypatch, tmp_path / "b", stamp_age_s=None)
-    for page in (stalled, never):  # D-1046: an old stamp, or none, raises no entry
-        assert _STALL not in page and _NEVER not in page and "The classifier" not in page
+    page = _write_through_main(monkeypatch, tmp_path / "a")
+    assert "Registry synced 2026-10-17 14:30 +03:00" in page, "the reader's max(last_seen)"
+    # D-1046: the untriaged row that used to raise the stalled-classifier entry raises none
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
 
 
 def test_an_untriaged_provider_raises_no_classifier_entry(pinned_zone):

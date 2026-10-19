@@ -24,7 +24,6 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
 for _dir in (Path(__file__).resolve().parent, Path(__file__).resolve().parent / "sysadmin"):
     if (
         str(_dir) not in sys.path
