@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Workflow review seats count the reader break a fix created, as the corpus now does (2026-10-19)
+`.claude/workflows/fabrik-review-loop.js`: the later-pass finder head and the refuter's `recorded` verdict carry the bounded-hop clause kaizen landed in `term-edit.md`, `term-coverage.md` and `fabrik-reviewer.md` (W-7b5a6a17): a reader of what the fix's hunks changed, passing on the previous round's pin and failing on this one, is a counted candidate, never one hop out. `tests/test_review_loop_workflow.py` pins both prompts.
+
+### Fixed — the provider map's faceless-video recipe routes its script step to Claude on the subscription (2026-10-19)
+`docs/reference/ai-media-generation-provider-map.md`: the Script row said Claude via OpenRouter, against `ai/00`'s subscription-first rule; it now names `claude -p` through vendored `llm-dispatch`, with OpenRouter only as the opted-in metered fallback (W-61b60641).
+
 ### Changed — fabrik-researcher: firecrawl's directQuote call first for a long page, and a 404 or a "documents X" claim held to shape 4's bar (2026-10-19)
 `commands/_agents/fabrik-researcher.md` (W-8bc61173, mail 01M4VHFP7S — 3 of 4 research seats in one /fabrik-spec-review pass hit these). The toolset bullet names the lever (exa's `maxCharacters` 25000 or less), says a reply that stops at exactly the cap was cut, and sends a longer source file to the long-page call or `NEEDS-RAW-FETCH`. Shape 1 keeps exa for a short page and sends a quote inside a long page to `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions.mode: "directQuote"` and `maxAge: 0` FIRST: prompted with a locator, never the claimed wording; its excerpt compared character by character; a wrong-place excerpt re-asked, then exa (which reads only the first 25000 characters) or `NEEDS-RAW-FETCH`, never `WRONG` on one excerpt; an empty reply an absence. Shape 4 holds a summariser's claim that a page documents something to its own bar (a raw fetch or a second arm, else INFERENCE as shape 2 marks it; JSON/XML keeps shape 3's routing). A WebFetch 404 is `DEAD` only when a live firecrawl fetch also answers 404, even if exa still serves a cached copy; a non-404 firecrawl error makes it `NEEDS-RAW-FETCH`, an exa copy is never `VERIFIED`, and the Method list's `DEAD` says so. Installed agents pick it up at the merge render.
 

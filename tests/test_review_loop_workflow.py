@@ -435,6 +435,12 @@ def test_a_pin_or_scratch_copy_citation_merges_with_the_repo_path_citation(shape
     assert s["overlap"] == 1 and s["candidates"][0]["also"] == "S-H1", s
     assert s["candidates"][0]["file"] == "a.py"
     assert "CANDIDATE S-S1 · a.py:3" in prompts["refute:S"], "the refuter is handed the repo path"
+    # W-7b5a6a17: a reader break the fix's hunks created is never filed as `recorded` for being outside the slice
+    assert (
+        "except the break a fix's hunks created in a reader of what they changed, shown by that reader passing on "
+        "the previous round's pin and failing on this one, which is confirmed or refuted like any other candidate "
+        "(D-230, W-7b5a6a17);"
+    ) in prompts["refute:S"]
 
 
 @pytest.mark.parametrize(
@@ -2462,7 +2468,8 @@ def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
     """kaizen 01M4VNPMAZ (/fabrik-review row 1791927763): the files_read gap check runs on every pass, but a
     ledger-only seat read only its claims' files — 296 of 2383 later-pass slices on the box logged a gap and stayed
     open. The later-pass head now says to open every slice file, for a NEW defect the fix introduced, while still
-    raising nothing outside the ledger (D-230); the pass-1 head is unchanged."""
+    raising nothing outside the ledger but a defect inside the fix hunks or the break those hunks created in a
+    reader of what they changed (D-230, W-7b5a6a17); the pass-1 head is unchanged."""
     args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
     _, _, prompts = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
     for label in ("find:S:sonnet", "find:S:haiku"):
@@ -2473,6 +2480,14 @@ def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
         # sentence asking for whole-slice reads cannot read as licence to raise one-hop defects that would count
         assert "a defect of a line INSIDE the previous round's fix hunks" in p, label
         assert "is never raised — name it in notes with a destination (D-230)" in p, label
+        # W-7b5a6a17 (kaizen mail 01M5A3B3V1): a reader the fix's hunks broke counts — the corpus homes' wording
+        assert (
+            "or the break those hunks created in a reader of what they changed (such as a returned value or type, "
+            "a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a "
+            "heading or term another section cites), shown by that reader passing on the previous round's pin "
+            "and failing on this one; a defect one hop out that the hunks did not create (a caller, a callee, "
+            "a neighbouring section, a pre-existing claim) is never raised"
+        ) in p, label
         assert "a candidate outside the ledger is RECORDED with a destination, never counted" not in p, label
         assert "a slice file no seat lists keeps the slice open" in p, label
     _, _, first = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
