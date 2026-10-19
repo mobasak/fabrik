@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Workflow review seats are told never to disguise a refused command (2026-10-20)
+W-281e3ed2 (kaizen 01M5B6F0PZ). A seat refused by the worktree guard assembled `git` from `'gi'+'t'` and ran it. The rule against that was in the agent-side seat briefs (`subagents-core.md`, `fabrik-reviewer.md`) but not in `SEAT_ISOLATION`, which is what the review-loop workflow's finders and refuters receive. `SEAT_ISOLATION` now carries the same sentence after the refusal rule, and its test pins it in both seat prompts and checks that the two other homes still carry it word for word.
+
 ### Changed — the researcher re-reads every cached current value live (2026-10-20)
 W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a version figure on a docs page read from exa. It now covers any current value: a price, a rate or usage limit, a quota, a default, a current version or a status. That applies whenever the value was read from a cached source: exa (whose fetch can never be forced live), firecrawl without `maxAge: 0`, or a search result. Such a value needs a live firecrawl read before it is `VERIFIED`, `STALE` or `WRONG`. WebFetch may only confirm a value a raw source quoted, and a value no live source reaches is `NEEDS-RAW-FETCH`. Quotes, PDF text and figures in documents fixed once published are unaffected. Shape 4's `INFERENCE` clause now states step 4's bounds.
 
