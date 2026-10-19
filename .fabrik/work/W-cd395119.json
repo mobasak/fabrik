@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure whether any template-source deploy dir carries docs/; then render the scaffold's exclude list into the .j2 (one source) or drop the .j2 config in favour of the scaffold's",
+  "next": "UPGRADED to /fabrik-spec (tradeoffs, 2026-10-19): seed /opt/fabrik/.tmp/runs/f57f3e25-3c69-4aee-b93b-cb9754686abf/fabrik-task-2026-10-19T22-25-30-0330/design.md — reach is zero today (the .j2 config cannot load: openapi plugin absent from package.json.j2, no docs/ shipped); choose exclude-only vs rendering the whole config from the .j2 (D-476)",
   "note": "",
   "owner": "fleet",
   "priority": 1,
