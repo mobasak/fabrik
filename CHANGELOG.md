@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
+
+- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another the same HEAD-vs-new differential a byte-identical refactor gets, over the input types its callers pass. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
+
 ### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
 
 - `subagents-core.md`'s seat-folder rule now has the brief tell each seat to create its folder first with `mkdir -p` on the absolute path, as the Workflow's seat prompt already does; two Agent-tool seats hit ENOENT without it. Answers /fabrik-review-scoped feedback row 1792414928.

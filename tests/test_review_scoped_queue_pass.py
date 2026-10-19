@@ -866,3 +866,20 @@ def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
         " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;" in core
     )
 
+
+def test_two_held_catalogue_subjects_recurred_and_are_edited() -> None:
+    """D-711 recurrences: row 1792424989 repeats HELD:agent-recipe-probed-over-artifact-life-cycle (a pasted command
+    run against the artifact the next step compares it with) and row 1792428944 repeats HELD:guard-cut-fuzz-differential
+    (a differential over the input corpus before a replacement lands). Each extends the catalogue line its held reason
+    cited."""
+    cat = _norm(CAT)
+    assert (
+        "check the END STATE a recipe exists to produce, not only each step, against the artifact the next step"
+        " compares it with (a lock file, a manifest), not only the source it reads;" in cat
+    )
+    assert (
+        "a byte-identical refactor, and a fix that swaps one call, guard or protocol for another (`in` plus `[]` for"
+        " `.get`), gets a HEAD-vs-new differential harness over the input types its callers pass, subclasses and"
+        " registered virtual types included, before each pin;" in cat
+    )
+
