@@ -71,12 +71,29 @@ class TestVpsSyncLegacyLocks:
         return mod
 
     def test_verify_residue_reports_through_the_legacy_helper(self, monkeypatch):
+        """A real call in verify_residue's code, not text a comment or string could carry."""
+        import ast
         import inspect
+        import textwrap
 
         mod = self._load(monkeypatch)
-        body = inspect.getsource(mod.verify_residue)
-        assert 'section("legacy /tmp lock files")' in body
-        assert "findings.extend(_legacy_lock_findings())" in body
+        tree = ast.parse(textwrap.dedent(inspect.getsource(mod.verify_residue)))
+        calls = {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        assert "_legacy_lock_findings" in calls
+        sections = [
+            node.args[0].value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "section"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+        ]
+        assert "legacy /tmp lock files" in sections
 
     def test_vps_sync_reports_only_legacy_tmp_locks(self, monkeypatch):
         mod = self._load(monkeypatch)
