@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
 
-- The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), as the review already does for a standard, and a conflict no primary source settles is UNVERIFIABLE naming both (W-7c2ca4e1).
+- The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), and a conflict no single primary source settles (two primary surfaces that disagree settle nothing) joins the nothing-found case as UNVERIFIABLE, naming every source on each side (W-7c2ca4e1).
 
 ### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
 
