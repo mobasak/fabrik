@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — hand merges merge work-item files key by key (2026-10-20)
+W-c230cb2e; D-1059. `.gitattributes` maps `.fabrik/work/W-*.json` to a `workitem` merge driver, which `scripts/install_post_commit_hook.sh` registers in the hub's shared git config: `work.py merge-item`, falling back to git's text merge on any non-zero exit. A builder's `git merge master`, rebase or cherry-pick now merges two disjoint edits of one item cleanly, including on a branch cut before the attribute existed (the installer also copies the line into `.git/info/attributes`). A real key conflict still leaves conflict markers. `-X ours`/`-X theirs` no longer resolve an item-file conflict. The installer writes the config only when it differs.
+
 ### Fixed — the kaizen coroner retries lost events and counts unreadable inputs (2026-10-20)
 W-3cdc8bd6, W-a14fd24f and W-4c526386; D-1057. A TTL close now emits its `session_end` before saving the record `expired`, so a lost emit is retried on the next sweep instead of lost. A new repair pass reads the event streams and re-emits a lost `revival` or `session_end` for a reconstructed death, including after the session has revived or its marker has aged out. Unreadable inputs used to read as empty and let `--sweep` exit 0, and a FIFO could hang the sweep. Every marker, event stream and run record is now probed without blocking before it is read. Each of these is counted, so the sweep exits 3: an unreadable lock directory, events directory, marker, stream or record, a dangling symlink, a FIFO, an empty or corrupt record, or a record named so that `command_run` would read another file.
 
