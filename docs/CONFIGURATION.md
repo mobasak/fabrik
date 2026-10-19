@@ -297,7 +297,7 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 ### Watchdog LLM action menu — `WATCHDOG_LLM_ACTIONS` / `WATCHDOG_AUTO_TIER_B` (rendered from the spec; a hand-set `WATCHDOG_AUTO_TIER_B` is always overridden)
 
-`fabrik apply` renders `WATCHDOG_AUTO_TIER_B` from `watchdog.auto_tier_b` on every deploy and `WATCHDOG_LLM_ACTIONS` (csv) from `watchdog.llm_actions` when the list is non-empty (`src/fabrik/spec_loader.py::WatchdogConfig.llm_actions`, fabrik-lib D-412). The model's menu is `restart_container` + `escalate_apprise` until actions are listed: `clear_file_cache`, `pause_worker` (Tier A) run once listed; `wipe_redis_cache`, `reset_db_pool` (Tier B) run once listed AND `auto_tier_b: true` — listed without it they are held with a deploy warning. The allowed names are `WATCHDOG_LLM_OPT_INS`; `scale_concurrency`, `drop_queue_items`, `rotate_locks` and `install_log_drop_rule` are refused as never offered. A non-empty field overrides a `WATCHDOG_LLM_ACTIONS` line in the project `.env`; an unset or empty field leaves that line in force (`llm_actions: []` clears nothing — delete the line).
+`fabrik apply` renders `WATCHDOG_AUTO_TIER_B` from `watchdog.auto_tier_b` on every deploy and `WATCHDOG_LLM_ACTIONS` (csv) from `watchdog.llm_actions` when the list is non-empty (`src/fabrik/spec_loader.py::WatchdogConfig.llm_actions`, fabrik-lib D-412). The model's menu is `restart_container` + `escalate_apprise` until actions are listed: `clear_file_cache`, `pause_worker` (Tier A) run once listed; `wipe_redis_cache`, `reset_db_pool` (Tier B) run once listed AND `auto_tier_b: true` — listed without it they are held with a deploy warning. The allowed names are `WATCHDOG_LLM_OPT_INS`; `drop_queue_items` and `rotate_locks` are refused because no spec field carries the `WATCHDOG_DB_WRITE_ALLOWLIST` they need (with the field unset, the project `.env` can enable them; fabrik-lib SB-103), and the retired `scale_concurrency` is refused as unknown. A non-empty field overrides a `WATCHDOG_LLM_ACTIONS` line in the project `.env`; an unset or empty field leaves that line in force (`llm_actions: []` clears nothing — delete the line).
 
 ### Watchdog Tier-D operator knobs — `WATCHDOG_REDEPLOY_TIMEOUT` / `WATCHDOG_TELEGRAM_OPERATOR_IDS` (operator-supplied, project `.env`)
 
@@ -463,6 +463,12 @@ Read by `scripts/sysadmin/claude_rotate.py` (`--tick`, and the `*/1` `--battery-
 - `CLAUDE_AC_DIR` — the mains adapter's sysfs dir (default `/sys/class/power_supply/AC1`: `online`); read only when the battery's own status is not definite (`Discharging` and `Charging`/`Full`/`Not charging` win): then `1` is mains, `0` battery, unreadable unknown.
 
 The test suite pins both dirs to empty folders (`tests/conftest.py`), so no test reads the real battery.
+
+### Resume wake — `CLAUDE_RESUME_GAP_MIN` (WSL box, W-75cafe7a, D-1058)
+
+Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment; it never goes in a project `.env`. How the wake works: `docs/workstation/claude-account-rotation.md`, its **Resume wake** entry.
+
+- `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
 
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 

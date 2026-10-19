@@ -3,7 +3,7 @@
   "created": "2026-10-19T18:21:42.001503Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f5ea5a8183d5a43dcb750968f2925bde17c278c0",
   "id": "W-90114e2a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: a break on master (tests/test_hub_write_root.py red since 477a1d208, confirmed by the coordinator: 1 failed, 29 passed); LOW effort: one write path or one allowlist entry",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5an1ezy809f8rzdm09xs5y2"
   ],

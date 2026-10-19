@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:21:02.122186Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4176e6b6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: find why the posture computes WALL from a fresh window (5h 0%, 'no burn'; the posture line drops a capped account from the readings, so a window with no reading reads as the fleet's wall, and a just-reset reading may be read as 'no reading'); fix at the root with a regression test that feeds a just-reset window; this is the G3 class of W-75cafe7a (posture stale or wrong across a window boundary), so fold the fix there or ship it first; full /fabrik-review (hook path)",
+  "note": "wrong cause, filed by the coordinator: the WALL was the battery hold (rotate-tick.log: 'BATTERY HOLD lifted — mains power is back', which woke 10 of 10 self-watches), not a quota defect; the posture then read WALL for up to one tick (5 min) after the lift and went GREEN on its own. That lag is the stale-posture-across-a-boundary class, already W-75cafe7a's G3",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: every agent blocked (the posture tells all four builders WALL and the hook holds Agent and new runs) while the real fleet reads 3%/52% with no hold",
+  "status": "dropped",
+  "title": "URGENT: the QUOTA posture reads band WALL after the 5h reset while the fleet has headroom: posture 'WALL · 5h 0% no burn · weekly 51%' written 1m ago, but claude_rotate --status shows can session 3% / weekly 52%, picture: hold none, and no ~/.claude/state/fleet-exhausted stamp; every agent reads WALL each prompt (Agent and new runs held), so all four hub builders sat idle after the 23:59 reset"
+}

@@ -12,6 +12,7 @@ Everything is tmp_path-isolated — ``CLAUDE_FLEET_ROOT``, ``ROTATE_STATE_DIR``,
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import importlib.util
 import json
@@ -6136,9 +6137,13 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
     """B12 — both accounts cap-walled (no successor, so the flip leg leaves the pointer): the
     posture names the capped account, the ACCOUNT band stays the raw line (GREEN at 80) while the
     FLEET band is RED and the line says which windows nobody serves, the forecast says the wall is
-    reached; the NEXT tick reads WALL because the advisory stamped."""
+    reached; once the advisory stamps, the posture of THAT SAME tick reads WALL (W-75cafe7a: it
+    read WALL one tick later while the posture was built before the advisory). The first tick
+    stubs the advisory so the bands below are the no-hold bands they grade."""
     fleet, rows = _posture_fixture(tmp_path, monkeypatch, seo=(10.0, 80.0), intel=(10.0, 80.0))
     _caps(fleet, {"sarp@ocoron.com": 80, "ob@ocoron.com": 80})
+    real_advisory = cr._fleet_active_wall_advisory
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     assert cr._cmd_tick() == 0
     p = json.loads(_posture_path(tmp_path).read_text())["active"]
     wk = p["windows"]["seven_day"]
@@ -6158,8 +6163,10 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
         and wk["burn_per_min"] is None
     )
     assert cr._fmt_forecast(wk) == "wall in ~0m at —%/m"
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", real_advisory)
     monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
     assert cr._cmd_tick() == 0
+    assert cr._fleet_exhaustion_stamp().exists(), "the advisory stamped this tick"
     second = json.loads(_posture_path(tmp_path).read_text())["active"]
     assert second["band"] == "WALL", second
 
@@ -6817,7 +6824,9 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     """B20g — Delta 8 seat A #1: with caps.json {active: 80} and the active at weekly 81 (5h 0%),
     `_fleet_readings` walls the active out, nobody serves 5h, and the fallback returned the
     active's RAW band — GREEN on the 85/90 line — in the tick that broadcast the ACTIVE-WALL
-    advisory. Scarcity is RED, whatever the walled account's raw percentage says."""
+    advisory. Scarcity is RED, whatever the walled account's raw percentage says. The advisory is
+    stubbed: since W-75cafe7a the posture is built after it, so a tick whose advisory stamps
+    reads WALL outright, and the RED fallback graded here is the no-hold arithmetic."""
     monkeypatch.setenv(
         "ROTATE_TARGET_SESSION_MAX_PCT", "85"
     )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
@@ -6833,6 +6842,7 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     _point(fleet, "seo")
     assert cr._cmd_tick() == 0
     doc = json.loads(_posture_path(tmp_path).read_text())
@@ -8006,7 +8016,9 @@ def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monk
     undoing the entire point of the change — and 428 of 428 graders passed. The first repair
     still computed `_hold_is_wall` in the test and handed it to a spy, which grades the test's own
     arithmetic, not the call site. This drives a REAL tick and captures what the production line
-    actually passes.
+    actually passes. The advisory is stubbed so the planted stamp is the one the posture reads:
+    since W-75cafe7a the posture is built after it, and on these cool readings it would relieve
+    the planted wall first.
     """
     captured = {}
     real = cr._quota_posture
@@ -8026,6 +8038,7 @@ def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monk
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
     monkeypatch.setattr(cr, "_quota_posture", _spy)
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: None)
     _point(fleet, "seo")
     stamp = cr._fleet_exhaustion_stamp()
 
@@ -9349,3 +9362,383 @@ def test_nothing_to_merge_ignores_a_file_and_still_shows_the_warning(tmp_path, m
     out = capsys.readouterr().out
     assert "nothing to merge" in out and "a/tasks (dangling link)" in out, out
     assert not (fleet / "assignments.lock").exists()
+
+
+def test_an_interrupted_swap_that_cannot_be_finished_moves_nothing_else(
+    tmp_path, monkeypatch, capsys
+):
+    """When finishing what a hard kill left fails, the run names it, exits 1 and moves nothing else
+    (W-b3bad109). In case A, the canonical cycle's last exchange failing, a guard that swallowed the
+    error and went on would still meet the canon-link refusal; in case B, a `.swap-*` stray whose
+    drain fails while canonical is absent and the active dir is real, nothing but this guard stops
+    the merge."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (fleet / "b" / "tasks").rename(held)
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    (fleet / "b" / "tasks").symlink_to(cdir / "tasks", target_is_directory=True)
+    before = _tree(tmp_path)
+    real_rename = cr._renameat2
+
+    def finish_fails(src, dst, flags):
+        # either argument order: an exchange is symmetric
+        if flags == cr._RENAME_EXCHANGE and cdir / "tasks" in (Path(src), Path(dst)):
+            raise OSError(5, "Input/output error", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", finish_fails)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    err = capsys.readouterr().err
+    assert "could not finish an interrupted swap" in err and "nothing else moved" in err, err
+    assert _tree(tmp_path) == before
+    monkeypatch.setattr(cr, "_renameat2", real_rename)
+    (cdir / "tasks").unlink()
+    (fleet / "b" / "tasks").unlink()
+    held.rename(fleet / "b" / "tasks")
+    swap = fleet / "a" / ".tasks.swap-20261001T000000.000000000Z"
+    (swap / "late").mkdir(parents=True)
+    before = _tree(tmp_path)
+
+    def drain_fails(src, dst, flags):
+        if swap in (Path(src), Path(dst)):
+            raise OSError(5, "Input/output error", str(src))
+        return real_rename(src, dst, flags)
+
+    monkeypatch.setattr(cr, "_renameat2", drain_fails)
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    err = capsys.readouterr().err
+    assert "could not finish an interrupted swap" in err and "nothing else moved" in err, err
+    assert _tree(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(errno.EROFS, "Read-only file system"),
+        OSError(errno.ELOOP, "Too many levels of symbolic links"),
+        ValueError("embedded null byte"),
+        RuntimeError("fleet root unresolvable"),
+    ],
+    ids=["erofs", "eloop", "valueerror", "runtimeerror"],
+)
+def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkeypatch, capsys, exc):
+    """Every error the fleet-root lock can raise (`_STATE_DIR_ERRORS`, not only a permission
+    error) is refused before anything moves — a stray a hard kill left included — and the exit is
+    1 (W-b3bad109)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    (fleet / "a" / ".tasks.swap-20261001T000000.000000000Z" / "late").mkdir(parents=True)
+    before = _tree(tmp_path)
+
+    def no_lock():
+        raise exc
+
+    monkeypatch.setattr(cr, "_assignments_lock_fd", no_lock)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    err = capsys.readouterr().err
+    assert "cannot lock the fleet root" in err and "nothing moved" in err, err
+    assert _tree(tmp_path) == before
+
+
+def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_step(
+    tmp_path, monkeypatch, capsys
+):
+    """After every `_renameat2`, `os.rename`, `os.replace`, `os.unlink`, `os.rmdir`, `Path.rename`,
+    `Path.unlink` and `Path.rmdir` the merge makes, each non-active account's tasks/ is either still
+    its own real dir or a link straight to canonical — never a hop through another link such as
+    `active/tasks`, which loops once the pointer names that account — and each ends as that link
+    (W-b3bad109: the existing atomicity test checked these accounts only for existence, and only
+    after `_renameat2` calls)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    bad = []
+
+    def links_to_canon(p):
+        # lexical: a relative link is fine, a link to another link that resolves there is not
+        return os.path.normpath(os.path.join(p.parent, os.readlink(p))) == str(cdir / "tasks")
+
+    def check(op, path):
+        for s in ("a", "c"):
+            p = fleet / s / "tasks"
+            ok = p.is_dir() and (
+                not p.is_symlink() or ((cdir / "tasks").is_dir() and links_to_canon(p))
+            )
+            if not ok:
+                bad.append((s, op, Path(path).name))
+
+    def watched(op, fn, path_arg=0):
+        def run(*a, **k):
+            out = fn(*a, **k)
+            check(op, a[path_arg])
+            return out
+
+        return run
+
+    with monkeypatch.context() as m:  # a context, never a bare undo: the fixture's patches stay
+        m.setattr(cr, "_renameat2", watched("renameat2", cr._renameat2))
+        for name in ("rename", "replace", "unlink", "rmdir"):
+            m.setattr(cr.os, name, watched(f"os.{name}", getattr(os, name)))
+        for name in ("rename", "unlink", "rmdir"):
+            m.setattr(Path, name, watched(name, getattr(Path, name)))
+        assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert not bad, bad
+    for s in ("a", "c"):
+        p = fleet / s / "tasks"
+        assert p.is_symlink() and links_to_canon(p), s
+
+
+def test_a_held_name_that_links_to_a_real_dir_is_never_promoted(tmp_path, monkeypatch, capsys):
+    """~/.claude/tasks a link to a `.tasks.held-*` that is itself a link to a real dir elsewhere is
+    not the cycle's half-finished state: both links are cleared, the dir they pointed at is left as
+    it is, and the run merges afresh (W-b3bad109 — the W-125b4e19 review's R5-1: the
+    not-is_symlink clause in `_finish_interrupted_swaps`, whose removal was its mutant S10)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    elsewhere = tmp_path / "elsewhere" / "tasks"
+    (elsewhere / "foreign").mkdir(parents=True)
+    (elsewhere / "foreign" / "1.json").write_text("not the fleet's")
+    held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
+    (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    held.symlink_to(elsewhere, target_is_directory=True)
+    assert cr.main(["--merge-shared", "tasks"]) == 0, capsys.readouterr()
+    canon = cdir / "tasks"
+    assert canon.is_dir() and not canon.is_symlink()
+    assert (canon / "live" / "1.json").read_text() == '{"id": "1", "subject": "b live 1"}'
+    assert not (canon / "foreign").exists()
+    assert (elsewhere / "foreign" / "1.json").read_text() == "not the fleet's"
+    assert not os.path.lexists(held)
+    assert cr._shared_link_warnings() == []
+
+
+# --- the resume wake (W-75cafe7a): a sleep wakes every armed self-watch once ------------------------
+
+
+def _resume_box(tmp_path, monkeypatch, *, hot=None):
+    """A stub fleet tick (the quota leg reads cool unless *hot*), one armed watch and a settable
+    clock; returns (clock, locks, fd). The record lives in the conftest-pinned state dir."""
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    clock = {"now": FLEET_NOW}
+    monkeypatch.setattr(cr, "_now", lambda: clock["now"])
+
+    def inner(_dirs):
+        cr._QUOTA_HOT_THIS_TICK = hot
+        return 0
+
+    monkeypatch.setattr(cr, "_fleet_dirs", lambda: [tmp_path / "acct"])
+    monkeypatch.setattr(cr, "_fleet_tick_inner", inner)
+    return clock, locks, fd
+
+
+def _resume_rows():
+    path = cr._rotate_state_dir() / "rotate-ledger.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(x) for x in path.read_text().splitlines() if '"resume-wake"' in x]
+
+
+def test_a_tick_after_a_sleep_wakes_every_armed_watch_once(tmp_path, monkeypatch, capsys):
+    """A gap over 15 minutes from the last tick's END wakes every armed watch once with a
+    `<epoch> resume` lift and one `resume-wake` row carrying the gap (W-75cafe7a)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    try:
+        assert cr._cmd_tick() == 0  # the first tick only records
+        assert not (locks / "pane1.holdlifted").exists()
+        clock["now"] += 64 * 60  # the box slept 64 minutes
+        capsys.readouterr()
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").read_text() == f"{int(clock['now'])} resume\n"
+        rows = _resume_rows()
+        assert len(rows) == 1 and rows[0]["woken"] == 1 and rows[0]["gap_s"] == 64 * 60, rows
+        assert "resumed from sleep" in capsys.readouterr().out
+        assert not _lifted_rows(), "a resume is never a hold-lifted row"
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize(
+    "record, gap_min, env",
+    [
+        (None, 64, None),  # the first tick ever: no record
+        ("ok", 15, None),  # exactly the line is not over it
+        ("ok", 11, None),  # an ordinary slip
+        ("ok", -30, None),  # the clock went back
+        ("garbage", 64, None),
+        ("nan", 64, None),
+        ("ok", 14, "10"),  # under the 12-minute floor the default 15 stands
+    ],
+    ids=["first", "at-line", "slip", "negative", "garbage", "nan", "floor"],
+)
+def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, gap_min, env):
+    """No wake on a first tick, a gap of 15 minutes or less, a negative gap, an unreadable record,
+    or a `CLAUDE_RESUME_GAP_MIN` under the floor (W-75cafe7a)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    if env is not None:
+        monkeypatch.setenv("CLAUDE_RESUME_GAP_MIN", env)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        if record == "ok":
+            rec.write_text(f"{FLEET_NOW - gap_min * 60}\n")
+        elif record is not None:
+            rec.write_text(f"{record}\n")
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists()
+        assert not _resume_rows()
+        assert float(rec.read_text()) == FLEET_NOW, "every tick still records its end"
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize(
+    "stamp, wakes",
+    [
+        ("0\nwalled\n", False),
+        ("0\nbattery\n", False),
+        ("garbage", False),
+        (None, False),  # a dangling link at the stamp path
+        ("0\nurgent-90\n", True),
+    ],
+    ids=["walled", "battery", "torn", "dangling", "urgent"],
+)
+def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
+    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
+    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` holds nothing."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
+    try:
+        (cr._rotate_state_dir() / "tick-last-end").write_text(f"{FLEET_NOW - 3600}\n")
+        if stamp is None:
+            cr._fleet_exhaustion_stamp().symlink_to(tmp_path / "nowhere")
+        else:
+            cr._fleet_exhaustion_stamp().write_text(stamp)
+        capsys.readouterr()
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").exists() is wakes
+        if not wakes:
+            assert "a hold stands" in capsys.readouterr().out
+    finally:
+        os.close(fd)
+
+
+def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monkeypatch):
+    """The tick after the resume tick wakes nobody; a pending `.holdlifted` stays as it was; a
+    record that cannot be written wakes nobody, so a broken state file can never storm."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        rec.write_text(f"{FLEET_NOW - 3600}\n")
+        (locks / "pane1.holdlifted").write_text("1 battery\n")  # a lift the watch has not read
+        assert cr._cmd_tick() == 0
+        assert (locks / "pane1.holdlifted").read_text() == "1 battery\n"
+        assert _resume_rows()[-1]["pending"] == 1
+        (locks / "pane1.holdlifted").unlink()
+        clock["now"] += 300
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists(), "one wake per resume"
+        clock["now"] += 3600
+        real_replace = os.replace
+
+        def no_write(src, dst, *a, **k):
+            if Path(dst) == rec:
+                raise OSError(30, "Read-only file system", str(dst))
+            return real_replace(src, dst, *a, **k)
+
+        monkeypatch.setattr(cr.os, "replace", no_write)
+        assert cr._cmd_tick() == 0
+        assert not (locks / "pane1.holdlifted").exists(), "an unwritable record wakes nobody"
+        assert not list(rec.parent.glob(".tick-last-end.*")), "the staging file is removed"
+    finally:
+        os.close(fd)
+
+
+def test_a_fifo_record_never_hangs_the_tick(tmp_path, monkeypatch):
+    """A FIFO at the record path reads as no record: the read never blocks (a hang is not an
+    OSError), so the tick goes on and wakes nobody (W-75cafe7a review)."""
+    import threading
+
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    os.mkfifo(rec)
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("v", cr._read_tick_last_end()), daemon=True)
+    try:
+        t.start()
+        t.join(5)
+        assert not t.is_alive(), "the record read blocked on a FIFO"
+        assert out["v"] is None
+    finally:
+        os.close(fd)
+        if t.is_alive():  # unblock the reader so the test process can exit
+            os.close(os.open(rec, os.O_WRONLY | os.O_NONBLOCK))
+
+
+def test_the_posture_reflects_the_stamp_this_tick_left(tmp_path, monkeypatch):
+    """A battery hold lifted on mains: the posture the SAME tick writes carries no hold and its
+    band is not WALL (it read WALL until the next tick before W-75cafe7a)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    bat, ac = tmp_path / "BAT1", tmp_path / "AC1"
+    bat.mkdir()
+    ac.mkdir()
+    (bat / "status").write_text("Charging\n")
+    (bat / "capacity").write_text("6\n")
+    (ac / "online").write_text("1\n")
+    monkeypatch.setenv("CLAUDE_BATTERY_DIR", str(bat))
+    monkeypatch.setenv("CLAUDE_AC_DIR", str(ac))
+    cr._fleet_exhaustion_stamp().write_text("0\nbattery\n")
+    assert cr._cmd_tick() == 0
+    assert not cr._fleet_exhaustion_stamp().exists(), "mains lifted the battery hold"
+    posture = json.loads(cr._posture_path().read_text())
+    assert posture["fleet"]["hold"] is None, posture["fleet"]["hold"]
+    assert posture["active"]["band"] != "WALL", posture["active"]["band"]
+
+
+def test_an_advisory_error_still_writes_the_posture(tmp_path, monkeypatch):
+    """The posture step runs in a `finally` around the advisory: an advisory that raises still
+    leaves this tick's posture, and the battery leg still runs before it, so a hold armed on a
+    low battery in that tick is in that tick's posture (W-75cafe7a)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    _point(fleet, "seo")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("advisory broke")
+
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", boom)
+    bat = tmp_path / "BAT1"
+    bat.mkdir()
+    (bat / "status").write_text("Discharging\n")
+    (bat / "capacity").write_text("5\n")
+    monkeypatch.setenv("CLAUDE_BATTERY_DIR", str(bat))
+    assert cr._cmd_tick() == 0
+    posture = json.loads(cr._posture_path().read_text())
+    assert posture["ts"] == FLEET_NOW
+    assert cr._fleet_exhaustion_stamp().read_text() == cr._stamp_body("0", "battery")
+    # the picture reads the battery tier as walled (`_stamp_tier`); present is the point
+    assert posture["fleet"]["hold"] is not None, (
+        "the hold armed this tick is in this tick's posture"
+    )
+
+
+def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):
+    """A `resume-wake` row is not one of the episode's end events: an open wall episode stays open
+    across it (a `hold-lifted` row with any site but dwell/battery would have ended it)."""
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    cr._ledger_append({"event": "fleet-active-wall", "ts": FLEET_NOW - 600, "account": "a@x"})
+    before = cr._open_wall_rows(FLEET_NOW)[0]
+    assert "a@x" in before
+    cr._ledger_append({"event": "resume-wake", "ts": FLEET_NOW - 60, "reason": "resume"})
+    assert cr._open_wall_rows(FLEET_NOW)[0] == before

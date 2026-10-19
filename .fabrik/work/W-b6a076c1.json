@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:30:09.685255Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b6a076c1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5ANKQ1T98GJQPXF93FPV3G4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: fabrik-lib i18n `scripts/validate_i18n.py --validate` changed Level 2 (back-translation), SB-136 (fabrik-lib D-476 approval, D-479 executed; branch worktree-fabrik-lib-dev2 commits 1a09e47b, e62854d6, on fabrik-lib main once merged). A re-vendored copy: (1) samples every key the target transla"
+}

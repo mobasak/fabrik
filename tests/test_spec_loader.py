@@ -464,7 +464,9 @@ class TestWatchdogConfig:
         ("value", "match"),
         [
             (["bogus"], "unknown"),
-            (["scale_concurrency"], "never offered"),
+            (["scale_concurrency"], "unknown"),  # retired in the sidecar (fabrik-lib SB-103)
+            (["drop_queue_items"], "WATCHDOG_DB_WRITE_ALLOWLIST"),
+            (["install_log_drop_rule"], "unknown"),  # removed from the sidecar (fabrik-lib D-465)
             (["create_fix_pr"], "propose_fix_prs"),
             (["escalate_apprise"], "default menu"),
             (["restart_container"], "default menu"),
@@ -516,6 +518,11 @@ class TestWatchdogConfig:
         never = set(ast.literal_eval(tables["NEVER_OFFERED"].args[0]))
         expected = {n: t for n, t in tiers.items() if t in ("A", "B") and n not in never | default}
         assert expected == WATCHDOG_LLM_OPT_INS
+        # a refusal row explains why a name the sidecar KNOWS cannot be enabled here; a name the
+        # sidecar removed belongs to the unknown branch, or its row keeps a stale reason
+        from fabrik.spec_loader import _LLM_ACTION_REFUSALS
+
+        assert set(_LLM_ACTION_REFUSALS) <= set(tiers), set(_LLM_ACTION_REFUSALS) - set(tiers)
 
     def test_negative_budget_rejected(self) -> None:
         """``ge=0.0`` on USD fields — negative budgets are nonsense."""

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:29:30.785076Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "38c8c3718bd850a50df77d17a76086ffa5742e05",
+  "id": "W-86f03ace",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: replace 'that pin's own base_sha' wording in the delta-brief bullet with 'the pin's MANIFEST base_sha' and update test_a_delta_brief_carries_the_bounded_hops_reader_run_inputs; scoped review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956), point the probe catalogue's delta-brief reader run at the pin MANIFEST's base_sha now that review_loop_ledger.py records it (ec549daf5); LOW effort: one bullet",
+  "status": "done",
+  "title": "probe catalogue § Seat isolation: point the delta-brief reader run at the pin's MANIFEST base_sha now that review_loop_ledger.py pin records it (intel W-0b09fae6, ec549daf5; mail 01M5AP9XBB)"
+}

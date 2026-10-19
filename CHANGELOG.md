@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — after a host sleep the rotation tick wakes every armed self-watch, and the posture shows the stamp the tick left (2026-10-20)
+
+- After a WSL hibernation nothing woke the idle sessions: the self-watch fires only on a death or a hold lift. Every `--tick` now records its end in `<state>/tick-last-end`. When the gap from that end to the next tick's start is over `CLAUDE_RESUME_GAP_MIN` (15 min, never under 12) and no hold stands, it writes `<epoch> resume` to every armed self-watch and a `resume-wake` ledger row with the gap (W-75cafe7a, D-1058).
+- An unwritable or non-regular record, a first tick, a clock that went back, or a stamp that reads walled (including a torn file or a dangling link) wakes nobody. The wake lands at the first `*/5` tick after the resume.
+- The fleet tick now runs its battery leg and writes the quota posture after the wall advisory, in a `finally`, so a hold the tick arms or lifts shows in that tick's posture. The posture used to lag by one tick, and after tonight's battery lift it read WALL for five minutes.
+- The box-local watcher still prints its quota-lift text for a `resume` wake until the operator approves its `resume)` case. Tests: 8 new resume tests in `tests/test_claude_fleet.py`, each proven red on its own mutant.
+
+### Added — direct tests for the `--merge-shared` guards that rested on no test of their own (2026-10-20)
+
+- Four tests in `tests/test_claude_fleet.py` (seven cases) guard `claude_rotate.py --merge-shared tasks`. A failed finish of a swap a hard kill interrupted exits 1 with nothing else moved. Every error the fleet-root lock can raise is refused before anything moves. Each non-active account's `tasks/` stays its own real dir or a direct link to `~/.claude/tasks` after every rename, unlink or rmdir. A `.tasks.held-*` that links to a real dir elsewhere is cleared, never adopted (W-b3bad109).
+- Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
+- `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
+
+### Changed — a review seat never disguises an act a guard refused (2026-10-20)
+
+- A seat whose command the worktree guard refused assembled the word git from `'gi'+'t'` and ran it, in the hub and in fabrik-lib, reading the seat rule's "fix the named shape" as leave to disguise the act. `subagents-core.md` and the `fabrik-reviewer` agent drop the hint "keep that word out of code you run" for "the word does not belong in such a program at all, even as data", and say, directly after the refusal rule, that a command reshaped after any refusal never disguises the refused act: fixing the named shape or changing the command or the tool is allowed, a refused name or path assembled, split or encoded is the same call, and an act no allowed shape reaches is marked unverified and named in MACHINERY. The workflow's `SEAT_ISOLATION` copy is intel's and was mailed (fabrik-lib mail 01M5AP11P1; review-scoped row 1792433212).
+
+### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
+
+- The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), and a conflict no single primary source settles (two primary surfaces that disagree settle nothing) joins the nothing-found case as UNVERIFIABLE, naming every source on each side (W-7c2ca4e1).
+
+### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
+
+- `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for a working-tree pin (it is HEAD there), read back, never verified, since no md5 manifest covers it; for any other pin the brief names the commit itself, since a `--base` pin records that commit (else its `--from` ref) and an older pin has none (W-86f03ace).
+
+### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
+
+- The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but what the seat read implies it) is not VERIFIED: the claim is rewritten to what a line states and re-verified. NEEDS-RAW-FETCH is the orchestrator's curl of the named URL and section (or the archive URL of a source that existed), classified by the other rows; when that curl cannot read the source either, a re-dispatched researcher seat checks other live sources and the claim is classified by what they say (a source that seat cannot read either counts as none), UNVERIFIABLE only when none states or contradicts it. A grader fails when the agent's Return line and Method step 4 disagree, or name a verdict the table lacks (W-21b629ed).
+
+### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
+
+- fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
+- The text now says what the sidecar does. The spec's `llm_actions` still refuses the pair, because no spec field carries the allowlist, so the refusal stays fail-closed. `scale_concurrency` is now refused as unknown.
+- A new assertion in `test_llm_opt_ins_match_the_sidecar` fails when a refusal row names an action the sidecar no longer has; like the rest of that test, it skips where `/opt/fabrik-lib` is absent (W-9191cc39).
+
 ### Added — hand merges merge work-item files key by key (2026-10-20)
 W-c230cb2e; D-1059. `.gitattributes` maps `.fabrik/work/W-*.json` to a `workitem` merge driver, which `scripts/install_post_commit_hook.sh` registers in the hub's shared git config: `work.py merge-item`, falling back to git's text merge on any non-zero exit. A builder's `git merge master`, rebase or cherry-pick now merges two disjoint edits of one item cleanly, including on a branch cut before the attribute existed (the installer also copies the line into `.git/info/attributes`). A real key conflict still leaves conflict markers. `-X ours`/`-X theirs` no longer resolve an item-file conflict. The installer writes the config only when it differs.
 
@@ -19,6 +54,10 @@ W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writ
 ### Fixed — a scaffolded docusaurus site no longer publishes the governed top-level docs (2026-10-19)
 
 - A docusaurus site published the seeded README, QUICKSTART, CONFIGURATION, TROUBLESHOOTING and FEATURES, and CONFIGURATION names the hub hosts. Every name governance allows directly in `docs/`, plus the `docs/preplan.md` the scaffold writes itself, is now in the content-docs `exclude`, root-anchored so a site author's nested `guides/README.md` still publishes (D-1055, W-c2c2c35b). Graders pin the exclude lists to `check_structure.py`'s DOCS_ALLOWLIST and evaluate the rendered `exclude` array, read strictly, against the real scaffolded tree.
+
+### Changed — a scoped review runs what a fix adds over round zero's input classes (2026-10-19)
+
+- `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, on a scratch copy of what it reads (a scratch repo for diff output, § Seat isolation's archive or clone with the pins laid over it for a seat recipe), over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
 
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 
@@ -60,6 +99,10 @@ D-1046, built under D-1050 (W-7e467f2d). `scripts/external_services_chain.sh` is
 - `fabrik.locks_local` defaulted its lock dir to `/tmp/fabrik-locks`, with a `nosec`/`noqa` silencing the scanners. On a multi-user hub, another local user could pre-create that dir and hold or swap every hub lock: state, reconcile, allocations, vultr/gpu state and sysadmin tokens. The default is now `~/.cache/fabrik-locks`, created 0700, one per user and shared by every hub process of that user, cron included.
 - The test suite pins its own lock dir in `tests/conftest.py`, so tests no longer lock in the real one. Earlier runs had left `state-*.lock` files in `/tmp/fabrik-locks`.
 - W-1f70f2e9, D-1049.
+
+### Removed — the retired watchdog action `install_log_drop_rule` from the hub's validator and docs (2026-10-19)
+
+- fabrik-lib's watchdog removed the Tier-B action (its D-398/D-465; it posted to a Promtail update URL no spec sets, and Alloy has no rule-push endpoint), so its sidecar now logs the name as an unknown action and ignores it. The hub still named it in five places: the `llm_actions` refusal table, the `60-watchdog` allow-list row and the `vps-ai-sysadmin` permissions table (all three called it "being retired"), and the `self-healing` and `docs/CONFIGURATION.md` never-offered lists (which listed it without that note). All five are dropped. `fabrik apply` now refuses a spec naming it as an unknown entry instead of as never offered (fabrik-lib mail 01M5A35K4M).
 
 ### Fixed — `claude_rotate.py --merge-shared tasks` joins the fragmented per-account tasks/ dirs into ~/.claude/tasks (2026-10-19)
 
