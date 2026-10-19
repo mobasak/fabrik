@@ -117,7 +117,7 @@ Classify every claim with one of:
 | **DEAD** | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |
 | **UNVERIFIABLE** | Can't be checked mechanically | State why; list as residual |
 | **INFERENCE** | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |
-| **NEEDS-RAW-FETCH** | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat's tools cannot extract it | The review lead curls the named URL and section (a seat never curls), then classifies the claim by the rows above; a cited source neither fetch can read does not support the claim, so it is WRONG |
+| **NEEDS-RAW-FETCH** | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat's tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above; a source the orchestrator's curl cannot read either (a login wall, a page gone with no archive copy) is not live-checkable, so it is UNVERIFIABLE, naming what a human should check |
 
 A seat's return cites every `path:line` with a short fragment of that line, unique in its
 file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or

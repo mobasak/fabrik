@@ -66,7 +66,7 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     which the docs review's verdict table had no row for. Each now has one, and every verdict the agent names, in its
     Return line and in Method step 4's list, has a row, so a new agent verdict with no table row fails here. Both
     resolve into the other rows (a live-checkable claim is VERIFIED-or-WRONG), so neither has a self-audit count, and
-    only the review lead curls."""
+    only the orchestrator curls."""
     src = _norm()
     table = src[src.index("### Verdict taxonomy") : src.index("A seat's return cites")]
     rows = set(re.findall(r"\| \*\*([A-Za-z0-9_-]+)\*\* \|", table))
@@ -75,9 +75,11 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     assert line, "the agent's Return line moved"
     returned = set(line.group(1).split("|"))
     step4 = agent[agent.index("4. **Report a verdict**") : agent.index("5. **Freshness binds:**")]
-    listed = set(re.findall(r"^\s+- `([A-Za-z0-9_-]+)`", step4, re.M))
-    assert listed, "Method step 4's verdict list moved"
-    assert returned | listed <= rows, sorted((returned | listed) - rows)
+    leads = re.findall(r"^\s+- (.+?) —", step4, re.M)
+    listed = {name for lead in leads for name in re.findall(r"`([A-Za-z0-9_-]+)`", lead)}
+    assert listed == returned, sorted(listed ^ returned)
+    assert returned <= rows, sorted(returned - rows)
     assert "rewrite the claim to what a source line states and re-verify it" in table
-    assert "The review lead curls the named URL and section (a seat never curls)" in table
+    assert "The orchestrator curls the named URL and section (a seat never curls)" in table
+    assert "not live-checkable, so it is UNVERIFIABLE, naming what a human should check" in table
     assert "/ DEAD-removed / UNVERIFIABLE)" in src
