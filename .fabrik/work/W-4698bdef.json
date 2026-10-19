@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:27:14.508798Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4698bdef",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59XJ4J81Y202FFAPQ4QGKHA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "decision-gate — pick/apick: a config error after entry is now an internal_error Pick, not a raise (fabrik-lib fccdc3f6)"
+}
