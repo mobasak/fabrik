@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T18:47:27.960421Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3b803ab4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when node is on PATH, evaluate the rendered config (require it, read presets[0][1].docs.exclude) and assert it equals the parsed patterns; skip with a named reason otherwise",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "tests/test_docusaurus_static_runtime.py::_rendered_excludes reads the rendered docusaurus.config.js as text, so a duplicate exclude key spelled as a spaced/backtick/escaped/concatenated computed key, a getter, a later assignment, an exclude in a nested object, or a duplicate docs key would leak every governed page while the graders stay green (review of W-c2c2c35b pass 3, 2026-10-19, owner: fleet)"
+}

@@ -610,11 +610,14 @@ def test_every_governed_top_level_doc_is_unpublished() -> None:
 
 def _rendered_excludes(cfg: str) -> list[str]:
     # The content-docs `exclude` array as the scaffold rendered it, read strictly: exactly one
-    # `exclude` key in the config in any spelling JS accepts (bare, quoted, spaced before the colon,
-    # computed `['exclude']`), since a later duplicate key replaces the array; the array opened inside
+    # `exclude` key spelled bare, single- or double-quoted, spaced before the colon or as an unspaced
+    # computed `['exclude']` (a later duplicate key replaces the array in JS); the array opened inside
     # the `docs: {` options with no `}` between them; and every line of the array either a JS comment
     # or one single-quoted pattern. A commented-out pattern is not counted, and any other line shape
-    # fails, so a pattern the parser cannot see can never pass as excluded (review rounds 1 and 2).
+    # fails (review rounds 1 and 2). Boundary: this reads the text `_scaffold_docusaurus` renders, not
+    # arbitrary JS — a spaced, backtick, escaped or concatenated computed key, a getter, a later
+    # assignment, a nested object or a duplicate `docs` key is not detected; evaluating the config
+    # with node would be (W-c2c2c35b review, recorded on a backlog row).
     keys = re.findall(r"""\bexclude\b['"\]]*\s*:""", cfg)
     assert len(keys) == 1, keys
     docs_at = cfg.index("        docs: {\n")
