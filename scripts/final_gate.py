@@ -2146,8 +2146,8 @@ def run_consistency_checks(
         # ADVISORY (B, 2026-08-16 registration audit). Fail-safe by design — every path of
         # `main()` returns 0 — so `warn_only=True` is a statement of the check's real
         # contract, not a downgrade. Measured 2026-10-19 (W-ad71f248): 85 of the 174 covered
-        # docs across the /opt projects are still unfilled, so promoting it would red most of
-        # the fleet the next time any of them touches a trigger.
+        # docs are still unfilled, in 33 of the 40 /opt projects carrying one, so promoting it
+        # would red those 33 the next time each touches a trigger.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_doc_stubs.py",
