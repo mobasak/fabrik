@@ -3,7 +3,7 @@
   "created": "2026-10-19T11:03:03.409686Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "39ad8763ea5d0fac503b993c109c9e51420c98d8",
   "id": "W-a634be1c",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "kaizen work + rule wording (D-956); one fragment line",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review-scoped.md step 3 ('Something already stated … is pointed at, or … quoted whole, verbatim … never paraphrased') + review-probe-catalogue.md § Sweep ('each sentence a fix writes that restates a rule already stated elsewhere …') are cited by 7+ answered review-scoped rejects (latest 1792405274, 1792406856, 1792347400, 1792327648, 1792276704) — a line not followed: leads still draft a sentence before finding the rule's existing home"
 }

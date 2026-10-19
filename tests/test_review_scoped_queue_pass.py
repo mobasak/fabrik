@@ -688,3 +688,24 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
         " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
         " other test runs); probe each new grader with its mutant."
     ), bullet
+
+
+def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
+    """W-a634be1c: step 3's point-or-quote rule and the catalogue's restatement sweep were cited by 7+ answered rejects
+    while leads kept drafting a sentence first and finding the rule's home only at review. The search now comes first,
+    in its own sentence between its two neighbours, pointing at the catalogue's Sweep rather than restating its
+    method, pinned by equality so a licence added inside that span fails here. Limit of a text pin: it cannot show the
+    search ran before the draft — the report line it requires is what a seat checks."""
+    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
+    head, tail = "config fix owes none. ", "Every checkable claim any fix adds"
+    assert step3.count(head) == 1 and step3.count(tail) == 1
+    span = step3[step3.index(head) + len(head) : step3.index(tail)]
+    assert span == (
+        "Before a fix writes a sentence that states a rule (a doc or command sentence, a code comment, a commit"
+        " message), the probe catalogue's Sweep search for a rule already stated elsewhere (its § Prose and docs fixes)"
+        " runs first, on the terms of the rule the sentence would state, never after the draft, and your report names"
+        " its terms and hits, or that it found none and the new sentence is the rule's home; what it finds is held to"
+        " this step's rule below for something already stated. "
+    ), span
+    # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
+    assert "Something already stated, in the code" in step3[step3.index(tail) :]

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T13:28:31.801219Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-32efa59c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen wording edit to the catalogue Sweep bullet so it also covers the pre-draft search; the catalogue renders into 5 commands, so the full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "review-probe-catalogue.md § Prose and docs fixes, Sweep bullet: worded for a sentence already written ('each sentence a fix writes that restates a rule …', under 'After the edit:'), while /fabrik-review-scoped step 3 (5abf64d04) now runs that search before the draft, on the terms of the rule the sentence would state — two timings for one search (closing-pass notes, W-a634be1c)"
+}

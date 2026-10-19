@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped step 3 runs the rule-home search before a fix sentence is drafted (2026-10-19)
+
+- Seven or more answered review-scoped rejects cited step 3's point-or-quote rule and the probe catalogue's restatement sweep, because leads kept drafting a fix sentence first and found the rule's home only when a seat flagged it. Step 3 now says that before a fix writes a sentence stating a rule (a doc or command sentence, a code comment, a commit message), the catalogue's Sweep search runs first, and the report names its terms and hits or says the new sentence is the rule's home. Pinned by equality in `tests/test_review_scoped_queue_pass.py` (W-a634be1c).
+
 ### Changed — the review contracts' bounded hop counts a break a fix's own hunks created in a reader (2026-10-19)
 
 - A review could close `confirmed: 0` on a regression its own fix introduced: a fix changed a returned path form, the unchanged caller that joined it broke, and the counting rule read the caller as "one hop out", so it was recorded, not counted. `term-edit.md`, `term-coverage.md` and the `fabrik-reviewer` seat file now count the break a fix's hunks created in a reader of what they changed, shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied; `/fabrik-review-scoped`'s own-fix rule names it too. The review-loop workflow's seat prompt follows when intel lands it. Pinned in `tests/test_bounded_hop_new_output.py`.
