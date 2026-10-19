@@ -187,11 +187,10 @@ def _direct_status_error(status: int):
 _SPEC = {"id": "demo", "name": "demo", "domain": "demo.example.com"}
 
 
-@pytest.mark.parametrize("status", [400, 401, 422, 429])
+@pytest.mark.parametrize("status", [401, 422, 429])
 def test_dns_step_refuses_a_provisioner_refusal_without_cloudflare(status):
     """W-1086d295: a refusal the site-provisioner emits on its subdomain route (401 API key, 422 body,
-    429 limiter; 400 the sibling route's zone mapping, requested for this one) is a gate — the record
-    is never written straight to Cloudflare."""
+    429 limiter) is a gate — the record is never written straight to Cloudflare."""
     from fabrik.drivers.dns import ProvisionerHTTPError
     from fabrik.orchestrator.exceptions import ProvisioningError
 
@@ -230,10 +229,11 @@ def test_dns_step_refuses_a_direct_path_refusal_without_cloudflare():
     assert "\n" not in str(refused.value)  # httpx's two-line text is folded to one
 
 
-@pytest.mark.parametrize("status", [0, 301, 403, 404, 500, 502])
+@pytest.mark.parametrize("status", [0, 301, 400, 403, 404, 500, 502])
 def test_dns_step_falls_back_when_the_provisioner_did_not_refuse(status):
     """A status the provisioner app does not emit as a refusal still falls back: 403/404 are the
-    reverse proxy (allowlist, no route mid-restart), 3xx a misroute, 5xx an outage, 0 a rebuilt error."""
+    reverse proxy (allowlist, no route mid-restart), 400 a non-app layer (the route emits none),
+    3xx a misroute, 5xx an outage, 0 a rebuilt error."""
     from fabrik.drivers.dns import ProvisionerHTTPError
 
     ctx = _dns_ctx()

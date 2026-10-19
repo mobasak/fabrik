@@ -40,12 +40,11 @@ from fabrik.orchestrator.verifier import DeploymentVerifier
 logger = logging.getLogger(__name__)
 
 # The statuses the site-provisioner ITSELF answers its subdomain route with to refuse a write: 401 its
-# API-key middleware, 422 body validation, 429 its rate limiter — and 400, which that route does not
-# emit today but is what its sibling Cloudflare route's error mapping returns for an unmanaged zone
-# (api/main.py:4120-4141), the mapping site-provisioner was asked to add here (mail 01M5AKKR79). Any
-# other status — a reverse-proxy 403/404, a 3xx, a 5xx — is not its refusal and keeps the
-# direct-Cloudflare fallback (W-1086d295).
-PROVISIONER_REFUSALS = frozenset({400, 401, 422, 429})
+# API-key middleware, 422 body validation, 429 its rate limiter. Any other status — a reverse-proxy
+# 403/404, a 400, a 3xx, a 5xx — is not its refusal and keeps the direct-Cloudflare fallback
+# (W-1086d295). The route answers an unmanaged zone with an unmapped 500 today; when site-provisioner
+# maps it to a 4xx (mail 01M5AKKR79), that status joins this set.
+PROVISIONER_REFUSALS = frozenset({401, 422, 429})
 
 __all__ = [
     "DeploymentState",
