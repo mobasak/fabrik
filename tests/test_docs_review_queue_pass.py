@@ -82,7 +82,8 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     assert "rewrite the claim to what a source line states and re-verify it" in table
     assert "The orchestrator curls the named URL and section (a seat never curls)" in table
     assert (
-        "the claim is checked against the other live sources the search arms find; only when none of them states"
-        " or contradicts it is it UNVERIFIABLE, naming what a human should check" in table
+        "the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by"
+        " what they say, by the rows above; only when none of them states or contradicts it is it UNVERIFIABLE,"
+        " naming what a human should check" in table
     )
     assert "/ DEAD-removed / UNVERIFIABLE)" in src
