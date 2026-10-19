@@ -49,14 +49,16 @@ class ProvisionerHTTPError(RuntimeError):
     cleaned of keys and stripped, its first 200 characters, unquoted (for matching); the message
     carries the one-line quoted form, and only the message reaches ``RuntimeError``."""
 
-    def __init__(self, message: str, *, status: int, body: str) -> None:
+    def __init__(self, message: str, *, status: int = 0, body: str = "") -> None:
+        # defaults only so copy/pickle can rebuild it from args; __dict__ then restores both
         super().__init__(message)
         self.status = status
         self.body = body
 
 
-# a header value echoed in a reply: the client's key is masked by value, a foreign one by its name
-_HEADER_SECRET = re.compile(r"(?im)\b(x-api-key|authorization)(\s*:\s*)\S[^\r\n]*")
+# a header value echoed in a reply: the client's key is masked by value, a foreign one by its name —
+# `Name: v`, a quoted JSON/repr key (`"Name": "v"`) and `name=v`; the rest of the line goes
+_HEADER_SECRET = re.compile(r"(?im)\b(x-api-key|authorization)([\"']?\s*[:=]\s*)\S[^\r\n]*")
 
 
 def _curl_quoted(value: str, what: str) -> str:
@@ -524,8 +526,9 @@ class DNSClient:
         ``ProvisionerHTTPError`` (status 500, that exact body), mapped here to
         ``{"status": "absent"}``. ⚠️ That plaintext 500 is the provisioner's catch-all for ANY
         unhandled exception (a Cloudflare failure, a missing zone), so this mapping can swallow a
-        real failed delete; an absent record already answers 200 ``action: not_found``. The
-        provisioner answering 404 is the fix (W-8bb683e6 residue). Any other HTTP error raises.
+        real failed delete; an absent record already answers 200 ``action: not_found``. A typed
+        status from the provisioner retires this mapping (requested of site-provisioner,
+        2026-10-19). Any other HTTP error raises, a 404 included (a missing route).
 
         Verified live during the vps4 DR drill 2026-06-08: the second
         ``destroy --reverse-fleet-add`` against an already-cleaned vps4

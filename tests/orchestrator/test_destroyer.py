@@ -341,29 +341,66 @@ class TestDestroyErrorHandling:
         assert not report.had_errors
 
 
+def _real_dns_errors():
+    """The driver's real error classes, imported before the stubs replace the module."""
+    import httpx
+
+    from fabrik.drivers.dns import ProvisionerHTTPError
+
+    request = httpx.Request("DELETE", "http://p/api/cloudflare/dns/ocoron.com")
+    return {
+        "ssh-404": ProvisionerHTTPError("gone", status=404, body=""),
+        "ssh-500-zone-not-found": ProvisionerHTTPError(
+            "returned HTTP 500: 'Zone not found'", status=500, body="Zone not found"
+        ),
+        "ssh-401-not-found-text": ProvisionerHTTPError("not found", status=401, body="not found"),
+        "direct-404": httpx.HTTPStatusError(
+            "gone", request=request, response=httpx.Response(404, request=request)
+        ),
+        "direct-500": httpx.HTTPStatusError(
+            "404 not found", request=request, response=httpx.Response(500, request=request)
+        ),
+        "curl-missing-on-the-vps": RuntimeError(
+            "SSH proxy request to 'vps' failed (rc=127): sh: curl: not found"
+        ),
+        "text-404-without-a-status": RuntimeError("404 not found"),
+    }
+
+
 @pytest.mark.parametrize(
-    "status,body,expected",
+    "case,expected",
     [
-        (404, "Not Found", "not_found"),
-        (500, "Zone not found", "error"),
-        (401, "not found", "error"),
+        ("ssh-404", "not_found"),
+        ("ssh-500-zone-not-found", "error"),
+        ("ssh-401-not-found-text", "error"),
+        ("direct-404", "not_found"),
+        ("direct-500", "error"),
+        ("curl-missing-on-the-vps", "error"),
+        ("text-404-without-a-status", "error"),
     ],
-    ids=["404-absent", "500-zone-not-found-is-an-error", "401-is-an-error"],
 )
 def test_the_destroyer_reads_a_provisioner_http_error_by_its_status(
-    status, body, expected, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    case, expected, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """W-8bb683e6: a provisioner HTTP error is read by its status — a 500 whose body says "not found"
-    is a failed delete, never an absent record."""
-    from fabrik.drivers.dns import (
-        ProvisionerHTTPError,  # the real class, before the stubs replace it
-    )
-
+    """W-8bb683e6: only an HTTP 404, read by its status on either transport, is an absent record — a 500
+    whose body says "not found", or curl missing on the VPS, is a failed delete."""
+    errors = _real_dns_errors()
     mocks = _install_stub_drivers(monkeypatch)
-    err = ProvisionerHTTPError(f"returned HTTP {status}: {body!r}", status=status, body=body)
-    mocks["dns.client"].delete_record.side_effect = err
+    mocks["dns.client"].delete_record.side_effect = errors[case]
 
     report = destroy_deployment(_maximal_service_spec(), project_base=tmp_path)
 
     dns_action = [a for a in report.actions if a.step == "dns"][0]
     assert dns_action.status == expected
+
+
+def test_the_destroyer_reports_an_already_absent_record_as_not_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """The driver's {"status": "absent"} is not a removal (W-8bb683e6 review)."""
+    mocks = _install_stub_drivers(monkeypatch)
+    mocks["dns.client"].delete_record.return_value = {"status": "absent"}
+
+    report = destroy_deployment(_maximal_service_spec(), project_base=tmp_path)
+
+    assert [a for a in report.actions if a.step == "dns"][0].status == "not_found"

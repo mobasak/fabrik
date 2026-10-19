@@ -401,25 +401,33 @@ def _destroy_dns(domain: str, dry_run: bool) -> ActionResult:
         if dry_run:
             return ActionResult("dns", "dry_run", detail=f"{subdomain}.{base_domain} A")
         client = DNSClient()
-        # Driver is idempotent: a 404 from site-provisioner is normalized
-        # to a successful no-op result payload.
-        client.delete_record(base_domain, "A", subdomain)
+        # the driver answers {"status": "absent"} for the provisioner's already-gone shape
+        result = client.delete_record(base_domain, "A", subdomain)
+        if isinstance(result, dict) and result.get("status") == "absent":
+            return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")
         return ActionResult("dns", "removed", detail=f"{subdomain}.{base_domain} A")
     except Exception as e:  # noqa: BLE001
         # site-provisioner unavailable (offline dev, API key missing) is
         # common in smoke tests — surface as a warning, not a hard error,
         # since DNS records are cheap to clean up manually via Cloudflare.
-        # a provisioner HTTP error is read by its status: its body text ("Zone not found" in a 500)
-        # must never pass for an absent record (W-8bb683e6)
-        status = getattr(e, "status", None)
-        if isinstance(status, int):
-            if status == 404:
-                return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")
-            return ActionResult("dns", "error", error=repr(e))
-        msg = str(e)
-        if "404" in msg or "not found" in msg.lower():
+        # only an HTTP 404 is an absent record, read by its status on either transport — never
+        # by text: "Zone not found" in a 500 body or "sh: curl: not found" on stderr is a failed
+        # delete (W-8bb683e6)
+        if _http_status(e) == 404:
             return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")
         return ActionResult("dns", "error", error=repr(e))
+
+
+def _http_status(exc: Exception) -> int | None:
+    """The HTTP status an exception carries: the SSH proxy's ``ProvisionerHTTPError.status``, or
+    the direct path's ``httpx.HTTPStatusError.response.status_code``; ``None`` for any other."""
+    for status in (
+        getattr(exc, "status", None),
+        getattr(getattr(exc, "response", None), "status_code", None),
+    ):
+        if isinstance(status, int) and not isinstance(status, bool):
+            return status
+    return None
 
 
 def _destroy_files(name: str, base: Path, dry_run: bool) -> ActionResult:
