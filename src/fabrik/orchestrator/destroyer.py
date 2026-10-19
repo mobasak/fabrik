@@ -409,6 +409,13 @@ def _destroy_dns(domain: str, dry_run: bool) -> ActionResult:
         # site-provisioner unavailable (offline dev, API key missing) is
         # common in smoke tests — surface as a warning, not a hard error,
         # since DNS records are cheap to clean up manually via Cloudflare.
+        # a provisioner HTTP error is read by its status: its body text ("Zone not found" in a 500)
+        # must never pass for an absent record (W-8bb683e6)
+        status = getattr(e, "status", None)
+        if isinstance(status, int):
+            if status == 404:
+                return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")
+            return ActionResult("dns", "error", error=repr(e))
         msg = str(e)
         if "404" in msg or "not found" in msg.lower():
             return ActionResult("dns", "not_found", detail=f"{subdomain}.{base_domain}")

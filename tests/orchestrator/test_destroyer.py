@@ -339,3 +339,31 @@ class TestDestroyErrorHandling:
         compose_action = [a for a in report.actions if a.step == "compose"][0]
         assert compose_action.status == "not_found"
         assert not report.had_errors
+
+
+@pytest.mark.parametrize(
+    "status,body,expected",
+    [
+        (404, "Not Found", "not_found"),
+        (500, "Zone not found", "error"),
+        (401, "not found", "error"),
+    ],
+    ids=["404-absent", "500-zone-not-found-is-an-error", "401-is-an-error"],
+)
+def test_the_destroyer_reads_a_provisioner_http_error_by_its_status(
+    status, body, expected, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """W-8bb683e6: a provisioner HTTP error is read by its status — a 500 whose body says "not found"
+    is a failed delete, never an absent record."""
+    from fabrik.drivers.dns import (
+        ProvisionerHTTPError,  # the real class, before the stubs replace it
+    )
+
+    mocks = _install_stub_drivers(monkeypatch)
+    err = ProvisionerHTTPError(f"returned HTTP {status}: {body!r}", status=status, body=body)
+    mocks["dns.client"].delete_record.side_effect = err
+
+    report = destroy_deployment(_maximal_service_spec(), project_base=tmp_path)
+
+    dns_action = [a for a in report.actions if a.step == "dns"][0]
+    assert dns_action.status == expected

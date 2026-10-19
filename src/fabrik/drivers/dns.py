@@ -41,6 +41,24 @@ def _is_ip(text: str) -> bool:
     return True
 
 
+class ProvisionerHTTPError(RuntimeError):
+    """The site-provisioner answered outside 2xx through the SSH proxy (W-8bb683e6).
+
+    `curl -s` exits 0 on a 4xx/5xx, so the error body used to come back as the call's success; this
+    is the SSH path's ``raise_for_status``. ``status`` is the HTTP status; ``body`` the reply
+    cleaned of keys and stripped, its first 200 characters, unquoted (for matching); the message
+    carries the one-line quoted form, and only the message reaches ``RuntimeError``."""
+
+    def __init__(self, message: str, *, status: int, body: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.body = body
+
+
+# a header value echoed in a reply: the client's key is masked by value, a foreign one by its name
+_HEADER_SECRET = re.compile(r"(?im)\b(x-api-key|authorization)(\s*:\s*)\S[^\r\n]*")
+
+
 def _curl_quoted(value: str, what: str) -> str:
     """*value* as a curl config string: ``"…"`` with ``\\`` then ``"`` escaped.
 
@@ -290,7 +308,13 @@ class DNSClient:
 
             query_string = urlencode(params)
             url = f"{url}?{query_string}"
-        cmd = f"curl -s -X {shlex.quote(method)} {header_args} {shlex.quote(url)} -K -"
+        # -sS: curl's own error stays on stderr (cleaned below); -w appends the HTTP status as the
+        # reply's last line, the only way to see it — -f drops the body, --fail-with-body exits 22
+        # into the ssh-failure branch with no status (W-8bb683e6)
+        cmd = (
+            f"curl -sS -X {shlex.quote(method)} {header_args} {shlex.quote(url)} -K - "
+            f"-w {shlex.quote(chr(10) + '%{http_code}')}"
+        )
         host = self.ssh_host
         jump = jump_for(host)  # read once: the argv and the error text name the same jump
         try:
@@ -317,12 +341,27 @@ class DNSClient:
                 f"SSH proxy request to {host!r}{_via(jump)} failed (rc={result.returncode}): "
                 f"{_one_line(self._clean(result.stderr))}"
             )
+        # the rc check above comes FIRST: an aborted transfer leaves `partial\n200` on stdout
+        reply_text, sep, code = result.stdout.rpartition("\n")
+        if not sep or not re.fullmatch(r"\d{3}", code):
+            reply = _one_line(self._clean(result.stdout).strip()[:200], empty="empty reply")
+            raise RuntimeError(f"SSH proxy reply carried no HTTP status: {reply}")
+        status = int(code)
+        if not 200 <= status <= 299:  # raise_for_status's rule: a 3xx without -L is no success
+            # masked BEFORE the cut (a key straddling character 200 would otherwise escape it)
+            excerpt = self._clean(reply_text).strip()[:200]
+            raise ProvisionerHTTPError(
+                f"SSH proxy request to {host!r}{_via(jump)} returned HTTP {status}: "
+                f"{_one_line(excerpt, empty='empty body')}",
+                status=status,
+                body=excerpt,
+            )
         try:
-            return json.loads(result.stdout)
+            return json.loads(reply_text)
         except json.JSONDecodeError as exc:
             # masked BEFORE the cut (a key straddling character 200 would otherwise escape it),
             # then one line: the reply is remote text (W-9a560686)
-            reply = _one_line(self._clean(result.stdout).strip()[:200], empty="empty reply")
+            reply = _one_line(self._clean(reply_text).strip()[:200], empty="empty reply")
             msg = f"SSH proxy returned non-JSON: {reply}"
             raise RuntimeError(msg) from exc
 
@@ -332,7 +371,7 @@ class DNSClient:
         cannot mask a `Key: value` header, so the key goes first."""
         if self.api_key:
             text = text.replace(self.api_key, "<redacted>")
-        return _redact(text)
+        return _redact(_HEADER_SECRET.sub(r"\1\2<redacted>", text))
 
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request to Site Provisioner service.
@@ -480,13 +519,13 @@ class DNSClient:
         """
         Delete a Cloudflare DNS record by type and name.
 
-        Idempotent: site-provisioner returns HTTP 500 + plain-text
-        ``Internal Server Error`` body when the record doesn't exist
-        (instead of the more correct 404). The SSH-proxy layer then
-        surfaces that as ``RuntimeError("SSH proxy returned non-JSON:
-        'Internal Server Error'")`` (the reply quoted on one line). For a DELETE this is the desired
-        end-state, not a failure — so catch the specific shape and
-        return ``{"status": "absent"}`` rather than re-raising.
+        Treated as idempotent: site-provisioner has answered a delete of an absent record with
+        HTTP 500 + plain-text ``Internal Server Error``, which the SSH proxy raises as
+        ``ProvisionerHTTPError`` (status 500, that exact body), mapped here to
+        ``{"status": "absent"}``. ⚠️ That plaintext 500 is the provisioner's catch-all for ANY
+        unhandled exception (a Cloudflare failure, a missing zone), so this mapping can swallow a
+        real failed delete; an absent record already answers 200 ``action: not_found``. The
+        provisioner answering 404 is the fix (W-8bb683e6 residue). Any other HTTP error raises.
 
         Verified live during the vps4 DR drill 2026-06-08: the second
         ``destroy --reverse-fleet-add`` against an already-cleaned vps4
@@ -510,12 +549,10 @@ class DNSClient:
                 f"/api/cloudflare/dns/{domain}",
                 params={"record_type": record_type, "name": name},
             )
-        except RuntimeError as e:
-            # Narrow match: the specific "not found surfaced as 500" shape
-            # site-provisioner emits. Any other RuntimeError (real SSH
-            # failure, malformed config, etc.) still propagates.
-            msg = str(e)
-            if "Internal Server Error" in msg and "non-JSON" in msg:
+        except ProvisionerHTTPError as e:
+            # the plaintext-500 shape only (see the docstring: a catch-all); every other HTTP error,
+            # and every non-HTTP failure (ssh, config), propagates
+            if e.status == 500 and e.body == "Internal Server Error":
                 logger.info(
                     "DNS delete_record(%s, %s, %s): record already absent "
                     "(site-provisioner 500 → treating as success)",

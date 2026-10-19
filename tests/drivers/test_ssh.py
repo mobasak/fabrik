@@ -250,7 +250,7 @@ class TestJump:
         monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
         monkeypatch.delenv("SITE_PROVISIONER_INTERNAL_URL", raising=False)
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+            mock_run.return_value = MagicMock(returncode=0, stdout="{}\n200", stderr="")
             assert audit._ssh_check("true")[0] is True
             assert mock_run.call_args[0][0][:4] == ["ssh", "-o", "ProxyJump=vps2", "vps"]
             client = DNSClient(api_key="t", ssh_host="vps")
