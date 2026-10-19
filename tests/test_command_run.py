@@ -6737,8 +6737,53 @@ def test_a_first_sliced_round_that_undercounts_confirmed_is_told(run_dir: Path) 
     out = _round_slices(run_dir, "A:0/3,B:0/1", confirmed="6")
     assert out.returncode == 0, out.stderr
     assert [w for w in _warns(out) if "claims total 4 < --confirmed 6" in w], out.stderr
-    ok = _round_slices(run_dir, "A:3/3,B:1/1")
-    assert not [w for w in _warns(ok) if "claims total" in w], ok.stderr
+
+
+def test_a_first_sliced_round_that_holds_every_confirmed_claim_is_silent(tmp_path: Path) -> None:
+    """The other side of the undercount: on a FIRST sliced round (its own record — a second
+    sliced round never reaches this check), a claims total at or above `--confirmed` warns of
+    nothing, and so does an unsliced first round that states `--confirmed`, which records cleanly."""
+    run_dir = tmp_path / "runs"
+    _start(run_dir)
+    ok = _round_slices(run_dir, "A:3/3,B:1/1", confirmed="4")
+    assert ok.returncode == 0 and _warns(ok) == [], ok.stderr
+    bare_dir = tmp_path / "bare"
+    _start(bare_dir)
+    bare = _cr(bare_dir, "round", "--findings", "2", "--confirmed", "1")
+    assert bare.returncode == 0 and "ROUND 1 recorded" in bare.stdout, bare.stderr
+    assert _warns(bare) == [], bare.stderr
+
+
+def test_the_echo_reads_every_earlier_round_and_each_boundary(run_dir: Path) -> None:
+    """The paths the round-1 mutation sweep found unpinned (W-2d704438 review): the EXPECTED line
+    names the FIRST sliced round's claims even after several sliced rounds, lists names sorted,
+    says `classes open: none` when none are; a 0 → N growth and a one-point verified fall are
+    each said, while a verified count restated as it stood is not; and a hand-edited count that no
+    longer reads shows as `?` and is never compared."""
+    _start(run_dir)
+    _round_slices(run_dir, "B:0/2,A:6/11,Z:0/0", confirmed="5")
+    _round_slices(run_dir, "B:2/2,A:9/11,Z:0/0", confirmed="1")
+    out = _round_slices(run_dir, "B:2/2,A:8/11,Z:0/1", confirmed="1")
+    expected = next(ln for ln in out.stderr.splitlines() if "EXPECTED" in ln)
+    assert "round-1 slices: B claims 2 · A claims 11 · Z claims 0" in expected, expected
+    assert "last stated: A 9/11 · B 2/2 · Z 0/0" in expected, expected
+    assert "classes open: none" in expected, expected
+    text = "\n".join(_warns(out))
+    assert "Z claims grew 0 → 1" in text, out.stderr
+    assert "A verified fell 9 → 8" in text, out.stderr
+    assert "B verified fell" not in text and "B claims" not in text, (
+        out.stderr
+    )  # restated as it stood
+    # a hand-edited count (`_slice_rows` reads it as -1) is shown as `?` and never compared
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["rounds"][-1]["slices"][0]["claims"] = None
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    edited = _round_slices(run_dir, "B:2/5,A:11/11,Z:1/1", confirmed="0")
+    assert edited.returncode == 0, edited.stderr
+    line = next(ln for ln in edited.stderr.splitlines() if "EXPECTED" in ln)
+    assert "B 2/?" in line, line
+    assert not [w for w in _warns(edited) if "B claims" in w], edited.stderr
 
 
 def test_no_echo_before_a_ledger_or_on_a_refused_round(run_dir: Path) -> None:
@@ -6754,6 +6799,21 @@ def test_no_echo_before_a_ledger_or_on_a_refused_round(run_dir: Path) -> None:
     )
     assert refused.returncode == 2, refused.stderr
     assert "EXPECTED" not in refused.stderr and _warns(refused) == [], refused.stderr
+    # the last refusal in the handler, `--seats`, comes before the echo too
+    seats = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--seats",
+        "-1",
+        "--slices",
+        "A:0/9",
+    )
+    assert seats.returncode == 2, seats.stderr
+    assert "EXPECTED" not in seats.stderr and _warns(seats) == [], seats.stderr
 
 
 def test_a_malformed_slice_ledger_is_refused(run_dir: Path) -> None:
