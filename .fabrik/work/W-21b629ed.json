@@ -3,7 +3,7 @@
   "created": "2026-10-19T19:01:45.209632Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a13d55bc068d333daf041bdd47534c2e34c82016",
   "id": "W-21b629ed",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work and another active agent's request (intel); LOW effort: two table rows in one command",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5aq4754nvbwvb9e1a31fhc7"
   ],
