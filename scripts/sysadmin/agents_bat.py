@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         "--replace",
         action="append",
         default=[],
-        help="a desktop file name this script may overwrite once",
+        help="a desktop file this script may overwrite although it did not write it (case-blind, repeatable)",
     )
     args = ap.parse_args(argv)
 
@@ -156,11 +156,12 @@ def main(argv: list[str] | None = None) -> int:
             rc = 2
             continue
         name, text = bat_name(repo), bat_text(repo, args.distro)
+        # before print mode, so a dry run of the real command reads the same
+        unmatched.discard(name.lower())
         if desk is None:
             print(f"== {name}\n{text.replace(chr(13), '')}")
             continue
         target = desk / name
-        unmatched.discard(name.lower())
         try:
             rc = max(rc, _write(target, text, name.lower() in replace))
         except OSError as exc:  # a folder or a locked file at the target: say so, keep going
@@ -194,8 +195,12 @@ def _write(target: Path, text: str, replace: bool) -> int:
             )
             return 2
     tmp = target.with_name(target.name + ".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, target)
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)  # a locked target never leaves a stray .tmp on the desktop
+        raise
     print(f"agents_bat: wrote {target}")
     return 0
 

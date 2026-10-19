@@ -360,8 +360,15 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
     assert out.returncode == 0, out.stderr
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(mine)), _log(mine)
     assert _log(mine)[-1] == "attach -t =fabrik-lib", _log(mine)
-    for label, owner in (("other", "/opt/elsewhere/fabrik-lib"), ("none", None)):
+    # "other-tagged": another folder's recorded grid is never adopted, even when its panes carry this repo's names
+    for label, owner in (
+        ("other", "/opt/elsewhere/fabrik-lib"),
+        ("none", None),
+        ("other-tagged", "/opt/elsewhere/fabrik-lib"),
+    ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=owner)
+        if label == "other-tagged":
+            (home / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
         out = _run(str(repo), home=home)
         assert out.returncode == 2, (label, out.stderr)
         assert "not attaching" in out.stderr, (label, out.stderr)
@@ -377,6 +384,8 @@ def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> 
     (ours / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
     out = _run(str(repo), home=ours)
     assert out.returncode == 0 and "adopted" in out.stderr, out.stderr
+    # its panes skipped the env allow-list, and the operator is told how to get clean ones
+    assert "keep the environment they started with" in out.stderr, out.stderr
     assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in _log(ours), _log(ours)
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(ours)), _log(ours)
     assert _log(ours)[-1] == "attach -t =fabrik-lib", _log(ours)

@@ -74,6 +74,14 @@ def test_print_mode_writes_nothing(tmp_path: Path) -> None:
     gone = tmp_path / "no-such-desk"
     out = _run("--opt", str(opt), "--desktop", str(gone))
     assert out.returncode == 2 and not gone.exists(), out.stderr
+    # ... also when no repo has a registry, so a mistyped --desktop never reads as success
+    empty = tmp_path / "empty-opt"
+    empty.mkdir()
+    out = _run("--opt", str(empty), "--desktop", str(gone))
+    assert out.returncode == 2 and "not a folder" in out.stderr and not gone.exists(), out.stderr
+    # a dry run of the real command, --replace included, reads the same as the real run: no false refusal
+    out = _run("--opt", str(opt), "--replace", "Fabrik-lib Agents.bat")
+    assert out.returncode == 0, out.stderr
 
 
 def test_the_bat_text(tmp_path: Path) -> None:
@@ -232,3 +240,29 @@ def test_windows_device_names_and_trailing_dots_are_refused(tmp_path: Path) -> N
     for bad in ("COM1", "Ubuntu."):
         out = _run("--opt", str(opt), "--desktop", str(desk), distro=bad)
         assert out.returncode == 2 and "distro" in out.stderr, (bad, out.stderr)
+
+
+def test_a_failed_rename_leaves_no_temp_file(tmp_path: Path, monkeypatch) -> None:
+    """A target Windows holds open (OneDrive, an antivirus scan) fails the rename: the error reaches main's refusal
+    and no stray `.tmp` stays on the desktop. Linux cannot lock a file that way, so the rename is made to fail here."""
+    import importlib.util
+    import os
+
+    spec = importlib.util.spec_from_file_location("agents_bat", GEN)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def locked(src: object, dst: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "replace", locked)
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    target = desk / "Fabrik-lib Agents.bat"
+    try:
+        mod._write(target, mod.bat_text("fabrik-lib", "Ubuntu-24.04"), replace=False)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("the rename error must reach the caller")
+    assert list(desk.iterdir()) == [], list(desk.iterdir())

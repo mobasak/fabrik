@@ -164,6 +164,8 @@ owned_here() {
   if [ -z "$owner" ] && adoptable; then
     tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null
     echo "agents_up: adopted the $S grid a hand-built launcher made — every pane is one of this repo's builders" >&2
+    # its panes were started without this script's env allow-list, so they may carry the VS Code session's variables
+    echo "agents_up: those panes keep the environment they started with; for clean panes: tmux kill-session -t =$S, then launch again" >&2
     return 0
   fi
   echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2

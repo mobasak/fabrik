@@ -182,7 +182,9 @@ Moving a repo from a hand-made launcher to the generated one:
 - A grid an older hand-built launcher left running under the same tmux session name (fabrik-lib's
   `~/bin/fabrik-lib-up` builds one named `fabrik-lib`) records no owner. `agents_up.sh` adopts it, as it is, when every
   one of its panes is tagged with one of this repo's builders; any other grid of that name is refused, and closing it
-  (`tmux kill-session -t =<repo>`) also ends the builders running in it, which then resume on the next launch.
+  (`tmux kill-session -t =<repo>`) also ends the builders running in it, which then resume on the next launch. An
+  adopted grid's panes keep the environment they started with (a hand-built launcher has no env allow-list, so they
+  may carry a VS Code session's variables); the launcher says so, and closing the grid once gives clean panes.
 - Retire the hand-made Windows Terminal profile and its `~/bin/<repo>-up` script; the generated fragment profile
   replaces both.
 - Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
