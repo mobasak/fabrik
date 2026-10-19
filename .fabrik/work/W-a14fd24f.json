@@ -3,7 +3,7 @@
   "created": "2026-10-18T18:13:23.232204Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b10107ed314a3ecc3ec288a02c76c4a98b6be545",
   "id": "W-a14fd24f",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare edge, an unreadable lock folder still exits 0; residue of D-1007",
-  "status": "open",
+  "status": "done",
   "title": "kaizen_coroner: an unreadable lock dir still exits 0 — _errparked_markers returns {} on OSError and the sweep line says blind: true with errors 0 (W-6f46cebd scoped review, Opus seat; declared OUT of that item)"
 }

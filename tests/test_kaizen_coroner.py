@@ -1288,3 +1288,219 @@ def test_a_counted_sweep_error_exits_3_through_main(sources, monkeypatch, capsys
     monkeypatch.setattr(kc, "holes", lambda *a, **k: None)
     assert kc.main(["--sweep"]) == 3
     assert "holes() unmeasurable (blind)" in capsys.readouterr().err
+
+
+# ── W-3cdc8bd6 / W-a14fd24f / W-4c526386: retried events, counted unreadable inputs ─────────────
+
+
+def _kinds(sources: kc.Sources, sid: str) -> list[str]:
+    return [e["event"] for e in _events(sources, sid)]
+
+
+def _revival_log(sources: kc.Sources) -> None:
+    sources.mesh_log.write_text(
+        "2026-08-20 04:30:00  arg=failure   event=StopFailure   "
+        f"verdict=autoresume-spawned error=server_error | cwd=/opt/fabrik sess={SID[:8]}\n"
+    )
+
+
+def test_a_lost_ttl_session_end_is_retried_on_the_next_sweep(sources, monkeypatch):
+    """W-3cdc8bd6: the record used to be saved `expired` before the ttl session_end emit, so a lost
+    emit was one-shot. Now the record stays `running`, its updated_ts untouched (a bumped ts would
+    read fresh and never be retried), and the next sweep emits once and expires it."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+    before = _record(sources, "stale-1")["updated_ts"]
+    real = kaizen_events.emit
+    _failing_emit(monkeypatch, "session_end", closed_by="ttl")
+    first = kc.sweep(sources)
+    assert "ttl session_end emit failed for stale-1" in first.errors, first.errors
+    assert not any("not persisted" in e for e in first.errors), first.errors
+    rec = _record(sources, "stale-1")
+    assert rec["state"] == "running" and rec["updated_ts"] == before
+    assert first.records_expired == []
+    monkeypatch.setattr(kaizen_events, "emit", real)
+    second = kc.sweep(sources)
+    assert second.records_expired == ["stale-1"], second
+    assert _record(sources, "stale-1")["state"] == "expired"
+    assert _kinds(sources, "stale-1").count("session_end") == 1
+
+
+def test_a_lost_revival_is_repaired_after_the_session_revives(sources, monkeypatch):
+    """W-3cdc8bd6 (Opus + Fable critiques, executed): a revived session reads alive on the next
+    sweep and drops out of `deaths`, so a revival lost on sweep 1 is repaired from the event
+    stream, not from re-gathered evidence; the session_end is never held back."""
+    _write_marker(sources, SID, "server_error")
+    transcript = _write_transcript(sources, SID, [_normal_assistant_row(), _api_error_row(10, 10)])
+    _revival_log(sources)
+    real = kaizen_events.emit
+    _failing_emit(monkeypatch, "revival")
+    first = kc.sweep(sources)
+    assert f"revival emit failed for {kc._mesh_safe(SID)}" in first.errors, first.errors
+    assert _kinds(sources, SID) == ["death", "session_end"]
+    monkeypatch.setattr(kaizen_events, "emit", real)
+    with transcript.open("a") as fh:  # the revival: the model speaks again
+        fh.write(json.dumps(_normal_assistant_row()) + "\n")
+    second = kc.sweep(sources)
+    assert second.errors == [], second.errors
+    kinds = _kinds(sources, SID)
+    assert kinds.count("revival") == 1 and kinds.count("session_end") == 1, kinds
+    kc.sweep(sources)
+    assert _kinds(sources, SID) == kinds  # idempotent
+
+
+def test_a_lost_session_end_is_repaired_from_the_stream(sources, monkeypatch):
+    """W-3cdc8bd6: a coroner session_end lost on sweep 1 is repaired after the death evidence is
+    gone (the marker cleared), from the stream's reconstructed death."""
+    marker = _write_marker(sources, SID, "server_error")
+    real = kaizen_events.emit
+    _failing_emit(monkeypatch, "session_end", closed_by="coroner")
+    first = kc.sweep(sources)
+    assert f"session_end emit failed for {kc._mesh_safe(SID)}" in first.errors, first.errors
+    assert _kinds(sources, SID) == ["death"]
+    monkeypatch.setattr(kaizen_events, "emit", real)
+    marker.unlink()
+    second = kc.sweep(sources)
+    assert second.errors == [], second.errors
+    assert _kinds(sources, SID) == ["death", "session_end"]
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 dir")
+def test_an_unreadable_lock_dir_counts_an_error(sources):
+    """W-a14fd24f: an unreadable lock dir read as zero markers and exited 0; a missing one stays
+    no markers and no error."""
+    _write_marker(sources, SID, "server_error")
+    with _unreadable(sources.lock_dir):
+        report = kc.sweep(sources)
+    assert any(e.startswith("lock dir unreadable") for e in report.errors), report.errors
+    missing = kc.sweep(dataclasses.replace(sources, lock_dir=sources.lock_dir / "never-made"))
+    assert not any("lock dir" in e for e in missing.errors), missing.errors
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 file")
+def test_an_unreadable_marker_counts_an_error(sources):
+    """W-a14fd24f's class (Fable critique): a mode-000 marker in a readable lock dir was skipped as
+    if absent — a death never judged, exit 0."""
+    marker = _write_marker(sources, SID, "server_error")
+    with _unreadable(marker):
+        report = kc.sweep(sources)
+    assert any(e.startswith(f"marker {marker.name} unreadable") for e in report.errors), (
+        report.errors
+    )
+
+
+@pytest.mark.timeout(20)
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 file")
+@pytest.mark.parametrize("shape", ["mode-000", "corrupt", "fifo"])
+def test_an_unjudgeable_record_counts_an_error(sources, shape):
+    """W-4c526386 (+ Opus/Fable critiques): command_run.load returns {} for an unreadable or corrupt
+    record, so a running record was skipped as silently as a closed one; a FIFO named *.json
+    blocked the sweep in load's read. Each now counts an error and is not closed."""
+    path = sources.runs_dir / "stale-1.json"
+    if shape == "fifo":
+        os.mkfifo(path)
+        expected = "record stale-1 not a regular file"
+    else:
+        _write_record(sources, "stale-1", age_s=13 * 3600.0)
+        if shape == "corrupt":
+            path.write_text('{"state": "running", ')
+            expected = "record stale-1 unparseable"
+        else:
+            expected = "record stale-1 unreadable"
+    if shape == "mode-000":
+        with _unreadable(path):
+            report = kc.sweep(sources)
+    else:
+        report = kc.sweep(sources)
+    assert any(e.startswith(expected) for e in report.errors), report.errors
+    assert "stale-1" not in report.records_expired
+
+
+# ── W-3cdc8bd6 review pass 1: every input the repair, the markers and the records read ──────────
+
+
+def _open_death_stream(sources: kc.Sources, sid: str = SID) -> Path:
+    """A stream holding a reconstructed death and no session_end — the repair's subject."""
+    path = sources.events_dir / f"{sid}.jsonl"
+    row = {"event": "death", "reconstructed": True, "sid": sid, "class": "server_error"}
+    path.write_text(json.dumps(row) + "\n")
+    return path
+
+
+@pytest.mark.timeout(20)
+def test_a_fifo_event_stream_counts_an_error_and_never_hangs(sources):
+    """Review pass 1 (sonnet, executed): the repair opened every recent *.jsonl with a blocking
+    read, so a FIFO hung the sweep."""
+    os.mkfifo(sources.events_dir / "fifo.jsonl")
+    report = kc.sweep(sources)
+    assert any(e.startswith("event stream fifo.jsonl not a regular file") for e in report.errors), (
+        report.errors
+    )
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 file")
+def test_an_unreadable_event_stream_counts_an_error(sources):
+    """Review pass 1: `_tail_lines` reads an unreadable stream as empty — a death the repair never
+    saw, uncounted."""
+    path = _open_death_stream(sources)
+    with _unreadable(path):
+        report = kc.sweep(sources)
+    assert any(e.startswith(f"event stream {path.name} unreadable") for e in report.errors), (
+        report.errors
+    )
+
+
+def test_the_repair_skips_a_stream_older_than_the_lookback(sources):
+    """Review pass 1 (sonnet, mutant survived): the lookback horizon bounds the repair; a stream
+    untouched for longer is left alone, so the repair never rescans every stream ever written."""
+    path = _open_death_stream(sources)
+    old = time.time() - kc._lookback_s() - 3600
+    os.utime(path, (old, old))
+    kc.sweep(sources)
+    assert _kinds(sources, SID) == ["death"]
+    os.utime(path, None)
+    kc.sweep(sources)
+    assert _kinds(sources, SID) == ["death", "session_end"]
+
+
+def test_a_dangling_marker_counts_an_error(sources):
+    """Review pass 1 (haiku, executed): a dangling-symlink marker read as 'cleared mid-sweep' — a
+    death hidden, exit 0."""
+    link = sources.lock_dir / f"{kc._mesh_safe(SID)}.errparked"
+    link.symlink_to(sources.lock_dir / "nowhere")
+    report = kc.sweep(sources)
+    assert any(e.startswith(f"marker {link.name}") for e in report.errors), report.errors
+
+
+def test_an_empty_or_misaddressed_record_counts_an_error(sources):
+    """Review pass 1 (both finders): a 0-byte record and a record whose stem command_run would
+    rewrite (so `load` reads another path) were skipped silently."""
+    (sources.runs_dir / "empty.json").write_text("")
+    _write_record(sources, "dotted.stem", age_s=13 * 3600.0)
+    report = kc.sweep(sources)
+    assert any(e.startswith("record empty unparseable") for e in report.errors), report.errors
+    assert any(e.startswith("record dotted.stem not addressable") for e in report.errors), (
+        report.errors
+    )
+
+
+@pytest.mark.skipif(_ROOT, reason="root reads a mode-000 file")
+def test_an_unreadable_stream_older_than_the_lookback_is_not_counted(sources):
+    """Review pass 2 (haiku, executed): the probe ran before the horizon check, so an old
+    unreadable stream the repair is meant to ignore counted an error on every sweep, forever."""
+    path = _open_death_stream(sources)
+    old = time.time() - kc._lookback_s() - 3600
+    os.utime(path, (old, old))
+    with _unreadable(path):
+        report = kc.sweep(sources)
+    assert not any(e.startswith("event stream") for e in report.errors), report.errors
+
+
+def test_a_dangling_lock_dir_counts_an_error(sources, tmp_path):
+    """Review pass 2 (haiku, mutant survived): a lock dir that is a dangling symlink is broken,
+    not absent — read as no markers it hid every death and exited 0."""
+    link = tmp_path / "dangling-locks"
+    link.symlink_to(tmp_path / "nowhere")
+    report = kc.sweep(dataclasses.replace(sources, lock_dir=link))
+    assert any(e.endswith("is a dangling symlink — markers skipped") for e in report.errors), (
+        report.errors
+    )
