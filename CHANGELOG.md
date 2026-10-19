@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the kaizen coroner retries lost events and counts unreadable inputs (2026-10-20)
+W-3cdc8bd6, W-a14fd24f and W-4c526386; D-1057. A TTL close now emits its `session_end` before saving the record `expired`, so a lost emit is retried on the next sweep instead of lost. A new repair pass reads the event streams and re-emits a lost `revival` or `session_end` for a reconstructed death, including after the session has revived or its marker has aged out. Unreadable inputs used to read as empty and let `--sweep` exit 0, and a FIFO could hang the sweep. Every marker, event stream and run record is now probed without blocking before it is read. Each of these is counted, so the sweep exits 3: an unreadable lock directory, events directory, marker, stream or record, a dangling symlink, a FIFO, an empty or corrupt record, or a record named so that `command_run` would read another file.
+
 ### Changed — the fabrik-researcher agent returns a bounded INFERENCE verdict and hands an only-source dead page to the archive (2026-10-19)
 W-0c33e10f, D-1056. The researcher's return format gains `INFERENCE`. It covers a claim that no line states but what was read implies, after a raw fetch or a second arm. It is never used for an absence, and never where a curl of a named URL would settle the claim. Its wrong-place quote re-ask is capped at one. A version-specific docs figure read only from exa grounds neither `VERIFIED` nor `STALE`. A claim whose only source now answers 404 on a live fetch is a `NEEDS-RAW-FETCH` naming `https://web.archive.org/web/2/<url>`.
 
