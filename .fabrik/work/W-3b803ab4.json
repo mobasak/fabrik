@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T18:47:27.960421Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-3b803ab4",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "when node is on PATH, evaluate the rendered config (require it, read presets[0][1].docs.exclude) and assert it equals the parsed patterns; skip with a named reason otherwise",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: test robustness (read the rendered config with node instead of as text); nobody blocked",
   "status": "open",
   "tags": [
     "fleet"

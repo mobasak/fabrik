@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T18:35:13.810120Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-cd395119",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure whether any template-source deploy dir carries docs/; then render the scaffold's exclude list into the .j2 (one source) or drop the .j2 config in favour of the scaffold's",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security issue, the same internal-doc exposure W-c2c2c35b fixed but through the .j2 config emitter, which renders no exclude; LOW effort: one template",
   "status": "open",
   "tags": [
     "fleet"
