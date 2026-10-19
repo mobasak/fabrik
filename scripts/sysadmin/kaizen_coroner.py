@@ -285,6 +285,30 @@ def _lookback_s() -> float:
     return hours * 3600
 
 
+def _unjudgeable(path: Path) -> tuple[str | None, os.stat_result | None]:
+    """``(reason, stat)`` for an input the sweep is about to read: ``(None, st)`` for a readable
+    regular file, ``("", None)`` when it is absent, else why it cannot be judged (W-3cdc8bd6).
+
+    Opened non-blocking and without following a link: a plain read blocks forever on a FIFO, and
+    every reader here (`_tail_lines`, `open`, `command_run.load`) reads an unreadable file as
+    empty — a death or a record silently not judged. A dangling symlink is ELOOP, so only true
+    absence (a file cleared mid-sweep) stays silent.
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return "", None
+    except OSError as exc:
+        return f"unreadable ({exc!r})", None
+    try:
+        st = os.fstat(fd)
+    finally:
+        os.close(fd)
+    if not stat.S_ISREG(st.st_mode):
+        return "not a regular file", None
+    return None, st
+
+
 # ── death evidence: the mesh's .errparked markers (hooks-index.md:36) ────────────────
 
 
@@ -303,6 +327,8 @@ def _errparked_markers(
     try:
         entries = list(lock_dir.iterdir())
     except FileNotFoundError:
+        if lock_dir.is_symlink() and report is not None:  # a dangling link is broken, not absent
+            report.errors.append(f"lock dir {lock_dir} is a dangling symlink — markers skipped")
         return out
     except OSError as exc:
         if report is not None:
@@ -311,11 +337,18 @@ def _errparked_markers(
     for path in entries:
         if not path.name.endswith(".errparked"):
             continue
+        reason, _ = _unjudgeable(path)
+        if reason == "":
+            continue  # the decider cleared it mid-sweep
+        if reason is not None:
+            if report is not None:
+                report.errors.append(f"marker {path.name} {reason} — not judged")
+            continue
         try:
             with open(path, "rb") as fh:
                 head = fh.read(256).decode("utf-8", "replace")
         except FileNotFoundError:
-            continue  # the decider cleared it mid-sweep
+            continue  # cleared between the probe and the read
         except OSError as exc:
             if report is not None:
                 report.errors.append(f"marker {path.name} unreadable ({exc!r}) — not judged")
@@ -636,30 +669,23 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
     ttl = _ttl_s()
     for path in record_files:
         stem = path.stem
-        # `command_run.load` returns {} for a missing, unreadable or corrupt record alike, and its
-        # read blocks forever on a FIFO: the file `load` reads is opened first, non-blocking, so an
-        # unjudgeable record is counted, never skipped as if closed (W-4c526386)
-        try:
-            fd = os.open(
-                command_run._record_path(stem), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
-            )
-        except FileNotFoundError:
+        # `command_run.load` returns {} for a missing, unreadable, empty or corrupt record alike, and
+        # its read blocks forever on a FIFO: each listed record is probed first, so one the sweep
+        # cannot judge is counted, never skipped as if closed (W-4c526386)
+        reason, _ = _unjudgeable(path)
+        if reason == "":
             continue  # vanished mid-sweep
-        except OSError as exc:
-            report.errors.append(f"record {stem} unreadable ({exc!r}) — not judged")
+        if reason is not None:
+            report.errors.append(f"record {stem} {reason} — not judged")
             continue
-        try:
-            st = os.fstat(fd)
-        finally:
-            os.close(fd)
-        if not stat.S_ISREG(st.st_mode):
-            report.errors.append(f"record {stem} not a regular file — not judged")
+        if command_run._record_path(stem).name != path.name:
+            # `load(stem)` would read another file (a stem command_run's _safe_sid rewrites)
+            report.errors.append(f"record {stem} not addressable — not judged")
             continue
         # Pre-lock read is a CANDIDATE FILTER only — never the state the close trusts.
         scan = command_run.load(stem)
         if not scan:
-            if st.st_size > 0:
-                report.errors.append(f"record {stem} unparseable — not judged")
+            report.errors.append(f"record {stem} unparseable — not judged")
             continue
         if scan.get("state") != "running":
             continue
@@ -1107,11 +1133,14 @@ def _repair_open_streams(src: Sources, now: float, report: CoronerReport) -> Non
         if not name.endswith(".jsonl"):
             continue
         path = src.events_dir / name
-        try:
-            if path.stat().st_mtime < horizon:
-                continue
-        except OSError:
+        reason, st = _unjudgeable(path)
+        if reason == "":
             continue  # vanished mid-sweep
+        if reason is not None or st is None:
+            report.errors.append(f"event stream {name} {reason} — not repaired")
+            continue
+        if st.st_mtime < horizon:
+            continue
         death_row: dict | None = None
         has_end = has_revival = False
         for raw in _tail_lines(path, EVENTS_SCAN_BYTES):
