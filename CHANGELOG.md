@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — the payments fulfilment-worker role: `shape.needs_payments_fulfilment` mints `<db>_payments_fulfilment` and injects `PAYMENTS_FULFILMENT_DATABASE_URL` (2026-10-20)
 
-- `src/fabrik/drivers/postgres.py`: `create_payments_ingest_role` is split into `mint_payments_role(db, lane)` (the NOBYPASSRLS login and nothing else) and `grant_payments_role(db, lane)` (CONNECT, USAGE, then the lane's grant; returns the path it took). The `fulfilment` lane is granted only by fabrik-lib's `payments_grant_fulfilment(regrole)`; `drop_database` drops both roles. Re-apply re-asserts the role's attributes and resets its settings, and refuses a same-named superuser or database owner.
+- `src/fabrik/drivers/postgres.py`: `create_payments_ingest_role` is split into `mint_payments_role(db, lane)` (the NOBYPASSRLS login and nothing else) and `grant_payments_role(db, lane)` (CONNECT, USAGE, then the lane's grant; returns `{"grants": <path>}`, the path it took). The `fulfilment` lane is granted only by fabrik-lib's `payments_grant_fulfilment(regrole)`; `drop_database` drops both roles. Re-apply re-asserts the role's attributes and resets its settings, and refuses a same-named superuser or database owner.
 - `src/fabrik/orchestrator/infrastructure.py`: each payments role is minted, its DSN injected, then granted, ingest first; the grant path sets the status — `provisioned`, `pending` (a new `DeploymentContext.registrar_warnings` line, exit 0) or `failed` (exit 2). An `infra.postgres: false` override turns the payments rows off too.
 - `src/fabrik/cli.py`: `fabrik apply` and `fabrik redeploy --refresh-infra` print each registrar warning as a `⚠` line (W-7ba06610, W-4b1dfd76).
 
