@@ -1,7 +1,7 @@
 # W-4ad7ff2d — a completion-gate layout for review-loop seats
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 4c57bf3cf534fa9d32d8828e42e8073706555e5e; range tip 4c57bf3cf534fa9d32d8828e42e8073706555e5e; `git diff f73fdf5014a5a76af1ea0f687681228ca9848654..4c57bf3cf534fa9d32d8828e42e8073706555e5e -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py CHANGELOG.md docs/LESSONS_LEARNT.md` md5 df1c4acd0d4ad1dec5c1f5d0da411e40 (21027 bytes)
+**Surface:** `git rev-parse HEAD` = b7a93ccae8adbe28af29aaec7a2ecf1dd30a4126; range tip b7a93ccae8adbe28af29aaec7a2ecf1dd30a4126; `git diff f73fdf5014a5a76af1ea0f687681228ca9848654..b7a93ccae8adbe28af29aaec7a2ecf1dd30a4126 -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py CHANGELOG.md docs/LESSONS_LEARNT.md` md5 f82b6be03266cb3b4a6d7320a9058ae8 (22198 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/workflows/fabrik-review-loop.js`, `tests/test_review_loop_workflow.py`, `CHANGELOG.md`, `docs/LESSONS_LEARNT.md`
 **Lane:** fabrik-task
 
