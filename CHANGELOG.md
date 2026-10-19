@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-coverage round zero leads with the fix's own input-space duty (2026-10-19)
+
+- Five `/fabrik-review` closes lost rounds to an input shape the author never ran before the pin, and the duty that asks for it sat fourth of about ten in one round-zero paragraph. `commands/_fragments/term-coverage.md` round zero now opens with it, bold; no word was added or lost. Placement is the reversible first step: W-1dc074b6 measures whether it works and holds the observable-record cure. Pinned in `tests/test_term_coverage_round_zero.py`.
+
 ### Changed — /fabrik-command-improve: PHASE 3 reads the files a target points at by path, the row's words, the rule it extends and the whole paragraph before the first draft (2026-10-19)
 
 - Three kaizen closes each paid a review round for a draft its reading step never put in front of it: a sentence restating the probe catalogue's own hunt line (pointed at by path, never included), a flag list and scope that overruled the next bullet, and items that narrowed their paragraph's bounds. PHASE 3 now reads, before the first draft, the files the target points at by path for the same subject, the row's own words, the rule the edit extends, and the paragraph or list the new text joins (its lead-in and the items beside the new text), leaving their bounds standing unless the row is a decision. Pinned by equality in `tests/test_command_improve_queue_pass.py`.
