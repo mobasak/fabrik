@@ -63,18 +63,21 @@ def test_seat_briefs_and_the_orchestrator_apply_the_probe_catalogue() -> None:
 
 def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() -> None:
     """W-21b629ed (intel mail 01M5AQ4754, D-1056): the fabrik-researcher agent returns INFERENCE and NEEDS-RAW-FETCH,
-    which the docs review's verdict table had no row for. Each now has one, and every verdict the agent returns has a
-    row, so a new agent verdict with no table row fails here. NEEDS-RAW-FETCH resolves into another row and so has no
-    self-audit count; INFERENCE can stand as a residual and does."""
+    which the docs review's verdict table had no row for. Each now has one, and every verdict the agent names, in its
+    Return line and in Method step 4's list, has a row, so a new agent verdict with no table row fails here. Both
+    resolve into the other rows (a live-checkable claim is VERIFIED-or-WRONG), so neither has a self-audit count, and
+    only the review lead curls."""
     src = _norm()
     table = src[src.index("### Verdict taxonomy") : src.index("A seat's return cites")]
-    rows = set(re.findall(r"\| \*\*([A-Z-]+)\*\* \|", table))
+    rows = set(re.findall(r"\| \*\*([A-Za-z0-9_-]+)\*\* \|", table))
     agent = (ROOT / "commands" / "_agents" / "fabrik-researcher.md").read_text()
-    returned = re.search(r"`<claim> → ([A-Z|-]+) ·", agent).group(1).split("|")
-    assert set(returned) <= rows, sorted(set(returned) - rows)
-    assert "Not VERIFIED: rewrite the claim to what a source line states" in table
-    assert (
-        "Yours to curl: fetch the named URL and section, then classify the claim by the rows above"
-        in table
-    )
-    assert "/ DEAD-removed / UNVERIFIABLE / INFERENCE)" in src
+    line = re.search(r"`<claim> → ([^ `]+) ·", agent)
+    assert line, "the agent's Return line moved"
+    returned = set(line.group(1).split("|"))
+    step4 = agent[agent.index("4. **Report a verdict**") : agent.index("5. **Freshness binds:**")]
+    listed = set(re.findall(r"^\s+- `([A-Za-z0-9_-]+)`", step4, re.M))
+    assert listed, "Method step 4's verdict list moved"
+    assert returned | listed <= rows, sorted((returned | listed) - rows)
+    assert "rewrite the claim to what a source line states and re-verify it" in table
+    assert "The review lead curls the named URL and section (a seat never curls)" in table
+    assert "/ DEAD-removed / UNVERIFIABLE)" in src

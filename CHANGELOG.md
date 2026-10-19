@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
 
-- The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but the page implies it) is not VERIFIED: the claim is rewritten to what a line states, or listed as residual naming the URL, and the self-audit counts it. NEEDS-RAW-FETCH is the lead's curl of the named URL and section, classified by the other rows and never left standing. A grader fails when the agent's verdict list names one the table lacks (W-21b629ed).
+- The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but what the seat read implies it) is not VERIFIED: the claim is rewritten to what a line states and re-verified. NEEDS-RAW-FETCH is the review lead's curl of the named URL and section (or the archive URL of a source that existed), classified by the other rows; a cited source neither fetch can read is WRONG. A grader fails when the agent's Return line or Method step 4 names a verdict the table lacks (W-21b629ed).
 
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 
