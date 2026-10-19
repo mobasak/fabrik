@@ -1,0 +1,294 @@
+"""W-5985e74a — the payments fulfilment role against a REAL PostgreSQL and fabrik-lib's schema.
+
+Plan docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md Phase A (spec
+docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md § The delta items 2-4, 6).
+The driver mints the role (``mint_payments_role``), the caller delivers its DSN, and only then
+``grant_payments_role`` runs the grant batch, so a raising grant never strands the password.
+The fulfilment grant is fabrik-lib's ``payments_grant_fulfilment``, never a hub-written
+fallback. The schema is read from the box's fabrik-lib checkout; without it (or without docker)
+these rows skip, and ``FABRIK_REQUIRE_REAL_PG=1`` turns either skip into a failure.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+import pytest
+
+import fabrik.drivers.postgres as pg
+from tests.test_app_role_real_pg import ScratchPg, scratch_pg
+
+_PAYMENTS = Path(os.getenv("FABRIK_LIB_ROOT", "/opt/fabrik-lib")) / "payments"
+_PAYMENTS_DB = _PAYMENTS / "db"
+_MIGRATION = _PAYMENTS_DB / "migrations" / "2026-09-29-scoped-service-roles.sql"
+DB = "ti"
+FULFIL = "ti_payments_fulfilment"
+INGEST = "ti_payments_ingest"
+ORG = "11111111-1111-1111-1111-111111111111"
+_FN_BEGIN = "-- BEGIN payments grant functions"
+_FN_END = "-- END payments grant functions"
+
+
+def _schema() -> str:
+    if not (_PAYMENTS_DB / "schema.sql").is_file() or not _MIGRATION.is_file():
+        reason = f"fabrik-lib payments schema not found under {_PAYMENTS_DB}"
+        if os.environ.get("FABRIK_REQUIRE_REAL_PG") == "1":
+            pytest.fail(f"FABRIK_REQUIRE_REAL_PG=1 but {reason}")
+        pytest.skip(reason)
+    return (_PAYMENTS_DB / "schema.sql").read_text()
+
+
+def _grant_functions() -> str:
+    """The migration's grant-function block: what applying fabrik-lib's migration adds."""
+    text = _MIGRATION.read_text()
+    return text[text.index(_FN_BEGIN) : text.index(_FN_END) + len(_FN_END)]
+
+
+def _in_db(s: ScratchPg, sql: str) -> str:
+    """Run ``sql`` as the superuser inside the app DB; return its last output line."""
+    out = s.run_sql(f"\\set ON_ERROR_STOP on\n\\c {DB}\n{sql}")
+    return out.splitlines()[-1] if out else ""
+
+
+def _owner_db(s: ScratchPg) -> None:
+    s.run_sql(
+        f"\\set ON_ERROR_STOP on\nCREATE ROLE {DB} WITH LOGIN;\nCREATE DATABASE {DB} OWNER {DB};\n"
+    )
+
+
+def _database(s: ScratchPg, schema: str, *, with_jobs: bool = True, functions: bool = True) -> None:
+    """Owner ``ti`` owning fabrik-lib's payments schema and the project's ``jobs`` queue."""
+    _owner_db(s)
+    jobs = (
+        "CREATE TABLE jobs (id bigserial PRIMARY KEY, org_id uuid NOT NULL, "
+        "status text NOT NULL DEFAULT 'queued');\n"
+        if with_jobs
+        else ""
+    )
+    s.run_sql(f"\\set ON_ERROR_STOP on\n\\c {DB}\nSET ROLE {DB};\n{schema}\n{jobs}")
+    if not functions:
+        _in_db(
+            s,
+            "DROP FUNCTION payments_grant_ingest(pg_catalog.regrole);\n"
+            "DROP FUNCTION payments_grant_fulfilment(pg_catalog.regrole);",
+        )
+
+
+def _mint(s: ScratchPg, lane: str) -> dict:
+    with s.as_driver():
+        return pg.mint_payments_role(DB, lane)
+
+
+def _grant(s: ScratchPg, lane: str) -> str:
+    with s.as_driver():
+        return pg.grant_payments_role(DB, lane)["grants"]
+
+
+def _can(s: ScratchPg, check: str) -> bool:
+    return _in_db(s, f"SELECT {check};") == "t"
+
+
+def _container_ip(s: ScratchPg) -> str:
+    out = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+            s.container,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    return out.stdout.strip()
+
+
+def test_the_function_path_grants_and_the_worker_claims_then_scopes() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        minted = _mint(s, "fulfilment")
+        assert minted["user"] == FULFIL and minted["password"] and minted["status"] == "created"
+        assert _grant(s, "fulfilment") == "module"
+        _in_db(s, f"INSERT INTO jobs (org_id) VALUES ('{ORG}');")
+        # the worker claims across orgs with NO tenant GUC, then scopes to the job's org
+        out = s.login_sql(
+            FULFIL,
+            minted["password"],
+            "BEGIN;\n"
+            "SELECT org_id FROM jobs WHERE status = 'queued' ORDER BY id "
+            "FOR UPDATE SKIP LOCKED LIMIT 1;\n"
+            "UPDATE jobs SET status = 'running' WHERE id = 1;\n"
+            f"SELECT set_config('app.tenant_id', '{ORG}', true);\n"
+            "INSERT INTO purchases (org_id, provider, provider_ref, plan_id, amount_cents, currency) "
+            f"VALUES ('{ORG}', 'paytr', 'oid-1', 'pro', 1000, 'TRY');\n"
+            "COMMIT;\n",
+            db=DB,
+        )
+        assert ORG in out
+        assert _in_db(s, "SELECT count(*) FROM purchases;") == "1"
+        assert _in_db(s, "SELECT status FROM jobs WHERE id = 1;") == "running"
+
+
+def test_the_fulfilment_login_passes_verify_service_role_and_bypasses_nothing() -> None:
+    schema = _schema()
+    psycopg = pytest.importorskip("psycopg")
+    sys.path.insert(0, str(_PAYMENTS))
+    try:
+        from payments.store import verify_service_role  # type: ignore[import-not-found]
+    finally:
+        sys.path.remove(str(_PAYMENTS))
+    with scratch_pg() as s:
+        _database(s, schema)
+        minted = _mint(s, "fulfilment")
+        assert _grant(s, "fulfilment") == "module"
+        flags = s.login_sql(
+            FULFIL,
+            minted["password"],
+            "SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user;",
+            db=DB,
+        )
+        assert flags == "f|f"
+        with psycopg.connect(
+            host=_container_ip(s), dbname=DB, user=FULFIL, password=minted["password"]
+        ) as conn:
+            verify_service_role(conn, lane="fulfilment")
+
+
+def test_payments_tables_without_jobs_raise_naming_jobs() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_jobs=False)
+        _mint(s, "fulfilment")
+        with pytest.raises(RuntimeError, match="jobs does not"):
+            _grant(s, "fulfilment")
+        assert not _can(s, f"has_table_privilege('{FULFIL}', 'purchases', 'INSERT')")
+
+
+def test_no_schema_and_a_partial_schema_both_defer() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _owner_db(s)
+        _mint(s, "fulfilment")
+        assert _grant(s, "fulfilment") == "pending"  # no schema at all
+        _in_db(s, f"SET ROLE {DB};\n{_grant_functions()}")
+        assert _grant(s, "fulfilment") == "pending"  # the functions, no tables yet
+    with scratch_pg() as s:
+        _database(s, schema)
+        _in_db(s, "DROP TABLE payments_audit_log CASCADE;")
+        _mint(s, "fulfilment")
+        assert _grant(s, "fulfilment") == "pending"  # five of the six tables
+
+
+def test_a_pre_migration_install_raises_naming_the_migration() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, functions=False)
+        _mint(s, "fulfilment")
+        with pytest.raises(RuntimeError, match="2026-09-29-scoped-service-roles.sql"):
+            _grant(s, "fulfilment")
+
+
+def test_a_changed_signature_raises_the_signature_error_not_the_migration_one() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        _in_db(
+            s,
+            "DROP FUNCTION payments_grant_fulfilment(pg_catalog.regrole);\n"
+            "CREATE FUNCTION payments_grant_fulfilment(r pg_catalog.regrole, x text DEFAULT '') "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        _mint(s, "fulfilment")
+        with pytest.raises(
+            RuntimeError, match="payments_grant_fulfilment\\(pg_catalog.regrole\\)"
+        ) as e:
+            _grant(s, "fulfilment")
+        assert "2026-09-29-scoped-service-roles.sql" not in str(e.value)
+
+
+def test_a_public_fulfilment_insert_policy_refuses() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        _in_db(
+            s,
+            "CREATE POLICY payments_fulfilment_ins ON purchases AS PERMISSIVE FOR INSERT TO PUBLIC "
+            "WITH CHECK (org_id = ( SELECT payments_current_org_id() ));",
+        )
+        _mint(s, "fulfilment")
+        with pytest.raises(RuntimeError, match="applies to PUBLIC"):
+            _grant(s, "fulfilment")
+
+
+def test_a_legacy_ingest_install_migrated_grants_both_lanes_ingest_first() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, functions=False)
+        _mint(s, "ingest")
+        assert _grant(s, "ingest") == "legacy"  # table-level SELECT, the pre-migration path
+        _in_db(s, f"SET ROLE {DB};\n{_grant_functions()}")  # fabrik-lib's migration lands
+        _mint(s, "fulfilment")
+        # granted first, fulfilment's postcondition refuses the still-widened ingest role
+        with pytest.raises(RuntimeError, match="payments_grant_fulfilment"):
+            _grant(s, "fulfilment")
+        assert _grant(s, "ingest") == "module"  # narrows the ingest role to its columns
+        assert _grant(s, "fulfilment") == "module"
+
+
+def test_the_fulfilment_role_is_not_a_member_of_the_ingest_role() -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        _mint(s, "ingest")
+        _mint(s, "fulfilment")
+        assert _grant(s, "ingest") == "module"
+        assert _grant(s, "fulfilment") == "module"
+        assert not _can(s, f"pg_has_role('{FULFIL}', '{INGEST}', 'MEMBER')")
+        assert not _can(s, f"pg_has_role('{INGEST}', '{FULFIL}', 'MEMBER')")
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_a_failing_grant_leaves_the_minted_password_with_the_caller(lane: str) -> None:
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_jobs=False)
+        minted = _mint(s, lane)
+        assert minted["password"]  # held BEFORE the grant runs
+        with pytest.raises(RuntimeError, match="jobs does not"):
+            _grant(s, lane)
+        # the credential the caller holds still logs in
+        assert s.login_sql(minted["user"], minted["password"], "SELECT 1;", db=DB) == "1"
+
+
+@pytest.mark.parametrize("exists", [True, False], ids=["database-exists", "orphan-roles"])
+def test_drop_database_drops_both_payments_roles(exists: bool) -> None:
+    sqls: list[str] = []
+
+    def _capture(sql: str, container: str = pg.POSTGRES_CONTAINER, dry_run: bool = False) -> str:
+        sqls.append(sql)
+        return "1" if exists and "SELECT 1 FROM pg_database" in sql else ""
+
+    from unittest.mock import patch
+
+    with patch.object(pg, "_run_sql", side_effect=_capture):
+        pg.drop_database(DB)
+    joined = "\n".join(sqls)
+    assert f'DROP ROLE IF EXISTS "{INGEST}"' in joined
+    assert f'DROP ROLE IF EXISTS "{FULFIL}"' in joined
+
+
+def test_an_unreadable_grant_path_raises() -> None:
+    from unittest.mock import patch
+
+    for lane in ("ingest", "fulfilment"):
+        with patch.object(pg, "_run_sql", return_value="GRANT\nsomething else"):
+            with pytest.raises(RuntimeError, match="unreadable"):
+                pg.grant_payments_role(DB, lane)
+    assert uuid.UUID(ORG)  # the fixture org is a valid UUID

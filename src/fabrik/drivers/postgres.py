@@ -785,35 +785,61 @@ _PAYMENTS_GRANT_TABLES = (
 )
 
 
-def _payments_ingest_role_name(db_name: str) -> str:
-    """Return ``{db_name}_payments_ingest``; raise if it exceeds 63 chars.
+# The fulfilment worker's role (spec 2026-09-30-payments-fulfilment-role-design.md, D-464): it
+# claims `jobs` across orgs, then writes tenant-scoped; fabrik-lib's payments_grant_fulfilment is
+# its ONLY grant (no hub-written fallback). Pinned from the same migration as the ingest function
+# (:462); a changed signature RAISES in the grant batch, never a silent pass.
+_PAYMENTS_FULFILMENT_SUFFIX = "_payments_fulfilment"
+_PAYMENTS_GRANT_FULFILMENT_FN = "payments_grant_fulfilment(pg_catalog.regrole)"
+_PAYMENTS_MIGRATION = "payments/db/migrations/2026-09-29-scoped-service-roles.sql"
+_PAYMENTS_LANE_SUFFIX = {
+    "ingest": _PAYMENTS_INGEST_SUFFIX,
+    "fulfilment": _PAYMENTS_FULFILMENT_SUFFIX,
+}
+# The paths each lane's batch can report (its last stdout line); anything else is `unknown`.
+_PAYMENTS_LANE_PATHS = {
+    "ingest": ("legacy", "module", "pending"),
+    "fulfilment": ("module", "pending"),
+}
+
+
+def _payments_role_name(db_name: str, lane: str) -> str:
+    """Return ``{db_name}_payments_<lane>``; raise on an unknown lane or past 63 chars.
 
     Same 63-char guard as :func:`_wd_role_names` — Postgres silently truncates past
     ``NAMEDATALEN`` (63), which would let two long db names collide on one role.
     """
+    if lane not in _PAYMENTS_LANE_SUFFIX:
+        raise ValueError(f"unknown payments lane {lane!r} (ingest or fulfilment)")
     _validate_identifier(db_name, "database")
-    role = f"{db_name}{_PAYMENTS_INGEST_SUFFIX}"
+    role = f"{db_name}{_PAYMENTS_LANE_SUFFIX[lane]}"
     if len(role) > 63:
         raise ValueError(
-            f"payments-ingest role name {role!r} exceeds Postgres' 63-char identifier "
+            f"payments-{lane} role name {role!r} exceeds Postgres' 63-char identifier "
             f"limit — shorten depends.postgres for {db_name!r}"
         )
     return role
 
 
-def _payments_ingest_drop_role_sql(db_name: str) -> str:
-    """``DROP ROLE IF EXISTS`` for the per-project payments-ingest role (decommission).
+def _payments_ingest_role_name(db_name: str) -> str:
+    """Return ``{db_name}_payments_ingest``; see :func:`_payments_role_name`."""
+    return _payments_role_name(db_name, "ingest")
 
-    Empty string when the name would be invalid / too long (never created → nothing to
-    drop). Same wedge-cleanup motivation as watchdog: a drop+recreate leaving the role
-    behind with an out-of-band password makes the next apply's `_role_exists` skip the
-    fresh DSN injection.
+
+def _payments_drop_roles_sql(db_name: str) -> str:
+    """``DROP ROLE IF EXISTS`` for both per-project payments roles (decommission).
+
+    A name that would be invalid / too long is skipped (never created → nothing to drop).
+    Same wedge-cleanup motivation as watchdog: a drop+recreate leaving a role behind with an
+    out-of-band password makes the next apply's `_role_exists` skip the fresh DSN injection.
     """
-    try:
-        role = _payments_ingest_role_name(db_name)
-    except ValueError:
-        return ""
-    return f'DROP ROLE IF EXISTS "{role}";\n'
+    sql = ""
+    for lane in _PAYMENTS_LANE_SUFFIX:
+        try:
+            sql += f'DROP ROLE IF EXISTS "{_payments_role_name(db_name, lane)}";\n'
+        except ValueError:
+            continue
+    return sql
 
 
 def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
@@ -902,29 +928,83 @@ def _payments_grant_path_sql() -> str:
     )
 
 
-def create_payments_ingest_role(
-    db_name: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
-) -> dict[str, Any]:
-    """Mint the per-project NON-BYPASSRLS cross-tenant payments-ingest role.
+def _payments_grant_fulfilment_block(role: str) -> str:
+    """The fulfilment grant: ONE DO block, evaluated in the spec's order (item 3.1-3.5).
 
-    Mirrors :func:`create_watchdog_roles`: split CREATE from the idempotent
-    grant+policy batch (a GRANT failure can't orphan a just-created role with a lost
-    password); grants run inside the app DB (``\\c``); password is CSPRNG only on
-    create (``None`` on re-apply) so the caller injects ``PAYMENTS_INGEST_DATABASE_URL``
-    exactly once. The role is ``NOBYPASSRLS`` — the whole point; its cross-tenant reach
-    comes ONLY from the permissive policies on the three payments tables (guarded on
-    existence, so it self-heals on the apply after the app's schema lands). Where the
-    install carries fabrik-lib's ``payments_grant_ingest``, that function does the grants
-    (policies extended, never replaced; column-level SELECT only) and the legacy
-    per-table block stands down.
+    1. No ``payments_grant_fulfilment`` on the session's search_path: all six payments tables
+       present → RAISE naming fabrik-lib's migration (a pre-migration install); else `pending`.
+    2. A function of that name exists but not as ``payments_grant_fulfilment(pg_catalog.regrole)``
+       → RAISE naming the signature the hub calls (fabrik-lib changed it; the constant follows).
+    3. Not all six payments tables → `pending` (a partial schema).
+    4. All six but no ``jobs`` → RAISE naming ``jobs``.
+    5. Otherwise PERFORM the function (`module`). There is no hub-written fallback grant.
 
-    Returns ``{"user", "password"|None, "status", "grants"}`` — ``password`` present only
-    on a fresh create (mirrors :func:`create_watchdog_roles`); ``grants`` is the path the
-    batch took (``legacy`` · ``module`` · ``pending`` · ``unknown`` when unreadable).
+    Tables resolve through the session's search_path, as the function resolves them.
+    ``role`` is ``_validate_identifier``-gated (minted before the cast runs); names are
+    constants.
     """
-    role = _payments_ingest_role_name(db_name)
+    payments = [t for t in _PAYMENTS_GRANT_TABLES if t != "jobs"]
+    payments_present = " AND ".join(f"to_regclass('{t}') IS NOT NULL" for t in payments)
+    return (
+        "DO $$ BEGIN\n"
+        "  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p\n"
+        "                   JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace\n"
+        "                  WHERE p.proname = 'payments_grant_fulfilment'\n"
+        "                    AND n.nspname = ANY (pg_catalog.current_schemas(false))) THEN\n"
+        f"    IF {payments_present} THEN\n"
+        f"      RAISE EXCEPTION 'payments_grant_fulfilment for {role}: the payments tables exist "
+        "but the grant function does not; apply the fabrik-lib migration "
+        f"{_PAYMENTS_MIGRATION}, then re-apply';\n"
+        "    END IF;\n"
+        f"  ELSIF to_regprocedure('{_PAYMENTS_GRANT_FULFILMENT_FN}') IS NULL THEN\n"
+        f"    RAISE EXCEPTION 'payments_grant_fulfilment for {role}: a function of that name "
+        f"exists, but not as {_PAYMENTS_GRANT_FULFILMENT_FN}, the signature the hub calls; "
+        "fabrik-lib changed it, so the hub constant must follow';\n"
+        f"  ELSIF NOT ({payments_present}) THEN\n"
+        f"    RAISE NOTICE 'payments_grant_fulfilment deferred for {role}: the payments schema "
+        "is not fully applied yet';\n"
+        "  ELSIF to_regclass('jobs') IS NULL THEN\n"
+        f"    RAISE EXCEPTION 'payments_grant_fulfilment for {role}: the payments tables exist "
+        "but jobs does not; create the job queue table the payments module requires, then "
+        "re-apply';\n"
+        "  ELSE\n"
+        f"    PERFORM payments_grant_fulfilment('\"{role}\"'::pg_catalog.regrole);\n"
+        "  END IF;\n"
+        "END $$;"
+    )
+
+
+def _payments_fulfilment_path_sql() -> str:
+    """One ``SELECT`` naming the fulfilment grant path: ``module`` or ``pending``.
+
+    Printed as the batch's LAST line (``psql -tA``); every raising state stopped the batch
+    before it (``ON_ERROR_STOP``), so reaching it with the function and all seven tables
+    present means the function ran.
+    """
+    all_present = " AND ".join(f"to_regclass('{t}') IS NOT NULL" for t in _PAYMENTS_GRANT_TABLES)
+    return (
+        f"SELECT CASE WHEN to_regprocedure('{_PAYMENTS_GRANT_FULFILMENT_FN}') IS NOT NULL "
+        f"AND {all_present} THEN 'module' ELSE 'pending' END;"
+    )
+
+
+def mint_payments_role(
+    db_name: str, lane: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
+) -> dict[str, Any]:
+    """Mint the per-project NOBYPASSRLS payments role for ``lane`` (``ingest`` · ``fulfilment``).
+
+    ``CREATE ROLE … LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`` with a CSPRNG
+    password on create only (``None`` on re-apply), then ``CONNECT`` on the database and
+    ``USAGE`` on ``public``; no membership is granted. The grants that give the role its reach
+    run separately in :func:`grant_payments_role`, AFTER the caller has delivered the DSN, so a
+    grant that raises never strands the one-time password (spec D-464 item 2).
+
+    Returns ``{"user", "password"|None, "status"}`` — ``status`` is ``created`` · ``exists`` ·
+    ``dry_run``.
+    """
+    role = _payments_role_name(db_name, lane)
     if dry_run:
-        logger.info("[DRY RUN] Would ensure payments-ingest role %s on %s", role, db_name)
+        logger.info("[DRY RUN] Would ensure payments-%s role %s on %s", lane, role, db_name)
         return {"user": role, "password": None, "status": "dry_run"}
 
     exists = _role_exists(role, container)
@@ -936,43 +1016,67 @@ def create_payments_ingest_role(
             f"NOBYPASSRLS PASSWORD '{pw}';",  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
             container=container,
         )
-    grant_parts: list[str] = [
-        "\\set ON_ERROR_STOP on",
-        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{role}";',
-        f"\\c {db_name}",
-        f'GRANT USAGE ON SCHEMA public TO "{role}";',
-    ]
-    for t in _PAYMENTS_INGEST_READ_TABLES:
-        grant_parts.append(_payments_ingest_policy_block(t, role, write=False))
-    grant_parts.append(
-        _payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True)
+    # nosec B608 — db_name/role are _validate_identifier-gated.
+    _run_sql(
+        "\\set ON_ERROR_STOP on\n"
+        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{role}";\n'  # nosec B608
+        f"\\c {db_name}\n"
+        f'GRANT USAGE ON SCHEMA public TO "{role}";\n',
+        container=container,
     )
-    grant_parts.append(_payments_grant_ingest_block(role))
-    grant_parts.append(_payments_grant_path_sql())
-    # nosec B608 — db_name/role are _validate_identifier-gated; table names are constants.
-    out = _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
-    lines = [ln.strip() for ln in out.splitlines() if ln.strip()] if isinstance(out, str) else []
-    grants = lines[-1] if lines and lines[-1] in ("legacy", "module", "pending") else "unknown"
     status = "created" if not exists else "exists"
-    if grants == "pending":
+    logger.info("payments-%s role on %s: %s (%s) — NOBYPASSRLS", lane, db_name, role, status)
+    return {"user": role, "password": pw, "status": status}
+
+
+def grant_payments_role(
+    db_name: str, lane: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
+) -> dict[str, Any]:
+    """Run ``lane``'s grant batch for the minted role and return ``{"grants": <path>}``.
+
+    ``ingest``: where the install carries fabrik-lib's ``payments_grant_ingest`` that function
+    grants (policies extended, never replaced; column-level SELECT only) and the legacy
+    per-table block stands down; paths ``legacy`` · ``module`` · ``pending``. ``fulfilment``:
+    fabrik-lib's ``payments_grant_fulfilment`` only (see
+    :func:`_payments_grant_fulfilment_block`); paths ``module`` · ``pending``. The path is the
+    batch's last stdout line, never assumed: anything else RAISES (an unverified grant is a
+    failure, not a deferral — spec item 4), as does every refusal and missing-object state.
+    """
+    role = _payments_role_name(db_name, lane)
+    if dry_run:
+        logger.info("[DRY RUN] Would grant payments-%s role %s on %s", lane, role, db_name)
+        return {"grants": "dry_run"}
+
+    parts: list[str] = ["\\set ON_ERROR_STOP on", f"\\c {db_name}"]
+    if lane == "ingest":
+        for t in _PAYMENTS_INGEST_READ_TABLES:
+            parts.append(_payments_ingest_policy_block(t, role, write=False))
+        parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))
+        parts.append(_payments_grant_ingest_block(role))
+        parts.append(_payments_grant_path_sql())
+    else:
+        parts.append(_payments_grant_fulfilment_block(role))
+        parts.append(_payments_fulfilment_path_sql())
+    # nosec B608 — db_name/role are _validate_identifier-gated; table names are constants.
+    out = _run_sql("\n".join(parts) + "\n", container=container)  # nosec B608
+    lines = [ln.strip() for ln in out.splitlines() if ln.strip()] if isinstance(out, str) else []
+    last = lines[-1] if lines else ""
+    if last not in _PAYMENTS_LANE_PATHS[lane]:
+        raise RuntimeError(
+            f"payments-{lane} grant for {role} on {db_name}: grant path unreadable "
+            f"(last line {last!r}); the grants are unverified"
+        )
+    if last == "pending":
         logger.warning(
-            "payments-ingest role on %s: %s (%s) — NO grants yet: the payments schema is not "
-            "applied; the next apply grants",
+            "payments-%s role on %s: %s — NO grants yet: the payments schema is not applied; "
+            "the next apply grants",
+            lane,
             db_name,
             role,
-            status,
         )
     else:
-        logger.info(
-            "payments-ingest role on %s: %s (%s) — non-BYPASSRLS, grants via %s path on %s + %s",
-            db_name,
-            role,
-            status,
-            grants,
-            ", ".join(_PAYMENTS_INGEST_READ_TABLES),
-            _PAYMENTS_INGEST_WRITE_TABLE,
-        )
-    return {"user": role, "password": pw, "status": status, "grants": grants}
+        logger.info("payments-%s role on %s: %s granted via the %s path", lane, db_name, role, last)
+    return {"grants": last}
 
 
 # ── The app's non-owner runtime role: ``<db>_app`` ────────────────────────── #
@@ -983,7 +1087,7 @@ def create_payments_ingest_role(
 # DML on the owner's tables, ``USAGE`` (never ``CREATE``) on its schemas so every
 # table stays owner-owned, and ``INSERT, SELECT`` only on ``audit_log``. Spec
 # docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md § 1, as
-# corrected by D-386. Password lifecycle mirrors create_payments_ingest_role:
+# corrected by D-386. Password lifecycle mirrors mint_payments_role:
 # CSPRNG on create (or an explicit reset), ``None`` on re-apply.
 # ---------------------------------------------------------------------------
 
@@ -1753,7 +1857,7 @@ def drop_database(
         orphan_sql = (
             _wd_drop_role_sql(db_name)
             + _subagent_drop_role_sql(db_name)
-            + _payments_ingest_drop_role_sql(db_name)
+            + _payments_drop_roles_sql(db_name)
             + _app_drop_role_sql(db_name)
         )
         if orphan_sql:
@@ -1768,15 +1872,15 @@ def drop_database(
     sql = f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE);\n'
     if db_user and db_user != "postgres":
         sql += f'DROP ROLE IF EXISTS "{db_user}";\n'
-    # Also drop the per-project watchdog + subagent-ins + payments-ingest roles
+    # Also drop the per-project watchdog + subagent-ins + both payments roles
     # (created by create_watchdog_roles + create_subagent_ins_role +
-    # create_payments_ingest_role), AFTER the DB so their grants/policies are already
+    # mint_payments_role), AFTER the DB so their grants/policies are already
     # gone. Without this a drop+recreate cycle leaves them behind → the next apply
     # sees them as existing → no fresh password minted → .env stuck without
-    # WATCHDOG_DB_URL_*/SUBAGENT_RUNS_DSN/PAYMENTS_INGEST_DATABASE_URL.
+    # WATCHDOG_DB_URL_*/SUBAGENT_RUNS_DSN/PAYMENTS_*_DATABASE_URL.
     sql += _wd_drop_role_sql(db_name)
     sql += _subagent_drop_role_sql(db_name)
-    sql += _payments_ingest_drop_role_sql(db_name)
+    sql += _payments_drop_roles_sql(db_name)
     sql += _app_drop_role_sql(db_name)
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)

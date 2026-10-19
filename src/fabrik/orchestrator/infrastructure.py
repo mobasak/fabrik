@@ -942,9 +942,10 @@ class InfrastructureProvisioner:
             # password (mirrors the watchdog lifecycle). Own try/except: non-fatal.
             if provision_payments_ingest:
                 try:
-                    from fabrik.drivers.postgres import create_payments_ingest_role
+                    from fabrik.drivers.postgres import grant_payments_role, mint_payments_role
 
-                    pi = create_payments_ingest_role(db_name, dry_run=dry_run)
+                    pi = mint_payments_role(db_name, "ingest", dry_run=dry_run)
+                    grant_payments_role(db_name, "ingest", dry_run=dry_run)
                     if pi.get("password") and not dry_run:
                         pi_url = (
                             f"postgresql://{pi['user']}:{pi['password']}"

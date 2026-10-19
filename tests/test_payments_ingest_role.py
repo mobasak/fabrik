@@ -1,4 +1,4 @@
-"""Phase B — the payments-ingest registrar role (create_payments_ingest_role).
+"""The payments registrar roles (mint_payments_role + grant_payments_role, both lanes).
 
 Mock-`_run_sql` unit tests (the repo's driver-test pattern) over the generated SQL +
 control flow. The RLS *behavior* invariant (a non-BYPASSRLS role with these policies
@@ -21,21 +21,51 @@ def test_role_name_and_63_char_guard() -> None:
         pg._payments_ingest_role_name("x" * 60)  # 60 + len('_payments_ingest')=16 > 63
 
 
+def test_the_fulfilment_role_name_guard_refuses_at_its_own_boundary() -> None:
+    """The fulfilment suffix is 4 characters longer than the ingest one, so its guard trips first."""
+    longest_ok = "d" * (63 - len("_payments_fulfilment"))
+    assert pg._payments_role_name(longest_ok, "fulfilment") == f"{longest_ok}_payments_fulfilment"
+    with pytest.raises(ValueError, match="63-char"):
+        pg._payments_role_name(longest_ok + "d", "fulfilment")
+    assert pg._payments_role_name(longest_ok + "d", "ingest").endswith("_payments_ingest")
+    with pytest.raises(ValueError, match="lane"):
+        pg._payments_role_name("ti", "billing")
+
+
+def test_the_shape_refuses_the_fulfilment_flag_without_a_database() -> None:
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Shape
+
+    assert Shape(needs_database=True, needs_payments_fulfilment=True).needs_payments_fulfilment
+    with pytest.raises(ValidationError, match="needs_payments_fulfilment requires needs_database"):
+        Shape(needs_payments_fulfilment=True)
+
+
 def test_create_role_sql_is_non_bypassrls() -> None:
     """The security invariant: the CREATE ROLE must be NOBYPASSRLS and must NOT grant BYPASSRLS."""
-    with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
-    create_sql = run.call_args_list[0].args[0]
-    assert "CREATE ROLE" in create_sql and "NOBYPASSRLS" in create_sql
-    assert "NOSUPERUSER" in create_sql
-    # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
-    assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
+    for lane in ("ingest", "fulfilment"):
+        with (
+            patch.object(pg, "_role_exists", return_value=False),
+            patch.object(pg, "_run_sql") as run,
+        ):
+            pg.mint_payments_role("ti", lane)
+        create_sql = run.call_args_list[0].args[0]
+        assert "CREATE ROLE" in create_sql and "NOBYPASSRLS" in create_sql
+        assert "NOSUPERUSER" in create_sql
+        # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
+        assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
+        # the mint grants CONNECT and USAGE only, and never a membership
+        mint_sql = run.call_args_list[1].args[0]
+        assert 'GRANT CONNECT ON DATABASE "ti"' in mint_sql
+        assert "GRANT USAGE ON SCHEMA public" in mint_sql
+        assert " IN ROLE " not in create_sql and "GRANT ti_" not in mint_sql
 
 
 def test_grant_batch_pins_the_three_tables_readwrite() -> None:
-    with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
-    grant_sql = run.call_args_list[1].args[0]  # 2nd call = the grant+policy batch
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "ingest")
+    grant_sql = run.call_args_list[0].args[0]  # the grant+policy batch
     # READ tables: SELECT + a permissive SELECT policy, guarded on existence
     for t in ("customers", "subscriptions"):
         assert f"to_regclass('public.{t}')" in grant_sql
@@ -58,8 +88,8 @@ def test_grant_batch_pins_the_three_tables_readwrite() -> None:
 
 def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> None:
     """W-90784c3b: with fabrik-lib's payments_grant_ingest installed, the batch delegates to it."""
-    with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "ingest")
     grant_sql = run.call_args_list[0].args[0]
     fn = "to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')"
     # every legacy DROP+CREATE block is gated on the function's ABSENCE
@@ -82,39 +112,83 @@ def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> Non
         assert f"to_regclass('{t}') IS NOT NULL" in grant_sql
 
 
+def test_the_fulfilment_batch_delegates_to_the_module_and_has_no_fallback() -> None:
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "fulfilment")
+    grant_sql = run.call_args_list[0].args[0]
+    assert (
+        "PERFORM payments_grant_fulfilment('\"ti_payments_fulfilment\"'::pg_catalog.regrole)"
+        in grant_sql
+    )
+    assert "to_regprocedure('payments_grant_fulfilment(pg_catalog.regrole)')" in grant_sql
+    # delegate-only: the hub writes no grant or policy of its own for the fulfilment lane
+    assert "GRANT " not in grant_sql.replace("payments_grant_fulfilment", "")
+    assert "CREATE POLICY" not in grant_sql
+
+
 @pytest.mark.parametrize(
-    ("last_line", "expected"),
-    [("module", "module"), ("legacy", "legacy"), ("pending", "pending"), ("GRANT", "unknown")],
+    ("lane", "last_line", "expected"),
+    [
+        ("ingest", "module", "module"),
+        ("ingest", "legacy", "legacy"),
+        ("ingest", "pending", "pending"),
+        ("fulfilment", "module", "module"),
+        ("fulfilment", "pending", "pending"),
+    ],
 )
-def test_the_reported_grant_path_is_the_batch_last_line(last_line: str, expected: str) -> None:
-    """The batch's final SELECT names the path; anything else is `unknown`, never a guess."""
-    with (
-        patch.object(pg, "_role_exists", return_value=True),
-        patch.object(pg, "_run_sql", return_value=f"GRANT\nDO\n{last_line}\n"),
-    ):
-        assert pg.create_payments_ingest_role("ti")["grants"] == expected
+def test_the_reported_grant_path_is_the_batch_last_line(
+    lane: str, last_line: str, expected: str
+) -> None:
+    """The batch's final SELECT names the path."""
+    with patch.object(pg, "_run_sql", return_value=f"GRANT\nDO\n{last_line}\n"):
+        assert pg.grant_payments_role("ti", lane)["grants"] == expected
+
+
+@pytest.mark.parametrize(
+    ("lane", "out"),
+    [
+        ("ingest", "GRANT\n"),
+        ("ingest", ""),
+        ("fulfilment", "GRANT\nlegacy\n"),  # legacy is no fulfilment path
+        ("fulfilment", "DO\n"),
+    ],
+)
+def test_an_unreadable_path_raises_never_guesses(lane: str, out: str) -> None:
+    """Anything but a known path is `unknown`, and an unverified grant RAISES (spec item 4)."""
+    with patch.object(pg, "_run_sql", return_value=out):
+        with pytest.raises(RuntimeError, match="unreadable"):
+            pg.grant_payments_role("ti", lane)
 
 
 def test_fresh_password_only_on_create() -> None:
     with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql"):
-        assert pg.create_payments_ingest_role("ti")["password"] is not None
+        assert pg.mint_payments_role("ti", "ingest")["password"] is not None
     with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
-        res = pg.create_payments_ingest_role("ti")
+        res = pg.mint_payments_role("ti", "ingest")
     assert res["password"] is None and res["status"] == "exists"
-    # re-apply still re-runs the idempotent grant batch, but skips CREATE ROLE
+    # re-apply still re-runs the idempotent CONNECT/USAGE grants, but skips CREATE ROLE
     assert not any("CREATE ROLE" in c.args[0] for c in run.call_args_list)
 
 
 def test_dry_run_touches_nothing() -> None:
     with patch.object(pg, "_run_sql") as run:
-        res = pg.create_payments_ingest_role("ti", dry_run=True)
+        res = pg.mint_payments_role("ti", "ingest", dry_run=True)
+        granted = pg.grant_payments_role("ti", "ingest", dry_run=True)
     assert res == {"user": "ti_payments_ingest", "password": None, "status": "dry_run"}
+    assert granted == {"grants": "dry_run"}
     run.assert_not_called()
 
 
 def test_drop_role_sql_and_invalid_name() -> None:
-    assert pg._payments_ingest_drop_role_sql("ti") == 'DROP ROLE IF EXISTS "ti_payments_ingest";\n'
-    assert pg._payments_ingest_drop_role_sql("x" * 60) == ""  # too long → nothing to drop
+    assert pg._payments_drop_roles_sql("ti") == (
+        'DROP ROLE IF EXISTS "ti_payments_ingest";\nDROP ROLE IF EXISTS "ti_payments_fulfilment";\n'
+    )
+    # too long for the fulfilment suffix but not the ingest one → only the ingest role drops
+    ingest_only = "d" * (63 - len("_payments_fulfilment") + 1)
+    assert pg._payments_drop_roles_sql(ingest_only) == (
+        f'DROP ROLE IF EXISTS "{ingest_only}_payments_ingest";\n'
+    )
+    assert pg._payments_drop_roles_sql("x" * 60) == ""  # too long for both → nothing to drop
 
 
 # ── Phase C — resolve_applicability + _provision_postgres wiring ──
@@ -150,9 +224,13 @@ def _prov_with(pi_result, flag=True):
         ),
         _mock.patch("fabrik.drivers.postgres.database_exists", side_effect=lambda *a, **k: False),
         _mock.patch(
-            "fabrik.drivers.postgres.create_payments_ingest_role",
-            side_effect=lambda db, dry_run=False, **k: pi_result(db),
+            "fabrik.drivers.postgres.mint_payments_role",
+            side_effect=lambda db, lane, dry_run=False, **k: pi_result(db),
         ) as m,
+        _mock.patch(
+            "fabrik.drivers.postgres.grant_payments_role",
+            side_effect=lambda db, lane, dry_run=False, **k: {"grants": "module"},
+        ),
     ):
         prov._provision_postgres("ti", {}, ctx, dry_run=False, provision_payments_ingest=flag)
     return prov, ctx, m

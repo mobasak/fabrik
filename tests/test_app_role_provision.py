@@ -108,9 +108,12 @@ def _run(
         events.append(("watchdog",))
         return {"ro": {"user": f"{db}_wd_ro"}, "rw": {"user": f"{db}_wd_rw"}}
 
-    def fake_payments(db, dry_run=False, **kw):
+    def fake_payments(db, lane, dry_run=False, **kw):
         events.append(("payments",))
-        return {"user": f"{db}_payments_ingest", "password": None, "status": "exists"}
+        return {"user": f"{db}_payments_{lane}", "password": None, "status": "exists"}
+
+    def fake_payments_grant(db, lane, dry_run=False, **kw):
+        return {"grants": "module"}
 
     def fake_check(db, repo_dir, container="postgres-main"):
         events.append(("run_check", db, str(repo_dir)))
@@ -121,9 +124,8 @@ def _run(
         mock.patch("fabrik.drivers.postgres.create_database", side_effect=fake_create),
         mock.patch("fabrik.drivers.postgres.database_exists", return_value=False),
         mock.patch("fabrik.drivers.postgres.create_watchdog_roles", side_effect=fake_watchdog),
-        mock.patch(
-            "fabrik.drivers.postgres.create_payments_ingest_role", side_effect=fake_payments
-        ),
+        mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=fake_payments),
+        mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=fake_payments_grant),
         mock.patch(
             "fabrik.drivers.postgres.create_subagent_ins_role",
             return_value={"ins": {"user": "x", "password": None}},

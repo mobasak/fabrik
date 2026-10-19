@@ -1,6 +1,6 @@
 # Plan — the payments fulfilment-worker role in the hub registrar
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 Spec: `docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md` (CONVERGED, D-464; approved for planning by D-652 item 4)
