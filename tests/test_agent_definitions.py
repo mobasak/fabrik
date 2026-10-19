@@ -185,3 +185,17 @@ def test_the_researcher_follows_redirects_and_pages_before_an_absence():
     assert "try `mcp__exa__web_fetch_exa` once; only if both fail" in researcher
     assert "judging the claim on the final page like any other" in researcher
     assert "VERIFIED|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE" in researcher
+
+
+def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
+    """W-8bc61173 (mail 01M4VHFP7S, 3 of 4 seats in one pass): firecrawl's directQuote mode is the quote arm for a
+    long page, and a summariser's POSITIVE synthesis or a WebFetch 404 on a raw URL needs the raw arm before a
+    verdict — both inside the existing shapes, so the count stays six."""
+    researcher = " ".join((SRC / "fabrik-researcher.md").read_text(encoding="utf-8").split())
+    assert "six measured failure shapes" in researcher
+    assert (
+        '`queryOptions: {"mode": "directQuote", "prompt": "<the exact span or symbol>"}`'
+        in researcher
+    )
+    assert "a summariser's POSITIVE synthesis" in researcher
+    assert "a `WebFetch` 404 on a raw source URL" in researcher

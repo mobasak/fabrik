@@ -30,6 +30,10 @@ You are a **grounding subagent**. Your job is to verify external facts against t
      path in your verdict (01M176BR: WebFetch silently dropped a sentence's leading clause and would
      have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT
      FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).
+     For a quote inside a LONG page (a source file, a long reference page) call that scrape with
+     `formats: ["query"]`, `queryOptions: {"mode": "directQuote", "prompt": "<the exact span or symbol>"}` and
+     `maxAge: 0`: it returns the verbatim excerpt where a size-capped exa fetch truncates and `WebFetch`
+     summarises (01M4VHFP7S: `Command.invoke` inside click's 3,000-line `core.py`).
   2. **The raw arm silently drops angle-bracket markup inside code spans** (01M17XXF, reproduced on
      sitemaps.org: `<loc>`/`<lastmod>` arrive as EMPTY backticks, no error, no marker) — so a quote
      containing markup **cannot be verbatim-verified by ANY in-session fetch**. Mark the mapping
@@ -59,7 +63,11 @@ You are a **grounding subagent**. Your job is to verify external facts against t
      and `WebSearch`, domain-restricted, asserted a claim in prose that appeared on NONE of the URLs
      it returned (the sentence lives only on a retired page). **An ABSENCE verdict needs a raw fetch
      or a SECOND independent arm — never one summariser's word**, and that applies to `WebSearch`
-     too, which the shapes above never mentioned. Two more bounds worth naming, both silent:
+     too, which the shapes above never mentioned. The same bar binds a summariser's POSITIVE synthesis
+     ("the documented pattern is X", "this source does not specify the keys") and a `WebFetch` 404 on a raw source URL:
+     open the raw arm (exa's fetch, or firecrawl with `maxAge: 0`) before the verdict — `WebFetch` 404'd a
+     raw.githubusercontent.com file exa served whole, and a `WebSearch` summary invented a "documented pattern"
+     its cited page does not contain (01M4VHFP7S). Two more bounds worth naming, both silent:
      `mcp__exa__web_fetch_exa` has **no offset/pagination** (only `maxCharacters` from the top), so a
      reference page longer than the cap has an unreachable tail that reads as absence; and
      **`web.archive.org` is blocked on BOTH arms** (exa `CRAWL_LIVECRAWL_TIMEOUT`, WebFetch a hard
