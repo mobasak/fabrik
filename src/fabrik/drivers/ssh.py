@@ -322,9 +322,11 @@ def install_world_readable(
     """Install a local file at ``dest`` on the VPS as root:root 0644 (world-readable), via a mktemp stage.
 
     The stage comes from :func:`remote_mktemp`, so no other VPS user can pre-create or swap it
-    (W-42e79070). It is made root:root 0644 BEFORE the ``sudo mv``, so ``dest`` appears in one
-    rename with its final owner and mode: a watcher of its directory (Gatus) never sees another,
-    and a failure leaves ``dest`` as it was. The content is readable by every VPS user once the
+    (W-42e79070). It is made root:root 0644 BEFORE the ``sudo mv``, so ``dest`` never carries another
+    owner or mode, and a failure before the move leaves ``dest`` as it was. When ``/tmp`` and
+    ``dest`` share a filesystem the move is one rename, so a watcher of its directory (Gatus) never
+    sees a partial file; across filesystems ``mv`` copies, as the old fixed-name staging did. The
+    content is readable by every VPS user once the
     stage is 0644, exactly as the installed file is; a file that must not be is not for this
     helper. The stage is removed (``sudo rm -f``: it may be root's by then) on every failure, an
     interrupt included; after a successful ``mv`` there is nothing left to remove. ``ssh_fn`` and

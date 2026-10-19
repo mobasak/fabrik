@@ -3,8 +3,8 @@
 A fixed name (`/tmp/prometheus.yml.staged`, `/tmp/redis-assignments.json`,
 `/tmp/gatus-endpoint-<name>.yaml`) let another VPS user pre-create or swap the file before the
 `sudo mv` installed it as root. `ssh.install_world_readable` stages in a `remote_mktemp` file, makes
-it root:root 0644 before the move, so the destination appears in one rename with its final owner
-and mode, and removes it on every failure (D-1000's slice 2, D-1038).
+it root:root 0644 before the move, so the destination never carries another owner or mode, and
+removes it on every failure (D-1000's slice 2, D-1038).
 """
 
 from __future__ import annotations
