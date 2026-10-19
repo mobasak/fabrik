@@ -88,7 +88,8 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     )
     assert (
         "only when none of them states or contradicts it, or they conflict with no single primary source to settle"
-        " it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE" in table
+        " it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check"
+        " and, for a conflict, every source on each side" in table
     )
     assert "/ DEAD-removed / UNVERIFIABLE)" in src
     assert (
