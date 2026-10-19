@@ -3,7 +3,7 @@
   "created": "2026-10-18T22:19:04.552966Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0a0d18d0dfdba7efb4d209e77461b929c0879135",
   "id": "W-714bb1a5",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "monitoring blind for 3 days on a fleet host (a break); one diagnosis, one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m58gbtz07ph1m3cydrdx5bhh"
   ],
