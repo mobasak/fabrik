@@ -954,6 +954,27 @@ def test_pin_records_the_base_sha_it_was_read_against(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "ref" / "MANIFEST.json").read_text())["base_sha"] == first
     assert json.loads(wt.stdout.strip().splitlines()[-1])["base_sha"] == head
     assert json.loads(ref.stdout.strip().splitlines()[-1])["base_sha"] == first
+    # --base names the whole commit a seat copies from base_pin_dir in place of archiving base_sha, so the two agree
+    based = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "b"), "--base", "HEAD~1", "a.py")
+    assert based.returncode == 0, based.stderr
+    frag = json.loads(based.stdout.strip().splitlines()[-1])
+    assert frag["base_sha"] == first and frag["base_pin_dir"] == f"{tmp_path / 'b'}.base"
+    assert json.loads((tmp_path / "b" / "MANIFEST.json").read_text())["base_sha"] == first
+    assert (
+        tmp_path / "b.base" / "a.py"
+    ).read_text() == "A = 1\n"  # the base_sha's bytes, not HEAD's
+
+
+def test_pin_refuses_a_from_ref_that_names_no_commit(tmp_path: Path) -> None:
+    """W-0b09fae6 review pass 1: `ls-tree` accepts a TREE, so a `--from <tree>` used to pin with a null base_sha —
+    a pin no seat can archive. A `--from` that names no commit is refused before anything is written."""
+    repo = _repo(tmp_path)
+    tree = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p"), "--from", tree, "a.py")
+    assert got.returncode != 0 and "names no commit" in got.stderr, got.stderr
+    assert not (tmp_path / "p").exists()
 
 
 def test_pin_from_a_ref_ignores_the_working_tree_shape(tmp_path: Path) -> None:
@@ -1470,6 +1491,7 @@ def test_pin_in_a_repo_with_no_commit_diffs_from_nothing(tmp_path: Path) -> None
     assert got.returncode == 0, got.stderr
     assert "--- /dev/null" in (tmp_path / "p" / "change.diff").read_text()
     assert json.loads((tmp_path / "p" / "MANIFEST.json").read_text())["base_sha"] is None
+    assert json.loads(got.stdout.strip().splitlines()[-1])["base_sha"] is None
 
 
 def test_read_pins_flags_a_mutated_change_diff(tmp_path: Path) -> None:

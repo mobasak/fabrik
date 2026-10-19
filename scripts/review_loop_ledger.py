@@ -1054,17 +1054,25 @@ def pin(
             blobs[f] = (root / f).read_bytes()
     # computed before anything is written, so a refused basis leaves no pins dir behind
     basis = base or ("HEAD" if ref is None else f"{ref}^")
-    # the full commit the pinned bytes are read against — HEAD for a working-tree pin, the `--from` ref
-    # otherwise — recorded so a delta brief's `base_sha` (D-1051) is checkable from the pin (W-0b09fae6). A
-    # fresh repo's HEAD names no commit and still pins (A-H1): null, never a refusal; a bad `--from` ref is
-    # already refused by ls-tree above
-    try:
-        base_sha = (
-            _vcs(root, "rev-parse", "--verify", f"{ref or 'HEAD'}^{{commit}}").decode().strip()
-        )
-    except subprocess.CalledProcessError:
-        base_sha = None
     change, unchanged = _change_diff(root, basis, blobs, explicit=base is not None)
+    # the full commit a seat archives and overlays the pins on (D-1051's "that pin's own base_sha"), recorded so a
+    # delta brief can read the previous pass's back from its pin (W-0b09fae6): the `--base` commit when given (the
+    # same commit `base_pin_dir` holds, which seats copy in place of archiving base_sha), else the `--from` ref,
+    # else HEAD. Only a working-tree pin in a repo with no commit yet records null (A-H1); a `--from` that names
+    # no commit (ls-tree accepts a tree) is refused, since no seat could archive it. A bad `--base` was refused
+    # by _change_diff above.
+    anchor = base or ref or "HEAD"
+    try:
+        base_sha: str | None = (
+            _vcs(root, "rev-parse", "--verify", f"{anchor}^{{commit}}").decode().strip()
+        )
+    except subprocess.CalledProcessError as exc:
+        if base or ref:
+            raise PinError(
+                f"cannot pin from {anchor}: it names no commit to archive "
+                f"({exc.stderr.decode(errors='replace').strip()})"
+            ) from exc
+        base_sha = None
     # the tree a seat could write into, taken BEFORE any write so the pins dir and its base are never in it
     tree = _tree(root) if top is not None else None
     _fresh(pins_dir, replace)
