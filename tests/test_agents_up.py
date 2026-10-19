@@ -49,13 +49,13 @@ def _home(tmp: Path, ps_lines: str = "", transcripts: tuple[tuple[Path, str], ..
     return home
 
 
-def _run(*args: str, home: Path) -> subprocess.CompletedProcess[str]:
+def _run(*args: str, home: Path, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(UP), *args],
         capture_output=True,
         text=True,
         timeout=30,
-        env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home), **env},
     )
 
 
@@ -189,29 +189,33 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
 def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
     """A name or id reaches a shell string, so every row is validated, and one bad row refuses the whole launch
     rather than silently dropping a builder or resuming a stale session."""
+    # each case is refused for ITS reason: a later check (or a crash) refusing it too would pass an exit-code-only test
     cases = {
-        "not-json": "{ nope",
-        "not-an-object": json.dumps(["x"]),
-        "non-uuid-id": json.dumps({"abc": "dev1"}),
-        "uppercase-id": json.dumps({DEV1.upper(): "dev1"}),
-        "shell-in-name": json.dumps({DEV1: "dev1; rm -rf ~"}),
-        "quote-in-name": json.dumps({DEV1: "dev'1"}),
-        "dash-led-name": json.dumps({DEV1: "-dev1"}),
-        "name-33-chars": json.dumps({DEV1: "a" * 33}),
-        "empty-name": json.dumps({DEV1: ""}),
-        "name-not-a-string": json.dumps({DEV1: 7}),
-        "no-builders": json.dumps({COORD: "fabrik-lib-coordinator"}),
+        "not-json": ("{ nope", "is not a valid registry"),
+        "not-an-object": (json.dumps(["x"]), "must be an object"),
+        "non-uuid-id": (json.dumps({"abc": "dev1"}), "is not a session id"),
+        "uppercase-id": (json.dumps({DEV1.upper(): "dev1"}), "is not a session id"),
+        "shell-in-name": (json.dumps({DEV1: "dev1; rm -rf ~"}), "is not an agent name"),
+        "quote-in-name": (json.dumps({DEV1: "dev'1"}), "is not an agent name"),
+        "dash-led-name": (json.dumps({DEV1: "-dev1"}), "is not an agent name"),
+        "name-33-chars": (json.dumps({DEV1: "a" * 33}), "is not an agent name"),
+        "empty-name": (json.dumps({DEV1: ""}), "is not an agent name"),
+        "name-not-a-string": (json.dumps({DEV1: 7}), "is not an agent name"),
+        "no-builders": (json.dumps({COORD: "fabrik-lib-coordinator"}), "names no builder"),
         # fabrik-lib's registry writer only ever ADDS a row, so a changed session id leaves the old one behind
-        "two-ids-one-name": json.dumps({DEV1: "dev1", DEV2: "dev1"}),
-        "repeated-key": f'{{"{DEV1}": "dev1", "{DEV2}": "dev2", "{DEV1}": "dev3"}}',
+        "two-ids-one-name": (json.dumps({DEV1: "dev1", DEV2: "dev1"}), "more than one session id"),
+        "repeated-key": (
+            f'{{"{DEV1}": "dev1", "{DEV2}": "dev2", "{DEV1}": "dev3"}}',
+            "appears twice",
+        ),
     }
     home = _home(tmp_path)
-    for label, text in cases.items():
+    for label, (text, reason) in cases.items():
         repo = _repo(tmp_path / label, text)
         out = _run("--print", str(repo), home=home)
         assert out.returncode == 2, (label, out.stdout, out.stderr)
         assert "pane " not in out.stdout, (label, out.stdout)
-        assert out.stderr.strip(), label
+        assert reason in out.stderr and "Traceback" not in out.stderr, (label, out.stderr)
     # the length bound is a bound, not a refusal: 32 characters is a name
     ok = _run("--print", str(_repo(tmp_path / "len32", {DEV1: "a" * 32})), home=home)
     assert ok.returncode == 0 and f"pane {'a' * 32} {DEV1} " in ok.stdout, (ok.stdout, ok.stderr)
@@ -223,12 +227,20 @@ def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:
     home = _home(tmp_path)
     bare = tmp_path / "bare"
     bare.mkdir()
-    for args in (("--print", str(bare)), ("--print", str(tmp_path / "missing")), ("--print",), ()):
+    cases = (
+        (("--print", str(bare)), "does not exist"),
+        (("--print", str(tmp_path / "missing")), "is not a directory"),
+        (("--print",), "usage:"),
+        ((), "usage:"),
+        (("--print", ""), "usage:"),
+    )
+    for args, reason in cases:
         out = _run(*args, home=home)
         assert out.returncode == 2, (args, out.stdout, out.stderr)
         assert "pane " not in out.stdout, args
+        assert reason in out.stderr, (args, out.stderr)
     out = _run("--print", str(bare), home=home)
-    assert "session-agents.json" in out.stderr, out.stderr
+    assert "session-agents.json" in out.stderr and "hub-up" in out.stderr, out.stderr
 
 
 def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
@@ -274,12 +286,17 @@ case "$1" in
     fi
     cat "$HOME/tmux-owner" 2>/dev/null; exit 0 ;;
   new-session)
-    # tmux-newfail: another launch created the session first
+    # tmux-newfail: another launch created the session first; tmux-deadfail: tmux itself failed, no session exists
     if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
+    [ -f "$HOME/tmux-deadfail" ] && exit 1
     exit 0 ;;
   set-option)
     # tmux-setfail: the root cannot be recorded
     [ -f "$HOME/tmux-setfail" ] && exit 1
+    exit 0 ;;
+  split-window)
+    # tmux-splitfail: no room for another pane
+    [ -f "$HOME/tmux-splitfail" ] && exit 1
     exit 0 ;;
   *) exit 0 ;;
 esac
@@ -374,3 +391,38 @@ def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path
         else:
             assert not any(ln.startswith("attach") for ln in log), (label, log)
             assert "belongs to /opt/elsewhere/fabrik-lib" in out.stderr, (label, out.stderr)
+
+
+def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
+    """The tmux failure paths the fake can now produce: tmux failing outright (exit 1, nothing attached), no room for a
+    second pane (said, that pane skipped and never labelled), a session with no transcript (said before its pane opens),
+    and a launch from inside tmux (the client switched, never a nested attach)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+
+    dead = _tmux_home(tmp_path / "dead", repo, has=False, owner=None)
+    (dead / "tmux-deadfail").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=dead)
+    assert out.returncode == 1, (out.stderr, _log(dead))
+    assert not any(ln.startswith(("attach", "switch-client")) for ln in _log(dead)), _log(dead)
+
+    split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
+    (split / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=split)
+    assert out.returncode == 0 and "no room for dev2's pane" in out.stderr, out.stderr
+    labels = [ln for ln in _log(split) if ln.startswith("set -p ")]
+    assert labels == ["set -p -t =fabrik-lib:agents @agent dev1"], _log(split)
+
+    bare = _home(tmp_path / "bare", transcripts=((repo, DEV1),))
+    tmux = bare / ".local" / "bin" / "tmux"
+    tmux.write_text(FAKE_TMUX, encoding="utf-8")
+    tmux.chmod(0o755)
+    out = _run(str(repo), home=bare)
+    assert out.returncode == 0, out.stderr
+    assert f"dev2: no transcript for session {DEV2}" in out.stderr, out.stderr
+    assert "dev1: no transcript" not in out.stderr, out.stderr
+
+    inside = _tmux_home(tmp_path / "inside", repo, has=False, owner=None)
+    out = _run(str(repo), home=inside, TMUX="/tmp/tmux-1000/default,1,0")
+    assert out.returncode == 0, out.stderr
+    assert _log(inside)[-1] == "switch-client -t =fabrik-lib", _log(inside)
+    assert not any(ln.startswith("attach") for ln in _log(inside)), _log(inside)
