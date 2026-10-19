@@ -1028,6 +1028,8 @@ def test_jump_from_env_file_routes_vps_only(tmp_path):
         ("FABRIK_SSH_JUMP_VPS=vps2 # via vps2", {}, "vps2"),
         ("FABRIK_SSH_JUMP_VPS", {}, None),  # a bare key is not a value
         ("# FABRIK_SSH_JUMP_VPS=vps2", {}, None),
+        # a corrected line below a stale one: the last wins, as python-dotenv (the CLI's reader) does
+        ("FABRIK_SSH_JUMP_VPS=vps3\nFABRIK_SSH_JUMP_VPS=vps2", {}, "vps2"),
     ],
 )
 def test_exported_jump_wins_and_only_jump_lines_are_read(tmp_path, line, exported, jump):
@@ -1076,6 +1078,28 @@ def test_no_jump_leaves_argv_unchanged(tmp_path):
         "ConnectTimeout=10",
         "vps",
     ]
+
+
+def test_the_fabrik_package_is_never_imported_under_the_hub_venv(tmp_path):
+    """Under the hub venv (cron's interpreter) `fabrik` IS importable, and importing it runs
+    fabrik.config's load_dotenv() — every hub secret. The run must load the jump helpers by path only."""
+    root = make_hub(tmp_path)
+    (root / ".env").write_text("FABRIK_SSH_JUMP_VPS=vps2\n")
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    probe = (
+        "import runpy, sys\n"
+        f"sys.argv = [{str(SCRIPT)!r}]\n"
+        "try:\n"
+        f"    runpy.run_path({str(SCRIPT)!r}, run_name='__main__')\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        "print('IMPORTED', sorted(m for m in sys.modules if m == 'fabrik' or m.startswith('fabrik.')))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", probe], env=env, capture_output=True, text=True, timeout=120
+    )
+    assert "IMPORTED []" in r.stdout, (r.stdout, r.stderr)
+    assert "ProxyJump=vps2" in _argv_for(tmp_path, "vps")
 
 
 @pytest.mark.skipif(not Path("/usr/bin/python3").exists(), reason="no system python3")
