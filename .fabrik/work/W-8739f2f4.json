@@ -1,0 +1,26 @@
+{
+  "block_digest": "b1667e8e089b98d82cc9567cd1ca89f67b6d5d670f5362a135fd02d05ce32f0e",
+  "blocked_by": [],
+  "created": "2026-10-20T09:55:41.660019Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-8739f2f4",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "521a54d5cd0a7bfeaf53db097e699d976693b631a781d3b4e4ae90b5da49eb2d"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May you remove the leftover FastVPN network driver `tapwlvpn` from Windows (FastVPN itself was uninstalled on 12 October), reboot, and re-run the renamed-curl test?",
+  "status": "awaiting-operator",
+  "title": "May you remove the leftover FastVPN network driver `tapwlvpn` from Windows (FastVPN itself was uninstalled on 12 October), reboot, and re-run the renamed-curl test?"
+}
