@@ -3,7 +3,7 @@
   "created": "2026-10-19T21:46:47.881576Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ca94f95c6cb13dee553bc0fd987a51cdd9633974",
   "id": "W-21b4c0e5",
   "impact": "low",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "LOW: two rare error paths that print a traceback instead of the verb's message (nothing is moved either way), plus a test-recall gap; nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "claude_rotate.py --merge-shared: (1) _cmd_merge_shared calls fcntl.flock outside any handler, so an ENOLCK prints a traceback instead of 'cannot lock … nothing moved'; (2) a ValueError/RuntimeError from _fleet_root escapes _merge_shared_pending → _fleet_dirs (which catches OSError only) before the guarded lock call; (3) test 3 does not watch os.remove or os.symlink (found by the W-b3bad109 review, outside its diff)"
 }

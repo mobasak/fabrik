@@ -2386,9 +2386,16 @@ def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
         )
         return 2
     canon = CLAUDE_DIR / name
-    if dry_run:
-        return _merge_shared_locked(name, canon, dry_run=True)
-    if not _merge_shared_pending(name, canon):  # nothing to do: touch nothing, not even the lock
+    try:
+        # `_fleet_root` raises ValueError/RuntimeError, and an existing root that cannot be listed
+        # raises here too, where `_fleet_dirs` would read it as "no fleet" and say nothing to merge
+        pending = _merge_shared_pending(name, canon)
+        if dry_run:  # moves nothing, so a read error mid-plan is the same refusal
+            return _merge_shared_locked(name, canon, dry_run=True)
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot read the fleet root ({e}) — nothing moved\n")
+        return 1
+    if not pending:  # nothing to do: touch nothing, not even the lock
         print(f"  nothing to merge — no account holds a REAL {name}/ dir or an unfinished merge")
         for w in _shared_link_warnings():  # what the dashboard still says is not this verb's to fix
             print(f"  {w}")
@@ -2399,11 +2406,17 @@ def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
         sys.stderr.write(f"claude_rotate: cannot lock the fleet root ({e}) — nothing moved\n")
         return 1
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError as e:  # ENOLCK on a filesystem without locks: refused, never a traceback
+            sys.stderr.write(f"claude_rotate: cannot lock the fleet root ({e}) — nothing moved\n")
+            return 1
         return _merge_shared_locked(name, canon, dry_run=False)
     finally:
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
         finally:
             os.close(lock_fd)
 
@@ -2422,6 +2435,9 @@ def _merge_shared_pending(name: str, canon: Path) -> bool:
     working name a killed swap left, or a canonical that is still the swap's link."""
     if canon.is_symlink():
         return True
+    root = _fleet_root()
+    if os.path.lexists(root):  # an absent root is no fleet; an unreadable one RAISES (W-21b4c0e5)
+        next(iter(root.iterdir()), None)
     for d in _fleet_dirs():
         p = d / name
         if (p.is_dir() and not p.is_symlink()) or _aside_dirs(d, name) or _strays(d, name):
@@ -2444,7 +2460,9 @@ def _finish_interrupted_swaps(name: str, canon: Path, stamp: str) -> list[str]:
         target = Path(os.readlink(canon))
         if target.name.startswith(f".{name}.held-"):
             if target.is_dir() and not target.is_symlink():
-                _renameat2(target, canon, _RENAME_EXCHANGE)  # canon: the real dir; target: the old link
+                _renameat2(
+                    target, canon, _RENAME_EXCHANGE
+                )  # canon: the real dir; target: the old link
                 target.unlink()
                 done.append(
                     f"finished an interrupted swap: {canon} is the real dir again ({target.parent.name})"
@@ -7283,7 +7301,15 @@ def _write_tick_last_end(now: float) -> bool:
     try:
         path = _tick_last_end_path()
         tmp = path.with_name(f".{path.name}.{os.getpid()}")
-        tmp.write_text(f"{now}\n")
+        # a stale or planted staging entry that is not a directory (a FIFO would block an open for
+        # write; a link would be followed) is removed, and the file is created EXCLUSIVELY; a
+        # DIRECTORY there makes the unlink fail and this tick writes nothing and wakes nobody (fail
+        # closed — the name carries this tick's pid, so the next tick uses another)
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(f"{now}\n")
         os.replace(tmp, path)
     except _STATE_DIR_ERRORS:
         if tmp is not None:
@@ -8331,35 +8357,10 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     #      over two different row shapes, a span whose early weeks had no ticks at all), and they
     #      were never load-bearing for the code. Re-derive from the ledger when you need them;
     #      a hand-maintained statistic in a comment is a second source of truth that always rots.
-    _active_walled, _active_row = _active_account_walled(accounts, threshold)
-    if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
-        _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
-        if _sess is not None:
-            _row = {
-                "event": "tick",
-                "ts": now,
-                "verdict": "walled" if _active_walled else "ok",
-                "pct": _sess,
-                "account": _active_row.get("email"),
-                "source": _active_row.get("source"),
-            }
-            # same shape `_row_utils` uses to read a window — a non-dict window is no reading.
-            # `not isinstance(_wk, bool)` matches `dispatch_headroom.quota()`'s guard on this same
-            # field name, which earned that clause in its own review; unreachable today (both
-            # producers coerce with float()), adopted so the convention travels with the name.
-            _wk_window = _active_row.get("seven_day")
-            _wk = (
-                _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
-            )
-            if _wk is not None:
-                _row["weekly_pct"] = _wk
-            # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
-            # condition, so the Finish can measure the third axis the way it measures the weekly one
-            _fk, _fw = _fable_window(_active_row)
-            _fv = _usable_ts(_fw.get("utilization")) if isinstance(_fw, dict) else None
-            if _fv is not None:
-                _row["fable_pct"] = _fv
-            _ledger_append(_row)
+    try:
+        _tick_row(accounts, threshold, now)
+    except Exception as exc:  # noqa: BLE001 — the row is telemetry: it must never skip the posture
+        print(f"tick: tick row not written — {type(exc).__name__}: {exc}")
     try:
         # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
         # every agent is using) is walled with no auto-relief. A single account crossing the
@@ -8398,6 +8399,40 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
     _ledger_rotate()
     return 0
+
+
+def _tick_row(accounts, threshold, now) -> None:
+    """The ``{"event": "tick"}`` ledger row for the active account's reading. Called guarded: a
+    raise here is printed and the advisory and the posture still run (W-21b4c0e5)."""
+    _active_walled, _active_row = _active_account_walled(accounts, threshold)
+    if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
+        _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
+        if _sess is not None:
+            _row = {
+                "event": "tick",
+                "ts": now,
+                "verdict": "walled" if _active_walled else "ok",
+                "pct": _sess,
+                "account": _active_row.get("email"),
+                "source": _active_row.get("source"),
+            }
+            # same shape `_row_utils` uses to read a window — a non-dict window is no reading.
+            # `not isinstance(_wk, bool)` matches `dispatch_headroom.quota()`'s guard on this same
+            # field name, which earned that clause in its own review; unreachable today (both
+            # producers coerce with float()), adopted so the convention travels with the name.
+            _wk_window = _active_row.get("seven_day")
+            _wk = (
+                _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
+            )
+            if _wk is not None:
+                _row["weekly_pct"] = _wk
+            # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
+            # condition, so the Finish can measure the third axis the way it measures the weekly one
+            _fk, _fw = _fable_window(_active_row)
+            _fv = _usable_ts(_fw.get("utilization")) if isinstance(_fw, dict) else None
+            if _fv is not None:
+                _row["fable_pct"] = _fv
+            _ledger_append(_row)
 
 
 def _chain_push_digest(email: str) -> str:

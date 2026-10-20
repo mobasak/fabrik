@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:56:11.766579Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-699dc679",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "match running sessions by the transcript a live claude process holds open (or by its CLAUDE_AGENT + cwd), not only its --resume argv; regression test with a fake ps carrying an old id (found closing W-66e2f6a7's hub seed)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "agents_up.sh's running-check misses a session /cleared inside a launched pane: ps shows the pane's old --resume id, so the new id reads ok and a second launch resumes it twice"
+}
