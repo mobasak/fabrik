@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE replays an item's proposed fix, and six other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-task.md` phase 1 replays the fix a work item proposes on a copy before the design adopts it, reads an unreachable tool's server source, where one exists, before recording a claim unverified (the read never upgrades it), searches the prior record by the item's id (plans and specs included) and runs a surfaced outcome twice to the line the operator reads. Phase 2 tables a marker-block or append-only file's malformed shapes, has the lead fetch provider-docs facts into the brief, and runs `--design-amend` only while the `fabrik-task` record is the top one. SIZE_CAP 25020 -> 25756 (D-1068, after an Opus + Fable panel cut the draft from +1139 B). Graders in `tests/test_fabrik_task_queue_pass.py`.
+
 ### Fixed — node pack: PayTR is the Turkish one-off lane, not WooCommerce-only (2026-10-20)
 
 - `.windsurf/rules/core/12-node.md` § Turkish constraints said PayTR applied only to WooCommerce / physical D2C, not to Node SaaS backends, contradicting `core/85-payments-billing.md` § Payment Providers. The bullet and the closing checklist now carry core/85's three lanes: Paddle for every currency but TRY, PayTR for TRY one-off charges, iyzico for TRY subscriptions only where `docs/DECISIONS.md` records the NON3D decision; no provider falls back to another (W-2fd7cfd1). Grader in `tests/test_payments_fulfilment_rule_packs.py`.
