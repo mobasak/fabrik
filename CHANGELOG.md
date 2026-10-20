@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats keep a pinned tree's links whole, and the overlay never writes through a link (2026-10-20)
+W-78e51f33; D-1073. Kaizen asked (mail 01M5BMDT08) that review seats copy a pinned tree with `cp -rL`, because seats kept losing time to a tracked symlink that dangled in their copy. Measured on a real `pin --base` tree, `cp -rL` freezes a link at the old bytes, so a seat would test the base code through it without noticing; it was rejected. The dangle came from copying or archiving only PART of the tree. The seat prompts in `.claude/workflows/fabrik-review-loop.js` now say to copy the whole base with plain `cp -r` and how to check a path the lead's pin skipped; a seat without the base copy adds each link's target folder to its archive and deletes, and flags, any link that points outside the repo. The overlay step no longer writes a change into a link's target when the change turned that link into a file, and `pin --base` names a skipped member as "an absolute or escaping link, or a device".
+
 ### Fixed — a deleted or renamed enforcement check no longer lingers in every project (2026-10-20)
 W-47d91afa; D-1071. The fleet sync copied `scripts/enforcement/` into each project but never removed anything from it, so a check the hub deleted or renamed stayed everywhere. Today that is two retired checks, 82 copies in 41 projects. The sync now deletes a project's copy of any check the hub no longer has. It counts a deletion only once it is committed, keeps a copy the project itself tracks in git (with a warning), and prunes nothing when it cannot read the hub's committed file list. On the first run the worktree copies of the two retired checks go too.
 
