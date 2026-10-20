@@ -2271,6 +2271,57 @@ def _atomic_copy(source: Path, destination: Path) -> None:
         raise
 
 
+def _prune_enforcement_orphans(
+    project_dir: Path,
+    project_enforcement: Path,
+    fabrik_enforcement: Path,
+    live_sources: list[Path],
+    dry_run: bool,
+) -> list[SyncResult]:
+    """Delete project copies of enforcement checks the hub no longer has (W-47d91afa).
+
+    The walk never pruned, so a check the hub deleted or renamed stayed in every project forever
+    (82 copies of two retired checks in 41 projects, measured 2026-10-20). The live set is the
+    walk's own `_hub_files` listing — working tree ∪ HEAD — so a sibling's uncommitted deletion is
+    still live; when HEAD could not be listed (`_head_unread` names the dir) that set is the
+    working tree alone and nothing is pruned. A file the PROJECT tracks is reported, never deleted
+    (one synced repo commits its copies). Bytecode is not the prune's. No retirement list: no
+    synced project owns a file here (the gitignore block ignores the whole dir), and a list would
+    cover a rename only if someone remembered it. THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE
+    OUTCOME (D-253): a hub that cannot list HEAD prunes nothing, silently but for the unread line
+    already printed — the fail-closed direction.
+    """
+    if not project_enforcement.is_dir():
+        return []
+    try:
+        dir_rel = fabrik_enforcement.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except ValueError:
+        return []
+    if f"{dir_rel}/" in _head_unread:
+        return []  # a working-tree-only live set: never prune from it
+    live = {src.relative_to(fabrik_enforcement) for src in live_sources}
+    results: list[SyncResult] = []
+    for dest in sorted(project_enforcement.rglob("*")):
+        if not dest.is_file() or "__pycache__" in dest.parts or dest.suffix == ".pyc":
+            continue
+        rel = dest.relative_to(project_enforcement)
+        if rel in live:
+            continue
+        if _worktree_file_is_tracked(project_dir, dest.relative_to(project_dir)):
+            results.append(
+                SyncResult("WARN", dest, dest, "enforcement orphan tracked by the project; kept")
+            )
+            continue
+        if not dry_run:
+            dest.unlink()
+        results.append(SyncResult("DELETE", dest, dest, "enforcement orphan removed"))
+    if not dry_run:  # remove empty dirs left after pruning (never the walk root itself)
+        for dirpath in sorted(project_enforcement.rglob("*"), reverse=True):
+            if dirpath.is_dir() and not dirpath.is_symlink() and not any(dirpath.iterdir()):
+                dirpath.rmdir()
+    return results
+
+
 def prune_retired_scripts(scripts_dir: Path, dry_run: bool = False) -> list[SyncResult]:
     """Delete project copies of RETIRED_CORE_SCRIPTS (M0 shrink ruling mechanism).
 
@@ -2539,6 +2590,11 @@ def sync_scripts_to_project(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
                 file_results.append(result)
+            file_results.extend(
+                _prune_enforcement_orphans(
+                    project_dir, project_enforcement, fabrik_enforcement, enforcement_files, dry_run
+                )
+            )
 
         # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive copy that keeps each file's relative path, bytecode
         # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so

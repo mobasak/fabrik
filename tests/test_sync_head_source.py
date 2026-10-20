@@ -1429,3 +1429,86 @@ def test_a_new_file_whose_source_becomes_a_link_names_the_refusal(
     assert result.action == "WARN", result
     assert result.reason.startswith("symlinked hub source not shipped"), result
     assert not (project / "u.md").exists()
+
+
+# ---- W-47d91afa: the enforcement walk prunes its orphans, like the vendored walk -----------------
+# A check the hub deleted or renamed stayed in every project forever (82 copies of two retired
+# checks in 41 projects, measured 2026-10-20).
+
+
+def _enf_hub(hub, tmp_path: Path):
+    mod, hub_root, _committed, untracked = hub
+    untracked.unlink()  # the fixture's untracked file is not part of these cases
+    for name in (
+        "CORE_SCRIPTS",
+        "RUN_SCRIPTS",
+        "GOVERNANCE_FILES",
+        "GOVERNANCE_TEMPLATES",
+        "GOVERNANCE_DIRS",
+        "VENDORED_DIRS",
+        "REFERENCE_DOCS",
+        "AGENT_HOOK_FILES",
+    ):
+        setattr(mod, name, [])
+    enf = tmp_path / "proj" / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "committed.py").write_text("COMMITTED = 1\n", encoding="utf-8")
+    (enf / "retired_check.py").write_text("# the hub deleted this\n", encoding="utf-8")
+    (enf / "__pycache__").mkdir()
+    (enf / "__pycache__" / "retired_check.cpython-312.pyc").write_bytes(b"\0")
+    return mod, hub_root, tmp_path / "proj", enf
+
+
+def test_the_enforcement_walk_prunes_its_orphans(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    dry = mod.sync_scripts_to_project(project, dry_run=True)
+    assert (enf / "retired_check.py").exists(), "a dry run deletes nothing"
+    assert any(
+        r.action == "DELETE" and r.destination == enf / "retired_check.py" for r in dry.files
+    )
+    result = mod.sync_scripts_to_project(project)
+    assert not (enf / "retired_check.py").exists(), "the retired check lingered"
+    assert (enf / "committed.py").read_text() == "COMMITTED = 1\n", "a live check was pruned"
+    assert (enf / "__pycache__").exists(), "bytecode is not the prune's"
+    assert any(
+        r.action == "DELETE" and r.destination == enf / "retired_check.py" for r in result.files
+    )
+
+
+def test_a_tracked_enforcement_orphan_is_reported_not_deleted(hub, tmp_path: Path) -> None:
+    """A project that commits its copies (fabrik-test-saas-skeleton) keeps them: a deletion would
+    leave a `D` in its tree. Reported, never deleted."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
+    )
+    result = mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()
+    assert any(
+        r.action == "WARN" and r.destination == enf / "retired_check.py" for r in result.files
+    )
+
+
+def test_no_enforcement_prune_on_a_working_tree_only_listing(hub, tmp_path, monkeypatch) -> None:
+    """When HEAD's listing failed, the live set is the working tree alone, and a sibling's
+    uncommitted deletion would become a DELETE in every project — so nothing is pruned."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    real = mod._hub_files
+
+    def unreadable(src_dir):
+        mod._head_unread["scripts/enforcement/"] = "git ls-tree -r exited 128: simulated"
+        return real(src_dir)
+
+    monkeypatch.setattr(mod, "_hub_files", unreadable)
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()
+
+
+def test_an_uncommitted_enforcement_deletion_is_not_pruned(hub, tmp_path: Path) -> None:
+    """HEAD still lists a file a sibling deleted without committing: it is live, and ships HEAD."""
+    mod, hub_root, project, enf = _enf_hub(hub, tmp_path)
+    (hub_root / "scripts" / "enforcement" / "committed.py").unlink()
+    mod.sync_scripts_to_project(project)
+    assert (enf / "committed.py").read_text() == "COMMITTED = 1\n"
