@@ -1761,6 +1761,21 @@ _head_time_cache: dict[str, float] = {}
 # rel -> why a hub source involving a symlink is refused, or None (`_link_refusal`); cleared in
 # `main()` with the records above.
 _link_refusal_cache: dict[str, str | None] = {}
+# rel -> why a symlinked hub source was refused this run — its own report line, never the
+# HEAD-unread one (nothing shipped, and git read it fine); cleared in `main()`.
+_link_refused: dict[str, str] = {}
+
+
+def _lexical_rel(source: Path) -> tuple[Path, str] | None:
+    """`(root, rel)` for a hub source, never resolving the source itself: against the hub root as
+    spelled, else as resolved (a source spelled through the real path of a symlinked root)."""
+    path = Path(os.path.abspath(source))
+    for root in (Path(os.path.abspath(FABRIK_ROOT)), FABRIK_ROOT.resolve()):
+        try:
+            return root, path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+    return None
 
 
 def _link_refusal(source: Path) -> str | None:
@@ -1778,16 +1793,12 @@ def _link_refusal(source: Path) -> str | None:
     a link that is neither in the working tree nor in HEAD at the source's own path — impossible,
     since the sync reads exactly that path.
     """
-    root = Path(os.path.abspath(FABRIK_ROOT))
-    path = Path(os.path.abspath(source))  # lexical: never resolved first
-    try:
-        rel = path.relative_to(root).as_posix()
-    except ValueError:
+    found = _lexical_rel(source)
+    if found is None:
         return None
-    if rel in _link_refusal_cache:
-        return _link_refusal_cache[rel]
+    root, rel = found
     why: str | None = None
-    component = root
+    component = root  # the working-tree scan runs every call: cheap, and never stale mid-run
     for part in Path(rel).parts:
         component = component / part
         if component.is_symlink():
@@ -1795,20 +1806,23 @@ def _link_refusal(source: Path) -> str | None:
             why = "a symlink in the working tree" + ("" if linked == rel else f" ({linked}/)")
             break
     if why is None:
-        try:
-            ls = subprocess.run(
-                ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
-                cwd=FABRIK_ROOT,
-                capture_output=True,
-                check=False,
-            )
-            if ls.returncode == 0 and ls.stdout.startswith(b"120000 "):
-                why = "a symlink in HEAD"
-        except OSError:
-            pass  # a git that cannot answer is named by `_head_source`, which runs next
-    _link_refusal_cache[rel] = why
+        if rel not in _link_refusal_cache:  # HEAD's answer is memoised per run
+            head_why: str | None = None
+            try:
+                ls = subprocess.run(
+                    ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
+                    cwd=FABRIK_ROOT,
+                    capture_output=True,
+                    check=False,
+                )
+                if ls.returncode == 0 and ls.stdout.startswith(b"120000 "):
+                    head_why = "a symlink in HEAD"
+            except OSError:
+                pass  # a git that cannot answer is named by `_head_source`, which runs next
+            _link_refusal_cache[rel] = head_why
+        why = _link_refusal_cache[rel]
     if why is not None:
-        _head_unread[rel] = f"{why} — symlinked hub sources are not synced; commit a regular file"
+        _link_refused[rel] = why
     return why
 
 
@@ -1894,6 +1908,11 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # `ls-tree` prints: <mode> SP blob SP <sha> TAB <path>
         mode = int(ls.stdout.split()[0].decode(), 8)
         kind = ls.stdout.split()[1].decode()
+        if mode == 0o120000:
+            # A link committed after `_link_refusal`'s memo answered (a sibling's commit mid-run):
+            # refused here too — its blob is link TEXT, which shipped as a mode-0 file (W-d537275a).
+            _link_refused[rel] = "a symlink in HEAD"
+            return None
         if kind != "blob":
             # A tree (a directory source) or a gitlink: `git show` of a tree prints its LISTING,
             # which would have been written, mode 0, as the file.
@@ -2333,15 +2352,17 @@ def sync_single_file(
     # untouchable, whatever else the flags say.
     if seed_if_missing and destination.exists() and not destination.is_symlink():
         return SyncResult("SKIP", source, destination, "seed-if-missing: project-owned")
-    why = _link_refusal(source)
-    if why is not None:  # before anything is hashed or written through the link (W-d537275a)
-        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
     # Replace symlinks with real copies (symlinks break workspace isolation)
     # T12.17: consult HEAD on EVERY path, dry-run included. A dry run exists to answer "what would
     # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
     # under `--force` and for a brand-new file, the two branches that used to return before the
     # consult and so reported no drift at all (found in the Phase E review).
-    if _head_source(source) is None and _gone(source):
+    head_missing = _head_source(source) is None
+    found = _lexical_rel(source)
+    why = _link_refused.get(found[1]) if found else None
+    if why is not None:  # refused before anything is hashed or written through it (W-d537275a)
+        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
+    if head_missing and _gone(source):
         # Gone from the working tree and no readable HEAD copy — git cannot read the blob (named in
         # `_head_unread`), or a sibling's commit retired it after the listing: nothing to ship. A
         # per-file WARN — hashing the missing path raised FileNotFoundError and aborted the whole
@@ -3004,6 +3025,7 @@ def main() -> int:
     _head_unread.clear()
     _head_time_cache.clear()
     _link_refusal_cache.clear()
+    _link_refused.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
@@ -3164,6 +3186,12 @@ def main() -> int:
             f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s); {unread_verb}, "
             f"not the committed ones (T12.17): {_named(sorted(_head_unread), _head_unread)}"
         )
+    if _link_refused:
+        print(
+            f"\n⚠️  {len(_link_refused)} symlinked hub source(s) refused — nothing shipped for them; "
+            f"commit a regular file in their place (W-d537275a): "
+            f"{_named(sorted(_link_refused), _link_refused)}"
+        )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
     if total_warnings > 0:
@@ -3205,6 +3233,8 @@ def main() -> int:
     # printed only as stand-alone lines, a second one evicts the first from the wrapper's tail.
     if _head_drift:
         summary += f" | HEAD drift: {len(_head_drift)}"
+    if _link_refused:
+        summary += f" | symlinks refused: {len(_link_refused)}"
     if _head_unread:
         summary += f" | HEAD unread: {len(_head_unread)} (working tree " + (
             "would be used)" if args.dry_run else "used)"

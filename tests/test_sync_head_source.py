@@ -1065,7 +1065,9 @@ def test_a_deleted_head_symlink_is_not_shipped_as_a_file(hub, tmp_path: Path) ->
     mod.GOVERNANCE_FILES = ["AGENTS-link.md"]
     mod.sync_scripts_to_project(project)
     assert not (project / "AGENTS-link.md").exists()
-    assert "a symlink in HEAD" in mod._head_unread["AGENTS-link.md"], mod._head_unread  # W-d537275a
+    assert mod._link_refused["AGENTS-link.md"] == "a symlink in HEAD", (
+        mod._link_refused
+    )  # W-d537275a
 
 
 def test_an_unreadable_gone_blob_is_one_warn_not_an_aborted_project(hub, tmp_path: Path) -> None:
@@ -1279,9 +1281,10 @@ def _refused(mod, source: Path, dest: Path) -> None:
     result = mod.sync_single_file(source, dest)
     assert result.action == "WARN", result
     assert result.reason.startswith("symlinked hub source not shipped"), result
-    rel = source.relative_to(mod.FABRIK_ROOT).as_posix()
+    rel = mod._lexical_rel(source)[1]
     mod._head_source(source)
-    assert "symlink" in mod._head_unread.get(rel, ""), mod._head_unread
+    assert "symlink" in mod._link_refused.get(rel, ""), mod._link_refused
+    assert rel not in mod._head_unread, "a refusal is not a HEAD read failure"
 
 
 def test_a_retargeted_symlink_is_refused(hub, tmp_path: Path) -> None:
@@ -1310,3 +1313,28 @@ def test_a_file_under_a_symlinked_dir_is_refused(hub, tmp_path: Path) -> None:
     mod, hub_root, project = _link_hub(hub, tmp_path)
     _refused(mod, hub_root / "dirlink" / "x.md", project / "x.md")
     assert not (project / "x.md").exists()
+
+
+@pytest.mark.parametrize("in_tree", [True, False])
+def test_a_link_committed_after_the_memo_answered_is_refused(hub, tmp_path, in_tree) -> None:
+    """Review pass 1: the memo is per run, and a sibling's commit can add a link mid-run. A stale
+    "not a link" answer must not ship it — present, the tree scan catches it; deleted, the HEAD
+    listing `_head_source` makes itself does (its blob is link TEXT, once shipped as a mode-0 file)."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    mod._link_refusal_cache["link.md"] = None  # the memo answered before the commit landed
+    if not in_tree:
+        (hub_root / "link.md").unlink()
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists()
+
+
+def test_a_source_spelled_through_the_real_root_is_still_checked(hub, tmp_path) -> None:
+    """Review pass 1: a hub root reached through a symlink, with a source spelled by the real path,
+    fell outside the lexical check while `_head_source` (which resolves both) read through it."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    alias = (
+        tmp_path.parent / f"{tmp_path.name}-alias"
+    )  # beside the hub (the fixture hub IS tmp_path)
+    alias.symlink_to(hub_root)
+    mod.FABRIK_ROOT = alias
+    _refused(mod, hub_root / "out.md", project / "out.md")
