@@ -3,7 +3,7 @@
   "created": "2026-10-18T19:20:25.692059Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "6fc72a5598182922778e35969983d246392f6071",
   "id": "W-55905ee1",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "link_targets (check_doc_links + check_doc_index copies): a title or the closing paren after a line break is not read (_TITLE_CLOSE_RE allows only space/tab), so docs_updater, which feeds whole documents, skips such a link that its regex fallback graded (W-f11e740e review, slice A Haiku)"
 }
