@@ -1,7 +1,7 @@
 # Review — w-cc9b0532-prometheus-reload-outcome
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = bc5a971dd8955fc21a84a25f01e45dce0167e8ba; range tip bc5a971dd8955fc21a84a25f01e45dce0167e8ba; `git diff 7a3a4ded9..HEAD -- src/fabrik/drivers/prometheus.py src/fabrik/orchestrator/infrastructure.py src/fabrik/orchestrator/vultr_provision.py src/fabrik/cli.py tests/drivers/test_prometheus_reload_surfaced.py tests/test_prometheus_reload_path.py tests/drivers/test_prometheus_aro_wake.py` md5 20476844ac82b3fce1c9ba0221aa5daf (25365 bytes)
+**Surface:** `git rev-parse HEAD` = 614ad914a351263a2ad832552a5484846de1d4fc; range tip 614ad914a351263a2ad832552a5484846de1d4fc; `git diff 7a3a4ded9..614ad914a -- src/fabrik/drivers/prometheus.py src/fabrik/orchestrator/infrastructure.py src/fabrik/orchestrator/vultr_provision.py src/fabrik/cli.py tests/drivers/test_prometheus_reload_surfaced.py tests/test_prometheus_reload_path.py tests/drivers/test_prometheus_aro_wake.py` md5 e6039ead548050f92d801181040deb41 (29027 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/drivers/prometheus.py`, `src/fabrik/orchestrator/infrastructure.py`, `src/fabrik/orchestrator/vultr_provision.py`, `src/fabrik/cli.py`, `tests/drivers/test_prometheus_reload_surfaced.py`, `tests/test_prometheus_reload_path.py`, `tests/drivers/test_prometheus_aro_wake.py`
 
 ## Coverage Checklist
