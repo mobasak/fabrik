@@ -1046,10 +1046,11 @@ def _strip_quoted(content: str) -> str:
 
 
 def _fences_module() -> Any:
-    """The shared fence scanner, imported when a parse first needs it (W-276255e7) — so the verbs that parse no
-    Status/Owner line or link (`--sync`, the INDEX/PLANS renders) keep running in a project whose
-    `scripts/enforcement/` lags a sync, and a parse that needs it (the Status scan, the merge-owner adoption's
-    Owner line, the link check) fails naming the file. Imported by the sibling directory, the way every check
+    """The shared fence scanner, imported when a parse first needs it (W-276255e7) — so in a project whose
+    `scripts/enforcement/` lags a sync, a call that parses no plan Status/Owner line and no link keeps running
+    (the INDEX render; `--sync` and `--check` in a repo with no PLANS index), and one that does fails naming the
+    file (the PLANS render, so `--sync` and `--check` wherever a PLANS index exists; the merge-owner adoption's
+    Owner line; the link check). Imported by the sibling directory, the way every check
     imports it, so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run`
     promises to write nothing and a first import would write scripts/enforcement/__pycache__/."""
     enforcement = str(Path(__file__).resolve().parent / "enforcement")
