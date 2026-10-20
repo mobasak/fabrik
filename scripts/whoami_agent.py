@@ -425,7 +425,17 @@ def _bind_locked(
     # TypeError (both executed), and an exception here would abort a BIND — the one operation the
     # operator runs by hand. An uncoercible timestamp is treated as ANCIENT and trimmed, never
     # fatal: a row we cannot date is a row we cannot honour.
-    keep = [r for r in rows if _at(r) >= cutoff]
+    # Each (repo, name)'s NEWEST binding is kept whatever its age: it is how a quiet repo's launcher still finds its
+    # builders (agents_up.sh reads the bindings when a repo has no registry, W-89474fc1), and it bounds the store at
+    # one old row per name a repo ever bound. A row of no repo (empty toplevel) is never a launcher's, so it ages out
+    # as before. The new row supersedes the named pair's old one, so that one is not kept for it.
+    newest: dict[tuple[object, object], int] = {}
+    for i, r in enumerate(rows):
+        if isinstance(r.get("toplevel"), str) and r.get("toplevel"):
+            newest[(r.get("toplevel"), r.get("name"))] = i
+    newest.pop((top, name), None)
+    last = set(newest.values())
+    keep = [r for i, r in enumerate(rows) if _at(r) >= cutoff or i in last]
     if len(keep) != len(rows):
         _write_rows(path, keep + [row])
     else:

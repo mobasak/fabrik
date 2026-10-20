@@ -2,15 +2,29 @@
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
 # agents_up.sh [--print] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
 #
-# Every repo's launcher — the hub's too once its registry is seeded (W-66e2f6a7 retires ~/bin/hub-up). The builders come
-# from the repo's own registry, <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), and each one's
-# session id from the identity store `whoami_agent.py` keeps (below), so a /clear followed by the documented re-bind
-# (`whoami_agent.py --as <name> --force`) needs no registry or launcher edit. The coordinator gets no pane (a name equal
-# to `coordinator` or ending in `-coordinator`): the operator reaches it in VS Code. A pane starts in the builder's own worktree,
-# `<repo>/.claude/worktrees/<name>`, when that folder is a git worktree in place — the main checkout is the coordinator's, and a builder
-# resumed there would edit main's tree and read main's CLAUDE.md (W-6c7c3292) — and at the repo root otherwise; it
-# resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports the grid and
-# launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>` and `run <name> <command>`.
+# Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
+# <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
+# store `whoami_agent.py` keeps (below): every name bound in this repo's git scope (W-89474fc1 — 7 of 9 agent repos
+# never wrote a registry). Each one's session id comes from its binding, so a /clear followed by the documented
+# re-bind (`whoami_agent.py --as <name> --force`) needs no registry or launcher edit. The coordinator gets no pane: a
+# name equal to `coordinator` or ending in `-coordinator`, or the repo's declared merge owner (`decisions.py
+# --merge-owner`, read from the repo's own ledger, never from position); the operator reaches it in VS Code. A pane
+# starts ONLY in the builder's own worktree, `<repo>/.claude/worktrees/<name>`, when that folder is a git worktree in
+# place — the main checkout is the coordinator's, and a builder resumed there would edit main's tree and read main's
+# CLAUDE.md (W-6c7c3292) — so a name with no worktree gets no pane (said on stderr), and no builder left refuses
+# (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
+# the grid and launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>`,
+# `cap <name> <MemoryMax> <TasksMax>` (or `cap <name> uncapped`) and `run <name> <command>`.
+#
+# Every pane runs WHOLE — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
+# fabrik-agents.slice, with MemoryMax ($FABRIK_AGENT_MEM_MAX, 3G), MemorySwapMax=0 and TasksMax
+# ($FABRIK_AGENT_TASKS_MAX, 1024); the slice's own ceiling ($FABRIK_AGENT_SLICE_MAX, 16G, no swap) is re-asserted at
+# each launch, never by --print (W-56b3f90d: a sibling project's worker storm starved every agent on 2026-10-20).
+# Without swap 0 a cap only pushes a runaway into swap, which is the starvation itself. The slice sits under
+# fabrik.slice beside fabrik-tests.slice (systemd reads a dash as nesting), and the LAST launch's slice ceiling holds
+# for every grid. No reachable user manager → the panes run uncapped, said on stderr AND inside each pane; a manager
+# that answers but refuses the slice ceiling refuses the launch (exit 2), as capped_run.sh does. Cobra (D-253): the
+# cheapest pass is a pane that only LOOKS capped; the test stub records the systemd-run argv the pane really runs.
 #
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31} and no key may repeat; one bad row refuses the whole launch
@@ -55,9 +69,18 @@ fi
 ROOT="$(cd -- "$1" && pwd -P)" || exit 2
 SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")"
 REG="$ROOT/.fabrik/session-agents.json"
-if [ ! -f "$REG" ]; then
-  echo "agents_up: $REG does not exist — the repo names its agents there ({\"<session id>\": \"<name>\"}), once; each builder's session comes from its whoami binding" >&2
-  exit 2
+
+# The repo's coordinator by its own ledger: exit 0 prints a name, 3 is UNDECLARED; a ledger that is absent declares
+# nobody; any other answer refuses, since a coordinator mistaken for a builder would get a pane.
+OWNER=""
+DECISIONS="$(cd -- "$(dirname -- "$SELF")/.." && pwd -P)/decisions.py"
+if [ -f "$ROOT/docs/DECISIONS.md" ]; then
+  OWNER="$(python3 "$DECISIONS" --merge-owner "$ROOT" 2>/dev/null)"
+  case $? in
+    0) ;;
+    3) OWNER="" ;;
+    *) echo "agents_up: could not read the merge owner of $ROOT ($DECISIONS --merge-owner failed) — not launching" >&2; exit 2 ;;
+  esac
 fi
 
 # "agent <name> <sid>" per builder, name-ordered, then "known <sid>" for every session the registry or the store gives
@@ -66,13 +89,13 @@ fi
 SCOPE="$(env -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
 STORE="${AGENT_IDENTITY_FILE:-$HOME/.claude/state/agent-identity.jsonl}"
 case "$STORE" in /*) ;; *) STORE="$PWD/$STORE" ;; esac
-RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" "$ROOT" "$CLAUDE_CONFIG_DIR" <<'PY'
+RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" "$ROOT" "$CLAUDE_CONFIG_DIR" "$OWNER" <<'PY'
 import json, os, re, sys
 
 SID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 WHOAMI_NAME = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent.py::_NAME_RE — the names its reader honours
-reg_path, scope, store, root, config = sys.argv[1:6]
+reg_path, scope, store, root, config, merge_owner = sys.argv[1:7]
 
 def note(msg):
     print(f"agents_up: {msg}", file=sys.stderr)
@@ -88,12 +111,17 @@ def no_repeats(pairs):
         seen.add(key)
     return dict(pairs)
 
-try:
-    reg = json.load(open(reg_path, encoding="utf-8"), object_pairs_hook=no_repeats)
-except (OSError, ValueError) as exc:
-    sys.exit(f"agents_up: {reg_path} is not a valid registry ({exc})")
-if not isinstance(reg, dict):
-    sys.exit(f"agents_up: {reg_path} must be an object of session id -> agent name")
+has_reg = os.path.lexists(reg_path)
+reg = {}
+if has_reg:
+    try:
+        reg = json.load(open(reg_path, encoding="utf-8"), object_pairs_hook=no_repeats)
+    except (OSError, ValueError) as exc:
+        sys.exit(f"agents_up: {reg_path} is not a valid registry ({exc})")
+    if not isinstance(reg, dict):
+        sys.exit(f"agents_up: {reg_path} must be an object of session id -> agent name")
+elif not scope:
+    sys.exit(f"agents_up: {root} has no registry ({reg_path}) and no git scope to read its whoami bindings from — nothing to launch")
 ids, coord_ids = {}, set()  # builder name -> its registry session ids (file order); the coordinator's ids
 for sid, name in reg.items():
     if not SID.fullmatch(sid):
@@ -104,7 +132,7 @@ for sid, name in reg.items():
         coord_ids.add(sid)
         continue
     ids.setdefault(name, []).append(sid)
-if not ids:
+if has_reg and not ids:
     sys.exit(f"agents_up: {reg_path} names no builder (the coordinator gets no pane)")
 
 def at_of(row):  # whoami_agent.py::_at — never raises; an uncoercible time is 0
@@ -143,6 +171,30 @@ for r in rows:
         continue
     if isinstance(name, str) and owner.get(sid) == name:
         binding[name] = (sid, at_of(r))
+if not has_reg:  # no registry: the builders are the names bound in this repo's scope
+    ids = {n: [] for n in binding if NAME.fullmatch(n) and not coordinator(n)}
+
+owner_name = merge_owner.strip()
+if owner_name and not NAME.fullmatch(owner_name):
+    note(f"the merge owner {owner_name!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}}) — matched lowercased")
+owner_name = owner_name.lower()
+if owner_name in ids:
+    note(f"{owner_name}: the repo's merge owner (its coordinator) — no pane")
+    coord_ids.update(ids.pop(owner_name))
+    if owner_name in binding:
+        coord_ids.add(binding[owner_name][0])
+
+def linked(name):  # a linked git worktree in place: a `.git` FILE, and the physical path is exactly the expected one
+    d = os.path.join(root, ".claude", "worktrees", name)
+    return os.path.isdir(d) and os.path.isfile(os.path.join(d, ".git")) and os.path.realpath(d) == d
+
+for name in sorted(ids):
+    if not linked(name):
+        why = "" if owner_name else " (no merge owner is declared, so it is taken as the coordinator)"
+        note(f"{name}: .claude/worktrees/{name} is not a linked git worktree in place — no pane; it works in the main checkout{why}")
+        del ids[name]
+if not ids:
+    sys.exit(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)")
 
 def proj(folder):  # claude files a session under its start folder with every non-alphanumeric character as `-`
     return os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", folder))
@@ -170,7 +222,7 @@ for name in sorted(ids):
         chosen[name] = regs[0]
         continue
     new, new_at = b
-    if new in regs and len(regs) == 1:
+    if not regs or (new in regs and len(regs) == 1):
         chosen[name] = new
         continue
     if len(regs) == 1 and owner.get(regs[0], name) == name:
@@ -204,22 +256,47 @@ W=agents
 # -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
 RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 
-# The builder's worktree only when it is a linked git worktree in place: a `.git` FILE inside (the shape `git worktree
-# add` makes, so neither a folder left behind by `git worktree remove` nor a nested clone) and a physical path exactly
+# The builder's worktree, a linked git worktree in place: a `.git` FILE inside (the shape `git worktree add` makes, so
+# neither a folder left behind by `git worktree remove` nor a nested clone) and a physical path exactly
 # <root>/.claude/worktrees/<name>, so a symlink anywhere on it can neither take the pane out of the repo nor name a
-# project folder claude never writes to. Anything else starts at the root — said on stderr when something by that name
-# is there, because a builder resumed at the root works in the coordinator's checkout.
+# project folder claude never writes to. The resolver already dropped every name without one; a worktree removed
+# since prints nothing here and that pane is skipped — never started at the root, the coordinator's checkout.
 dir_of() {  # $1 = name (validated: no `/` or `.`, so it names a folder directly under worktrees/)
   local d="$ROOT/.claude/worktrees/$1"
   if [ -d "$d" ] && [ -f "$d/.git" ] && [ "$(cd -- "$d" && pwd -P)" = "$d" ]; then
     echo "$d"
-    return
+  else
+    echo "agents_up: $1: .claude/worktrees/$1 is no longer a linked git worktree in place — no pane" >&2
   fi
-  if [ -e "$d" ] || [ -L "$d" ]; then
-    echo "agents_up: $1: .claude/worktrees/$1 is not a linked git worktree in place — its pane starts at the repo root, the main checkout" >&2
-  fi
-  echo "$ROOT"
 }
+
+# The caps (W-56b3f90d). A size is <digits><K|M|G>, 1M to 999999999G, and a task count 1 to 999999 — capped_run.sh's
+# grammar: 0 would be a ceiling that kills everything, and a longer number overflows systemd's parser.
+size_ok() {
+  case "$1" in *[!0-9KMG]* | "") return 1 ;; esac
+  local n=${1%[KMG]} unit=${1##*[0-9]}
+  [ -n "$unit" ] && [ "$n" = "${1%?}" ] || return 1
+  case "$n" in "" | 0* | *[!0-9]* | ??????????*) return 1 ;; esac
+  case "$unit" in K) [ "$n" -ge 1024 ] ;; M | G) [ "$n" -ge 1 ] ;; *) return 1 ;; esac
+}
+MEM_MAX=${FABRIK_AGENT_MEM_MAX:-3G}
+TASKS_MAX=${FABRIK_AGENT_TASKS_MAX:-1024}
+SLICE_MAX=${FABRIK_AGENT_SLICE_MAX:-16G}
+SLICE=fabrik-agents.slice
+size_ok "$MEM_MAX" || { echo "agents_up: bad FABRIK_AGENT_MEM_MAX '$MEM_MAX' (e.g. 3G; 1M to 999999999G)" >&2; exit 2; }
+size_ok "$SLICE_MAX" || { echo "agents_up: bad FABRIK_AGENT_SLICE_MAX '$SLICE_MAX' (e.g. 16G; 1M to 999999999G)" >&2; exit 2; }
+case "$TASKS_MAX" in "" | 0* | *[!0-9]* | ???????*) echo "agents_up: bad FABRIK_AGENT_TASKS_MAX '$TASKS_MAX' (1 to 999999)" >&2; exit 2 ;; esac
+# A launch from a .bat (`wsl.exe --exec bash -l`) carries no XDG_RUNTIME_DIR, and without it every systemctl/systemd-run
+# answers "Failed to connect to bus" — so set it when the user bus is there, as capped_run.sh does.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+CAPPED=0
+if systemctl --user show-environment >/dev/null 2>&1; then
+  CAPPED=1
+else
+  echo "agents_up: WARNING — no systemd user manager answers (XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}); the panes run UNCAPPED, with no memory or task bound" >&2
+fi
 
 proj_of() {  # $1 = folder; claude stores a session under its start folder with every non-alphanumeric character as `-`
   echo "$CLAUDE_CONFIG_DIR/projects/${1//[^A-Za-z0-9]/-}"
@@ -247,38 +324,62 @@ status_of() {  # $1 = session id, $2 = the folder its pane starts in
   fi
 }
 
+squote() {  # $1 as ONE POSIX single-quoted word, read alike by every pane shell and locale
+  printf "'%s'" "${1//\'/\'\\\'\'}"
+}
+
 cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated above
   # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now
-  local env
+  local env inner
   env='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
   env="$env $(printf 'PATH=%q CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$PATH" "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
   # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
   [ -n "${AGENT_IDENTITY_FILE:-}" ] && env="$env $(printf 'AGENT_IDENTITY_FILE=%q' "$STORE")"
+  # the user bus, so a capped_run.sh or systemctl call from the agent finds its manager
+  [ -n "${XDG_RUNTIME_DIR:-}" ] && env="$env $(printf 'XDG_RUNTIME_DIR=%q' "$XDG_RUNTIME_DIR")"
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
   if [ "$3" = running ]; then
-    echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
+    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
     local hint
     hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
-    hint="'${hint//\'/\'\\\'\'}'"
-    echo "$env claude -n $1 --resume $2; echo; printf '%s\\n' $hint; exec $env bash -l"
+    inner="$env claude -n $1 --resume $2; rc=\$?; echo; [ \"\$rc\" = 137 ] && echo \"[$1 was killed at the memory ceiling (MemoryMax=$MEM_MAX)]\"; printf '%s\\n' $(squote "$hint"); exec $env bash -l"
   fi
+  if [ "$CAPPED" = 1 ]; then
+    # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap
+    echo "$env systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner")"
+  else
+    echo "echo '[UNCAPPED: no systemd user manager answered at launch — this pane has no memory or task bound]'; $inner"
+  fi
+}
+
+cap_of() {  # $1 = name
+  if [ "$CAPPED" = 1 ]; then echo "cap $1 $MEM_MAX $TASKS_MAX"; else echo "cap $1 uncapped"; fi
 }
 
 if [ "$print" = 1 ]; then
   echo "session $S"
   while read -r name sid; do
     dir="$(dir_of "$name")"
+    [ -n "$dir" ] || continue
     st="$(status_of "$sid" "$dir")"
     newer_unbound "$name" "$sid" "$dir"
     echo "pane $name $sid $dir $st"
+    cap_of "$name"
     echo "run $name $(cmd_of "$name" "$sid" "$st")"
   done <<< "$AGENTS"
   exit 0
+fi
+
+# The slice's own ceiling, re-asserted every launch and RUNTIME-only (it lives in /run and goes with the manager). A
+# manager that answers but refuses it is an error, never a silent fall-through to an unbounded total.
+if [ "$CAPPED" = 1 ] && ! systemctl --user set-property --runtime "$SLICE" "MemoryMax=$SLICE_MAX" MemorySwapMax=0 >/dev/null 2>&1; then
+  echo "agents_up: the user manager refused the $SLICE ceiling (MemoryMax=$SLICE_MAX) — not launching" >&2
+  exit 2
 fi
 
 # A session is named after the folder only, so a grid already up under this name must be THIS repo's. The root is
@@ -325,6 +426,7 @@ else
   raced=0
   while read -r name sid; do
     dir="$(dir_of "$name")"
+    [ -n "$dir" ] || continue
     st="$(status_of "$sid" "$dir")"
     newer_unbound "$name" "$sid" "$dir"
     [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2

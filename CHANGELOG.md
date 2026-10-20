@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every agent repo gets its desktop launcher, and every launched pane runs capped (2026-10-20)
+
+- `scripts/sysadmin/agents_up.sh`: a repo with no `.fabrik/session-agents.json` now takes its builders from the names
+  bound in its git scope (`whoami_agent.py --as`), so the 7 agent repos that never wrote a registry get a grid. The
+  repo's merge owner (`decisions.py --merge-owner`) gets no pane. A builder with no linked worktree gets no pane and is
+  never started in the main checkout. Every pane runs whole in `systemd-run --user --scope` in `fabrik-agents.slice`
+  with MemoryMax 3G, MemorySwapMax=0 and TasksMax 1024; the slice's ceiling is 16G. With no user manager the panes run
+  uncapped and say so (D-1075, W-89474fc1, W-56b3f90d).
+- `scripts/sysadmin/agents_bat.py` writes a .bat for every repo `agents_up.sh --print` accepts and reports a stale one.
+- `scripts/whoami_agent.py`'s 30-day trim keeps each repo's newest binding per name, so a quiet repo keeps its builders.
+
 ### Changed — a review whose fixes are committed during it makes its receipt once, at the close (2026-10-20)
 
 - A full `/fabrik-review` over committed work used to create its receipt before Pass 1 and, because every fix commit moves the range tip, re-make it after the last fix under a new `--scope`, rows carried and the old receipt deleted. That form now keeps a generated draft in the run's `SCRATCH:` folder during the passes and writes the receipt once, after the last fix commit (`term-coverage.md` obligation 3, `fabrik-review.md` § Reporting, `fabrik-task.md` phase 4 and 5). Working-tree, mixed and whole-plan reviews keep the receipt-before-Pass-1 rule, and `task_lane.py` check (d) is unchanged (W-60629ce4, D-1070).
