@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T12:10:23.451298Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-254c461f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y582BHYV1NMX91ZZJW6NH5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py: no /fabrik-plan-review --command, --restamp refuses --range; the panel brief should pre-run stated baselines"
+}
