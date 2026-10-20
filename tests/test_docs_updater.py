@@ -924,3 +924,67 @@ class TestLinkCheckSkipsCodeExamples:
         start = time.perf_counter()
         assert du._blank_code_fences(text) == text
         assert time.perf_counter() - start < 5
+
+
+# W-8f9a7d2c: a code span that crosses a line break, with a header key opening its second line, won first-match
+# over the real header. The scans skip a header whose KEY a code span holds and read every value from the original
+# text, so a value in code font (a live hub form) keeps it.
+def _plan(tmp_path, body: str):
+    p = tmp_path / "2026-10-20-plan-span.md"
+    p.write_text(f"# Plan\n\n{body}\n## Tasks\n", encoding="utf-8")
+    return p
+
+
+def test_a_status_line_inside_a_code_span_never_wins(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path,
+        "The header grammar is `one line,\nStatus: DRAFT` in an example.\n\n**Status:** COMPLETE\n",
+    )
+    assert du.parse_plan_status(p)[0] == "COMPLETE"
+    p = _plan(tmp_path, "See ``a\n**Status:** DRAFT`` here.\n\n**Status:** EXECUTED\n")
+    assert du.parse_plan_status(p)[0] == "EXECUTED"
+
+
+def test_an_owner_line_inside_a_code_span_never_wins(tmp_path):
+    import docs_updater as du
+
+    p = _plan(tmp_path, "Write it as `a\nOwner: someone` here.\n\n**Owner:** intel\n")
+    assert du.parse_plan_owner(p) == "intel"
+
+
+def test_a_backticked_header_value_is_kept(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path, "**Status:** `COMPLETE`\n**Owner:** `[infra]` · **Shape:** monolith (2 phases)\n"
+    )
+    assert du.parse_plan_status(p)[0] == "COMPLETE"
+    assert du.parse_plan_owner(p) == "infra"
+
+
+def test_a_span_opened_line_and_an_unclosed_backtick_read_as_today(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path,
+        "`check_x` Status: DRAFT example\n`run_y` Owner: nobody\n**Status:** EXECUTED\n**Owner:** intel\n",
+    )
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")
+    p = _plan(tmp_path, "Type the ` key.\n**Status:** DRAFT\n**Owner:** intel\n")
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("DRAFT", "intel")
+
+
+def test_two_stray_backticks_around_the_only_header_still_read_it(tmp_path):
+    """Review pass 1 (S-s1, S-h1): two stray backticks pair into a span around the plan's only header; with no
+    header outside a span the scan falls back to the first match, as before, rather than read Active / no owner
+    (and `--adopt` would then write a second Owner line)."""
+    import docs_updater as du
+
+    p = _plan(tmp_path, "Use ` here\n**Status:** COMPLETE\n**Owner:** intel\nthen ` there\n")
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("COMPLETE", "intel")
+    p = _plan(
+        tmp_path, "**Status:** EXECUTED — see `scripts/x.py\n**Owner:** intel — also `y` here\n"
+    )
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")

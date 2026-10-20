@@ -3,7 +3,7 @@
   "created": "2026-10-20T02:54:15.083225Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "839c333b900a25d6b01a4af5937c106c7a236868",
   "id": "W-8f9a7d2c",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "rare edge: a backticked Status: example winning first-match; one scan",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader",
     "queued"
