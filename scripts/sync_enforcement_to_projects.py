@@ -2194,8 +2194,10 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
             _carry_mtime(source, tmp)  # the mtime `copy2` used to — see `_atomic_write`
-        else:
+        elif not _gone(source):
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
+        else:  # gone, and HEAD unreadable on this consult: the caller WARNs (W-bb97199e)
+            raise _GoneSourceError(source)
         os.replace(tmp, destination)  # atomic on the same filesystem
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -2240,6 +2242,21 @@ def prune_retired_governance(project_dir: Path, dry_run: bool = False) -> list[S
 _GONE_UNREADABLE = "source missing and no readable HEAD copy"
 
 
+def _gone(source: Path) -> bool:
+    """The source is ABSENT — and only that: a stat that cannot answer (a locked subdir) reads as
+    present, so the copy runs as it did before these checks existed (W-bb97199e review: an
+    `exists()` raising here skipped a worktree refresh the old code made)."""
+    try:
+        return not source.exists()
+    except OSError:
+        return False
+
+
+class _GoneSourceError(FileNotFoundError):
+    """`_atomic_copy` found its source gone and no readable HEAD copy — a WARN, never an
+    aborted project (`copy2` of the missing path raised FileNotFoundError; W-bb97199e review)."""
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -2275,26 +2292,32 @@ def sync_single_file(
     # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
     # under `--force` and for a brand-new file, the two branches that used to return before the
     # consult and so reported no drift at all (found in the Phase E review).
-    if _head_source(source) is None and not source.exists():
+    if _head_source(source) is None and _gone(source):
         # Gone from the working tree and no readable HEAD copy — git cannot read the blob (named in
         # `_head_unread`), or a sibling's commit retired it after the listing: nothing to ship. A
         # per-file WARN — hashing the missing path raised FileNotFoundError and aborted the whole
         # project's sync (W-bb97199e critique).
         return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
 
+    def copied(reason: str) -> SyncResult:
+        try:
+            _atomic_copy(source, destination)
+        except _GoneSourceError:
+            return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
+        return SyncResult("COPY", source, destination, reason)
+
     if destination.is_symlink():
         if dry_run:
             return SyncResult("COPY", source, destination, "replacing symlink with copy")
-        destination.unlink()
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "replaced symlink with copy")
+        # no unlink first: `os.replace` swaps the link entry itself (the target is untouched), and
+        # a copy that WARNs then leaves the link where it was rather than nothing (W-bb97199e)
+        return copied("replaced symlink with copy")
 
     # Destination doesn't exist - always copy
     if not destination.exists():
         if dry_run:
             return SyncResult("COPY", source, destination, "new file")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "new file")
+        return copied("new file")
 
     # --force: skip all checks, always overwrite
     if force:
@@ -2302,10 +2325,8 @@ def sync_single_file(
             return SyncResult("COPY", source, destination, "forced overwrite")
         if backup:
             backup_path = create_backup(destination)
-            _atomic_copy(source, destination)
-            return SyncResult("COPY", source, destination, f"forced (backup: {backup_path.name})")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "forced overwrite")
+            return copied(f"forced (backup: {backup_path.name})")
+        return copied("forced overwrite")
 
     # Compare the bytes that will actually be WRITTEN against the bytes on the destination.
     # ⚠️ `compute_file_hash(source)` here was the same writer-vs-reader disagreement `_shipped_hash`
@@ -2326,7 +2347,7 @@ def sync_single_file(
     # Hashes differ - check mtime. A source deleted from the hub's working tree reached here only
     # because HEAD still holds it (W-bb97199e): its time is its own last commit's, so a project
     # edit made after that commit is still protected, as it is for a present source.
-    source_mtime = source.stat().st_mtime if source.exists() else _head_file_time(source)
+    source_mtime = _head_file_time(source) if _gone(source) else source.stat().st_mtime
     if destination.stat().st_mtime > source_mtime:
         return SyncResult("WARN", source, destination, "destination newer")
 
@@ -2350,7 +2371,7 @@ def sync_single_file(
         # T12.17: committed bytes, never the tree — with the source's mtime, or the
         # "destination newer" guard below refuses every later sync of this file.
         _atomic_write(head[0], head[1], destination, source=source)
-    elif source.exists():
+    elif not _gone(source):
         shutil.copy2(source, destination)
     else:  # HEAD unreadable on this second consult and the file gone: one WARN, never a raise
         return SyncResult("WARN", source, destination, _GONE_UNREADABLE)

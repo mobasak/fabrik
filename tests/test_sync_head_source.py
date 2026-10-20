@@ -1217,3 +1217,33 @@ def test_a_head_read_failing_at_the_copy_is_one_warn(hub, tmp_path: Path, monkey
     source = mod.FABRIK_ROOT / rels["listed"]
     result = mod.sync_single_file(source, project / rels["listed"])
     assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
+
+
+@pytest.mark.parametrize("shape", ["new file", "symlink", "forced"])
+def test_every_copy_branch_warns_when_the_head_read_fails(
+    hub, tmp_path: Path, monkeypatch, shape
+) -> None:
+    """Review pass 2: the guard covered only the final overwrite; the new-file, symlink and --force
+    branches go through `_atomic_copy`, whose `copy2` of the gone path aborted the project. A
+    replaced symlink is no longer unlinked first, so a WARN leaves it where it was."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    dest = project / rels["listed"]
+    dest.unlink()
+    if shape == "symlink":
+        (project / "other.md").write_text("x\n", encoding="utf-8")
+        dest.symlink_to(project / "other.md")
+    elif shape == "forced":
+        dest.write_text("# stale\n", encoding="utf-8")
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def flaky(source):
+        calls["n"] += 1
+        return None if calls["n"] >= 2 else real(source)  # the copy's own consult is the 2nd
+
+    monkeypatch.setattr(mod, "_head_source", flaky)
+    source = mod.FABRIK_ROOT / rels["listed"]
+    result = mod.sync_single_file(source, dest, force=shape == "forced")
+    assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
+    if shape == "symlink":
+        assert dest.is_symlink(), "the link was removed before a copy that never happened"
