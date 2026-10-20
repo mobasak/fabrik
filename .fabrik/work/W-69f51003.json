@@ -19,5 +19,8 @@
   "priority": 3,
   "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "Link readers grade links inside inline code spans and ~~~ fences: docs_updater's _strip_quoted strips only ``` fences and blockquotes, so `![](x)` in backticks and a ~~~ example are graded (one fleet false positive: fabrik-lib competitor-intel-mail-fix review) (W-f11e740e review)"
 }
