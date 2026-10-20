@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T11:08:21.995536Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-a352701a",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "extend the shadowing refusal to the server's third-party imports (or importlib.util.find_spec on the package name) with a red-first test for httpx and fastapi",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "rare edge: a project named like an imported library",
   "status": "open",
   "tags": [
     "scaffold"

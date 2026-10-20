@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:21:22.097963Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e413b79b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: brief in the coordinator's message; coordinate with infra's W-89474fc1 (launcher sections)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "operator ask; one doc pair, one session",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator 2026-10-20: 'this setup will be applied to all repos when i open them, so be sure you have 100% complete reference documentation about what to be done.' Make docs/reference/repo-coordinator-rollout.md (+ -repos.md) a complete, current runbook from today's youtube and fabrik-lib rollouts"
+}
