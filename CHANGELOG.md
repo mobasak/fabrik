@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docs link check no longer grades links inside code examples (2026-10-20)
+W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link written inside an inline code span or a `~~~` fence as broken, and a `~~~` fence that showed a ```` ``` ```` line made the next real fence swallow the real link between them. The check now blanks both fence kinds and inline code spans before reading links, following CommonMark's rules, in one linear pass over the lines. `_strip_quoted` and `check_doc_links` are unchanged. Across the 44 repos under /opt, findings drop from 382 to 375; the 7 removed are all code examples, and none were added. Follow-ups: W-b9af1d47 (the same class, latent in `check_doc_links`) and W-8f9a7d2c (the `Status:`/`Owner:` scans).
+
 ### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
 W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
 
