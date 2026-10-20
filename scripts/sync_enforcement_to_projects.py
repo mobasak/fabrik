@@ -1755,6 +1755,9 @@ _head_drift: set[str] = set()  # synced paths whose working tree differs from HE
 # an untracked file does. Display-only beside `_head_drift`'s bare names; reset in `main()` with it.
 _head_drift_why: dict[str, str] = {}
 _head_unread: dict[str, str] = {}
+# rel -> the time of HEAD's last commit touching it, for sources gone from the working tree
+# (`_head_file_time`); cleared in `main()` with the records above.
+_head_time_cache: dict[str, float] = {}
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
@@ -1962,20 +1965,30 @@ def _hub_present(source: Path) -> bool:
     return True
 
 
-def _head_commit_time() -> float:
-    """HEAD's commit time — the mtime a source deleted from the working tree stands in with for
-    the "destination newer" guard (W-bb97199e). 0 when git cannot say, so the guard WARNs rather
-    than overwrite a project copy it cannot date."""
+def _head_file_time(source: Path) -> float:
+    """The time of the last commit in HEAD that touched `source` — the mtime a source deleted from
+    the working tree stands in with (W-bb97199e): the "destination newer" guard compares it, and a
+    copy shipped from HEAD carries it, as `copy2` carried the hub file's mtime. HEAD's LATEST commit
+    time was the first cut; review pass 1 executed it clobbering a project edit made after the
+    file's own last commit but before an unrelated later one. 0 when git cannot say, so the guard
+    WARNs rather than overwrite a copy it cannot date. Memoised per run (cleared in `main()`)."""
     try:
-        out = subprocess.run(
-            ["git", "log", "-1", "--format=%ct", "HEAD"],
-            cwd=FABRIK_ROOT,
-            capture_output=True,
-            check=False,
-        )
-        return float(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else 0.0
+        rel = source.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
     except (OSError, ValueError):
         return 0.0
+    if rel not in _head_time_cache:
+        try:
+            out = subprocess.run(
+                ["git", "--literal-pathspecs", "log", "-1", "--format=%ct", "HEAD", "--", rel],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                check=False,
+            )
+            text = out.stdout.strip()
+            _head_time_cache[rel] = float(text) if out.returncode == 0 and text else 0.0
+        except (OSError, ValueError):
+            _head_time_cache[rel] = 0.0
+    return _head_time_cache[rel]
 
 
 def _hub_files(src_dir: Path) -> list[Path]:
@@ -2013,7 +2026,9 @@ def _hub_files(src_dir: Path) -> list[Path]:
         fields = meta.split()
         if len(fields) != 3 or fields[1] != b"blob" or fields[0] == b"120000":
             continue
-        found.add(src_dir / Path(os.fsdecode(path)).relative_to(rel))
+        path_rel = Path(os.fsdecode(path)).relative_to(rel)
+        if path_rel != Path("."):  # a blob AT `rel` (a dir in the tree, a file in HEAD)
+            found.add(src_dir / path_rel)
     return sorted(found)
 
 
@@ -2119,6 +2134,20 @@ def _shipped_hash(source: Path) -> str:
     return hashlib.md5(head[0], usedforsecurity=False).hexdigest()
 
 
+def _carry_mtime(source: Path, tmp: Path) -> None:
+    """Give the written copy the source's mtime; for a source gone from the working tree, its last
+    commit's time (W-bb97199e) — "now" would read as a newer project edit to the next sync."""
+    try:
+        st = source.stat()
+        os.utime(tmp, (st.st_atime, st.st_mtime))
+    except FileNotFoundError:
+        when = _head_file_time(source)
+        if when:
+            os.utime(tmp, (when, when))
+    except OSError:
+        pass  # an unreadable source mtime is not worth failing a correct write over
+
+
 def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None = None) -> None:
     """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract.
 
@@ -2138,11 +2167,7 @@ def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None
         tmp.write_bytes(data)
         os.chmod(tmp, stat.S_IMODE(mode))
         if source is not None:
-            try:
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass  # an unreadable source mtime is not worth failing a correct write over
+            _carry_mtime(source, tmp)
         os.replace(tmp, destination)
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -2168,11 +2193,7 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             # T12.17: a tracked synced file ships its COMMITTED bytes, never the working tree.
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
-            try:  # carry the mtime `copy2` used to — see `_atomic_write`'s docstring
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass
+            _carry_mtime(source, tmp)  # the mtime `copy2` used to — see `_atomic_write`
         else:
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
         os.replace(tmp, destination)  # atomic on the same filesystem
@@ -2216,6 +2237,9 @@ def prune_retired_governance(project_dir: Path, dry_run: bool = False) -> list[S
     return results
 
 
+_GONE_UNREADABLE = "source missing and no readable HEAD copy"
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -2252,10 +2276,11 @@ def sync_single_file(
     # under `--force` and for a brand-new file, the two branches that used to return before the
     # consult and so reported no drift at all (found in the Phase E review).
     if _head_source(source) is None and not source.exists():
-        # Listed from HEAD, gone from the working tree, and git cannot read the blob (named in
-        # `_head_unread`): nothing to ship. A per-file WARN — hashing the missing path raised
-        # FileNotFoundError and aborted the whole project's sync (W-bb97199e critique).
-        return SyncResult("WARN", source, destination, "hub source deleted and HEAD unreadable")
+        # Gone from the working tree and no readable HEAD copy — git cannot read the blob (named in
+        # `_head_unread`), or a sibling's commit retired it after the listing: nothing to ship. A
+        # per-file WARN — hashing the missing path raised FileNotFoundError and aborted the whole
+        # project's sync (W-bb97199e critique).
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
 
     if destination.is_symlink():
         if dry_run:
@@ -2299,9 +2324,9 @@ def sync_single_file(
         return SyncResult("SKIP", source, destination, "identical")
 
     # Hashes differ - check mtime. A source deleted from the hub's working tree reached here only
-    # because HEAD still holds it (W-bb97199e): its time is HEAD's commit time, so a project edit
-    # made after that commit is still protected, as it is for a present source.
-    source_mtime = source.stat().st_mtime if source.exists() else _head_commit_time()
+    # because HEAD still holds it (W-bb97199e): its time is its own last commit's, so a project
+    # edit made after that commit is still protected, as it is for a present source.
+    source_mtime = source.stat().st_mtime if source.exists() else _head_file_time(source)
     if destination.stat().st_mtime > source_mtime:
         return SyncResult("WARN", source, destination, "destination newer")
 
@@ -2325,8 +2350,10 @@ def sync_single_file(
         # T12.17: committed bytes, never the tree — with the source's mtime, or the
         # "destination newer" guard below refuses every later sync of this file.
         _atomic_write(head[0], head[1], destination, source=source)
-    else:
+    elif source.exists():
         shutil.copy2(source, destination)
+    else:  # HEAD unreadable on this second consult and the file gone: one WARN, never a raise
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
     return result
 
 
@@ -2698,11 +2725,14 @@ def sync_scripts_to_project(
             try:
                 # The manifest's pairs walk the hub's WORKING TREE, so a file this run shipped from
                 # HEAD (deleted in the working tree) is added from the run's own results — or the
-                # gate would stop guarding exactly the copy it was just given (W-bb97199e).
+                # gate would stop guarding exactly the copy it was just given (W-bb97199e). ONLY
+                # those: every COPY/SKIP result also took the project's own `.gitignore` (review).
                 shipped = {
                     fr.destination
                     for fr in file_results
                     if fr.action in ("COPY", "BACKUP", "SKIP")
+                    and fr.source.is_relative_to(FABRIK_ROOT)
+                    and not fr.source.exists()
                     and fr.destination.is_relative_to(project_dir)
                 }
                 lock = {
@@ -2902,6 +2932,7 @@ def main() -> int:
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     _head_drift_why.clear()  # before the manifest bind below, which records into all three
     _head_unread.clear()
+    _head_time_cache.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
@@ -3055,7 +3086,8 @@ def main() -> int:
             "nothing was written (--dry-run); a real run would write the WORKING TREE's bytes "
             "for them"
             if args.dry_run
-            else "wherever this run wrote them, it wrote the WORKING TREE's bytes"
+            else "wherever this run wrote them, it wrote the WORKING TREE's bytes (a source "
+            "gone from the working tree wrote nothing)"
         )
         print(
             f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s); {unread_verb}, "

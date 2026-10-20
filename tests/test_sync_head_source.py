@@ -1076,7 +1076,9 @@ def test_an_unreadable_gone_blob_is_one_warn_not_an_aborted_project(hub, tmp_pat
     result = mod.sync_scripts_to_project(project)
     assert result.success, result.message
     warned = {r.destination: r.reason for r in result.files if r.action == "WARN"}
-    assert warned.get(project / rels["vendored"]) == "hub source deleted and HEAD unreadable"
+    assert warned.get(project / rels["vendored"]) == mod._GONE_UNREADABLE
+    lines = mod._file_lines(result.files, verbose=False, dry_run=False)
+    assert f"  WARN ({mod._GONE_UNREADABLE}): gone.py" in lines, lines  # its own reason, printed
     assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
     assert (project / ".fabrik" / "synced.lock").is_file(), "the lock leg never ran"
 
@@ -1123,3 +1125,95 @@ def test_a_gone_source_is_read_once_and_keeps_its_reason(hub, monkeypatch) -> No
         assert mod._head_source(committed) == (b"COMMITTED = 1\n", 0o100755)
         assert mod._head_drift_why[rel] == "deleted in the working tree"
     assert len(reads) == 1, reads
+
+
+def _git_project(project: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".gitignore").write_text("# the project's own\n", encoding="utf-8")
+
+
+def test_the_lock_never_takes_the_projects_own_gitignore(hub, tmp_path: Path) -> None:
+    """Review pass 1: the lock's union took every COPY/SKIP result, the `.gitignore` block patch
+    among them, so a project adding its own ignore line failed check_synced_unmodified."""
+    mod, _hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    _git_project(project)
+    mod.sync_scripts_to_project(project)
+    import json
+
+    lock = json.loads((project / ".fabrik" / "synced.lock").read_text())
+    assert ".gitignore" not in lock, sorted(lock)
+
+
+def test_the_guard_dates_a_gone_source_by_its_own_last_commit(hub, tmp_path: Path) -> None:
+    """Review pass 1: HEAD's LATEST commit time let an unrelated later commit make an older project
+    edit look stale — edited after the file's own last commit, it was clobbered."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    two_days, one_day = time.time() - 2 * 86400, time.time() - 86400
+    rel = rels["listed"]
+    (hub_root / rel).write_text("# v2\n", encoding="utf-8")
+    env = {**os.environ, "GIT_COMMITTER_DATE": f"{int(two_days)} +0000"}
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qam", "v2"], check=True, env=env)
+    (hub_root / "unrelated.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "unrelated.txt"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "later, unrelated"], check=True)
+    (hub_root / rel).unlink()
+    edited = project / rel
+    edited.write_text("# a project-side edit\n", encoding="utf-8")
+    os.utime(edited, (one_day, one_day))
+    mod._head_cache.clear()
+    mod.sync_scripts_to_project(project)
+    assert edited.read_text() == "# a project-side edit\n"
+
+
+def test_a_head_shipped_copy_carries_its_commit_time(hub, tmp_path: Path) -> None:
+    """Written with mtime "now", the copy reads as a newer project edit to every later sync."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    rel = rels["walked"]
+    (hub_root / rel).write_text("# v2\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", rel], check=True)
+    two_days = f"{int(time.time() - 2 * 86400)} +0000"  # far from "now", so a match is no accident
+    env = {**os.environ, "GIT_COMMITTER_DATE": two_days}
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "v2"], check=True, env=env)
+    (hub_root / rel).unlink()
+    three_days = time.time() - 3 * 86400  # the stale copy predates the file's own commit
+    os.utime(project / rel, (three_days, three_days))
+    mod._head_cache.clear()
+    mod.sync_scripts_to_project(project)
+    when = int(
+        subprocess.run(
+            ["git", "-C", str(hub_root), "log", "-1", "--format=%ct", "HEAD", "--", rels["walked"]],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert int((project / rels["walked"]).stat().st_mtime) == when
+
+
+def test_a_head_symlink_in_a_walked_dir_is_not_shipped(hub, tmp_path: Path) -> None:
+    """The walk's own symlink skip — `_hub_present`'s check guards only the listed loops."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "libs" / "vend" / "link.py"
+    link.symlink_to("kept.py")
+    subprocess.run(["git", "-C", str(hub_root), "add", "libs/vend/link.py"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    mod.sync_scripts_to_project(project)
+    assert not (project / "libs" / "vend" / "link.py").exists()
+
+
+def test_a_head_read_failing_at_the_copy_is_one_warn(hub, tmp_path: Path, monkeypatch) -> None:
+    """The copy consults HEAD again; a transient failure there fell through to `copy2` of a path
+    that is gone — FileNotFoundError, the whole project aborted."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def flaky(source):
+        calls["n"] += 1
+        return None if calls["n"] >= 3 else real(source)  # the copy's own consult is the 3rd
+
+    monkeypatch.setattr(mod, "_head_source", flaky)
+    source = mod.FABRIK_ROOT / rels["listed"]
+    result = mod.sync_single_file(source, project / rels["listed"])
+    assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
