@@ -5831,25 +5831,29 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         if has_smoke:
             content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
         # install: the template's `uv sync` needs a [project] table, and this pyproject is tool-only, so it made an
-        # EMPTY .venv and exited 0 (W-0259f23b). Fill .venv from requirements.txt instead: reuse a working venv —
-        # never rewrite the one `make setup-dev` made — and (re)create it with that same `python` only when its
-        # interpreter is missing or dangling (`--clear`: a plain `venv` over a dangling bin/python leaves it broken).
-        # Same rule shapes as docker-smoke above; a template with no install rule has nothing to patch.
+        # EMPTY .venv and exited 0 (W-0259f23b). Fill .venv from requirements.txt instead, and never delete a venv:
+        # none → create it with setup-dev's `python`; a runnable python without pip (what that `uv sync`, or any uv
+        # venv, leaves) → ensurepip, keeping its packages; an unrunnable python → refuse and say what to remove.
+        # Same rule shapes as docker-smoke above; a template with no install rule and no `uv sync` is left alone.
         install_old = "install:\n\tuv sync\n"
-        has_install = (
-            re.search(r"(?m)^install[ \t]*::?(?![:=])", content) is not None or "uv sync" in content
-        )
-        if has_install:
-            if content.count(install_old) != 1 or content.count("uv sync") != 1:
+        install_rules = re.findall(r"(?m)^[ \t]*install[ \t]*::?(?![:=])", content)
+        if install_rules or "uv sync" in content:
+            # exactly one rule, its body exactly `uv sync` (the next line is not another recipe line)
+            exact = re.search(r"(?m)^install:\n\tuv sync\n(?!\t)", content) is not None
+            if len(install_rules) != 1 or not exact or content.count("uv sync") != 1:
                 raise ValueError(
-                    f"{makefile_src}: expected one install recipe running `uv sync` to replace, found "
-                    f"{content.count(install_old)} (and {content.count('uv sync')} `uv sync` lines)"
+                    f"{makefile_src}: expected one `install:` rule whose whole recipe is `uv sync`, and no other "
+                    f"`uv sync`; found {len(install_rules)} install rule(s) and {content.count('uv sync')} "
+                    "`uv sync` mention(s)"
                 )
             content = content.replace(
                 install_old,
                 "install:\n"
-                "\t@test -x .venv/bin/python || python -m venv --clear .venv\n"
-                "\t.venv/bin/pip install -r requirements.txt\n",
+                "\t@if [ ! -e .venv ]; then python -m venv .venv; "
+                "elif [ ! -x .venv/bin/python ]; then echo '.venv exists but .venv/bin/python cannot run: "
+                "remove .venv and run make install again' >&2; exit 1; fi\n"
+                "\t@.venv/bin/python -m pip --version >/dev/null 2>&1 || .venv/bin/python -m ensurepip\n"
+                "\t.venv/bin/python -m pip install -r requirements.txt\n",
             )
         # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
         # turn `PROJECT_NAME ?= x9-smoke-test` into a self-reference make refuses to load
