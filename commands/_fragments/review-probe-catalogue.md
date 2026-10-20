@@ -182,7 +182,8 @@ it, or name in the brief why the shape does not have it.
   lines in the pack, doc summary rows and artifact generators that restate it; residue words of a flipped decision; a
   cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by
   CONTENT in one script over every doc that cites the file (find the symbol the prose names, compare it with the target
-  line), never renumbered by hand.
+  line), never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a
+  brief or mutant list carries.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
