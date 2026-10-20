@@ -1486,9 +1486,22 @@ def test_a_tracked_enforcement_orphan_is_reported_not_deleted(hub, tmp_path: Pat
     )
     result = mod.sync_scripts_to_project(project)
     assert (enf / "retired_check.py").exists()
-    assert any(
-        r.action == "WARN" and r.destination == enf / "retired_check.py" for r in result.files
+    reasons = [r.reason for r in result.files if r.destination == enf / "retired_check.py"]
+    assert reasons == ["enforcement orphan tracked by the project; kept"], reasons
+
+
+def test_a_project_git_that_rejects_its_own_repo_keeps_the_orphan(hub, tmp_path: Path) -> None:
+    """Review pass 3: a project whose own `.git` git rejects (a corrupt HEAD) prints "not a git
+    repository" too — read as untracked, a copy its history tracks was deleted."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
     )
+    (project / ".git" / "HEAD").write_text("garbage\n", encoding="utf-8")
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists(), "a copy a broken repo cannot vouch for was deleted"
 
 
 def test_no_enforcement_prune_on_a_working_tree_only_listing(hub, tmp_path, monkeypatch) -> None:

@@ -2281,10 +2281,15 @@ def _project_tracking(project_dir: Path, rel: Path) -> str:
     dubious ownership — is unknown, and the caller keeps the file (review pass 1:
     `_worktree_file_is_tracked` read a git fatal as "untracked" and the prune deleted a tracked
     copy). Git is asked even without a `.git` here, so a parent repo's index still counts (pass 2).
+    A project WITH a `.git` is pinned to it (`--git-dir`/`--work-tree`): unpinned, git walks past a
+    `.git` it rejects (a corrupt HEAD, a dangling gitfile) to a parent repo and answers for that
+    one, and "not a git repository" there is a broken repo, not an absent one (pass 3).
     """
+    own = project_dir / ".git"
+    pin = ["--git-dir", str(own), "--work-tree", str(project_dir)] if own.exists() else []
     try:
         proc = subprocess.run(
-            ["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", str(rel)],
+            ["git", *pin, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", str(rel)],
             cwd=project_dir,
             capture_output=True,
             check=False,
@@ -2293,8 +2298,10 @@ def _project_tracking(project_dir: Path, rel: Path) -> str:
         return "unknown"
     if proc.returncode == 0:
         return "tracked"
-    if proc.returncode == 1 or b"not a git repository" in proc.stderr:
+    if proc.returncode == 1:
         return "untracked"
+    if not pin and b"not a git repository" in proc.stderr:
+        return "untracked"  # no repo here or above
     return "unknown"
 
 
