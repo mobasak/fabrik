@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T01:43:12.604854Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-973887d5",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "move the root check above the canon.is_symlink() return with a test; fix the docstring (out-of-scope notes from the W-21b4c0e5 scoped review)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "LOW: an early return before the fleet-root check and a docstring in claude_rotate.py; nobody blocked",
   "status": "open",
   "title": "claude_rotate.py: _merge_shared_pending returns early on a leftover canonical swap link before its root-listing check (EACCES root then locks and merges over no dirs); _write_tick_last_end's docstring says the staging file is removed, which a directory is not"
 }
