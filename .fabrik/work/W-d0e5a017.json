@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T19:55:08.670536Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d0e5a017",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: correct the one line to match the sidecar's ACTION_SPECS and the pack's own listing rule; it is a fleet-synced pack, so the full review applies and the sync runs at merge",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: one wrong line of text in a rule pack; the action is still gated, nobody blocked",
+  "status": "open",
+  "title": ".windsurf/rules/core/self-healing.md:86 still calls the watchdog action pause_worker 'unreachable today', yet the sidecar declares its params and the same pack says it runs once listed (found outside the W-9191cc39 diff, recorded not fixed)"
+}

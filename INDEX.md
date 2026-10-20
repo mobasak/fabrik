@@ -112,6 +112,7 @@
 | **tests/test_scaffold_audit_log.py** | Per-type audit-log emission, the committed and rendered jobs companion, the no-window, concurrent-writer, cursor and probe real-PostgreSQL rows, and the jobs' idle-when-unconfigured row. | The scaffolder's audit-log delivery changes | pytest |
 | **tests/test_app_role_real_pg.py** | Real PostgreSQL 18 tests of the `<db>_app` role from a real login session (append-only `audit_log`, grant-option chains, memberships, CREATE, legacy PUBLIC grants), each seeding the bad state; hosts the shared `scratch_pg()` helper T05 imports. | The app-role driver changes | pytest (docker) |
 | **tests/test_payments_ingest_real_pg.py** | Real PostgreSQL 16 tests of the payments-ingest grants over fabrik-lib's payments schema: `payments_grant_ingest` extends the policies and grants columns only; a missing `jobs` fails the step, a missing schema defers, a refusal from the function fails the step; the legacy block runs only without the function, and an upgrade narrows a legacy grant. | The payments-ingest driver block | pytest (docker + /opt/fabrik-lib) |
+| **tests/test_payments_fulfilment_real_pg.py** | Real PostgreSQL tests of both payments lanes over fabrik-lib's payments schema: the fulfilment role claims a job and scopes it through `payments_grant_fulfilment`; missing `jobs`, a pre-migration install and a changed signature fail the step, an absent or partial schema is `pending`; a PUBLIC insert policy is refused; a legacy-migrated install grants ingest first; the fulfilment role is no member of the ingest role; a failing grant keeps the minted password; re-mint narrows an out-of-band escalation and refuses a foreign superuser or database owner; `drop_database` drops both roles. | The payments mint/grant driver (both lanes) | pytest (docker + /opt/fabrik-lib) |
 | **tests/test_scaffold_glitchtip_release.py** | The re-vendored GlitchTip module's release/environment read rules through `init_glitchtip()`, and the scaffolded python-api and node-api composes resolved with real `docker compose config` against a deployer-shaped `.env` hand the container the DSN, `APP_GIT_SHA` and `ENVIRONMENT` (docker/node legs skip when absent; mail 01M491AE33, D-626). | The scaffold compose template, the node GlitchTip module or the vendored `glitchtip_init.py` changes | pytest |
 | **tests/orchestrator/test_deployer_git_sha.py** | The deployer persists the deployed commit as `GIT_SHA` in the app's `.env` over a blank spec value, keeps it through `inject_env`, writes the new SHA on redeploy and `old_sha` on rollback, and leaves `.env` alone on a failed or non-hex `rev-parse` (fake ssh; D-626). | `deployer_ssh.py`'s git deploy, redeploy or `.env` building changes | pytest |
 | **tests/test_reconcile_all_deployed_set.py** | T03 graders: `reconcile-all`'s Compose-backed deployed set (one `ls` per host, `Name`/`ConfigFiles` match), the invariant-2 exit rule as a parametrized battery, the stem filter before the load, the 80-character cut on both `error` rows, and `refresh_infrastructure`'s host-scoped `app_dir` walk with the real `_host_env` swap. | `reconcile-all`, `refresh_infrastructure` or spec D3 / invariant 2 change | pytest |
@@ -132,6 +133,7 @@
 | **tests/test_hub_identity_worktree.py** | A hub worktree is the hub to check_vendored_drift and final_gate; a project repo, with or without a manifest, stays a project. | The hub-identity rule changes | pytest |
 | **tests/test_stop_hook_worktree_push.py** | The Stop hook's UNPUSHED cause on a linked-worktree branch with no upstream: counts, merged, already-on-a-remote, detached, no-remote, one deadline, and the block text. | The push law changes | pytest |
 | **tests/test_merge_sync.py** | Real-merge tests: ff and `--no-ff` merges distribute a non-tip governance-sync path through the post-merge hook, a rename out of a trigger path syncs, a linked-worktree commit distributes nothing. | The merge sync or its installer changes | pytest |
+| **tests/test_workitem_merge_driver.py** | The work-item merge driver (W-c230cb2e): the installer registers it without rewriting an unchanged config, a hand merge of disjoint item keys merges clean — from a branch cut before `.gitattributes` too — and a key conflict, `-X theirs` included, keeps git's markers. | The installer, `.gitattributes` or `work.py merge-item` changes | pytest |
 | **tests/test_assemble_worktree_guard.py** | The corpus render and `--extract` are refused from a linked worktree (a submodule checkout renders; a non-git copy fails closed), while `--check`, a `--dest` preview and a main-checkout render still run. | The render guard changes | pytest |
 | **tests/test_hub_write_root.py** | The hub write-root rule (env, else the linked worktree's toplevel, else `/opt/fabrik`) per script, and the repo-wide search + allowlist for hard-coded hub-root write sites. | A script gains a tracked-file write or the root rule changes | pytest |
 | **tests/test_proof_run_guard.py** | The `--live` guard on `scripts/proof_run.py`: a static read refuses to execute an unguarded file or one whose module top level leaves the import-time whitelist (the RED), then the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes recording zero calls for `--help` (exit 0) and a bare run (exit 2, with and without `PROOF_ONLY`), a sentinel proves `--live` reaches `main()` at its first `.env` read, and every other spelling (`--li`, `--live=1`, `--no-live`, …) is refused by import. | `proof_run.py`'s parser or `__main__` block changes | pytest |
@@ -362,7 +364,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:20 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -425,7 +427,6 @@ docs/
 │   │   │   ├── T05e-rebuild-and-reference-docs.md
 │   │   │   ├── T06-window-runbook.md
 │   │   │   └── T07-integration.md
-│   │   ├── 2026-10-08-plan-2-payments-fulfilment-role.md
 │   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
 │   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
@@ -1077,6 +1078,7 @@ docs/
 │       ├── 2026-10-08-pass-row-shape-agreement-review.md
 │       ├── 2026-10-08-pin-refusal-wording-review.md
 │       ├── 2026-10-08-pin-verb-launchers-review.md
+│       ├── 2026-10-08-plan-2-payments-fulfilment-role-review.md
 │       ├── 2026-10-08-plan-3-review-coverage-commit-scope-review.md
 │       ├── 2026-10-08-print-ban-call-boundary-review.md
 │       ├── 2026-10-08-probe-worktree-copy-in-review.md
@@ -1278,10 +1280,32 @@ docs/
 │       ├── 2026-10-18-wdeb8eb0f-exception-name-guard-committed-review.md
 │       ├── 2026-10-18-wf11e740e-link-readers-review.md
 │       ├── 2026-10-18-work-edit-render-review.md
+│       ├── 2026-10-19-agents-up-launcher-review.md
+│       ├── 2026-10-19-install-log-drop-rule-retire-review.md
 │       ├── 2026-10-19-panel-joint-artifact-review.md
+│       ├── 2026-10-19-range-named-review-surfaces-review.md
+│       ├── 2026-10-19-round-slices-ledger-echo-review.md
+│       ├── 2026-10-19-w-0b09fae6-pin-base-sha-review.md
+│       ├── 2026-10-19-w-1f70f2e9-locks-local-lock-dir-review.md
+│       ├── 2026-10-19-w-3350006b-mcp-health-key-check-review.md
+│       ├── 2026-10-19-w-3d834ded-authelia-locks-review.md
+│       ├── 2026-10-19-w-42e79070-monitoring-mktemp-staging-review.md
+│       ├── 2026-10-19-w-8bb683e6-dns-ssh-status-review.md
+│       ├── 2026-10-19-w-ad71f248-doc-stubs-review.md
+│       ├── 2026-10-19-w2356-argparse-percent-final-review.md
+│       ├── 2026-10-19-w4ad7ff2d-review-loop-gate-layout-review.md
+│       ├── 2026-10-19-w7e467f2d-retire-classifier-review.md
 │       ├── 2026-10-19-w8008e144-halt-list-and-job7-review.md
+│       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
+│       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1460,6 +1484,8 @@ docs/
 │   ├── product-adoption-forces.md
 │   ├── prompt-audit-2026-10-05.md
 │   ├── receipts-2026-08-07-autotrigger.md
+│   ├── repo-coordinator-rollout-repos.md
+│   ├── repo-coordinator-rollout.md
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md

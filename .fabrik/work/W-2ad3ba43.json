@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T01:05:40.447979Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2ad3ba43",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B95YCRH9VRRG3NGG7CP5NZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "addendum to 01M5B8E67R — a fourth rule-pack line goes stale with the payments fulfilment role"
+}

@@ -1556,6 +1556,13 @@ REFUSAL_CLASSIFIER = (
     "else mark that check unverified — never a different destination — and say in MACHINERY which command was "
     "refused how many times of how many tries"
 )
+# W-281e3ed2: the sentence kaizen added after the rule in subagents-core.md and fabrik-reviewer.md
+NO_DISGUISE = (
+    "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing "
+    "the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split "
+    "or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and "
+    "named in MACHINERY."
+)
 
 
 def test_the_refusal_rule_names_a_copy_the_seat_can_write():
@@ -1783,10 +1790,17 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     # destination, else unverified; the clause sits after the write scope and reaches both rendered prompts
     shape, classifier = (c.replace("`", "\\`") for c in (REFUSAL_SHAPE, REFUSAL_CLASSIFIER))
     # review A-S3: an order-only chain passed a clause spliced in after the classifier branch — assert one span
-    assert f"On a refused command: {shape}; {classifier}. The shell returns" in iso
+    # W-281e3ed2 (kaizen 01M5B6F0PZ): a seat refused by the worktree guard built git from 'gi'+'t' and ran it,
+    # so the rule's third home carries the no-disguise sentence the agent-side homes carry, verbatim
+    disguise = NO_DISGUISE.replace("`", "\\`")
+    assert f"On a refused command: {shape}; {classifier}. {disguise} The shell returns" in iso
     assert iso.index(scope.replace("`", "\\`")) < iso.index(shape)
     for prompt in _shell_seat_prompts():
-        assert REFUSAL_SHAPE in prompt and REFUSAL_CLASSIFIER in prompt
+        assert REFUSAL_SHAPE in prompt and REFUSAL_CLASSIFIER in prompt and NO_DISGUISE in prompt
+    for home in ("commands/_fragments/subagents-core.md", "commands/_agents/fabrik-reviewer.md"):
+        text = " ".join((ROOT / home).read_text(encoding="utf-8").split())
+        # subagents-core opens a sentence with it, fabrik-reviewer continues one — both cases of the first letter
+        assert NO_DISGUISE[1:-1] in text, f"the agent-side home {home} drifted"
     # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
     # base for imports — the remedy names TMPDIR and says that line only reads
     assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
@@ -2131,7 +2145,7 @@ def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_sil
     )
     # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
     assert (
-        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans"
+        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. A command reshaped after any refusal"
         in core
     )
     exit_ = " ".join(

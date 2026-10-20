@@ -1,24 +1,26 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-5985e74a"
+  ],
   "created": "2026-09-30T11:38:32.286337Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-7ba06610",
   "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
     "decision": "D-459",
-    "plan": "",
+    "plan": "docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md",
     "spec": ""
   },
-  "next": "in src/fabrik/orchestrator/infrastructure.py payments-ingest-role block record status=pending when pi['grants'] is pending/unknown; extend tests/test_payments_ingest_role.py _prov_with with a grants key; /fabrik-review-scoped",
+  "next": "coordinator decision 2026-10-20 (option A): fleet builds docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md Phase B steps 3-4 for the ingest role now, to the PLAN's contract (pending grants record pending + a registrar_warnings line printed by fabrik apply; unknown grants record failed so apply exits 2; mint the role, inject its DSN, then run the grant batch), through /fabrik-execute-plan on that plan with its lock, marking only steps 3-4 done on its board; the rest of plan-2 stays with W-5985e74a, blocked upstream on fabrik-lib. Stop and tell the coordinator if steps 3-4 turn out to need anything W-5985e74a is waiting on.",
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "D-958 re-score 2026-10-18: HIGH — resource reads provisioned while grants pending, false green on data-access role",
-  "status": "open",
+  "score_reason": "HIGH: security (a grant batch that raises after CREATE ROLE leaves the role with no DSN ever delivered, a credential-loss path reproduced by the critique seat) plus a live false green; LOW effort: plan-2 Phase B steps 3-4 only, already designed and CONVERGED (D-464)",
+  "status": "done",
   "tags": [
     "security"
   ],

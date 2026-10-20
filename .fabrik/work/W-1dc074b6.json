@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "decide after the next ~10 /fabrik-review closes: count rejects citing term-coverage.md round zero's input-space duty; if they recur, kaizen words the note's input-class field and infra adds the grader (mail infra with the measurement)",
-  "note": "",
+  "note": "measured, no recurrence: 9 /fabrik-review closes since the item opened (2026-10-19 12:08Z to 22:05Z, command-feedback.jsonl); 1 mentions round zero, and it asks for a new re-probe site (recursive walkers), not for the input-space note to be observable; 0 of 9 recur on the unobservable note, so per the item's own rule no wording edit and no grader. The row stays in the /fabrik-review queue",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work (measures whether a command edit works); LOW effort: a read of ~10 /fabrik-review closes, then one wording edit if needed",
-  "status": "open",
+  "status": "dropped",
   "title": "term-coverage.md round zero's Pass Ledger note ('; round-zero probe — <what>') is free text no gate reads (grep of scripts/ for 'round-zero probe': 0 hits), so whether a lead enumerated the fix's input space is unobservable — the 2026-10-19 W-7c290366 critiques (Opus + Fable) both named an observable record (the note names the input classes enumerated, graded by check_review_hygiene/check_convergence) as the cure placement cannot prove"
 }

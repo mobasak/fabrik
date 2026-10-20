@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:30:10.194642Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fe22e0cf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59ZXGJVTV036HH8S6Q5XF54",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "competitor-intel: brief incompleteness note under a non-empty MATCH list (fabrik-lib SB-008, fabrik-lib D-459; branch worktree-fabrik-lib-dev2, Phase A 29d6574e, fixes e265175c — on main once merged)"
+}

@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from fabrik.orchestrator.context import DeploymentContext
@@ -216,6 +217,29 @@ def test_refresh_infra_green_without_failures(tmp_path):
     result = _invoke_refresh(_completed_ctx([]), tmp_path)
     assert result.exit_code == 0
     assert "✅ Infrastructure refreshed" in result.output
+
+
+# A registrar WARNING (a payments grant left `pending`) is printed in every summary a
+# completed run prints — green or exit 2 — and never turns a green run red (W-4b1dfd76).
+_WARN = "payments-fulfilment-role: grant pending — fabrik-lib payments schema not applied"
+
+
+@pytest.mark.parametrize(
+    ("invoke", "failures", "code"),
+    [
+        (_invoke_apply, [], 0),
+        (_invoke_apply, ["redis: boom"], 2),
+        (_invoke_refresh, [], 0),
+        (_invoke_refresh, ["redis: boom"], 2),
+    ],
+    ids=["apply-green", "apply-exit-2", "refresh-green", "refresh-exit-2"],
+)
+def test_every_summary_prints_the_registrar_warnings(tmp_path, invoke, failures, code):
+    ctx = _completed_ctx(failures)
+    ctx.registrar_warnings = [_WARN]
+    result = invoke(ctx, tmp_path)
+    assert result.exit_code == code
+    assert result.output.count(f"⚠ {_WARN}") == 1  # printed, and printed once
 
 
 def test_glitchtip_no_dsn_degraded_return_is_recorded():

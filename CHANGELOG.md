@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a code host is credited to a vendor only by domain evidence (2026-10-20)
+W-b81263e8; D-1062. `gather_envs` used to fall back to treating a host's name as an env-key prefix, so `modal-labs.com` was credited to modal, `hf-token.com` to huggingface, and a customer's S3 bucket or Azure resource name to that vendor. Both fallbacks are gone: a host is credited only by the vendor's url, its `hosts` list or its own domain. No live code host depended on them (0 of 592); an unknown host is triaged and curated as before.
+
+### Fixed — Workflow review seats are told never to disguise a refused command (2026-10-20)
+W-281e3ed2 (kaizen 01M5B6F0PZ). A seat refused by the worktree guard assembled `git` from `'gi'+'t'` and ran it. The rule against that was in the agent-side seat briefs (`subagents-core.md`, `fabrik-reviewer.md`) but not in `SEAT_ISOLATION`, which is what the review-loop workflow's finders and refuters receive. `SEAT_ISOLATION` now carries the same sentence after the refusal rule, and its test pins it in both seat prompts and checks that the two other homes still carry it word for word.
+
+### Changed — the researcher re-reads every cached current value live (2026-10-20)
+W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a version figure on a docs page read from exa. It now covers any current value: a price, a rate or usage limit, a quota, a default, a current version or a status. That applies whenever the value was read from a cached source: exa (whose fetch can never be forced live), firecrawl without `maxAge: 0`, or a search result. Such a value needs a live firecrawl read before it is `VERIFIED`, `STALE` or `WRONG`. WebFetch may only confirm a value a raw source quoted, and a value no live source reaches is `NEEDS-RAW-FETCH`. Quotes, PDF text and figures in documents fixed once published are unaffected. Shape 4's `INFERENCE` clause now states step 4's bounds.
+
 ### Fixed — the hub no longer tracks the `vault` link to the operator's notes (2026-10-20)
 
 - `vault` (a symlink to /mnt/c/ObsidianVault/OneNote) was tracked, so every `git archive` pin carried it, and a seat copy that followed links copied 946 MB of the operator's private notes into review scratch. It is now untracked and `/vault` is gitignored; `tests/test_tracked_symlinks.py` fails on any tracked symlink that points outside the repo (W-36c2607c, D-1064).
@@ -26,11 +35,55 @@ All notable changes to this project will be documented in this file.
 - Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
 - `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
 
+### Fixed — round zero's probed count no longer forbids the re-derivation that checks it (2026-10-20)
+
+- `term-coverage.md` and `term-edit.md` said a probed count is "never re-derived by a finder" (or "by a seat"), while the closing pass re-derives every count. Each now says a seat's own re-derivation never replaces the probe, and a different answer is raised as a candidate. Answers /fabrik-review-scoped feedback row 1792418569.
+
+### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
+
+- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another a HEAD-vs-new differential over the input types its callers pass, subclasses and registered virtual types included. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
+
+### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
+
+- `subagents-core.md`'s seat-folder rule now has the brief tell each seat to create its folder first with `mkdir -p` on the absolute path, as the Workflow's seat prompt already does; two Agent-tool seats hit ENOENT without it. Answers /fabrik-review-scoped feedback row 1792414928.
+
+### Changed — a review brief says what the pin holds and where seats read the rest (2026-10-20)
+
+- The probe catalogue's § Seat isolation now makes the pin carry each file a fix's text points at by path, and has the brief say the pin holds only the files it lists: a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` for a `--base` pin, else the archive of its `base_sha`), never from the live tree. Answers /fabrik-review-scoped feedback rows 1792446899, 1792432410 and 1792416541.
+
+### Changed — a review seat never disguises an act a guard refused (2026-10-20)
+
+- A seat whose command the worktree guard refused assembled the word git from `'gi'+'t'` and ran it, in the hub and in fabrik-lib, reading the seat rule's "fix the named shape" as leave to disguise the act. `subagents-core.md` and the `fabrik-reviewer` agent drop the hint "keep that word out of code you run" for "the word does not belong in such a program at all, even as data", and say, directly after the refusal rule, that a command reshaped after any refusal never disguises the refused act: fixing the named shape or changing the command or the tool is allowed, a refused name or path assembled, split or encoded is the same call, and an act no allowed shape reaches is marked unverified and named in MACHINERY. The workflow's `SEAT_ISOLATION` copy is intel's and was mailed (fabrik-lib mail 01M5AP11P1; review-scoped row 1792433212).
+
+### Changed — /fabrik-docs-review: conflicting live sources are settled by the primary source (2026-10-20)
+
+- The NEEDS-RAW-FETCH row's fallback, where a re-dispatched researcher seat checks other live sources, now says what happens when they disagree: the primary source decides (the vendor's own docs, the standard itself), and a conflict no single primary source settles (two primary surfaces that disagree settle nothing) joins the nothing-found case as UNVERIFIABLE, naming every source on each side (W-7c2ca4e1).
+
+### Changed — a delta brief reads the previous pass's base_sha from its pin's MANIFEST (2026-10-20)
+
+- `review_loop_ledger.py pin` now records `base_sha` in `MANIFEST.json` (intel W-0b09fae6, ec549daf5). The probe catalogue's delta-brief bullet points at that recorded value for a working-tree pin (it is HEAD there), read back, never verified, since no md5 manifest covers it; for any other pin the brief names the commit itself, since a `--base` pin records that commit (else its `--from` ref) and an older pin has none (W-86f03ace).
+
+### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
+
+- The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but what the seat read implies it) is not VERIFIED: the claim is rewritten to what a line states and re-verified. NEEDS-RAW-FETCH is the orchestrator's curl of the named URL and section (or the archive URL of a source that existed), classified by the other rows; when that curl cannot read the source either, a re-dispatched researcher seat checks other live sources and the claim is classified by what they say (a source that seat cannot read either counts as none), UNVERIFIABLE only when none states or contradicts it. A grader fails when the agent's Return line and Method step 4 disagree, or name a verdict the table lacks (W-21b629ed).
+
+### Added — the payments fulfilment-worker role: `shape.needs_payments_fulfilment` mints `<db>_payments_fulfilment` and injects `PAYMENTS_FULFILMENT_DATABASE_URL` (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: `create_payments_ingest_role` is split into `mint_payments_role(db, lane)` (the NOBYPASSRLS login and nothing else) and `grant_payments_role(db, lane)` (CONNECT, USAGE, then the lane's grant; returns `{"grants": <path>}`, the path it took). The `fulfilment` lane is granted only by fabrik-lib's `payments_grant_fulfilment(regrole)`; `drop_database` drops both roles. Re-apply re-asserts the role's attributes and resets its settings, and refuses a same-named superuser or database owner.
+- `src/fabrik/orchestrator/infrastructure.py`: each payments role is minted, its DSN injected, then granted, ingest first; the grant path sets the status — `provisioned`, `pending` (a new `DeploymentContext.registrar_warnings` line, exit 0) or `failed` (exit 2). An `infra.postgres: false` override turns the payments rows off too.
+- `src/fabrik/cli.py`: `fabrik apply` and `fabrik redeploy --refresh-infra` print each registrar warning as a `⚠` line (W-7ba06610, W-4b1dfd76).
+
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 
 - fabrik-lib SB-103 retired `scale_concurrency` and emptied `NEVER_OFFERED`. Since then, `drop_queue_items` and `rotate_locks` are offered when the project `.env` lists one in `WATCHDOG_LLM_ACTIONS`, gives it a `WATCHDOG_DB_WRITE_ALLOWLIST` entry and sets `WATCHDOG_ALLOW_DB_WRITES=true`, with the `WATCHDOG_DB_URL_RW` that `fabrik apply` injects. The hub's validator, the `60-watchdog` and `self-healing` packs and `docs/CONFIGURATION.md` still called all three "never offered".
 - The text now says what the sidecar does. The spec's `llm_actions` still refuses the pair, because no spec field carries the allowlist, so the refusal stays fail-closed. `scale_concurrency` is now refused as unknown.
 - A new assertion in `test_llm_opt_ins_match_the_sidecar` fails when a refusal row names an action the sidecar no longer has; like the rest of that test, it skips where `/opt/fabrik-lib` is absent (W-9191cc39).
+
+### Added — hand merges merge work-item files key by key (2026-10-20)
+W-c230cb2e; D-1059. `.gitattributes` maps `.fabrik/work/W-*.json` to a `workitem` merge driver, which `scripts/install_post_commit_hook.sh` registers in the hub's shared git config: `work.py merge-item`, falling back to git's text merge on any non-zero exit. A builder's `git merge master`, rebase or cherry-pick now merges two disjoint edits of one item cleanly, including on a branch cut before the attribute existed (the installer also copies the line into `.git/info/attributes`). A real key conflict still leaves conflict markers. `-X ours`/`-X theirs` no longer resolve an item-file conflict. The installer writes the config only when it differs.
+
+### Fixed — the kaizen coroner retries lost events and counts unreadable inputs (2026-10-20)
+W-3cdc8bd6, W-a14fd24f and W-4c526386; D-1057. A TTL close now emits its `session_end` before saving the record `expired`, so a lost emit is retried on the next sweep instead of lost. A new repair pass reads the event streams and re-emits a lost `revival` or `session_end` for a reconstructed death, including after the session has revived or its marker has aged out. Unreadable inputs used to read as empty and let `--sweep` exit 0, and a FIFO could hang the sweep. Every marker, event stream and run record is now probed without blocking before it is read. Each of these is counted, so the sweep exits 3: an unreadable lock directory, events directory, marker, stream or record, a dangling symlink, a FIFO, an empty or corrupt record, or a record named so that `command_run` would read another file.
 
 ### Changed — the fabrik-researcher agent returns a bounded INFERENCE verdict and hands an only-source dead page to the archive (2026-10-19)
 W-0c33e10f, D-1056. The researcher's return format gains `INFERENCE`. It covers a claim that no line states but what was read implies, after a raw fetch or a second arm. It is never used for an absence, and never where a curl of a named URL would settle the claim. Its wrong-place quote re-ask is capped at one. A version-specific docs figure read only from exa grounds neither `VERIFIED` nor `STALE`. A claim whose only source now answers 404 on a live fetch is a `NEEDS-RAW-FETCH` naming `https://web.archive.org/web/2/<url>`.
@@ -41,6 +94,10 @@ W-0b09fae6, kaizen mail 01M5AHVAYZ. `scripts/review_loop_ledger.py pin` now writ
 ### Fixed — a scaffolded docusaurus site no longer publishes the governed top-level docs (2026-10-19)
 
 - A docusaurus site published the seeded README, QUICKSTART, CONFIGURATION, TROUBLESHOOTING and FEATURES, and CONFIGURATION names the hub hosts. Every name governance allows directly in `docs/`, plus the `docs/preplan.md` the scaffold writes itself, is now in the content-docs `exclude`, root-anchored so a site author's nested `guides/README.md` still publishes (D-1055, W-c2c2c35b). Graders pin the exclude lists to `check_structure.py`'s DOCS_ALLOWLIST and evaluate the rendered `exclude` array, read strictly, against the real scaffolded tree.
+
+### Changed — a scoped review runs what a fix adds over round zero's input classes (2026-10-19)
+
+- `/fabrik-review-scoped` step 3's execute-or-delete sentence now says a rule, recipe, command or guard a fix adds is executed before the pin, its command and output in the report, on a scratch copy of what it reads (a scratch repo for diff output, § Seat isolation's archive or clone with the pins laid over it for a seat recipe), over the input classes round zero of `term-coverage.md` gives its shape, so a lead runs a new classification rule or seat recipe on more than one case before any seat meets it (2 feedback rows). `/fabrik-command-improve`'s lock bullet cites its two appended fragments by hub-absolute path, which `test_a_fragment_is_cited_by_its_hub_absolute_path` requires.
 
 ### Changed — a pin fails when a new script reads a lock's `owned_paths` (2026-10-19)
 

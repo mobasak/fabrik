@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T22:20:45.637325Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-98debf05",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide narrow-vs-refuse for an escalated registrar role (two Opus rounds disagreed); REVOKE memberships + an ownership check; the rolname-filter unit assert; reset per-database settings in EVERY database, not only the project's (pass 4); widen the refusal's 'drop it once it owns none' to REASSIGN OWNED BY / DROP OWNED BY first, since DROP ROLE fails 2BP01 while it owns any object (pass 5)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security, re-applying a payments role does not revoke an escalated grant or memberships (narrow vs refuse); LOW effort: one registrar function plus tests, design choice settled in its own run",
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "payments role re-apply hardening, routed from the plan-2 Phase A review scope-growth stop (2026-10-20): mint_payments_role's re-assert does not revoke out-of-band role memberships (e.g. GRANT pg_write_all_data or a superuser role) or table/schema ownership; the foreign-role refusal keys only on rolsuper and database ownership, and refuses (fail-closed) a role this registrar minted and someone escalated, leaving it privileged until an operator acts; the unit test does not pin the r.rolname filter (a never-firing guard stays green there, only the real-PG test catches it) (owner: fleet)"
+}

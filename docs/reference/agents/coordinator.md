@@ -60,8 +60,7 @@ question) the operator asks in chat — mail follows § Sort — build a BRIEF f
 hears of it; URGENT is dispatched at once, briefed after. Each point cites what it checked; "none" names what was searched:
 1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges.
 2. **What exists** — the files, scripts, specs, plans and subsystem doc it touches, by path.
-3. **Proposed lane** (the builder's `start` decides) — per the CLAUDE.md lane table: right-now + `/fabrik-review-scoped`
-   or `/fabrik-review`, `/fabrik-task`, or the spec chain.
+3. **Proposed lane** (the builder's `start` decides), per CLAUDE.md's lane table.
 4. **Rules** — `scripts/select_rules.py --changed <point 2's paths>`, a governance-sync path, the § HARD STOPS it nears.
 5. **Order** — beat owner, dependencies, the one-major limit, the quota band (`claude_rotate.py --status`).
 6. **Gates** — any token of CLAUDE.md § FINAL OUTPUT's closed list; the builder stops at each and boards it through you
@@ -81,12 +80,13 @@ characters of that ask verbatim. On their answer, `work.py assign <id> --untag w
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
 ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a new row, what-cell
-`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep it under ~9,800 characters (hook cap 10,000).
+`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep the hook's output under Claude Code's 10,000-character cap (D-888); past it only a preview loads.
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
 `commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus `docs_updater.py --sync`'s INDEX block); a finished plan's `Status: EXECUTED` and archive move (locks are the operator's), once every ticket is merged and its
-builder confirms no run will resume it; a spec's `Status:` line when its approval or retirement is recorded.
+builder confirms no run will resume it, using a word from work.py's `_PLAN_STATUSES`; a spec's `Status:` line when its approval or retirement is recorded.
+Before either, check each SHA or id its verdict cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
 
 **Do:** merges (`scripts/merge_request.py merge` / `resume <id>` / `retry <id>`), then `commands/assemble_commands.py` + `--check`
 when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch

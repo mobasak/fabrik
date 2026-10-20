@@ -2,10 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-27T23:39:02.117450Z",
   "creator": "fleet",
-  "effort": "low",
-  "evidence": "",
+  "effort": "high",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-5985e74a",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +13,11 @@
     "plan": "",
     "spec": ""
   },
-  "next": "when fabrik-lib ships the fulfilment-worker role and policies, add its minting to src/fabrik/drivers/postgres.py with a test that loads the vendored schema and records a purchase as that role",
+  "next": "fleet: execute docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md WHOLE via /fabrik-execute-plan (coordinator decision 2026-10-20, option A1): Phase A from step 1 (its tripwire is met), then Phase B; its full reviews at the heavy phases A and B. It closes W-5985e74a, W-7ba06610 and W-4b1dfd76.",
   "note": "",
   "owner": "fleet",
-  "priority": 3,
-  "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on upstream role definition; nothing writes purchases",
-  "status": "open",
+  "priority": 2,
+  "score_reason": "HIGH major: security (a grant batch that raises after CREATE ROLE leaves a role with no DSN ever delivered, reproduced by fleet's critique seat) plus a live false green; its fabrik-lib blocker is lifted (payments_grant_fulfilment exists at fabrik-lib payments/db/migrations/2026-09-29-scoped-service-roles.sql:462); plan-2 is CONVERGED, so no spec is needed; becomes the ONE major in flight in place of W-d146dd3c, which has not started (spec still needed, owner infra has 3 items ahead)",
+  "status": "done",
   "title": "registrar: mint fabrik-lib payments' fulfilment-worker role (INSERT+SELECT on purchases plus its two RLS policies) once fabrik-lib defines it — today nothing writes purchases (fabrik-lib payments/db/schema.sql, Phase D) and the ingest role must NOT get the grant (mails 01M35P4T/01M35P9V)"
 }

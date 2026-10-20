@@ -1,0 +1,28 @@
+{
+  "plan": "docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md",
+  "owned_paths": [
+    "src/fabrik/spec_loader.py",
+    "src/fabrik/drivers/postgres.py",
+    "src/fabrik/orchestrator/infrastructure.py",
+    "src/fabrik/orchestrator/context.py",
+    "src/fabrik/cli.py",
+    "tests/test_payments_fulfilment_real_pg.py",
+    "tests/test_payments_ingest_real_pg.py",
+    "tests/test_payments_ingest_role.py",
+    "tests/test_app_role_provision.py",
+    "tests/orchestrator/test_registrar_failures_not_green.py",
+    "docs/CONFIGURATION.md",
+    "docs/reference/modules/drivers.md",
+    "docs/development/reviews/2026-10-08-plan-2-payments-fulfilment-role-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-20T01:01:38+03:30",
+  "status": "released",
+  "baseline_commit": "25864616657083f6d070565453ca27d59b41c99d",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "completed_at": "2026-10-20T00:48:41+00:00",
+  "final_commit": "f77c32572c6825ac90a2a5241b37ed6b16af22e9"
+}
