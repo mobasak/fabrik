@@ -596,10 +596,10 @@ def test_every_governed_top_level_doc_is_unpublished() -> None:
     unpublished = set(_DOCUSAURUS_UNPUBLISHED_DOCS) | set(_DOCUSAURUS_UNPUBLISHED_TOP_DOCS)
     governed = set(module.DOCS_ALLOWLIST)
     assert "CONFIGURATION.md" in governed and "README.md" in governed, governed
-    # _layer_preplan_into_project writes docs/preplan.md, a name DOCS_ALLOWLIST does not carry.
-    scaffold_written = {"preplan.md"}
-    expected = governed | scaffold_written
-    assert unpublished == expected, (expected - unpublished, unpublished - expected)
+    # _layer_preplan_into_project writes docs/preplan.md; the registry lists it (SCAFFOLD_WRITTEN,
+    # W-c6d19bda), so the governed set alone is the unpublished set
+    assert "preplan.md" in governed, governed
+    assert unpublished == governed, (governed - unpublished, unpublished - governed)
     seeded = {
         d.removeprefix("docs/")
         for d in SHARED_TEMPLATE_MAP.values()
