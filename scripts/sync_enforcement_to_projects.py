@@ -1930,6 +1930,57 @@ def _first_line(stderr: bytes) -> str:
     return lines[0] if lines else "(no message)"
 
 
+def _hub_present(source: Path) -> bool:
+    """A listed hub source the sync ships: on disk, or a blob HEAD still holds (W-bb97199e).
+
+    T12.17 read a tracked file's BYTES from HEAD, but every caller decided whether the file EXISTS
+    from the working tree, so a sibling's uncommitted deletion shipped nothing and the project kept
+    a stale copy, silently. `_head_source` already returns HEAD's bytes for a deleted copy and names
+    it "deleted in the working tree"; this lets the caller reach it. A COMMITTED deletion (absent
+    from HEAD too) is still absent.
+    """
+    return source.exists() or _head_source(source) is not None
+
+
+def _hub_files(src_dir: Path) -> list[Path]:
+    """Every file under a hub directory the sync walks: the working tree's, plus each blob HEAD
+    lists there that the working tree lost (W-bb97199e).
+
+    The walk is also the orphan prunes' live set, so a working-tree-only walk turned a sibling's
+    uncommitted deletion into a DELETE in every project. Symlinks HEAD records (mode 120000) are
+    left to the working-tree walk, as before (W-d537275a). A dir outside the hub, an unborn HEAD or
+    a git that cannot answer adds nothing; the last is named in `_head_unread`.
+    """
+    found = {p for p in src_dir.rglob("*") if p.is_file()} if src_dir.is_dir() else set()
+    try:
+        rel = src_dir.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except ValueError:
+        return sorted(found)
+    try:
+        ls = subprocess.run(
+            ["git", "--literal-pathspecs", "ls-tree", "-r", "-z", "HEAD", "--", rel],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        _head_unread[f"{rel}/"] = f"git not runnable (ls-tree -r): {exc}"
+        return sorted(found)
+    if ls.returncode != 0:
+        if not _hub_is_unborn():
+            _head_unread[f"{rel}/"] = (
+                f"git ls-tree -r exited {ls.returncode}: {_first_line(ls.stderr)}"
+            )
+        return sorted(found)
+    for entry in ls.stdout.split(b"\0"):
+        meta, _, path = entry.partition(b"\t")
+        fields = meta.split()
+        if len(fields) != 3 or fields[1] != b"blob" or fields[0] == b"120000":
+            continue
+        found.add(src_dir / Path(os.fsdecode(path)).relative_to(rel))
+    return sorted(found)
+
+
 # Every name imported from the manifest at the top of this module, rebound from HEAD by `main()`.
 _MANIFEST_NAMES = (
     "AGENT_HOOK_FILES",
@@ -2207,11 +2258,9 @@ def sync_single_file(
     if source_hash == dest_hash:
         return SyncResult("SKIP", source, destination, "identical")
 
-    # Hashes differ - check mtime
-    source_mtime = source.stat().st_mtime
-    dest_mtime = destination.stat().st_mtime
-
-    if dest_mtime > source_mtime:
+    # Hashes differ - check mtime. A source deleted from the hub's working tree reached here only
+    # because HEAD still holds it (W-bb97199e): it has no mtime to compare, and HEAD ships.
+    if source.exists() and destination.stat().st_mtime > source.stat().st_mtime:
         return SyncResult("WARN", source, destination, "destination newer")
 
     # Source is newer - proceed with copy
@@ -2271,7 +2320,7 @@ def sync_scripts_to_project(
         # Sync core scripts
         for script_name in CORE_SCRIPTS:
             source = FABRIK_ROOT / "scripts" / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2288,7 +2337,7 @@ def sync_scripts_to_project(
         run_src_dir = FABRIK_ROOT / RUN_SCRIPTS_SRC_DIR
         for script_name in RUN_SCRIPTS:
             source = run_src_dir / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2302,16 +2351,17 @@ def sync_scripts_to_project(
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
 
-        if fabrik_enforcement.exists():
+        enforcement_files = _hub_files(fabrik_enforcement)
+        if enforcement_files:
             if not dry_run:
                 project_enforcement.mkdir(parents=True, exist_ok=True)
 
-            for source in fabrik_enforcement.rglob("*"):
+            for source in enforcement_files:
                 # Never sync compiled bytecode — __pycache__/*.pyc is build noise,
                 # not enforcement logic, and was bloating every project.
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
+                if True:  # every _hub_files entry is a file, on disk or in HEAD (W-bb97199e)
                     relative = source.relative_to(fabrik_enforcement)
                     destination = project_enforcement / relative
 
@@ -2332,15 +2382,16 @@ def sync_scripts_to_project(
         for vendored_rel in VENDORED_DIRS:
             fabrik_vendored = FABRIK_ROOT / vendored_rel
             project_vendored = project_dir / vendored_rel
-            if not fabrik_vendored.is_dir():
-                continue  # missing or clobbered-to-a-file hub source → skip (never make an empty dir)
+            vendored_files = _hub_files(fabrik_vendored)
+            if not vendored_files:
+                continue  # nothing on disk or in HEAD → skip (never make an empty dir)
             if not dry_run:
                 project_vendored.mkdir(parents=True, exist_ok=True)
             live_rel: set[Path] = set()
-            for source in fabrik_vendored.rglob("*"):
+            for source in vendored_files:
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
+                if True:  # on disk or in HEAD — the live set the prune below keeps (W-bb97199e)
                     relative = source.relative_to(fabrik_vendored)
                     live_rel.add(relative)
                     destination = project_vendored / relative
@@ -2372,7 +2423,7 @@ def sync_scripts_to_project(
         # Sync governance files (AGENTS.md, agents-fabrik*.md)
         for gov_file in GOVERNANCE_FILES:
             source = FABRIK_ROOT / gov_file
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / gov_file
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2386,7 +2437,7 @@ def sync_scripts_to_project(
         # contract and is never distributed; projects receive the template copy.
         for src_rel, dest_rel in GOVERNANCE_TEMPLATES:
             source = FABRIK_ROOT / src_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2403,7 +2454,8 @@ def sync_scripts_to_project(
         # Sync governance directories (.windsurf/rules/)
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
-            if source_dir.exists():
+            gov_files = _hub_files(source_dir)
+            if gov_files:
                 dest_dir = project_dir / gov_dir
                 # Replace directory symlinks with real directories
                 if dest_dir.is_symlink():
@@ -2413,8 +2465,8 @@ def sync_scripts_to_project(
                 elif not dry_run:
                     dest_dir.mkdir(parents=True, exist_ok=True)
 
-                for source in source_dir.rglob("*"):
-                    if source.is_file():
+                for source in gov_files:
+                    if True:  # on disk or in HEAD (W-bb97199e)
                         relative = source.relative_to(source_dir)
                         destination = dest_dir / relative
 
@@ -2431,9 +2483,10 @@ def sync_scripts_to_project(
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
             dest_dir = project_dir / gov_dir
-            if not source_dir.exists() or not dest_dir.exists():
+            # The live set is the walk's: a file HEAD still holds is never an orphan (W-bb97199e).
+            source_files = {f.relative_to(source_dir) for f in _hub_files(source_dir)}
+            if not source_files or not dest_dir.exists():
                 continue
-            source_files = {f.relative_to(source_dir) for f in source_dir.rglob("*") if f.is_file()}
             for dest_file in list(dest_dir.rglob("*")):
                 if dest_file.is_file():
                     relative = dest_file.relative_to(dest_dir)
@@ -2452,7 +2505,7 @@ def sync_scripts_to_project(
         # Sync reference docs (REFERENCE_DOCS list)
         for source_rel, dest_rel in REFERENCE_DOCS:
             source = FABRIK_ROOT / source_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2465,7 +2518,7 @@ def sync_scripts_to_project(
         # .windsurf/hooks.json). Nested paths → mkdir parents like reference docs.
         for rel in AGENT_HOOK_FILES:
             source = FABRIK_ROOT / rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)

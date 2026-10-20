@@ -973,3 +973,79 @@ def test_the_new_records_reset_before_the_manifest_bind(hub) -> None:
     bind = main_body.index("refusal = _bind_manifest_from_head()")
     for marker in ("_head_unread.clear()", "_head_drift_why.clear()", "_head_drift.clear()"):
         assert -1 < main_body.index(marker) < bind, marker
+
+
+# ---- W-bb97199e: the FILE SET comes from HEAD too, not only the bytes ----------------------------
+# T12.17 read a tracked file's bytes from HEAD, but every caller decided WHICH files exist from the
+# working tree: a sibling's uncommitted deletion shipped nothing (a stale project copy, silently),
+# and the vendored and governance-dir orphan prunes DELETED the project copy.
+
+
+def _deleted_hub(hub, tmp_path: Path):
+    """The hub fixture plus a vendored dir, a governance dir and one listed source, all committed;
+    the project holds stale copies; then the working tree loses one file in each place."""
+    mod, hub_root, _committed, _untracked = hub
+    rels = {
+        "walked": "scripts/enforcement/gone.py",
+        "vendored": "libs/vend/gone.py",
+        "govdir": ".windsurf/rules/gone.md",
+        "listed": "AGENTS-gone.md",
+    }
+    for rel in (*rels.values(), "libs/vend/kept.py", ".windsurf/rules/kept.md"):
+        (hub_root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (hub_root / rel).write_text(f"# {rel} HEAD\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "synced set"], check=True)
+    project = tmp_path / "proj"
+    for rel in rels.values():
+        (project / rel).parent.mkdir(parents=True, exist_ok=True)
+        (project / rel).write_text(f"# {rel} stale\n", encoding="utf-8")
+    for rel in rels.values():
+        (hub_root / rel).unlink()  # the sibling's UNCOMMITTED deletion
+    mod.VENDORED_DIRS = ["libs/vend"]
+    mod.GOVERNANCE_DIRS = [".windsurf/rules"]
+    mod.GOVERNANCE_FILES = [rels["listed"]]
+    for name in (
+        "CORE_SCRIPTS",
+        "RUN_SCRIPTS",
+        "GOVERNANCE_TEMPLATES",
+        "REFERENCE_DOCS",
+        "AGENT_HOOK_FILES",
+    ):
+        setattr(mod, name, [])
+    mod._head_drift.clear()
+    mod._head_drift_why.clear()
+    return mod, hub_root, project, rels
+
+
+def test_a_listed_source_deleted_in_the_tree_ships_head(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    rel = rels["listed"]
+    assert (project / rel).read_text() == f"# {rel} HEAD\n", "the stale copy was left in place"
+    assert mod._head_drift_why.get(rel) == "deleted in the working tree", mod._head_drift_why
+
+
+def test_a_walked_file_deleted_in_the_tree_ships_head(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    for key in ("walked", "vendored", "govdir"):
+        rel = rels[key]
+        assert (project / rel).is_file(), f"{rel}: the project copy was deleted"
+        assert (project / rel).read_text() == f"# {rel} HEAD\n", rel
+        assert mod._head_drift_why.get(rel) == "deleted in the working tree", rel
+
+
+def test_the_prunes_keep_what_head_holds_and_drop_what_it_retired(hub, tmp_path: Path) -> None:
+    """A COMMITTED deletion is still a retirement: the prunes drop it. Only HEAD decides."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    for rel in (rels["vendored"], rels["govdir"]):
+        subprocess.run(["git", "-C", str(hub_root), "rm", "-q", "--cached", rel], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "retire"], check=True)
+    mod._head_cache.clear()
+    result = mod.sync_scripts_to_project(project)
+    for rel in (rels["vendored"], rels["govdir"]):
+        assert not (project / rel).exists(), f"{rel}: a retired file survived the prune"
+    deleted = {r.destination for r in result.files if r.action == "DELETE"}
+    assert {project / rels["vendored"], project / rels["govdir"]} <= deleted, deleted
+    assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
