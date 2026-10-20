@@ -20,7 +20,8 @@
   "score_reason": "advisory: three more slow fence regexes, no live hang reported; same recipe as D-1077",
   "status": "open",
   "tags": [
-    "link-reader"
+    "link-reader",
+    "waits-hibernate"
   ],
   "title": "Three more quadratic fence regexes in scripts/enforcement (plan_appetite.py:99-100, check_plan_lock_release.py:93, check_phase_tests.py:86) rescan to the end per unclosed opener — 8.4 s on a 40 KB run + newline + text (plan_appetite)"
 }
