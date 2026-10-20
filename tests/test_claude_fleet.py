@@ -9470,7 +9470,8 @@ def test_a_lock_the_filesystem_refuses_is_refused_with_nothing_moved(tmp_path, m
 )
 def test_an_unreadable_fleet_root_is_refused_before_the_lock(tmp_path, monkeypatch, capsys, exc):
     """`_fleet_root` raises ValueError (a NUL in the path) or RuntimeError (no home), which
-    `_fleet_dirs` does not catch: the pending check refuses with nothing moved (W-21b4c0e5)."""
+    `_fleet_dirs` does not catch: the pending check refuses with nothing moved, and so does
+    `--dry-run` (W-21b4c0e5)."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     before = _tree(tmp_path)
 
@@ -9478,11 +9479,34 @@ def test_an_unreadable_fleet_root_is_refused_before_the_lock(tmp_path, monkeypat
         raise exc
 
     monkeypatch.setattr(cr, "_fleet_root", unreadable)
-    capsys.readouterr()
-    assert cr.main(["--merge-shared", "tasks"]) == 1
-    err = capsys.readouterr().err
-    assert "cannot read the fleet root" in err and "nothing moved" in err, err
+    for argv in (["--merge-shared", "tasks"], ["--merge-shared", "tasks", "--dry-run"]):
+        capsys.readouterr()
+        assert cr.main(argv) == 1, argv
+        err = capsys.readouterr().err
+        assert "cannot read the fleet root" in err and "nothing moved" in err, (argv, err)
     assert _tree(tmp_path) == before
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 directory")
+def test_a_fleet_root_that_cannot_be_listed_is_refused_not_read_as_empty(
+    tmp_path, monkeypatch, capsys
+):
+    """`_fleet_dirs` reads an OSError as "no fleet" — right for an ABSENT root — so an existing root
+    that cannot be listed (EACCES) reported "nothing to merge" at exit 0 while accounts held real
+    lists; it is refused instead (W-21b4c0e5 review). An absent root still has nothing to merge."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    fleet.chmod(0)
+    try:
+        capsys.readouterr()
+        assert cr.main(["--merge-shared", "tasks"]) == 1
+        err = capsys.readouterr().err
+        assert "cannot read the fleet root" in err and "nothing moved" in err, err
+    finally:
+        fleet.chmod(0o755)
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "no-such-fleet"))
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert "nothing to merge" in capsys.readouterr().out
 
 
 def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_step(
@@ -9828,6 +9852,21 @@ def test_a_fifo_at_the_staging_name_never_hangs_the_record_write(tmp_path, monke
         os.close(fd)
         if t.is_alive():  # unblock the writer so the test process can exit
             os.close(os.open(stage, os.O_RDONLY | os.O_NONBLOCK))
+
+
+def test_a_directory_at_the_staging_name_fails_closed(tmp_path, monkeypatch):
+    """A directory planted at the staging name is left alone and the write reports False — the
+    tick then wakes nobody, never a storm; the name carries the pid, so the next tick uses
+    another (W-21b4c0e5 review)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    try:
+        rec = cr._rotate_state_dir() / "tick-last-end"
+        stage = rec.with_name(f".{rec.name}.{os.getpid()}")
+        (stage / "kept").mkdir(parents=True)
+        assert cr._write_tick_last_end(7.0) is False
+        assert (stage / "kept").is_dir() and not rec.exists()
+    finally:
+        os.close(fd)
 
 
 def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):

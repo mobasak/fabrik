@@ -2386,11 +2386,13 @@ def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
         )
         return 2
     canon = CLAUDE_DIR / name
-    if dry_run:
-        return _merge_shared_locked(name, canon, dry_run=True)
     try:
+        # `_fleet_root` raises ValueError/RuntimeError, and an existing root that cannot be listed
+        # raises here too, where `_fleet_dirs` would read it as "no fleet" and say nothing to merge
         pending = _merge_shared_pending(name, canon)
-    except _STATE_DIR_ERRORS as e:  # `_fleet_root` raises ValueError/RuntimeError, not OSError
+        if dry_run:  # moves nothing, so a read error mid-plan is the same refusal
+            return _merge_shared_locked(name, canon, dry_run=True)
+    except _STATE_DIR_ERRORS as e:
         sys.stderr.write(f"claude_rotate: cannot read the fleet root ({e}) — nothing moved\n")
         return 1
     if not pending:  # nothing to do: touch nothing, not even the lock
@@ -2433,6 +2435,9 @@ def _merge_shared_pending(name: str, canon: Path) -> bool:
     working name a killed swap left, or a canonical that is still the swap's link."""
     if canon.is_symlink():
         return True
+    root = _fleet_root()
+    if os.path.lexists(root):  # an absent root is no fleet; an unreadable one RAISES (W-21b4c0e5)
+        next(iter(root.iterdir()), None)
     for d in _fleet_dirs():
         p = d / name
         if (p.is_dir() and not p.is_symlink()) or _aside_dirs(d, name) or _strays(d, name):
@@ -7296,11 +7301,13 @@ def _write_tick_last_end(now: float) -> bool:
     try:
         path = _tick_last_end_path()
         tmp = path.with_name(f".{path.name}.{os.getpid()}")
-        # a stale or planted staging entry (a FIFO would block an open for write) is removed, and
-        # the file is created EXCLUSIVELY, so the write never opens a FIFO or follows a link
+        # a stale or planted staging entry that is not a directory (a FIFO would block an open for
+        # write; a link would be followed) is removed, and the file is created EXCLUSIVELY; a
+        # DIRECTORY there makes the unlink fail and this tick writes nothing and wakes nobody (fail
+        # closed — the name carries this tick's pid, so the next tick uses another)
         if os.path.lexists(tmp):
             os.unlink(tmp)
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
         with os.fdopen(fd, "w") as fh:
             fh.write(f"{now}\n")
         os.replace(tmp, path)
