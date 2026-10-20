@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a deleted or renamed enforcement check no longer lingers in every project (2026-10-20)
+W-47d91afa; D-1071. The fleet sync copied `scripts/enforcement/` into each project but never removed anything from it, so a check the hub deleted or renamed stayed everywhere. Today that is two retired checks, 82 copies in 41 projects. The sync now deletes a project's copy of any check the hub no longer has. It counts a deletion only once it is committed, keeps a copy the project itself tracks in git (with a warning), and prunes nothing when it cannot read the hub's committed file list. On the first run the worktree copies of the two retired checks go too.
+
 ### Fixed — the fleet sync refuses a symlinked hub file instead of shipping what the link points at today (2026-10-20)
 W-d537275a; D-1069. The sync read a symlinked hub file through the link as the working tree pointed it. An uncommitted retarget shipped the new target. A link leading outside the hub shipped that outside file, with nothing named. A committed link replaced by an ordinary file shipped the link text as an unreadable file. A synced source that is a symlink, sits under a symlinked folder, or is recorded as a symlink in HEAD is now refused: the run prints a warning naming it, and nothing ships. None of the 217 files the sync distributes today is a symlink, so nothing changes for them. To sync such a file, commit a regular file in its place.
 
