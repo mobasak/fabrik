@@ -35,9 +35,10 @@ Design notes
   ``metrics_path: /metrics``. Internal-network scraping (faster, no
   TLS) is supported via the ``target`` kwarg for infra services with
   stable container names.
-* **Idempotent** — if a job named ``fabrik-<name>`` already exists,
-  :func:`add_scrape_target` returns ``status=exists`` without rewriting;
-  it still reloads, so a config an earlier run wrote but Prometheus never
+* **Idempotent** — if a job named ``fabrik-<name>`` already exists and its
+  managed keys match the spec, :func:`add_scrape_target` returns
+  ``status=exists`` without rewriting; when they differ it updates them in
+  place and returns ``status=updated`` (W-01815aee). Either way it reloads, so a config an earlier run wrote but Prometheus never
   loaded is reported again (``reload`` on every result, W-cc9b0532).
 * **No auth wiring yet.** ``/metrics`` endpoints are assumed to be
   reachable without credentials. When a service stands up bearer-token
@@ -152,7 +153,8 @@ def _validate_target(target: object) -> None:
     if (
         not sep
         or not _TARGET_HOST_RE.fullmatch(host)
-        or not (port.isascii() and port.isdigit())
+        or not (port.isascii() and port.isdigit() and len(port) <= 5)
+        or str(int(port)) != port  # no leading zero: the spec's spelling is the one compared
         or not 1 <= int(port) <= 65535
     ):
         raise ValueError(
@@ -326,24 +328,32 @@ def _sync_managed_keys(
     static = job.get("static_configs")
     if static is None:
         static = []
+    targets = static[0].get("targets") if static and isinstance(static[0], dict) else None
+    sd = sorted(k for k in job if k.endswith("_sd_configs") and job[k])
     if (
         not isinstance(static, list)
         or len(static) > 1
         or any(not isinstance(s, dict) for s in static)
+        or (isinstance(targets, list) and len(targets) > 1)
+        or sd
     ):
         raise ValueError(
-            f"Prometheus job {name} has a hand-shaped static_configs ({static!r}); fabrik manages "
-            "exactly one entry — fix the job on vps1 by hand"
+            f"Prometheus job {name} is hand-shaped (static_configs {static!r}"
+            f"{', ' + ', '.join(sd) if sd else ''}); fabrik manages exactly one static target — "
+            "fix the job on vps1 by hand"
         )
+    auth = job.get("authorization")
     set_auth = bool(bearer_token) and (
-        not isinstance(job.get("authorization"), dict)
+        not isinstance(auth, dict)
         or (
-            "credentials_file" not in job["authorization"]
-            and job["authorization"] != {"type": "Bearer", "credentials": bearer_token}
+            "credentials_file" not in auth
+            # Prometheus reads an absent type as Bearer
+            and (auth.get("type", "Bearer"), auth.get("credentials")) != ("Bearer", bearer_token)
         )
     )
     if set_auth:
-        clash = [k for k in _OTHER_AUTH_KEYS if k in job]
+        # a key set to null is absent to promtool, so it is no clash
+        clash = [k for k in _OTHER_AUTH_KEYS if job.get(k) not in (None, "", {})]
         if clash:
             raise ValueError(
                 f"Prometheus job {name} already authenticates with {', '.join(clash)}; "

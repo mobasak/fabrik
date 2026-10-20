@@ -396,7 +396,8 @@ class RollbackManager:
         name = resource.resource_id
         if resource.metadata.get("job", resource.metadata.get("status")) != "created":
             # an `exists`/`updated` job predates the run and still monitors the live service;
-            # removing it would leave the service unmonitored (W-01815aee, as glitchtip above)
+            # removing it would leave the service unmonitored (W-01815aee, as glitchtip above).
+            # An `updated` job keeps the run's new keys: the previous values are not restored.
             logger.info("prometheus job %s predates this run — kept on rollback", name)
             return
         try:

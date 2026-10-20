@@ -9,6 +9,7 @@ this run created.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from unittest import mock
 
@@ -75,6 +76,10 @@ def test_a_bad_scheme_is_refused_before_any_read(monkeypatch, scheme, dry_run) -
         "fd00::1",
         "-svc:80",
         "svc:8o",
+        "svc:080",  # leading zero: would never equal the job's spelling
+        pytest.param("svc:" + "9" * 5000, id="5000-digit-port"),
+        "a" * 64 + ":80",  # label over 63
+        ".".join(["a" * 63] * 4) + ":80",  # host over 253
         8000,
     ],
 )
@@ -85,7 +90,23 @@ def test_a_bad_target_is_refused_before_any_read(monkeypatch, target, dry_run) -
         prom.add_scrape_target("svc", target=target, scheme="http", dry_run=dry_run)
 
 
-@pytest.mark.parametrize("target", ["name:8000", "my_svc-api:8000", "a.b.c:443", "10.0.1.1:8201"])
+def test_the_scheme_is_checked_before_the_target_is_derived(monkeypatch) -> None:
+    _no_ssh(monkeypatch)
+    with pytest.raises(ValueError, match="scheme"):
+        prom.add_scrape_target("svc", domain="bad domain", scheme="ftp", dry_run=True)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "name:8000",
+        "my_svc-api:8000",
+        "a.b.c:443",
+        "10.0.1.1:8201",
+        "a" * 63 + ":65535",
+        ".".join(["a" * 63] * 3 + ["a" * 61]) + ":1",  # host of exactly 253
+    ],
+)
 def test_legitimate_targets_pass(monkeypatch, target) -> None:
     written = _wire(monkeypatch, {"scrape_configs": []})
     r = prom.add_scrape_target("svc", target=target, scheme="http")
@@ -181,10 +202,25 @@ def test_no_token_leaves_a_hand_set_auth_block_alone(monkeypatch) -> None:
 
 @pytest.mark.parametrize("key", ["basic_auth", "bearer_token", "bearer_token_file", "oauth2"])
 def test_a_token_beside_another_auth_form_is_refused(monkeypatch, key) -> None:
-    written = _wire(monkeypatch, {"scrape_configs": [_job(**{key: {"x": 1}})]})
+    job = _job(**{key: {"x": 1}}, scheme="https")
+    before = copy.deepcopy(job)
+    written = _wire(monkeypatch, {"scrape_configs": [job]})
     with pytest.raises(ValueError, match=key):
         prom.add_scrape_target("svc", target="svc:8000", scheme="http", bearer_token="t0k")
-    assert written == []
+    assert written == [] and job == before  # refused before anything changed
+
+
+@pytest.mark.parametrize("key", ["basic_auth", "bearer_token"])
+def test_a_null_auth_key_is_no_clash(monkeypatch, key) -> None:
+    written = _wire(monkeypatch, {"scrape_configs": [_job(**{key: None})]})
+    r = prom.add_scrape_target("svc", target="svc:8000", scheme="http", bearer_token="t0k")
+    assert r["status"] == "updated" and len(written) == 1
+
+
+def test_an_untyped_inline_token_that_matches_is_current(monkeypatch) -> None:
+    written = _wire(monkeypatch, {"scrape_configs": [_job(authorization={"credentials": "t"})]})
+    r = prom.add_scrape_target("svc", target="svc:8000", scheme="http", bearer_token="t")
+    assert r["status"] == "exists" and written == []
 
 
 # ── Behaviour 6: static_configs shapes ──────────────────────────────────────────────── #
@@ -204,14 +240,31 @@ def test_an_empty_static_config_is_set(monkeypatch, static) -> None:
 
 @pytest.mark.parametrize(
     "static",
-    [[{"targets": ["a:1"]}, {"targets": ["b:2"]}], "svc:8000", ["svc:8000"]],
-    ids=["two-entries", "a-string", "non-dict-entry"],
+    [
+        [{"targets": ["a:1"]}, {"targets": ["b:2"]}],
+        "svc:8000",
+        ["svc:8000"],
+        [{"targets": ["svc:8000", "svc2:8000"]}],
+    ],
+    ids=["two-entries", "a-string", "non-dict-entry", "two-targets"],
 )
 def test_a_hand_shaped_static_config_is_refused_before_any_write(monkeypatch, static) -> None:
-    written = _wire(monkeypatch, {"scrape_configs": [_job(static_configs=static)]})
+    job = _job(static_configs=static, scheme="https")
+    before = copy.deepcopy(job)
+    written = _wire(monkeypatch, {"scrape_configs": [job]})
     with pytest.raises(ValueError, match="static_configs"):
         prom.add_scrape_target("svc", target="svc:8000", scheme="http")
-    assert written == []
+    assert written == [] and job == before
+
+
+@pytest.mark.parametrize("sd", ["file_sd_configs", "http_sd_configs"])
+def test_a_service_discovery_job_is_refused(monkeypatch, sd) -> None:
+    job = _job(**{sd: [{"files": ["x.json"]}]})
+    del job["static_configs"]
+    written = _wire(monkeypatch, {"scrape_configs": [job]})
+    with pytest.raises(ValueError, match=sd):
+        prom.add_scrape_target("svc", target="svc:8000", scheme="http")
+    assert written == [] and "static_configs" not in job
 
 
 # ── Behaviour 7: rollback removes only a job this run created ─────────────────────────── #
