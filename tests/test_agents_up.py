@@ -852,19 +852,29 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
 
 
 def _hint(run_line: str, cwd: Path) -> str:
-    """What a pane prints when claude exits: the hint command from its `run` line, executed by bash."""
+    """What a pane prints when claude exits: the hint command from its `run` line, executed by bash — and identically
+    by a POSIX `sh` in the C locale, since tmux runs a pane's command with the user's own shell."""
     cmd = re.search(r"; echo; (printf '%s\\n' .*?); exec env ", run_line)
     assert cmd, run_line
-    said = subprocess.run(
-        ["bash", "-c", cmd.group(1)], cwd=cwd, capture_output=True, text=True, timeout=30
-    )
-    return said.stdout.strip()
+    said = [
+        subprocess.run(
+            [shell, "-c", cmd.group(1)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C"},
+        ).stdout.strip()
+        for shell in ("bash", "sh")
+    ]
+    assert said[0] == said[1], said
+    return said[0]
 
 
 def test_the_exit_hint_never_runs_a_folder_name(tmp_path: Path) -> None:
     """The hint a pane prints when claude exits names the repo folder; a `$(...)`, a backtick or a `$NAME` in that name
     is printed, never run, and the printed command pastes back to the real folder."""
-    for i, name in enumerate(("a$(touch pwned)b", "a`touch pwned`b", "a$HOME b")):
+    for i, name in enumerate(("a$(touch pwned)b", "a`touch pwned`b", "a$HOME b", "q'uote")):
         base = tmp_path / str(i)
         base.mkdir()
         repo = _repo(base, {DEV1: "dev1"}, name=name)

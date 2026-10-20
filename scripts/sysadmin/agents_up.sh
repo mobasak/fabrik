@@ -259,11 +259,13 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   if [ "$3" = running ]; then
     echo "echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
   else
-    # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is %q-quoted again for
-    # the pane's own echo, so a `$(...)`, a backtick or a `$NAME` in a folder name is printed, never run or expanded
+    # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
+    # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
+    # folder name is printed, never run or expanded
     local hint
     hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
-    echo "$env claude -n $1 --resume $2; echo; printf '%s\\n' $(printf %q "$hint"); exec $env bash -l"
+    hint="'${hint//\'/\'\\\'\'}'"
+    echo "$env claude -n $1 --resume $2; echo; printf '%s\\n' $hint; exec $env bash -l"
   fi
 }
 
