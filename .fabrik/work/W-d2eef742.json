@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T11:32:12.748790Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-d2eef742",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "give each grammar an exact linear replica in scripts/enforcement/_fences.py, proven byte-identical on fuzz + the fleet .md corpus with the W-276255e7 harness (tests/enforcement/test_fences.py), then switch the three readers",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "advisory: three more slow fence regexes, no live hang reported; same recipe as D-1077",
   "status": "open",
   "tags": [
     "link-reader"
