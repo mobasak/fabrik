@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:29:35.494351Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-87af6d36",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read the mail's 8 rows, fix each at its script with a test (or reply why not), and reply to kaizen per row; batch the guard row with W-ddb7d3f0 (guard vs pin lesson)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: another active agent's request (kaizen) and agents' feedback rows that need code; LOW effort: small fixes in four scripts, batchable",
+  "status": "open",
+  "tags": [
+    "mail-01m5bbag1jcvbfb810wz4wbr7s"
+  ],
+  "title": "mail 01M5BBAG1JCVBFB810WZ4WBR7S (kaizen → infra): 8 /fabrik-review feedback rows that need code, not command wording: review_receipt.py, the review_loop_ledger pin, command_run --resume-from and the worktree guard (from kaizen's W-9ffdd5e7 triage)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:29:35.148523Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-aabbab8a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BBAG1JCVBFB810WZ4WBR7S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "eight /fabrik-review feedback rows ask for code: review_receipt.py, review_loop_ledger.py pin, command_run.py --resume-from, and the worktree guard"
+}
