@@ -908,3 +908,26 @@ def test_two_held_catalogue_subjects_recurred_and_are_edited() -> None:
         " graded from the root conftest and a child process; a grader exclusion says whether it matches an exact "
         "name or a pattern."
     )
+
+
+def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
+    """Row 1792418569: round zero's rule (1) said a probed count is "never re-derived by a finder" (term-coverage) or
+    "by a seat" (term-edit), while the closing pass re-derives every count and a seat's re-derivation is what caught a
+    25-vs-29 count. The 2026-09-17 spec meant the probe stays the record, so each fragment now says a seat's
+    re-derivation never replaces the probe and a different answer is raised as a candidate; the two keep their own
+    nouns, as that spec requires."""
+    frag = ROOT / "commands" / "_fragments"
+    cov = re.sub(r"\s+", " ", (frag / "term-coverage.md").read_text())
+    edit = re.sub(r"\s+", " ", (frag / "term-edit.md").read_text())
+    assert (
+        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
+        " and gets a different answer raises the difference as a candidate." in cov
+    )
+    assert (
+        "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
+        " rule asks, and gets a different answer raises the difference as a candidate." in edit
+    )
+    for text in (cov, edit):
+        assert (
+            "never re-derived by a finder" not in text and "never re-derived by a seat" not in text
+        )
