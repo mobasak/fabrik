@@ -1348,7 +1348,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             for f in frag.get("base_skipped", []):
                 print(
-                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)",
+                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute or escaping link, or a device)",
                     file=sys.stderr,
                 )
             # stdout is the fragment ALONE, so a caller can hand it to a launch whole; every advisory above went to
