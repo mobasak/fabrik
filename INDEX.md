@@ -364,7 +364,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:20 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -427,7 +427,6 @@ docs/
 │   │   │   ├── T05e-rebuild-and-reference-docs.md
 │   │   │   ├── T06-window-runbook.md
 │   │   │   └── T07-integration.md
-│   │   ├── 2026-10-08-plan-2-payments-fulfilment-role.md
 │   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
 │   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
@@ -1079,6 +1078,7 @@ docs/
 │       ├── 2026-10-08-pass-row-shape-agreement-review.md
 │       ├── 2026-10-08-pin-refusal-wording-review.md
 │       ├── 2026-10-08-pin-verb-launchers-review.md
+│       ├── 2026-10-08-plan-2-payments-fulfilment-role-review.md
 │       ├── 2026-10-08-plan-3-review-coverage-commit-scope-review.md
 │       ├── 2026-10-08-print-ban-call-boundary-review.md
 │       ├── 2026-10-08-probe-worktree-copy-in-review.md
@@ -1280,10 +1280,32 @@ docs/
 │       ├── 2026-10-18-wdeb8eb0f-exception-name-guard-committed-review.md
 │       ├── 2026-10-18-wf11e740e-link-readers-review.md
 │       ├── 2026-10-18-work-edit-render-review.md
+│       ├── 2026-10-19-agents-up-launcher-review.md
+│       ├── 2026-10-19-install-log-drop-rule-retire-review.md
 │       ├── 2026-10-19-panel-joint-artifact-review.md
+│       ├── 2026-10-19-range-named-review-surfaces-review.md
+│       ├── 2026-10-19-round-slices-ledger-echo-review.md
+│       ├── 2026-10-19-w-0b09fae6-pin-base-sha-review.md
+│       ├── 2026-10-19-w-1f70f2e9-locks-local-lock-dir-review.md
+│       ├── 2026-10-19-w-3350006b-mcp-health-key-check-review.md
+│       ├── 2026-10-19-w-3d834ded-authelia-locks-review.md
+│       ├── 2026-10-19-w-42e79070-monitoring-mktemp-staging-review.md
+│       ├── 2026-10-19-w-8bb683e6-dns-ssh-status-review.md
+│       ├── 2026-10-19-w-ad71f248-doc-stubs-review.md
+│       ├── 2026-10-19-w2356-argparse-percent-final-review.md
+│       ├── 2026-10-19-w4ad7ff2d-review-loop-gate-layout-review.md
+│       ├── 2026-10-19-w7e467f2d-retire-classifier-review.md
 │       ├── 2026-10-19-w8008e144-halt-list-and-job7-review.md
+│       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
+│       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1462,6 +1484,8 @@ docs/
 │   ├── product-adoption-forces.md
 │   ├── prompt-audit-2026-10-05.md
 │   ├── receipts-2026-08-07-autotrigger.md
+│   ├── repo-coordinator-rollout-repos.md
+│   ├── repo-coordinator-rollout.md
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md

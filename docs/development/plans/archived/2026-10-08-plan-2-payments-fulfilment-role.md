@@ -1,7 +1,7 @@
 # Plan — the payments fulfilment-worker role in the hub registrar
 
-Status: IN-PROGRESS
-Whole-plan review: docs/development/reviews/2026-10-08-plan-2-payments-fulfilment-role-review.md (CONVERGED f77c32572; every phase EXECUTED — the coordinator flips Status at merge)
+Status: EXECUTED
+Whole-plan review: docs/development/reviews/2026-10-08-plan-2-payments-fulfilment-role-review.md (CONVERGED f77c32572; every phase EXECUTED; merged 0a910fa46, Status flipped and archived by the coordinator)
 Profile: small
 **Owner:** —
 Spec: `docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md` (CONVERGED, D-464; approved for planning by D-652 item 4)

@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-10-19T02:20 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-10-20T04:29 -->
 <!-- Phase: epic rows = the epic's phase in its `depends_on` order (1 = no upstream dependency; `cycle` = a dependency cycle); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: coordinator | source: D-874 -->
 | Epic/Plan | Owner | Status | Phase |
@@ -30,7 +30,6 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-10-06-plan-1-postgresql-18-upgrade.md](plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) | fleet | EXECUTED | 0/3 |
 | [2026-10-06-plan-1-worktree-venv-isolation.md](plans/2026-10-06-plan-1-worktree-venv-isolation.md) | infra | CONVERGED | 0/3 |
 | [2026-10-08-plan-1-promtail-to-alloy.md](plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md) | fleet | CONVERGED | 0/5 |
-| [2026-10-08-plan-2-payments-fulfilment-role.md](plans/2026-10-08-plan-2-payments-fulfilment-role.md) | — | CONVERGED | 0/3 |
 | [2026-10-08-plan-3-review-coverage-commit-scope.md](plans/2026-10-08-plan-3-review-coverage-commit-scope.md) | — | EXECUTED | 0/1 |
 | [2026-10-12-plan-1-owner-dsn-split.md](plans/2026-10-12-plan-1-owner-dsn-split.md) | fleet | EXECUTED | 0/2 |
 | [2026-10-13-plan-1-mail-routing.md](plans/2026-10-13-plan-1-mail-routing.md) | infra | EXECUTED | 0/5 |
