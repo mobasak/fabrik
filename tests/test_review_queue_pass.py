@@ -178,7 +178,7 @@ def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> No
 def test_close_order_stages_before_the_in_progress_gate() -> None:
     """Row 1791508831: the gate's ruff leg lints staged changes only, so an unstaged fix is linted by nothing."""
     assert (
-        "Close in this ORDER: stage your own files (the gate's ruff leg lints only staged changes"
+        "Close in this ORDER:** 1. Stage your own files (the gate's ruff leg lints only staged changes"
         in _norm(SRC)
     )
 
@@ -322,7 +322,7 @@ def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
     text = _norm(SRC)
     fill = "Fill every Coverage Checklist and Pass Ledger row before the close: the IN-PROGRESS run below skips both convergence checkers"
     assert fill in text
-    assert text.index(fill) < text.index("Close in this ORDER: stage your own files")
+    assert text.index(fill) < text.index("Close in this ORDER:** 1. Stage your own files")
     assert (
         "an untracked receipt is skipped outright until it is staged, whatever its Status" in text
     )
@@ -919,7 +919,7 @@ def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> Non
         "Before the pin of every pass that follows a fix (any of them may be the closing pass), stage your own files"
         " and run `final_gate.py --check --json` too, so a fix the gate forces is in the surface that pass's seats read;"
         " a red outside the surface forces no fix (measure it as the `GATE-SCOPE` paragraph below does, and pin"
-        " unchanged). Close in this ORDER: stage your own files"
+        " unchanged). Close in this ORDER:** 1. Stage your own files"
     )
     assert sentence in text
 
@@ -931,7 +931,9 @@ def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
         " back to `IN-PROGRESS`, fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the"
         " order;"
     ) in _norm(SRC)
-    assert "or its receipt is fixed as the post-flip run's is); THEN flip the Status" in _norm(SRC)
+    assert "or its receipt is fixed as the post-flip run's is). 3. THEN flip the Status" in _norm(
+        SRC
+    )
     assert (
         "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
         " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
@@ -953,3 +955,106 @@ def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
         "test it leaves unrun stays unverified), so a new import that breaks a stubbed loader reds in the "
         "pass."
     ) in text
+
+
+def test_the_close_order_is_a_numbered_list_with_the_embed_its_own_step() -> None:
+    """Rows 1792410448, 1792405487: the embed step sat mid-sentence and was skipped; the order is now four items."""
+    text = _section(
+        _norm(SRC),
+        "Close in this ORDER:**",
+        "A `CONVERGED` receipt with nothing embedded is refused",
+    )
+    raw = SRC.read_text()
+    block = raw[
+        raw.index("Close in this ORDER:**") : raw.index(
+            "A `CONVERGED` receipt with nothing embedded"
+        )
+    ]
+    items = [line[:3] for line in block.splitlines() if line[:1].isdigit()]
+    assert items == ["1. ", "2. ", "3. ", "4. "], items
+    assert " 1. Stage your own files" in text
+    assert " 2. Embed that JSON in a fence" in text
+    assert " 3. THEN flip the Status to `CONVERGED`." in text
+    assert (
+        " 4. THEN run the gate once more" in text and "embed THAT run in place of the first" in text
+    )
+
+
+def test_a_duplicate_raise_of_a_confirmed_defect_is_not_a_residual_row() -> None:
+    """Row 1792427611: the Residual sentence read literally took a second seat's raise of a confirmed defect."""
+    residual = _section(
+        _norm(SRC),
+        "**Every candidate that did not enter `confirmed:` is rowed",
+        "Pre-existing issues",
+    )
+    assert (
+        "A second seat's raise, in the same pass, of a defect another candidate of that pass confirmed by execution is"
+        " named in that defect's disposition row and counted under its terminal state, never rowed here; a later"
+        " pass's raise of a defect an earlier pass fixed is a fresh candidate, executed."
+    ) in residual
+
+
+def test_a_seat_proposed_behaviour_change_is_probed_against_its_bound() -> None:
+    """Row 1792455454 (a recurrence of held refuter-run-proposed-fix): a seat's suggested change was applied unprobed."""
+    p3 = _section(
+        _norm(SRC), "**A real finding does not make the obvious fix correct", "no performative"
+    )
+    assert (
+        "for a behaviour change a seat proposed, does a probe on a copy show the change still holds the bound it"
+        " claims to protect?"
+    ) in p3
+
+
+def test_a_later_pass_brief_carries_the_environment_earlier_seats_set() -> None:
+    """Row 1792447814 (a recurrence of held closing-pass-kaizen-state-dir): seats rediscovered env every pass."""
+    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "**The round in which you made a fix")
+    assert (
+        "It carries, too, every environment value an earlier pass's seats set before their probes ran (a state"
+        " directory, `COMMAND_RUN_DIR`, a `transcripts_dir` source), copied from their `MACHINERY:` notes"
+    ) in p4
+
+
+def test_a_generated_script_names_each_root_only_path_as_a_referent() -> None:
+    """Row 1792415591 (a recurrence of held copy-create-privilege-chain): finders checked only the work-dir token."""
+    p1 = _section(_norm(SRC), "## Phase 1 — Independent finders", "## Phase 2")
+    assert (
+        "for a **generated script**, every path it touches that only root may write, so its privilege is checked"
+        " path by path, never at the work-dir token alone."
+    ) in p1
+
+
+def test_a_counter_word_in_a_method_cell_is_named_as_refused() -> None:
+    """Row 1792413725 (a recurrence of held counter-word-colon-cell-restriction), executed: a `Confirmed: 2` in a
+    Method cell gets the row refused by _row_refusals, so the sentence beside the Method-cell example says so."""
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "crc_q", ROOT / "scripts" / "enforcement" / "check_review_coverage.py"
+        )
+        crc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(crc)
+    finally:
+        sys.path.remove(str(ROOT / "scripts"))
+    row = "| Pass 2 | sonnet×1 + haiku×1 | found: 2, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — "
+    assert crc._row_refusals(row + "Confirmed: 2 by A-sonnet |")
+    old_grammar = "| Pass 2 | sonnet×1 | found: 2, fixed: 0 | method: re-derivation — "
+    assert not crc._row_refusals(
+        old_grammar + "CONFIRMED: two by A-sonnet |"
+    )  # the _label_exempt carve-out
+    assert not crc._row_refusals(row + "seats: A-sonnet 3/4 |")
+    assert (
+        "a `confirmed:` or `unexecuted:` outside the counter cell, `Confirmed: 2` included, gets a row whose counters"
+        " state `confirmed:` refused by `check_review_coverage.py`'s token rule, `_row_refusals` — only an ALL-CAPS"
+        " prose label on a row with no `confirmed:` counter is exempt, `_label_exempt`"
+    ) in _norm(SRC)
+
+
+def test_a_shifted_anchor_is_remapped_after_each_round_fix() -> None:
+    """Row 1792464841 (a recurrence of held cite-remap-after-every-round): anchors were retargeted only at the end."""
+    assert (
+        "never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a"
+        " brief or mutant list carries."
+    ) in _norm(CAT)

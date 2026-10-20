@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T05:46:20.361942Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-bccbd988",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-data-contract",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: Out of reach: SubagentHandback and its refusal belong to Claude Code's subagent mechanism, not hub code (0 hits in .claude/hooks and scripts); no command text c",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-data-contract"
+}

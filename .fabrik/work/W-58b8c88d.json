@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T19:21:35.635688Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-58b8c88d",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-features",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:refresh-greps-deleted-basenames — valid one-run advice, first sighting (Opus audit 2026-10-15; 0 earlier rejects for this command). Checked commands/_sourc",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-features"
+}

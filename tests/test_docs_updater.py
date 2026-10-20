@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from docs_updater import (
     PLANS_BLOCK_RE,
@@ -840,3 +842,85 @@ class TestLinkCheckReadsCommonMarkLinks:
         issues = self._issues(tmp_path, monkeypatch, "[a](gone.md)\nand [b](gone.md)\n")
         assert issues == [i for i in issues if i.endswith(": gone.md")]
         assert len(issues) == 1, issues
+
+
+class TestLinkCheckSkipsCodeExamples:
+    """W-69f51003: `_strip_quoted` removed ``` fences and blockquotes only, so a link inside an
+    inline code span or a `~~~` fence — a code EXAMPLE — was graded, and a `~~~` fence showing a
+    ``` line paired that line with the next real fence. The link check now blanks both fence kinds
+    in one pass before `_strip_quoted` and blanks inline spans after it."""
+
+    @staticmethod
+    def _issues(tmp_path, monkeypatch, body: str) -> list[str]:
+        import docs_updater as du
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "live.md").write_text("# x\n")
+        (docs / "src.md").write_bytes(body.encode())
+        monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(du, "_gitignored", lambda paths: set())
+        return [i.rsplit(": ", 1)[1] for i in du.check_link_integrity() if "src.md" in i]
+
+    def test_link_integrity_skips_links_in_code_spans_and_tilde_fences(self, tmp_path, monkeypatch):
+        body = (
+            "Use `[a](a.md)` and ``[b](`b`.md)`` and `![](img.png)` here.\n"
+            "A span `crossing\n[c](c.md)` lines.\n"
+            "A CRLF span `crossing\r\n[d](d.md)` lines.\r\n\n"
+            "A span `opening\n[h](h.md)\n` closing at a line start.\n\n"
+            "~~~\n[e](e.md)\n~~~\n\n"
+            "~~~md\n[f](f.md)\n~~~~\n\n"
+            "~~~\r\n[g](g.md)\r\n~~~\r\n\n"
+            "```js\n[i](i.md)\n`````\n\n"
+            "[a]`(x)`(glue.md) is blanked, never deleted into a link.\n"
+            "a](`see [x](stray.md)`) — a stray `](` shields no span.\n"
+            "[live](live.md) stays.\n"
+        )
+        assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_link_integrity_fence_kinds_do_not_pair_across_each_other(self, tmp_path, monkeypatch):
+        body = (
+            "~~~\n```python\n[ex1](ex1.md)\n~~~\n[real](real.md)\n\n"
+            "```\n[ex2](ex2.md)\n```\n[real2](real2.md)\n"
+        )
+        assert sorted(self._issues(tmp_path, monkeypatch, body)) == ["real.md", "real2.md"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "``[s](s.md)` tail\n",  # an opener is a whole run: `` never pairs with `
+            "\\`[s](s.md)` tail\n",  # an escaped backtick opens nothing
+            "- item `open\n- [s](s.md) y` z\n",  # a span never crosses into a list item
+            "# Title `open\n[s](s.md) x` y\n",  # nor out of a heading
+            "| a `x | [s](s.md) |\n| b | c` |\n",  # nor out of a table row
+            "para `open\n\n[s](s.md) x` y\n",  # nor across a blank line
+            "para `open\r\n\r\n[s](s.md) x` y\r\n",  # a CRLF blank line too
+            '[s](s.md "a `quote")\n',  # a backtick in a title
+            '[s](s.md "a `quote") and `x`\n',  # opens no span with a later backtick
+            "~~~\n[s](s.md)\n",  # an unclosed fence grades its links (the safe direction)
+            "```a`b\n[s](s.md)\n",  # a ``` opener's info string holds no backtick
+            "```x [y](y.md) ```\n[s](s.md)\n\n```\n[e](e.md)\n```\n",  # nor this one
+            "`open\n---\n[s](s.md) x`\n",  # a setext underline ends the paragraph
+            "`open\n===\n[s](s.md) x`\n",
+            "`open\n***\n[s](s.md) x`\n",  # so does a thematic break
+        ],
+    )
+    def test_link_integrity_still_reports_links_beside_stray_backticks(
+        self, tmp_path, monkeypatch, body
+    ):
+        assert self._issues(tmp_path, monkeypatch, body) == ["s.md"]
+
+    def test_a_backtick_in_a_link_destination_opens_no_span(self, tmp_path, monkeypatch):
+        assert self._issues(tmp_path, monkeypatch, "[s](`s`.md)\n") == ["`s`.md"]
+
+    def test_the_fence_walk_is_linear_on_unclosed_openers(self):
+        """The first build's fence regex searched to end of file from every unclosed opener
+        (100 KB took 24 s); the walk reads each line once."""
+        import time
+
+        import docs_updater as du
+
+        text = "```x\n" * 200_000
+        start = time.perf_counter()
+        assert du._blank_code_fences(text) == text
+        assert time.perf_counter() - start < 5

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T21:59:33.299700Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9b03179e",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-upstream",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 5ee8e21a",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-upstream"
+}

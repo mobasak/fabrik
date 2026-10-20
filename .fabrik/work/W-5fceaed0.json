@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T03:24:20.951051Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5fceaed0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BMDT6S2BPJ02PB4KYHMCHM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Operator proposal from a /fabrik-review verdict — let a prose-only full review close on a round-1 confirmed:0 (kaizen refused it here as weakening)"
+}

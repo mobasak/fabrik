@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T20:51:26.778279Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e4b74622",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-mail-handle",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: answered outside the corpus: docs/reference/fabrik-mail.md (cooperative-ack rule) and CLAUDE.md now say a session never acks mail it sent to its own shared mail",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-mail-handle"
+}

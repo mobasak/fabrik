@@ -39,7 +39,9 @@ def test_add_aro_wake_target_appends_spoke_entry(monkeypatch):
 
     monkeypatch.setattr(prom, "_read_config", lambda: cfg)
     monkeypatch.setattr(prom, "_write_config", lambda d: written.append(d))
-    monkeypatch.setattr(prom, "_reload_prometheus", lambda: reload_called.append(True) or True)
+    monkeypatch.setattr(
+        prom, "_reload_prometheus_outcome", lambda: reload_called.append(True) or "reloaded"
+    )
 
     r = prom.add_aro_wake_target("vps4", "10.99.0.4")
     assert r["status"] == "created"
@@ -53,7 +55,8 @@ def test_add_aro_wake_target_appends_spoke_entry(monkeypatch):
 
 
 def test_add_aro_wake_target_idempotent(monkeypatch):
-    """If the spoke target is already in static_configs, no rewrite + no reload."""
+    """If the spoke target is already in static_configs, no rewrite — but one reload re-checks what is
+    on disk, so a config an earlier run wrote and Prometheus never loaded is reported again (W-cc9b0532)."""
     cfg = _base_config_with_aro_wake()
     cfg["scrape_configs"][0]["static_configs"].append(
         {"targets": ["10.99.0.4:8201"], "labels": {"host": "vps4", "role": "spoke"}}
@@ -62,12 +65,14 @@ def test_add_aro_wake_target_idempotent(monkeypatch):
     reload_count: list[bool] = []
     monkeypatch.setattr(prom, "_read_config", lambda: cfg)
     monkeypatch.setattr(prom, "_write_config", lambda d: write_count.append(True))
-    monkeypatch.setattr(prom, "_reload_prometheus", lambda: reload_count.append(True) or True)
+    monkeypatch.setattr(
+        prom, "_reload_prometheus_outcome", lambda: reload_count.append(True) or "reloaded"
+    )
 
     r = prom.add_aro_wake_target("vps4", "10.99.0.4")
-    assert r["status"] == "exists"
+    assert r["status"] == "exists" and r["reload"] == "reloaded"
     assert write_count == []
-    assert reload_count == []
+    assert reload_count == [True]
 
 
 def test_add_aro_wake_target_dry_run_does_not_read_config(monkeypatch):
@@ -135,7 +140,7 @@ def test_reload_prometheus_uses_bare_container_name_pattern():
     # reverts to the broken Coolify-prefix-only regex.
     from inspect import getsource
 
-    src = getsource(prom._reload_prometheus)
+    src = getsource(prom._reload_prometheus_outcome)
     # Both the hot-reload and the restart fallback target the prometheus container
     # (W-a1a359c8: the alertmanager route no longer resolves `prometheus`).
     assert "'^prometheus(-|$)'" in src or '"^prometheus(-|$)"' in src

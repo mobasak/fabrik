@@ -12,13 +12,32 @@ All notable changes to this project will be documented in this file.
 
 - `check_plan_tickets.py` read a plan lock's `owned_paths` with no shape check, so a bare string iterated its characters and one-letter "paths" covered any changed file under a directory of that letter, pulling an unrelated plan into the gate. A string is now read as that one path, a non-list skips the lock, a non-string entry is dropped, and a lock that is not a JSON object is skipped; each case prints a NOTE (W-7caa8a90).
 
+### Changed — /fabrik-review: the close order is a numbered list, and eight queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-review.md` § Reporting's close order is now four numbered steps (stage and gate while `IN-PROGRESS`, embed, flip, gate again and re-embed), so the embed is its own step. The Residual paragraph says a same-pass duplicate raise of a confirmed defect is named in that defect's row, while a later pass's raise of a fixed defect is a fresh candidate. Phase 3 asks whether a seat-proposed behaviour change still holds the bound it claims to protect. Phase 4's delta brief carries the environment values earlier seats set. Phase 1 names a generated script's root-only paths as a referent and states that a `confirmed:`/`unexecuted:` token in a Method cell gets the row refused (`_row_refusals`, with the `_label_exempt` carve-out). `commands/_fragments/review-probe-catalogue.md` runs the `path:line` remap after each round's fix. Graders in `tests/test_review_queue_pass.py`.
+
 ### Fixed — self-healing pack: `pause_worker` runs once listed, not "unreachable today" (2026-10-20)
 
 - The signup-flood worked example in `.windsurf/rules/core/self-healing.md` still called the watchdog's `pause_worker` unreachable until upstream carried parameters. fabrik-lib's sidecar declares its `resource` and `ttl_sec` params, and the pack's own § What the sidecar can execute today says it runs once the spec lists it in `watchdog.llm_actions`. The example now says that (W-d0e5a017).
 
+### Changed — the payments packs state the fulfilment worker's minted login (2026-10-20)
+
+- `core/85-payments-billing.md` now states what `fabrik apply` does for `shape.needs_payments_fulfilment` (mint `<db>_payments_fulfilment`, inject its DSN before the grant, grant only through `payments_grant_fulfilment`, a pending grant warns, four states fail the step), and `saas/95` and `saas/88` point at it instead of saying the login does not exist. PayTR stays off until the project's worker boots its own login green (D-1065, W-693ee1ca).
+
 ### Fixed — --merge-shared refuses instead of crashing, and the tick survives a planted FIFO and a bad tick row (2026-10-20)
 
 - `claude_rotate.py --merge-shared` now refuses with "nothing moved" when the lock itself fails (ENOLCK) or the fleet root cannot be read (ValueError, RuntimeError, or a root that exists but cannot be listed), `--dry-run` included, where it printed a traceback or a false "nothing to merge". The rotation tick removes a FIFO or link planted at its record's staging name and creates the file exclusively, so the write never blocks (a directory there fails closed). A raise in the tick-row block prints one line and no longer skips the advisory or the quota posture. The twin copy in `scripts/aro-wake/` is updated byte for byte (W-21b4c0e5).
+
+### Fixed — the docs link check no longer grades links inside code examples (2026-10-20)
+W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link written inside an inline code span or a `~~~` fence as broken, and a `~~~` fence that showed a ```` ``` ```` line made the next real fence swallow the real link between them. The check now blanks both fence kinds and inline code spans before reading links, following CommonMark's rules, in one linear pass over the lines. `_strip_quoted` and `check_doc_links` are unchanged. Across the 44 repos under /opt, findings drop from 382 to 375; the 7 removed are all code examples, and none were added. Follow-ups: W-b9af1d47 (the same class, latent in `check_doc_links`) and W-8f9a7d2c (the `Status:`/`Owner:` scans).
+
+### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
+W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
+
+### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `_reload_prometheus_outcome()` names `reloaded` · `restarted` · `refused` (promtool printed FAILED on the config now on vps1) · `unavailable`; `add_scrape_target` and `add_aro_wake_target` return it as `reload` on created AND exists (the exists branch reloads, so every apply re-checks); the removes return False when the rewrite was not loaded (W-cc9b0532).
+- `fabrik apply`: a refused config records the prometheus registrar `failed` and exits 2 (its next restart would crash-loop Prometheus); an unavailable Prometheus prints one `⚠` registrar warning. `fabrik vultr provision` prints every monitoring registration that did not land.
 
 ### Fixed — a code host is credited to a vendor only by domain evidence (2026-10-20)
 W-b81263e8; D-1062. `gather_envs` used to fall back to treating a host's name as an env-key prefix, so `modal-labs.com` was credited to modal, `hf-token.com` to huggingface, and a customer's S3 bucket or Azure resource name to that vendor. Both fallbacks are gone: a host is credited only by the vendor's url, its `hosts` list or its own domain. No live code host depended on them (0 of 592); an unknown host is triaged and curated as before.
