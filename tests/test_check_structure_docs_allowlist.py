@@ -56,7 +56,7 @@ def test_legacy_docs_tolerated():
     assert not flagged, f"legacy docs wrongly WARNed: {sorted(flagged)}"
 
 
-# --- (c) a genuinely-misplaced doc still WARNs (the gate still does its job)
+# --- (b2) a doc a scaffold step writes into docs/ is allowed (SCAFFOLD_WRITTEN)
 def test_the_scaffold_written_preplan_is_allowed_for_every_type_and_never_seeded():
     """The scaffold's preplan layering writes docs/preplan.md into any project scaffolded with a
     preplan, outside the template map, so no PROJECT_DOCS row named it and check_structure WARNed
@@ -74,6 +74,7 @@ def test_the_scaffold_written_preplan_is_allowed_for_every_type_and_never_seeded
     assert all(r.name != "docs/preplan.md" for r in reg.PROJECT_DOCS)
 
 
+# --- (c) a genuinely-misplaced doc still WARNs (the gate still does its job)
 def test_misplaced_doc_still_warns():
     flagged = _docs_violations(["random.md", "my_notes.md"])
     assert "random.md" in flagged and "my_notes.md" in flagged

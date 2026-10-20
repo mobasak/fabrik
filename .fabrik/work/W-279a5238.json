@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T03:25:23.654809Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-279a5238",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "allow docs/intro.md in check_structure only for a docusaurus project (read project.yaml type), with a test that a non-docusaurus project still warns (found by the W-c6d19bda review)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "check_structure warns on docs/intro.md, which the docusaurus scaffold writes (scaffold.py:8140) as the site's published index; SCAFFOLD_WRITTEN is the wrong home (governed names are pinned unpublished), so it needs a docusaurus-scoped allowance"
+}
