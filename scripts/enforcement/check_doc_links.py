@@ -96,10 +96,16 @@ _PLACEHOLDER_RE = re.compile(
 )
 
 # CommonMark: the whitespace before a title and before `)` holds spaces or tabs and up to ONE line
-# ending (W-55905ee1); a blank line (two line endings) ends the link.
-_WS1 = r"[ \t]*(?:\n[ \t]*)?"
+# ending — `\r\n`, `\r` or `\n`, since check_doc_index reads INDEX.md as bytes (W-55905ee1); a blank
+# line (two line endings) ends the link.
+_LE = r"(?:\r\n|\r|\n)"
+_WS1 = r"[ \t]*(?:" + _LE + r"[ \t]*)?"
+# at least one whitespace before a title
+_SEP = r"(?:[ \t]+(?:" + _LE + r"[ \t]*)?|" + _LE + r"[ \t]*)"
 _TITLE_CLOSE_RE = re.compile(
-    r"""(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?"""
+    r"(?:"
+    + _SEP
+    + r"""(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?"""
     + _WS1
     + r"\)"
 )
@@ -218,8 +224,8 @@ def link_targets(text: str):
         j = i + 2
         while j < n and text[j] in " \t":
             j += 1
-        if j < n and text[j] == "\n":  # one line ending may precede the destination (W-55905ee1)
-            j += 1
+        if j < n and text[j] in "\r\n":  # one line ending may precede the destination (W-55905ee1)
+            j += 2 if text[j : j + 2] == "\r\n" else 1
             while j < n and text[j] in " \t":
                 j += 1
         dest = None

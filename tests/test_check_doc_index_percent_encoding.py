@@ -429,6 +429,14 @@ def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
         ("[t](\ndocs/x.md)", ["docs/x.md"]),  # a line ending before the destination
         ("[t](docs/x.md\n\n)", []),  # a blank line ends the link: two line endings never do
         ('[t](docs/x.md\n\n"T")', []),
+        ("[t](docs/x.md\n  \n)", []),  # a whitespace-only line is a blank line too
+        ('[t](docs/x.md\n\t"T"\t\n\t)', ["docs/x.md"]),  # tabs either side of each line ending
+        # review pass 1 (both finders): check_doc_index reads INDEX.md as bytes, so CRLF and a lone CR
+        # are line endings as CommonMark counts them
+        ('[t](docs/x.md\r\n"T")', ["docs/x.md"]),
+        ("[t](\r\ndocs/x.md\r\n)", ["docs/x.md"]),
+        ("[t](docs/x.md\r)", ["docs/x.md"]),
+        ("[t](docs/x.md\r\n\r\n)", []),
     ],
     ids=[
         "newline-before-title",
@@ -438,6 +446,12 @@ def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
         "newline-before-destination",
         "blank-line-before-close",
         "blank-line-before-title",
+        "whitespace-only-line",
+        "tab-continuations",
+        "crlf-before-title",
+        "crlf-around-destination",
+        "lone-cr-before-close",
+        "blank-crlf-line",
     ],
 )
 def test_both_readers_take_one_line_ending_in_a_links_whitespace(
