@@ -82,6 +82,7 @@ NEXT = {
     "fabrik-docs-review": "docs are truthful and release-ready — return to /fabrik-release or the workflow that called it.",
     "fabrik-generate-tests": "/fabrik-review — review the authored tests for quality before trusting them green.",
     "design-review": "back to the building phase's Build-Verification Loop until the screen renders clean.",
+    "hibernate": "the operator hibernates once you said \"safe to hibernate\"; after the wake every agent runs `hibernate.py woke` and resumes its own item from its seed.",
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
     "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
     "fabrik-deploy-checklist": "/fabrik-release — its VPS precondition reads the FROZEN header; on a version BUMP, /fabrik-deploy-verify re-run.",

@@ -1,0 +1,48 @@
+# Hibernate — pausing every agent for a host sleep
+
+The operator runs `/hibernate` in the hub coordinator's window (W-1e9ae1e5). The command
+(`commands/_sources/hibernate.md`) sequences `scripts/sysadmin/hibernate.py`; this page says what the script reads and
+decides.
+
+## Who gets the pause
+
+`hibernate.py targets` reads every session record in `~/.claude*/sessions/<pid>.json` and
+`~/.claude-fleet/*/sessions/<pid>.json` (de-duplicated by real path). A record is a live session when its pid's start
+time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. Only an `entrypoint` of `cli`
+or `claude-vscode` is an agent; `sdk-cli` and `sdk-ts` sessions are cron-pool workers or review seats (`claude -p`):
+they are counted, never messaged and never a coordinator. Every record says `kind: interactive`, so `kind` cannot tell
+them apart.
+
+An agent's name is `CLAUDE_AGENT` in its environment, else its newest whoami binding. Agents are grouped by repo
+(`/opt/<repo>` from the cwd). A repo's coordinator is its ledger's merge owner (`decisions.py --merge-owner`, D-874);
+a repo with none and one live agent has that agent as its coordinator. A repo whose coordinator is not live, or held by
+two sessions, is messaged session by session; so is a session outside `/opt`. The caller's own session is excluded.
+
+## When it is safe
+
+`hibernate.py status` checks each live agent's cwd:
+
+- a run record (`~/.claude/state/command-runs/<sid>.json`) still `running` blocks;
+- uncommitted tracked changes block; untracked files are listed, never blocking;
+- a branch with commits ahead of its upstream blocks; a branch with no upstream blocks unless its HEAD is on some
+  remote branch; a detached HEAD, a missing folder or a git error blocks.
+
+It prints `SAFE TO HIBERNATE` only when no row blocks. No live session found, or the caller not among them, is exit 2 —
+never safe: an empty table is not a safe one.
+
+## After the wake
+
+`hibernate.py mark` (the hub, at the start) writes `~/.claude/state/hibernate.json`; it is the only writer of a pause.
+`hibernate.py woke` never writes: it answers 0 when, after the current mark, the rotation tick wrote a `resume-wake`
+row with a gap of at least 15 minutes to `~/.claude/state/rotate-ledger.jsonl` (D-1058), or the hub ran
+`hibernate.py lift` — and this session's own run is not running again. The kernel's boot time is no signal on WSL (it
+moves forward by every sleep), and the self-watch still words a resume-wake as "the fleet-quota hold LIFTED"
+(W-b01aa1ec), which is why agents ask `woke` instead of reading the wake line.
+
+## The pause text
+
+`hibernate.py brief --role agent|coordinator --words "…"` prints the text the hub sends. An agent finishes its step,
+lets its own subagents and seats finish, commits and pushes on its own worktree branch, closes each live run in the
+first form its `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason — the
+vendored copy in fabrik-lib has no `--paused`), writes its resume point knowing the wake drops its cached prompt, and
+replies one `PAUSED — …` line.
