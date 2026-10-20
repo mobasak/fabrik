@@ -292,7 +292,7 @@ if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 fi
 CAPPED=0
-if systemctl --user show-environment >/dev/null 2>&1; then
+if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
   CAPPED=1
 else
   echo "agents_up: WARNING — no systemd user manager answers (XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}); the panes run UNCAPPED, with no memory or task bound" >&2
@@ -329,29 +329,43 @@ squote() {  # $1 as ONE POSIX single-quoted word, read alike by every pane shell
 }
 
 cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated above
-  # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now
-  local env inner
-  env='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
-  env="$env $(printf 'PATH=%q CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$PATH" "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
+  # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now. PATH is
+  # fixed ONCE: a capped pane's outer `env -i` sets it, and the commands inside the scope read it back at run time
+  # (`PATH="$PATH"`) — three fixed copies of a WSL PATH (4 KB here) brought a pane command to ~14 KB, near the size
+  # tmux takes in one message (review round 1).
+  local env base inner path_now
+  base='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
+  path_now="$(printf 'PATH=%q' "$PATH")"
+  env="$base $(printf 'CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
   # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
   [ -n "${AGENT_IDENTITY_FILE:-}" ] && env="$env $(printf 'AGENT_IDENTITY_FILE=%q' "$STORE")"
   # the user bus, so a capped_run.sh or systemctl call from the agent finds its manager
   [ -n "${XDG_RUNTIME_DIR:-}" ] && env="$env $(printf 'XDG_RUNTIME_DIR=%q' "$XDG_RUNTIME_DIR")"
+  local penv killed
+  if [ "$CAPPED" = 1 ]; then
+    penv="$env PATH=\"\$PATH\""  # inside the scope: the PATH the outer env -i set
+    killed="[$1 was killed (exit 137, SIGKILL) — in this capped pane most likely at its memory ceiling, MemoryMax=$MEM_MAX]"
+  else
+    penv="$env $path_now"
+    killed="[$1 was killed (exit 137, SIGKILL)]"
+  fi
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
   if [ "$3" = running ]; then
-    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $env bash -l"
+    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $penv bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
     local hint
     hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
-    inner="$env claude -n $1 --resume $2; rc=\$?; echo; [ \"\$rc\" = 137 ] && echo \"[$1 was killed at the memory ceiling (MemoryMax=$MEM_MAX)]\"; printf '%s\\n' $(squote "$hint"); exec $env bash -l"
+    inner="$penv claude -n $1 --resume $2; rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $(squote "$hint"); exec $penv bash -l"
   fi
   if [ "$CAPPED" = 1 ]; then
-    # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap
-    echo "$env systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner")"
+    # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap; a
+    # scope that cannot be made leaves a pane that says so and keeps a shell, never one that closes without a word (the
+    # same branch runs when the kept shell itself exits non-zero, so the line names both)
+    echo "$env $path_now systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner") || { echo \"[$1: the capped scope ended with exit \$? — if nothing ran above, systemd-run could not start it]\"; exec $env PATH=\"\$PATH\" bash -l; }"
   else
     echo "echo '[UNCAPPED: no systemd user manager answered at launch — this pane has no memory or task bound]'; $inner"
   fi
@@ -375,12 +389,15 @@ if [ "$print" = 1 ]; then
   exit 0
 fi
 
-# The slice's own ceiling, re-asserted every launch and RUNTIME-only (it lives in /run and goes with the manager). A
-# manager that answers but refuses it is an error, never a silent fall-through to an unbounded total.
-if [ "$CAPPED" = 1 ] && ! systemctl --user set-property --runtime "$SLICE" "MemoryMax=$SLICE_MAX" MemorySwapMax=0 >/dev/null 2>&1; then
+# The slice's own ceiling, re-asserted before every NEW grid and RUNTIME-only (it lives in /run and goes with the
+# manager); reattaching to a running grid starts nothing, so it never needs it. A manager that answers but refuses it
+# is an error, never a silent fall-through to an unbounded total.
+slice_ceiling() {
+  [ "$CAPPED" = 1 ] || return 0
+  systemctl --user set-property --runtime "$SLICE" "MemoryMax=$SLICE_MAX" MemorySwapMax=0 >/dev/null 2>&1 && return 0
   echo "agents_up: the user manager refused the $SLICE ceiling (MemoryMax=$SLICE_MAX) — not launching" >&2
   exit 2
-fi
+}
 
 # A session is named after the folder only, so a grid already up under this name must be THIS repo's. The root is
 # recorded just after the session is created, so an empty owner may be a launch still building it: re-read once.
@@ -422,6 +439,7 @@ if tmux has-session -t "=$S" 2>/dev/null; then
   owned_here || exit 2
   echo "agents_up: the $S grid is already up — attaching as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
 else
+  slice_ceiling
   first=1
   raced=0
   while read -r name sid; do

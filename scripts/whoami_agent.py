@@ -111,7 +111,7 @@ def _at(row: dict) -> int:
     """A row's timestamp as an int, or 0 when it is missing or uncoercible (never raises)."""
     try:
         return int(row.get("at") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # json reads `Infinity`; int() of it overflows
         return 0
 
 
@@ -429,12 +429,18 @@ def _bind_locked(
     # builders (agents_up.sh reads the bindings when a repo has no registry, W-89474fc1), and it bounds the store at
     # one old row per name a repo ever bound. A row of no repo (empty toplevel) is never a launcher's, so it ages out
     # as before. The new row supersedes the named pair's old one, so that one is not kept for it.
-    newest: dict[tuple[object, object], int] = {}
+    # Only a row that is still its SESSION's last row is kept that way: an old row of a session since bound to another
+    # name would otherwise outlive the row that renamed it, and resurrect the old owner (review round 1). Only string
+    # keys count — a hand-edited row with a list for a name must never abort a bind.
+    newest: dict[tuple[str, str], int] = {}
+    sid_last: dict[str, int] = {}
     for i, r in enumerate(rows):
-        if isinstance(r.get("toplevel"), str) and r.get("toplevel"):
-            newest[(r.get("toplevel"), r.get("name"))] = i
+        sid_last[str(r.get("session_id"))] = i
+        t, n = r.get("toplevel"), r.get("name")
+        if isinstance(t, str) and t and isinstance(n, str):
+            newest[(t, n)] = i
     newest.pop((top, name), None)
-    last = set(newest.values())
+    last = {i for i in newest.values() if sid_last.get(str(rows[i].get("session_id"))) == i}
     keep = [r for i, r in enumerate(rows) if _at(r) >= cutoff or i in last]
     if len(keep) != len(rows):
         _write_rows(path, keep + [row])

@@ -255,8 +255,11 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
         got.stdout
     )
     assert seen["LANG"] == "C.UTF-8", got.stdout
-    # the scope runs from the allow-list too, and the shell a pane keeps after claude exits starts from it inside
-    assert run.count("env -i ") == 3 and _inner(run).rstrip().endswith("bash -l"), run
+    # the scope runs from the allow-list too, and so do the shell a pane keeps after claude exits (inside it) and the
+    # fallback shell after a scope that ended badly; PATH is fixed ONCE — three fixed copies of a 4 KB WSL PATH brought
+    # a pane command near the size tmux takes in one message (review round 1)
+    assert run.count("env -i ") == 4 and _inner(run).rstrip().endswith("bash -l"), run
+    assert run.count(f"PATH={home}/.local/bin:") == 1, run
     # one scope per pane (its argv logged on one line; the pane command it carries holds a newline of its own)
     scoped = [
         ln
@@ -1089,6 +1092,19 @@ def test_no_registry_takes_builders_from_the_identity_store(tmp_path: Path) -> N
         "b1: .claude/worktrees/b1 is not a linked git worktree in place — no pane" in out.stderr
     ), out.stderr
     assert "taken as the coordinator" in out.stderr and "b9" not in out.stdout, out.stderr
+    assert "not the registry's" not in out.stderr, out.stderr  # there is no registry to name
+    # a ledger that declares NO merge owner (decisions.py exit 3) launches the same way
+    (repo / "docs").mkdir()
+    (repo / "docs" / "DECISIONS.md").write_text(
+        "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-10-20 | operator | adopt the work store | why | here |\n",
+        encoding="utf-8",
+    )
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0 and [p.split()[1] for p in _panes(out.stdout)] == ["b2", "b3"], (
+        out.stderr
+    )
+    assert "taken as the coordinator" in out.stderr, out.stderr
 
 
 def test_the_merge_owner_gets_no_pane(tmp_path: Path) -> None:
@@ -1183,10 +1199,47 @@ def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
         env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
         stdin=subprocess.DEVNULL,
     )
-    assert "[dev1 was killed at the memory ceiling (MemoryMax=3G)]" in got.stdout, (
-        got.stdout + got.stderr
-    )
+    assert (
+        "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at its memory ceiling, MemoryMax=3G]"
+        in got.stdout
+    ), got.stdout + got.stderr
     assert "[dev1 exited — run: claude -n dev1 --resume" in got.stdout, got.stdout
+    # an uncapped pane names the kill and never claims a ceiling it does not have
+    (home / "manager-down").write_text("", encoding="utf-8")
+    out = _run("--print", str(repo), home=home)
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    got = subprocess.run(
+        ["/bin/sh", "-c", run[len("run dev1 ") :]],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    assert (
+        "[dev1 was killed (exit 137, SIGKILL)]" in got.stdout and "MemoryMax" not in got.stdout
+    ), got.stdout
+
+
+def test_a_scope_that_cannot_start_says_so_and_keeps_a_shell(tmp_path: Path) -> None:
+    """A capped pane whose systemd-run fails says so and keeps a clean shell, never a pane that just closes."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    (home / ".local" / "bin" / "systemd-run").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    out = _run("--print", str(repo), home=home)
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    got = subprocess.run(
+        ["/bin/sh", "-c", run[len("run dev1 ") :]],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    assert (
+        "[dev1: the capped scope ended with exit 1 — if nothing ran above, systemd-run could not start it]"
+        in (got.stdout)
+    ), got.stdout + got.stderr
 
 
 def test_no_user_manager_runs_uncapped_with_a_warning(tmp_path: Path) -> None:
@@ -1261,3 +1314,11 @@ def test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses(tmp_path: Path
     ), out.stderr
     log = _log(home) if (home / "tmux.log").exists() else []
     assert not any(ln.startswith(("new-session", "attach")) for ln in log), log
+    # reattaching to this repo's running grid starts nothing, so a refused ceiling never blocks it
+    (home / "tmux-has").write_text("", encoding="utf-8")
+    (home / "tmux-owner").write_text(f"{repo}\n", encoding="utf-8")
+    out = _run(str(repo), home=home, XDG_RUNTIME_DIR=str(tmp_path))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", (
+        out.stderr,
+        _log(home),
+    )

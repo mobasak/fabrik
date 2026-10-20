@@ -347,3 +347,11 @@ def test_bats_follow_agents_up(tmp_path: Path) -> None:
     out = _run("--opt", str(opt), up=str(real), AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
     assert re.findall(r"^== (.+)$", out.stdout, re.M) == ["Shop Agents.bat"], out.stdout
+
+
+def test_a_missing_opt_folder_is_refused(tmp_path: Path) -> None:
+    """An --opt that is not a folder says so and exits 2 — never a traceback."""
+    out = _run("--opt", str(tmp_path / "nowhere"))
+    assert (
+        out.returncode == 2 and "is not a folder" in out.stderr and "Traceback" not in out.stderr
+    ), out.stderr

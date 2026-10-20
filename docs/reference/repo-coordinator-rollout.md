@@ -108,10 +108,12 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemoryMax` (`FABRIK_AGENT_MEM_MAX`, default 3G), `MemorySwapMax=0` and `TasksMax`
-  (`FABRIK_AGENT_TASKS_MAX`, default 1024) (W-56b3f90d). Each launch first sets the slice's own runtime ceiling,
-  `FABRIK_AGENT_SLICE_MAX` (default 16G, no swap), and the last launch's value holds for every grid. Without swap 0 a
-  cap only pushes a runaway into swap. A pane over its cap is killed inside its scope and prints "killed at the memory
-  ceiling" before its resume hint; at the slice ceiling the kernel kills the largest process in any repo's pane. The
+  (`FABRIK_AGENT_TASKS_MAX`, default 1024) (W-56b3f90d). Each launch of a new grid first sets the slice's own runtime
+  ceiling, `FABRIK_AGENT_SLICE_MAX` (default 16G, no swap), and the last launch's value holds for every grid;
+  reattaching to a running grid does not touch it. Without swap 0 a cap only pushes a runaway into swap. Over a cap
+  the kernel kills the largest process in that scope (or, at the slice ceiling, in any repo's pane) — usually claude
+  itself, and then the pane says it was killed (exit 137) before its resume hint; a killed child process leaves claude
+  running without it. A scope that cannot be started leaves a pane that says so and keeps a shell. The
   slice sits under `fabrik.slice` beside the tests' `fabrik-tests.slice`. The launcher sets `XDG_RUNTIME_DIR` itself
   when the user bus exists, since a launch from a .bat carries none. With no user manager the panes run uncapped,
   said on stderr and in every pane; a manager that refuses the slice ceiling refuses the launch. Sessions started from
@@ -119,15 +121,16 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   pane and never touches the slice.
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the active
-  fleet account), `CLAUDE_AGENT`, and `AGENT_IDENTITY_FILE` when the launcher was given one. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
+  fleet account), `CLAUDE_AGENT`, `AGENT_IDENTITY_FILE` when the launcher was given one, and `XDG_RUNTIME_DIR` when
+  the user bus was found. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
   the tmux server's environment, and a server first started from a VS Code session carries about 20 of that
   session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
 - A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
   on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder or records
   no root (another tool's session). Run from
   inside tmux, it switches the client to the grid instead of nesting.
-- The coordinator gets no pane. Its name must be `coordinator` or end in `-coordinator`: any other name gets a pane
-  like a builder. The operator reaches it in VS Code, as at the hub.
+- The coordinator gets no pane (the first bullet above says how it is known); the operator reaches it in VS Code, as
+  at the hub.
 - A pane whose session is already running elsewhere only says so, in any form a session can run in: a terminal
   (`--resume <id>` or `-r <id>`) or the VS Code extension (`--resume=<id>`). Two processes on one session id mix the transcript
   and the hooks, so a builder open in VS Code must be closed there before the grid can take it over.

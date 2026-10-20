@@ -132,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if not Path(args.opt).is_dir():
+        print(f"agents_bat: --opt {args.opt} is not a folder; nothing written", file=sys.stderr)
+        return 2
     desk = Path(args.desktop) if args.desktop else None
     if desk is not None and not desk.is_dir():
         print(f"agents_bat: --desktop {desk} is not a folder; nothing written", file=sys.stderr)
@@ -211,7 +214,12 @@ def _has_grid(repo: Path) -> bool:
             text=True,
             timeout=60,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        # never read as "no grid" in silence: the stale-.bat report below would then blame the repo
+        print(
+            f"agents_bat: could not ask agents_up.sh about {repo} ({exc}); no .bat for it this run",
+            file=sys.stderr,
+        )
         return False
     return out.returncode == 0 and any(ln.startswith("pane ") for ln in out.stdout.splitlines())
 
