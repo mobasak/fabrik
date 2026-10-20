@@ -843,14 +843,14 @@
       "claude-fable-5-1": 22040401
     },
     "2026-10-20": {
-      "claude-opus-5-5": 2319460684,
-      "claude-sonnet-5-5": 60287230,
-      "claude-haiku-5-5": 107350339,
-      "claude-fable-5-1": 12696341
+      "claude-opus-5-5": 4035595766,
+      "claude-sonnet-5-5": 109941637,
+      "claude-haiku-5-5": 164405363,
+      "claude-fable-5-1": 21263041
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-20T06:02:59+03:30",
+  "merged_at": "2026-10-20T11:19:16+03:30",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -1046,7 +1046,7 @@
   "_unusable": {},
   "_added": 0,
   "_total_days": 157,
-  "_transcript_added": 1,
+  "_transcript_added": 0,
   "_transcript_refreshed": 1,
   "extension_source_present": true,
   "extension_last_day": "2026-09-04"
