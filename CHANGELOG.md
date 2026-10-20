@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
+
+- c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. Both byte-identical contract paragraphs (`CLAUDE.md`, `templates/governance/CLAUDE.md`) now cite `:3338-3355` and `:3357-3363` (found by intel).
+
 ### Fixed — `docs/preplan.md` is a governed doc, so check_structure stops warning on the scaffold's own file (2026-10-20)
 
 - The scaffold's preplan layering writes `docs/preplan.md` into any project scaffolded with a preplan, outside the template map, so no doc-registry row named it and `check_structure.py` warned that it "should be in a docs/ subdirectory". `scripts/enforcement/_doc_registry.py` now lists it in a new `SCAFFOLD_WRITTEN` set that `docs_allowlist()` includes for every project type; it is never seeded or stub-required. The registry-down fallback carries it too, and the scaffold comment and the Docusaurus unpublished-docs test follow (W-c6d19bda, fleet mail 01M5AQ5FY4).
