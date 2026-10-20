@@ -5833,13 +5833,23 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         # install: the template's `uv sync` needs a [project] table, and this pyproject is tool-only, so it made an
         # EMPTY .venv and exited 0 (W-0259f23b). Fill .venv from requirements.txt instead, and never delete a venv:
         # none → create it with setup-dev's `python`; a runnable python without pip (what that `uv sync`, or any uv
-        # venv, leaves) → ensurepip, keeping its packages; an unrunnable python → refuse and say what to remove.
-        # Same rule shapes as docker-smoke above; a template with no install rule and no `uv sync` is left alone.
+        # venv, leaves) → ensurepip, keeping its packages; a .venv that is not a usable venv (no runnable
+        # bin/python, no pyvenv.cfg — so pip would land in the system interpreter — or a dangling .venv symlink) →
+        # refuse and say what to remove. A template with no install rule and no `uv sync` is left alone.
         install_old = "install:\n\tuv sync\n"
-        install_rules = re.findall(r"(?m)^[ \t]*install[ \t]*::?(?![:=])", content)
+        # every rule header naming `install` as a target, multi-target ones included (`setup install:`); a
+        # prerequisite (`.PHONY: install`) or an assignment (`install := x`) is not one. A target built from a
+        # variable (`$(T):`) is beyond this read.
+        install_rules = re.findall(
+            r"(?m)^(?!\t)[^#\n=:]*?(?<![\w.$(-])install(?![\w.-])[^#\n=:]*::?(?![:=])", content
+        )
         if install_rules or "uv sync" in content:
-            # exactly one rule, its body exactly `uv sync` (the next line is not another recipe line)
-            exact = re.search(r"(?m)^install:\n\tuv sync\n(?!\t)", content) is not None
+            # exactly one rule, its whole recipe `uv sync`: make continues a recipe past blank and comment-only
+            # lines, so every line up to the next non-recipe line is read
+            at = content.find(install_old)
+            rest = content[at + len(install_old) :].split("\n") if at != -1 else []
+            more = next((ln for ln in rest if ln.strip() and not ln.lstrip().startswith("#")), "")
+            exact = at != -1 and (at == 0 or content[at - 1] == "\n") and not more.startswith("\t")
             if len(install_rules) != 1 or not exact or content.count("uv sync") != 1:
                 raise ValueError(
                     f"{makefile_src}: expected one `install:` rule whose whole recipe is `uv sync`, and no other "
@@ -5849,9 +5859,10 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             content = content.replace(
                 install_old,
                 "install:\n"
-                "\t@if [ ! -e .venv ]; then python -m venv .venv; "
-                "elif [ ! -x .venv/bin/python ]; then echo '.venv exists but .venv/bin/python cannot run: "
-                "remove .venv and run make install again' >&2; exit 1; fi\n"
+                "\t@if [ ! -e .venv ] && [ ! -L .venv ]; then python -m venv .venv; "
+                "elif [ ! -x .venv/bin/python ] || [ ! -f .venv/pyvenv.cfg ]; then echo '.venv is not a usable "
+                "virtualenv (no runnable bin/python or no pyvenv.cfg): remove .venv and run make install again' "
+                ">&2; exit 1; fi\n"
                 "\t@.venv/bin/python -m pip --version >/dev/null 2>&1 || .venv/bin/python -m ensurepip\n"
                 "\t.venv/bin/python -m pip install -r requirements.txt\n",
             )

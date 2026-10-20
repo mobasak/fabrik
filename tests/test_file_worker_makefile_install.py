@@ -11,6 +11,7 @@ body drifted from `uv sync` is refused; a template with no install rule is left 
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -22,9 +23,13 @@ from fabrik import scaffold
 from fabrik.scaffold import create_project
 
 _ROOT = Path(__file__).resolve().parent.parent
-_REFUSAL = ".venv exists but .venv/bin/python cannot run: remove .venv and run make install again"
+_REFUSAL = (
+    ".venv is not a usable virtualenv (no runnable bin/python or no pyvenv.cfg): "
+    "remove .venv and run make install again"
+)
 _INSTALL = [
-    "if [ ! -e .venv ]; then python -m venv .venv; elif [ ! -x .venv/bin/python ]; then "
+    "if [ ! -e .venv ] && [ ! -L .venv ]; then python -m venv .venv; "
+    "elif [ ! -x .venv/bin/python ] || [ ! -f .venv/pyvenv.cfg ]; then "
     f"echo '{_REFUSAL}' >&2; exit 1; fi",
     ".venv/bin/python -m pip --version >/dev/null 2>&1 || .venv/bin/python -m ensurepip",
     ".venv/bin/python -m pip install -r requirements.txt",
@@ -85,7 +90,15 @@ def _make_install(project: Path, tmp_path: Path) -> subprocess.CompletedProcess[
     (shim / "python").unlink(missing_ok=True)
     (shim / "python").symlink_to(sys.executable)
     (project / "requirements.txt").write_text("")
-    env = {"PATH": f"{shim}:/usr/bin:/bin", "HOME": str(tmp_path), "PIP_NO_INPUT": "1"}
+    env = {
+        "PATH": f"{shim}:/usr/bin:/bin",
+        "HOME": str(tmp_path),
+        "PIP_NO_INPUT": "1",
+        # hermetic: no index contact (pip's self-version check included), no host pip.conf
+        "PIP_NO_INDEX": "1",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "PIP_CONFIG_FILE": os.devnull,
+    }
     return subprocess.run(
         ["make", "-C", str(project), "install"],
         capture_output=True,
@@ -130,8 +143,10 @@ def test_an_existing_venv_is_kept_and_gets_pip(with_pip, tmp_path, monkeypatch):
     assert _pip_works(project)
 
 
-@pytest.mark.parametrize("state", ["dangling-python", "python3-only", "windows-layout"])
-def test_an_unrunnable_venv_is_refused_never_deleted(state, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "state", ["dangling-python", "python3-only", "windows-layout", "python-without-pyvenv-cfg"]
+)
+def test_an_unusable_venv_is_refused_never_deleted(state, tmp_path, monkeypatch):
     project = _scaffold(tmp_path, monkeypatch)
     venv = project / ".venv"
     if state == "dangling-python":
@@ -140,15 +155,28 @@ def test_an_unrunnable_venv_is_refused_never_deleted(state, tmp_path, monkeypatc
     elif state == "python3-only":
         (venv / "bin").mkdir(parents=True)
         (venv / "bin" / "python3").symlink_to(sys.executable)
-    else:
+    elif state == "windows-layout":
         (venv / "Scripts").mkdir(parents=True)
         (venv / "Scripts" / "python.exe").write_text("")
+    else:
+        # a runnable python that is not a venv: pip would install into the system interpreter
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").symlink_to(sys.executable)
     marker = venv / "marker"
     marker.write_text("packages already installed")
     r = _make_install(project, tmp_path)
     assert r.returncode != 0
     assert _REFUSAL in r.stderr, r.stderr
     assert marker.read_text() == "packages already installed"
+
+
+def test_a_dangling_venv_symlink_is_refused_and_kept(tmp_path, monkeypatch):
+    project = _scaffold(tmp_path, monkeypatch)
+    (project / ".venv").symlink_to(tmp_path / "shared-venv-gone")
+    r = _make_install(project, tmp_path)
+    assert r.returncode != 0
+    assert _REFUSAL in r.stderr, r.stderr
+    assert (project / ".venv").is_symlink()
 
 
 def _drifted_template(tmp_path: Path, old: str, new: str) -> Path:
@@ -172,6 +200,11 @@ def _drifted_template(tmp_path: Path, old: str, new: str) -> Path:
         ("install:\n\tuv sync\n", "install:\n\tuv sync\n\ninstall:\n\tpip install -e .\n"),
         # an extra body line would survive the replacement (review C5)
         ("install:\n\tuv sync\n", "install:\n\tuv sync\n\tuv run pre-commit install\n"),
+        # review pass 2: a multi-target rule naming install overrides too, and make continues a recipe past
+        # blank and comment-only lines
+        ("install:\n\tuv sync\n", "install:\n\tuv sync\n\nsetup install:\n\tpip install -e .\n"),
+        ("install:\n\tuv sync\n", "install:\n\tuv sync\n\n\tuv run pre-commit install\n"),
+        ("install:\n\tuv sync\n", "install:\n\tuv sync\n# hooks\n\tuv run pre-commit install\n"),
     ],
     ids=[
         "other-body",
@@ -180,6 +213,9 @@ def _drifted_template(tmp_path: Path, old: str, new: str) -> Path:
         "two-install-lines",
         "second-install-rule",
         "extra-body-line",
+        "multi-target-second-rule",
+        "blank-then-body-line",
+        "comment-then-body-line",
     ],
 )
 def test_a_drifted_install_recipe_fails_the_scaffold(old, new, tmp_path, monkeypatch):
