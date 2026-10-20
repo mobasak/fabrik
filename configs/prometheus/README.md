@@ -57,7 +57,11 @@ scripts/sync_prometheus_to_vps.sh --verify-secrets
 mutates `prometheus.yml` for every call to:
 
 - `add_scrape_target(name, ...)` — called by `fabrik apply` for any spec with
-  `shape.exposes_metrics: true`
+  `shape.exposes_metrics: true`. On an existing `fabrik-<name>` job it rewrites
+  only `scheme`, `metrics_path`, the one `static_configs` entry's `targets` and,
+  when the spec has a `bearer_token`, `authorization` — every other key you add
+  by hand is kept, and an `authorization` in the `credentials_file` form above
+  is never replaced with an inline token
 - `add_aro_wake_target(spoke, mesh_ip)` — called by `fabrik vultr provision`
   (PR1 c48f3c0)
 
