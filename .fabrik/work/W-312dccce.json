@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T18:52:35.324555Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-312dccce",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-spec",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated: commands/_sources/fabrik-spec.md:288-291 'The floor: ≥2 distinct cited live sources (URL + fetched-date) … check_spec_convergence.py enforces th",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-spec"
+}

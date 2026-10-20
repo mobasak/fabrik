@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T05:55:24.376812Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2c6ad63f",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-release",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by ea226e50",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-release"
+}
