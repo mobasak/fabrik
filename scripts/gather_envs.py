@@ -573,8 +573,8 @@ def host_label(host: str) -> str:
 def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], matchers) -> str | None:
     """The catalog vendor a code host belongs to, credited only by DOMAIN or LABEL evidence — an exact
     `hosts`/url entry, a registrable-domain wildcard, a catalog label on the vendor's own domain (or on any
-    domain when the entry has no parseable url of its own, C5), or a platform host's catalogued service
-    label (`<first>.<platform>`, an exact catalog key). A `match` token
+    domain when the entry has no parseable http(s) url of its own, C5), or a platform host's catalogued
+    service label (`<first>.<platform>`, or the bare platform label, an exact catalog key). A `match` token
     is an ENV-KEY prefix, never domain evidence: the `<LABEL>_API_KEY` fallbacks this used to end in
     credited `modal-labs.com` to modal, `hf-token.com` to huggingface and a customer's S3 bucket or Azure
     resource name to its vendor, while 0 of 592 live code hosts relied on them (W-b81263e8). An unknown
@@ -601,7 +601,7 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         url = str(catalog[sld].get("url") or "")
         try:
             own = urlsplit(url).hostname if url.startswith("http") else None
-        except ValueError:  # an unparseable catalog url is not evidence, never a crash (BB6/BR1)
+        except ValueError:  # an unparseable url names no domain (the label then counts, C5), never a crash (BB6/BR1)
             own = None
         if not own or host_domain(own) == host_domain(h):
             return sld
