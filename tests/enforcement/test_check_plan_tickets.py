@@ -744,6 +744,57 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
 
 
+def test_a_malformed_lock_owned_paths_never_matches_by_letter(tmp_path, capsys) -> None:
+    """A lock's `owned_paths` written as a bare STRING used to iterate its characters, so the
+    one-letter entries covered any changed path under a directory of that letter (W-7caa8a90). A
+    string is read as that one path, a non-list is skipped, a non-string entry is dropped, and a
+    lock that is not a JSON object is skipped — each said in a NOTE, none a crash."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    (root / "s").mkdir()
+    (root / "s" / "x.py").write_text("seed\n", encoding="utf-8")
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track")
+    (root / "s" / "x.py").write_text("changed\n", encoding="utf-8")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    lock = locks / f"{DIRNAME}.json"
+
+    def selected(owned) -> bool:
+        lock.write_text(
+            json.dumps({"plan": "x", "status": "active", "owned_paths": owned}), encoding="utf-8"
+        )
+        _, advisory = cpt._discover_dirs(root)
+        return plan_dir.resolve() in {d.resolve() for d in advisory}
+
+    # "src/app/schema.py" has the letter "s"; read by letter it covered the changed s/x.py
+    assert not selected("src/app/schema.py")
+    said = capsys.readouterr()
+    assert "owned_paths is a string" in said.out + said.err, said
+    assert selected("s/x.py"), "a bare string is still read as that one path"
+    capsys.readouterr()
+    for bad in ({"s": 1}, 7):
+        assert not selected(bad), bad
+        said = capsys.readouterr()
+        assert "owned_paths is not a list — lock skipped" in said.out + said.err, (bad, said)
+    assert selected(["s/x.py", 3]), "the string entries still count when a non-string is dropped"
+    said = capsys.readouterr()
+    assert "owned_paths has a non-string entry — dropped" in said.out + said.err, said
+    lock.write_text(json.dumps(["s/x.py"]), encoding="utf-8")
+    _, advisory = cpt._discover_dirs(root)
+    assert plan_dir.resolve() not in {d.resolve() for d in advisory}
+    said = capsys.readouterr()
+    assert "is not a JSON object — skipped" in said.out + said.err, said
+    # a well-formed lock says nothing (the NOTEs are for malformed locks only, never wallpaper)
+    assert selected(["s/x.py"])
+    said = capsys.readouterr()
+    assert "plan_tickets discovery:" not in said.out + said.err, said
+
+
 def test_the_demotion_count_is_taken_at_full_severity_not_gate_severity(
     tmp_path, capsys, monkeypatch
 ) -> None:

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T02:57:43.758771Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b2bbc1f1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "align _discover_dirs with check_phase_tests' entry normalisation and the lock writers' status values, with a test per shape (pre-existing, found by the W-7caa8a90 review)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "check_plan_tickets.py lock discovery: owned_paths entries are compared without the _norm_path normalisation check_phase_tests applies ('./s/x.py' silently misses), _path_covers is symmetric (an entry below a file selects it, advisory only), and status is matched exactly where work.py tolerates variants"
+}
