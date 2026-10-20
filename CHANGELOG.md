@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a long-named server backend passes its own ruff format (2026-10-20)
+
+- `src/fabrik/scaffold.py`: at the 50-character project-name cap, the saas chat's `from <pkg>.chat import build_chat_router, load_chat_settings` (main.py) and `importlib.reload(importlib.import_module("<pkg>.main"))` (tests/test_chat.py) ran past line length 100, so a saas-skeleton, static-site or office-extension scaffolded with a long name failed its own `ruff format` and import-order check. Both are now emitted expanded with a trailing comma, which ruff keeps at every name length (W-d5089619).
+
 ### Fixed — a scaffolded file-worker's `make install` installs its dependencies (2026-10-20)
 
 - `src/fabrik/scaffold.py` (`_scaffold_file_worker`): the shared Makefile template's `install: uv sync` needs a `[project]` table, and a file-worker's pyproject is tool-only, so `make install` made an empty `.venv` on uv's default Python and exited 0 with none of `requirements.txt` installed. The file-worker's `install` now fills `.venv` from `requirements.txt` with pip and never deletes a venv: no `.venv` → `python -m venv` (the interpreter `make setup-dev` uses); a runnable python without pip (what the old `uv sync` left) → `ensurepip`, its packages kept; a python that cannot run → refuse, naming what to remove. `make dev` runs `.venv/bin/python -m worker.main`. A template whose `install` rule drifted from a single `uv sync` is refused at scaffold time (W-0259f23b).

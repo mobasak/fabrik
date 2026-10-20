@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:08:21.995536Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a352701a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend the shadowing refusal to the server's third-party imports (or importlib.util.find_spec on the package name) with a red-first test for httpx and fastapi",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "A project named like a third-party module the scaffolded server imports (httpx, fastapi, redis …) is accepted by _validate_project_name (src/fabrik/scaffold.py:776-793 checks only VENDORED_MODULE_NAMES): its package shadows the library, the backend fails its own ruff I001 (httpx: 4 errors, fastapi: 6) and would break at runtime — found by the W-d5089619 review 2026-10-20 (owner: fleet)"
+}
