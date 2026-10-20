@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
+W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
+
 ### Fixed — a code host is credited to a vendor only by domain evidence (2026-10-20)
 W-b81263e8; D-1062. `gather_envs` used to fall back to treating a host's name as an env-key prefix, so `modal-labs.com` was credited to modal, `hf-token.com` to huggingface, and a customer's S3 bucket or Azure resource name to that vendor. Both fallbacks are gone: a host is credited only by the vendor's url, its `hosts` list or its own domain. No live code host depended on them (0 of 592); an unknown host is triaged and curated as before.
 
