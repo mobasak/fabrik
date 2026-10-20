@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a review whose fixes are committed during it makes its receipt once, at the close (2026-10-20)
+
+- A full `/fabrik-review` over committed work used to create its receipt before Pass 1 and, because every fix commit moves the range tip, re-make it after the last fix under a new `--scope`, rows carried and the old receipt deleted. That form now keeps a generated draft in the run's `SCRATCH:` folder during the passes and writes the receipt once, after the last fix commit (`term-coverage.md` obligation 3, `fabrik-review.md` § Reporting, `fabrik-task.md` phase 4 and 5). Working-tree, mixed and whole-plan reviews keep the receipt-before-Pass-1 rule, and `task_lane.py` check (d) is unchanged (W-60629ce4, D-1070).
+
 ### Fixed — `--merge-shared` checks an unlistable fleet root before a leftover swap link (2026-10-20)
 
 - `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could be searched but not listed (with its lock file present) still took the lock, finished the swap and reported nothing to merge while accounts held real lists. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says the staging name is cleared of anything but a directory, which is left in place (W-973887d5).

@@ -675,10 +675,9 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause."""
     src = _norm(SRC)
     assert (
-        "a fix committed after that `--init` moves the tip, so at the close the receipt is re-made after the last fix"
-        " commit (`--init --range <base>..<that commit>` under a new `--scope`, or a new `--out` for a plan's receipt,"
-        " its rows carried over and the superseded receipt deleted — `--init` never overwrites, and `--restamp`"
-        " re-anchors only a working-tree receipt)"
+        "a fix committed after the draft's `--init` moves the tip, which is why that form writes the receipt itself"
+        " only at the close (`--init --range <base>..<last fix commit>`, its rows carried from the draft — `--init`"
+        " never overwrites, and `--restamp` re-anchors only a working-tree receipt)"
     ) in _section(src, "## Reporting", "{{include:close-chain}}")
     # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
     # negation-safe-assertions)

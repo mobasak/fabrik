@@ -198,7 +198,7 @@ Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped
 surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
 the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
-not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none. Give its seat briefs
+not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
@@ -239,11 +239,11 @@ rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, nev
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and
 in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line
-so its sha lands in `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a
+so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (a
 sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the
 `--restamp` form below):
-after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
---range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
+run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
+--range <base>..<that sha>` — the Surface line it writes is what check (d) reads — carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed), flip it to `Status: CONVERGED`, then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` on or before the `--design` call.
 
