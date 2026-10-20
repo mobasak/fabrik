@@ -2,7 +2,9 @@
 
 Four fleet-synced pack lines still said the login did not exist. The mechanism is now stated once, in core/85's
 Live-provider status bullet, and saas/95 and saas/88 point at it; each rewrite stays inside its bullet's line, so the
-line numbers other docs cite (docs/CONFIGURATION.md cites core/85:27 and :28) still hold.
+line numbers other docs cite (docs/CONFIGURATION.md cites core/85:27 and :28) still hold. The bullet's standing safety
+sentences (PayTR off, the worker never a tenant-facing role) are pinned beside the new ones, so an edit that drops
+them reds here too.
 """
 
 import re
@@ -25,27 +27,33 @@ def _line(path: Path, number: int) -> str:
 
 def test_ingest_bullet_names_the_workers_own_login() -> None:
     assert (
-        "The fulfilment worker never uses this role: it has its own login (`shape.needs_payments_fulfilment`, the"
-        " Live-provider status bullet below)." in _line(BILLING, 28)
+        "The fulfilment worker never uses this role: it has its own login, minted when"
+        " `shape.needs_payments_fulfilment` is set (the Live-provider status bullet below)."
+        in _line(BILLING, 28)
     )
 
 
 def test_live_provider_bullet_states_what_an_apply_does() -> None:
     bullet = _line(BILLING, 45)
     for clause in (
+        "⚠️ **PayTR stays OFF in production (`PAYMENTS_PAYTR_ENABLED=false`) until the fulfilment worker runs as its"
+        ' OWN scoped login and boots `verify_service_role(worker_conn, lane="fulfilment")` green**',
         "On a `fabrik apply` database set `shape.needs_payments_fulfilment: true` (requires `needs_database: true`):"
         " the registrar mints `<db>_payments_fulfilment` (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS"
-        " NOREPLICATION`, no role membership), injects `PAYMENTS_FULFILMENT_DATABASE_URL` before granting it — never"
-        " hand-set that variable — and, beyond `CONNECT` and `USAGE` on `public`, grants it only by running that"
-        " function",
+        " NOREPLICATION`, no role membership granted, and a re-apply does not revoke one added by hand), injects"
+        " `PAYMENTS_FULFILMENT_DATABASE_URL` on the first mint, before granting it, and keeps it on a re-apply —"
+        " never hand-set that variable — and, beyond `CONNECT` and `USAGE` on `public`, grants it only by running"
+        " that function",
         "the module README § Gotchas still says the registrar does not provision it",
         "A payments schema not yet applied, in whole or in part, leaves the grant pending with a"
         " `⚠ payments-fulfilment-role: grant pending` line under the apply summary, and the run is not failed by it:"
         " re-apply after the schema lands.",
         "The apply step fails, naming the fix, when the payments tables exist but the function does not (apply the"
-        " module's scoped-roles migration), when the function has another signature, when `jobs` is missing, or when"
-        " the function refuses (the ingest role still holds the legacy table-level grant; with both payments flags"
-        " set the apply re-runs the ingest grant first). Elsewhere the owner runs the function.",
+        " module's scoped-roles migration), when the function has another signature, when the payments tables exist"
+        " but `jobs` does not, or when the function refuses (the ingest role still holds the legacy table-level"
+        " grant; with both payments flags set the apply re-runs the ingest grant first). Elsewhere the owner runs"
+        " the function.",
+        "The worker login is never `<db>_app` or any tenant-facing role",
         "On that login your worker claims each job",
     ):
         assert clause in bullet, clause[:60]
