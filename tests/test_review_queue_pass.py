@@ -1057,3 +1057,32 @@ def test_a_shifted_anchor_is_remapped_after_each_round_fix() -> None:
         "never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a"
         " brief or mutant list carries."
     ) in _norm(CAT)
+
+
+def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
+    """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
+    once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
+    lives — the fragment's obligation 3 (rendered into seven commands) and the later-pass high-water mark."""
+    frag = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    for clause in (
+        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review",
+        "--out <SCRATCH>/<scope>-receipt-draft.md",
+        "`review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last"
+        " fix commit>` writes the receipt under `docs/development/reviews/` once",
+        "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
+        "the receipt becomes the draft again until it is re-made at the new tip",
+        "and every other command this fragment renders into — creates it NOW",
+    ):
+        assert clause in frag, clause
+    assert (
+        "the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5)"
+    ) in _norm(SRC)
+    task = _norm(ROOT / "commands" / "_sources" / "fabrik-task.md")
+    assert (
+        "run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that"
+        " lands first"
+    ) in task
+    assert (
+        "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
+        in task
+    )

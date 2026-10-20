@@ -243,7 +243,7 @@ so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last o
 sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the
 `--restamp` form below):
 run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
---range <base>..<that sha>` — the Surface line it writes is what check (d) reads — carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed), flip it to `Status: CONVERGED`, then commit that receipt alone
+--range <base>..<that sha>` — the Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that lands first — carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed), run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` on or before the `--design` call.
 

@@ -222,8 +222,8 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   the live repo, sits ahead of the extract) — `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js`
   is the recipe — and prints the module's `__file__` beside every result (a
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
-  states the ledger's high-water mark — its last row id and the receipt's sha at dispatch (the draft's,
-  in the committed-fix form below) — never a hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
+  states the ledger's high-water mark — its last row id and the receipt's sha at dispatch (in the
+  committed-fix form below, the draft's last row id and md5) — never a hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
   (`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write), never the dispatcher's scratchpad root, and never under a name that
   collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every
   process run from that dir) · Python `time.sleep` in fixture scripts,
