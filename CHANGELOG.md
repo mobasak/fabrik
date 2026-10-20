@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
 
-- c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. Both byte-identical contract paragraphs (`CLAUDE.md`, `templates/governance/CLAUDE.md`) now cite `:3338-3355` and `:3357-3363` (found by intel).
+- c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. The cite-bearing sentences of both contracts (`CLAUDE.md`, `templates/governance/CLAUDE.md`), which the test pins identical, now cite `:3338-3355` and `:3357-3363` (found by intel).
 
 ### Fixed — `docs/preplan.md` is a governed doc, so check_structure stops warning on the scaffold's own file (2026-10-20)
 
