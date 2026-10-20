@@ -974,3 +974,17 @@ def test_a_span_opened_line_and_an_unclosed_backtick_read_as_today(tmp_path):
     assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")
     p = _plan(tmp_path, "Type the ` key.\n**Status:** DRAFT\n**Owner:** intel\n")
     assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("DRAFT", "intel")
+
+
+def test_two_stray_backticks_around_the_only_header_still_read_it(tmp_path):
+    """Review pass 1 (S-s1, S-h1): two stray backticks pair into a span around the plan's only header; with no
+    header outside a span the scan falls back to the first match, as before, rather than read Active / no owner
+    (and `--adopt` would then write a second Owner line)."""
+    import docs_updater as du
+
+    p = _plan(tmp_path, "Use ` here\n**Status:** COMPLETE\n**Owner:** intel\nthen ` there\n")
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("COMPLETE", "intel")
+    p = _plan(
+        tmp_path, "**Status:** EXECUTED — see `scripts/x.py\n**Owner:** intel — also `y` here\n"
+    )
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")

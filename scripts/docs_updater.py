@@ -1177,12 +1177,18 @@ def _first_header(rx: re.Pattern[str], scan: str) -> re.Match[str] | None:
     """The first header-line match whose KEY no inline code span holds (W-8f9a7d2c): a span crossing a line
     break with `Status: DRAFT` opening its second line is a quote, not the plan's header. The match runs on the
     original text and the value is read from it, so a value in code font (`**Owner:** `[infra]``) keeps it;
-    `_blank_code_spans` is length-preserving, so only the key's bytes are compared against the blanked copy."""
+    `_blank_code_spans` is length-preserving, so only the key's bytes are compared against the blanked copy.
+    When every match's key sits in a span, the first match is returned as before — so the result differs from
+    a plain first match only when a span-held match precedes a header outside any span (two stray backticks
+    around the plan's only header still read it)."""
+    matches = list(rx.finditer(scan))
+    if not matches:
+        return None
     blanked = _blank_code_spans(scan)
-    for m in rx.finditer(scan):
+    for m in matches:
         if blanked[m.start() : m.start(1)] == scan[m.start() : m.start(1)]:
             return m
-    return None
+    return matches[0]
 
 
 def parse_plan_owner(plan_path: Path) -> str:
