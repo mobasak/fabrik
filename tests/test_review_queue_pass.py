@@ -676,7 +676,8 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     src = _norm(SRC)
     assert (
         "a fix committed after the draft's `--init` moves the tip, which is why that form writes the receipt itself"
-        " only at the close (`--init --range <base>..<last fix commit>`, its rows carried from the draft — `--init`"
+        " only at the close (`--init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>`,"
+        " its rows carried from the draft — `--init`"
         " never overwrites, and `--restamp` re-anchors only a working-tree receipt)"
     ) in _section(src, "## Reporting", "{{include:close-chain}}")
     # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
@@ -1070,7 +1071,7 @@ def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
         "`review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last"
         " fix commit>` writes the receipt under `docs/development/reviews/` once",
         "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
-        "the receipt becomes the draft again until it is re-made at the new tip",
+        "the receipt becomes the draft again: move it back over the draft (`mv`, since it is not yet committed and `--init` never overwrites)",
         "and every other command this fragment renders into — creates it NOW",
     ):
         assert clause in frag, clause
