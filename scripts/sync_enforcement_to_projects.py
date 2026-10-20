@@ -2275,13 +2275,13 @@ def _atomic_copy(source: Path, destination: Path) -> None:
         raise
 
 
-def _project_tracks(project_dir: Path, rel: Path) -> bool:
-    """Does the PROJECT's git track *rel*? Exit 0 is tracked and exit 1 (no match) is not; a project
-    with no `.git` tracks nothing; any other failure — a corrupt index, dubious ownership — reads as
-    TRACKED, so the caller keeps the file (review pass 1: `_worktree_file_is_tracked` read a git
-    fatal as "untracked" and the prune deleted a tracked copy)."""
-    if not (project_dir / ".git").exists():
-        return False
+def _project_tracking(project_dir: Path, rel: Path) -> str:
+    """ "tracked", "untracked" or "unknown" — does the PROJECT's git track *rel*? Exit 0 is tracked;
+    exit 1 (no match) and "not a git repository" are untracked; any other failure — a corrupt index,
+    dubious ownership — is unknown, and the caller keeps the file (review pass 1:
+    `_worktree_file_is_tracked` read a git fatal as "untracked" and the prune deleted a tracked
+    copy). Git is asked even without a `.git` here, so a parent repo's index still counts (pass 2).
+    """
     try:
         proc = subprocess.run(
             ["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", str(rel)],
@@ -2290,13 +2290,19 @@ def _project_tracks(project_dir: Path, rel: Path) -> bool:
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
-        return True
-    return proc.returncode != 1
+        return "unknown"
+    if proc.returncode == 0:
+        return "tracked"
+    if proc.returncode == 1 or b"not a git repository" in proc.stderr:
+        return "untracked"
+    return "unknown"
 
 
 def _younger_than(path: Path, seconds: float) -> bool:
+    """Was *path* written in the last *seconds*? By `st_ctime`: a sync's temp file carries its
+    SOURCE's mtime (`_carry_mtime`), often days old, while writing it set ctime to now (pass 2)."""
     try:
-        return time.time() - path.stat().st_mtime < seconds
+        return time.time() - path.stat().st_ctime < seconds
     except OSError:
         return True  # cannot date it: keep it
 
@@ -2341,10 +2347,14 @@ def _prune_enforcement_orphans(
         rel = dest.relative_to(project_enforcement)
         if rel in live:
             continue
-        if _project_tracks(project_dir, dest.relative_to(project_dir)):
-            results.append(
-                SyncResult("WARN", dest, dest, "enforcement orphan tracked by the project; kept")
+        tracking = _project_tracking(project_dir, dest.relative_to(project_dir))
+        if tracking != "untracked":
+            reason = (
+                "enforcement orphan tracked by the project; kept"
+                if tracking == "tracked"
+                else "enforcement orphan kept: the project's git could not say if it is tracked"
             )
+            results.append(SyncResult("WARN", dest, dest, reason))
             continue
         if not dry_run:
             dest.unlink()

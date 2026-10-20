@@ -1534,20 +1534,40 @@ def test_a_project_git_that_cannot_answer_keeps_the_orphan(hub, tmp_path: Path) 
         check=True,
     )
     (project / ".git" / "index").write_bytes(b"not an index")
-    mod.sync_scripts_to_project(project)
+    result = mod.sync_scripts_to_project(project)
     assert (enf / "retired_check.py").exists(), "a tracked copy was deleted on a git fatal"
+    reasons = [r.reason for r in result.files if r.destination == enf / "retired_check.py"]
+    assert reasons == ["enforcement orphan kept: the project's git could not say if it is tracked"]
 
 
 def test_a_live_sync_temp_file_is_left_for_its_writer(hub, tmp_path: Path) -> None:
-    """Review pass 1: a concurrent sync's `.sync-tmp-*` file, mid-write, was unlinked before its
-    rename. A young one is left alone; an old leftover is pruned."""
+    """Review passes 1-2: a concurrent sync's `.sync-tmp-*` file, mid-write, was unlinked before
+    its rename — and it carries its SOURCE's mtime (`_carry_mtime`), often days old, so the age is
+    read from ctime, which the write set to now."""
     mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
     young = enf / ".sync-tmp-young"
     young.write_text("mid-write\n", encoding="utf-8")
+    carried = time.time() - 3 * 86400
+    os.utime(young, (carried, carried))  # the carried source mtime; ctime stays now
+    mod.sync_scripts_to_project(project)
+    assert young.exists(), "a live temp file with a carried old mtime was pruned"
+
+
+def test_an_old_sync_temp_leftover_is_pruned(hub, tmp_path: Path, monkeypatch) -> None:
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
     old = enf / ".sync-tmp-old"
     old.write_text("leftover\n", encoding="utf-8")
-    stale = time.time() - 7200
-    os.utime(old, (stale, stale))
+    later = time.time() + 7200  # two hours on: the crash leftover is stale
+    monkeypatch.setattr(mod.time, "time", lambda: later)
     mod.sync_scripts_to_project(project)
-    assert young.exists()
     assert not old.exists()
+
+
+def test_a_copy_a_parent_repo_tracks_is_kept(hub, tmp_path: Path) -> None:
+    """Review pass 2: a project folder with no `.git` of its own, inside a repo that tracks the
+    file, was read as untracked by a `.git` short-circuit. Git is asked; the parent index counts."""
+    mod, hub_root, project, enf = _enf_hub(hub, tmp_path)
+    rel = (enf / "retired_check.py").relative_to(hub_root)  # the fixture hub is the parent repo
+    subprocess.run(["git", "-C", str(hub_root), "add", "-f", str(rel)], check=True)
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()
