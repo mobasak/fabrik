@@ -4624,3 +4624,43 @@ def test_the_registry_sync_import_leaves_no_module_behind():
             del _sys.modules[k]
     assert _sys.path == path_before
     assert "registry_sync" not in _sys.modules or "registry_sync" in before
+
+
+def test_a_host_is_never_credited_by_an_env_key_prefix():
+    """W-b81263e8 (W-17aac223 review residue; Opus + Fable critiques, executed): a catalog `match` token is
+    an ENV-KEY prefix, not domain evidence, so the two `<LABEL>_API_KEY` fallbacks credited foreign hosts —
+    a hyphenated SLD (`modal-labs.com`), an alias SLD (`hf-token.com`, `kling.com`) and a customer-named
+    platform bucket or resource (`modal-labs.s3.amazonaws.com`, `openai-prod.openai.azure.com`). Both are
+    gone: a host is credited only by domain evidence. Measured: 0 of 592 live code hosts relied on them."""
+    catalog = {
+        "modal": {"url": "https://modal.com"},
+        "paddle": {"url": "https://www.paddle.com"},
+        "huggingface": {"url": "https://huggingface.co"},
+        "klingai": {"url": "https://kling.ai"},
+        "openai": {"url": "https://openai.com"},
+        "gmail.googleapis": {},
+    }
+    matchers = [
+        ("MODAL", "modal"),
+        ("PADDLE_", "paddle"),
+        ("HF_TOKEN", "huggingface"),
+        ("KLING", "klingai"),
+        ("OPENAI", "openai"),
+    ]
+    idx = ge.catalog_url_index(catalog)
+    expected = {
+        # no domain evidence — each reached a removed fallback
+        "api.modal-labs.com": None,
+        "paddle-ocr.com": None,
+        "hf-token.com": None,
+        "kling.com": None,
+        "modal-labs.s3.amazonaws.com": None,
+        "openai-prod.openai.azure.com": None,
+        # domain evidence — unchanged rules
+        "api.modal.com": "modal",
+        "paddle.com": "paddle",
+        "huggingface.co": "huggingface",
+        "gmail.googleapis.com": "gmail.googleapis",
+    }
+    got = {h: ge.provider_for_host(h, catalog, idx, matchers) for h in expected}
+    assert got == expected, {h: (got[h], v) for h, v in expected.items() if got[h] != v}

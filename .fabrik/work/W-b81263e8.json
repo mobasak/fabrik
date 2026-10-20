@@ -3,7 +3,7 @@
   "created": "2026-10-19T17:08:18.607151Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f152c371300c44d358c1604d9931191e2f9386c7",
   "id": "W-b81263e8",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: two latent mis-attributions in gather_envs (foreign-domain host fallback, Paddle vs PaddlePaddle) that hit no live key or host today; nobody blocked",
-  "status": "open",
+  "status": "done",
   "tags": [
     "registry"
   ],
