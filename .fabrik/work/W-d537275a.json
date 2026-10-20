@@ -20,7 +20,8 @@
   "score_reason": "LOW: rare-edge sync residue from W-ba306861 (D-1018); nobody blocked",
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "queued"
   ],
   "title": "sync: symlinked hub sources bypass T12.17 — a tracked in-hub symlink pointing outside the hub returns None ('not ours') and ships the target's working bytes; an uncommitted retarget resolves before rel is computed and ships (_head_source :1789; W-ba306861 Opus critique #8)"
 }
