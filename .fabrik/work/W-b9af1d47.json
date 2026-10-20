@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T02:54:14.791720Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b9af1d47",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "blank inline spans before link_targets only (never the _BARE_RE scan), measured with a fleet diff; ~~~ stays with W-2725ed54",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "check_doc_links grades a link inside an inline code span (latent: today's examples sit in its skipped docs/development and docs/superpowers sources; a [a](x.md) example in docs/reference would be reported)"
+}
