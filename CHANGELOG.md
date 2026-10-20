@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a Status or Owner line quoted in a code span no longer passes for a plan's header (2026-10-20)
+W-8f9a7d2c; D-1078. `docs_updater` read the first `Status:` and `Owner:` line of a plan after removing fenced blocks and block quotes, but not inline code spans, so a code span running across a line break with `Status: DRAFT` at the start of its second line beat the plan's real `**Status:** COMPLETE` (and an `Owner:` line the real owner). The PLANS table, the plan checks, `--adopt` and `work.py` all read those values. Each scan now skips a header line whose key sits inside a code span and still reads a value written in code font, such as `**Owner:** `[infra]``. No plan in the fleet reads differently (0 of 1492).
+
 ### Fixed — one bad markdown file can no longer stall the gate's fence parsing (2026-10-20)
 W-276255e7; D-1077. The regex that strips code fences before the plan and convergence checks read a file — copied into `docs_updater` and four checks — backtracked badly: 400 lines of different-length backtick runs took 15.7 s, one 200 KB run of backticks 10.2 s, and two more regexes in `check_convergence` had the same flaw. A new shared module, `scripts/enforcement/_fences.py`, replaces all of them with a linear scanner that finds exactly the same fences (equal on 500 000 random documents and all 14 675 markdown files in the fleet), so the worst inputs now take milliseconds. Every check imports the one module; `docs_updater` loads it only when it parses and writes no bytecode, so `--dry-run` still writes nothing.
 

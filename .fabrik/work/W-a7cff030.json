@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T12:01:39.500537Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-a7cff030",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give check_plan_quality and check_convergence the W-8f9a7d2c key-in-span test (a shared helper in scripts/enforcement/_fences.py, with each reader's fail direction stated per Lesson 103), measured on the fleet plans by parsed value",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "The enforcement checks' plan-Status reads take a Status line inside a multi-line inline code span: check_plan_quality._sibling_spine_is_draft (scripts/enforcement/check_plan_quality.py:159-172, fail-open — a quoted DRAFT downgrades the ticket checks) and check_convergence's archived-plan Status reads (:839, :1455, fail-closed — a false 'archived while DRAFT'); executed on the W-8f9a7d2c construct, both read DRAFT"
+}
