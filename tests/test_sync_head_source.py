@@ -1338,3 +1338,27 @@ def test_a_source_spelled_through_the_real_root_is_still_checked(hub, tmp_path) 
     alias.symlink_to(hub_root)
     mod.FABRIK_ROOT = alias
     _refused(mod, hub_root / "out.md", project / "out.md")
+
+
+def test_a_walked_link_deleted_from_the_tree_keeps_its_project_copy(hub, tmp_path) -> None:
+    """Review pass 1: HEAD's 120000 entries were left out of the walk, so a link deleted from the
+    working tree was in neither live set and the prune deleted the project copy, unnamed."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "libs" / "vend" / "link.py"
+    link.symlink_to("kept.py")
+    subprocess.run(["git", "-C", str(hub_root), "add", "libs/vend/link.py"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    copy = project / "libs" / "vend" / "link.py"
+    copy.write_text("# the project's copy\n", encoding="utf-8")
+    result = mod.sync_scripts_to_project(project)
+    assert copy.read_text() == "# the project's copy\n", "the prune deleted a copy HEAD still lists"
+    assert any(r.action == "WARN" and r.destination == copy for r in result.files), result.files
+
+
+def test_the_writer_never_copies_through_a_refused_link(hub, tmp_path) -> None:
+    """Review pass 1: `_atomic_copy` fell back to `copy2` through the link when called directly."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    with pytest.raises(FileNotFoundError):
+        mod._atomic_copy(hub_root / "out.md", project / "out.md")
+    assert not (project / "out.md").exists()

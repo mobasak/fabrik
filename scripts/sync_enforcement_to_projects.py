@@ -2061,9 +2061,11 @@ def _hub_files(src_dir: Path) -> list[Path]:
     lists there that the working tree lost (W-bb97199e).
 
     The walk is also the orphan prunes' live set, so a working-tree-only walk turned a sibling's
-    uncommitted deletion into a DELETE in every project. Symlinks HEAD records (mode 120000) are
-    left to the working-tree walk, as before (W-d537275a). A dir outside the hub, an unborn HEAD or
-    a git that cannot answer adds nothing; the last is named in `_head_unread`.
+    uncommitted deletion into a DELETE in every project. A symlink HEAD records (mode 120000) is
+    listed too: the sync refuses it with a WARN (`_link_refusal`, W-d537275a), and listing keeps
+    the project copy of a link deleted from the working tree out of the prune. A dir outside the
+    hub, an unborn HEAD or a git that cannot answer adds nothing; the last is named in
+    `_head_unread`.
     """
     found = {p for p in src_dir.rglob("*") if p.is_file()} if src_dir.is_dir() else set()
     try:
@@ -2089,7 +2091,7 @@ def _hub_files(src_dir: Path) -> list[Path]:
     for entry in ls.stdout.split(b"\0"):
         meta, _, path = entry.partition(b"\t")
         fields = meta.split()
-        if len(fields) != 3 or fields[1] != b"blob" or fields[0] == b"120000":
+        if len(fields) != 3 or fields[1] != b"blob":  # a gitlink (commit) is not a file
             continue
         path_rel = Path(os.fsdecode(path)).relative_to(rel)
         if path_rel != Path("."):  # a blob AT `rel` (a dir in the tree, a file in HEAD)
@@ -2259,7 +2261,7 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
             _carry_mtime(source, tmp)  # the mtime `copy2` used to — see `_atomic_write`
-        elif not _gone(source):
+        elif _link_refusal(source) is None and not _gone(source):  # never copy through a link
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
         else:  # gone, and HEAD unreadable on this consult: the caller WARNs (W-bb97199e)
             raise _GoneSourceError(source)
