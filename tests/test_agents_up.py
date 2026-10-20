@@ -65,7 +65,7 @@ def _panes(out: str) -> list[str]:
 
 def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path) -> None:
     """Each builder resumes its own session id, in name order, from the repo root; the coordinator — reached in VS
-    Code, as hub-up states — gets no pane, whether it is named `coordinator` or `<repo>-coordinator`."""
+    Code — gets no pane, whether it is named `coordinator` or `<repo>-coordinator`."""
     repo = _repo(
         tmp_path,
         {
@@ -222,8 +222,8 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
 
 
 def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:
-    """The hub keeps no `.fabrik/session-agents.json` (hub-up holds its list), so `agents-up /opt/fabrik` says so and
-    stops; so does a path that is no directory, and a call with no repo at all."""
+    """A repo with no `.fabrik/session-agents.json` says where the builders are named and stops; so does a path that
+    is no directory, and a call with no repo at all."""
     home = _home(tmp_path)
     bare = tmp_path / "bare"
     bare.mkdir()
@@ -240,7 +240,7 @@ def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:
         assert "pane " not in out.stdout, args
         assert reason in out.stderr, (args, out.stderr)
     out = _run("--print", str(bare), home=home)
-    assert "session-agents.json" in out.stderr and "hub-up" in out.stderr, out.stderr
+    assert "session-agents.json" in out.stderr and "whoami binding" in out.stderr, out.stderr
 
 
 def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
@@ -577,3 +577,355 @@ def test_the_launch_starts_each_pane_in_its_folder(tmp_path: Path) -> None:
     )
     assert f"dev2: no transcript for session {DEV2} under {wt2_proj} " in out.stderr, out.stderr
     assert "dev1: no transcript" not in out.stderr, out.stderr
+
+
+# --- the identity store (W-66e2f6a7): each builder resumes its newest whoami binding for this repo ----------------
+
+NEW1 = "2b2b2b2b-2b2b-4b2b-8b2b-2b2b2b2b2b2b"
+NEW2 = "3c3c3c3c-3c3c-4c3c-8c3c-3c3c3c3c3c3c"
+
+
+def _git_repo(tmp: Path, registry: object) -> tuple[Path, str]:
+    """A registry repo that is a real git repo, so it has a scope; returns (root, its git common dir)."""
+    repo = _repo(tmp, registry)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    return repo, str(repo / ".git")
+
+
+def _store(tmp: Path, rows: list[object], name: str = "agent-identity.jsonl") -> Path:
+    path = tmp / name
+    path.write_text(
+        "".join((r if isinstance(r, str) else json.dumps(r)) + "\n" for r in rows), encoding="utf-8"
+    )
+    return path
+
+
+def _bind(sid: str, name: str, scope: str, at: object) -> dict:
+    return {"session_id": sid, "name": name, "toplevel": scope, "at": at, "pid": 1, "force": True}
+
+
+def _aged(home: Path, repo: Path, sid: str, age_s: float) -> None:
+    """Set a transcript's mtime `age_s` seconds into the past (the registry id's last activity)."""
+    import os
+    import time
+
+    f = (
+        home
+        / ".claude-fleet"
+        / "active"
+        / "projects"
+        / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+        / f"{sid}.jsonl"
+    )
+    t = time.time() - age_s
+    os.utime(f, (t, t))
+
+
+NOW = 2_000_000_000  # a binding time after every fixture transcript's mtime
+
+
+def test_the_newest_binding_beats_a_stale_registry_row(tmp_path: Path) -> None:
+    """The registry still names dev1's pre-/clear session, last active before dev1 re-bound: the binding wins and stderr
+    says which session replaced which. A registry id the store never saw, with no later activity (a trimmed row, or a
+    session the launcher started), gives way the same way."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    store = _store(
+        tmp_path,
+        [
+            _bind(DEV1, "dev1", scope, 100),
+            _bind(NEW1, "dev1", scope, NOW),
+            _bind(NEW2, "dev2", scope, NOW),
+        ],
+    )
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW1), (repo, NEW2)))
+    _aged(home, repo, DEV1, 3600)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok", f"pane dev2 {NEW2} {repo} ok"]
+    assert (
+        f"dev1: resuming {NEW1}, its newest whoami binding, not the registry's {DEV1}" in out.stderr
+    )
+    assert (
+        f"dev2: resuming {NEW2}, its newest whoami binding, not the registry's {DEV2}" in out.stderr
+    )
+
+
+def test_a_registry_session_active_after_the_binding_stands(tmp_path: Path) -> None:
+    """A registry id whose transcript moved after the binding was written is the live one (a session a writer
+    registered as it started, never bound): it stands, and stderr says why."""
+    repo, scope = _git_repo(tmp_path, {NEW2: "dev1"})
+    store = _store(tmp_path, [_bind(DEV1, "dev1", scope, 100)])
+    home = _home(tmp_path, transcripts=((repo, NEW2),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW2} {repo} ok"]
+    assert (
+        f"dev1: the registry's {NEW2} was active after its binding {DEV1} — resuming {NEW2}"
+        in out.stderr
+    )
+
+
+def test_a_session_belongs_to_the_name_on_its_last_row_anywhere(tmp_path: Path) -> None:
+    """whoami's own reader: a session re-bound to another name — in this repo or any other — is that name's, so it
+    never resumes under its old one; the last line naming a builder wins over a larger `at` (a clock that stepped
+    back); and a session that would serve two panes refuses the launch."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    rows = [
+        _bind(DEV1, "dev1", scope, NOW + 10),
+        _bind(NEW1, "dev1", scope, NOW),  # a later line with a smaller `at` still wins
+        _bind(
+            NEW1, "dev2", "/elsewhere/.git", NOW
+        ),  # ...until another repo re-binds the session as dev2
+        _bind(NEW2, "dev2", scope, NOW),
+    ]
+    store = _store(tmp_path, rows)
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW2)))
+    _aged(home, repo, DEV1, 3600)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok", f"pane dev2 {NEW2} {repo} ok"]
+    assert f"resuming {NEW1}" not in out.stderr, out.stderr
+    # the last line naming dev1 wins over a larger `at` on an earlier line (a clock that stepped back)
+    store = _store(
+        tmp_path,
+        [_bind(NEW2, "dev1", scope, NOW + 10), _bind(NEW1, "dev1", scope, NOW)],
+        "s2.jsonl",
+    )
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout)[0] == f"pane dev1 {NEW1} {repo} no-transcript", out.stdout
+    # a registry that gives dev2 the session dev1 now owns: one session, two panes — refused
+    two = tmp_path / "two"
+    two.mkdir()
+    r2, s2 = _git_repo(two, {DEV1: "dev1", NEW1: "dev2"})
+    store = _store(two, [_bind(DEV1, "dev1", s2, 50), _bind(NEW1, "dev1", s2, NOW)])
+    out = _run("--print", str(r2), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2, out.stdout
+    assert "pane " not in out.stdout
+    assert f"session {NEW1} would serve dev1 and dev2" in out.stderr, out.stderr
+
+
+def test_a_builder_never_takes_the_coordinators_session(tmp_path: Path) -> None:
+    """The coordinator gets no pane, but its sessions still count: a binding that would put a builder on the session
+    the registry gives the coordinator refuses the launch, and a coordinator binding adds no pane."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", COORD: "coordinator"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    _aged(home, repo, DEV1, 3600)
+    store = _store(tmp_path, [_bind(DEV1, "dev1", scope, 100), _bind(COORD, "dev1", scope, NOW)])
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2, out.stdout
+    assert f"session {COORD} would serve coordinator and dev1" in out.stderr, out.stderr
+    store = _store(tmp_path, [_bind(NEW2, "coordinator", scope, NOW)], "s2.jsonl")
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"]
+
+
+def test_a_broken_store_or_scope_falls_back_to_the_registry(tmp_path: Path) -> None:
+    """Every store problem leaves the registry's ids, never the whole launch: a missing store, a directory or a FIFO
+    at its path (never read, so never a hang), garbage lines, a row of another repo or of no repo, a malformed id,
+    and a time no int() takes. A repo with no git scope never reads the store, and an inherited GIT_DIR cannot move
+    the scope. In each case the registry's id is the binding's predecessor, so a row wrongly counted would flip it."""
+    import os
+
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    _aged(home, repo, DEV1, 3600)
+    good = _bind(DEV1, "dev1", scope, 100)
+    for i, bad in enumerate(
+        [
+            "not json",
+            "[1, 2]",
+            _bind(NEW1, "dev1", "/elsewhere/.git", NOW),
+            _bind(NEW1, "dev1", "", NOW),
+            _bind("NOT-A-UUID", "dev1", scope, NOW),
+            _bind(NEW1.upper(), "dev1", scope, NOW),
+            {"session_id": 7, "name": "dev1", "toplevel": scope, "at": NOW},
+            _bind(NEW1, "Dev 1; rm -rf /", scope, NOW),
+        ]
+    ):
+        store = _store(tmp_path, [good, bad], f"bad{i}.jsonl")
+        out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+        assert out.returncode == 0, (bad, out.stderr)
+        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], (bad, out.stdout)
+    # a time no int() takes reads as 0, as whoami's own `_at` does: the row still counts, the store is not lost
+    store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "²"), good], "sup.jsonl")
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0 and _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], out.stderr
+    assert "could not be read" not in out.stderr, out.stderr
+    fifo = tmp_path / "fifo.jsonl"
+    os.mkfifo(fifo)
+    for store in (tmp_path / "missing.jsonl", tmp_path, fifo):
+        out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+        assert out.returncode == 0, (store, out.stderr)
+        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], (store, out.stdout)
+        if store != tmp_path / "missing.jsonl":
+            assert "is not a regular file" in out.stderr, (store, out.stderr)
+    # an inherited GIT_DIR names another repo: the scope is still this repo's, so this repo's binding counts
+    (tmp_path / "o").mkdir()
+    other, _ = _git_repo(tmp_path / "o", {NEW2: "x"})
+    store = _store(tmp_path, [good, _bind(NEW1, "dev1", scope, NOW)], "gd.jsonl")
+    out = _run(
+        "--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store), GIT_DIR=str(other / ".git")
+    )
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} no-transcript"], out.stdout
+    # no git scope at all: the store is never read, even when it holds a binding of an empty scope
+    (tmp_path / "plain").mkdir()
+    plain = _repo(tmp_path / "plain", {DEV1: "dev1"})
+    store = _store(tmp_path, [_bind(NEW1, "dev1", "", NOW)], "empty.jsonl")
+    out = _run("--print", str(plain), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {plain} no-transcript"], out.stdout
+    assert "no git scope" in out.stderr, out.stderr
+
+
+def test_a_duplicate_name_resolves_through_the_store_or_refuses(tmp_path: Path) -> None:
+    """A registry that kept dev1's old row beside its new one launches when the store names dev1's session; with no
+    binding it is still refused, as before (D-1032's fail-closed rule, narrowed)."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", NEW1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, NEW1),))
+    store = _store(tmp_path, [_bind(NEW1, "dev1", scope, NOW)])
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"]
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(tmp_path / "none.jsonl"))
+    assert out.returncode == 2, out.stdout
+    assert "more than one session id" in out.stderr, out.stderr
+
+
+def test_the_store_path_and_the_rebind_reach_the_panes(tmp_path: Path) -> None:
+    """An AGENT_IDENTITY_FILE the launcher was given reaches each pane as an absolute path, so the panes' whoami writes
+    the store the next launch reads; the exit hint names the re-bind and the launcher's absolute path."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", COORD: "coordinator"})
+    store = _store(tmp_path, [_bind(NEW2, "coordinator", scope, NOW)])
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
+    assert len(run) == 1 and f"AGENT_IDENTITY_FILE={store}" in run[0], run
+    assert f"after a /clear: whoami_agent.py --as dev1 --force, then {UP} {repo})]" in _hint(
+        run[0], tmp_path
+    )
+    out = _run("--print", str(repo), home=home)
+    run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
+    assert "AGENT_IDENTITY_FILE" not in run[0], run
+    # run by a relative path, the hint still names the launcher absolutely: a pane starts in another folder
+    rel = subprocess.run(
+        ["bash", UP.name, "--print", str(repo)],
+        cwd=UP.parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
+    )
+    run = [ln for ln in rel.stdout.splitlines() if ln.startswith("run dev1 ")]
+    assert len(run) == 1 and f"then {UP} {repo})]" in _hint(run[0], tmp_path), (run, rel.stderr)
+
+
+def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) -> None:
+    """A builder with no binding in this scope resumes the registry's id and says so; a newer session transcript in its
+    pane's folder that no binding or registry row names is pointed out with the re-bind command, because a /clear
+    without the re-bind leaves exactly that. A file that is no session id is never taken for one."""
+    import os
+    import time
+
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    store = _store(tmp_path, [_bind(DEV2, "dev2", scope, 100)])
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, DEV2), (repo, NEW2)))
+    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+    old = time.time() - 3600
+    for sid in (DEV1, DEV2):
+        os.utime(proj / f"{sid}.jsonl", (old, old))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert f"dev1: no whoami binding in {scope} — resuming the registry's {DEV1}" in out.stderr, (
+        out.stderr
+    )
+    assert (
+        f"a newer session {NEW2} is in {proj}" in out.stderr and "--as dev1 --force" in out.stderr
+    ), out.stderr
+    (proj / f"{NEW2}.jsonl").unlink()
+    (proj / "not a session.jsonl").write_text("{}\n", encoding="utf-8")
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert "a newer session" not in out.stderr, out.stderr
+
+
+def _hint(run_line: str, cwd: Path) -> str:
+    """What a pane prints when claude exits: the hint command from its `run` line, executed by bash — and identically
+    by a POSIX `sh` in the C locale, since tmux runs a pane's command with the user's own shell."""
+    cmd = re.search(r"; echo; (printf '%s\\n' .*?); exec env ", run_line)
+    assert cmd, run_line
+    said = [
+        subprocess.run(
+            [shell, "-c", cmd.group(1)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C"},
+        ).stdout.strip()
+        for shell in ("bash", "sh")
+    ]
+    assert said[0] == said[1], said
+    return said[0]
+
+
+def test_the_exit_hint_never_runs_a_folder_name(tmp_path: Path) -> None:
+    """The hint a pane prints when claude exits names the repo folder; a `$(...)`, a backtick or a `$NAME` in that name
+    is printed, never run, and the printed command pastes back to the real folder."""
+    for i, name in enumerate(("a$(touch pwned)b", "a`touch pwned`b", "a$HOME b", "q'uote")):
+        base = tmp_path / str(i)
+        base.mkdir()
+        repo = _repo(base, {DEV1: "dev1"}, name=name)
+        home = _home(base, transcripts=((repo, DEV1),))
+        out = _run("--print", str(repo), home=home)
+        assert out.returncode == 0, out.stderr
+        run = [ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 ")]
+        said = _hint(run[0], base)
+        assert not (base / "pwned").exists(), said
+        tail = said.rsplit(" --force, then ", 1)[1].removesuffix(")]")
+        # pasted into a shell, the printed command names the launcher and this folder, and runs nothing
+        pasted = subprocess.run(
+            ["bash", "-c", f"printf '%s\\n' {tail}"],
+            cwd=base,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert pasted.stdout.splitlines() == [str(UP), str(repo)], (said, pasted.stderr)
+        assert not (base / "pwned").exists(), said
+
+
+def test_an_undated_binding_is_not_older_than_every_transcript(tmp_path: Path) -> None:
+    """A binding whose `at` cannot be read (0) proves no age: the registry's id overrides it only when its transcript
+    is newer than the binding session's own transcript, and with neither dated the binding stands."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "not a time")])
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW1)))
+    _aged(home, repo, DEV1, 60)
+    _aged(home, repo, NEW1, 30)  # both transcripts dated; the binding's own is the newer
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"], out.stderr
+    _aged(home, repo, NEW1, 3600)  # ...and once the registry's is the newer, it stands
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], out.stderr
+    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+    (proj / f"{NEW1}.jsonl").unlink()
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} no-transcript"], out.stderr
+
+
+def test_a_session_the_store_gives_the_coordinator_is_never_a_builders(tmp_path: Path) -> None:
+    """A registry row naming a builder whose session the store says the coordinator now owns refuses the launch, the
+    same as a registry row naming the coordinator: one session, two processes."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    store = _store(
+        tmp_path, [_bind(DEV1, "dev1", scope, 100), _bind(DEV1, "coordinator", scope, NOW)]
+    )
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2, out.stdout
+    assert f"session {DEV1} would serve coordinator and dev1" in out.stderr, out.stderr
