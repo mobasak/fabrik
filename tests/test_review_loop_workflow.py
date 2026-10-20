@@ -2667,6 +2667,8 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
 # of the tree they copied. `cp -rL` was proposed and REJECTED on measurement: a followed link is a frozen base copy
 # that the pin overlay never reaches, so a seat running the link path runs the base bytes.
 _LINK_RULE = (
+    # review pass 1 (S-H1): the two finders read the rule's reach over a base-pin seat differently — scope it
+    "Without the lead's base copy (a seat with one skipped these archive steps), a tracked symlink needs",
     "run `git ls-tree -r 0` as its own second command, redirected into a file under SCRATCH",
     "add to ROOTS the top-level path each link under a listed root points into, repeating for every root that adds",
     "delete from SCRATCH/arch every link whose target is absolute or climbs out of the repo",
@@ -2690,6 +2692,8 @@ def test_base_pin_copy_is_whole_and_keeps_links() -> None:
         assert "Copy the WHOLE directory with plain `cp -r`, never a part of it and never with `-L`" in p, label
         assert "a followed link is a frozen base copy the pin overlay no longer reaches" in p, label
         assert "a tracked path missing from it is a member the lead's `pin --base` SKIPPED" in p, label
+        # review pass 1 (S-s1): the seat never receives `base_skipped`, so the prompt names a check it can run
+        assert "`git ls-tree 0 -- <that path>`, its own command, shows it as mode 120000" in p, label
         assert "cp -rL" not in p and "cp -L " not in p, label
 
 
