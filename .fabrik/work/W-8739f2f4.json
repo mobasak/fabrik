@@ -17,10 +17,10 @@
     "521a54d5cd0a7bfeaf53db097e699d976693b631a781d3b4e4ae90b5da49eb2d"
   ],
   "next": "",
-  "note": "",
+  "note": "i have removed it before, i will not do it now.",
   "owner": "",
   "priority": 2,
   "question": "May you remove the leftover FastVPN network driver `tapwlvpn` from Windows (FastVPN itself was uninstalled on 12 October), reboot, and re-run the renamed-curl test?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May you remove the leftover FastVPN network driver `tapwlvpn` from Windows (FastVPN itself was uninstalled on 12 October), reboot, and re-run the renamed-curl test?"
 }

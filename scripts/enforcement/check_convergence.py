@@ -214,7 +214,6 @@ def _mask_spans(s: str) -> str:
     return "".join(out)
 
 
-_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
@@ -224,7 +223,7 @@ def _blank_quoted(text: str) -> str:
     stripped, then code spans masked, then HTML comments blanked — a parked (commented) Board row,
     ledger row or ticket `Status:` line is a quote, never live (W-98338ad4: the orphan-row loop and
     the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan)."""
-    return _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+    return _fences.strip_html_comments(_mask_spans(FENCE_STRIP.sub("", text)))
 
 
 def _closing_row_fail(text: str) -> str | None:
@@ -407,24 +406,19 @@ GATE_OUT_OF_SURFACE = re.compile(
 # PAIRS — the emitting commands write balanced 3-backtick fences and quote
 # templates with 4-backtick outers, both in-contract; no live fleet file
 # violates this (verified 2026-08-05).
-# Strip-purpose fence regex — newline NOT required (a single-line ```Status: X```
-# is still a quote). FENCE_BLOCK below stays as-is for _nontrivial_fences COUNTING.
-FENCE_STRIP = re.compile(
-    # Line-anchored blocks + inline single-line fences (never bare ```.*?``` —
-    # an unpaired backtick in prose swallows real body; see check_plan_tickets).
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
-# Fenced code blocks — capture inner content so we can demand non-trivial output
-# (an empty ``` ``` pair must not satisfy the "show the command output" rule).
-FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)```", re.S)
-# Fence-CONTENT extraction under the same contract as FENCE_STRIP: balanced
-# line-anchored blocks (equal-length backreferenced closer) + inline
-# single-line quotes. Group 2 = block body, group 3 = inline body.
-_FENCED_CONTENTS = re.compile(
-    r"^[ \t]*(`{3,})[^\n]*\n(.*?)^[ \t]*\1[ \t]*$|```([^`\n]+)```",
-    re.M | re.S,
-)
+# Strip-purpose fences — newline NOT required (a single-line ```Status: X```
+# is still a quote); line-anchored blocks + inline single-line fences (never a
+# bare ```.*?``` — an unpaired backtick in prose swallows real body). The match
+# set, the fence-CONTENT extraction under the same contract (`fence_spans`), the
+# info-string read (`fence_blocks`), the naive COUNTING pair (`fence_block_bodies`
+# — an empty ``` ``` pair must not satisfy the "show the command output" rule)
+# and the HTML-comment blank are `_fences.py`'s, one linear scanner shared by
+# every check (W-276255e7: each regex it replaced was quadratic).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+FENCE_STRIP = _fences.FENCE_STRIP
 # Spine+ticket plan-set shape (canonical grammar — single definitions live in the
 # 2026-08-04 spine-ticket plan; keep these byte-identical with check_plan_tickets).
 PLAN_DIR_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
@@ -491,7 +485,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
 
 def _nontrivial_fences(text: str) -> int:
     """Count fenced blocks whose inner content carries real output (>=20 non-ws chars)."""
-    return sum(1 for inner in FENCE_BLOCK.findall(text) if len(inner.strip()) >= 20)
+    return sum(1 for inner in _fences.fence_block_bodies(text) if len(inner.strip()) >= 20)
 
 
 # A probe is a fence whose command line starts `$ `; probe duty says re-run it and diff the
@@ -520,21 +514,20 @@ ELIDED_PROBE = re.compile(r"^[ \t]*\$[ \t]+\.\.\.", re.M)
 # demanding the info string BE "excerpt" would have traded a language tag for a marker. ```python
 # excerpt keeps both.
 BARE_ELLIPSIS = re.compile(r"^[ \t]*\.\.\.[ \t]*$", re.M)
-_INFO_FENCE = re.compile(r"^[ \t]*(`{3,})([^\n]*)\n(.*?)^[ \t]*\1[ \t]*$", re.M | re.S)
 
 
 def _unmarked_excerpts(text: str) -> int:
     """Count trimmed fences (a bare `...` line) whose info string is not ``excerpt``."""
     return sum(
         1
-        for _, info, body in _INFO_FENCE.findall(text)
-        if BARE_ELLIPSIS.search(body) and "excerpt" not in info.split()
+        for b in _fences.fence_blocks(text)
+        if BARE_ELLIPSIS.search(b.body) and "excerpt" not in b.info.split()
     )
 
 
 def _elided_probes(text: str) -> int:
     """Count `$ ...` command lines inside fenced blocks — probe-shaped, unrunnable."""
-    return sum(len(ELIDED_PROBE.findall(inner)) for inner in FENCE_BLOCK.findall(text))
+    return sum(len(ELIDED_PROBE.findall(inner)) for inner in _fences.fence_block_bodies(text))
 
 
 _NOTES: list[str] = []  # NOTE lines deferred until main() has printed the ⚠-first advisory
@@ -1379,10 +1372,10 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # convention): a literal "status": "success" in prose satisfied this check
     # live while the surrounding sentence explained why faking it would be wrong.
     # Extraction uses the SAME fence contract as FENCE_STRIP (backreferenced
-    # closer + inline single-line quotes) — the naive FENCE_BLOCK mispairs when
+    # closer + inline single-line quotes) — the naive fence_block_bodies mispairs when
     # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
     # genuine success JSON (fail-closed false-failure, review finding).
-    fenced = "\n".join(m.group(2) or m.group(3) or "" for m in _FENCED_CONTENTS.finditer(text))
+    fenced = "\n".join((b.body if b else inl) or "" for _, _, inl, b in _fences.fence_spans(text))
     # The out-of-surface declaration is read on FENCE-STRIPPED text — the same convention
     # `_claims_reviewed` uses, and for the same reason: a fenced copy of the grammar is a
     # QUOTATION (a template, a review documenting this very mechanism), not a declaration. The

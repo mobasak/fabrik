@@ -164,7 +164,7 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     )
     close = _section("## Phase 5", "## UPGRADE")
     assert (
-        "run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`"
+        "run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft"
         in close
     )
     assert (
@@ -192,9 +192,10 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
         text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")
     ]
     assert (
-        "A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last"
-        " `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that"
-        " commit instead (`--restamp`, phase 5); a scoped one needs none."
+        "A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt"
+        " made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and"
+        " committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a"
+        " scoped one needs none."
     ) in review
     # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
     # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
@@ -323,9 +324,9 @@ def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole
     assert (
         "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form"
         " each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in"
-        " `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a sync-path"
-        " run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the"
-        " `--restamp` form below): after the last sha in"
+        " `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (a"
+        " sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead —"
+        " the `--restamp` form below):"
     ) in _section("## Phase 5", "## UPGRADE")
     assert (
         "every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a"

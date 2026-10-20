@@ -98,6 +98,10 @@ def _repo(tmp_path):
     (tmp_path / "scripts" / "enforcement" / "check_test_proposal.py").write_text(
         CHECK_FILE.read_text()
     )
+    # the synced sibling the check imports (W-276255e7) — a project's scripts/enforcement/ always carries it
+    (tmp_path / "scripts" / "enforcement" / "_fences.py").write_text(
+        (CHECK_FILE.parent / "_fences.py").read_text()
+    )
     (tmp_path / "docs" / "development" / "plans").mkdir(parents=True)
     return tmp_path, g
 

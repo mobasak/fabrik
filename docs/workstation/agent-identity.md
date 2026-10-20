@@ -49,7 +49,9 @@ it, so the session's pid is found by walking `/proc` ancestry, never by matching
 
 Store: `$AGENT_IDENTITY_FILE`, else `~/.claude/state/agent-identity.jsonl`. `$HOME`-keyed, not
 `$CLAUDE_CONFIG_DIR`-keyed, so a session pinned to another account slug shares it. Append-only, last
-row wins per session, rows trimmed at 30 days by the writer — nothing else prunes that directory.
+row wins per session, rows trimmed at 30 days by the writer — nothing else prunes that directory — except each
+(repo, name)'s newest binding, kept whatever its age, because a repo with no registry gets its launcher's builders
+from these bindings and a quiet repo binds nothing for weeks (W-89474fc1; one row per name a repo ever bound).
 
 ## What it refuses, and why
 

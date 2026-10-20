@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
+
+- `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
+
 ### Changed — /fabrik-plan-review: a changed predicate runs against its pinning tests, and five other queued verdicts answered (2026-10-20)
 
 - `commands/_sources/fabrik-plan-review.md` runs a predicate, matcher or filter the plan changes on a scratch copy against the tests that assert its current behaviour and every input shape its grammar admits, before the first pin. `commands/_sources/fabrik-plan-after-chat.md`'s reader census counts the copies that run, classed by lineage and delivery channel, not the paths its grep returned. `commands/_fragments/design-critique.md` has a concern give the exact text when its change is a wording. `commands/_fragments/term-edit.md` and `term-coverage.md` round zero have a behavioural claim a fix writes cite the line that implements it. Graders in `tests/test_plan_review_queue_pass.py`.
@@ -20,6 +24,21 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-task.md` phase 1 replays the fix a work item proposes on a copy before the design adopts it, reads an unreachable tool's server source, where one exists, before recording a claim unverified (the read never upgrades it), searches the prior record by the item's id (plans and specs included) and runs a surfaced outcome twice to the line the operator reads. Phase 2 tables a marker-block or append-only file's malformed shapes, has the lead fetch provider-docs facts into the brief, and runs `--design-amend` only while the `fabrik-task` record is the top one. SIZE_CAP 25020 -> 25756 (D-1068, after an Opus + Fable panel cut the draft from +1139 B). Graders in `tests/test_fabrik_task_queue_pass.py`.
 
+### Changed — every agent repo gets its desktop launcher, and every launched pane runs capped (2026-10-20)
+
+- `scripts/sysadmin/agents_up.sh`: a repo with no `.fabrik/session-agents.json` now takes its builders from the names
+  bound in its git scope (`whoami_agent.py --as`), so the 7 agent repos that never wrote a registry get a grid. The
+  repo's merge owner (`decisions.py --merge-owner`) gets no pane. A builder with no linked worktree gets no pane and is
+  never started in the main checkout. Every pane runs whole in `systemd-run --user --scope` in `fabrik-agents.slice`
+  with MemoryMax 3G, MemorySwapMax=0 and TasksMax 1024; the slice's ceiling is 16G. With no user manager the panes run
+  uncapped and say so (D-1075, W-89474fc1, W-56b3f90d).
+- `scripts/sysadmin/agents_bat.py` writes a .bat for every repo `agents_up.sh --print` accepts and reports a stale one.
+- `scripts/whoami_agent.py`'s 30-day trim keeps each repo's newest binding per name, so a quiet repo keeps its builders.
+
+### Changed — a review whose fixes are committed during it makes its receipt once, at the close (2026-10-20)
+
+- A full `/fabrik-review` over committed work used to create its receipt before Pass 1 and, because every fix commit moves the range tip, re-make it after the last fix under a new `--scope`, rows carried and the old receipt deleted. That form now keeps a generated draft in the run's `SCRATCH:` folder during the passes and writes the receipt once, after the last fix commit (`term-coverage.md` obligation 3, `fabrik-review.md` § Reporting, `fabrik-task.md` phase 4 and 5). Working-tree, mixed and whole-plan reviews keep the receipt-before-Pass-1 rule, and `task_lane.py` check (d) is unchanged (W-60629ce4, D-1070).
+
 ### Fixed — `--merge-shared` checks an unlistable fleet root before a leftover swap link (2026-10-20)
 
 - `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could be searched but not listed (with its lock file present) still took the lock, finished the swap and reported nothing to merge while accounts held real lists. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says the staging name is cleared of anything but a directory, which is left in place (W-973887d5).
@@ -27,6 +46,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 
 - On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
+
+### Fixed — one bad markdown file can no longer stall the gate's fence parsing (2026-10-20)
+W-276255e7; D-1077. The regex that strips code fences before the plan and convergence checks read a file — copied into `docs_updater` and four checks — backtracked badly: 400 lines of different-length backtick runs took 15.7 s, one 200 KB run of backticks 10.2 s, and two more regexes in `check_convergence` had the same flaw. A new shared module, `scripts/enforcement/_fences.py`, replaces all of them with a linear scanner that finds exactly the same fences (equal on 500 000 random documents and all 14 675 markdown files in the fleet), so the worst inputs now take milliseconds. Every check imports the one module; `docs_updater` loads it only when it parses and writes no bytecode, so `--dry-run` still writes nothing.
 
 ### Fixed — review seats keep a pinned tree's links whole, and the overlay never writes through a link (2026-10-20)
 W-78e51f33; D-1073. Kaizen asked (mail 01M5BMDT08) that review seats copy a pinned tree with `cp -rL`, because seats kept losing time to a tracked symlink that dangled in their copy. Measured on a real `pin --base` tree, `cp -rL` freezes a link at the old bytes, so a seat would test the base code through it without noticing; it was rejected. The dangle came from copying or archiving only PART of the tree. The seat prompts in `.claude/workflows/fabrik-review-loop.js` now say to copy the whole base with plain `cp -r` and how to check a path the lead's pin skipped; a seat without the base copy adds each link's target folder to its archive and deletes, and flags, any link that points outside the repo. The overlay step no longer writes a change into a link's target when the change turned that link into a file, and `pin --base` names a skipped member as "an absolute or escaping link, or a device".

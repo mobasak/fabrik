@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:23:41.435704Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-732b33b3",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: after W-89474fc1 and W-9976a3e4",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "advisory: a false row in the status view, nothing misroutes",
+  "status": "open",
+  "title": "claude_rotate.py --status lists ~/.claude-fleet/backups/ (the folder holding .bat and settings backups, the D-1034 backup convention) as an account 'pending-login, identity unverified': every directory under ~/.claude-fleet counts as an account; skip non-account folders instead of moving the backups"
+}

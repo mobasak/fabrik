@@ -757,3 +757,53 @@ def test_a_boolean_pid_is_never_a_process(store, monkeypatch):
     code, msg = m.bind("agent-2")
     assert code == 0, msg
     assert "predecessor" not in m._rows(store)[-1]
+
+
+def test_trim_keeps_each_names_newest_binding(store):
+    # W-89474fc1: a repo with no registry gets its launcher's builders from these bindings, and a quiet repo binds
+    # nothing for 30 days — so each (repo, name)'s NEWEST row survives the trim, while its older rows, a row of no
+    # repo, and the row this bind supersedes still go.
+    m = _mod()
+    rows = [
+        {"session_id": "sid-b1-old", "name": "b1", "toplevel": "/opt/shop/.git", "at": 1},
+        {"session_id": "sid-b1-new", "name": "b1", "toplevel": "/opt/shop/.git", "at": 2},
+        {"session_id": "sid-b2", "name": "b2", "toplevel": "/opt/shop/.git", "at": 3},
+        {"session_id": "sid-norepo", "name": "b3", "toplevel": "", "at": 4},
+        {"session_id": "sid-other", "name": "b1", "toplevel": "/opt/else/.git", "at": 5},
+    ]
+    store.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert m.bind("agent-2")[0] == 0
+    ids = {
+        json.loads(line)["session_id"] for line in store.read_text().splitlines() if line.strip()
+    }
+    assert {"sid-b1-new", "sid-b2", "sid-other"} <= ids, ids
+    assert "sid-b1-old" not in ids and "sid-norepo" not in ids, ids
+
+
+def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(store, monkeypatch):
+    # Review round 1: (a) a session force-renamed alice -> bob keeps its OLD alice row only while that row is still
+    # the session's last, so the trim cannot hand the session back to alice; (b) the pair this bind supersedes goes;
+    # (c) a hand-edited row with a list for a name, or an `at` of Infinity, never aborts the bind. The bind's own
+    # scope is pinned, so (b) is exercised from any cwd — outside a repo `_toplevel()` is "" and (b) would pass vacuously.
+    m = _mod()
+    top = "/opt/mine/.git"
+    monkeypatch.setattr(m, "_toplevel", lambda: top)
+    rows = [
+        {"session_id": "s1", "name": "alice", "toplevel": "/opt/shop/.git", "at": 1},
+        {"session_id": "s1", "name": "bob", "toplevel": "/opt/shop/.git", "at": 2, "force": True},
+        {"session_id": "s2", "name": "bob", "toplevel": "/opt/shop/.git", "at": 3},
+        {"session_id": "s-mine-old", "name": "agent-2", "toplevel": top, "at": 4},
+        {"session_id": "s-list", "name": ["x"], "toplevel": "/opt/shop/.git", "at": 5},
+    ]
+    store.write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+        + '{"session_id": "s-inf", "name": "z", "at": Infinity}\n',
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    kept = [json.loads(line) for line in store.read_text().splitlines() if line.strip()]
+    owner = {r["session_id"]: r["name"] for r in kept}
+    assert owner.get("s1") != "alice", kept  # never resurrected: s1's last row named bob
+    assert "s2" in owner, kept  # bob's newest binding survives
+    assert "s-mine-old" not in owner, kept  # superseded by this bind's own row

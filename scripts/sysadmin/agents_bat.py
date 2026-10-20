@@ -2,10 +2,13 @@
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_bat.py
 """agents_bat.py [--opt DIR] [--desktop DIR] [--distro NAME] [--replace FILE]... — one "<Repo> Agents.bat" per repo.
 
-For every repo directly under --opt (default /opt) that registers its agents in .fabrik/session-agents.json, it makes
-the desktop launcher the operator double-clicks to open that repo's agents_up.sh tmux grid (W-bb6c9d9a, D-1042). By
-default it only prints each target and its text; it writes only under an explicit --desktop, the operator-named
-location, because the desktop is outside every repo.
+For every repo directly under --opt (default /opt) whose grid `agents_up.sh --print <repo>` accepts — it exits 0 and
+lists at least one pane — it makes the desktop launcher the operator double-clicks to open that repo's agents_up.sh
+tmux grid (W-bb6c9d9a, D-1042). agents_up is the ONE authority on which builders a repo has (a registry, else its
+whoami bindings, each in its own worktree; W-89474fc1), so this script never restates that rule; only a repo with a
+registry or a .claude/worktrees folder is asked, since a grid needs a worktree. A generated .bat whose repo no longer
+qualifies is reported on stderr, never deleted. By default it only prints each target and its text; it writes only
+under an explicit --desktop, the operator-named location, because the desktop is outside every repo.
 
 Each .bat is self-contained — no hand-made Windows Terminal profile. wt.exe has no font-size option, so the .bat
 writes a WT JSON fragment (%LOCALAPPDATA%\\Microsoft\\Windows Terminal\\Fragments\\Fabrik\\<repo>.json) defining a
@@ -33,6 +36,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -88,7 +92,7 @@ def bat_text(repo: str, distro: str) -> str:
     lines = [
         "@echo off",
         MARKER,
-        f"rem from /opt/{repo}/.fabrik/session-agents.json - re-run it, never hand-edit this file.",
+        f"rem agents_up.sh takes the builders from /opt/{repo}'s registry or its whoami bindings - re-run it, never hand-edit this file.",
         f"rem {title} - the builders side by side in one tmux grid in WSL, each resuming its own session in its",
         "rem own worktree. The coordinator runs in VS Code. The font comes from a Windows Terminal fragment this file",
         "rem writes; it applies once every Windows Terminal window has been closed after the first run.",
@@ -128,14 +132,24 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if not Path(args.opt).is_dir():
+        print(f"agents_bat: --opt {args.opt} is not a folder; nothing written", file=sys.stderr)
+        return 2
     desk = Path(args.desktop) if args.desktop else None
     if desk is not None and not desk.is_dir():
         print(f"agents_bat: --desktop {desk} is not a folder; nothing written", file=sys.stderr)
         return 2
 
-    repos = sorted(
-        p.parent.parent.name for p in Path(args.opt).glob("*/.fabrik/session-agents.json")
-    )
+    repos = [
+        p.name
+        for p in sorted(Path(args.opt).iterdir())
+        if p.is_dir()
+        and (
+            (p / ".fabrik" / "session-agents.json").exists()
+            or (p / ".claude" / "worktrees").is_dir()
+        )
+        and _has_grid(p)
+    ]
     by_case: dict[str, list[str]] = {}
     for repo in repos:
         by_case.setdefault(bat_name(repo).lower(), []).append(repo)
@@ -173,7 +187,41 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         rc = 2
+    if desk is not None:
+        wanted = {bat_name(r).lower() for r in repos}
+        for old in sorted(desk.glob("* Agents.bat")):
+            if old.name.lower() in wanted:
+                continue
+            try:
+                lines = old.read_bytes().split(b"\r\n")
+            except OSError:
+                continue
+            if len(lines) > 1 and lines[1] == MARKER.encode("ascii"):
+                print(
+                    f"agents_bat: {old} was generated for a repo whose grid agents_up no longer accepts; "
+                    "left in place (delete it by hand if that repo is gone)",
+                    file=sys.stderr,
+                )
     return rc
+
+
+def _has_grid(repo: Path) -> bool:
+    """agents_up.sh decides: `--print` exits 0 and names at least one pane. It launches nothing."""
+    try:
+        out = subprocess.run(
+            ["bash", os.environ.get("AGENTS_UP_BIN", AGENTS_UP), "--print", str(repo)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        # never read as "no grid" in silence: the stale-.bat report below would then blame the repo
+        print(
+            f"agents_bat: could not ask agents_up.sh about {repo} ({exc}); no .bat for it this run",
+            file=sys.stderr,
+        )
+        return False
+    return out.returncode == 0 and any(ln.startswith("pane ") for ln in out.stdout.splitlines())
 
 
 def _write(target: Path, text: str, replace: bool) -> int:
