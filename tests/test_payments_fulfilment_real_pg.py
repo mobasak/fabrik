@@ -348,7 +348,8 @@ def test_a_foreign_superuser_role_of_the_same_name_is_refused_not_altered() -> N
         s.run_sql(
             f'CREATE ROLE "{FULFIL}" WITH LOGIN CREATEDB;\nCREATE DATABASE other OWNER "{FULFIL}";'
         )
-        with pytest.raises(RuntimeError, match="owns a database"):
+        # the shared foreign-role guard (W-f599a88c) refuses it before the mint's DO block
+        with pytest.raises(RuntimeError, match="not this registrar.s.*owns database other"):
             _mint(s, "fulfilment")
         assert _can(s, f"(SELECT rolcreatedb FROM pg_roles WHERE rolname = '{FULFIL}')")
         s.run_sql("ALTER DATABASE other OWNER TO postgres;")
