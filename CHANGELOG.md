@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 
 - The scaffold's preplan layering writes `docs/preplan.md` into any project scaffolded with a preplan, outside the template map, so no doc-registry row named it and `check_structure.py` warned that it "should be in a docs/ subdirectory". `scripts/enforcement/_doc_registry.py` now lists it in a new `SCAFFOLD_WRITTEN` set that `docs_allowlist()` includes for every project type; it is never seeded or stub-required. The registry-down fallback carries it too, and the scaffold comment and the Docusaurus unpublished-docs test follow (W-c6d19bda, fleet mail 01M5AQ5FY4).
 
+### Fixed — node pack: PayTR is the Turkish one-off lane, not WooCommerce-only (2026-10-20)
+
+- `.windsurf/rules/core/12-node.md` § Turkish constraints said PayTR applied only to WooCommerce / physical D2C, not to Node SaaS backends, contradicting `core/85-payments-billing.md` § Payment Providers. The bullet and the closing checklist now carry core/85's three lanes: Paddle for every currency but TRY, PayTR for TRY one-off charges, iyzico for TRY subscriptions only where `docs/DECISIONS.md` records the NON3D decision; no provider falls back to another (W-2fd7cfd1). Grader in `tests/test_payments_fulfilment_rule_packs.py`.
+
 ### Fixed — plan-ticket discovery reads a malformed lock's owned_paths safely (2026-10-20)
 
 - `check_plan_tickets.py` read a plan lock's `owned_paths` with no shape check, so a bare string iterated its characters and one-letter "paths" covered any changed file under a directory of that letter, pulling an unrelated plan into the gate. A string is now read as that one path, a non-list skips the lock, a non-string entry is dropped, and a lock that is not a JSON object is skipped; each case prints a NOTE (W-7caa8a90).
