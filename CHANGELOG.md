@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet sync refuses a symlinked hub file instead of shipping what the link points at today (2026-10-20)
+W-d537275a; D-1069. The sync read a symlinked hub file through the link as the working tree pointed it. An uncommitted retarget shipped the new target. A link leading outside the hub shipped that outside file, with nothing named. A committed link replaced by an ordinary file shipped the link text as an unreadable file. A synced source that is a symlink, sits under a symlinked folder, or is recorded as a symlink in HEAD is now refused: the run prints a warning naming it, and nothing ships. None of the 217 files the sync distributes today is a symlink, so nothing changes for them. To sync such a file, commit a regular file in its place.
+
 ### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
 
 - c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. The cite-bearing sentences of both contracts (`CLAUDE.md`, `templates/governance/CLAUDE.md`), which the test pins identical, now cite `:3338-3355` and `:3357-3363` (found by intel).
