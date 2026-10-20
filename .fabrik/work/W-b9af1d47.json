@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "blank inline spans before link_targets only (never the _BARE_RE scan), measured with a fleet diff; ~~~ stays with W-2725ed54",
+  "next": "MEASURED 2026-10-20: 44 /opt repos with docs/, check_doc_links findings 321 today vs 321 with inline spans blanked for the link reader (0 change; 29 span-held link targets in 21 of 7064 docs files, all in skipped sources or resolving). Wire it only after W-16c00597 makes _blank_code_spans linear inside scripts/enforcement/_fences.py — the blanker is quadratic today and would put that class back into a gate check",
   "note": "",
   "owner": "intel",
   "priority": 3,
