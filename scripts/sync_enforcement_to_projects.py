@@ -1755,6 +1755,9 @@ _head_drift: set[str] = set()  # synced paths whose working tree differs from HE
 # an untracked file does. Display-only beside `_head_drift`'s bare names; reset in `main()` with it.
 _head_drift_why: dict[str, str] = {}
 _head_unread: dict[str, str] = {}
+# rel -> the time of HEAD's last commit touching it, for sources gone from the working tree
+# (`_head_file_time`); cleared in `main()` with the records above.
+_head_time_cache: dict[str, float] = {}
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
@@ -1853,12 +1856,18 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         try:
             st = source.stat()
             key: tuple[str, str, int, int] | None = (rel, sha, st.st_mtime_ns, st.st_size)
+        except FileNotFoundError:
+            # Deleted in the working tree: still keyed on HEAD's blob, so the three consults per
+            # file per project are one blob read, not three (W-bb97199e).
+            key = (rel, sha, -1, -1)
         except OSError:
             key = None  # unstattable: answer it the slow way rather than caching a guess
         if key is not None and key in _head_cache:
             data, mode, drifted = _head_cache[key]
             if drifted:
                 _head_drift.add(rel)  # rebuilt per run; a cache hit still records
+            if key[2] == -1:
+                _head_drift_why[rel] = "deleted in the working tree"  # the reason survives a hit
             return data, mode
         # The blob `ls-tree` LISTED, by its SHA — never `git show HEAD:<rel>`, which re-resolves
         # HEAD: a sibling's commit between the two calls paired the new bytes with the old mode and
@@ -1880,13 +1889,16 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         drifted = source.read_bytes() != data
     except OSError as exc:
         # The working copy cannot be read, so what ships (HEAD) is not what is on disk: drift, with
-        # its reason. NOT cached, so a cache hit can never drop the reason or serve it stale.
+        # its reason. Only a deletion is cached (under its -1 key, whose hit restores the reason);
+        # an unreadable copy is not, so a hit can never drop its reason or serve it stale.
         _head_drift.add(rel)
         _head_drift_why[rel] = (
             "deleted in the working tree"
             if isinstance(exc, FileNotFoundError)
             else f"working copy unreadable ({type(exc).__name__})"
         )
+        if isinstance(exc, FileNotFoundError) and key is not None and key[2] == -1:
+            _head_cache[key] = (data, mode, True)
         return data, mode
     if drifted:
         _head_drift.add(rel)
@@ -1928,6 +1940,96 @@ def _first_line(stderr: bytes) -> str:
     """git's first stderr line, for a reason; never raises on a non-UTF-8 path in it."""
     lines = stderr.decode("utf-8", errors="replace").strip().splitlines()
     return lines[0] if lines else "(no message)"
+
+
+def _hub_present(source: Path) -> bool:
+    """A listed hub source the sync ships: on disk, or a blob HEAD still holds (W-bb97199e).
+
+    T12.17 read a tracked file's BYTES from HEAD, but every caller decided whether the file EXISTS
+    from the working tree, so a sibling's uncommitted deletion shipped nothing and the project kept
+    a stale copy, silently. `_head_source` already returns HEAD's bytes for a deleted copy and names
+    it "deleted in the working tree"; this lets the caller reach it. A COMMITTED deletion (absent
+    from HEAD too) is still absent. Only a REGULAR file counts: a symlink HEAD records (mode
+    120000) would ship its link text as a mode-0 file, so a deleted one is skipped as before and
+    named (symlinked sources are W-d537275a).
+    """
+    if source.exists():
+        return True
+    head = _head_source(source)
+    if head is None:
+        return False
+    if not stat.S_ISREG(head[1]):
+        rel = source.relative_to(FABRIK_ROOT).as_posix()
+        _head_unread[rel] = f"deleted in the working tree; HEAD holds mode {head[1]:o}, not a file"
+        return False
+    return True
+
+
+def _head_file_time(source: Path) -> float:
+    """The time of the last commit in HEAD that touched `source` — the mtime a source deleted from
+    the working tree stands in with (W-bb97199e): the "destination newer" guard compares it, and a
+    copy shipped from HEAD carries it, as `copy2` carried the hub file's mtime. HEAD's LATEST commit
+    time was the first cut; review pass 1 executed it clobbering a project edit made after the
+    file's own last commit but before an unrelated later one. 0 when git cannot say, so the guard
+    WARNs rather than overwrite a copy it cannot date. Memoised per run (cleared in `main()`)."""
+    try:
+        rel = source.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        return 0.0
+    if rel not in _head_time_cache:
+        try:
+            out = subprocess.run(
+                ["git", "--literal-pathspecs", "log", "-1", "--format=%ct", "HEAD", "--", rel],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                check=False,
+            )
+            text = out.stdout.strip()
+            _head_time_cache[rel] = float(text) if out.returncode == 0 and text else 0.0
+        except (OSError, ValueError):
+            _head_time_cache[rel] = 0.0
+    return _head_time_cache[rel]
+
+
+def _hub_files(src_dir: Path) -> list[Path]:
+    """Every file under a hub directory the sync walks: the working tree's, plus each blob HEAD
+    lists there that the working tree lost (W-bb97199e).
+
+    The walk is also the orphan prunes' live set, so a working-tree-only walk turned a sibling's
+    uncommitted deletion into a DELETE in every project. Symlinks HEAD records (mode 120000) are
+    left to the working-tree walk, as before (W-d537275a). A dir outside the hub, an unborn HEAD or
+    a git that cannot answer adds nothing; the last is named in `_head_unread`.
+    """
+    found = {p for p in src_dir.rglob("*") if p.is_file()} if src_dir.is_dir() else set()
+    try:
+        rel = src_dir.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except ValueError:
+        return sorted(found)
+    try:
+        ls = subprocess.run(
+            ["git", "--literal-pathspecs", "ls-tree", "-r", "-z", "HEAD", "--", rel],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        _head_unread[f"{rel}/"] = f"git not runnable (ls-tree -r): {exc}"
+        return sorted(found)
+    if ls.returncode != 0:
+        if not _hub_is_unborn():
+            _head_unread[f"{rel}/"] = (
+                f"git ls-tree -r exited {ls.returncode}: {_first_line(ls.stderr)}"
+            )
+        return sorted(found)
+    for entry in ls.stdout.split(b"\0"):
+        meta, _, path = entry.partition(b"\t")
+        fields = meta.split()
+        if len(fields) != 3 or fields[1] != b"blob" or fields[0] == b"120000":
+            continue
+        path_rel = Path(os.fsdecode(path)).relative_to(rel)
+        if path_rel != Path("."):  # a blob AT `rel` (a dir in the tree, a file in HEAD)
+            found.add(src_dir / path_rel)
+    return sorted(found)
 
 
 # Every name imported from the manifest at the top of this module, rebound from HEAD by `main()`.
@@ -2032,6 +2134,20 @@ def _shipped_hash(source: Path) -> str:
     return hashlib.md5(head[0], usedforsecurity=False).hexdigest()
 
 
+def _carry_mtime(source: Path, tmp: Path) -> None:
+    """Give the written copy the source's mtime; for a source gone from the working tree, its last
+    commit's time (W-bb97199e) — "now" would read as a newer project edit to the next sync."""
+    try:
+        st = source.stat()
+        os.utime(tmp, (st.st_atime, st.st_mtime))
+    except FileNotFoundError:
+        when = _head_file_time(source)
+        if when:
+            os.utime(tmp, (when, when))
+    except OSError:
+        pass  # an unreadable source mtime is not worth failing a correct write over
+
+
 def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None = None) -> None:
     """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract.
 
@@ -2051,11 +2167,7 @@ def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None
         tmp.write_bytes(data)
         os.chmod(tmp, stat.S_IMODE(mode))
         if source is not None:
-            try:
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass  # an unreadable source mtime is not worth failing a correct write over
+            _carry_mtime(source, tmp)
         os.replace(tmp, destination)
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -2081,13 +2193,11 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             # T12.17: a tracked synced file ships its COMMITTED bytes, never the working tree.
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
-            try:  # carry the mtime `copy2` used to — see `_atomic_write`'s docstring
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass
-        else:
+            _carry_mtime(source, tmp)  # the mtime `copy2` used to — see `_atomic_write`
+        elif not _gone(source):
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
+        else:  # gone, and HEAD unreadable on this consult: the caller WARNs (W-bb97199e)
+            raise _GoneSourceError(source)
         os.replace(tmp, destination)  # atomic on the same filesystem
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -2129,6 +2239,24 @@ def prune_retired_governance(project_dir: Path, dry_run: bool = False) -> list[S
     return results
 
 
+_GONE_UNREADABLE = "source missing and no readable HEAD copy"
+
+
+def _gone(source: Path) -> bool:
+    """The source is ABSENT — and only that: a stat that cannot answer (a locked subdir) reads as
+    present, so the copy runs as it did before these checks existed (W-bb97199e review: an
+    `exists()` raising here skipped a worktree refresh the old code made)."""
+    try:
+        return not source.exists()
+    except OSError:
+        return False
+
+
+class _GoneSourceError(FileNotFoundError):
+    """`_atomic_copy` found its source gone and no readable HEAD copy — a WARN, never an
+    aborted project (`copy2` of the missing path raised FileNotFoundError; W-bb97199e review)."""
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -2164,21 +2292,32 @@ def sync_single_file(
     # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
     # under `--force` and for a brand-new file, the two branches that used to return before the
     # consult and so reported no drift at all (found in the Phase E review).
-    _head_source(source)
+    if _head_source(source) is None and _gone(source):
+        # Gone from the working tree and no readable HEAD copy — git cannot read the blob (named in
+        # `_head_unread`), or a sibling's commit retired it after the listing: nothing to ship. A
+        # per-file WARN — hashing the missing path raised FileNotFoundError and aborted the whole
+        # project's sync (W-bb97199e critique).
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
+
+    def copied(reason: str) -> SyncResult:
+        try:
+            _atomic_copy(source, destination)
+        except _GoneSourceError:
+            return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
+        return SyncResult("COPY", source, destination, reason)
 
     if destination.is_symlink():
         if dry_run:
             return SyncResult("COPY", source, destination, "replacing symlink with copy")
-        destination.unlink()
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "replaced symlink with copy")
+        # no unlink first: `os.replace` swaps the link entry itself (the target is untouched), and
+        # a copy that WARNs then leaves the link where it was rather than nothing (W-bb97199e)
+        return copied("replaced symlink with copy")
 
     # Destination doesn't exist - always copy
     if not destination.exists():
         if dry_run:
             return SyncResult("COPY", source, destination, "new file")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "new file")
+        return copied("new file")
 
     # --force: skip all checks, always overwrite
     if force:
@@ -2186,10 +2325,8 @@ def sync_single_file(
             return SyncResult("COPY", source, destination, "forced overwrite")
         if backup:
             backup_path = create_backup(destination)
-            _atomic_copy(source, destination)
-            return SyncResult("COPY", source, destination, f"forced (backup: {backup_path.name})")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "forced overwrite")
+            return copied(f"forced (backup: {backup_path.name})")
+        return copied("forced overwrite")
 
     # Compare the bytes that will actually be WRITTEN against the bytes on the destination.
     # ⚠️ `compute_file_hash(source)` here was the same writer-vs-reader disagreement `_shipped_hash`
@@ -2207,11 +2344,11 @@ def sync_single_file(
     if source_hash == dest_hash:
         return SyncResult("SKIP", source, destination, "identical")
 
-    # Hashes differ - check mtime
-    source_mtime = source.stat().st_mtime
-    dest_mtime = destination.stat().st_mtime
-
-    if dest_mtime > source_mtime:
+    # Hashes differ - check mtime. A source deleted from the hub's working tree reached here only
+    # because HEAD still holds it (W-bb97199e): its time is its own last commit's, so a project
+    # edit made after that commit is still protected, as it is for a present source.
+    source_mtime = _head_file_time(source) if _gone(source) else source.stat().st_mtime
+    if destination.stat().st_mtime > source_mtime:
         return SyncResult("WARN", source, destination, "destination newer")
 
     # Source is newer - proceed with copy
@@ -2234,8 +2371,10 @@ def sync_single_file(
         # T12.17: committed bytes, never the tree — with the source's mtime, or the
         # "destination newer" guard below refuses every later sync of this file.
         _atomic_write(head[0], head[1], destination, source=source)
-    else:
+    elif not _gone(source):
         shutil.copy2(source, destination)
+    else:  # HEAD unreadable on this second consult and the file gone: one WARN, never a raise
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
     return result
 
 
@@ -2271,7 +2410,7 @@ def sync_scripts_to_project(
         # Sync core scripts
         for script_name in CORE_SCRIPTS:
             source = FABRIK_ROOT / "scripts" / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2288,7 +2427,7 @@ def sync_scripts_to_project(
         run_src_dir = FABRIK_ROOT / RUN_SCRIPTS_SRC_DIR
         for script_name in RUN_SCRIPTS:
             source = run_src_dir / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2302,26 +2441,26 @@ def sync_scripts_to_project(
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
 
-        if fabrik_enforcement.exists():
+        enforcement_files = _hub_files(fabrik_enforcement)
+        if enforcement_files:
             if not dry_run:
                 project_enforcement.mkdir(parents=True, exist_ok=True)
 
-            for source in fabrik_enforcement.rglob("*"):
+            for source in enforcement_files:
                 # Never sync compiled bytecode — __pycache__/*.pyc is build noise,
                 # not enforcement logic, and was bloating every project.
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
-                    relative = source.relative_to(fabrik_enforcement)
-                    destination = project_enforcement / relative
+                relative = source.relative_to(fabrik_enforcement)
+                destination = project_enforcement / relative
 
-                    if not dry_run:
-                        destination.parent.mkdir(parents=True, exist_ok=True)
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
 
-                    result = sync_single_file(
-                        source, destination, dry_run=dry_run, backup=backup, force=force
-                    )
-                    file_results.append(result)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
 
         # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive copy that keeps each file's relative path, bytecode
         # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so
@@ -2332,24 +2471,25 @@ def sync_scripts_to_project(
         for vendored_rel in VENDORED_DIRS:
             fabrik_vendored = FABRIK_ROOT / vendored_rel
             project_vendored = project_dir / vendored_rel
-            if not fabrik_vendored.is_dir():
-                continue  # missing or clobbered-to-a-file hub source → skip (never make an empty dir)
+            vendored_files = _hub_files(fabrik_vendored)
+            if not vendored_files:
+                continue  # nothing on disk or in HEAD → skip (never make an empty dir)
             if not dry_run:
                 project_vendored.mkdir(parents=True, exist_ok=True)
             live_rel: set[Path] = set()
-            for source in fabrik_vendored.rglob("*"):
+            for source in vendored_files:
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
-                    relative = source.relative_to(fabrik_vendored)
-                    live_rel.add(relative)
-                    destination = project_vendored / relative
-                    if not dry_run:
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                    result = sync_single_file(
-                        source, destination, dry_run=dry_run, backup=backup, force=force
-                    )
-                    file_results.append(result)
+                # on disk or in HEAD — the live set the prune below keeps (W-bb97199e)
+                relative = source.relative_to(fabrik_vendored)
+                live_rel.add(relative)
+                destination = project_vendored / relative
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
             # Prune orphans: files in the project copy no longer present in the hub (skip project
             # bytecode so a stray .pyc never keeps a deleted source "alive" in the live set).
             if project_vendored.is_dir():
@@ -2372,7 +2512,7 @@ def sync_scripts_to_project(
         # Sync governance files (AGENTS.md, agents-fabrik*.md)
         for gov_file in GOVERNANCE_FILES:
             source = FABRIK_ROOT / gov_file
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / gov_file
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2386,7 +2526,7 @@ def sync_scripts_to_project(
         # contract and is never distributed; projects receive the template copy.
         for src_rel, dest_rel in GOVERNANCE_TEMPLATES:
             source = FABRIK_ROOT / src_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2400,10 +2540,13 @@ def sync_scripts_to_project(
                 )
                 file_results.append(result)
 
-        # Sync governance directories (.windsurf/rules/)
+        # Sync governance directories (.windsurf/rules/). One listing per dir serves the walk AND
+        # the orphan prune below — the same live set, at half the `ls-tree -r` calls (W-bb97199e).
+        gov_listing: dict[str, list[Path]] = {}
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
-            if source_dir.exists():
+            gov_files = gov_listing[gov_dir] = _hub_files(source_dir)
+            if gov_files:
                 dest_dir = project_dir / gov_dir
                 # Replace directory symlinks with real directories
                 if dest_dir.is_symlink():
@@ -2413,27 +2556,27 @@ def sync_scripts_to_project(
                 elif not dry_run:
                     dest_dir.mkdir(parents=True, exist_ok=True)
 
-                for source in source_dir.rglob("*"):
-                    if source.is_file():
-                        relative = source.relative_to(source_dir)
-                        destination = dest_dir / relative
+                for source in gov_files:
+                    relative = source.relative_to(source_dir)
+                    destination = dest_dir / relative
 
-                        if not dry_run:
-                            destination.parent.mkdir(parents=True, exist_ok=True)
+                    if not dry_run:
+                        destination.parent.mkdir(parents=True, exist_ok=True)
 
-                        result = sync_single_file(
-                            source, destination, dry_run=dry_run, backup=backup, force=force
-                        )
-                        file_results.append(result)
+                    result = sync_single_file(
+                        source, destination, dry_run=dry_run, backup=backup, force=force
+                    )
+                    file_results.append(result)
 
         # Delete orphan files in governance directories (files that exist in
         # project but no longer exist in fabrik source — stale from restructures)
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
             dest_dir = project_dir / gov_dir
-            if not source_dir.exists() or not dest_dir.exists():
+            # The live set is the walk's: a file HEAD still holds is never an orphan (W-bb97199e).
+            source_files = {f.relative_to(source_dir) for f in gov_listing.get(gov_dir, [])}
+            if not source_files or not dest_dir.exists():
                 continue
-            source_files = {f.relative_to(source_dir) for f in source_dir.rglob("*") if f.is_file()}
             for dest_file in list(dest_dir.rglob("*")):
                 if dest_file.is_file():
                     relative = dest_file.relative_to(dest_dir)
@@ -2452,7 +2595,7 @@ def sync_scripts_to_project(
         # Sync reference docs (REFERENCE_DOCS list)
         for source_rel, dest_rel in REFERENCE_DOCS:
             source = FABRIK_ROOT / source_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2465,7 +2608,7 @@ def sync_scripts_to_project(
         # .windsurf/hooks.json). Nested paths → mkdir parents like reference docs.
         for rel in AGENT_HOOK_FILES:
             source = FABRIK_ROOT / rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2601,10 +2744,23 @@ def sync_scripts_to_project(
         # check degrades gracefully (skips) when the lock is absent.
         if not dry_run:
             try:
+                # The manifest's pairs walk the hub's WORKING TREE, so a file this run shipped from
+                # HEAD (deleted in the working tree) is added from the run's own results — or the
+                # gate would stop guarding exactly the copy it was just given (W-bb97199e). ONLY
+                # those: every COPY/SKIP result also took the project's own `.gitignore` (review).
+                shipped = {
+                    fr.destination
+                    for fr in file_results
+                    if fr.action in ("COPY", "BACKUP", "SKIP")
+                    and fr.source.is_relative_to(FABRIK_ROOT)
+                    and not fr.source.exists()
+                    and fr.destination.is_relative_to(project_dir)
+                }
                 lock = {
                     dest.relative_to(project_dir).as_posix(): compute_file_hash(dest)
-                    for _src, dest in iter_synced_pairs(project_dir, FABRIK_ROOT)
-                    if dest.exists()
+                    for dest in {d for _s, d in iter_synced_pairs(project_dir, FABRIK_ROOT)}
+                    | shipped
+                    if dest.is_file()
                 }
                 lock_path = project_dir / ".fabrik" / "synced.lock"
                 lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2777,7 +2933,8 @@ def _file_lines(files: list[SyncResult], *, verbose: bool, dry_run: bool) -> lis
     lines: list[str] = []
     for fr in files or []:
         if fr.action == "WARN":
-            lines.append(f"  WARN (destination newer): {fr.destination.name}")
+            # "destination newer" was the only WARN until W-bb97199e added an unreadable gone source
+            lines.append(f"  WARN ({fr.reason}): {fr.destination.name}")
         elif fr.action == "SKIP":
             lines.append(f"  SKIP (identical): {fr.destination.name}")
         elif verbose or (dry_run and fr.action in ("COPY", "BACKUP", "DELETE")):
@@ -2796,6 +2953,7 @@ def main() -> int:
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     _head_drift_why.clear()  # before the manifest bind below, which records into all three
     _head_unread.clear()
+    _head_time_cache.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
@@ -2949,7 +3107,8 @@ def main() -> int:
             "nothing was written (--dry-run); a real run would write the WORKING TREE's bytes "
             "for them"
             if args.dry_run
-            else "wherever this run wrote them, it wrote the WORKING TREE's bytes"
+            else "wherever this run wrote them, it wrote the WORKING TREE's bytes (a source "
+            "gone from the working tree wrote nothing)"
         )
         print(
             f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s); {unread_verb}, "

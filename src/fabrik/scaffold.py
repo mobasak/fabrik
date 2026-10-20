@@ -351,10 +351,10 @@ _DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
 # trees, CONFIGURATION, DEPLOYMENT, SERVICES and RESILIENCE name the hub hosts (*.vps1.ocoron.com,
 # postgres-main, redis-main, 10.99.0.1), and the deploy commands write DEPLOYMENT/OPERATIONS into a
 # deployed site's docs/ (W-c2c2c35b). preplan.md is the operator's preplan, which
-# _layer_preplan_into_project copies into docs/ under a name governance does not list. Rendered
-# ROOT-ANCHORED as `'<name>'`, never `**/<name>`, so a site author's own guides/README.md (a
-# Docusaurus category index) still publishes. The two tuples together are pinned to DOCS_ALLOWLIST
-# plus preplan.md by a test, so a new governed name fails until classified.
+# _layer_preplan_into_project copies into docs/; the registry lists it in SCAFFOLD_WRITTEN
+# (W-c6d19bda). Rendered ROOT-ANCHORED as `'<name>'`, never `**/<name>`, so a site author's own
+# guides/README.md (a Docusaurus category index) still publishes. The two tuples together are pinned
+# to DOCS_ALLOWLIST by a test, so a new governed name fails until classified.
 _DOCUSAURUS_UNPUBLISHED_TOP_DOCS: tuple[str, ...] = (
     "README.md",
     "QUICKSTART.md",

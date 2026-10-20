@@ -313,6 +313,13 @@ LEGACY_TOLERATED: frozenset[str] = frozenset(
 )
 
 
+# Docs a scaffold STEP writes directly into docs/ outside the template map, so no PROJECT_DOCS row
+# (which seeds, stubs and reconciles) carries them: preplan.md is the operator's preplan, copied by
+# scaffold.py::_layer_preplan_into_project into any project scaffolded with one (W-c6d19bda). Allowed
+# for every project type; never seeded, never required, never stub-checked.
+SCAFFOLD_WRITTEN: frozenset[str] = frozenset({"preplan.md"})
+
+
 def docs_allowlist(project_type: str | None = None, needs_database: bool = False) -> frozenset[str]:
     """Basenames of docs that legitimately live *directly* in ``docs/`` for a project
     of ``project_type`` (or the full union across all types when ``project_type`` is
@@ -328,8 +335,9 @@ def docs_allowlist(project_type: str | None = None, needs_database: bool = False
 
     Root-level docs (README/INDEX/CHANGELOG/PORTS/AGENTS/AFCL) and ``docs/<subdir>/*`` files
     are handled by ``check_structure``'s ``ALLOWED_ROOT_MD`` / ``VALID_DOCS_SUBDIRS``
-    respectively — this returns only the flat ``docs/*.md`` set. Callers typically union the
-    result with :data:`LEGACY_TOLERATED`.
+    respectively — this returns only the flat ``docs/*.md`` set, always including
+    :data:`SCAFFOLD_WRITTEN` (a scaffold step's own writes, for every type). Callers typically union
+    the result with :data:`LEGACY_TOLERATED`.
     """
     if project_type is not None:
         _require_known_type(project_type)  # fail loud on a typo'd type, never silent-empty
@@ -350,7 +358,7 @@ def docs_allowlist(project_type: str | None = None, needs_database: bool = False
                 matched = True
         if matched:
             out.add(parts[1])
-    return frozenset(out)
+    return frozenset(out) | SCAFFOLD_WRITTEN
 
 
 def seed_rows(project_type: str, needs_database: bool = False) -> tuple[DocRow, ...]:

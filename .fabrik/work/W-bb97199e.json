@@ -3,7 +3,7 @@
   "created": "2026-10-18T20:16:24.942784Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1ac2271b64f29b8d81d6fb45d92bf68004b28323",
   "id": "W-bb97199e",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare-edge sync residue from W-ba306861 (D-1018); nobody blocked",
-  "status": "open",
+  "status": "done",
   "tags": [
     "intel",
     "queued"
