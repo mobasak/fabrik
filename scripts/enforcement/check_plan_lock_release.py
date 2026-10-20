@@ -90,7 +90,51 @@ COMPLETION_TS = ("completed_at", "finished_at", "released_at")
 # status is IN-PROGRESS but which quotes `Status: EXECUTED` inside a fence read as EXECUTED — a
 # LIKELY STALE LOCK finding against a perfectly healthy lock, which is the one outcome worse than
 # not running at all. An UNTERMINATED fence now swallows to EOF for the same reason.
-_FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})[^\n]*\n(?:.*?^[ \t]*\1[ \t]*$|.*\Z)", re.M | re.S)
+# A linear line walk (W-d2eef742) with the exact match set of the backreference regex it replaced
+# (kept as the oracle in tests/enforcement/test_fences.py), which backtracked through every run
+# length of one long backtick line. Its own copy, not `_fences.py`: this module
+# imports only the stdlib names its import-allowlist test admits.
+_FENCE_OPENER = re.compile(r"[ \t]*(`{3,}|~{3,})")
+_FENCE_CLOSER = re.compile(r"[ \t]*(`{3,}|~{3,})[ \t]*")
+
+
+def _strip_fences(text: str) -> str:
+    """An opener is a line with a newline after it starting ``[ \\t]*`` + a run R of 3+ backticks
+    or tildes; its closer is the FIRST later line that is ``[ \\t]*`` + exactly R + ``[ \\t]*``.
+    With none, everything from the opener to the end of the text goes."""
+    lines = text.split("\n")
+    starts: list[int] = []
+    pos = 0
+    for line in lines:
+        starts.append(pos)
+        pos += len(line) + 1
+    closers: dict[str, list[int]] = {}
+    for i, line in enumerate(lines):
+        m = _FENCE_CLOSER.fullmatch(line)
+        if m:
+            closers.setdefault(m.group(1), []).append(i)
+    passed = dict.fromkeys(closers, 0)  # per run, the closers already behind the walk (it only moves forward)
+    parts: list[str] = []
+    prev, i = 0, 0
+    while i < len(lines) - 1:  # the last segment has no newline after it, so it never opens
+        m = _FENCE_OPENER.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        run = m.group(1)
+        rows = closers.get(run, [])
+        k = passed.get(run, 0)
+        while k < len(rows) and rows[k] <= i:
+            k += 1
+        if run in passed:
+            passed[run] = k
+        parts.append(text[prev : starts[i]])
+        if k == len(rows):
+            return "".join(parts)
+        prev = starts[rows[k]] + len(lines[rows[k]])
+        i = rows[k] + 1
+    parts.append(text[prev:])
+    return "".join(parts)
 # Mirrors `check_convergence.EXECUTED`'s anchor (:122-126) so both accept the same shapes —
 # notably `**Status:**` with the colon INSIDE the bold, which needs the post-colon `\*{0,2}`.
 _STATUS_LINE = re.compile(
@@ -168,7 +212,7 @@ def status_value(spine_text: str) -> str | None:
     """
     if not spine_text:
         return None
-    m = _STATUS_LINE.search(_FENCE.sub("", spine_text))
+    m = _STATUS_LINE.search(_strip_fences(spine_text))
     if not m:
         return None
     return m.group(1).strip() or None
