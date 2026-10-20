@@ -873,6 +873,7 @@ class TestLinkCheckSkipsCodeExamples:
             "~~~\r\n[g](g.md)\r\n~~~\r\n\n"
             "```js\n[i](i.md)\n`````\n\n"
             "[a]`(x)`(glue.md) is blanked, never deleted into a link.\n"
+            "a](`see [x](stray.md)`) — a stray `](` shields no span.\n"
             "[live](live.md) stays.\n"
         )
         assert self._issues(tmp_path, monkeypatch, body) == []

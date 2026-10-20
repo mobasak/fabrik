@@ -1061,8 +1061,9 @@ _FENCE_OPEN_RE = re.compile(r"[ \t]*(`{3,}|~{3,})([^\r\n]*)")
 # it closes on the next run of the same length.
 _BACKTICK_RUN_RE = re.compile(r"`+")
 # A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
-# one opened before the link's `[`, as CommonMark reads it).
-_LINK_TAIL_RE = re.compile(r"\]\((?:[^()\n]|\([^()\n]*\))*\)")
+# one opened before the link's `[`, as CommonMark reads it). Only a tail after `[text]` counts, so a
+# stray `](` cannot shield a real code span from blanking.
+_LINK_TAIL_RE = re.compile(r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\((?:[^()\n]|\([^()\n]*\))*\))")
 # A line a span never crosses into: blank, or one that starts another block (a setext underline
 # and a thematic break end the paragraph too).
 _BLOCK_START_RE = re.compile(
@@ -1103,7 +1104,7 @@ def _blank_code_fences(content: str) -> str:
 
 def _blank_code_spans(content: str) -> str:
     runs = list(_BACKTICK_RUN_RE.finditer(content))
-    tails = [(m.start(), m.end()) for m in _LINK_TAIL_RE.finditer(content)]
+    tails = [(m.start(1), m.end(1)) for m in _LINK_TAIL_RE.finditer(content)]
     tail_starts = [start for start, _ in tails]
     out, kept, i = [], 0, 0
     while i < len(runs):
