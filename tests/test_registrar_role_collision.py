@@ -103,3 +103,20 @@ def test_the_message_names_the_real_fix_never_drop_or_re_own() -> None:
     text = str(err.value)
     assert "depends.postgres" in text
     assert "DROP ROLE" not in text and "OWNER TO" not in text
+
+
+def test_the_payments_mint_checks_its_own_database_before_any_sql() -> None:
+    order: list[str] = []
+    with (
+        mock.patch.object(pg, "_role_exists", return_value=True),
+        mock.patch.object(
+            pg,
+            "_foreign_role_reasons",
+            side_effect=lambda role, **k: order.append(f"guard:{k['own_db']}")
+            or ["owns database x"],
+        ),
+        mock.patch.object(pg, "_run_sql", side_effect=lambda sql, **k: order.append("sql") or ""),
+        pytest.raises(RuntimeError, match="not this registrar's"),
+    ):
+        pg.mint_payments_role("ti", "ingest")
+    assert order == ["guard:ti"]  # own_db is the project's database, checked before any SQL ran

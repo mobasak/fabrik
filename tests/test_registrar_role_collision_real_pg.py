@@ -127,3 +127,34 @@ def test_a_payments_role_owning_a_table_elsewhere_is_refused_untouched() -> None
             pg.mint_payments_role(DB, "ingest")
         # refused before the narrowing ALTER: the attribute it would have stripped is still there
         assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{role}'") == "t"
+
+
+def test_an_object_in_the_roles_own_database_is_not_foreign() -> None:
+    """The own-database exemption: a live session of the watchdog RW role may own a temp table (or the
+    project may hand it an object) in the project's own database — never a reason to refuse re-apply."""
+    with scratch_pg() as s:
+        s.run_sql(f'CREATE DATABASE "{DB}";')
+        _watchdog(s)
+        s.run_sql(f'\\c {DB}\nCREATE TABLE mine (id int);\nALTER TABLE mine OWNER TO "{DB}_wd_rw";')
+        with s.as_driver():
+            assert pg._foreign_role_reasons(f"{DB}_wd_rw", own_db=DB) == []
+            # without the exemption the same object would read as foreign
+            assert any(
+                f"in database {DB}" in r
+                for r in pg._foreign_role_reasons(f"{DB}_wd_rw", own_db=None)
+            )
+        assert _watchdog(s)["rw"]["status"] == "exists"
+
+
+def test_create_database_refuses_a_role_that_is_a_member_of_another() -> None:
+    with scratch_pg() as s:
+        s.run_sql('CREATE ROLE "grp" NOLOGIN;')
+        s.run_sql('CREATE ROLE "solo" LOGIN;')
+        s.run_sql('GRANT "grp" TO "solo";')
+        with s.as_driver():
+            assert "is a member of grp" in pg._foreign_role_reasons(
+                "solo", own_db=None, any_dependency=True
+            )
+        with pytest.raises(RuntimeError, match="is a member of grp"):
+            _create_database(s, "solo")
+        assert _one(s, "SELECT count(*) FROM pg_database WHERE datname = 'solo'") == "0"
