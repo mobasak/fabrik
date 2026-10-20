@@ -3,7 +3,7 @@
   "created": "2026-10-20T01:43:12.604854Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5ddfa664fc3df9fef5a14e724e4ca5fbc15f36b2",
   "id": "W-973887d5",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "LOW: an early return before the fleet-root check and a docstring in claude_rotate.py; nobody blocked",
-  "status": "open",
+  "status": "done",
   "title": "claude_rotate.py: _merge_shared_pending returns early on a leftover canonical swap link before its root-listing check (EACCES root then locks and merges over no dirs); _write_tick_last_end's docstring says the staging file is removed, which a directory is not"
 }
