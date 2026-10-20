@@ -458,6 +458,7 @@ for each PHASE in dependency order:
     commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: native seats author one test per behavior the implementer did NOT already TDD (one seat per behavior, disjoint test files, self-verified collection; the pool is OFF, D-181), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
     /fabrik-review on phase's changed surface (code + the authored tests) — its review-loop workflow, one Workflow call per pass → execute the confirmed → prove-before-fix
     iterate: fix → the next pass over the slice ledgers → repeat until its closing pass confirms 0, THEN next phase
+    → before the phase's closing commit (the one that stages the plan file), write its receipt to docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file, so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without one (item 3b's artifact rule)
     fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
     re-run gate until clean
     UPDATE THE PLAN FILE: mark this phase ✅ EXECUTED <date> (<commit>) [+ flip Status on the first/last phase]
