@@ -1512,3 +1512,42 @@ def test_an_uncommitted_enforcement_deletion_is_not_pruned(hub, tmp_path: Path) 
     (hub_root / "scripts" / "enforcement" / "committed.py").unlink()
     mod.sync_scripts_to_project(project)
     assert (enf / "committed.py").read_text() == "COMMITTED = 1\n"
+
+
+def test_a_backup_this_run_made_survives_the_prune(hub, tmp_path: Path) -> None:
+    """Review pass 1: `--backup` wrote `<name>.backup.<ts>` beside the check, and the prune — which
+    runs after the walk — deleted it in the same run, defeating the flag."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    (enf / "committed.py").write_text("# a stale copy\n", encoding="utf-8")
+    mod.sync_scripts_to_project(project, backup=True, force=True)
+    assert list(enf.glob("committed.py.backup.*")), "the --backup copy was pruned"
+    assert not (enf / "retired_check.py").exists()
+
+
+def test_a_project_git_that_cannot_answer_keeps_the_orphan(hub, tmp_path: Path) -> None:
+    """Review pass 1: a corrupt project index made `ls-files` exit 128, read as "untracked", and
+    the prune deleted a tracked copy. Any git failure other than "no match" now keeps the file."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
+    )
+    (project / ".git" / "index").write_bytes(b"not an index")
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists(), "a tracked copy was deleted on a git fatal"
+
+
+def test_a_live_sync_temp_file_is_left_for_its_writer(hub, tmp_path: Path) -> None:
+    """Review pass 1: a concurrent sync's `.sync-tmp-*` file, mid-write, was unlinked before its
+    rename. A young one is left alone; an old leftover is pruned."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    young = enf / ".sync-tmp-young"
+    young.write_text("mid-write\n", encoding="utf-8")
+    old = enf / ".sync-tmp-old"
+    old.write_text("leftover\n", encoding="utf-8")
+    stale = time.time() - 7200
+    os.utime(old, (stale, stale))
+    mod.sync_scripts_to_project(project)
+    assert young.exists()
+    assert not old.exists()

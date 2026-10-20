@@ -1740,6 +1740,10 @@ def compute_file_hash(path: Path) -> str:
     return hasher.hexdigest()
 
 
+# The name `create_backup` gives: `<name>.backup.YYYYMMDD-HHMMSS`. A prune leaves it alone.
+_BACKUP_NAME_RE = re.compile(r"\.backup\.\d{8}-\d{6}$")
+
+
 def create_backup(path: Path) -> Path:
     """Create timestamped backup of a file."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -2271,6 +2275,32 @@ def _atomic_copy(source: Path, destination: Path) -> None:
         raise
 
 
+def _project_tracks(project_dir: Path, rel: Path) -> bool:
+    """Does the PROJECT's git track *rel*? Exit 0 is tracked and exit 1 (no match) is not; a project
+    with no `.git` tracks nothing; any other failure — a corrupt index, dubious ownership — reads as
+    TRACKED, so the caller keeps the file (review pass 1: `_worktree_file_is_tracked` read a git
+    fatal as "untracked" and the prune deleted a tracked copy)."""
+    if not (project_dir / ".git").exists():
+        return False
+    try:
+        proc = subprocess.run(
+            ["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", str(rel)],
+            cwd=project_dir,
+            capture_output=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return proc.returncode != 1
+
+
+def _younger_than(path: Path, seconds: float) -> bool:
+    try:
+        return time.time() - path.stat().st_mtime < seconds
+    except OSError:
+        return True  # cannot date it: keep it
+
+
 def _prune_enforcement_orphans(
     project_dir: Path,
     project_enforcement: Path,
@@ -2304,10 +2334,14 @@ def _prune_enforcement_orphans(
     for dest in sorted(project_enforcement.rglob("*")):
         if not dest.is_file() or "__pycache__" in dest.parts or dest.suffix == ".pyc":
             continue
+        if _BACKUP_NAME_RE.search(dest.name):
+            continue  # `create_backup`'s copy from this or an earlier `--backup` run (review pass 1)
+        if dest.name.startswith(".sync-tmp-") and _younger_than(dest, 3600):
+            continue  # a concurrent sync's live temp file, about to be renamed (review pass 1)
         rel = dest.relative_to(project_enforcement)
         if rel in live:
             continue
-        if _worktree_file_is_tracked(project_dir, dest.relative_to(project_dir)):
+        if _project_tracks(project_dir, dest.relative_to(project_dir)):
             results.append(
                 SyncResult("WARN", dest, dest, "enforcement orphan tracked by the project; kept")
             )
