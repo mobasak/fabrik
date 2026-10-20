@@ -36,8 +36,9 @@ Design notes
   TLS) is supported via the ``target`` kwarg for infra services with
   stable container names.
 * **Idempotent** — if a job named ``fabrik-<name>`` already exists,
-  :func:`add_scrape_target` returns ``status=exists`` without rewriting
-  or reloading.
+  :func:`add_scrape_target` returns ``status=exists`` without rewriting;
+  it still reloads, so a config an earlier run wrote but Prometheus never
+  loaded is reported again (``reload`` on every result, W-cc9b0532).
 * **No auth wiring yet.** ``/metrics`` endpoints are assumed to be
   reachable without credentials. When a service stands up bearer-token
   auth on ``/metrics``, the caller passes ``bearer_token`` to embed
@@ -184,8 +185,9 @@ def _write_config(data: dict[str, Any]) -> None:
 
 
 _PROMTOOL_REFUSED_RC = 3
-"""The restart leg's exit code when promtool rejects the on-disk config (promtool itself exits 1, as do
-docker and the no-container guard), so ``refused`` is told apart from every other failure."""
+"""The restart leg's exit code when promtool printed its ``FAILED`` verdict on the on-disk config. promtool,
+docker exec and the no-container guard all exit 1, so the exit code alone cannot tell a rejected config from
+a docker failure: the verdict text decides, and only it maps to this code (review A-1)."""
 
 
 def _reload_prometheus_outcome() -> str:
@@ -231,15 +233,17 @@ def _reload_prometheus_outcome() -> str:
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
             f'{{ [ -n "$PROM_CONTAINER" ] || {{ {_NO_CONTAINER}; }}; }} && '
-            '{ sudo docker exec "$PROM_CONTAINER" promtool check config '
-            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} || exit {_PROMTOOL_REFUSED_RC}; }} && "
+            '{ OUT=$(sudo docker exec "$PROM_CONTAINER" promtool check config '
+            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} 2>&1) || "
+            '{ printf "%s\\n" "$OUT" >&2; case "$OUT" in *FAILED*) '
+            f"exit {_PROMTOOL_REFUSED_RC};; esac; exit 1; }}; }} && "
             'sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
         logger.info("Prometheus container restarted")
         return "restarted"
     except Exception as e:  # noqa: BLE001
-        refused = re.search(rf"\brc={_PROMTOOL_REFUSED_RC}\b", str(e)) is not None
+        refused = f"failed (rc={_PROMTOOL_REFUSED_RC}):" in str(e)
         logger.warning(
             "Prometheus not restarted after a failed hot-reload (non-fatal; a running "
             "Prometheus keeps its last good config): %s",
@@ -391,8 +395,9 @@ def remove_scrape_target(service_name: str, dry_run: bool = False) -> bool:
         dry_run: Log intent and return True.
 
     Returns:
-        True on successful removal, ``not_found``, or dry_run; False on
-        SSH/YAML failure.
+        True on a removal Prometheus loaded, ``not_found``, or dry_run; False on
+        SSH/YAML failure or when the rewritten config was not loaded (reload refused
+        or Prometheus unavailable — it still scrapes the removed job, W-cc9b0532).
     """
     _validate_name(service_name)
     job_name = _job_name(service_name)

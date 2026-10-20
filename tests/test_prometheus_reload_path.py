@@ -35,6 +35,7 @@ case "$1" in
   exec)
     c="$2"
     if [[ -z "$c" ]] || [[ " $CONTAINERS " != *" $c "* ]]; then echo "No such container: '$c'" >&2; exit 1; fi
+    if [[ "${EXEC_BROKEN:-0}" == 1 ]]; then echo "Error response from daemon: container $c is not running" >&2; exit 1; fi
     if [[ "$*" == *"promtool check config /etc/prometheus/prometheus.yml"* ]]; then
       if [[ "${CONFIG_VALID:-1}" == 0 ]]; then echo "FAILED: parsing YAML file /etc/prometheus/prometheus.yml" >&2; exit 1; fi
       echo "SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax"; exit 0
@@ -157,10 +158,17 @@ class TestReloadOutcome:
     the next restart crash-loops Prometheus) is told apart from Prometheus being unavailable."""
 
     def _outcome(
-        self, monkeypatch, tmp_path, containers: str, config_valid: str = "1", reload_ok=True
+        self,
+        monkeypatch,
+        tmp_path,
+        containers: str,
+        config_valid: str = "1",
+        reload_ok=True,
+        exec_broken: str = "0",
     ):
         env, log = _vps1(tmp_path, containers)
         env["CONFIG_VALID"] = config_valid
+        env["EXEC_BROKEN"] = exec_broken
 
         def fake_ssh(cmd, *, timeout=60, **_kw):
             if "wget" in cmd and not reload_ok:
@@ -188,6 +196,23 @@ class TestReloadOutcome:
     def test_no_prometheus_container_is_unavailable_not_refused(self, monkeypatch, tmp_path):
         out, docker = self._outcome(monkeypatch, tmp_path, "alertmanager")
         assert out == "unavailable" and "exec" not in docker
+
+    def test_a_docker_exec_failure_is_unavailable_not_refused(self, monkeypatch, tmp_path):
+        """promtool, docker exec and the no-container guard all exit 1: only promtool's FAILED verdict
+        may read as refused (review A-1) — a docker error never claims the config is invalid."""
+        out, docker = self._outcome(
+            monkeypatch, tmp_path, "prometheus", reload_ok=False, exec_broken="1"
+        )
+        assert out == "unavailable" and "restart" not in docker
+
+    def test_rc3_inside_remote_stderr_is_not_refused(self, monkeypatch):
+        """Only ssh's own `failed (rc=3)` reads as refused, never a number in the remote text (A-2)."""
+
+        def fake_ssh(cmd, *, timeout=60, **_kw):
+            raise RuntimeError("SSH to 'vps1' failed (rc=1): upstream said rc=3 earlier")
+
+        monkeypatch.setattr(prom, "ssh", fake_ssh)
+        assert prom._reload_prometheus_outcome() == "unavailable"
 
     def test_a_failing_restart_is_unavailable(self, monkeypatch, tmp_path):
         env, _ = _vps1(tmp_path, "prometheus")

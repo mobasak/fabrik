@@ -136,6 +136,7 @@ def test_a_refused_config_fails_the_apply() -> None:
     assert ctx.registrar_failures[0].startswith("prometheus: ")
     assert "promtool" in ctx.registrar_failures[0]
     assert ctx.registrar_warnings == []
+    assert _status(ctx) == ["failed"]  # never recorded created (review B-1)
 
 
 def test_an_unavailable_prometheus_warns_once() -> None:
