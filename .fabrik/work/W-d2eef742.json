@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:32:12.748790Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d2eef742",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give each grammar an exact linear replica in scripts/enforcement/_fences.py, proven byte-identical on fuzz + the fleet .md corpus with the W-276255e7 harness (tests/enforcement/test_fences.py), then switch the three readers",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "Three more quadratic fence regexes in scripts/enforcement (plan_appetite.py:99-100, check_plan_lock_release.py:93, check_phase_tests.py:86) rescan to the end per unclosed opener — 8.4 s on a 40 KB run + newline + text (plan_appetite)"
+}

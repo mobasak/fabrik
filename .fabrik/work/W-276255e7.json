@@ -3,7 +3,7 @@
   "created": "2026-10-20T03:13:11.521867Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "96b0645b17dd5c3f6f4988a668d475506eccef10",
   "id": "W-276255e7",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "rare edge: quadratic only on unclosed backtick openers; one regex",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader",
     "queued"

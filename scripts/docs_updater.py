@@ -1039,15 +1039,32 @@ def _strip_quoted(content: str) -> str:
     bare ```.*?```, which swallows across an unpaired backtick), then blockquoted
     lines: a `> Status: DRAFT` grammar example above the real line must not win
     first-match (fail-open: misreported status + a defeated COMPLETE check). Same
-    consumer-side strip as check_plan_tickets/check_plan_quality; the blockquote
+    consumer-side strip as check_plan_tickets/check_plan_quality — the fences are
+    `scripts/enforcement/_fences.py`'s linear scanner (W-276255e7); the blockquote
     regex keeps `>` for cross-module byte-parity (Lesson 103)."""
-    scan = re.sub(
-        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-        "",
-        content,
-        flags=re.M | re.S,
-    )
-    return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
+    return re.sub(r"^[ \t]*>.*$", "", _fences_module().strip(content), flags=re.M)
+
+
+def _fences_module() -> Any:
+    """The shared fence scanner, imported when `_strip_quoted` first runs (W-276255e7): in a project whose
+    `scripts/enforcement/` lags a sync, a call that never strips quoted text still runs, and one that does
+    raises an ImportError naming the file. Imported by the sibling directory, the way every check imports it,
+    so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run` promises to write
+    nothing and a first import would write scripts/enforcement/__pycache__/."""
+    enforcement = str(Path(__file__).resolve().parent / "enforcement")
+    if enforcement not in sys.path:
+        sys.path.insert(0, enforcement)
+    prior = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        import _fences
+    except ImportError as exc:
+        raise ImportError(
+            f"docs_updater: cannot import scripts/enforcement/_fences.py ({exc})"
+        ) from exc
+    finally:
+        sys.dont_write_bytecode = prior
+    return _fences
 
 
 # Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue
