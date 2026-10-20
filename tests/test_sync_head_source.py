@@ -1362,3 +1362,45 @@ def test_the_writer_never_copies_through_a_refused_link(hub, tmp_path) -> None:
     with pytest.raises(FileNotFoundError):
         mod._atomic_copy(hub_root / "out.md", project / "out.md")
     assert not (project / "out.md").exists()
+
+
+def test_the_overwrite_tail_never_copies_through_a_late_link(hub, tmp_path, monkeypatch) -> None:
+    """Review pass 2: round 1 guarded `_atomic_copy` but not the overwrite tail's own `copy2`
+    fallback — an untracked source turned into a link between consults shipped the outside file."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    src = hub_root / "u.md"
+    src.write_text("UNTRACKED\n", encoding="utf-8")
+    dest = project / "u.md"
+    dest.write_text("# older\n", encoding="utf-8")
+    old = time.time() - 86400
+    os.utime(dest, (old, old))
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def swapping(source):
+        calls["n"] += 1
+        if calls["n"] == 3:  # the tail's own consult: the source has become a link
+            src.unlink()
+            src.symlink_to(tmp_path / "outside" / "ext.md")
+        return real(source)
+
+    monkeypatch.setattr(mod, "_head_source", swapping)
+    result = mod.sync_single_file(src, dest)
+    assert result.action == "WARN" and "symlinked hub source" in result.reason, result
+    assert dest.read_text() == "# older\n", "the outside file shipped through the late link"
+
+
+def test_a_directory_link_in_a_walked_dir_is_refused(hub, tmp_path) -> None:
+    """A committed directory link inside a walked dir is listed from HEAD and refused, never
+    copied (copy2 of a directory raised IsADirectoryError and aborted the project — critique)."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    (hub_root / "pkg").mkdir()
+    (hub_root / "pkg" / "m.py").write_text("M = 1\n", encoding="utf-8")
+    (hub_root / "libs" / "vend" / "dirlink").symlink_to("../../pkg")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "dirlink"], check=True)
+    result = mod.sync_scripts_to_project(project)
+    assert result.success, result.message
+    dest = project / "libs" / "vend" / "dirlink"
+    assert any(r.action == "WARN" and r.destination == dest for r in result.files), result.files
+    assert not dest.exists()

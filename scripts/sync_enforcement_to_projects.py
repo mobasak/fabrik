@@ -2443,6 +2443,9 @@ def sync_single_file(
         # T12.17: committed bytes, never the tree — with the source's mtime, or the
         # "destination newer" guard below refuses every later sync of this file.
         _atomic_write(head[0], head[1], destination, source=source)
+    elif (why := _link_refusal(source)) is not None:
+        # became a link after the first consult (review pass 2): never copy through it
+        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
     elif not _gone(source):
         shutil.copy2(source, destination)
     else:  # HEAD unreadable on this second consult and the file gone: one WARN, never a raise
