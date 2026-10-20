@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T09:25:30.186898Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-ad15212d",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "emit one import/heartbeat test for worker/ and point test/lint/format at .venv/bin in the file-worker patch; decide python-api separately; note the stray uv.lock in the scaffold docs",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "bug: a fresh file-worker scaffold's make test fails out of the box",
   "status": "open",
   "tags": [
     "scaffold"

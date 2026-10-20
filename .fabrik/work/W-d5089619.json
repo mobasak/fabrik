@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T09:25:30.353192Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-d5089619",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "reproduce with that test, find the emitted line that a long name pushes past the line length, and wrap it at emit time",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "bug: 3 cases of tests/test_scaffold_output_passes_gate.py fail on master (long-name scaffolds fail their own ruff format)",
   "status": "open",
   "tags": [
     "scaffold"
