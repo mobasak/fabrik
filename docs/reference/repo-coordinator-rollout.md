@@ -47,10 +47,14 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
      - D-558: the Opus + Fable panel answers decisions.
      - D-961: no Workflow tool; review seats go through the Agent tool.
      - The quota bands.
-9. Register every agent's session id in `.fabrik/session-agents.json` (`{"<session id>": "<agent name>"}`). The
-   launcher below reads this file. When the repo gets its FIRST registry, also generate its desktop launcher (§ The
-   Windows side); a later registry change needs no new one, because the .bat names only the repo; the launcher reads the registry
-   whenever it builds the grid.
+9. Bind every builder to its name from its own session, in its own worktree: `python3
+   /opt/fabrik/scripts/whoami_agent.py --as <name>`. That binding is all the launcher below needs; a
+   `.fabrik/session-agents.json` registry (`{"<session id>": "<agent name>"}`) is optional, and when one exists the
+   launcher takes its names from it instead (W-89474fc1: 7 of the first 9 agent repos never wrote one). Once the first
+   builder is bound in its worktree, generate the repo's desktop launcher (§ The Windows side); a later change needs no
+   new one, because the .bat names only the repo and the launcher reads the bindings whenever it builds the grid.
+   Declare the coordinator in the repo's own ledger (a `MERGE OWNER: <name>` row in `docs/DECISIONS.md`): the
+   launcher takes it from there, never from a name's position.
 
 ### 3 — Worktrees
 
@@ -93,22 +97,41 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 The launcher builds one tmux session per repo, named after the repo's folder (every character other than
 `[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
 
-- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` in the builder's worktree,
+- The builders are the registry's names when the repo has a `.fabrik/session-agents.json`, and otherwise every name
+  bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
+  or `*-coordinator`, or the repo's declared merge owner (`decisions.py --merge-owner`); a ledger that cannot be read
+  refuses the launch.
+- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` ONLY in the builder's worktree,
   `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
-  of its path is a symlink), and from the repo root otherwise. When something by that name is there but fails the
-  check, the launcher says so on stderr, because that builder then works in the main checkout. The main checkout is the
-  coordinator's, and a builder resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
+  of its path is a symlink). A name with no such worktree gets no pane, said on stderr, and a repo left with no builder
+  refuses (exit 2). The main checkout is the coordinator's, and a builder resumed there would edit main's tree and read
+  main's `CLAUDE.md` (W-6c7c3292).
+- Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
+  `fabrik-agents.slice`, with `MemoryMax` (`FABRIK_AGENT_MEM_MAX`, default 3G), `MemorySwapMax=0` and `TasksMax`
+  (`FABRIK_AGENT_TASKS_MAX`, default 1024) (W-56b3f90d). Each launch of a new grid first sets the slice's own runtime
+  ceiling, `FABRIK_AGENT_SLICE_MAX` (default 16G, no swap), and the last launch's value holds for every grid;
+  reattaching to a running grid does not touch it. Without swap 0 a cap only pushes a runaway into swap. Over a cap
+  the kernel kills the largest process in that scope (or, at the slice ceiling, in any repo's pane) — usually claude
+  itself, and then the pane says it was killed (exit 137) before its resume hint; a killed child process leaves claude
+  running without it. A scope that cannot be started, or a kept shell that exits non-zero, leaves a pane that says so and waits for Enter;
+  it never opens a shell outside the cap. The
+  slice sits under `fabrik.slice` beside the tests' `fabrik-tests.slice`. The launcher sets `XDG_RUNTIME_DIR` itself
+  when the user bus exists, since a launch from a .bat carries none. With no user manager the panes run uncapped,
+  said on stderr and in every pane; a manager that refuses the slice ceiling refuses the launch. Sessions started from
+  VS Code (the coordinators) are not capped. `--print` prints a `cap <name> <mem> <tasks>` (or `uncapped`) line per
+  pane and never touches the slice.
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the active
-  fleet account), `CLAUDE_AGENT`, and `AGENT_IDENTITY_FILE` when the launcher was given one. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
+  fleet account), `CLAUDE_AGENT`, `AGENT_IDENTITY_FILE` when the launcher was given one, and `XDG_RUNTIME_DIR` when
+  the user bus was found. The shell a pane keeps after claude exits starts the same way. A tmux pane gets
   the tmux server's environment, and a server first started from a VS Code session carries about 20 of that
   session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
 - A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
   on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder or records
   no root (another tool's session). Run from
   inside tmux, it switches the client to the grid instead of nesting.
-- The coordinator gets no pane. Its name must be `coordinator` or end in `-coordinator`: any other name gets a pane
-  like a builder. The operator reaches it in VS Code, as at the hub.
+- The coordinator gets no pane (the first bullet above says how it is known); the operator reaches it in VS Code, as
+  at the hub.
 - A pane whose session is already running elsewhere only says so, in any form a session can run in: a terminal
   (`--resume <id>` or `-r <id>`) or the VS Code extension (`--resume=<id>`). Two processes on one session id mix the transcript
   and the hooks, so a builder open in VS Code must be closed there before the grid can take it over.
@@ -146,8 +169,8 @@ identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads i
   variables unset) whose session it still owns;
 - the binding replaces the registry's id, and stderr names both, unless the registry's session was active after the
   binding was written — its transcript is newer than both the binding's `at` and the bound session's own transcript.
-  A binding with no readable `at` and no transcript proves no age, so it stands. The store trims rows after 30 days and
-  never sees a session the launcher started, so a registry id's absence from the store says nothing about its age; its
+  A binding with no readable `at` and no transcript proves no age, so it stands. The store trims rows after 30 days
+  (keeping each repo's newest binding per name) and never sees a session the launcher started, so a registry id's absence from the store says nothing about its age; its
   activity does;
 - the registry's id stands when the builder has no binding, the store is missing or is not a regular file, or the repo
   has no git scope, and each case is said on stderr;
@@ -164,9 +187,11 @@ rows, and the stale ones no longer refuse while a binding resolves the name.
 
 ### The Windows side: one desktop launcher per repo
 
-`scripts/sysadmin/agents_bat.py` writes one `<Repo> Agents.bat` for every repo under `/opt` that has a
-`.fabrik/session-agents.json`; `<Repo>` is the folder name with its first letter upper-cased, so fabrik-lib's is
-`Fabrik-lib Agents.bat` (W-bb6c9d9a, D-1042). A double-click opens that repo's grid maximized, each builder resuming
+`scripts/sysadmin/agents_bat.py` writes one `<Repo> Agents.bat` for every repo under `/opt` whose grid
+`agents_up.sh --print` accepts (exit 0 and at least one pane): a registry, or builders bound in their worktrees.
+agents_up.sh is the only place that rule lives. `<Repo>` is the folder name with its first letter upper-cased, so
+fabrik-lib's is `Fabrik-lib Agents.bat` (W-bb6c9d9a, D-1042, W-89474fc1). A generated .bat whose repo no longer
+qualifies is reported and left in place. A double-click opens that repo's grid maximized, each builder resuming
 its own session in its own worktree, and asks nothing on screen. Run it from WSL:
 
 ```bash
