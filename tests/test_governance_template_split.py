@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3356-3362`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3357-3363`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:543-556` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3337-3354` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3338-3355` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -901,8 +901,8 @@ _GATE_CITES = {
     "final_gate.py:1621-1631": "if (",
     ":1288": "elif code == 5:",
     ":1331": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3337-3354": "missing = _toolchain_missing(PYTHON)",
-    ":3356-3362": "# Determine tier",
+    ":3338-3355": "missing = _toolchain_missing(PYTHON)",
+    ":3357-3363": "# Determine tier",
 }
 
 
@@ -910,8 +910,8 @@ _GATE_CITES = {
 _GATE_CITE_ENDS = {
     ":543-556": "}",
     "final_gate.py:1621-1631": "):",
-    ":3337-3354": "return 2",
-    ":3356-3362": "tier = 2",
+    ":3338-3355": "return 2",
+    ":3357-3363": "tier = 2",
 }
 
 # The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
