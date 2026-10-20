@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-20T01:19:50.354477Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "8968a13a570f037326b2d51fe68d8a4ff0b4b82d",
   "id": "W-01815aee",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "prometheus add_scrape_target compares job_name only, so a spec whose monitoring.target or monitoring.scheme changed is never rewritten; and monitoring.scheme/target reach prometheus.yml unvalidated (a bad scheme can make promtool refuse the whole config on vps1) — found by the W-cc9b0532 design critique 2026-10-20 (owner: fleet)"
 }
