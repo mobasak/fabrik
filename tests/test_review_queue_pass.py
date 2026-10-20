@@ -1063,7 +1063,7 @@ def test_a_shifted_anchor_is_remapped_after_each_round_fix() -> None:
 def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
     """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
     once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
-    lives — the fragment's obligation 3 (rendered into seven commands) and the later-pass high-water mark."""
+    lives — the fragment's obligation 3 (included by five command sources) and the later-pass high-water mark."""
     frag = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
     for clause in (
         "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review",
@@ -1073,6 +1073,9 @@ def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
         "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
         "the receipt becomes the draft again: move it back over the draft (`mv`, since it is not yet committed and `--init` never overwrites)",
         "and every other command this fragment renders into — creates it NOW",
+        "at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none —",
+        "then the close ORDER of `/fabrik-review` § Reporting runs on it",
+        "A fix that ORDER still forces is a closing-pass fix: commit it",
     ):
         assert clause in frag, clause
     assert (
@@ -1087,3 +1090,4 @@ def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
         "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
         in task
     )
+    assert "carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed)" in task
