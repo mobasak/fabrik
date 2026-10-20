@@ -871,6 +871,8 @@ class TestLinkCheckSkipsCodeExamples:
             "~~~\n[e](e.md)\n~~~\n\n"
             "~~~md\n[f](f.md)\n~~~~\n\n"
             "~~~\r\n[g](g.md)\r\n~~~\r\n\n"
+            "```js\n[i](i.md)\n`````\n\n"
+            "[a]`(x)`(glue.md) is blanked, never deleted into a link.\n"
             "[live](live.md) stays.\n"
         )
         assert self._issues(tmp_path, monkeypatch, body) == []
@@ -893,10 +895,31 @@ class TestLinkCheckSkipsCodeExamples:
             "para `open\n\n[s](s.md) x` y\n",  # nor across a blank line
             "para `open\r\n\r\n[s](s.md) x` y\r\n",  # a CRLF blank line too
             '[s](s.md "a `quote")\n',  # a backtick in a title
+            '[s](s.md "a `quote") and `x`\n',  # opens no span with a later backtick
             "~~~\n[s](s.md)\n",  # an unclosed fence grades its links (the safe direction)
+            "```a`b\n[s](s.md)\n",  # a ``` opener's info string holds no backtick
+            "```x [y](y.md) ```\n[s](s.md)\n\n```\n[e](e.md)\n```\n",  # nor this one
+            "`open\n---\n[s](s.md) x`\n",  # a setext underline ends the paragraph
+            "`open\n===\n[s](s.md) x`\n",
+            "`open\n***\n[s](s.md) x`\n",  # so does a thematic break
         ],
     )
     def test_link_integrity_still_reports_links_beside_stray_backticks(
         self, tmp_path, monkeypatch, body
     ):
         assert self._issues(tmp_path, monkeypatch, body) == ["s.md"]
+
+    def test_a_backtick_in_a_link_destination_opens_no_span(self, tmp_path, monkeypatch):
+        assert self._issues(tmp_path, monkeypatch, "[s](`s`.md)\n") == ["`s`.md"]
+
+    def test_the_fence_walk_is_linear_on_unclosed_openers(self):
+        """The first build's fence regex searched to end of file from every unclosed opener
+        (100 KB took 24 s); the walk reads each line once."""
+        import time
+
+        import docs_updater as du
+
+        text = "```x\n" * 200_000
+        start = time.perf_counter()
+        assert du._blank_code_fences(text) == text
+        assert time.perf_counter() - start < 5

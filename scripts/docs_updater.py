@@ -44,6 +44,7 @@ Workflow Doc: docs/archive/DOCUMENTATOR_WORKFLOW.md (archived — Kilo-era frami
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -1051,18 +1052,23 @@ def _strip_quoted(content: str) -> str:
 
 # Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue
 # `[a](x.`foo`md)` into the link `[a](x.md)`, and the shared reader needs every line ending.
-# Both fence kinds go in ONE pass so the outer fence wins: a ~~~ fence showing a ``` line must not
-# pair that line with the next real ``` fence (which `_strip_quoted` alone does). A closer is a run
-# of the same character at least as long; an unclosed fence is left (its links stay graded).
-_CODE_FENCE_RE = re.compile(
-    r"^[ \t]*(?:(`{3,})[^\n]*\n.*?^[ \t]*\1`*|(~{3,})[^\n]*\n.*?^[ \t]*\2~*)[ \t]*\r?$",
-    re.M | re.S,
-)
-# A span opener is a whole backtick run, not escaped; it closes on the next run of the same length.
-_BACKTICK_RUN_RE = re.compile(r"(?<!`)`+")
-# A line a span never crosses into: blank, or one that starts another block.
+# Both fence kinds go in ONE line walk so the outer fence wins: a ~~~ fence showing a ``` line must
+# not pair that line with the next real ``` fence (which `_strip_quoted` alone does). CommonMark's
+# rule: a ``` opener's info string holds no backtick; a closer is a run of the same character at
+# least as long with only whitespace after it; an unclosed fence is restored (its links stay graded).
+_FENCE_OPEN_RE = re.compile(r"[ \t]*(`{3,}|~{3,})([^\r\n]*)")
+# A span opener is a whole backtick run (finditer's greedy `+` never starts mid-run), not escaped;
+# it closes on the next run of the same length.
+_BACKTICK_RUN_RE = re.compile(r"`+")
+# A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
+# one opened before the link's `[`, as CommonMark reads it).
+_LINK_TAIL_RE = re.compile(r"\]\((?:[^()\n]|\([^()\n]*\))*\)")
+# A line a span never crosses into: blank, or one that starts another block (a setext underline
+# and a thematic break end the paragraph too).
 _BLOCK_START_RE = re.compile(
-    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~)", re.M
+    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~"
+    r"|(?:=+|-+)[ \t]*\r?$|(?:[*_][ \t]*){3,}\r?$)",
+    re.M,
 )
 # A line a span never leaves: an ATX heading or a table row.
 _ONE_LINE_BLOCK_RE = re.compile(r"[ \t]*(?:#{1,6}(?:[ \t]|\r?$)|\|)", re.M)
@@ -1072,13 +1078,41 @@ def _blank(text: str) -> str:
     return re.sub(r"[^\r\n]", " ", text)
 
 
+def _blank_code_fences(content: str) -> str:
+    out: list[str] = []
+    fence_at, closer = -1, None  # the open fence's first index in `out`, and its closer test
+    lines = content.split("\n")
+    lines = [line + "\n" for line in lines[:-1]] + ([lines[-1]] if lines[-1] else [])
+    for line in lines:
+        if closer is not None:
+            out.append(_blank(line))
+            if closer.fullmatch(line.rstrip("\r\n")):
+                fence_at, closer = -1, None
+            continue
+        m = _FENCE_OPEN_RE.match(line)
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence_at = len(out)
+            closer = re.compile(rf"[ \t]*{re.escape(m.group(1))}{re.escape(m.group(1)[0])}*[ \t]*")
+            out.append(_blank(line))
+            continue
+        out.append(line)
+    if closer is not None:  # unclosed: restore what was blanked
+        out[fence_at:] = lines[fence_at:]
+    return "".join(out)
+
+
 def _blank_code_spans(content: str) -> str:
     runs = list(_BACKTICK_RUN_RE.finditer(content))
+    tails = [(m.start(), m.end()) for m in _LINK_TAIL_RE.finditer(content)]
+    tail_starts = [start for start, _ in tails]
     out, kept, i = [], 0, 0
     while i < len(runs):
         opener = runs[i]
         i += 1
         if opener.start() and content[opener.start() - 1] == "\\":
+            continue
+        t = bisect.bisect_right(tail_starts, opener.start()) - 1
+        if t >= 0 and opener.start() < tails[t][1]:
             continue
         line_start = content.rfind("\n", 0, opener.start()) + 1
         one_line = _ONE_LINE_BLOCK_RE.match(content, line_start) is not None
@@ -1104,8 +1138,7 @@ def _blank_code_spans(content: str) -> str:
 def _link_scan_text(content: str) -> str:
     """The link check's scan surface: `_strip_quoted` with code fences of both kinds and inline
     code spans blanked around it (W-69f51003)."""
-    fenced = _CODE_FENCE_RE.sub(lambda m: _blank(m.group()), content)
-    return _blank_code_spans(_strip_quoted(fenced))
+    return _blank_code_spans(_strip_quoted(_blank_code_fences(content)))
 
 
 _OWNER_LINE_RE = re.compile(
