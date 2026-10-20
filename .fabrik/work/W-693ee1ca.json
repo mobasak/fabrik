@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T01:05:40.772899Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-693ee1ca",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: update the four rule-pack lines to match what plan-2 built (the fulfilment-worker role, mint then inject then grant, registrar_warnings); fleet-synced packs, so the full review applies and the sync runs at merge",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update (D-956), four fleet-synced rule-pack lines now contradict the merged code; LOW effort: four lines",
+  "status": "open",
+  "tags": [
+    "mail-01m5b8e67r",
+    "mail-01m5b95ycr"
+  ],
+  "title": "rule-pack lines made stale by plan-2's payments fulfilment role (merged 0a910fa46): .windsurf/rules 85-payments-billing.md:28 and :45, 95-multi-tenant-saas.md:151, 88-saas-launch-checklist.md:34 (fleet mails 01M5B8E67R and 01M5B95YCR)"
+}

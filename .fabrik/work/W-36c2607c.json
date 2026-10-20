@@ -3,7 +3,7 @@
   "created": "2026-10-20T00:24:21.999927Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "e7b1a5dca5f9e64b931e1329a365fa98e1730386",
   "id": "W-36c2607c",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: security/privacy (the operator's private notes were copied into review scratch that seats read, by following a tracked symlink); LOW effort: one exclusion or one copytree flag plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5bas68n8dywkskm30eg0dgj"
   ],

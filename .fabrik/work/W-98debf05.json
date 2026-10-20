@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T22:20:45.637325Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-98debf05",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide narrow-vs-refuse for an escalated registrar role (two Opus rounds disagreed); REVOKE memberships + an ownership check; the rolname-filter unit assert; reset per-database settings in EVERY database, not only the project's (pass 4); widen the refusal's 'drop it once it owns none' to REASSIGN OWNED BY / DROP OWNED BY first, since DROP ROLE fails 2BP01 while it owns any object (pass 5)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security, re-applying a payments role does not revoke an escalated grant or memberships (narrow vs refuse); LOW effort: one registrar function plus tests, design choice settled in its own run",
   "status": "open",
   "tags": [
     "security"

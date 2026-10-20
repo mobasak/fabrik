@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-19T21:59:20.311247Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-f599a88c",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "refuse a database name ending in any registrar role suffix at create_database / spec load (one suffix list shared with _payments_role_name and the watchdog names), or check role ownership before treating 'exists' as ours; measure the live population first (no current db ends in a suffix?)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security, registrar role names can collide across projects (a database named <x>_payments_fulfilment can share another project's role); LOW effort: a name-scoping check plus a test",
   "status": "open",
   "tags": [
     "security"

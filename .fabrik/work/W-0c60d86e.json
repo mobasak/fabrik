@@ -4,17 +4,22 @@
   "creator": "fleet",
   "evidence": "",
   "id": "W-0c60d86e",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md",
+    "plan": "",
     "spec": ""
   },
   "next": "persist registrar_warnings beside registrar_failures in .fabrik/state (state.py schema + _persist_state), show them in fabrik status; make reconcile-all read the refresh ctx's failures and warnings; decide whether deploy_router notifications carry warnings",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "MEDIUM: real value (registrar warnings reach only the two CLI summaries, not the state file, fabrik status or reconcile-all), nobody blocked; LOW effort",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "registrar warnings reach only the two CLI summaries, routed from the plan-2 Phase B review (2026-10-20): a payments grant left pending prints one ⚠ line under fabrik apply / redeploy --refresh-infra, but _persist_state saves only registrar_failures (and payments-*-role is not in _REGISTRAR_ORDER, so its pending status is not saved), fabrik status / doctor cannot show it, fabrik reconcile-all discards the refresh ctx (failures too, pre-existing), and deploy_router._deploy_generic never reads warnings (owner: fleet)"
 }
