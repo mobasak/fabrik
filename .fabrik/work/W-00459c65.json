@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T10:07:50.179160Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-00459c65",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "coordinator: wait for youtube's reply, then agents_bat.py --desktop and the operator's coordinator launch line",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 1,
+  "score_reason": "operator ask; hub side is a render plus a message",
+  "status": "open",
+  "title": "youtube coordinator rollout (operator 2026-10-20: 'youtube project, i want to make it coordinator managed, it has 3 agent windows'): youtube-coordinator in VS Code plus builders yt1-yt3 in worktrees; brief mailed as youtube 01M5CCFRPC; hub side: render Youtube Agents.bat once the yt bindings exist, then tell the operator to open the coordinator"
+}
