@@ -7,10 +7,11 @@ it, or name in the brief why the shape does not have it.
 
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
-  check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
-  docstring instruction as a caller would, and hand each seat of the brief that same command to run under § Seat
-  isolation — one that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe
-  each exception a rewritten docstring says the function still raises.
+  check the END STATE a recipe exists to produce, not only each step, against the artifact the next step compares it
+  with (a lock file, a manifest), not only the source it reads; run a README snippet, usage text or rewritten docstring
+  instruction as a caller would, and hand each seat of the brief that same command to run under § Seat isolation — one
+  that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe each exception a
+  rewritten docstring says the function still raises.
 - A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
   that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
   `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
@@ -152,10 +153,12 @@ it, or name in the brief why the shape does not have it.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned
-  after printing its matched span; a byte-identical refactor gets a HEAD-vs-new differential harness; two emitted
-  artifacts are diffed whole for an alias change; a red's failure message is diffed against the baseline and printed
-  beside its FAILED line; an import-path fix is graded from the root conftest and a child process; a grader exclusion
-  says whether it matches an exact name or a pattern.
+  after printing its matched span; a byte-identical refactor gets a HEAD-vs-new differential harness, and a fix that
+  swaps one call, guard or protocol for another (`in` plus `[]` for `.get`) gets one over the input types its callers
+  pass, subclasses and registered virtual types included, before each pin; two emitted artifacts are diffed whole for an
+  alias change; a red's failure message is diffed against the baseline and printed beside its FAILED line; an
+  import-path fix is graded from the root conftest and a child process; a grader exclusion says whether it matches an
+  exact name or a pattern.
 
 ## Prose and docs fixes
 - Read a fragment's scope sentences, and a rule already in a fragment is quoted in its own words and pointed at; a

@@ -23,6 +23,10 @@ W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a ve
 - Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
 - `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
 
+### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
+
+- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another a HEAD-vs-new differential over the input types its callers pass, subclasses and registered virtual types included. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
+
 ### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
 
 - `subagents-core.md`'s seat-folder rule now has the brief tell each seat to create its folder first with `mkdir -p` on the absolute path, as the Workflow's seat prompt already does; two Agent-tool seats hit ENOENT without it. Answers /fabrik-review-scoped feedback row 1792414928.
