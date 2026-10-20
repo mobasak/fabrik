@@ -1046,19 +1046,25 @@ def _strip_quoted(content: str) -> str:
 
 
 def _fences_module() -> Any:
-    """The shared fence scanner, imported when a parse first needs it (W-276255e7) — so `--sync`, the renders
-    and the merge-owner adoption keep running in a project whose `scripts/enforcement/` lags a sync, and only
-    the Status/Owner/link parse fails, naming the file. Imported by the sibling directory, the way every check
-    imports it, so a by-path load (work.py) resolves it too."""
+    """The shared fence scanner, imported when a parse first needs it (W-276255e7) — so the verbs that parse no
+    Status/Owner line or link (`--sync`, the INDEX/PLANS renders) keep running in a project whose
+    `scripts/enforcement/` lags a sync, and a parse that needs it (the Status scan, the merge-owner adoption's
+    Owner line, the link check) fails naming the file. Imported by the sibling directory, the way every check
+    imports it, so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run`
+    promises to write nothing and a first import would write scripts/enforcement/__pycache__/."""
     enforcement = str(Path(__file__).resolve().parent / "enforcement")
     if enforcement not in sys.path:
         sys.path.insert(0, enforcement)
+    prior = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
     try:
         import _fences
     except ImportError as exc:
         raise ImportError(
             f"docs_updater: cannot import scripts/enforcement/_fences.py ({exc})"
         ) from exc
+    finally:
+        sys.dont_write_bytecode = prior
     return _fences
 
 
