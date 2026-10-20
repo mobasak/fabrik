@@ -571,6 +571,12 @@ def host_label(host: str) -> str:
 
 
 def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], matchers) -> str | None:
+    """The catalog vendor a code host belongs to, credited only by DOMAIN evidence — an exact `hosts`/url
+    entry, a registrable-domain wildcard, or a catalog label on the vendor's own domain. A `match` token
+    is an ENV-KEY prefix, never domain evidence: the `<LABEL>_API_KEY` fallbacks this used to end in
+    credited `modal-labs.com` to modal, `hf-token.com` to huggingface and a customer's S3 bucket or Azure
+    resource name to its vendor, while 0 of 592 live code hosts relied on them (W-b81263e8). An unknown
+    host is triaged and curated into its entry's `hosts`. `matchers` is kept for the callers' signature."""
     h = host.lower()
     sld = host_sld(h)
     if sld in PLATFORM_SLD:  # never credit a whole cloud to one catalog vendor …
@@ -579,8 +585,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         label = host_label(h)
         if label in catalog:  # … but a platform SERVICE the classifier already named/tombstoned
             return label  # keeps its entry, or it is re-billed on every cycle (review 2026-09-02)
-        first = h.split(".")[0]
-        return match_provider(f"{first.upper().replace('-', '_')}_API_KEY", matchers)
+        # a first label here is often a customer's bucket or resource name, never evidence
+        return None
     if h in url_index:  # exact hostname
         return url_index[h]
     dom = host_domain(h)
@@ -597,8 +603,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         if not own or host_domain(own) == host_domain(h):
             return sld
         # the entry's url sits on ANOTHER registrable domain: not this vendor — and never re-credited
-        # by falling through to its own `<SLD>_API_KEY` prefix (most vendors curate it: 82 of 109;
-        # the C5 grader passed `matchers=[]`, the one shape production never has — BS3). Said
+        # by an env-key prefix (no host is, W-b81263e8; the C5 grader once passed `matchers=[]`, the
+        # one shape production never has — BS3). Said
         # aloud: 14 live hosts of 8 vendors sit on a sibling domain (`fal.run`, `replicate.delivery`)
         # and belong in the entry's `hosts` — silent None triaged them as their own blocks (BW1)
         print(
@@ -606,7 +612,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
             file=sys.stderr,
         )
         return None
-    return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
+    # no domain evidence: triaged under its own label, never routed by an env-key prefix
+    return None
 
 
 def code_only_block_name(host: str, catalog: dict) -> str:
