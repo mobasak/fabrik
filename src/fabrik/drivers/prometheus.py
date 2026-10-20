@@ -328,7 +328,8 @@ def _sync_managed_keys(
     static = job.get("static_configs")
     if static is None:
         static = []
-    targets = static[0].get("targets") if static and isinstance(static[0], dict) else None
+    first = static[0] if isinstance(static, list) and static else None
+    targets = first.get("targets") if isinstance(first, dict) else None
     sd = sorted(k for k in job if k.endswith("_sd_configs") and job[k])
     if (
         not isinstance(static, list)
@@ -346,14 +347,15 @@ def _sync_managed_keys(
     set_auth = bool(bearer_token) and (
         not isinstance(auth, dict)
         or (
-            "credentials_file" not in auth
+            not auth.get("credentials_file")  # null or "" is absent: the inline token is live
             # Prometheus reads an absent type as Bearer
             and (auth.get("type", "Bearer"), auth.get("credentials")) != ("Bearer", bearer_token)
         )
     )
     if set_auth:
-        # a key set to null is absent to promtool, so it is no clash
-        clash = [k for k in _OTHER_AUTH_KEYS if job.get(k) not in (None, "", {})]
+        # null (or an empty token string) is absent to promtool, so it is no clash; an empty
+        # mapping such as `basic_auth: {}` is still a configured block and clashes
+        clash = [k for k in _OTHER_AUTH_KEYS if job.get(k) is not None and job.get(k) != ""]
         if clash:
             raise ValueError(
                 f"Prometheus job {name} already authenticates with {', '.join(clash)}; "

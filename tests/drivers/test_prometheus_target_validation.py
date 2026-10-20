@@ -79,7 +79,7 @@ def test_a_bad_scheme_is_refused_before_any_read(monkeypatch, scheme, dry_run) -
         "svc:080",  # leading zero: would never equal the job's spelling
         pytest.param("svc:" + "9" * 5000, id="5000-digit-port"),
         "a" * 64 + ":80",  # label over 63
-        ".".join(["a" * 63] * 4) + ":80",  # host over 253
+        ".".join(["a" * 63] * 3 + ["a" * 62]) + ":80",  # host of 254
         8000,
     ],
 )
@@ -200,9 +200,19 @@ def test_no_token_leaves_a_hand_set_auth_block_alone(monkeypatch) -> None:
     assert written == []
 
 
-@pytest.mark.parametrize("key", ["basic_auth", "bearer_token", "bearer_token_file", "oauth2"])
-def test_a_token_beside_another_auth_form_is_refused(monkeypatch, key) -> None:
-    job = _job(**{key: {"x": 1}}, scheme="https")
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("basic_auth", {"x": 1}),
+        ("bearer_token", "t"),
+        ("bearer_token_file", "/f"),
+        ("oauth2", {"x": 1}),
+        ("basic_auth", {}),  # an empty mapping is still a configured block
+        ("oauth2", {}),
+    ],
+)
+def test_a_token_beside_another_auth_form_is_refused(monkeypatch, key, value) -> None:
+    job = _job(**{key: value}, scheme="https")
     before = copy.deepcopy(job)
     written = _wire(monkeypatch, {"scrape_configs": [job]})
     with pytest.raises(ValueError, match=key):
@@ -210,11 +220,27 @@ def test_a_token_beside_another_auth_form_is_refused(monkeypatch, key) -> None:
     assert written == [] and job == before  # refused before anything changed
 
 
-@pytest.mark.parametrize("key", ["basic_auth", "bearer_token"])
-def test_a_null_auth_key_is_no_clash(monkeypatch, key) -> None:
-    written = _wire(monkeypatch, {"scrape_configs": [_job(**{key: None})]})
+@pytest.mark.parametrize(
+    ("key", "value"), [("basic_auth", None), ("bearer_token", None), ("bearer_token", "")]
+)
+def test_a_null_auth_key_is_no_clash(monkeypatch, key, value) -> None:
+    written = _wire(monkeypatch, {"scrape_configs": [_job(**{key: value})]})
     r = prom.add_scrape_target("svc", target="svc:8000", scheme="http", bearer_token="t0k")
     assert r["status"] == "updated" and len(written) == 1
+
+
+@pytest.mark.parametrize("cred_file", [None, ""])
+def test_an_empty_credentials_file_does_not_hide_a_stale_inline_token(
+    monkeypatch, cred_file
+) -> None:
+    auth = {"type": "Bearer", "credentials": "old", "credentials_file": cred_file}
+    written = _wire(monkeypatch, {"scrape_configs": [_job(authorization=auth)]})
+    r = prom.add_scrape_target("svc", target="svc:8000", scheme="http", bearer_token="new")
+    assert r["status"] == "updated"
+    assert written[0]["scrape_configs"][0]["authorization"] == {
+        "type": "Bearer",
+        "credentials": "new",
+    }
 
 
 def test_an_untyped_inline_token_that_matches_is_current(monkeypatch) -> None:
@@ -245,8 +271,10 @@ def test_an_empty_static_config_is_set(monkeypatch, static) -> None:
         "svc:8000",
         ["svc:8000"],
         [{"targets": ["svc:8000", "svc2:8000"]}],
+        {"targets": ["svc:8000"]},
+        5,
     ],
-    ids=["two-entries", "a-string", "non-dict-entry", "two-targets"],
+    ids=["two-entries", "a-string", "non-dict-entry", "two-targets", "a-mapping", "a-scalar"],
 )
 def test_a_hand_shaped_static_config_is_refused_before_any_write(monkeypatch, static) -> None:
     job = _job(static_configs=static, scheme="https")
@@ -259,12 +287,13 @@ def test_a_hand_shaped_static_config_is_refused_before_any_write(monkeypatch, st
 
 @pytest.mark.parametrize("sd", ["file_sd_configs", "http_sd_configs"])
 def test_a_service_discovery_job_is_refused(monkeypatch, sd) -> None:
-    job = _job(**{sd: [{"files": ["x.json"]}]})
+    job = _job(**{sd: [{"files": ["x.json"]}]}, scheme="https")
     del job["static_configs"]
+    before = copy.deepcopy(job)
     written = _wire(monkeypatch, {"scrape_configs": [job]})
     with pytest.raises(ValueError, match=sd):
         prom.add_scrape_target("svc", target="svc:8000", scheme="http")
-    assert written == [] and "static_configs" not in job
+    assert written == [] and job == before
 
 
 # ── Behaviour 7: rollback removes only a job this run created ─────────────────────────── #
