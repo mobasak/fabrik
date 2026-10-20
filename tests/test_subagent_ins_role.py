@@ -48,6 +48,10 @@ def _capture(project: str = PROJECT, *, role_exists: bool = False):
     calls: list[str] = []
 
     def fake_run_sql(sql, container=pg.POSTGRES_CONTAINER, dry_run=False):
+        if (
+            "pg_shdepend" in sql
+        ):  # the foreign-role guard (W-f599a88c): a clean, registrar-owned role
+            return pg._GUARD_END
         calls.append(sql)
         return ""
 
