@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a registrar role name never captures another project's role (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: every per-project role is `<db>_<suffix>` and every database's owner role carries the database's name, so names collide across projects. One fail-closed guard, `_foreign_role_reasons`, marks an existing role as someone else's when it owns a database or objects outside its own database. `create_database` refuses, before the database exists, to adopt an existing role that holds any grant, policy row or membership (it would have reset that role's password and made another project's credential the new database's owner); a leftover owner of a dropped database is still adopted. The watchdog roles (both checked before either is created), the subagent-ins role and the payments mint refuse such a role and touch nothing; the message names the fix — rename one project's database with `depends.postgres` (W-f599a88c).
+
 ### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
 
 - `src/fabrik/drivers/prometheus.py`: `_reload_prometheus_outcome()` names `reloaded` · `restarted` · `refused` (promtool printed FAILED on the config now on vps1) · `unavailable`; `add_scrape_target` and `add_aro_wake_target` return it as `reload` on created AND exists (the exists branch reloads, so every apply re-checks); the removes return False when the rewrite was not loaded (W-cc9b0532).

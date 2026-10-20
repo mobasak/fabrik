@@ -3,7 +3,7 @@
   "created": "2026-10-19T21:59:20.311247Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "561c07d203ed533cede126176ebcedcaeee9edbc",
   "id": "W-f599a88c",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: security, registrar role names can collide across projects (a database named <x>_payments_fulfilment can share another project's role); LOW effort: a name-scoping check plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],
