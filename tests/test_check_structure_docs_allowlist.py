@@ -57,6 +57,23 @@ def test_legacy_docs_tolerated():
 
 
 # --- (c) a genuinely-misplaced doc still WARNs (the gate still does its job)
+def test_the_scaffold_written_preplan_is_allowed_for_every_type_and_never_seeded():
+    """The scaffold's preplan layering writes docs/preplan.md into any project scaffolded with a
+    preplan, outside the template map, so no PROJECT_DOCS row named it and check_structure WARNed
+    on the platform's own file (W-c6d19bda, fleet mail 01M5AQ5FY4). It is allowed for every type,
+    with or without a database, and is never seeded or stub-required."""
+    import _doc_registry as reg
+
+    assert "preplan.md" not in _docs_violations(["preplan.md"])
+    assert "preplan.md" in cs._FALLBACK_DOCS_ALLOWLIST, "the registry-down fallback says the same"
+    assert len(reg.ALL_TYPES) >= 10, reg.ALL_TYPES  # the loop below must not be vacuous
+    for ptype in sorted(reg.ALL_TYPES):
+        for db in (False, True):
+            assert "preplan.md" in reg.docs_allowlist(ptype, needs_database=db), (ptype, db)
+            assert all(r.name != "docs/preplan.md" for r in reg.seed_rows(ptype, needs_database=db))
+    assert all(r.name != "docs/preplan.md" for r in reg.PROJECT_DOCS)
+
+
 def test_misplaced_doc_still_warns():
     flagged = _docs_violations(["random.md", "my_notes.md"])
     assert "random.md" in flagged and "my_notes.md" in flagged

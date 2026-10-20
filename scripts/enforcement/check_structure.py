@@ -135,6 +135,8 @@ _FALLBACK_DOCS_ALLOWLIST = frozenset(
         "design-system.md",
         "LESSONS_LEARNT.md",
         "STRATEGIC_BACKLOG.md",
+        # written by the scaffold's preplan layering (_doc_registry.SCAFFOLD_WRITTEN)
+        "preplan.md",
     }
 )
 try:
