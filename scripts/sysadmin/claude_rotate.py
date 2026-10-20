@@ -2433,11 +2433,13 @@ def _strays(d: Path, name: str) -> list[Path]:
 def _merge_shared_pending(name: str, canon: Path) -> bool:
     """Whether any state ``--merge-shared`` acts on exists: a REAL ``<name>/`` dir, an aside dir, a
     working name a killed swap left, or a canonical that is still the swap's link."""
+    root = _fleet_root()
+    # an absent root is no fleet; an unreadable one RAISES (W-21b4c0e5) — checked before the
+    # canonical-link answer too, or a leftover link took the lock and merged over no dirs (W-973887d5)
+    if os.path.lexists(root):
+        next(iter(root.iterdir()), None)
     if canon.is_symlink():
         return True
-    root = _fleet_root()
-    if os.path.lexists(root):  # an absent root is no fleet; an unreadable one RAISES (W-21b4c0e5)
-        next(iter(root.iterdir()), None)
     for d in _fleet_dirs():
         p = d / name
         if (p.is_dir() and not p.is_symlink()) or _aside_dirs(d, name) or _strays(d, name):
@@ -7295,8 +7297,9 @@ def _read_tick_last_end() -> float | None:
 
 
 def _write_tick_last_end(now: float) -> bool:
-    """Atomically record this tick's end; False when it could not be written (the per-process
-    staging file is then removed, so a state dir that refuses the publish never fills with them)."""
+    """Atomically record this tick's end; False when it could not be written (a per-process
+    staging file this call created is then removed, so a state dir that refuses the publish never
+    fills with them; a DIRECTORY planted at the staging name is left in place and fails closed)."""
     tmp = None
     try:
         path = _tick_last_end_path()
