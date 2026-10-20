@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — agents_up.sh resumes each builder's newest whoami binding, so a /clear needs no registry edit (2026-10-20)
+
+- `scripts/sysadmin/agents_up.sh` now reads the whoami identity store the way `whoami_agent.py` does and resumes each builder's newest binding for the repo, so after a /clear the window's `whoami_agent.py --as <name> --force` re-bind is all the launcher needs. The registry's id stands only when its transcript is newer than the binding and the bound session, or when there is no binding, store or git scope; stderr says which. A session that would serve two panes refuses the launch, coordinator sessions included. Panes get the store path, and the exit hint names the re-bind.
+- The hub gets a gitignored `.fabrik/session-agents.json`; seeding it and retiring `~/bin/hub-up` are post-merge steps in `docs/reference/repo-coordinator-rollout.md` (W-66e2f6a7, D-1063).
+
 ### Added — after a host sleep the rotation tick wakes every armed self-watch, and the posture shows the stamp the tick left (2026-10-20)
 
 - After a WSL hibernation nothing woke the idle sessions: the self-watch fires only on a death or a hold lift. Every `--tick` now records its end in `<state>/tick-last-end`. When the gap from that end to the next tick's start is over `CLAUDE_RESUME_GAP_MIN` (15 min, never under 12) and no hold stands, it writes `<epoch> resume` to every armed self-watch and a `resume-wake` ledger row with the gap (W-75cafe7a, D-1058).
