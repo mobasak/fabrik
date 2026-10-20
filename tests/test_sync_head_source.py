@@ -1429,3 +1429,158 @@ def test_a_new_file_whose_source_becomes_a_link_names_the_refusal(
     assert result.action == "WARN", result
     assert result.reason.startswith("symlinked hub source not shipped"), result
     assert not (project / "u.md").exists()
+
+
+# ---- W-47d91afa: the enforcement walk prunes its orphans, like the vendored walk -----------------
+# A check the hub deleted or renamed stayed in every project forever (82 copies of two retired
+# checks in 41 projects, measured 2026-10-20).
+
+
+def _enf_hub(hub, tmp_path: Path):
+    mod, hub_root, _committed, untracked = hub
+    untracked.unlink()  # the fixture's untracked file is not part of these cases
+    for name in (
+        "CORE_SCRIPTS",
+        "RUN_SCRIPTS",
+        "GOVERNANCE_FILES",
+        "GOVERNANCE_TEMPLATES",
+        "GOVERNANCE_DIRS",
+        "VENDORED_DIRS",
+        "REFERENCE_DOCS",
+        "AGENT_HOOK_FILES",
+    ):
+        setattr(mod, name, [])
+    enf = tmp_path / "proj" / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "committed.py").write_text("COMMITTED = 1\n", encoding="utf-8")
+    (enf / "retired_check.py").write_text("# the hub deleted this\n", encoding="utf-8")
+    (enf / "__pycache__").mkdir()
+    (enf / "__pycache__" / "retired_check.cpython-312.pyc").write_bytes(b"\0")
+    return mod, hub_root, tmp_path / "proj", enf
+
+
+def test_the_enforcement_walk_prunes_its_orphans(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    dry = mod.sync_scripts_to_project(project, dry_run=True)
+    assert (enf / "retired_check.py").exists(), "a dry run deletes nothing"
+    assert any(
+        r.action == "DELETE" and r.destination == enf / "retired_check.py" for r in dry.files
+    )
+    result = mod.sync_scripts_to_project(project)
+    assert not (enf / "retired_check.py").exists(), "the retired check lingered"
+    assert (enf / "committed.py").read_text() == "COMMITTED = 1\n", "a live check was pruned"
+    assert (enf / "__pycache__").exists(), "bytecode is not the prune's"
+    assert any(
+        r.action == "DELETE" and r.destination == enf / "retired_check.py" for r in result.files
+    )
+
+
+def test_a_tracked_enforcement_orphan_is_reported_not_deleted(hub, tmp_path: Path) -> None:
+    """A project that commits its copies (fabrik-test-saas-skeleton) keeps them: a deletion would
+    leave a `D` in its tree. Reported, never deleted."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
+    )
+    result = mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()
+    reasons = [r.reason for r in result.files if r.destination == enf / "retired_check.py"]
+    assert reasons == ["enforcement orphan tracked by the project; kept"], reasons
+
+
+def test_a_project_git_that_rejects_its_own_repo_keeps_the_orphan(hub, tmp_path: Path) -> None:
+    """Review pass 3: a project whose own `.git` git rejects (a corrupt HEAD) prints "not a git
+    repository" too — read as untracked, a copy its history tracks was deleted."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
+    )
+    (project / ".git" / "HEAD").write_text("garbage\n", encoding="utf-8")
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists(), "a copy a broken repo cannot vouch for was deleted"
+
+
+def test_no_enforcement_prune_on_a_working_tree_only_listing(hub, tmp_path, monkeypatch) -> None:
+    """When HEAD's listing failed, the live set is the working tree alone, and a sibling's
+    uncommitted deletion would become a DELETE in every project — so nothing is pruned."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    real = mod._hub_files
+
+    def unreadable(src_dir):
+        mod._head_unread["scripts/enforcement/"] = "git ls-tree -r exited 128: simulated"
+        return real(src_dir)
+
+    monkeypatch.setattr(mod, "_hub_files", unreadable)
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()
+
+
+def test_an_uncommitted_enforcement_deletion_is_not_pruned(hub, tmp_path: Path) -> None:
+    """HEAD still lists a file a sibling deleted without committing: it is live, and ships HEAD."""
+    mod, hub_root, project, enf = _enf_hub(hub, tmp_path)
+    (hub_root / "scripts" / "enforcement" / "committed.py").unlink()
+    mod.sync_scripts_to_project(project)
+    assert (enf / "committed.py").read_text() == "COMMITTED = 1\n"
+
+
+def test_a_backup_this_run_made_survives_the_prune(hub, tmp_path: Path) -> None:
+    """Review pass 1: `--backup` wrote `<name>.backup.<ts>` beside the check, and the prune — which
+    runs after the walk — deleted it in the same run, defeating the flag."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    (enf / "committed.py").write_text("# a stale copy\n", encoding="utf-8")
+    mod.sync_scripts_to_project(project, backup=True, force=True)
+    assert list(enf.glob("committed.py.backup.*")), "the --backup copy was pruned"
+    assert not (enf / "retired_check.py").exists()
+
+
+def test_a_project_git_that_cannot_answer_keeps_the_orphan(hub, tmp_path: Path) -> None:
+    """Review pass 1: a corrupt project index made `ls-files` exit 128, read as "untracked", and
+    the prune deleted a tracked copy. Any git failure other than "no match" now keeps the file."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "add", "-f", "scripts/enforcement/retired_check.py"],
+        check=True,
+    )
+    (project / ".git" / "index").write_bytes(b"not an index")
+    result = mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists(), "a tracked copy was deleted on a git fatal"
+    reasons = [r.reason for r in result.files if r.destination == enf / "retired_check.py"]
+    assert reasons == ["enforcement orphan kept: the project's git could not say if it is tracked"]
+
+
+def test_a_live_sync_temp_file_is_left_for_its_writer(hub, tmp_path: Path) -> None:
+    """Review passes 1-2: a concurrent sync's `.sync-tmp-*` file, mid-write, was unlinked before
+    its rename — and it carries its SOURCE's mtime (`_carry_mtime`), often days old, so the age is
+    read from ctime, which the write set to now."""
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    young = enf / ".sync-tmp-young"
+    young.write_text("mid-write\n", encoding="utf-8")
+    carried = time.time() - 3 * 86400
+    os.utime(young, (carried, carried))  # the carried source mtime; ctime stays now
+    mod.sync_scripts_to_project(project)
+    assert young.exists(), "a live temp file with a carried old mtime was pruned"
+
+
+def test_an_old_sync_temp_leftover_is_pruned(hub, tmp_path: Path, monkeypatch) -> None:
+    mod, _hub_root, project, enf = _enf_hub(hub, tmp_path)
+    old = enf / ".sync-tmp-old"
+    old.write_text("leftover\n", encoding="utf-8")
+    later = time.time() + 7200  # two hours on: the crash leftover is stale
+    monkeypatch.setattr(mod.time, "time", lambda: later)
+    mod.sync_scripts_to_project(project)
+    assert not old.exists()
+
+
+def test_a_copy_a_parent_repo_tracks_is_kept(hub, tmp_path: Path) -> None:
+    """Review pass 2: a project folder with no `.git` of its own, inside a repo that tracks the
+    file, was read as untracked by a `.git` short-circuit. Git is asked; the parent index counts."""
+    mod, hub_root, project, enf = _enf_hub(hub, tmp_path)
+    rel = (enf / "retired_check.py").relative_to(hub_root)  # the fixture hub is the parent repo
+    subprocess.run(["git", "-C", str(hub_root), "add", "-f", str(rel)], check=True)
+    mod.sync_scripts_to_project(project)
+    assert (enf / "retired_check.py").exists()

@@ -104,13 +104,13 @@ Long Command Monitoring System v1.1.0 - see `docs/reference/long-command-monitor
 
 ### Enforcement Directory
 
-All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `fabrik_synced_manifest.py`) — 49 files as of 2026-07-20 (`git ls-files scripts/enforcement/ | wc -l`), a representative sample:
+All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `fabrik_synced_manifest.py`; count them with `git ls-files scripts/enforcement/ | wc -l`). The walk also prunes: a project file the hub's listing no longer has — the working tree's files plus HEAD's, so a deletion counts only once committed — is deleted (a `--backup` copy is kept), a copy the project tracks in git is kept with a WARN, and nothing is pruned when HEAD could not be listed (W-47d91afa). A representative sample:
 
 - `check_docker.py` — Dockerfile amd64 compliance
 - `check_secrets.py` — Hardcoded secrets detection
 - `check_env_contract.py` — .env/.env.example sync
 - `check_health.py` — Health endpoint validation
-- ... (49 checks total; see [FINAL_GATE_WORKFLOW.md § Enforcement Scripts](FINAL_GATE_WORKFLOW.md) for the full gate-wired inventory)
+- ... (see [FINAL_GATE_WORKFLOW.md § Enforcement Scripts](FINAL_GATE_WORKFLOW.md) for the full gate-wired inventory)
 
 ### Vendored Modules
 
