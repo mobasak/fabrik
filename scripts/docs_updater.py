@@ -1167,6 +1167,22 @@ NO_OWNER = "—"  # an untagged row — `--adopt` fills it
 # The owner NAME is the line's leading token; live hub plans append prose
 # (`infra (build) — spec by fleet, …`) that must not become a table cell.
 _OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
+_STATUS_LINE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
+    re.I | re.M,
+)
+
+
+def _first_header(rx: re.Pattern[str], scan: str) -> re.Match[str] | None:
+    """The first header-line match whose KEY no inline code span holds (W-8f9a7d2c): a span crossing a line
+    break with `Status: DRAFT` opening its second line is a quote, not the plan's header. The match runs on the
+    original text and the value is read from it, so a value in code font (`**Owner:** `[infra]``) keeps it;
+    `_blank_code_spans` is length-preserving, so only the key's bytes are compared against the blanked copy."""
+    blanked = _blank_code_spans(scan)
+    for m in rx.finditer(scan):
+        if blanked[m.start() : m.start(1)] == scan[m.start() : m.start(1)]:
+            return m
+    return None
 
 
 def parse_plan_owner(plan_path: Path) -> str:
@@ -1178,7 +1194,7 @@ def parse_plan_owner(plan_path: Path) -> str:
         content = plan_path.read_text(encoding="utf-8")
     except Exception:
         return NO_OWNER
-    m = _OWNER_LINE_RE.search(_strip_quoted(content))
+    m = _first_header(_OWNER_LINE_RE, _strip_quoted(content))
     if not m:
         return NO_OWNER
     name = _OWNER_NAME_RE.search(m.group(1).strip().strip("*"))
@@ -1255,11 +1271,8 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     # RAW content (DONE-WHEN lists inside fences are live house style in this
     # repo's archived plans; uncounting them would fail-open the COMPLETE check).
     status_scan = _strip_quoted(content)
-    status_match = re.search(
-        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
-        status_scan,
-        re.I | re.M,
-    )
+    # A header line a code span holds is a quote too (W-8f9a7d2c).
+    status_match = _first_header(_STATUS_LINE_RE, status_scan)
     if status_match:
         raw_status = status_match.group(1).strip().lstrip("*:").strip()
         # Leading decoration (any non-word run: ✅ ✓ ⛔ emphasis, dashes) is not the value: `✅ EXECUTED … converged`
