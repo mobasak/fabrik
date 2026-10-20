@@ -3,7 +3,7 @@
   "created": "2026-10-20T04:57:02.691947Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "404d952caef9869e8eee3e1b563a9ae1e27bb6ad",
   "id": "W-60629ce4",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "agents' request (four agents, each pays one receipt re-make per nested review); one reversible decision across two commands, /fabrik-task lane with design critique",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5bsvanzwx2a7sngv3n4vpct"
   ],
