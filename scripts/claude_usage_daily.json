@@ -843,14 +843,14 @@
       "claude-fable-5-1": 22040401
     },
     "2026-10-20": {
-      "claude-opus-5-5": 4035595766,
-      "claude-sonnet-5-5": 109941637,
-      "claude-haiku-5-5": 164405363,
-      "claude-fable-5-1": 21263041
+      "claude-opus-5-5": 5009425795,
+      "claude-sonnet-5-5": 152538756,
+      "claude-haiku-5-5": 185938780,
+      "claude-fable-5-1": 27299003
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-20T11:19:16+03:30",
+  "merged_at": "2026-10-20T14:36:43+03:30",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
