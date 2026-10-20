@@ -13,7 +13,7 @@
   },
   "next": "when origin/master's scripts/command_run.py start prints RUN-SCRATCH: (plan-1 Phase A merged — git grep -c RUN-SCRATCH origin/master -- scripts/command_run.py > 0), edit the two fragments + /fabrik-review-scoped + the three D7 sites fleet added in 01M4Y86A9RKAP0ASCAY85CSE2V (fabrik-review.md:126-128 the archive pin under <scratchpad>/review-<sha> and :219 <scratch>/<slice>-<model>/; fabrik-execute-plan.md:951 and :954 brief/report files under <scratchpad>; :696 stays), then reply to fleet",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
   "tags": [
