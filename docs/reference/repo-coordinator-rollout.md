@@ -5,10 +5,72 @@ checkout and the builders in their own worktrees. The coordinator sorts mail, sc
 keeps the records and is the operator's only point of contact. It never builds. fabrik-lib is the first repo after the
 hub, and this runbook is the template for the rest. The model itself (worktrees, merge protocol, locks) is in
 `docs/reference/multi-agent-operating-model.md`, and the coordinator's jobs are in `templates/governance/CLAUDE.md`
-§ The coordinator role. This page covers only how a repo gets there and how its agents are launched.
+§ Orient, the paragraph opening "The coordinator role". This page covers only how a repo gets there and how its agents are launched.
 
 The repo's own agents do every step: the hub may not edit another repo. The hub sends the brief, builds the
 launcher, and keeps the hub item open until the repo confirms each phase.
+
+## Who does what
+
+| Who | Does |
+|---|---|
+| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, answers gates (§ The operator's steps). |
+| The hub coordinator | Runs the pre-flight below, sends the brief to the repo, writes the repo's desktop .bat (§ The Windows side), keeps the hub item open. |
+| The repo's coordinator | Runs phase 5 and then the repo, as the merge owner. Until it exists, an existing builder does phases 1–3. |
+| The repo's builders | Do phases 1–3 through the repo's own gate and review, then work their queue. |
+
+## Before the first phase: what the hub coordinator reads (read-only)
+
+Each answer below goes into the brief, so the repo's agents never have to guess it.
+
+1. **Who the coordinator is.** The repo's own ledger decides, never a name's position or number:
+   `python3 /opt/fabrik/scripts/decisions.py --merge-owner /opt/<repo>` prints the current merge owner. That agent is the
+   coordinator, whatever its name: web-ecommerce-factory's is `wef2` (its D-198, the operator's D-1042). With no
+   merge-owner row the repo picks one, and phase 2 step 7 mints the first row. The launcher reads the same ledger to
+   decide which agent gets no pane (§ Launching a repo's builders). The synced `CLAUDE.md` § Orient (d) describes a
+   single-window repo recording its merge owner with `docs_updater.py --adopt`, where the first name listed becomes the
+   merge owner; in a rollout the ledger row is the record, and nothing is re-adopted.
+2. **Which branch is the trunk.** It may not be `main`. The trunk is the branch the main checkout works on and merges
+   into; youtube's is `spec/video-classification-pipeline`, because its `origin/main` holds only three PR merges of it.
+   `work.py` reads the trunk from `.fabrik/work/config.json`'s `base_branch`, which `work.py init` records from the
+   main checkout's branch at that moment; check it with `python3 -c "import json;print(json.load(open('/opt/<repo>/.fabrik/work/config.json'))['base_branch'])"`.
+   Moving a repo's trunk to `main` is an operator decision, never a rollout step.
+3. **Whether `CLAUDE.md` is synced.** `cmp /opt/<repo>/CLAUDE.md /opt/fabrik/templates/governance/CLAUDE.md` exits 0 for a
+   synced repo (every `/opt` repo except the hub and the sync-excluded `fabrik-lib`). A synced repo cannot edit its
+   `CLAUDE.md`; phase 2 step 8 says where its rules go instead.
+4. **Uncommitted sync output.** The governance sync rewrites the "Fabrik-synced" block of each repo's `.gitignore` and
+   does not commit it. `git -C /opt/<repo> status --short .gitignore` showing `M` means the first phase-1 commit carries
+   it as its own commit (youtube's 402551c), so no builder's later commit picks it up by accident.
+5. **The builders and their windows.** The names come from the repo's ledger or the operator's ruling (youtube:
+   `yt1`–`yt3`; web-ecommerce-factory: `wef1`, `wef3`). Each builder's current session is the window the operator
+   already has open; phase 2 step 9 records it. A builder with no window yet gets its worktree first
+   (`git -C /opt/<repo> worktree add .claude/worktrees/<name> -b worktree-<name> <trunk>`) and its first session is
+   started there as `CLAUDE_AGENT=<name> claude -n <name>`, the name the launcher later resumes it under; a session
+   started that way writes no binding, so it then runs step 9's `whoami_agent.py --as <name>`. The synced `CLAUDE.md`
+   § Orient (d) names a session `-n <name>-<repo>`; either name works, because the launcher resumes by session id and
+   passes `-n <name>` itself.
+
+## The operator's steps
+
+Written for the operator; nothing here can be done by an agent.
+
+1. **Open the coordinator** in a VS Code window on the repo's main checkout, started as
+   `CLAUDE_AGENT=<coordinator name> claude -n <coordinator name>` (youtube: `CLAUDE_AGENT=youtube-coordinator claude -n
+   youtube-coordinator` in `/opt/youtube`). Until it is open, the repo's merges and assignments wait; the builder doing
+   phases 1–3 commits them on the trunk itself, as youtube's did — the one exception to step 10, and it ends there.
+   When the merge owner already has a window in the main checkout (whatsapp-agent's `wa1`, web-ecommerce-factory's
+   `wef2`), keeping it is allowed: `/rename` it and run `python3 /opt/fabrik/scripts/whoami_agent.py --as <its name>
+   --force` in it. A window not started with `CLAUDE_AGENT` gets its charter from `agent_role.py` only through that
+   whoami binding, which a `/clear` (a new session id) does not carry, so after every `/clear` it re-binds and reads
+   its charter itself (step 17); reopening it with `CLAUDE_AGENT` once avoids that.
+2. **Close the builders' old windows** (VS Code tabs or terminals) before the first double-click of the repo's .bat. A
+   builder whose session is still running elsewhere gets a pane that only says so, because two processes on one
+   session mix its transcript and hooks.
+3. **Rename each window** with `/rename <name>` (the coordinator and each builder). Only the operator can, and two
+   windows with the same auto-name in one folder collide.
+4. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
+   grid; the coordinator stays in VS Code.
+5. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
 
 ## The phases
 
@@ -16,10 +78,18 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 ### 1 — Tooling (done by an existing builder, before the coordinator starts)
 
-1. Vendor `scripts/work.py` and create `.fabrik/work/config.json` with `"coordinator_mode": true`,
+1. Vendor `scripts/work.py` and make `.fabrik/work/config.json` hold `"coordinator_mode": true`,
    `"queue_floor": 1`, `"autonomy": true` and `"feedback_owner"` (the agent that keeps the command-feedback queue,
-   or none). Reference: `docs/reference/work-tracking.md`.
-2. Vendor `scripts/decisions.py` (`--merge-owner`, `--reserve-id`, `--check`) and `scripts/agent_status.py`.
+   or `null`). The file already exists in almost every repo: add the missing keys to it; run `work.py init` only where
+   it is absent (init refuses an existing file). Check the two keys `work.py init` wrote: `"base_branch"` must be the trunk the pre-flight found, and
+   `"distributor"` must be the coordinator (init copies the merge owner at that moment, so set it by hand when step 7
+   changes the merge owner later). Reference: `docs/reference/work-tracking.md`.
+2. Vendor `scripts/decisions.py` (`--merge-owner`, `--reserve-id`, `--check`). Do NOT vendor `scripts/agent_status.py`
+   yet: its roster is the hub's own agents (`mail.HUB_BEATS`), so a repo's coordinator would be shown the hub's
+   infra, fleet, intel and kaizen (youtube mail 01M5CDMVMG, with infra). The synced SessionStart line that calls it
+   stays inert while the file is absent; the coordinator reads its builders with `work.py queue` and
+   `work.py ready --all` instead. Add `/.fabrik/session-agents.json` to the repo's own `.gitignore` (the synced block
+   does not carry it), so the optional box-local registry step 9 mentions can never be committed.
 3. Vendor `.claude/hooks/agent_role.py` and register it as a SessionStart hook in `.claude/settings.json`, so a
    session started with `CLAUDE_AGENT=<name>` gets its charter from `docs/reference/agents/<name>.md`.
 4. Bring `.claude/hooks/final_gate_stop.py` up to the hub's version, which carries the coordinator causes.
@@ -29,19 +99,30 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 6. Write the charters in `docs/reference/agents/`, each starting with the line `# Agent charter` (otherwise
    `agent_role.py` ignores the file):
-   - `<repo>-coordinator.md`, adapted from the hub's `docs/reference/agents/coordinator.md`.
+   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is usually
+     `<repo>-coordinator`), adapted from the hub's `docs/reference/agents/coordinator.md`.
      - Keep: mail sorting, scoring, one major project in flight, merges, records, improving a request before routing
        it, never building, and the Opus + Fable panel for decisions.
      - Drop what only the hub does: fleet sync, rendering commands, VPS and deploy gates.
      - Add the repo's own rules: its routing map (for fabrik-lib, `.fabrik/module-owners.json`), its gate and its
        decision log.
    - One charter per builder, each with its own beat.
-7. Add a `docs/DECISIONS.md` row minted with `decisions.py --reserve-id`, whose what-cell reads
-   `supersedes D-<the current merge-owner row>: MERGE OWNER: <repo>-coordinator`.
-8. In `CLAUDE.md`:
-   - Add the coordinator paragraph from the hub's `CLAUDE.md` § Orient.
-   - Make the coordinator the merge owner and the holder of the bare mail arm.
-   - Adopt the hub rulings:
+7. Skip this step when `decisions.py --merge-owner /opt/<repo>` already prints the coordinator (web-ecommerce-factory's
+   D-198, whatsapp-agent's D-002, tryton-crm's D-027). Otherwise add a `docs/DECISIONS.md` row minted with
+   `decisions.py --reserve-id`, whose what-cell reads
+   `supersedes D-<the current merge-owner row>: MERGE OWNER: <coordinator name>`. A repo with no merge-owner row yet
+   writes `MERGE OWNER: <coordinator name>` and supersedes nothing (youtube's D-063). Mint it by hand:
+   `docs_updater.py --adopt` would stamp old plans with owners. Confirm with `decisions.py --merge-owner /opt/<repo>`.
+8. Put these rules where the repo's sessions will read them. A synced repo (pre-flight check 3) cannot edit
+   `CLAUDE.md`, so it writes them into every charter of step 6, coordinator and builders alike (youtube 01M5CCR5VG);
+   the synced `CLAUDE.md` already carries the coordinator paragraph and the quota bands. A repo with its own
+   `CLAUDE.md` (fabrik-lib) writes them there:
+   - The coordinator paragraph from the hub's `CLAUDE.md` § Orient (synced repos already have it).
+   - The coordinator is the merge owner and the holder of the bare mail arm: mail sent to the repo with no
+     `--to-agent` is the coordinator's to sort.
+   - D-1034: in every repo the coordinator manages all of the repo's agents, and an agent asks its coordinator, never
+     the operator, including a permission prompt's exact text.
+   - The hub rulings:
      - D-943: the operator talks only to the coordinator, and builders never ask the operator and never use
        AskUserQuestion.
      - D-558: the Opus + Fable panel answers decisions.
@@ -61,7 +142,12 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 10. Every builder works in `.claude/worktrees/<name>` on a branch `worktree-<name>`, and the main checkout is the
     coordinator's alone. A builder that still works in the main checkout commits or parks its work, then moves.
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
-    `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv.
+    `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
+    `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
+    Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
+    reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
+    01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
+    never add a `noqa` or edit the synced check.
 12. Old worktrees: list each one with its branch, whether it is merged, and any unpushed or uncommitted work. Remove
     only the merged and clean ones. Any with unmerged work goes to the operator as one list through the coordinator,
     because removing it is destructive.
@@ -79,13 +165,13 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 ### 5 — The first coordinator run
 
-17. Start the coordinator with `CLAUDE_AGENT=<repo>-coordinator`, then:
-    1. Run `whoami_agent.py --as <repo>-coordinator`.
-    2. Arm its self-watch.
-    3. Read its charter.
-    4. Score the whole backlog once. Proposed drops go to the operator as one list, and nothing is dropped before the
+17. The operator opens the coordinator (§ The operator's steps, step 1), and it then:
+    1. Runs `python3 /opt/fabrik/scripts/whoami_agent.py --as <coordinator name>`.
+    2. Arms its self-watch.
+    3. Reads its charter.
+    4. Scores the whole backlog once. Proposed drops go to the operator as one list, and nothing is dropped before the
        answer.
-    5. Assign the work with `work.py triage --apply`.
+    5. Assigns the work with `work.py triage --apply`.
 
 ## Launching a repo's builders
 
@@ -214,7 +300,7 @@ opens even before Windows Terminal has loaded the fragment, at the default font.
 Terminal starts, and every Windows Terminal window shares one process, so 9pt applies once every Windows Terminal
 window has been closed after the first run. Nobody edits `settings.json`; Windows Terminal itself adds a
 `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own. The launcher runs what the hub's
-main checkout holds, so it works only once `agents_up.sh` is merged there.
+main checkout holds, so a change to `agents_up.sh` reaches the .bats only once it is merged there.
 
 Moving a repo from a hand-made launcher to the generated one:
 
@@ -229,10 +315,12 @@ Moving a repo from a hand-made launcher to the generated one:
 - Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
   builder in its worktree, with no banner and no dialog.
 
-The hub moves the same way (W-66e2f6a7). Once the change is merged:
+The hub moves the same way (W-66e2f6a7). Status 2026-10-20: step 1 is done — the hub's registry holds infra, intel,
+fleet and kaizen — so never re-seed it; closing the old `hub` grid (step 3) is boarded for the operator as
+W-0076b052:
 
-1. Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and their current session ids:
-   infra, intel, fleet and kaizen, and no coordinator row.
+1. (Done — never repeat.) Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and
+   their current session ids: infra, intel, fleet and kaizen, and no coordinator row.
 2. Check the grid with `agents_up.sh --print /opt/fabrik`.
 3. Close the old `hub` grid (`tmux kill-session -t =hub`). The launcher names the hub's grid `fabrik`, after its
    folder, so it never adopts `hub`.
@@ -240,10 +328,44 @@ The hub moves the same way (W-66e2f6a7). Once the change is merged:
    hand-made one.
 5. Retire `~/bin/hub-up`.
 
+## Box facts that shape the rollout
+
+- **WSL runs NAT (D-1072).** From Windows, `localhost:<port>` into WSL times out; WSL answers only at its own address.
+  Nothing in a rollout may depend on Windows reaching a WSL service through `localhost`. The desktop .bat never does:
+  it starts the grid through `wsl.exe` (§ The Windows side).
+- **Agents run memory-capped.** Every pane the launcher starts runs in its own `systemd-run --user --scope` in
+  `fabrik-agents.slice` (3G, no swap, 1024 tasks per pane; 16G for the slice), uncapped only when no user manager
+  answers, which the launcher says (§ Launching a repo's builders, W-56b3f90d). Sessions started from VS Code, which
+  is where every coordinator runs, are not capped. After a
+  box reboot, the reboot sweep is to resume no more autonomous sessions than the work-in-progress limit; that limit is
+  infra's open slice of W-56b3f90d / W-89474fc1, and until it lands a reboot may resume more autonomous sessions
+  than that limit.
+- **Retire hand-written launchers.** `~/bin/hub-up` and `~/bin/fabrik-lib-up` predate the generated launcher: they
+  carry session ids typed in by hand, which go stale after every `/clear`, and the hub's runs builders from the main
+  checkout. Once a repo's generated .bat opens its grid, its hand-written launcher and Windows Terminal profile are
+  removed (§ The Windows side, "Moving a repo from a hand-made launcher").
+
+## Pausing a repo's agents (hibernate, reboot)
+
+`/hibernate`, run by the operator in the hub coordinator's window, will send every repo's coordinator a pause it
+passes to its own agents (infra's W-1e9ae1e5). Until it lands, the hub coordinator messages each repo coordinator,
+which tells each of its builders, in this order:
+
+1. Leave every subagent finished or stopped; start no new seat, phase, review round or merge request.
+2. Commit the work in progress on the agent's own branch, with explicit paths and trailers, and push it.
+3. Close the live run record with `python3 scripts/command_run.py blocked --command <name> --paused --reason
+   "<the operator's words>"`; it keeps a seed, so `start --resume-from <seed>` reopens the run after the wake.
+4. Write the resume point to memory: the item, the seed path, the next step.
+5. Reply `PAUSED — <item> — branch pushed <sha> — seed <path|none> — next <step>`.
+
+After the wake (or a reboot), each agent re-arms its self-watch, checks `git status` and `command_run.py line`, and
+resumes from its seed and memory, the same item first.
+
 ## What the rollout records
 
 Each repo notes every adaptation it makes to this runbook, and why, so the runbook can carry it to the next repo. The
-fabrik-lib brief is hub mail `01M59HFDK9`.
+fabrik-lib brief is mail `01M59HFDK9` in fabrik-lib's mailbox. youtube's report is hub mail `01M5CGP8FN` (its adaptations are now steps 1,
+2, 7, 8 and 11 above, recorded in its D-063).
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

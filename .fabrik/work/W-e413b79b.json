@@ -3,7 +3,7 @@
   "created": "2026-10-20T11:21:22.097963Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "667f0e3b505fd7fd18fd58c38267abd83dd82c3d",
   "id": "W-e413b79b",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "operator ask; one doc pair, one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
