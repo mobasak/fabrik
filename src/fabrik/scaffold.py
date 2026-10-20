@@ -3595,7 +3595,10 @@ from __PKG__.auth import (
     redis_client,
     require_user,
 )
-from __PKG__.chat import build_chat_router, load_chat_settings
+from __PKG__.chat import (
+    build_chat_router,
+    load_chat_settings,
+)
 from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 from __PKG__.metrics import metrics_app
@@ -4116,7 +4119,9 @@ def app(monkeypatch):
 
     sync = redis.Redis.from_url(_TEST_REDIS_URL)
     sync.flushdb()
-    main = importlib.reload(importlib.import_module("__PKG__.main"))
+    main = importlib.reload(
+        importlib.import_module("__PKG__.main"),
+    )
     sent: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:

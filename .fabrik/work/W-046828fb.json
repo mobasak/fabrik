@@ -3,7 +3,7 @@
   "created": "2026-10-17T14:40:19.532643Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "8c81694f5425582400c4e047dae2b00423947f4d",
   "id": "W-046828fb",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "operator paste 2026-10-20 (tests capped; pytest-timeout); one scaffold change",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
