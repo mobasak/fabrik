@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:24:21.696155Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f20ea188",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BAS68N8DYWKSKM30EG0DGJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "a git-archive pin of the hub carries the tracked `vault` symlink into the user's Obsidian vault — a seat's dereferencing copy pulled 946 MB of it into scratch"
+}
