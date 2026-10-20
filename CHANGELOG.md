@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
+
+- `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
+
 ### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
 
 - `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.

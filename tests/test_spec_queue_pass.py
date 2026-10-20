@@ -160,7 +160,7 @@ def test_a_research_brief_names_each_arms_verdict(tmp_path: Path, capsys) -> Non
         " this session's verdict on each — every `<server>: <verdict>` line and every `MCP-HEALTH:` line the"
         " ORIENT `mcp_health.py` run printed, and every arm a seat of an earlier wave reported failing: a `DEAD`,"
         " `TIMEOUT` or `UNAUTHORIZED` server is down; a `CONNECTED` one with no `key check` line, or one whose key"
-        " check reads `unverified`, is reachable but its key is unknown; and an arm with no line (a `SKIPPED`"
+        " check reads `unverified`, is reachable but its key is unknown; and an arm with no verdict (a `SKIPPED`"
         " entry, the built-in `WebSearch` and `WebFetch`, and every server when the repo has no `.mcp.json`) is"
         " unknown. A seat whose arm fails as an arm (auth, credit, quota, transport — never one page's 404 or host"
         " block) says so in a line after its verdicts, which the brief asks for, and stops calling that arm. "
