@@ -20,7 +20,8 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — hard-coded superuser credentials in compose",
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-gate"
   ],
   "title": "Hard-coded postgres:postgres superuser credentials in infra/vps1/glitchtip/compose.yaml:7,35 and infra/vps1/monitoring/compose.yaml:183 (postgres-exporter DSN)"
 }
