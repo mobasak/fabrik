@@ -296,20 +296,26 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + _clause_suffix(depends_contradiction(spec, "postgres")),
         )
 
-    # payments-ingest role (scoped non-BYPASSRLS cross-tenant role for fabrik-lib
-    # payments webhook ingest; provisioned inside the postgres block, so it needs the DB)
-    if shape.get("needs_payments_ingest", False) and shape.get("needs_database", False):
-        out["payments_ingest"] = (True, "shape.needs_payments_ingest=true")
-    elif shape.get("needs_payments_ingest", False):
-        out["payments_ingest"] = (
-            False,
-            "not applicable: needs_payments_ingest=true but needs_database=false",
-        )
-    else:
-        out["payments_ingest"] = (
-            False,
-            "not applicable: shape.needs_payments_ingest=false",
-        )
+    # payments roles (scoped non-BYPASSRLS roles for fabrik-lib payments: `ingest` for
+    # webhook ingest, `fulfilment` for the fulfilment worker). Both are provisioned INSIDE
+    # the postgres block, so each needs the DB and runs only when the postgres registrar
+    # runs: an `infra.postgres=false` override turns them off too, never a row that says
+    # RUNS while nothing runs.
+    for lane in ("ingest", "fulfilment"):
+        flag = f"needs_payments_{lane}"
+        if shape.get(flag, False) and shape.get("needs_database", False):
+            out[f"payments_{lane}"] = (
+                _enabled(infra, "postgres"),
+                f"shape.{flag}=true"
+                + ("" if _enabled(infra, "postgres") else " (infra.postgres=false override)"),
+            )
+        elif shape.get(flag, False):
+            out[f"payments_{lane}"] = (
+                False,
+                f"not applicable: {flag}=true but needs_database=false",
+            )
+        else:
+            out[f"payments_{lane}"] = (False, f"not applicable: shape.{flag}=false")
 
     # gatus
     if shape.get("is_public", False) and domain:
@@ -664,6 +670,57 @@ class InfrastructureProvisioner:
         logger.warning("%s provisioning failed (non-fatal): %s", registrar, e)
         ctx.registrar_failures.append(f"{registrar}: {e}")
 
+    def _provision_payments_role(
+        self, ctx: DeploymentContext, db_name: str, lane: str, dry_run: bool
+    ) -> None:
+        """Mint, deliver, then grant one payments role; record its status from the grant path.
+
+        The DSN is injected only on a fresh password (mirrors the watchdog lifecycle) and
+        BEFORE the grant runs, so a grant that raises never strands the one-time password
+        (D-464 item 2). The path decides the status (D-464 item 5): ``module``/``legacy`` →
+        ``provisioned``; ``pending`` (the project has not applied its payments schema yet) →
+        ``pending`` plus one ``registrar_warnings`` line, never a failure; anything else (a
+        ``legacy`` read from the fulfilment lane included), or a raise, → ``failed`` through
+        :meth:`_nonfatal`. Non-fatal: the deploy goes on.
+        """
+        resource = f"payments-{lane}-role"
+        env_key = f"PAYMENTS_{lane.upper()}_DATABASE_URL"
+        try:
+            from fabrik.drivers.postgres import (
+                _PAYMENTS_LANE_PATHS,
+                grant_payments_role,
+                mint_payments_role,
+            )
+
+            granted = tuple(p for p in _PAYMENTS_LANE_PATHS[lane] if p != "pending")
+            minted = mint_payments_role(db_name, lane, dry_run=dry_run)
+            if minted.get("password") and not dry_run:
+                url = (
+                    f"postgresql://{minted['user']}:{minted['password']}"
+                    f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                )
+                url = _rewrite_shared_infra_host(url, getattr(ctx, "target_vps", None))
+                self.deployer.inject_env(ctx, {env_key: url})
+                logger.info("postgres: %s injected for %s (%s)", env_key, db_name, minted["user"])
+            path = grant_payments_role(db_name, lane, dry_run=dry_run).get("grants")
+            if dry_run:
+                ctx.add_resource(resource, db_name, status="dry_run")
+            elif path in granted:
+                ctx.add_resource(resource, db_name, status="provisioned")
+            elif path == "pending":
+                warning = (
+                    f"{resource}: grant pending — {db_name} has not applied the fabrik-lib "
+                    "payments schema yet; re-run `fabrik apply` after it does"
+                )
+                logger.warning("postgres: %s", warning)
+                ctx.registrar_warnings.append(warning)
+                ctx.add_resource(resource, db_name, status="pending")
+            else:
+                raise RuntimeError(f"unknown grant path {path!r}")
+        except Exception as e:  # noqa: BLE001 — bounded non-fatal
+            self._nonfatal(ctx, resource, e)
+            ctx.add_resource(resource, db_name, status="failed")
+
     @property
     def deployer(self) -> Any:
         """Lazy-load SSHDeployer if not injected."""
@@ -712,6 +769,7 @@ class InfrastructureProvisioner:
                 dry_run,
                 provision_watchdog_roles=should_run["watchdog"],
                 provision_payments_ingest=should_run["payments_ingest"],
+                provision_payments_fulfilment=should_run["payments_fulfilment"],
             )
 
         if should_run["redis"]:
@@ -802,6 +860,7 @@ class InfrastructureProvisioner:
         dry_run: bool,
         provision_watchdog_roles: bool = False,
         provision_payments_ingest: bool = False,
+        provision_payments_fulfilment: bool = False,
     ) -> None:
         try:
             from fabrik.drivers.postgres import create_database, database_exists
@@ -935,43 +994,14 @@ class InfrastructureProvisioner:
                     self._nonfatal(ctx, "postgres/watchdog-roles", e)
                     ctx.add_resource("watchdog-db-roles", db_name, status="failed")
 
-            # Payments webhook-ingest role (fabrik-lib payments contract): when
-            # shape.needs_payments_ingest, mint a scoped NON-BYPASSRLS cross-tenant role
-            # + inject PAYMENTS_INGEST_DATABASE_URL so PgWebhookStore.resolve_org() can
-            # attribute unsigned-provider (iyzico) webhooks. DSN injected only on a fresh
-            # password (mirrors the watchdog lifecycle). Own try/except: non-fatal.
+            # Payments roles (fabrik-lib payments contract), ingest first then fulfilment
+            # (D-464 item 5): each a scoped NON-BYPASSRLS role whose DSN reaches the app as
+            # PAYMENTS_<LANE>_DATABASE_URL. Ingest lets PgWebhookStore.resolve_org()
+            # attribute unsigned-provider (iyzico) webhooks; fulfilment is the worker's.
             if provision_payments_ingest:
-                try:
-                    from fabrik.drivers.postgres import create_payments_ingest_role
-
-                    pi = create_payments_ingest_role(db_name, dry_run=dry_run)
-                    if pi.get("password") and not dry_run:
-                        pi_url = (
-                            f"postgresql://{pi['user']}:{pi['password']}"
-                            f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
-                        )
-                        pi_url = _rewrite_shared_infra_host(
-                            pi_url, getattr(ctx, "target_vps", None)
-                        )
-                        self.deployer.inject_env(ctx, {"PAYMENTS_INGEST_DATABASE_URL": pi_url})
-                        logger.info(
-                            "postgres: PAYMENTS_INGEST_DATABASE_URL injected for %s (%s)",
-                            db_name,
-                            pi["user"],
-                        )
-                    ctx.add_resource(
-                        "payments-ingest-role",
-                        db_name,
-                        status="dry_run" if dry_run else "provisioned",
-                    )
-                except Exception as e:  # noqa: BLE001 — bounded non-fatal
-                    self._nonfatal(ctx, "payments-ingest-role", e)
-                    logger.debug(
-                        "postgres: payments-ingest role provisioning failed for %s (recorded): %s",
-                        db_name,
-                        e,
-                    )
-                    ctx.add_resource("payments-ingest-role", db_name, status="failed")
+                self._provision_payments_role(ctx, db_name, "ingest", dry_run)
+            if provision_payments_fulfilment:
+                self._provision_payments_role(ctx, db_name, "fulfilment", dry_run)
 
             # The <db>_app runtime role + the declarative DATABASE_URL cutover/rollback.
             # AFTER the watchdog + payments blocks so its audit_log revokes land after

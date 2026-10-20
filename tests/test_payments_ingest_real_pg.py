@@ -61,7 +61,8 @@ def _database(s: ScratchPg, schema: str, *, with_jobs: bool = True, with_fn: boo
 def _apply(s: ScratchPg) -> str:
     """Run the driver's batch in the scratch DB; return the grant path it reports."""
     with s.as_driver():
-        return pg.create_payments_ingest_role(DB)["grants"]
+        pg.mint_payments_role(DB, "ingest")
+        return pg.grant_payments_role(DB, "ingest")["grants"]
 
 
 def _policy_roles(s: ScratchPg, table: str) -> str:

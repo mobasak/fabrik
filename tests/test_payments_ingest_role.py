@@ -1,4 +1,4 @@
-"""Phase B — the payments-ingest registrar role (create_payments_ingest_role).
+"""The payments registrar roles (mint_payments_role + grant_payments_role, both lanes).
 
 Mock-`_run_sql` unit tests (the repo's driver-test pattern) over the generated SQL +
 control flow. The RLS *behavior* invariant (a non-BYPASSRLS role with these policies
@@ -21,21 +21,99 @@ def test_role_name_and_63_char_guard() -> None:
         pg._payments_ingest_role_name("x" * 60)  # 60 + len('_payments_ingest')=16 > 63
 
 
+def test_the_fulfilment_role_name_guard_refuses_at_its_own_boundary() -> None:
+    """The fulfilment suffix is 4 characters longer than the ingest one, so its guard trips first."""
+    longest_ok = "d" * (63 - len("_payments_fulfilment"))
+    assert pg._payments_role_name(longest_ok, "fulfilment") == f"{longest_ok}_payments_fulfilment"
+    with pytest.raises(ValueError, match="63-char"):
+        pg._payments_role_name(longest_ok + "d", "fulfilment")
+    assert pg._payments_role_name(longest_ok + "d", "ingest").endswith("_payments_ingest")
+    with pytest.raises(ValueError, match="lane"):
+        pg._payments_role_name("ti", "billing")
+
+
+def test_the_shape_refuses_the_fulfilment_flag_without_a_database() -> None:
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Shape
+
+    assert Shape(needs_database=True, needs_payments_fulfilment=True).needs_payments_fulfilment
+    with pytest.raises(ValidationError, match="needs_payments_fulfilment requires needs_database"):
+        Shape(needs_payments_fulfilment=True)
+
+
 def test_create_role_sql_is_non_bypassrls() -> None:
     """The security invariant: the CREATE ROLE must be NOBYPASSRLS and must NOT grant BYPASSRLS."""
-    with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
-    create_sql = run.call_args_list[0].args[0]
-    assert "CREATE ROLE" in create_sql and "NOBYPASSRLS" in create_sql
-    assert "NOSUPERUSER" in create_sql
-    # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
-    assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
+    for lane in ("ingest", "fulfilment"):
+        with (
+            patch.object(pg, "_role_exists", return_value=False),
+            patch.object(pg, "_run_sql") as run,
+        ):
+            pg.mint_payments_role("ti", lane)
+        create_sql = run.call_args_list[0].args[0]
+        # the exact attribute list, never a substring check (`LOGIN` would match `NOLOGIN`)
+        assert (
+            f'CREATE ROLE "ti_payments_{lane}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            "NOBYPASSRLS NOREPLICATION PASSWORD '"
+        ) in create_sql
+        # never grant the bypass — a bare 'BYPASSRLS' without the NO prefix would be the bug
+        assert " BYPASSRLS" not in create_sql.replace("NOBYPASSRLS", "")
+        assert " IN ROLE " not in create_sql
+        # the CREATE is the mint's ONLY statement: nothing after it can raise and lose the
+        # one-time password before the caller holds it (review round 1, A-haiku P-1)
+        assert len(run.call_args_list) == 1
+
+
+def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
+    """A role altered out of band (e.g. BYPASSRLS) is narrowed again, never trusted as-is."""
+    for lane in ("ingest", "fulfilment"):
+        with (
+            patch.object(pg, "_role_exists", return_value=True),
+            patch.object(pg, "_run_sql") as run,
+        ):
+            res = pg.mint_payments_role("ti", lane)
+        assert res["password"] is None and res["status"] == "exists"
+        alter_sql = run.call_args_list[0].args[0]
+        role = f"ti_payments_{lane}"
+        # the exact attribute list, never a substring check (`LOGIN` would match `NOLOGIN`)
+        assert (
+            f'ALTER ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS '
+            "NOREPLICATION INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';"
+        ) in alter_sql
+        assert f'ALTER ROLE "{role}" RESET ALL;' in alter_sql
+        assert f'ALTER ROLE "{role}" IN DATABASE "ti" RESET ALL;' in alter_sql
+        # a role that is a superuser or owns a database is refused BEFORE the ALTER runs
+        refusal = alter_sql.index("RAISE EXCEPTION")
+        assert "r.rolsuper OR EXISTS" in alter_sql and "d.datdba = r.oid" in alter_sql
+        assert refusal < alter_sql.index(f'ALTER ROLE "{role}"')
+        assert (
+            f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER; give each database it owns "
+            "another owner) or drop it once it owns none, then re-apply'"
+        ) in alter_sql
+        assert "PASSWORD" not in alter_sql  # the password is never reset on re-apply
+
+
+def test_the_grant_batch_grants_connect_and_usage_before_the_lane_grants() -> None:
+    for lane in ("ingest", "fulfilment"):
+        with patch.object(pg, "_run_sql", return_value="module") as run:
+            pg.grant_payments_role("ti", lane)
+        sql = run.call_args_list[0].args[0]
+        role = f"ti_payments_{lane}"
+        # everything before the lane's first DO block is exactly these four lines, so no
+        # hub-written grant can hide between USAGE and the lane grants
+        assert sql[: sql.index("DO $$")].splitlines() == [
+            "\\set ON_ERROR_STOP on",
+            f'GRANT CONNECT ON DATABASE "ti" TO "{role}";',
+            "\\c ti",
+            f'GRANT USAGE ON SCHEMA public TO "{role}";',
+        ]
+        assert 'GRANT "ti_payments_' not in sql  # never a role membership
 
 
 def test_grant_batch_pins_the_three_tables_readwrite() -> None:
-    with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
-    grant_sql = run.call_args_list[1].args[0]  # 2nd call = the grant+policy batch
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "ingest")
+    grant_sql = run.call_args_list[0].args[0]  # the grant+policy batch
     # READ tables: SELECT + a permissive SELECT policy, guarded on existence
     for t in ("customers", "subscriptions"):
         assert f"to_regclass('public.{t}')" in grant_sql
@@ -58,8 +136,8 @@ def test_grant_batch_pins_the_three_tables_readwrite() -> None:
 
 def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> None:
     """W-90784c3b: with fabrik-lib's payments_grant_ingest installed, the batch delegates to it."""
-    with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
-        pg.create_payments_ingest_role("ti")
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "ingest")
     grant_sql = run.call_args_list[0].args[0]
     fn = "to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')"
     # every legacy DROP+CREATE block is gated on the function's ABSENCE
@@ -82,39 +160,84 @@ def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> Non
         assert f"to_regclass('{t}') IS NOT NULL" in grant_sql
 
 
+def test_the_fulfilment_batch_delegates_to_the_module_and_has_no_fallback() -> None:
+    with patch.object(pg, "_run_sql", return_value="module") as run:
+        pg.grant_payments_role("ti", "fulfilment")
+    grant_sql = run.call_args_list[0].args[0]
+    assert (
+        "PERFORM payments_grant_fulfilment('\"ti_payments_fulfilment\"'::pg_catalog.regrole)"
+        in grant_sql
+    )
+    assert "to_regprocedure('payments_grant_fulfilment(pg_catalog.regrole)')" in grant_sql
+    # delegate-only: beyond CONNECT and USAGE the hub writes no grant or policy of its own
+    lane_sql = grant_sql[grant_sql.index("DO $$") :]
+    assert "GRANT " not in lane_sql.replace("payments_grant_fulfilment", "")
+    assert "CREATE POLICY" not in grant_sql
+
+
 @pytest.mark.parametrize(
-    ("last_line", "expected"),
-    [("module", "module"), ("legacy", "legacy"), ("pending", "pending"), ("GRANT", "unknown")],
+    ("lane", "last_line", "expected"),
+    [
+        ("ingest", "module", "module"),
+        ("ingest", "legacy", "legacy"),
+        ("ingest", "pending", "pending"),
+        ("fulfilment", "module", "module"),
+        ("fulfilment", "pending", "pending"),
+    ],
 )
-def test_the_reported_grant_path_is_the_batch_last_line(last_line: str, expected: str) -> None:
-    """The batch's final SELECT names the path; anything else is `unknown`, never a guess."""
-    with (
-        patch.object(pg, "_role_exists", return_value=True),
-        patch.object(pg, "_run_sql", return_value=f"GRANT\nDO\n{last_line}\n"),
-    ):
-        assert pg.create_payments_ingest_role("ti")["grants"] == expected
+def test_the_reported_grant_path_is_the_batch_last_line(
+    lane: str, last_line: str, expected: str
+) -> None:
+    """The batch's final SELECT names the path."""
+    with patch.object(pg, "_run_sql", return_value=f"GRANT\nDO\n{last_line}\n"):
+        assert pg.grant_payments_role("ti", lane)["grants"] == expected
+
+
+@pytest.mark.parametrize(
+    ("lane", "out"),
+    [
+        ("ingest", "GRANT\n"),
+        ("ingest", ""),
+        ("fulfilment", "GRANT\nlegacy\n"),  # legacy is no fulfilment path
+        ("fulfilment", "DO\n"),
+    ],
+)
+def test_an_unreadable_path_raises_never_guesses(lane: str, out: str) -> None:
+    """Anything but a known path is `unknown`, and an unverified grant RAISES (spec item 4)."""
+    with patch.object(pg, "_run_sql", return_value=out):
+        with pytest.raises(RuntimeError, match="unreadable"):
+            pg.grant_payments_role("ti", lane)
 
 
 def test_fresh_password_only_on_create() -> None:
     with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql"):
-        assert pg.create_payments_ingest_role("ti")["password"] is not None
+        assert pg.mint_payments_role("ti", "ingest")["password"] is not None
     with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
-        res = pg.create_payments_ingest_role("ti")
+        res = pg.mint_payments_role("ti", "ingest")
     assert res["password"] is None and res["status"] == "exists"
-    # re-apply still re-runs the idempotent grant batch, but skips CREATE ROLE
+    # re-apply re-asserts the attributes (ALTER ROLE) but never CREATEs or resets the password
     assert not any("CREATE ROLE" in c.args[0] for c in run.call_args_list)
 
 
 def test_dry_run_touches_nothing() -> None:
     with patch.object(pg, "_run_sql") as run:
-        res = pg.create_payments_ingest_role("ti", dry_run=True)
+        res = pg.mint_payments_role("ti", "ingest", dry_run=True)
+        granted = pg.grant_payments_role("ti", "ingest", dry_run=True)
     assert res == {"user": "ti_payments_ingest", "password": None, "status": "dry_run"}
+    assert granted == {"grants": "dry_run"}
     run.assert_not_called()
 
 
 def test_drop_role_sql_and_invalid_name() -> None:
-    assert pg._payments_ingest_drop_role_sql("ti") == 'DROP ROLE IF EXISTS "ti_payments_ingest";\n'
-    assert pg._payments_ingest_drop_role_sql("x" * 60) == ""  # too long → nothing to drop
+    assert pg._payments_drop_roles_sql("ti") == (
+        'DROP ROLE IF EXISTS "ti_payments_ingest";\nDROP ROLE IF EXISTS "ti_payments_fulfilment";\n'
+    )
+    # too long for the fulfilment suffix but not the ingest one → only the ingest role drops
+    ingest_only = "d" * (63 - len("_payments_fulfilment") + 1)
+    assert pg._payments_drop_roles_sql(ingest_only) == (
+        f'DROP ROLE IF EXISTS "{ingest_only}_payments_ingest";\n'
+    )
+    assert pg._payments_drop_roles_sql("x" * 60) == ""  # too long for both → nothing to drop
 
 
 # ── Phase C — resolve_applicability + _provision_postgres wiring ──
@@ -140,22 +263,79 @@ def test_resolve_applicability_payments_ingest() -> None:
     )
 
 
-def _prov_with(pi_result, flag=True):
+def _prov_with(pi_result, flag=True, grant=None, dry_run=False, fulfil=False, paths=None, vps=None):
+    """Drive the payments blocks with the driver boundary mocked; ``prov.events`` records the
+    order of mint, DSN injection and grant (``grant`` may raise to model a failing batch;
+    ``paths`` maps a lane to the grant path it returns, or to an exception it raises)."""
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
     ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
+    if vps:
+        ctx.target_vps = vps
+    events: list[tuple[str, ...]] = []
+
+    def _mint(db, lane, dry_run=False, **k):
+        events.append(("mint", lane))
+        return {**pi_result(db), "user": f"{db}_payments_{lane}"}
+
+    def _grant(db, lane, dry_run=False, **k):
+        events.append(("grant", lane, "dry_run") if dry_run else ("grant", lane))
+        if paths and lane in paths:
+            if isinstance(paths[lane], Exception):
+                raise paths[lane]
+            return {"grants": paths[lane]}
+        return grant(db) if grant else {"grants": "dry_run" if dry_run else "module"}
+
+    prov.deployer.inject_env.side_effect = lambda c, env: events.append(("inject", *sorted(env)))
     with (
         _mock.patch(
             "fabrik.drivers.postgres.create_database",
             side_effect=lambda db, *a, **k: {"status": "exists", "database": db},
         ),
         _mock.patch("fabrik.drivers.postgres.database_exists", side_effect=lambda *a, **k: False),
-        _mock.patch(
-            "fabrik.drivers.postgres.create_payments_ingest_role",
-            side_effect=lambda db, dry_run=False, **k: pi_result(db),
-        ) as m,
+        _mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=_mint) as m,
+        _mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=_grant),
     ):
-        prov._provision_postgres("ti", {}, ctx, dry_run=False, provision_payments_ingest=flag)
+        prov._provision_postgres(
+            "ti",
+            {},
+            ctx,
+            dry_run=dry_run,
+            provision_payments_ingest=flag,
+            provision_payments_fulfilment=fulfil,
+        )
+    prov.events = events  # type: ignore[attr-defined]
     return prov, ctx, m
+
+
+def test_the_dsn_is_injected_after_the_mint_and_before_the_grant() -> None:
+    prov, _ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"}
+    )
+    pay = [
+        e for e in prov.events if e[0] in ("mint", "grant") or "PAYMENTS_INGEST_DATABASE_URL" in e
+    ]
+    assert pay == [
+        ("mint", "ingest"),
+        ("inject", "PAYMENTS_INGEST_DATABASE_URL"),
+        ("grant", "ingest"),
+    ]
+
+
+def test_a_raising_grant_still_leaves_the_fresh_dsn_delivered() -> None:
+    """A grant that raises after a fresh mint must not strand the one-time password."""
+
+    def _boom(db):
+        raise RuntimeError("payments-ingest grant: grant path unreadable")
+
+    prov, ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"},
+        grant=_boom,
+    )
+    injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
+    assert injected["PAYMENTS_INGEST_DATABASE_URL"].startswith(
+        "postgresql://ti_payments_ingest:PW@"
+    )
+    assert ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "failed"
 
 
 def test_provision_injects_dsn_and_records_resource_on_fresh_create() -> None:
@@ -180,6 +360,18 @@ def test_no_dsn_injected_when_role_already_exists() -> None:
     m.assert_called_once()
     injected_keys = [k for c in prov.deployer.inject_env.call_args_list for k in c.args[1]]
     assert "PAYMENTS_INGEST_DATABASE_URL" not in injected_keys  # None password → no fresh DSN
+    # the grant still runs on re-apply, so a grant that failed on a first apply is retried
+    assert ("grant", "ingest") in prov.events
+
+
+def test_a_dry_run_injects_nothing_and_still_reaches_the_grant_as_a_dry_run() -> None:
+    prov, ctx, _m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": None, "status": "dry_run"},
+        dry_run=True,
+    )
+    assert ("grant", "ingest", "dry_run") in prov.events
+    assert not any("PAYMENTS_INGEST_DATABASE_URL" in e for e in prov.events)
+    assert ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "dry_run"
 
 
 def test_not_provisioned_when_flag_false() -> None:
@@ -187,6 +379,168 @@ def test_not_provisioned_when_flag_false() -> None:
         lambda db: {"user": "x", "password": "PW", "status": "created"}, flag=False
     )
     m.assert_not_called()
+
+
+# ── plan-2 Phase B: the fulfilment block, and both blocks' status from the grant path ──
+_FRESH = lambda db: {"user": "-", "password": "PW", "status": "created"}  # noqa: E731
+_EXISTS = lambda db: {"user": "-", "password": None, "status": "exists"}  # noqa: E731
+_URL = {"ingest": "PAYMENTS_INGEST_DATABASE_URL", "fulfilment": "PAYMENTS_FULFILMENT_DATABASE_URL"}
+
+
+def _pay_failures(ctx):
+    return [f for f in ctx.registrar_failures if f.startswith("payments-")]
+
+
+def _status_of(ctx, lane):
+    recs = ctx.get_resources_by_type(f"payments-{lane}-role")
+    return [r.metadata.get("status") for r in recs]
+
+
+def test_resolve_applicability_payments_fulfilment() -> None:
+    on = resolve_applicability(
+        {"shape": {"needs_database": True, "needs_payments_fulfilment": True}}
+    )
+    assert on["payments_fulfilment"] == (True, "shape.needs_payments_fulfilment=true")
+    off = resolve_applicability({"shape": {"needs_database": True}})
+    assert off["payments_fulfilment"][0] is False
+    bad = resolve_applicability(
+        {"shape": {"needs_payments_fulfilment": True, "needs_database": False}}
+    )
+    assert bad["payments_fulfilment"][0] is False
+    assert "needs_database=false" in bad["payments_fulfilment"][1]
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_an_infra_postgres_override_turns_the_payments_row_off_too(lane: str) -> None:
+    """The role is minted inside the postgres block: a row that says RUNS while the postgres
+    registrar is overridden off would promise a role nothing provisions."""
+    out = resolve_applicability(
+        {
+            "shape": {"needs_database": True, f"needs_payments_{lane}": True},
+            "infra": {"postgres": False},
+        }
+    )
+    assert out["postgres"][0] is False
+    assert out[f"payments_{lane}"] == (
+        False,
+        f"shape.needs_payments_{lane}=true (infra.postgres=false override)",
+    )
+
+
+def test_provision_dispatches_the_fulfilment_flag_to_the_postgres_block() -> None:
+    prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
+    ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
+    ctx.spec = {
+        "name": "ti",
+        "shape": {"needs_database": True, "needs_payments_fulfilment": True},
+        "watchdog": {"enabled": False},
+    }
+    with (
+        _mock.patch.object(prov, "_provision_shared_analytics"),
+        _mock.patch.object(prov, "_provision_postgres") as pp,
+        _mock.patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={}),
+    ):
+        prov.provision(ctx)
+    assert pp.call_args.kwargs["provision_payments_fulfilment"] is True
+    assert pp.call_args.kwargs["provision_payments_ingest"] is False
+
+
+def test_the_fulfilment_dsn_is_injected_after_its_mint_and_before_its_grant_ingest_first() -> None:
+    prov, _ctx, _m = _prov_with(_FRESH, fulfil=True)
+    pay = [
+        e
+        for e in prov.events
+        if e[0] in ("mint", "grant") or any(k.startswith("PAYMENTS_") for k in e[1:])
+    ]
+    assert pay == [
+        ("mint", "ingest"),
+        ("inject", "PAYMENTS_INGEST_DATABASE_URL"),
+        ("grant", "ingest"),
+        ("mint", "fulfilment"),
+        ("inject", "PAYMENTS_FULFILMENT_DATABASE_URL"),
+        ("grant", "fulfilment"),
+    ]
+
+
+def test_the_fulfilment_dsn_names_its_role_and_is_rewritten_for_a_spoke() -> None:
+    prov, _ctx, _m = _prov_with(_FRESH, flag=False, fulfil=True, vps="vps2")
+    injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
+    url = injected["PAYMENTS_FULFILMENT_DATABASE_URL"]
+    assert url.startswith("postgresql://ti_payments_fulfilment:PW@")
+    # a spoke reaches the hub over the mesh, never by the hub's container DNS name
+    assert url == "postgresql://ti_payments_fulfilment:PW@10.99.0.1:5432/ti"
+
+
+def test_an_existing_fulfilment_role_injects_nothing_and_still_grants() -> None:
+    prov, _ctx, _m = _prov_with(_EXISTS, flag=False, fulfil=True)
+    assert not any("PAYMENTS_FULFILMENT_DATABASE_URL" in e for e in prov.events)
+    assert ("grant", "fulfilment") in prov.events
+
+
+@pytest.mark.parametrize(
+    ("lane", "path", "status"),
+    [
+        ("ingest", "module", "provisioned"),
+        ("ingest", "legacy", "provisioned"),
+        ("fulfilment", "module", "provisioned"),
+    ],
+)
+def test_a_granted_path_records_provisioned(lane: str, path: str, status: str) -> None:
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: path}
+    )
+    assert _status_of(ctx, lane) == [status]
+    assert _pay_failures(ctx) == [] and ctx.registrar_warnings == []
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_a_pending_path_records_pending_and_one_warning_never_a_failure(lane: str) -> None:
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: "pending"}
+    )
+    assert _status_of(ctx, lane) == ["pending"]
+    assert _pay_failures(ctx) == []
+    assert len(ctx.registrar_warnings) == 1
+    assert ctx.registrar_warnings == [
+        f"payments-{lane}-role: grant pending — ti has not applied the fabrik-lib payments "
+        "schema yet; re-run `fabrik apply` after it does"
+    ]
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+@pytest.mark.parametrize(
+    "path",
+    [RuntimeError("grant path unreadable"), "unknown", "legacy-ish", ""],
+    ids=["raises", "unknown", "unrecognised", "empty"],
+)
+def test_an_unknown_path_or_a_raise_records_failed(lane: str, path) -> None:
+    if lane == "fulfilment" and path == "legacy-ish":
+        path = "legacy"  # the fulfilment lane has no legacy path: reading one is unknown
+    _prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", paths={lane: path}
+    )
+    assert _status_of(ctx, lane) == ["failed"]
+    assert len(_pay_failures(ctx)) == 1
+    assert _pay_failures(ctx)[0].startswith(f"payments-{lane}-role: ")
+    assert ctx.registrar_warnings == []
+
+
+@pytest.mark.parametrize("lane", ["ingest", "fulfilment"])
+def test_a_dry_run_records_dry_run_for_either_lane(lane: str) -> None:
+    prov, ctx, _m = _prov_with(
+        _EXISTS, flag=lane == "ingest", fulfil=lane == "fulfilment", dry_run=True
+    )
+    assert ("grant", lane, "dry_run") in prov.events
+    assert _status_of(ctx, lane) == ["dry_run"]
+    assert _pay_failures(ctx) == [] and ctx.registrar_warnings == []
+
+
+def test_a_failing_ingest_block_still_runs_the_fulfilment_block() -> None:
+    prov, ctx, _m = _prov_with(
+        _EXISTS, fulfil=True, paths={"ingest": RuntimeError("boom"), "fulfilment": "module"}
+    )
+    assert _status_of(ctx, "ingest") == ["failed"]
+    assert _status_of(ctx, "fulfilment") == ["provisioned"]
 
 
 # ── Phase B/review: drop_database must not orphan the payments-ingest role ──

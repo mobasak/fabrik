@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:59:20.311247Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f599a88c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "refuse a database name ending in any registrar role suffix at create_database / spec load (one suffix list shared with _payments_role_name and the watchdog names), or check role ownership before treating 'exists' as ours; measure the live population first (no current db ends in a suffix?)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "postgres registrar role names can collide across projects: a database named <x>_payments_fulfilment (or _payments_ingest, _wd_ro/_wd_rw, _app) has an owner role with exactly project <x>'s registrar role name, so minting for <x> finds it existing (no DSN) and grants it, and drop_database(<x>) drops or fails on another project's owner role (review of plan-2 Phase A, seat A-opus A-2, 2026-10-20, owner: fleet)"
+}
