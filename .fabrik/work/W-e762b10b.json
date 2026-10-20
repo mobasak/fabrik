@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T19:19:39.883691Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e762b10b",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-docs-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated: commands/_sources/fabrik-docs-review.md:137 'Every seat brief, and the orchestrator's own doc edits, apply the lines of /opt/fabrik/commands/_fr",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-docs-review"
+}

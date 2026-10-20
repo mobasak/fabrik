@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `check_plan_tickets.py` read a plan lock's `owned_paths` with no shape check, so a bare string iterated its characters and one-letter "paths" covered any changed file under a directory of that letter, pulling an unrelated plan into the gate. A string is now read as that one path, a non-list skips the lock, a non-string entry is dropped, and a lock that is not a JSON object is skipped; each case prints a NOTE (W-7caa8a90).
 
+### Changed — /fabrik-review: the close order is a numbered list, and eight queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-review.md` § Reporting's close order is now four numbered steps (stage and gate while `IN-PROGRESS`, embed, flip, gate again and re-embed), so the embed is its own step. The Residual paragraph says a same-pass duplicate raise of a confirmed defect is named in that defect's row, while a later pass's raise of a fixed defect is a fresh candidate. Phase 3 asks whether a seat-proposed behaviour change still holds the bound it claims to protect. Phase 4's delta brief carries the environment values earlier seats set. Phase 1 names a generated script's root-only paths as a referent and states that a `confirmed:`/`unexecuted:` token in a Method cell gets the row refused (`_row_refusals`, with the `_label_exempt` carve-out). `commands/_fragments/review-probe-catalogue.md` runs the `path:line` remap after each round's fix. Graders in `tests/test_review_queue_pass.py`.
+
 ### Fixed — self-healing pack: `pause_worker` runs once listed, not "unreachable today" (2026-10-20)
 
 - The signup-flood worked example in `.windsurf/rules/core/self-healing.md` still called the watchdog's `pause_worker` unreachable until upstream carried parameters. fabrik-lib's sidecar declares its `resource` and `ttl_sec` params, and the pack's own § What the sidecar can execute today says it runs once the spec lists it in `watchdog.llm_actions`. The example now says that (W-d0e5a017).
