@@ -394,6 +394,11 @@ class RollbackManager:
         from fabrik.drivers.prometheus import remove_scrape_target
 
         name = resource.resource_id
+        if resource.metadata.get("job", resource.metadata.get("status")) != "created":
+            # an `exists`/`updated` job predates the run and still monitors the live service;
+            # removing it would leave the service unmonitored (W-01815aee, as glitchtip above)
+            logger.info("prometheus job %s predates this run — kept on rollback", name)
+            return
         try:
             remove_scrape_target(name)
             logger.info("Rolled back prometheus scrape target: %s", name)

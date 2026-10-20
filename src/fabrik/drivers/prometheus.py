@@ -117,6 +117,17 @@ _DOMAIN_RE = re.compile(
 )
 """Conservative hostname validator (same regex Gatus uses)."""
 
+_TARGET_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)(?![-_])[a-zA-Z0-9_-]{1,63}(?<![-_])(\.(?![-_])[a-zA-Z0-9_-]{1,63}(?<![-_]))*$"
+)
+"""Scrape-target host: dot-separated labels that may carry ``_`` (Docker DNS, ``<name>-api`` for a
+service named with ``_``); a dotted IPv4 matches as labels. IPv6 is refused on purpose (W-01815aee)."""
+
+_SCHEMES = ("http", "https")
+
+_OTHER_AUTH_KEYS = ("basic_auth", "bearer_token", "bearer_token_file", "oauth2")
+"""Scrape-job auth forms promtool refuses beside an ``authorization`` block."""
+
 
 def _validate_name(name: str) -> None:
     if not isinstance(name, str) or not _NAME_RE.fullmatch(name):
@@ -128,6 +139,26 @@ def _validate_name(name: str) -> None:
 def _validate_domain(domain: str) -> None:
     if not isinstance(domain, str) or not _DOMAIN_RE.fullmatch(domain):
         raise ValueError(f"Invalid domain {domain!r}: must be a bare hostname")
+
+
+def _validate_scheme(scheme: object) -> None:
+    if scheme not in _SCHEMES:
+        raise ValueError(f"Invalid monitoring scheme {scheme!r}: must be 'http' or 'https'")
+
+
+def _validate_target(target: object) -> None:
+    """``<host>:<port>`` with an explicit port 1-65535 — promtool refuses the whole file otherwise."""
+    host, sep, port = target.rpartition(":") if isinstance(target, str) else ("", "", "")
+    if (
+        not sep
+        or not _TARGET_HOST_RE.fullmatch(host)
+        or not (port.isascii() and port.isdigit())
+        or not 1 <= int(port) <= 65535
+    ):
+        raise ValueError(
+            f"Invalid monitoring target {target!r}: must be <host>:<port> (port 1-65535; "
+            "no scheme, path or IPv6)"
+        )
 
 
 def _job_name(service_name: str) -> str:
@@ -280,6 +311,64 @@ def _build_job_block(
     return job
 
 
+def _sync_managed_keys(
+    job: dict[str, Any], target: str, metrics_path: str, scheme: str, bearer_token: str | None
+) -> bool:
+    """Bring an existing job's managed keys to the spec in place; True when anything changed.
+
+    Managed: ``scheme`` and ``metrics_path`` (absent reads as Prometheus's default), the one static
+    config's ``targets`` (its labels kept), and ``authorization`` only when the spec carries a token —
+    a ``credentials_file`` secret (the house form, configs/prometheus/README.md) counts as current.
+    Every other key is the operator's. A shape this cannot update unambiguously raises before
+    anything is changed, so the caller writes nothing (W-01815aee).
+    """
+    name = job.get("job_name")
+    static = job.get("static_configs")
+    if static is None:
+        static = []
+    if (
+        not isinstance(static, list)
+        or len(static) > 1
+        or any(not isinstance(s, dict) for s in static)
+    ):
+        raise ValueError(
+            f"Prometheus job {name} has a hand-shaped static_configs ({static!r}); fabrik manages "
+            "exactly one entry — fix the job on vps1 by hand"
+        )
+    set_auth = bool(bearer_token) and (
+        not isinstance(job.get("authorization"), dict)
+        or (
+            "credentials_file" not in job["authorization"]
+            and job["authorization"] != {"type": "Bearer", "credentials": bearer_token}
+        )
+    )
+    if set_auth:
+        clash = [k for k in _OTHER_AUTH_KEYS if k in job]
+        if clash:
+            raise ValueError(
+                f"Prometheus job {name} already authenticates with {', '.join(clash)}; "
+                "adding the spec's bearer token beside it makes promtool refuse the file"
+            )
+
+    changed = False
+    if job.get("scheme", "http") != scheme:
+        job["scheme"] = scheme
+        changed = True
+    if job.get("metrics_path", "/metrics") != metrics_path:
+        job["metrics_path"] = metrics_path
+        changed = True
+    if not static:
+        job["static_configs"] = [{"targets": [target]}]
+        changed = True
+    elif static[0].get("targets") != [target]:
+        static[0]["targets"] = [target]
+        changed = True
+    if set_auth:
+        job["authorization"] = {"type": "Bearer", "credentials": bearer_token}
+        changed = True
+    return changed
+
+
 def add_scrape_target(
     service_name: str,
     domain: str | None = None,
@@ -293,8 +382,10 @@ def add_scrape_target(
 ) -> dict:
     """Register ``service_name`` as a Prometheus scrape target.
 
-    Idempotent: a job named ``fabrik-<service_name>`` already in
-    ``scrape_configs`` returns ``status=exists`` without rewriting.
+    Idempotent: a job named ``fabrik-<service_name>`` already in ``scrape_configs`` whose managed
+    keys match returns ``status=exists`` without rewriting; one whose scheme, metrics_path, target or
+    (with a token) authorization differs is updated in place, keeping every other key, and returns
+    ``status=updated`` (see ``_sync_managed_keys``). ``interval`` applies on create only.
 
     Args:
         service_name: Service name. Becomes the suffix of the job name
@@ -314,7 +405,7 @@ def add_scrape_target(
         dry_run: Log intent and return without touching the VPS.
 
     Returns:
-        ``{"status": "created" | "exists" | "dry_run",
+        ``{"status": "created" | "exists" | "updated" | "dry_run",
            "job": "fabrik-<name>",
            "target": "<resolved-target>"}``
 
@@ -323,12 +414,20 @@ def add_scrape_target(
         RuntimeError: SSH or YAML parse failure.
     """
     _validate_name(service_name)
+    # scheme first: it picks the derived port below (W-01815aee)
+    _validate_scheme(scheme)
     if target is None:
         if domain is None:
             raise ValueError("add_scrape_target requires either domain or explicit target")
         _validate_domain(domain)
         target = f"{domain}:443" if scheme == "https" else f"{domain}:80"
-    if metrics_path[:1] != "/" or '"' in metrics_path or "'" in metrics_path:
+    _validate_target(target)
+    if (
+        not isinstance(metrics_path, str)
+        or metrics_path[:1] != "/"
+        or '"' in metrics_path
+        or "'" in metrics_path
+    ):
         raise ValueError(
             f"Invalid metrics_path {metrics_path!r}: must start with / and contain no quotes"
         )
@@ -350,11 +449,15 @@ def add_scrape_target(
 
     for job in scrape_configs:
         if isinstance(job, dict) and job.get("job_name") == job_name:
-            logger.info("Prometheus scrape target already exists: %s", job_name)
+            status = "exists"
+            if _sync_managed_keys(job, target, metrics_path, scheme, bearer_token):
+                _write_config(config)
+                status = "updated"
+            logger.info("Prometheus scrape target %s: %s", status, job_name)
             # re-check what is on disk each apply, so a config a previous run wrote but
             # Prometheus never loaded keeps being reported (W-cc9b0532)
             return {
-                "status": "exists",
+                "status": status,
                 "job": job_name,
                 "target": target,
                 "reload": _reload_prometheus_outcome(),
