@@ -465,7 +465,7 @@ class TestFileWorkerLogging:
         scaffold._scaffold_file_worker(project, "dev-probe", "probe")
         makefile = (project / "Makefile").read_text()
         dev_body = makefile.split("\ndev:", 1)[1].splitlines()[1]
-        assert dev_body == "\tpython -m worker.main", dev_body
+        assert dev_body == "\t.venv/bin/python -m worker.main", dev_body
 
     def test_logger_py_caches_on_first_use(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """worker/logger.py sets cache_logger_on_first_use=True."""
