@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — self-healing pack: `pause_worker` runs once listed, not "unreachable today" (2026-10-20)
+
+- The signup-flood worked example in `.windsurf/rules/core/self-healing.md` still called the watchdog's `pause_worker` unreachable until upstream carried parameters. fabrik-lib's sidecar declares its `resource` and `ttl_sec` params, and the pack's own § What the sidecar can execute today says it runs once the spec lists it in `watchdog.llm_actions`. The example now says that (W-d0e5a017).
+
 ### Fixed — --merge-shared refuses instead of crashing, and the tick survives a planted FIFO and a bad tick row (2026-10-20)
 
 - `claude_rotate.py --merge-shared` now refuses with "nothing moved" when the lock itself fails (ENOLCK) or the fleet root cannot be read (ValueError, RuntimeError, or a root that exists but cannot be listed), `--dry-run` included, where it printed a traceback or a false "nothing to merge". The rotation tick removes a FIFO or link planted at its record's staging name and creates the file exclusively, so the write never blocks (a directory there fails closed). A raise in the tick-row block prints one line and no longer skips the advisory or the quota posture. The twin copy in `scripts/aro-wake/` is updated byte for byte (W-21b4c0e5).
