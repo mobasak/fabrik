@@ -1,0 +1,26 @@
+{
+  "block_digest": "23b324b283a99a49d7abfb19c4e5d4934cbc0c2e293d6366189a47a054177b12",
+  "blocked_by": [],
+  "created": "2026-10-20T09:10:20.923620Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-0076b052",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "e1740cbe5b30c56c2fbc92c79e0de891bbd78e1d2741290cbbae1c4517c46461"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May I close the stale `hub` tmux grid, which holds four idle agent sessions from 15–18 October running in the main checkout?",
+  "status": "awaiting-operator",
+  "title": "May I close the stale `hub` tmux grid, which holds four idle agent sessions from 15–18 October running in the main checkout?"
+}

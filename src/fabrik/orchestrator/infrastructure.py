@@ -1536,7 +1536,8 @@ class InfrastructureProvisioner:
             reload = result.get("reload")
             # a config promtool refused is recorded failed, never created (review B-1)
             status = "failed" if reload == "refused" else result.get("status")
-            ctx.add_resource("prometheus", name, status=status)
+            # `job` keeps the driver's own verdict: rollback removes only a job this run created
+            ctx.add_resource("prometheus", name, status=status, job=result.get("status"))
             logger.info("prometheus: %s -> %s", name, status)
             # the reload outcome reaches the operator (W-cc9b0532): a config promtool refused is
             # INVALID on vps1 (the next restart crash-loops Prometheus, D-513) — a failure; an

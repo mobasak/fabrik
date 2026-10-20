@@ -129,7 +129,12 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # tool where the merge target moved past the merge-base, each spelling the commands and docs feeding a parsed input
 # prescribe, and a copied mechanism read-only on each host's live state; phase 2's grammar admits those spellings and
 # the critiques run a copied mechanism (rows 1792361074, 1792363058, 1792365690, 1792401257).
-SIZE_CAP = 25020
+# D-1068 (kaizen, 2026-10-20): 25020 -> 25756 — MEASURE replays the fix a work item proposes and reads an
+# unreachable tool's server source before recording unverified, greps the prior record by the item's id, and runs a
+# surfaced outcome twice; phase 2 tables a marker-block or append-only file's malformed shapes, tells the brief a
+# fabrik-reviewer seat has no web tool, and says when --design-amend runs (rows 1792467014, 1792452880,
+# 1792445219, 1792459184, 1792451004, 1792412516, 1792418646; an Opus + Fable panel kept 6 of 11 insertions, for 7 rows).
+SIZE_CAP = 25756
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

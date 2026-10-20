@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-20T08:40:40.404899Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-66899632",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: size it (the scrape path from vps1 to WSL is the open question); deploying monitoring config to vps1 is a deploy gate",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "every agent blocked, invisible for 20-30 min; needs a scrape path vps1→WSL, rules and a deploy, several sessions",
+  "status": "open",
+  "title": "The WSL dev box joins fleet monitoring (operator paste 2026-10-20): node_exporter on WSL plus Alertmanager→Telegram rules load1>50, D-state>20, host-free<4 GB, swap>50%, and a netlink liveness probe (timeout 5 ip link). 'Both incidents were invisible for 20–30 minutes; the fleet alert path already exists, the dev box is simply not on it.'"
+}

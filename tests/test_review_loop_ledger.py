@@ -1111,6 +1111,25 @@ def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
     assert not (Path(frag["base_pin_dir"]) / "vault").exists()
 
 
+def test_pin_base_names_a_skipped_escaping_link(tmp_path: Path) -> None:
+    """kaizen 01M5BMDT08 (Fable critique 7): a RELATIVE link climbing out of the repo is skipped like an absolute
+    one, and its SKIPPED line says what it is — it used to call every skipped member "an absolute link"."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "esc").symlink_to("../outside")
+    subprocess.run(["git", "add", "esc"], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "link"],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    assert json.loads(got.stdout.splitlines()[-1])["base_skipped"] == ["esc"]
+    assert "SKIPPED esc — " in got.stderr and "(an absolute or escaping link, or a device)" in got.stderr, got.stderr
+
+
 def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(
     tmp_path: Path,
 ) -> None:

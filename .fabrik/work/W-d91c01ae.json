@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:50:08.118421Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d91c01ae",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task after slice 2 of W-89474fc1; the coordinator's relaunch procedure in the rollout doc (W-e413b79b, fleet) names the same limit",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "re-scored 2026-10-20 15:40: infra's design critics refuted the relaunch attribution — the 8 sessions were youtube's headless claude -p workers (start_all.sh:103,:255), not the grids; a per-boot gate in agents_up is now defence in depth only",
+  "status": "open",
+  "title": "Post-reboot relaunch WIP limit (operator paste 2026-10-20: 'the sweep must respect WIP-3'): infra measured that the burst after each boot is the GRID relaunch, not the cron sweep (14:33 boot: fabrik grid 4 panes at 14:34, fabrik-lib 3 at 14:37, youtube 3 at 15:07, all uncapped before D-1075; the sweep spawned 1). Put a per-boot WIP gate in agents_up.sh (at most N panes or grids resumed per boot, the rest resumed on the coordinator's word) so a relaunch of every grid cannot starve the box again"
+}

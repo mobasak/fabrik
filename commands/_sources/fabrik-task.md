@@ -71,7 +71,10 @@ and a work item's cited `path:line` is grepped here, in the cited file, for the 
 error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code); a
 miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the
 item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR
-greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
+greps every name the design uses again). A fix the item proposes is replayed the same way, on a copy, before the
+design adopts it; a replay that overturns it is stated in PROBLEM. An unreachable tool's server source, where one
+exists, is read before a claim is recorded unverified, and the read never upgrades it. Then, before phase 2 and any
+edit, each command and its output goes to
 `<durable>/measure.md`, beside phase 2's `design.md`, never in it (a pasted line opening with a field word or a `#`
 moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file's
 name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that
@@ -79,7 +82,8 @@ slice and never the whole suite (a red now is pre-existing); `git fetch` and the
 remote branch the work merges into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no
 remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack the rule already
-lives in; the population the change writes or thresholds measured (its readers are MIRROR's) — every writer, every
+lives in — each searched by the item's id too, plans and specs included; the population the change writes or
+thresholds measured (its readers are MIRROR's) — every writer, every
 occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in
 (grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`,
 `env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its
@@ -87,7 +91,8 @@ keys recorded, never its values), and the n behind any rate, bound or zero the d
 contract probed live once, a list read whole, never a sample — each by EXECUTING the real path on real data (the
 producer's code, the tool's run output per mode, the design's own classifier, the writer of each state value it
 trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate's own
-command, a recipe's real target layout, the reported incident replayed on a copy one step past its symptom (what the
+command, a surfaced outcome run twice and traced to the line the operator reads, a recipe's real target layout, the
+reported incident replayed on a copy one step past its symptom (what the
 reporter did next), a tool that scopes by a commit or diff range run where the branch's merge-base is its merge
 target's tip and where the target has moved past it, each spelling of a parsed input that the commands and docs
 feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it
@@ -110,7 +115,9 @@ applies is tried as a read of its output (stdout, a record, an exported function
 why the read cannot serve. Each input the design branches on is tabulated whole in a `design.md` table, outside the
 Behaviours list: every value a state it reads can hold, the unit another tool's rule is evaluated per (window, agent,
 repo), every path through a guard (a forced refresh after a write as well as the periodic one); a parser it adds
-takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded.
+takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded. A
+marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and
+duplicate.
 
 {{include:design-critique}}
 
@@ -121,7 +128,9 @@ also has each seat EXECUTE: replay the reported incident and the real corpus thr
 semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep
 sibling write paths and the tests pinning a moved value; name each new guard's fail direction and any second approach
 the build cannot settle; run a mechanism the design copies read-only against the live state of each host it will run
-on (a side-effecting step on a copy); execute one claim about every external dependency. It pins the tree (a commit
+on (a side-effecting step on a copy); execute one claim about every external dependency (both seats are
+`fabrik-reviewer`, with no web tool: the lead fetches a provider-docs fact into the brief). It pins the tree (a
+commit
 or `git archive` copy) and any live state file the design reads, names the unmerged branch owning a mirrored file,
 bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs. Wait for both
 in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is
@@ -157,7 +166,8 @@ nothing; a `.md` under `docs/development/reviews/` but `archived/` is exempt): *
 path missing from both
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
-and counted on the close as `design_amends`.
+and counted on the close as `design_amends`. The amend runs while the `fabrik-task` record is the top one, never
+under a nested run.
 MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers,
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an

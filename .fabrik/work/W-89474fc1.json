@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T09:17:09.058052Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-89474fc1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: park W-60629ce4 (commit, push, close the run blocked --paused), take this now; brief in the coordinator's message",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "operator says asap (URGENT); launcher generator plus registry seeding per repo; one session",
+  "status": "open",
+  "title": "URGENT operator ask 2026-10-20: 'all bat files and their rulesets must be fixed asap.' Every /opt repo that runs agents gets a correct desktop '<Repo> Agents.bat' (D-1042), and the launch rules behind them are fixed"
+}

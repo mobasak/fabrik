@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:26:05.964893Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f367fff4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59SS0XJ2B2V6H8VW911TRB7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "D-1031 progress: Phase 5 done in fabrik-lib; all five phases landed; the team is working under the coordinator"
+}

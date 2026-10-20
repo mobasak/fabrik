@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:10.805379Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a227712a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B2PFVGFDX0CZ1HTHX81V7Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "# Kaizen daily collection — 2026-10-19"
+}

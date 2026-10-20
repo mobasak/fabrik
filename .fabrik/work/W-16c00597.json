@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T12:01:40.171615Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-16c00597",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make _blank_code_spans linear (pair each opener with the next run of the same length inside its paragraph by a per-length index), byte-identical on the fleet .md corpus",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "a quadratic span blanker about to be wired into a gate check that runs in every repo; move it to _fences.py and make it linear (intel measured 3 s on 2 MB); one module",
+  "status": "open",
+  "tags": [
+    "link-reader",
+    "queued"
+  ],
+  "title": "docs_updater._blank_code_spans (scripts/docs_updater.py:1122) is quadratic in the number of unmatched backtick runs in one paragraph — an unmatched opener scans to the paragraph's end: 2000 distinct-length runs in one 2 MB paragraph took 2.97 s per parse (0.16 / 0.58 / 2.97 s at 500 / 1000 / 2000), against 0.03 s for the plain scan; it runs in the link check and, since W-8f9a7d2c, in parse_plan_status / parse_plan_owner"
+}

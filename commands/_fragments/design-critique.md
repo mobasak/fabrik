@@ -21,7 +21,8 @@ The brief never carries the author's review history or recommendation. Ask each 
 COLD and return:
 - a verdict: `sound` · `sound-with-changes` · `unsound`;
 - its concerns, ranked — each with an anchor (section or line), the claim, its evidence (`path:line` or the
-  command run and its output), and the change it proposes;
+  command run and its output), and the change it proposes, as the exact text when the change is a wording (a
+  SQL predicate, a regex, a sentence);
 - or, when it has no concern, the attacks it tried and why each held.
 
 Fable runs on metered usage credits. When Fable is unavailable, refused or out of credit, run a second

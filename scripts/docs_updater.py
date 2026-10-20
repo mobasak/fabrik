@@ -1039,15 +1039,32 @@ def _strip_quoted(content: str) -> str:
     bare ```.*?```, which swallows across an unpaired backtick), then blockquoted
     lines: a `> Status: DRAFT` grammar example above the real line must not win
     first-match (fail-open: misreported status + a defeated COMPLETE check). Same
-    consumer-side strip as check_plan_tickets/check_plan_quality; the blockquote
+    consumer-side strip as check_plan_tickets/check_plan_quality — the fences are
+    `scripts/enforcement/_fences.py`'s linear scanner (W-276255e7); the blockquote
     regex keeps `>` for cross-module byte-parity (Lesson 103)."""
-    scan = re.sub(
-        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-        "",
-        content,
-        flags=re.M | re.S,
-    )
-    return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
+    return re.sub(r"^[ \t]*>.*$", "", _fences_module().strip(content), flags=re.M)
+
+
+def _fences_module() -> Any:
+    """The shared fence scanner, imported when `_strip_quoted` first runs (W-276255e7): in a project whose
+    `scripts/enforcement/` lags a sync, a call that never strips quoted text still runs, and one that does
+    raises an ImportError naming the file. Imported by the sibling directory, the way every check imports it,
+    so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run` promises to write
+    nothing and a first import would write scripts/enforcement/__pycache__/."""
+    enforcement = str(Path(__file__).resolve().parent / "enforcement")
+    if enforcement not in sys.path:
+        sys.path.insert(0, enforcement)
+    prior = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        import _fences
+    except ImportError as exc:
+        raise ImportError(
+            f"docs_updater: cannot import scripts/enforcement/_fences.py ({exc})"
+        ) from exc
+    finally:
+        sys.dont_write_bytecode = prior
+    return _fences
 
 
 # Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue
@@ -1150,6 +1167,28 @@ NO_OWNER = "—"  # an untagged row — `--adopt` fills it
 # The owner NAME is the line's leading token; live hub plans append prose
 # (`infra (build) — spec by fleet, …`) that must not become a table cell.
 _OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
+_STATUS_LINE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
+    re.I | re.M,
+)
+
+
+def _first_header(rx: re.Pattern[str], scan: str) -> re.Match[str] | None:
+    """The first header-line match whose KEY no inline code span holds (W-8f9a7d2c): a span crossing a line
+    break with `Status: DRAFT` opening its second line is a quote, not the plan's header. The match runs on the
+    original text and the value is read from it, so a value in code font (`**Owner:** `[infra]``) keeps it;
+    `_blank_code_spans` is length-preserving, so only the key's bytes are compared against the blanked copy.
+    When every match's key sits in a span, the first match is returned as before — so the result differs from
+    a plain first match only when a span-held match precedes a header outside any span (two stray backticks
+    around the plan's only header still read it)."""
+    matches = list(rx.finditer(scan))
+    if not matches:
+        return None
+    blanked = _blank_code_spans(scan)
+    for m in matches:
+        if blanked[m.start() : m.start(1)] == scan[m.start() : m.start(1)]:
+            return m
+    return matches[0]
 
 
 def parse_plan_owner(plan_path: Path) -> str:
@@ -1161,7 +1200,7 @@ def parse_plan_owner(plan_path: Path) -> str:
         content = plan_path.read_text(encoding="utf-8")
     except Exception:
         return NO_OWNER
-    m = _OWNER_LINE_RE.search(_strip_quoted(content))
+    m = _first_header(_OWNER_LINE_RE, _strip_quoted(content))
     if not m:
         return NO_OWNER
     name = _OWNER_NAME_RE.search(m.group(1).strip().strip("*"))
@@ -1238,11 +1277,8 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     # RAW content (DONE-WHEN lists inside fences are live house style in this
     # repo's archived plans; uncounting them would fail-open the COMPLETE check).
     status_scan = _strip_quoted(content)
-    status_match = re.search(
-        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
-        status_scan,
-        re.I | re.M,
-    )
+    # A header line a code span holds is a quote too (W-8f9a7d2c).
+    status_match = _first_header(_STATUS_LINE_RE, status_scan)
     if status_match:
         raw_status = status_match.group(1).strip().lstrip("*:").strip()
         # Leading decoration (any non-word run: ✅ ✓ ⛔ emphasis, dashes) is not the value: `✅ EXECUTED … converged`

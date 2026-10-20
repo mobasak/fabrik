@@ -3,7 +3,7 @@
   "created": "2026-10-20T03:34:43.036554Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a0f303ceeef424d1a2ac54ebbcdf81d310d9bc7c",
   "id": "W-47d91afa",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "bug on a sync path reaching every repo (a deleted enforcement check lingers in all projects); one script plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "intel",
     "queued"

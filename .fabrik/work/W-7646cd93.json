@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:15.683374Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7646cd93",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "intel: claim mail 01M5AGYPD6W2J0FAG23TQF1V0N, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "another repo's request: exa/firecrawl tier-2 research arms fail for native seats (Cloudflare 403); research MCPs are intel's beat",
+  "status": "open",
+  "tags": [
+    "mail-01m5agypd6w2j0fag23tqf1v0n"
+  ],
+  "title": "three of the tier-2 research arms are failing for native seats on this box: (1) `mcp__exa__web_fetch_exa` and `mcp__exa__web_search_exa` return a Cloudflare \"Attention Required\" 403 page for EVERY URL (mail 01M5AGYPD6W2J0FAG23TQF1V0N, from fabrik-lib-dev2)"
+}

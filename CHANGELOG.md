@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
+
+- `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
+
+### Changed — /fabrik-plan-review: a changed predicate runs against its pinning tests, and five other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-plan-review.md` runs a predicate, matcher or filter the plan changes on a scratch copy against the tests that assert its current behaviour and every input shape its grammar admits, before the first pin. `commands/_sources/fabrik-plan-after-chat.md`'s reader census counts the copies that run, classed by lineage and delivery channel, not the paths its grep returned. `commands/_fragments/design-critique.md` has a concern give the exact text when its change is a wording. `commands/_fragments/term-edit.md` and `term-coverage.md` round zero have a behavioural claim a fix writes cite the line that implements it. Graders in `tests/test_plan_review_queue_pass.py`.
+
+### Fixed — a long-named server backend passes its own ruff format (2026-10-20)
+
+- `src/fabrik/scaffold.py`: at the 50-character project-name cap, the saas chat's `from <pkg>.chat import build_chat_router, load_chat_settings` (main.py) and `importlib.reload(importlib.import_module("<pkg>.main"))` (tests/test_chat.py) ran past line length 100, so a saas-skeleton, static-site or office-extension scaffolded with a long name failed its own `ruff format` and import-order check. Both are now emitted expanded with a trailing comma, which ruff keeps at every name length (W-d5089619).
+
+### Fixed — a scaffolded file-worker's `make install` installs its dependencies (2026-10-20)
+
+- `src/fabrik/scaffold.py` (`_scaffold_file_worker`): the shared Makefile template's `install: uv sync` needs a `[project]` table, and a file-worker's pyproject is tool-only, so `make install` made an empty `.venv` on uv's default Python and exited 0 with none of `requirements.txt` installed. The file-worker's `install` now fills `.venv` from `requirements.txt` with pip and never deletes a venv: no `.venv` → `python -m venv` (the interpreter `make setup-dev` uses); a runnable python without pip (what the old `uv sync` left) → `ensurepip`, its packages kept; a python that cannot run → refuse, naming what to remove. `make dev` runs `.venv/bin/python -m worker.main`. A template whose `install` rule drifted from a single `uv sync` is refused at scaffold time (W-0259f23b).
+
+### Changed — /fabrik-task: MEASURE replays an item's proposed fix, and six other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-task.md` phase 1 replays the fix a work item proposes on a copy before the design adopts it, reads an unreachable tool's server source, where one exists, before recording a claim unverified (the read never upgrades it), searches the prior record by the item's id (plans and specs included) and runs a surfaced outcome twice to the line the operator reads. Phase 2 tables a marker-block or append-only file's malformed shapes, has the lead fetch provider-docs facts into the brief, and runs `--design-amend` only while the `fabrik-task` record is the top one. SIZE_CAP 25020 -> 25756 (D-1068, after an Opus + Fable panel cut the draft from +1139 B). Graders in `tests/test_fabrik_task_queue_pass.py`.
+
 ### Changed — every agent repo gets its desktop launcher, and every launched pane runs capped (2026-10-20)
 
 - `scripts/sysadmin/agents_up.sh`: a repo with no `.fabrik/session-agents.json` now takes its builders from the names
@@ -26,6 +46,18 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 
 - On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
+
+### Fixed — a Status or Owner line quoted in a code span no longer passes for a plan's header (2026-10-20)
+W-8f9a7d2c; D-1078. `docs_updater` read the first `Status:` and `Owner:` line of a plan after removing fenced blocks and block quotes, but not inline code spans, so a code span running across a line break with `Status: DRAFT` at the start of its second line beat the plan's real `**Status:** COMPLETE` (and an `Owner:` line the real owner). The PLANS table, the plan checks, `--adopt` and `work.py` all read those values. Each scan now skips a header line whose key sits inside a code span and still reads a value written in code font, such as `**Owner:** `[infra]``. No plan in the fleet reads differently (0 of 1492).
+
+### Fixed — one bad markdown file can no longer stall the gate's fence parsing (2026-10-20)
+W-276255e7; D-1077. The regex that strips code fences before the plan and convergence checks read a file — copied into `docs_updater` and four checks — backtracked badly: 400 lines of different-length backtick runs took 15.7 s, one 200 KB run of backticks 10.2 s, and two more regexes in `check_convergence` had the same flaw. A new shared module, `scripts/enforcement/_fences.py`, replaces all of them with a linear scanner that finds exactly the same fences (equal on 500 000 random documents and all 14 675 markdown files in the fleet), so the worst inputs now take milliseconds. Every check imports the one module; `docs_updater` loads it only when it parses and writes no bytecode, so `--dry-run` still writes nothing.
+
+### Fixed — review seats keep a pinned tree's links whole, and the overlay never writes through a link (2026-10-20)
+W-78e51f33; D-1073. Kaizen asked (mail 01M5BMDT08) that review seats copy a pinned tree with `cp -rL`, because seats kept losing time to a tracked symlink that dangled in their copy. Measured on a real `pin --base` tree, `cp -rL` freezes a link at the old bytes, so a seat would test the base code through it without noticing; it was rejected. The dangle came from copying or archiving only PART of the tree. The seat prompts in `.claude/workflows/fabrik-review-loop.js` now say to copy the whole base with plain `cp -r` and how to check a path the lead's pin skipped; a seat without the base copy adds each link's target folder to its archive and deletes, and flags, any link that points outside the repo. The overlay step no longer writes a change into a link's target when the change turned that link into a file, and `pin --base` names a skipped member as "an absolute or escaping link, or a device".
+
+### Fixed — a deleted or renamed enforcement check no longer lingers in every project (2026-10-20)
+W-47d91afa; D-1071. The fleet sync copied `scripts/enforcement/` into each project but never removed anything from it, so a check the hub deleted or renamed stayed everywhere. Today that is two retired checks, 82 copies in 41 projects. The sync now deletes a project's copy of any check the hub no longer has. It counts a deletion only once it is committed, keeps a copy the project itself tracks in git (with a warning), and prunes nothing when it cannot read the hub's committed file list. On the first run the worktree copies of the two retired checks go too.
 
 ### Fixed — the fleet sync refuses a symlinked hub file instead of shipping what the link points at today (2026-10-20)
 W-d537275a; D-1069. The sync read a symlinked hub file through the link as the working tree pointed it. An uncommitted retarget shipped the new target. A link leading outside the hub shipped that outside file, with nothing named. A committed link replaced by an ordinary file shipped the link text as an unreadable file. A synced source that is a symlink, sits under a symlinked folder, or is recorded as a symlink in HEAD is now refused: the run prints a warning naming it, and nothing ships. None of the 217 files the sync distributes today is a symlink, so nothing changes for them. To sync such a file, commit a regular file in its place.
@@ -70,6 +102,11 @@ W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link writte
 
 ### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
 W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
+
+### Fixed — a spec's Prometheus monitoring block is validated and kept current on vps1 (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `add_scrape_target` refuses a `monitoring.scheme` other than `http`/`https` and a `monitoring.target` that is not `<host>:<port>` (labels may carry `_`, port 1-65535 with no leading zero; IPv6 refused on purpose) before reading prometheus.yml, dry run included — a bad value used to reach the file and make promtool refuse all of it. An existing `fabrik-<name>` job whose scheme, metrics_path, target or (when the spec has a `bearer_token`) authorization differs is now updated in place and returns `status: updated`; every other key stays, a `credentials_file` secret is never replaced with an inline token, and a job fabrik cannot update unambiguously (several static entries or targets, service discovery, another auth form beside a token) is refused before anything is written. `interval` still applies on create only.
+- `src/fabrik/orchestrator/rollback.py` + `infrastructure.py`: rollback removes a Prometheus job only when this run created it (the driver's verdict rides the resource row as `job=`); an `exists` or `updated` job is kept, and an update is not reverted (W-01815aee).
 
 ### Fixed — a registrar role name never captures another project's role (2026-10-20)
 

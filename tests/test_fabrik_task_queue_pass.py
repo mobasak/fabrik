@@ -389,3 +389,61 @@ def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spelli
         "run a mechanism the design copies read-only against the live state of each host it will run on (a side-effecting"
         " step on a copy);"
     ) in phase2
+
+
+def test_measure_replays_the_items_proposed_fix_and_reads_an_unreachable_source() -> None:
+    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise) and 1792452880: a fix the item
+    proposed was adopted unreplayed, and an unreachable tool's claim was recorded unverified with its source unread;
+    the read never upgrades the claim, since phase 1 counts a source read as no measurement."""
+    phase1 = _section("## Phase 1", "## Phase 2")
+    assert (
+        "A fix the item proposes is replayed the same way, on a copy, before the design adopts it; a replay that"
+        " overturns it is stated in PROBLEM."
+    ) in phase1
+    assert (
+        "An unreachable tool's server source, where one exists, is read before a claim is recorded unverified, and"
+        " the read never upgrades it."
+    ) in phase1
+
+
+def test_measure_greps_the_prior_record_by_the_items_id() -> None:
+    """Row 1792445219 (a finer cut of held read-sibling-row-ruling-first): the grep ran on subject words only; the
+    id clause follows the whole list, so it binds every source the list names."""
+    assert (
+        "the fragment or pack the rule already lives in — each searched by the item's id too, plans and specs included;"
+    ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_measure_runs_a_surfaced_outcome_twice() -> None:
+    """Row 1792459184 (a recurrence of held replay-seat-recipe-twice): an outcome seen once was not traced to the
+    line the operator reads."""
+    assert "a surfaced outcome run twice and traced to the line the operator reads," in _section(
+        "## Phase 1", "## Phase 2"
+    )
+
+
+def test_design_tables_a_written_files_malformed_shapes() -> None:
+    """Row 1792451004 (a recurrence of held design-list-input-grammar): a marker-block file's broken shapes were
+    found by the critiques, not the design's table."""
+    assert (
+        "A marker-block or append-only file the change writes is tabled absent, begin without end, end without begin,"
+        " nested and duplicate."
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_the_brief_fetches_provider_docs_for_seats_without_web() -> None:
+    """Row 1792412516: a fabrik-reviewer seat was asked to execute a provider-docs claim it cannot reach."""
+    assert (
+        "execute one claim about every external dependency (both seats are `fabrik-reviewer`, with no web tool: the"
+        " lead fetches a provider-docs fact into the brief)"
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_design_amend_runs_while_the_task_record_is_on_top() -> None:
+    """Row 1792418646 (a recurrence of held design-amend-needs-top-record): the amend was tried under a nested
+    review: the step landed on the nested record, the active one, and command_run.py refused it (--design-amend
+    belongs to --command fabrik-task)."""
+    assert (
+        "and counted on the close as `design_amends`. The amend runs while the `fabrik-task` record is the top one,"
+        " never under a nested run."
+    ) in _section("## Phase 2", "## Phase 3")

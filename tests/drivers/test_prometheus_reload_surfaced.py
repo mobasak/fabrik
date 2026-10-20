@@ -51,8 +51,14 @@ def test_add_scrape_target_returns_the_reload_outcome_on_create(monkeypatch, out
 
 @pytest.mark.parametrize("outcome", _OUTCOMES)
 def test_add_scrape_target_reloads_and_reports_on_exists(monkeypatch, outcome) -> None:
-    cfg = {"scrape_configs": [{"job_name": f"{prom.JOB_PREFIX}svc"}]}
-    written = _wire(monkeypatch, cfg, outcome)
+    # a job already matching the spec (an incomplete one now reads `updated`, W-01815aee)
+    job = {
+        "job_name": f"{prom.JOB_PREFIX}svc",
+        "scheme": "https",
+        "metrics_path": "/metrics",
+        "static_configs": [{"targets": ["svc.example.com:443"]}],
+    }
+    written = _wire(monkeypatch, {"scrape_configs": [job]}, outcome)
     r = prom.add_scrape_target("svc", domain="svc.example.com")
     assert r["status"] == "exists" and r["reload"] == outcome
     assert written == []  # nothing rewritten, but the reload re-checks what is on disk

@@ -2661,3 +2661,124 @@ def test_seat_prompts_carry_the_gate_layout() -> None:
         assert "treat that pair as armed whatever the diff" in p, label
         assert "`tests/` plus a CI file naming pytest" in p and "on an empty diff" in p, label
         assert "${" not in p, f"{label}: an uninterpolated template expression"
+
+
+# kaizen 01M5BMDT08 (rows 1792409279, 1792412480): seats lost rounds to a tracked symlink that dangled in a PART
+# of the tree they copied. `cp -rL` was proposed and REJECTED on measurement: a followed link is a frozen base copy
+# that the pin overlay never reaches, so a seat running the link path runs the base bytes.
+_LINK_RULE = (
+    # review pass 1 (S-H1): the two finders read the rule's reach over a base-pin seat differently — scope it
+    "Without the lead's base copy (a seat with one skipped these archive steps), a tracked symlink needs",
+    "run `git ls-tree -r 0` as its own second command, redirected into a file under SCRATCH",
+    "add to ROOTS the top-level path each link under a listed root points into, repeating for every root that adds",
+    "delete from SCRATCH/arch every link whose target is absolute or climbs out of the repo",
+    "so it resolves beside SCRATCH/arch, maybe into a live tree — and name it UNPINNED",
+)
+
+
+def _finder_and_refuter_prompts(args: dict) -> dict:
+    """The rendered prompts of both shell finders and the refuter (one candidate makes the refuter run)."""
+    _, _, prompts = _harness(
+        args,
+        {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-S1", 3)]}},
+    )
+    return {k: prompts[k] for k in ("find:S:sonnet", "find:S:haiku", "refute:S")}
+
+
+def test_base_pin_copy_is_whole_and_keeps_links() -> None:
+    """The base copy is the WHOLE directory by plain `cp -r` (links stay links), and a dangling or absent tracked
+    path in it is the base's or the pin's SKIP, never a red of the change."""
+    for label, p in _finder_and_refuter_prompts({**_ARGS, "base_pin_dir": "/bp/base"}).items():
+        assert "Copy the WHOLE directory with plain `cp -r`, never a part of it and never with `-L`" in p, label
+        assert "a followed link is a frozen base copy the pin overlay no longer reaches" in p, label
+        assert "a tracked path missing from it is a member the lead's `pin --base` SKIPPED" in p, label
+        # review pass 1 (S-s1): the seat never receives `base_skipped`, so the prompt names a check it can run
+        assert "`git ls-tree 0 -- <that path>`, its own command, shows it as mode 120000" in p, label
+        assert "cp -rL" not in p and "cp -L " not in p, label
+
+
+def test_archive_recipe_carries_the_tracked_link_rule() -> None:
+    """Without a base pin a seat archives ROOTS: a link archived without its target root dangles, and tar keeps an
+    absolute or escaping link that `pin --base` would SKIP (both critique seats executed it). PYTEST_PINS archives
+    its own literal list, so it points at the same rule."""
+    for label, p in _finder_and_refuter_prompts(_ARGS).items():
+        for needed in _LINK_RULE:
+            assert needed in p, (label, needed)
+        assert "the tracked-link rule above applies to this list too" in p, label
+
+
+def _pinned_link_tree(tmp: Path, *, link_becomes_file: bool) -> tuple[Path, Path]:
+    """A real `pin --base` over a repo tracking `scripts/inrepo.py -> ../templates/t.py`. The change either edits
+    the link's TARGET or turns the link itself into a regular file; returns (pins_dir, base_pin_dir)."""
+    repo = tmp / "repo"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "templates").mkdir()
+    (repo / "templates" / "t.py").write_text("print('template')\n")
+    (repo / "scripts" / "inrepo.py").symlink_to("../templates/t.py")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+    if link_becomes_file:
+        (repo / "scripts" / "inrepo.py").unlink()
+        (repo / "scripts" / "inrepo.py").write_text("print('NEWFILE')\n")
+        pinned = "scripts/inrepo.py"
+    else:
+        (repo / "templates" / "t.py").write_text("print('PINNED')\n")
+        pinned = "templates/t.py"
+    pins = tmp / "pins"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(pins)]
+        + ["--base", "HEAD", pinned],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return pins, Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
+
+
+def _run_the_rendered_copy_and_overlay(tmp: Path, pins: Path, base: Path) -> Path:
+    """EXECUTE what a finder's prompt tells it to run: BASE_PIN's copy command, its chmod, then the overlay
+    program — each lifted from the rendered prompt, SCRATCH bound to a tmp dir. Returns SCRATCH/arch."""
+    p = _finder_and_refuter_prompts({**_ARGS, "base_pin_dir": str(base), "pins_dir": str(pins)})["find:S:sonnet"]
+    scratch = tmp / "scratch"
+    scratch.mkdir()
+    copy = re.search(r"run `(cp [^`]+ SCRATCH/arch)` with SCRATCH/arch not yet created", p)
+    program = re.search(r"with ONE program: `python -P -B -c '(.+?)'`", p)
+    assert copy and program, p[:600]
+
+    def bind(text: str) -> str:
+        return text.replace("SCRATCH", str(scratch))
+
+    subprocess.run(bind(copy.group(1)).split(), check=False, capture_output=True)
+    subprocess.run(["chmod", "-R", "u+w", str(scratch / "arch")], check=True)
+    run = subprocess.run(
+        [sys.executable, "-P", "-B", "-c", bind(program.group(1))],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert run.returncode == 0 and "md5 mismatch []" in run.stdout, (run.stdout, run.stderr[-600:])
+    return scratch / "arch"
+
+
+def test_base_pin_copy_overlays_through_a_tracked_link(tmp_path: Path) -> None:
+    """A pinned link TARGET reaches the link path in the seat's copy — the property `cp -rL` breaks (red on a
+    `-rL` recipe: the link becomes a frozen file holding the base bytes)."""
+    pins, base = _pinned_link_tree(tmp_path, link_becomes_file=False)
+    arch = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    assert (arch / "scripts" / "inrepo.py").is_symlink()
+    assert (arch / "scripts" / "inrepo.py").read_text() == "print('PINNED')\n"
+
+
+def test_overlay_replaces_a_link_the_change_made_a_file(tmp_path: Path) -> None:
+    """When the change turns a tracked link into a file, the overlay replaces the link — it never writes through
+    it into the link's target, which the change did not touch (Opus critique 1: the md5 check still passed)."""
+    pins, base = _pinned_link_tree(tmp_path, link_becomes_file=True)
+    arch = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    assert not (arch / "scripts" / "inrepo.py").is_symlink()
+    assert (arch / "scripts" / "inrepo.py").read_text() == "print('NEWFILE')\n"
+    assert (arch / "templates" / "t.py").read_text() == "print('template')\n"

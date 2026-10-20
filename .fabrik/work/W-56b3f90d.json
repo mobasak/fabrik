@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T08:40:39.478109Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-56b3f90d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task; the sweep is box-local (~/.claude/bin), so back it up and ask the coordinator before editing it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "break on every agent: a starved box took all sessions down 2026-10-20; launcher plus sweep change, one session",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Agent sessions run in a bounded cgroup (operator paste 2026-10-20): 'a WSL netlink wedge + a sibling project's worker storm (300 python procs, 27 GB) starved all agents (load 227, host at 2 GB free)'. The launchers (scripts/sysadmin/agents_up.sh, ~/.claude/bin/claude-reboot-sweep.sh) start each agent session under systemd-run --user --scope -p MemoryMax=… -p TasksMax=…, and the reboot sweep resumes no more autonomous sessions than the WIP limit ('it resumed far more autonomous sessions than that')"
+}
