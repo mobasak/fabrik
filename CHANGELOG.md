@@ -13,6 +13,10 @@ W-281e3ed2 (kaizen 01M5B6F0PZ). A seat refused by the worktree guard assembled `
 ### Changed — the researcher re-reads every cached current value live (2026-10-20)
 W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a version figure on a docs page read from exa. It now covers any current value: a price, a rate or usage limit, a quota, a default, a current version or a status. That applies whenever the value was read from a cached source: exa (whose fetch can never be forced live), firecrawl without `maxAge: 0`, or a search result. Such a value needs a live firecrawl read before it is `VERIFIED`, `STALE` or `WRONG`. WebFetch may only confirm a value a raw source quoted, and a value no live source reaches is `NEEDS-RAW-FETCH`. Quotes, PDF text and figures in documents fixed once published are unaffected. Shape 4's `INFERENCE` clause now states step 4's bounds.
 
+### Fixed — the hub no longer tracks the `vault` link to the operator's notes (2026-10-20)
+
+- `vault` (a symlink to /mnt/c/ObsidianVault/OneNote) was tracked, so every `git archive` pin carried it, and a seat copy that followed links copied 946 MB of the operator's private notes into review scratch. It is now untracked and `/vault` is gitignored; `tests/test_tracked_symlinks.py` fails on any tracked symlink that points outside the repo (W-36c2607c, D-1064).
+
 ### Changed — agents_up.sh resumes each builder's newest whoami binding, so a /clear needs no registry edit (2026-10-20)
 
 - `scripts/sysadmin/agents_up.sh` now reads the whoami identity store the way `whoami_agent.py` does and resumes each builder's newest binding for the repo, so after a /clear the window's `whoami_agent.py --as <name> --force` re-bind is all the launcher needs. The registry's id stands only when its transcript is newer than the binding and the bound session, or when there is no binding, store or git scope; stderr says which. A session that would serve two panes refuses the launch, coordinator sessions included. Panes get the store path, and the exit hint names the re-bind.
