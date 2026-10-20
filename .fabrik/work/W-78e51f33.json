@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Seat copy recipe — copy an archive or base copy with cp -rL (two /fabrik-review feedback rows, a recurrence of held pin-copy-cp-r)"
 }
