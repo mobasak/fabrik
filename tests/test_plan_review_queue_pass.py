@@ -150,3 +150,54 @@ def test_a_seat_grades_its_pinned_plan_set_copy() -> None:
         "outside any docs/development/plans/ directory> --allow-external`, run from the repo root. - **Breadth "
         "advisory (mechanical, at the same moment):**"
     ) in text
+
+
+def _flat(rel: str) -> str:
+    return re.sub(r"\s+", " ", (ROOT / rel).read_text())
+
+
+def test_the_reader_census_counts_running_copies_by_lineage() -> None:
+    """Rows 1792415669, 1792408756 (a recurrence of held census-by-call-site): a census counted the paths its grep
+    returned and missed hand-vendored and image-built copies. The rule lands in /fabrik-plan-after-chat's census,
+    which plan-review's Reader census bullet points at; the grep still finds them, the count is of running copies."""
+    assert (
+        "and runs before the Phase 2 shape decision. Its count is of the copies that run, each classed by its lineage"
+        " (imported, hand-vendored, built into an image) and by the channel that delivers it, never of the paths the"
+        " grep returned."
+    ) in _flat("commands/_sources/fabrik-plan-after-chat.md")
+
+
+def test_a_critique_concern_proposes_its_exact_text() -> None:
+    """Row 1792452348 (a recurrence of held critique-exact-replacement-text): a narrowing was paraphrased, then folded
+    differently from what the seat meant; a structural concern has no single text, so the rule binds a wording."""
+    assert (
+        "and the change it proposes, as the exact text when the change is a wording (a SQL predicate, a regex, a"
+        " sentence);"
+    ) in _flat("commands/_fragments/design-critique.md")
+
+
+def test_a_behavioural_fix_claim_cites_its_branch_in_both_round_zero_homes() -> None:
+    """Row 1792411873 (a recurrence of held fix-sentence-names-its-code-site): a fix described what code does on an
+    error without citing the line that does it. The interface rule has two homes, so both round zeros carry it."""
+    for rel, at in (
+        ("commands/_fragments/term-edit.md", "at the pinned SHA"),
+        ("commands/_fragments/term-coverage.md", "at the commit the round's briefs pin"),
+    ):
+        text = _flat(rel)
+        zero = text[text.index("**Round zero") : text.index("bind the probe:")]
+        assert (
+            "behavioural claim a fix writes (what code does on an error, a fallback, a refusal) cites the line that"
+            f" implements it (an `except`, `return`, `raise`, `||` fallback or default value) {at}, and is re-read"
+            " against it before the pin"
+        ) in zero, rel
+
+
+def test_a_changed_predicate_runs_against_its_pinning_tests_before_the_first_pin() -> None:
+    """Rows 1792407014, 1792446405 (a recurrence of held execute-gate-recipes-round1): a changed predicate was run only
+    on the plan's own cases, and a seat found the column-level and other-schema shapes in review."""
+    assert (
+        "so no seat is the first to execute it. A predicate, matcher or filter the plan changes is also run on a"
+        " scratch copy against the tests that assert its current behaviour, each failure named as the change the plan"
+        " intends or a defect, and against every input shape its grammar admits beyond the plan's own cases (another"
+        " schema, a column-level grant)."
+    ) in _flat("commands/_sources/fabrik-plan-review.md")

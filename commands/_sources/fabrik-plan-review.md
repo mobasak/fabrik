@@ -134,12 +134,15 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
    quota/limit accounting edges (unknown≠0, per-call vs batch) · boundary/sentinel/prefix collisions ·
    behavior-without-a-test*. Every row starts `UNCHECKED`; **every row must read CLEAN / FIXED / REFUTED
    with evidence naming the paths hunted before you may write `Status: CONVERGED`.**
-   `check_convergence.py` enforces this on the flip — a checklist that is missing, unparsed, unadjudicated,
-   or not derived from a recorded `review_rubric.py` invocation fails the gate. Adjudicate each row in the
-   round whose evidence settles it — the rows the plan already proves before the first pin, the rest no later
-   than the last delta round — so the closing pass re-derives verdicts and the flip adds no content. And
-   before the first pin, RUN every new module, stub or algorithm the plan specifies on a scratch copy over the
-   plan's own Behavior Contract inputs, so no seat is the first to execute it.
+   `check_convergence.py` enforces this on the flip — a checklist that is missing, unparsed, unadjudicated, or not
+   derived from a recorded `review_rubric.py` invocation fails the gate. Adjudicate each row in the round whose
+   evidence settles it — the rows the plan already proves before the first pin, the rest no later than the last delta
+   round — so the closing pass re-derives verdicts and the flip adds no content. And before the first pin, RUN every
+   new module, stub or algorithm the plan specifies on a scratch copy over the plan's own Behavior Contract inputs,
+   so no seat is the first to execute it. A predicate, matcher or filter the plan changes is also run on a scratch
+   copy against the tests that assert its current behaviour, each failure named as the change the plan intends or a
+   defect, and against every input shape its grammar admits beyond the plan's own cases (another schema, a
+   column-level grant).
 3. **Constraints-Digest audit (the rule-grounding floor, 2026-08-30).** The rubric run from step 1
    IS the plan's computed MUST-READ set — now audit the plan's `## Constraints Digest` against it:
    every MATCHED pack must be named in the digest, and you spot-verify **≥2 digest quotes verbatim
