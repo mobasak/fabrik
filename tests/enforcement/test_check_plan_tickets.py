@@ -776,11 +776,23 @@ def test_a_malformed_lock_owned_paths_never_matches_by_letter(tmp_path, capsys) 
     said = capsys.readouterr()
     assert "owned_paths is a string" in said.out + said.err, said
     assert selected("s/x.py"), "a bare string is still read as that one path"
-    assert not selected({"s": 1}) and not selected(7)
+    capsys.readouterr()
+    for bad in ({"s": 1}, 7):
+        assert not selected(bad), bad
+        said = capsys.readouterr()
+        assert "owned_paths is not a list — lock skipped" in said.out + said.err, (bad, said)
     assert selected(["s/x.py", 3]), "the string entries still count when a non-string is dropped"
+    said = capsys.readouterr()
+    assert "owned_paths has a non-string entry — dropped" in said.out + said.err, said
     lock.write_text(json.dumps(["s/x.py"]), encoding="utf-8")
     _, advisory = cpt._discover_dirs(root)
     assert plan_dir.resolve() not in {d.resolve() for d in advisory}
+    said = capsys.readouterr()
+    assert "is not a JSON object — skipped" in said.out + said.err, said
+    # a well-formed lock says nothing (the NOTEs are for malformed locks only, never wallpaper)
+    assert selected(["s/x.py"])
+    said = capsys.readouterr()
+    assert "plan_tickets discovery:" not in said.out + said.err, said
 
 
 def test_the_demotion_count_is_taken_at_full_severity_not_gate_severity(
