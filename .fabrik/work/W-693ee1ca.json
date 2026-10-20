@@ -3,7 +3,7 @@
   "created": "2026-10-20T01:05:40.772899Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c3acf2141a50b6535d85196810b74cf9d2e9da7c",
   "id": "W-693ee1ca",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: a rule update (D-956), four fleet-synced rule-pack lines now contradict the merged code; LOW effort: four lines",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5b8e67r",
     "mail-01m5b95ycr"
