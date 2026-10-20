@@ -1404,3 +1404,28 @@ def test_a_directory_link_in_a_walked_dir_is_refused(hub, tmp_path) -> None:
     dest = project / "libs" / "vend" / "dirlink"
     assert any(r.action == "WARN" and r.destination == dest for r in result.files), result.files
     assert not dest.exists()
+
+
+def test_a_new_file_whose_source_becomes_a_link_names_the_refusal(
+    hub, tmp_path, monkeypatch
+) -> None:
+    """Review pass 3: the new-file branch's copy refused through `_GoneSourceError`, but the WARN
+    said "source missing and no readable HEAD copy" — nothing shipped, under the wrong reason."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    src = hub_root / "u.md"
+    src.write_text("UNTRACKED\n", encoding="utf-8")
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def swapping(source):
+        calls["n"] += 1
+        if calls["n"] == 2:  # `_atomic_copy`'s own consult
+            src.unlink()
+            src.symlink_to(tmp_path / "outside" / "ext.md")
+        return real(source)
+
+    monkeypatch.setattr(mod, "_head_source", swapping)
+    result = mod.sync_single_file(src, project / "u.md")
+    assert result.action == "WARN", result
+    assert result.reason.startswith("symlinked hub source not shipped"), result
+    assert not (project / "u.md").exists()

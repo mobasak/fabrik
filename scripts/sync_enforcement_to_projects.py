@@ -2375,7 +2375,10 @@ def sync_single_file(
         try:
             _atomic_copy(source, destination)
         except _GoneSourceError:
-            return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
+            # a source that became a link between consults is named as the refusal it is
+            why = _link_refusal(source)
+            reason = _GONE_UNREADABLE if why is None else f"symlinked hub source not shipped: {why}"
+            return SyncResult("WARN", source, destination, reason)
         return SyncResult("COPY", source, destination, reason)
 
     if destination.is_symlink():
