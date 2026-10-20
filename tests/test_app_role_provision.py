@@ -109,7 +109,7 @@ def _run(
         return {"ro": {"user": f"{db}_wd_ro"}, "rw": {"user": f"{db}_wd_rw"}}
 
     def fake_payments(db, lane, dry_run=False, **kw):
-        events.append(("payments",))
+        events.append(("payments", lane))
         return {"user": f"{db}_payments_{lane}", "password": None, "status": "exists"}
 
     def fake_payments_grant(db, lane, dry_run=False, **kw):
@@ -143,6 +143,7 @@ def _run(
             dry_run=dry_run,
             provision_watchdog_roles=True,
             provision_payments_ingest=True,
+            provision_payments_fulfilment=True,
         )
     return deployer, ctx, events, mocks
 
@@ -339,7 +340,9 @@ def test_converged_reapply_injects_nothing(tmp_path: Path, flag, url) -> None:
     ensures = [e for e in events if e[0] == "ensure_app_role"]
     assert ensures == [("ensure_app_role", False)]
     assert events.index(("watchdog",)) < events.index(ensures[0])
-    assert events.index(("payments",)) < events.index(ensures[0])
+    # both payments roles land before the app role's audit_log revokes, ingest first
+    assert events.index(("payments", "ingest")) < events.index(("payments", "fulfilment"))
+    assert events.index(("payments", "fulfilment")) < events.index(ensures[0])
     assert deployer.injects == []
     mocks["check"].assert_not_called()
     assert _app_role_failures(ctx) == []
