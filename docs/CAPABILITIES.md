@@ -115,7 +115,7 @@
 - [scripts/check_research_ledger.py](../INDEX.md) (owner: infra): Refuse a research ledger that leaves a returned fact undispositioned.
 - [scripts/check_zed_extensions.py](../INDEX.md) (owner: infra): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): CI-fix dispatcher — GitHub Actions failure -> local coder-AI fix run.
-- [scripts/classify_services.py](../INDEX.md) (owner: infra): Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
+- [scripts/classify_services.py](../INDEX.md) (owner: infra): A manual tool since D-1046 (not in the daily chain): web-ground the uncatalogued services via the pool.
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): Per-call `claude -p` cost measurement for ANY project — self-contained, no engine import.
 - [scripts/cloud_dispatch.py](../INDEX.md) (owner: infra): Dispatch a task to a fleet account's claude.ai routine as a CLOUD subagent (D-857).
 - [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): Per-command optimisation report over the fleet-wide close-out ledger (D-175).
@@ -145,7 +145,7 @@
 - [scripts/enforcement/check_doc_index.py](../INDEX.md) (owner: infra): INDEX.md ↔ docs/ tree drift gate (docs-truth convergence, 2026-07-20).
 - [scripts/enforcement/check_doc_links.py](../INDEX.md) (owner: infra): Link integrity for the live docs tree — every repo-path reference must resolve.
 - [scripts/enforcement/check_doc_sprawl.py](../INDEX.md) (owner: infra): Default-deny policy for new .md files - systematic anti-sprawl enforcement.
-- [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): Force-fill advisory — WARN when a seeded doc still carries template placeholders AFTER its
+- [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): Force-fill advisory — WARN when a seeded doc is still unfilled AFTER its Doc Sync Matrix trigger
 - [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): Doc Sync Matrix enforcement — the single "did you update docs when code changed" gate.
 - [scripts/enforcement/check_docker.py](../INDEX.md) (owner: infra): Check Docker conventions (base images, healthcheck, port consistency).
 - [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
@@ -252,6 +252,7 @@
 - [scripts/sync_projects.py](../INDEX.md) (owner: infra): Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/sysadmin/agents_bat.py](../INDEX.md) (owner: infra): agents_bat.py [--opt DIR] [--desktop DIR] [--distro NAME] [--replace FILE]... — one "<Repo> Agents.bat" per repo.
 - [scripts/sysadmin/archive_transcripts.py](../INDEX.md) (owner: infra): archive_transcripts — Phase A of the session-history retention plan (revision 2026-10-05).
 - [scripts/sysadmin/bot.py](../INDEX.md) (owner: infra): VPS AI Sysadmin Telegram Bot.
 - [scripts/sysadmin/canary_grounding.py](../INDEX.md) (owner: infra): Grounding-integrity canary — the refuses-ungrounded flywheel axis (weekly batch).
