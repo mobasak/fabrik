@@ -417,3 +417,37 @@ def test_the_reader_follows_commonmark_on_escapes_and_consumed_links(
     import check_doc_links as cdl
 
     assert list(cdl.link_targets(text)) == targets
+
+
+@pytest.mark.parametrize(
+    ("text", "targets"),
+    [
+        ('[t](docs/x.md\n"T")', ["docs/x.md"]),  # a line ending before the title
+        ("[t](docs/x.md \n  'T')", ["docs/x.md"]),  # spaces, the line ending, then the title
+        ("[t](docs/x.md\n)", ["docs/x.md"]),  # a line ending before the closing paren
+        ('[t](docs/x.md "T"\n)', ["docs/x.md"]),  # ... after a title too
+        ("[t](\ndocs/x.md)", ["docs/x.md"]),  # a line ending before the destination
+        ("[t](docs/x.md\n\n)", []),  # a blank line ends the link: two line endings never do
+        ('[t](docs/x.md\n\n"T")', []),
+    ],
+    ids=[
+        "newline-before-title",
+        "spaces-newline-before-title",
+        "newline-before-close",
+        "newline-after-title",
+        "newline-before-destination",
+        "blank-line-before-close",
+        "blank-line-before-title",
+    ],
+)
+def test_both_readers_take_one_line_ending_in_a_links_whitespace(
+    text: str, targets: list[str]
+) -> None:
+    """W-55905ee1 (W-f11e740e review, slice A Haiku): CommonMark lets the whitespace around a link's
+    destination, before its title and before its `)` hold up to one line ending; `_TITLE_CLOSE_RE`
+    allowed spaces and tabs only, so docs_updater (which feeds whole documents) skipped a link its
+    regex fallback graded. Both copies of the reader take the same shapes (the parity test pins them)."""
+    import check_doc_links as cdl
+
+    assert list(cdl.link_targets(text)) == targets
+    assert list(cdi.link_targets(text)) == targets
