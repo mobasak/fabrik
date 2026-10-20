@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T02:54:15.083225Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-8f9a7d2c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure fleet plans for a backticked Status:/Owner: line ahead of the real one; fix in the scan, keeping _strip_quoted's six parity copies (Lesson 103)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "docs_updater's Status:/Owner: scans read a header line inside an inline code span (a backticked Status: example can win first-match) — the twin of W-69f51003 for _strip_quoted's other callers"
+}

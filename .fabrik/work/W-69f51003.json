@@ -3,7 +3,7 @@
   "created": "2026-10-18T19:20:25.939661Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "61c30d1d1f887251c8db79c3e6be9572b56d0bbf",
   "id": "W-69f51003",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
