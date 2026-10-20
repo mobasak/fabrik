@@ -1065,7 +1065,7 @@ def test_a_deleted_head_symlink_is_not_shipped_as_a_file(hub, tmp_path: Path) ->
     mod.GOVERNANCE_FILES = ["AGENTS-link.md"]
     mod.sync_scripts_to_project(project)
     assert not (project / "AGENTS-link.md").exists()
-    assert "not a file" in mod._head_unread["AGENTS-link.md"], mod._head_unread
+    assert "a symlink in HEAD" in mod._head_unread["AGENTS-link.md"], mod._head_unread  # W-d537275a
 
 
 def test_an_unreadable_gone_blob_is_one_warn_not_an_aborted_project(hub, tmp_path: Path) -> None:
@@ -1247,3 +1247,66 @@ def test_every_copy_branch_warns_when_the_head_read_fails(
     assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
     if shape == "symlink":
         assert dest.is_symlink(), "the link was removed before a copy that never happened"
+
+
+# ---- W-d537275a: a symlinked hub source is refused, never shipped ---------------------------------
+# `_head_source` read `source.resolve()`, i.e. the target the WORKING TREE points at: an uncommitted
+# retarget shipped the new target, a link leaving the hub shipped the outside file's working bytes,
+# and a committed link replaced by a regular file shipped the link text as a mode-0 file.
+
+
+def _link_hub(hub, tmp_path: Path):
+    mod, hub_root, _committed, _untracked = hub
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "ext.md").write_text("EXTERNAL working bytes\n", encoding="utf-8")
+    (hub_root / "a.md").write_text("A committed\n", encoding="utf-8")
+    (hub_root / "b.md").write_text("B committed\n", encoding="utf-8")
+    (hub_root / "real").mkdir()
+    (hub_root / "real" / "x.md").write_text("X committed\n", encoding="utf-8")
+    (hub_root / "link.md").symlink_to("a.md")
+    (hub_root / "out.md").symlink_to(outside / "ext.md")
+    (hub_root / "dirlink").symlink_to("real")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "links"], check=True)
+    project = tmp_path / "proj"
+    project.mkdir()
+    mod._head_unread.clear()
+    return mod, hub_root, project
+
+
+def _refused(mod, source: Path, dest: Path) -> None:
+    result = mod.sync_single_file(source, dest)
+    assert result.action == "WARN", result
+    assert result.reason.startswith("symlinked hub source not shipped"), result
+    rel = source.relative_to(mod.FABRIK_ROOT).as_posix()
+    mod._head_source(source)
+    assert "symlink" in mod._head_unread.get(rel, ""), mod._head_unread
+
+
+def test_a_retargeted_symlink_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    (hub_root / "link.md").unlink()
+    (hub_root / "link.md").symlink_to("b.md")  # the uncommitted retarget
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists(), "the working tree's new target shipped"
+
+
+def test_a_symlink_leaving_the_hub_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    _refused(mod, hub_root / "out.md", project / "out.md")
+    assert not (project / "out.md").exists(), "a file outside the hub shipped"
+
+
+def test_a_link_replaced_by_a_file_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    (hub_root / "link.md").unlink()
+    (hub_root / "link.md").write_text("UNCOMMITTED regular file\n", encoding="utf-8")
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists(), "the link text or the working file shipped"
+
+
+def test_a_file_under_a_symlinked_dir_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    _refused(mod, hub_root / "dirlink" / "x.md", project / "x.md")
+    assert not (project / "x.md").exists()

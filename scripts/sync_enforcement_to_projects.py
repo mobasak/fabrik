@@ -1758,6 +1758,60 @@ _head_unread: dict[str, str] = {}
 # rel -> the time of HEAD's last commit touching it, for sources gone from the working tree
 # (`_head_file_time`); cleared in `main()` with the records above.
 _head_time_cache: dict[str, float] = {}
+# rel -> why a hub source involving a symlink is refused, or None (`_link_refusal`); cleared in
+# `main()` with the records above.
+_link_refusal_cache: dict[str, str | None] = {}
+
+
+def _link_refusal(source: Path) -> str | None:
+    """Why a hub source that involves a symlink is refused, or None (W-d537275a).
+
+    `_head_source` read `source.resolve()` — the target the WORKING TREE points at — so an
+    uncommitted retarget shipped its new target, a link leaving the hub shipped the outside file's
+    working bytes, and a committed link replaced by a regular file shipped the link text as a
+    mode-0 file. Following HEAD's link instead needs a rule for a directory, missing, outside or
+    chained target, a symlinked parent and the link's own commit time (both design critiques), and
+    0 of the 217 synced sources were links when measured — so a source is REFUSED when any path
+    component below the hub root is a symlink in the working tree, or HEAD records a symlink (mode
+    120000) at its own path. Named in `_head_unread`; nothing ships. A path outside the hub is not
+    a hub source and is not checked. THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (D-253):
+    a link that is neither in the working tree nor in HEAD at the source's own path — impossible,
+    since the sync reads exactly that path.
+    """
+    root = Path(os.path.abspath(FABRIK_ROOT))
+    path = Path(os.path.abspath(source))  # lexical: never resolved first
+    try:
+        rel = path.relative_to(root).as_posix()
+    except ValueError:
+        return None
+    if rel in _link_refusal_cache:
+        return _link_refusal_cache[rel]
+    why: str | None = None
+    component = root
+    for part in Path(rel).parts:
+        component = component / part
+        if component.is_symlink():
+            linked = component.relative_to(root).as_posix()
+            why = "a symlink in the working tree" + ("" if linked == rel else f" ({linked}/)")
+            break
+    if why is None:
+        try:
+            ls = subprocess.run(
+                ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                check=False,
+            )
+            if ls.returncode == 0 and ls.stdout.startswith(b"120000 "):
+                why = "a symlink in HEAD"
+        except OSError:
+            pass  # a git that cannot answer is named by `_head_source`, which runs next
+    _link_refusal_cache[rel] = why
+    if why is not None:
+        _head_unread[rel] = f"{why} — symlinked hub sources are not synced; commit a regular file"
+    return why
+
+
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
@@ -1794,6 +1848,8 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     umask to ~46 repos while the new one distributes exactly what CI would check out. The bit that
     MATTERS is preserved: an executable stays executable, which is graded.
     """
+    if _link_refusal(source) is not None:
+        return None  # a symlinked hub source: refused and named, never read through (W-d537275a)
     try:
         # BOTH sides resolved. Resolving only the source means a symlinked hub root raises
         # ValueError here, and the `except` below turns that into a SILENT working-tree
@@ -1949,20 +2005,10 @@ def _hub_present(source: Path) -> bool:
     from the working tree, so a sibling's uncommitted deletion shipped nothing and the project kept
     a stale copy, silently. `_head_source` already returns HEAD's bytes for a deleted copy and names
     it "deleted in the working tree"; this lets the caller reach it. A COMMITTED deletion (absent
-    from HEAD too) is still absent. Only a REGULAR file counts: a symlink HEAD records (mode
-    120000) would ship its link text as a mode-0 file, so a deleted one is skipped as before and
-    named (symlinked sources are W-d537275a).
+    from HEAD too) is still absent. A symlink HEAD records (mode 120000) is refused inside
+    `_head_source` (`_link_refusal`, W-d537275a), so what comes back is always a regular file.
     """
-    if source.exists():
-        return True
-    head = _head_source(source)
-    if head is None:
-        return False
-    if not stat.S_ISREG(head[1]):
-        rel = source.relative_to(FABRIK_ROOT).as_posix()
-        _head_unread[rel] = f"deleted in the working tree; HEAD holds mode {head[1]:o}, not a file"
-        return False
-    return True
+    return source.exists() or _head_source(source) is not None
 
 
 def _head_file_time(source: Path) -> float:
@@ -2287,6 +2333,9 @@ def sync_single_file(
     # untouchable, whatever else the flags say.
     if seed_if_missing and destination.exists() and not destination.is_symlink():
         return SyncResult("SKIP", source, destination, "seed-if-missing: project-owned")
+    why = _link_refusal(source)
+    if why is not None:  # before anything is hashed or written through the link (W-d537275a)
+        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
     # Replace symlinks with real copies (symlinks break workspace isolation)
     # T12.17: consult HEAD on EVERY path, dry-run included. A dry run exists to answer "what would
     # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
@@ -2954,6 +3003,7 @@ def main() -> int:
     _head_drift_why.clear()  # before the manifest bind below, which records into all three
     _head_unread.clear()
     _head_time_cache.clear()
+    _link_refusal_cache.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
     _HUB_BLOBS.clear()
