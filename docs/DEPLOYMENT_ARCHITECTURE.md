@@ -141,7 +141,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `drivers/grafana.py` | `post_deployment_annotation()`, `delete_annotation()` | Global deployment annotations (`POST /api/annotations`). Non-fatal (decorative). Env var `GRAFANA_SERVICE_ACCOUNT_TOKEN`. | Always (universal) |
 | `drivers/authelia.py` | `add_access_rule()`, `remove_access_rule()` | `docker exec` into Authelia to add/remove `access_control` rules. Uses `run_locked("authelia-config", ...)`. Supports `insert_before_twofactor=True` for `^/api/` bypass ordering. | `shape.is_admin_dashboard` + `domain` set (+ `^/api/` bypass when `shape.has_bearer_api`) |
 | `drivers/meilisearch.py` | `create_index()`, `delete_index()` | Index creation. Container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside the container — no secret on SSH wire. | `shape.has_search_feature` |
-| `drivers/prometheus.py` | `add_scrape_target()`, `remove_scrape_target()` | Appends scrape target for `/metrics` endpoint and reloads Prometheus. | `shape.exposes_metrics` |
+| `drivers/prometheus.py` | `add_scrape_target()`, `remove_scrape_target()` | Appends scrape target for `/metrics` endpoint and reloads Prometheus. Refuses a `monitoring.scheme` outside `http`/`https` or a `monitoring.target` that is not `<host>:<port>` before touching the file; an existing job whose scheme, path, target or (with a token) auth differs is updated in place, other keys kept (`status: updated`); rollback removes only a job the run created (W-01815aee). | `shape.exposes_metrics` |
 
 ### 2.5 Site provisioning — standalone microservice
 
