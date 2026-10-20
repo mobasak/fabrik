@@ -21,22 +21,13 @@ launcher, and keeps the hub item open until the repo confirms each phase.
 
 ## Before the first phase: what the hub coordinator reads (read-only)
 
-**Which launcher this page describes.** It describes `agents_up.sh` with infra's W-89474fc1 merged (merge request
-01M5CHRNMZ): the coordinator is the ledger's merge owner and gets no pane, builders come from the registry or, with
-none, from their whoami bindings, a builder without its own linked worktree gets no pane, and every pane runs
-memory-capped. Until that merge is on master, three things differ: only a name `coordinator` or ending in
-`-coordinator` is skipped as the coordinator (so the coordinator stays out of the registry), every builder needs a
-`.fabrik/session-agents.json` row (the launcher and `agents_bat.py` refuse a repo without one), and panes run
-uncapped. Check with `command grep -c "merge-owner" /opt/fabrik/scripts/sysadmin/agents_up.sh`: 0 means the merge has
-not landed.
-
 Each answer below goes into the brief, so the repo's agents never have to guess it.
 
 1. **Who the coordinator is.** The repo's own ledger decides, never a name's position or number:
    `python3 /opt/fabrik/scripts/decisions.py --merge-owner /opt/<repo>` prints the current merge owner. That agent is the
    coordinator, whatever its name: web-ecommerce-factory's is `wef2` (its D-198, the operator's D-1042). With no
    merge-owner row the repo picks one, and phase 2 step 7 mints the first row. The launcher reads the same ledger to
-   decide which agent gets no pane, once W-89474fc1 is merged (above). The synced `CLAUDE.md` § Orient (d) describes a
+   decide which agent gets no pane (§ Launching a repo's builders). The synced `CLAUDE.md` § Orient (d) describes a
    single-window repo recording its merge owner with `docs_updater.py --adopt`, where the first name listed becomes the
    merge owner; in a rollout the ledger row is the record, and nothing is re-adopted.
 2. **Which branch is the trunk.** It may not be `main`. The trunk is the branch the main checkout works on and merges
@@ -54,7 +45,8 @@ Each answer below goes into the brief, so the repo's agents never have to guess 
    `yt1`–`yt3`; web-ecommerce-factory: `wef1`, `wef3`). Each builder's current session is the window the operator
    already has open; phase 2 step 9 records it. A builder with no window yet gets its worktree first
    (`git -C /opt/<repo> worktree add .claude/worktrees/<name> -b worktree-<name> <trunk>`) and its first session is
-   started there as `CLAUDE_AGENT=<name> claude -n <name>`, the name the launcher later resumes it under.
+   started there as `CLAUDE_AGENT=<name> claude -n <name>`, the name the launcher later resumes it under; a session
+   started that way writes no binding, so it then runs step 9's `whoami_agent.py --as <name>`.
 
 ## The operator's steps
 
@@ -63,9 +55,11 @@ Written for the operator; nothing here can be done by an agent.
 1. **Open the coordinator** in a VS Code window on the repo's main checkout, started as
    `CLAUDE_AGENT=<coordinator name> claude -n <coordinator name>` (youtube: `CLAUDE_AGENT=youtube-coordinator claude -n
    youtube-coordinator` in `/opt/youtube`). Until it is open, the repo's merges and assignments wait; the builder doing
-   phases 1–3 commits them on the trunk itself, as youtube's did. When the merge owner already has a window in the
-   main checkout (whatsapp-agent's `wa1`, web-ecommerce-factory's `wef2`), keep it: `/rename` it and run
-   `python3 /opt/fabrik/scripts/whoami_agent.py --as <its name> --force` in it, instead of opening a second one.
+   phases 1–3 commits them on the trunk itself, as youtube's did — the one exception to step 10, and it ends there.
+   When the merge owner already has a window in the main checkout (whatsapp-agent's `wa1`, web-ecommerce-factory's
+   `wef2`), keeping it is allowed: `/rename` it and run `python3 /opt/fabrik/scripts/whoami_agent.py --as <its name>
+   --force` in it. A window not started with `CLAUDE_AGENT` gets no charter injected by `agent_role.py`, so it reads
+   its charter itself (step 17) after every `/clear`; reopening it with `CLAUDE_AGENT` once avoids that.
 2. **Close the builders' old windows** (VS Code tabs or terminals) before the first double-click of the repo's .bat. A
    builder whose session is still running elsewhere gets a pane that only says so, because two processes on one
    session mix its transcript and hooks.
@@ -110,7 +104,9 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
      - Add the repo's own rules: its routing map (for fabrik-lib, `.fabrik/module-owners.json`), its gate and its
        decision log.
    - One charter per builder, each with its own beat.
-7. Add a `docs/DECISIONS.md` row minted with `decisions.py --reserve-id`, whose what-cell reads
+7. Skip this step when `decisions.py --merge-owner /opt/<repo>` already prints the coordinator (web-ecommerce-factory's
+   D-198, whatsapp-agent's D-002, tryton-crm's D-027). Otherwise add a `docs/DECISIONS.md` row minted with
+   `decisions.py --reserve-id`, whose what-cell reads
    `supersedes D-<the current merge-owner row>: MERGE OWNER: <coordinator name>`. A repo with no merge-owner row yet
    writes `MERGE OWNER: <coordinator name>` and supersedes nothing (youtube's D-063). Mint it by hand:
    `docs_updater.py --adopt` would stamp old plans with owners. Confirm with `decisions.py --merge-owner /opt/<repo>`.
@@ -316,9 +312,9 @@ Moving a repo from a hand-made launcher to the generated one:
 - Acceptance, on the operator's machine (no Windows runner exists here): the double-click opens the grid at 9pt, every
   builder in its worktree, with no banner and no dialog.
 
-The hub moves the same way (W-66e2f6a7). Once the change is merged (status 2026-10-20: step 1 is done — the hub's
-registry holds infra, intel, fleet and kaizen — so never re-seed it; closing the old `hub` grid is boarded for the
-operator as W-0076b052):
+The hub moves the same way (W-66e2f6a7). Status 2026-10-20: step 1 is done — the hub's registry holds infra, intel,
+fleet and kaizen — so never re-seed it; closing the old `hub` grid (step 3) is boarded for the operator as
+W-0076b052:
 
 1. Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and their current session ids:
    infra, intel, fleet and kaizen, and no coordinator row.
@@ -334,10 +330,10 @@ operator as W-0076b052):
 - **WSL runs NAT (D-1072).** From Windows, `localhost:<port>` into WSL times out; WSL answers only at its own address.
   Nothing in a rollout may depend on Windows reaching a WSL service through `localhost`. The desktop .bat never does:
   it starts the grid through `wsl.exe` (§ The Windows side).
-- **Agents run memory-capped** once W-89474fc1 is merged (§ Before the first phase): every pane the launcher starts
-  runs in its own `systemd-run --user --scope` in `fabrik-agents.slice` (3G, no swap, 1024 tasks per pane; 16G for the
-  slice), described in § Launching a repo's builders after that merge (W-56b3f90d). Sessions started from VS Code,
-  which is where every coordinator runs, are not capped. After a
+- **Agents run memory-capped.** Every pane the launcher starts runs in its own `systemd-run --user --scope` in
+  `fabrik-agents.slice` (3G, no swap, 1024 tasks per pane; 16G for the slice), uncapped only when no user manager
+  answers, which the launcher says (§ Launching a repo's builders, W-56b3f90d). Sessions started from VS Code, which
+  is where every coordinator runs, are not capped. After a
   box reboot, the reboot sweep is to resume no more autonomous sessions than the work-in-progress limit; that limit is
   infra's open slice of W-56b3f90d / W-89474fc1, and until it lands a reboot may resume more autonomous sessions
   than that limit.
