@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T09:25:30.353192Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d5089619",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce with that test, find the emitted line that a long name pushes past the line length, and wrap it at emit time",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "A server backend scaffolded with a very long name fails its own ruff format: tests/test_scaffold_output_passes_gate.py::test_scaffolded_server_backend_passes_its_own_lint_and_types[saas-skeleton|static-site|office-extension-an-extremely-long-saas-application-name-for-reflow] red on master 0ac19d87d (main.py and tests/test_chat.py would be reformatted) — found during W-0259f23b 2026-10-20 (owner: fleet)"
+}
