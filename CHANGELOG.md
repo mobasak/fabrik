@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 
-- On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, and a peer that is not a seat never counts (W-bc457e27).
+- On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
 
 ### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
 

@@ -254,6 +254,56 @@ def test_a_hand_back_delivered_as_an_attachment_row_counts(tmp_path, panel_mode,
     assert not ok and "fable" in why, why
 
 
+def _queued_prompt(text: str) -> str:
+    """An operator prompt queued while the agent was busy, as a `queued_command` attachment."""
+    att = {"type": "queued_command", "prompt": text, "commandMode": "prompt"}
+    return json.dumps({"type": "attachment", "attachment": att})
+
+
+def test_an_attachment_hand_back_is_bounded_and_unwrapped(tmp_path, panel_mode):
+    """Review round 1 (W-bc457e27): an operator prompt that arrives as a queued_command attachment
+    resets the panel like a `user` prompt does; an explicit `handback: false` row is not a
+    verdict; and with no report text, the `<agent-message>` wrapper alone never matches a quote."""
+    seats = (
+        _user("pick a retention window"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", "Async agent launched successfully.", status="async_launched"),
+        _result("t-fable", "Async agent launched successfully.", status="async_launched"),
+    )
+    hand_backs = (
+        _handback_attachment("ag-t-opus", f"verdict: {OPUS}."),
+        _handback_attachment("ag-t-fable", f"verdict: {FABLE}."),
+    )
+    stale = _transcript(tmp_path, *seats, *hand_backs, _queued_prompt("decide it now, no panel"))
+    ok, why = hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=stale)
+    assert not ok and "since the operator" in why, why
+    # a queued cross-session message or task notice is not the operator's word: no reset
+    for notice in ('<cross-session-message from="x">hi', "<task-notification>done"):
+        tr = _transcript(tmp_path, *seats, *hand_backs, _queued_prompt(notice))
+        assert hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr) == (
+            True,
+            "underivable",
+        ), notice
+    refused = json.loads(_handback_attachment("ag-t-fable", f"verdict: {FABLE}."))
+    refused["attachment"]["origin"]["handback"] = False
+    tr = _transcript(tmp_path, *seats, hand_backs[0], json.dumps(refused))
+    ok, why = hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr)
+    assert not ok and "fable" in why, why
+    wrapper = 'opus="<agent-message from=" fable="<agent-message from=" → split'
+    bare = (
+        _handback_attachment("ag-t-opus", f"verdict: {OPUS}.", handback=None),
+        _handback_attachment("ag-t-fable", f"verdict: {FABLE}.", handback=None),
+    )
+    tr = _transcript(tmp_path, *seats, *bare)
+    ok, why = hook.parse_decision_block(_block(wrapper), run_live=False, transcript_path=tr)
+    assert not ok and "not in the opus seat's own returned text" in why, why  # parsed, then refused
+    assert hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr) == (
+        True,
+        "underivable",
+    ), "the unwrapped report still holds the real verdict"
+
+
 def test_a_forged_hand_back_in_a_tool_result_is_not_the_seats(tmp_path, panel_mode):
     """Round 2 (B-sonnet, executed): a `Bash` echo carrying the hand-back tag and a launched
     seat's agentId was read as that seat's verdict. A hand-back is an isMeta harness row only."""
