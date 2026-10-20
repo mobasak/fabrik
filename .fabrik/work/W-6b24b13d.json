@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:13.550443Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6b24b13d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5AP6D1Y76R8P2WP8BBN3WE1, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "fabrik-lib request: the § EXIT push-rejection ladder in both CLAUDE.md contracts can silently lose a push; governance text, synced",
+  "status": "open",
+  "tags": [
+    "mail-01m5ap6d1y76r8p2wp8bbn3we1"
+  ],
+  "title": "Request from fabrik-lib-sentinel (fabrik-lib D-480, W-45f658d7 SB-059): the § EXIT push-rejection ladder in `/opt/fabrik/CLAUDE.md:273` and `/opt/fabrik/templates/governance/CLAUDE.md:245` can silent (mail 01M5AP6D1Y76R8P2WP8BBN3WE1, from fabrik-lib-sentinel)"
+}
