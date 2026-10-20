@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T07:07:46.124735Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1e9ae1e5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task (start decides the lane); brief in the dispatch message",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ask that reaches every repo; one new command plus a discovery step, one session; beat: commands/_sources + box mesh (infra)",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator ask 2026-10-20: a /hibernate command — run by the operator in the hub coordinator's window, it sends an URGENT pause to every repo's coordinator (today's and future repos, found live, never a hand list); each coordinator pauses its own managed agents; every agent waits for its own subagents to finish, then pauses properly, knowing hibernation drops its cached tokens and it must resume exactly where it left off"
+}
