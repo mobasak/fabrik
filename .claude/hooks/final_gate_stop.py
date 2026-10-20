@@ -3930,11 +3930,28 @@ def _panel_problem(
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"user"' not in line:
+                if '"user"' not in line and '"attachment"' not in line:
                     continue
                 try:
                     entry = json.loads(line)
                 except Exception:
+                    continue
+                if entry.get("type") == "attachment":
+                    # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
+                    # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
+                    # kind peer, from = its agentId; `handback` is not always set (W-bc457e27).
+                    # Only the harness writes these rows, and `from` must be a seat this transcript
+                    # dispatched, so a peer that is not a seat, or a Bash echo, never counts.
+                    att = entry.get("attachment")
+                    origin = att.get("origin") if isinstance(att, dict) else None
+                    src = str(origin.get("from") or "") if isinstance(origin, dict) else ""
+                    if isinstance(origin, dict) and origin.get("kind") == "peer" and src in seats:
+                        report = origin.get("handbackReportText")
+                        text = report if isinstance(report, str) else str(att.get("prompt") or "")
+                        said[seats[src]].append(_norm_ws(text))
+                        by_seat.setdefault(src, []).append(_norm_ws(text))
+                        said_lines[seats[src]].extend(_lines(text))
+                        by_seat_lines.setdefault(src, []).extend(_lines(text))
                     continue
                 if entry.get("type") != "user":
                     continue

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
+
+- On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, and a peer that is not a seat never counts (W-bc457e27).
+
 ### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
 
 - c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. The cite-bearing sentences of both contracts (`CLAUDE.md`, `templates/governance/CLAUDE.md`), which the test pins identical, now cite `:3338-3355` and `:3357-3363` (found by intel).
