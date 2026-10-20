@@ -3880,11 +3880,12 @@ def _handback_text(att: dict, origin: dict) -> str:
 
 
 def _queued_operator_prompt(att: object) -> bool:
-    """A prompt the operator typed while the agent was busy, as a `queued_command` attachment:
-    commandMode prompt, no peer or task-notification origin, no harness wrapper tag."""
+    """A prompt the operator typed while the agent was busy, as a `queued_command` attachment: no
+    peer or task-notification origin or mode, no harness wrapper tag. A queued `!` shell command
+    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens."""
     if not isinstance(att, dict) or att.get("type") != "queued_command":
         return False
-    if att.get("commandMode") not in (None, "prompt"):
+    if att.get("commandMode") == "task-notification":
         return False
     origin = att.get("origin")
     if isinstance(origin, dict) and origin.get("kind") in ("peer", "task-notification"):

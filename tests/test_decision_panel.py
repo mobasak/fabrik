@@ -278,6 +278,11 @@ def test_an_attachment_hand_back_is_bounded_and_unwrapped(tmp_path, panel_mode):
     stale = _transcript(tmp_path, *seats, *hand_backs, _queued_prompt("decide it now, no panel"))
     ok, why = hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=stale)
     assert not ok and "since the operator" in why, why
+    shell = json.loads(_queued_prompt("git status"))
+    shell["attachment"]["commandMode"] = "bash"  # a queued `!` command is the operator's too
+    tr = _transcript(tmp_path, *seats, *hand_backs, json.dumps(shell))
+    ok, why = hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr)
+    assert not ok and "since the operator" in why, why
     # a queued cross-session message or task notice is not the operator's word: no reset
     for notice in ('<cross-session-message from="x">hi', "<task-notification>done"):
         tr = _transcript(tmp_path, *seats, *hand_backs, _queued_prompt(notice))
