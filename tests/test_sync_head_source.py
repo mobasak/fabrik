@@ -997,9 +997,11 @@ def _deleted_hub(hub, tmp_path: Path):
     subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "synced set"], check=True)
     project = tmp_path / "proj"
+    a_day_ago = time.time() - 86400  # a stale copy predates HEAD's commit, as a real one does
     for rel in rels.values():
         (project / rel).parent.mkdir(parents=True, exist_ok=True)
         (project / rel).write_text(f"# {rel} stale\n", encoding="utf-8")
+        os.utime(project / rel, (a_day_ago, a_day_ago))
     for rel in rels.values():
         (hub_root / rel).unlink()  # the sibling's UNCOMMITTED deletion
     mod.VENDORED_DIRS = ["libs/vend"]
@@ -1049,3 +1051,75 @@ def test_the_prunes_keep_what_head_holds_and_drop_what_it_retired(hub, tmp_path:
     deleted = {r.destination for r in result.files if r.action == "DELETE"}
     assert {project / rels["vendored"], project / rels["govdir"]} <= deleted, deleted
     assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
+
+
+def test_a_deleted_head_symlink_is_not_shipped_as_a_file(hub, tmp_path: Path) -> None:
+    """HEAD records a symlink as mode 120000 with the link TEXT as its blob: shipped, it landed as
+    an unreadable mode-0 file in every project. A deleted one is skipped, as before, and named."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "AGENTS-link.md"
+    link.symlink_to("AGENTS-kept.md")
+    subprocess.run(["git", "-C", str(hub_root), "add", "AGENTS-link.md"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    mod.GOVERNANCE_FILES = ["AGENTS-link.md"]
+    mod.sync_scripts_to_project(project)
+    assert not (project / "AGENTS-link.md").exists()
+    assert "not a file" in mod._head_unread["AGENTS-link.md"], mod._head_unread
+
+
+def test_an_unreadable_gone_blob_is_one_warn_not_an_aborted_project(hub, tmp_path: Path) -> None:
+    """Hashing the missing path raised FileNotFoundError and the whole project's sync stopped —
+    the rest of the walk, the lock and the worktrees skipped. Now it is one WARN line."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    _corrupt_object(hub_root, _rev(hub_root, f"HEAD:{rels['vendored']}"))
+    result = mod.sync_scripts_to_project(project)
+    assert result.success, result.message
+    warned = {r.destination: r.reason for r in result.files if r.action == "WARN"}
+    assert warned.get(project / rels["vendored"]) == "hub source deleted and HEAD unreadable"
+    assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
+    assert (project / ".fabrik" / "synced.lock").is_file(), "the lock leg never ran"
+
+
+def test_a_project_edit_newer_than_heads_commit_is_not_clobbered(hub, tmp_path: Path) -> None:
+    """A gone hub source has no mtime; HEAD's commit time stands in, so the "destination newer"
+    guard protects a later project edit exactly as it does for a present source."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    edited = project / rels["listed"]
+    edited.write_text("# a project-side edit\n", encoding="utf-8")  # mtime: now, after HEAD
+    result = mod.sync_scripts_to_project(project)
+    assert edited.read_text() == "# a project-side edit\n"
+    assert any(r.action == "WARN" and r.destination == edited for r in result.files)
+
+
+def test_the_lock_carries_a_file_shipped_from_head(hub, tmp_path: Path) -> None:
+    """The manifest's pairs walk the working tree; a walked file shipped from HEAD was missing from
+    the lock, so check_synced_unmodified stopped guarding exactly that copy."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    import json
+
+    lock = json.loads((project / ".fabrik" / "synced.lock").read_text())
+    for key in ("walked", "vendored", "govdir", "listed"):
+        assert rels[key] in lock, (rels[key], sorted(lock))
+
+
+def test_a_gone_source_is_read_once_and_keeps_its_reason(hub, monkeypatch) -> None:
+    """Uncached, a gone source cost three blob reads per project; a cache hit must still name it."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.unlink()
+    rel = "scripts/enforcement/committed.py"
+    real_run = mod.subprocess.run
+    reads: list[list[str]] = []
+
+    def counting(cmd, *a, **kw):
+        if "cat-file" in cmd:
+            reads.append(cmd)
+        return real_run(cmd, *a, **kw)
+
+    monkeypatch.setattr(mod.subprocess, "run", counting)
+    for _ in range(3):
+        mod._head_drift_why.clear()
+        assert mod._head_source(committed) == (b"COMMITTED = 1\n", 0o100755)
+        assert mod._head_drift_why[rel] == "deleted in the working tree"
+    assert len(reads) == 1, reads
