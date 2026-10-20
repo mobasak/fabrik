@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — `--merge-shared` checks an unlistable fleet root before a leftover swap link (2026-10-20)
 
-- `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could not be listed (EACCES) still took the lock and merged over no dirs. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says a directory planted at the staging name is left in place (W-973887d5).
+- `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could be searched but not listed (with its lock file present) still took the lock, finished the swap and reported nothing to merge while accounts held real lists. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says the staging name is cleared of anything but a directory, which is left in place (W-973887d5).
 
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 

@@ -9511,14 +9511,17 @@ def test_a_fleet_root_that_cannot_be_listed_is_refused_not_read_as_empty(
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 directory")
 def test_a_leftover_canonical_link_does_not_skip_the_root_check(tmp_path, monkeypatch, capsys):
-    """A canonical left as a swap's link answered "pending" before the root was listed, so an
-    unlistable root took the lock and merged over no dirs; it is refused first (W-973887d5)."""
+    """A canonical left as a swap's link answered "pending" before the root was listed, so a root
+    that can be searched but not listed (with its lock file already there) took the lock, finished
+    the swap and reported nothing to merge while accounts held real lists; it is refused first and
+    nothing moves (W-973887d5). Mode 0o311, not 000: a 000 root fails at the lock either way."""
     fleet, cdir = _fragmented(tmp_path, monkeypatch)
     held = fleet / "b" / ".tasks.held-20261001T000000.000000000Z"
     (fleet / "b" / "tasks").rename(held)
     (cdir / "tasks").symlink_to(held, target_is_directory=True)
+    (fleet / "assignments.lock").write_text("")
     before = _tree(tmp_path)
-    fleet.chmod(0)
+    fleet.chmod(0o311)
     try:
         capsys.readouterr()
         assert cr.main(["--merge-shared", "tasks"]) == 1

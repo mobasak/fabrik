@@ -7297,9 +7297,10 @@ def _read_tick_last_end() -> float | None:
 
 
 def _write_tick_last_end(now: float) -> bool:
-    """Atomically record this tick's end; False when it could not be written (a per-process
-    staging file this call created is then removed, so a state dir that refuses the publish never
-    fills with them; a DIRECTORY planted at the staging name is left in place and fails closed)."""
+    """Atomically record this tick's end; False when it could not be written. The per-process
+    staging name is cleared of anything but a directory, before the write and again on failure, so
+    a state dir that refuses the publish never fills with them; a DIRECTORY planted there is left in
+    place and the write fails closed."""
     tmp = None
     try:
         path = _tick_last_end_path()
