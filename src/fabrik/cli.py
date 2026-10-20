@@ -3169,6 +3169,11 @@ def vultr_provision(name: str | None, region: str, plan_id: str, dry_run: bool, 
     )
     if rep.get("error"):
         click.echo(f"   {rep['error']}", err=True)
+    # a monitoring registration that did not land (an error, or a Prometheus config written but
+    # not loaded) is shown, never only kept in the report dict (W-cc9b0532)
+    for what, status in (rep.get("observability") or {}).items():
+        if status not in ("created", "exists"):
+            click.echo(f"⚠ observability {what}: {status}")
     if not ok:
         raise SystemExit(1)
 
