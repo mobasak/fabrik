@@ -1049,6 +1049,65 @@ def _strip_quoted(content: str) -> str:
     return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
 
 
+# Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue
+# `[a](x.`foo`md)` into the link `[a](x.md)`, and the shared reader needs every line ending.
+# Both fence kinds go in ONE pass so the outer fence wins: a ~~~ fence showing a ``` line must not
+# pair that line with the next real ``` fence (which `_strip_quoted` alone does). A closer is a run
+# of the same character at least as long; an unclosed fence is left (its links stay graded).
+_CODE_FENCE_RE = re.compile(
+    r"^[ \t]*(?:(`{3,})[^\n]*\n.*?^[ \t]*\1`*|(~{3,})[^\n]*\n.*?^[ \t]*\2~*)[ \t]*\r?$",
+    re.M | re.S,
+)
+# A span opener is a whole backtick run, not escaped; it closes on the next run of the same length.
+_BACKTICK_RUN_RE = re.compile(r"(?<!`)`+")
+# A line a span never crosses into: blank, or one that starts another block.
+_BLOCK_START_RE = re.compile(
+    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~)", re.M
+)
+# A line a span never leaves: an ATX heading or a table row.
+_ONE_LINE_BLOCK_RE = re.compile(r"[ \t]*(?:#{1,6}(?:[ \t]|\r?$)|\|)", re.M)
+
+
+def _blank(text: str) -> str:
+    return re.sub(r"[^\r\n]", " ", text)
+
+
+def _blank_code_spans(content: str) -> str:
+    runs = list(_BACKTICK_RUN_RE.finditer(content))
+    out, kept, i = [], 0, 0
+    while i < len(runs):
+        opener = runs[i]
+        i += 1
+        if opener.start() and content[opener.start() - 1] == "\\":
+            continue
+        line_start = content.rfind("\n", 0, opener.start()) + 1
+        one_line = _ONE_LINE_BLOCK_RE.match(content, line_start) is not None
+        seen = opener.end()
+        for j in range(i, len(runs)):
+            # only the text since the last run is new; each line it starts is checked whole
+            starts = [m.end() for m in re.finditer("\n", content[seen : runs[j].start()])]
+            if starts and (
+                one_line or any(_BLOCK_START_RE.match(content, seen + s) for s in starts)
+            ):
+                break
+            seen = runs[j].end()
+            if len(runs[j].group()) == len(opener.group()):
+                out += [
+                    content[kept : opener.start()],
+                    _blank(content[opener.start() : runs[j].end()]),
+                ]
+                kept, i = runs[j].end(), j + 1
+                break
+    return "".join(out) + content[kept:]
+
+
+def _link_scan_text(content: str) -> str:
+    """The link check's scan surface: `_strip_quoted` with code fences of both kinds and inline
+    code spans blanked around it (W-69f51003)."""
+    fenced = _CODE_FENCE_RE.sub(lambda m: _blank(m.group()), content)
+    return _blank_code_spans(_strip_quoted(fenced))
+
+
 _OWNER_LINE_RE = re.compile(
     r"^\s*(?:[-*>]\s+)?\*{0,2}Owner\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
     re.I | re.M,
@@ -2035,8 +2094,10 @@ def check_link_integrity() -> list[str]:
         # `_strip_quoted` is the same helper the owner-line and status scans already use.
         # ⚠️ COST, stated: it strips blockquotes as well as fences, so a REAL broken link inside a
         # `>` quote is no longer reported. That is the intended trade — a blockquote quotes another
-        # document, and its links resolve in that document's tree, not this one.
-        content = _strip_quoted(doc.read_text())
+        # document, and its links resolve in that document's tree, not this one. Code examples
+        # (both fence kinds, inline spans) are blanked around it, at this call site only
+        # (W-69f51003) — the same trade: code quotes a link, it does not make one.
+        content = _link_scan_text(doc.read_text())
         # The shared reader yields each destination as CommonMark reads it — title and fragment
         # dropped, escapes undone, balanced parens kept (W-f11e740e); the regex is the fallback,
         # unchanged, and the only reader that sees link TEXT.
