@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `_reload_prometheus_outcome()` names `reloaded` · `restarted` · `refused` (promtool printed FAILED on the config now on vps1) · `unavailable`; `add_scrape_target` and `add_aro_wake_target` return it as `reload` on created AND exists (the exists branch reloads, so every apply re-checks); the removes return False when the rewrite was not loaded (W-cc9b0532).
+- `fabrik apply`: a refused config records the prometheus registrar `failed` and exits 2 (its next restart would crash-loop Prometheus); an unavailable Prometheus prints one `⚠` registrar warning. `fabrik vultr provision` prints every monitoring registration that did not land.
+
 ### Fixed — a code host is credited to a vendor only by domain evidence (2026-10-20)
 W-b81263e8; D-1062. `gather_envs` used to fall back to treating a host's name as an env-key prefix, so `modal-labs.com` was credited to modal, `hf-token.com` to huggingface, and a customer's S3 bucket or Azure resource name to that vendor. Both fallbacks are gone: a host is credited only by the vendor's url, its `hosts` list or its own domain. No live code host depended on them (0 of 592); an unknown host is triaged and curated as before.
 
