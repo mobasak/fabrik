@@ -46,7 +46,9 @@ Each answer below goes into the brief, so the repo's agents never have to guess 
    already has open; phase 2 step 9 records it. A builder with no window yet gets its worktree first
    (`git -C /opt/<repo> worktree add .claude/worktrees/<name> -b worktree-<name> <trunk>`) and its first session is
    started there as `CLAUDE_AGENT=<name> claude -n <name>`, the name the launcher later resumes it under; a session
-   started that way writes no binding, so it then runs step 9's `whoami_agent.py --as <name>`.
+   started that way writes no binding, so it then runs step 9's `whoami_agent.py --as <name>`. The synced `CLAUDE.md`
+   § Orient (d) names a session `-n <name>-<repo>`; either name works, because the launcher resumes by session id and
+   passes `-n <name>` itself.
 
 ## The operator's steps
 
@@ -58,8 +60,9 @@ Written for the operator; nothing here can be done by an agent.
    phases 1–3 commits them on the trunk itself, as youtube's did — the one exception to step 10, and it ends there.
    When the merge owner already has a window in the main checkout (whatsapp-agent's `wa1`, web-ecommerce-factory's
    `wef2`), keeping it is allowed: `/rename` it and run `python3 /opt/fabrik/scripts/whoami_agent.py --as <its name>
-   --force` in it. A window not started with `CLAUDE_AGENT` gets no charter injected by `agent_role.py`, so it reads
-   its charter itself (step 17) after every `/clear`; reopening it with `CLAUDE_AGENT` once avoids that.
+   --force` in it. A window not started with `CLAUDE_AGENT` gets its charter from `agent_role.py` only through that
+   whoami binding, which a `/clear` (a new session id) does not carry, so after every `/clear` it re-binds and reads
+   its charter itself (step 17); reopening it with `CLAUDE_AGENT` once avoids that.
 2. **Close the builders' old windows** (VS Code tabs or terminals) before the first double-click of the repo's .bat. A
    builder whose session is still running elsewhere gets a pane that only says so, because two processes on one
    session mix its transcript and hooks.
@@ -86,7 +89,7 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
    infra, fleet, intel and kaizen (youtube mail 01M5CDMVMG, with infra). The synced SessionStart line that calls it
    stays inert while the file is absent; the coordinator reads its builders with `work.py queue` and
    `work.py ready --all` instead. Add `/.fabrik/session-agents.json` to the repo's own `.gitignore` (the synced block
-   does not carry it): step 9 writes that box-local registry.
+   does not carry it), so the optional box-local registry step 9 mentions can never be committed.
 3. Vendor `.claude/hooks/agent_role.py` and register it as a SessionStart hook in `.claude/settings.json`, so a
    session started with `CLAUDE_AGENT=<name>` gets its charter from `docs/reference/agents/<name>.md`.
 4. Bring `.claude/hooks/final_gate_stop.py` up to the hub's version, which carries the coordinator causes.
@@ -297,7 +300,7 @@ opens even before Windows Terminal has loaded the fragment, at the default font.
 Terminal starts, and every Windows Terminal window shares one process, so 9pt applies once every Windows Terminal
 window has been closed after the first run. Nobody edits `settings.json`; Windows Terminal itself adds a
 `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own. The launcher runs what the hub's
-main checkout holds, so it works only once `agents_up.sh` is merged there.
+main checkout holds, so a change to `agents_up.sh` reaches the .bats only once it is merged there.
 
 Moving a repo from a hand-made launcher to the generated one:
 
@@ -316,8 +319,8 @@ The hub moves the same way (W-66e2f6a7). Status 2026-10-20: step 1 is done — t
 fleet and kaizen — so never re-seed it; closing the old `hub` grid (step 3) is boarded for the operator as
 W-0076b052:
 
-1. Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and their current session ids:
-   infra, intel, fleet and kaizen, and no coordinator row.
+1. (Done — never repeat.) Seed `/opt/fabrik/.fabrik/session-agents.json` once, with the four builders' names and
+   their current session ids: infra, intel, fleet and kaizen, and no coordinator row.
 2. Check the grid with `agents_up.sh --print /opt/fabrik`.
 3. Close the old `hub` grid (`tmux kill-session -t =hub`). The launcher names the hub's grid `fabrik`, after its
    folder, so it never adopts `hub`.
