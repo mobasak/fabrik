@@ -69,6 +69,7 @@ def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
     for lane in ("ingest", "fulfilment"):
         with (
             patch.object(pg, "_role_exists", return_value=True),
+            patch.object(pg, "_foreign_role_reasons", return_value=[]),
             patch.object(pg, "_run_sql") as run,
         ):
             res = pg.mint_payments_role("ti", lane)
@@ -212,7 +213,11 @@ def test_an_unreadable_path_raises_never_guesses(lane: str, out: str) -> None:
 def test_fresh_password_only_on_create() -> None:
     with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql"):
         assert pg.mint_payments_role("ti", "ingest")["password"] is not None
-    with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
+    with (
+        patch.object(pg, "_role_exists", return_value=True),
+        patch.object(pg, "_foreign_role_reasons", return_value=[]),
+        patch.object(pg, "_run_sql") as run,
+    ):
         res = pg.mint_payments_role("ti", "ingest")
     assert res["password"] is None and res["status"] == "exists"
     # re-apply re-asserts the attributes (ALTER ROLE) but never CREATEs or resets the password
