@@ -571,8 +571,10 @@ def host_label(host: str) -> str:
 
 
 def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], matchers) -> str | None:
-    """The catalog vendor a code host belongs to, credited only by DOMAIN evidence — an exact `hosts`/url
-    entry, a registrable-domain wildcard, or a catalog label on the vendor's own domain. A `match` token
+    """The catalog vendor a code host belongs to, credited only by DOMAIN or LABEL evidence — an exact
+    `hosts`/url entry, a registrable-domain wildcard, a catalog label on the vendor's own domain (or on any
+    domain when the entry has no parseable url of its own, C5), or a platform host's catalogued service
+    label (`<first>.<platform>`, an exact catalog key). A `match` token
     is an ENV-KEY prefix, never domain evidence: the `<LABEL>_API_KEY` fallbacks this used to end in
     credited `modal-labs.com` to modal, `hf-token.com` to huggingface and a customer's S3 bucket or Azure
     resource name to its vendor, while 0 of 592 live code hosts relied on them (W-b81263e8). An unknown
@@ -585,7 +587,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         label = host_label(h)
         if label in catalog:  # … but a platform SERVICE the classifier already named/tombstoned
             return label  # keeps its entry, or it is re-billed on every cycle (review 2026-09-02)
-        # a first label here is often a customer's bucket or resource name, never evidence
+        # no catalogued service label: a first label here is often a customer's bucket or resource
+        # name, so its env-key spelling is never evidence
         return None
     if h in url_index:  # exact hostname
         return url_index[h]
@@ -604,8 +607,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
             return sld
         # the entry's url sits on ANOTHER registrable domain: not this vendor — and never re-credited
         # by an env-key prefix (no host is, W-b81263e8; the C5 grader once passed `matchers=[]`, the
-        # one shape production never has — BS3). Said
-        # aloud: 14 live hosts of 8 vendors sit on a sibling domain (`fal.run`, `replicate.delivery`)
+        # one shape production never has — BS3). Said aloud: 14 live hosts of 8 vendors sit on a
+        # sibling domain (`fal.run`, `replicate.delivery`)
         # and belong in the entry's `hosts` — silent None triaged them as their own blocks (BW1)
         print(
             f"WARNING: host {h} carries catalogued label {sld} but {sld}'s url is on {host_domain(own)} — add it to {sld}'s `hosts` or it is triaged as its own block",
