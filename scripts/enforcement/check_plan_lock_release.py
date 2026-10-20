@@ -113,7 +113,9 @@ def _strip_fences(text: str) -> str:
         m = _FENCE_CLOSER.fullmatch(line)
         if m:
             closers.setdefault(m.group(1), []).append(i)
-    passed = dict.fromkeys(closers, 0)  # per run, the closers already behind the walk (it only moves forward)
+    passed = dict.fromkeys(
+        closers, 0
+    )  # per run, the closers already behind the walk (it only moves forward)
     parts: list[str] = []
     prev, i = 0, 0
     while i < len(lines) - 1:  # the last segment has no newline after it, so it never opens
@@ -135,6 +137,8 @@ def _strip_fences(text: str) -> str:
         i = rows[k] + 1
     parts.append(text[prev:])
     return "".join(parts)
+
+
 # Mirrors `check_convergence.EXECUTED`'s anchor (:122-126) so both accept the same shapes —
 # notably `**Status:**` with the colon INSIDE the bold, which needs the post-colon `\*{0,2}`.
 _STATUS_LINE = re.compile(

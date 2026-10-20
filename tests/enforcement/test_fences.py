@@ -240,7 +240,23 @@ def test_plan_strips_equal_the_old_regexes(name: str) -> None:
     for t in PLAN_FIXTURES:
         assert new(t) == old(t), (name, t)
     rng = random.Random(0xD2EEF742)
-    tokens = ["`", "``", "```", "````", "~", "~~~", "~~~~", " ", "\t", "\n", "\n", "\n", "a", "\r", "> "]
+    tokens = [
+        "`",
+        "``",
+        "```",
+        "````",
+        "~",
+        "~~~",
+        "~~~~",
+        " ",
+        "\t",
+        "\n",
+        "\n",
+        "\n",
+        "a",
+        "\r",
+        "> ",
+    ]
     for _ in range(20000):
         t = "".join(rng.choice(tokens) for _ in range(rng.randint(0, 40)))
         assert new(t) == old(t), (name, t)
@@ -282,18 +298,23 @@ def test_plan_strip_consumers_dropped_the_old_regexes() -> None:
 
 def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
     """check_phase_tests is a warn_only gate row, and a warn_only row that exits non-zero is a blocking red
-    (final_gate.py's run_optional_check). In a project whose scripts/enforcement/ lags a sync and lacks _fences.py
-    it must still exit 0 — so it imports the scanner where it strips, under main()'s fail-soft guard."""
+    (final_gate.py's run_optional_check). In a project whose scripts/enforcement/ lags a sync — every sibling
+    present but _fences.py — it must still exit 0: the module never imports the scanner at load, so the import
+    fails inside the per-lock guard, and that failure (naming _fences) is what the live lock below reaches."""
     enf = tmp_path / "scripts" / "enforcement"
     enf.mkdir(parents=True)
-    shutil.copy(ENF / "check_phase_tests.py", enf / "check_phase_tests.py")
+    for src in ENF.glob("*.py"):
+        if src.name != "_fences.py":
+            shutil.copy(src, enf / src.name)
     locks = tmp_path / ".fabrik" / "plan-locks"
     locks.mkdir(parents=True)
     plan = tmp_path / "docs" / "plan.md"
     plan.parent.mkdir(parents=True)
-    plan.write_text("# Plan\n\n## Behavior Contract\n\n- Given a, when b, then c\n", encoding="utf-8")
+    plan.write_text(
+        "# Plan\n\n## Behavior Contract\n\n- **Given** a, when b, then c\n", encoding="utf-8"
+    )
     (locks / "p.json").write_text(
-        '{"status": "active", "plan": "docs/plan.md", "owned_paths": ["src/**"], "base": "HEAD"}',
+        '{"status": "active", "plan": "docs/plan.md", "owned_paths": ["src/**"], "baseline_commit": "HEAD"}',
         encoding="utf-8",
     )
     out = subprocess.run(
@@ -305,3 +326,8 @@ def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
         check=False,
     )
     assert out.returncode == 0, out.stdout + out.stderr[-800:]
+    assert "_fences" in out.stderr, (
+        "the live lock never reached the scanner",
+        out.stdout,
+        out.stderr[-800:],
+    )
