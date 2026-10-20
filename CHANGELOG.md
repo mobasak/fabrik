@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round zero's probed count no longer forbids the re-derivation that checks it (2026-10-20)
+
+- `term-coverage.md` and `term-edit.md` said a probed count is "never re-derived by a finder" (or "by a seat"), while the closing pass re-derives every count. Each now says a seat's own re-derivation never replaces the probe, and a different answer is raised as a candidate. Answers /fabrik-review-scoped feedback row 1792418569.
+
 ### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
 
 - The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another a HEAD-vs-new differential over the input types its callers pass, subclasses and registered virtual types included. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
