@@ -5,7 +5,7 @@
   "created": "2026-09-30T20:47:12.090470Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-4b1dfd76",
   "impact": "low",
   "kind": "backlog",
@@ -20,7 +20,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — registrar warnings not printed on exit-2 branch, small build item",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

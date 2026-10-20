@@ -3,7 +3,7 @@
   "created": "2026-09-27T23:39:02.117450Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-5985e74a",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — blocked on upstream role definition; nothing writes purchases",
-  "status": "open",
+  "status": "done",
   "title": "registrar: mint fabrik-lib payments' fulfilment-worker role (INSERT+SELECT on purchases plus its two RLS policies) once fabrik-lib defines it — today nothing writes purchases (fabrik-lib payments/db/schema.sql, Phase D) and the ingest role must NOT get the grant (mails 01M35P4T/01M35P9V)"
 }

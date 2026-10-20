@@ -3,7 +3,7 @@
   "created": "2026-09-30T11:38:32.286337Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-7ba06610",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: security (a grant batch that raises after CREATE ROLE leaves the role with no DSN ever delivered, a credential-loss path reproduced by the critique seat) plus a live false green; LOW effort: plan-2 Phase B steps 3-4 only, already designed and CONVERGED (D-464)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

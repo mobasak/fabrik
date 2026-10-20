@@ -1,6 +1,7 @@
 # Plan — the payments fulfilment-worker role in the hub registrar
 
 Status: IN-PROGRESS
+Whole-plan review: docs/development/reviews/2026-10-08-plan-2-payments-fulfilment-role-review.md (CONVERGED f77c32572; every phase EXECUTED — the coordinator flips Status at merge)
 Profile: small
 **Owner:** —
 Spec: `docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md` (CONVERGED, D-464; approved for planning by D-652 item 4)
@@ -245,7 +246,7 @@ Implements spec § The delta item 5; folds in W-7ba06610 and W-4b1dfd76.
 - **Given** a grant that raises or returns `unknown`, **When** the block records its resource, **Then** it records `failed` and the apply exits 2 (spec § The delta item 5)
 - **Given** a `registrar_warnings` line, **When** `fabrik apply` or `fabrik redeploy --refresh-infra` ends on success or on registrar failure, **Then** the line is printed as `⚠` in that summary (`src/fabrik/cli.py:546`, `:537-545`, `:1293`, `:1282-1292`)
 
-## Phase C — Docs, the build's decision row, and the Finish
+## Phase C — Docs, the build's decision row, and the Finish — ✅ EXECUTED 2026-10-20 (51ae4b562; docs-review fixes 5dc6e71f2, 66b92a965; Finish fixes 758e37675, 1d1abb96a; receipt f77c32572)
 
 Appetite: 60
 Implements spec § Documentation landing sites, § Contract deltas (the docs half).

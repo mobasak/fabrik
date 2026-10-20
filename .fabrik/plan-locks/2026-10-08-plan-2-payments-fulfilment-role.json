@@ -17,7 +17,12 @@
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-20T01:01:38+03:30",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "25864616657083f6d070565453ca27d59b41c99d",
-  "baseline_gate": {"status": "success", "red_checks": []}
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "completed_at": "2026-10-20T00:48:41+00:00",
+  "final_commit": "f77c32572c6825ac90a2a5241b37ed6b16af22e9"
 }
