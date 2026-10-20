@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a spec's Prometheus monitoring block is validated and kept current on vps1 (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `add_scrape_target` refuses a `monitoring.scheme` other than `http`/`https` and a `monitoring.target` that is not `<host>:<port>` (labels may carry `_`, port 1-65535 with no leading zero; IPv6 refused on purpose) before reading prometheus.yml, dry run included — a bad value used to reach the file and make promtool refuse all of it. An existing `fabrik-<name>` job whose scheme, metrics_path, target or (when the spec has a `bearer_token`) authorization differs is now updated in place and returns `status: updated`; every other key stays, a `credentials_file` secret is never replaced with an inline token, and a job fabrik cannot update unambiguously (several static entries or targets, service discovery, another auth form beside a token) is refused before anything is written. `interval` still applies on create only.
+- `src/fabrik/orchestrator/rollback.py` + `infrastructure.py`: rollback removes a Prometheus job only when this run created it (the driver's verdict rides the resource row as `job=`); an `exists` or `updated` job is kept, and an update is not reverted (W-01815aee).
+
 ### Fixed — a registrar role name never captures another project's role (2026-10-20)
 
 - `src/fabrik/drivers/postgres.py`: every per-project role is `<db>_<suffix>` and every database's owner role carries the database's name, so names collide across projects. One fail-closed guard, `_foreign_role_reasons`, marks an existing role as someone else's when it owns a database or objects outside its own database. `create_database` refuses, before the database exists, to adopt an existing role that holds any grant, policy row or membership (it would have reset that role's password and made another project's credential the new database's owner); a leftover owner of a dropped database is still adopted. The watchdog roles (both checked before either is created), the subagent-ins role and the payments mint refuse such a role and touch nothing; the message names the fix — rename one project's database with `depends.postgres` (W-f599a88c).
