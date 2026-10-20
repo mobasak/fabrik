@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T03:13:11.521867Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-276255e7",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "replace the ^(`{3,}).*?^\\1 regex with a linear line walk in all six copies at once, parity test kept; measure the fleet diff",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "rare edge: quadratic only on unclosed backtick openers; one regex",
   "status": "open",
   "tags": [
     "link-reader"

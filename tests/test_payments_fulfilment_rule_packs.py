@@ -99,3 +99,27 @@ def test_cited_line_numbers_still_hold() -> None:
     assert _line(BILLING, 45).startswith("- **Live-provider status:**")
     assert _line(TENANT, 151).startswith("- **Cross-tenant payments ingest is not an admin case**")
     assert _line(LAUNCH, 34).startswith("- ⚠️ **Neither TRY lane can go live today**")
+
+
+def test_the_node_pack_routes_turkish_one_off_charges_to_paytr() -> None:
+    """W-2fd7cfd1: core/12-node said PayTR applied only to WooCommerce / physical D2C, not to Node SaaS backends,
+    contradicting core/85's one-off TRY lane; its bullet and checklist now carry core/85's three lanes."""
+    node = _flat(RULES / "core" / "12-node.md")
+    billing = BILLING.read_text(encoding="utf-8")
+    assert "**PayTR** for TR domestic one-off (TRY) charges" in node
+    assert (
+        "iyzico** for TRY subscriptions only where `docs/DECISIONS.md` records the decision" in node
+    )
+    assert (
+        "PayTR TRY one-off, iyzico TRY subscriptions only under the recorded NON3D decision" in node
+    )
+    for stale in (
+        "not to Node SaaS backends",
+        "only to WooCommerce",
+        "iyzico for TR SaaS, Paddle for international",
+    ):
+        assert stale not in node, stale
+    assert node.count("`85-payments-billing.md` § Payment Providers") == 2
+    assert "## Payment Providers" in billing.splitlines()
+    assert "| Turkish domestic, **one-off** (TRY) | **PayTR** |" in _flat(BILLING)
+    assert "TRY subscription → iyzico ONLY where `docs/DECISIONS.md` records" in _flat(BILLING)

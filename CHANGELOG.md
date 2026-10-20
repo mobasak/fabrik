@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 
 - On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
 
+### Fixed — the fleet sync refuses a symlinked hub file instead of shipping what the link points at today (2026-10-20)
+W-d537275a; D-1069. The sync read a symlinked hub file through the link as the working tree pointed it. An uncommitted retarget shipped the new target. A link leading outside the hub shipped that outside file, with nothing named. A committed link replaced by an ordinary file shipped the link text as an unreadable file. A synced source that is a symlink, sits under a symlinked folder, or is recorded as a symlink in HEAD is now refused: the run prints a warning naming it, and nothing ships. None of the 217 files the sync distributes today is a symlink, so nothing changes for them. To sync such a file, commit a regular file in its place.
+
 ### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
 
 - c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. The cite-bearing sentences of both contracts (`CLAUDE.md`, `templates/governance/CLAUDE.md`), which the test pins identical, now cite `:3338-3355` and `:3357-3363` (found by intel).
@@ -19,6 +22,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed — `docs/preplan.md` is a governed doc, so check_structure stops warning on the scaffold's own file (2026-10-20)
 
 - The scaffold's preplan layering writes `docs/preplan.md` into any project scaffolded with a preplan, outside the template map, so no doc-registry row named it and `check_structure.py` warned that it "should be in a docs/ subdirectory". `scripts/enforcement/_doc_registry.py` now lists it in a new `SCAFFOLD_WRITTEN` set that `docs_allowlist()` includes for every project type; it is never seeded or stub-required. The registry-down fallback carries it too, and the scaffold comment and the Docusaurus unpublished-docs test follow (W-c6d19bda, fleet mail 01M5AQ5FY4).
+
+### Fixed — node pack: PayTR is the Turkish one-off lane, not WooCommerce-only (2026-10-20)
+
+- `.windsurf/rules/core/12-node.md` § Turkish constraints said PayTR applied only to WooCommerce / physical D2C, not to Node SaaS backends, contradicting `core/85-payments-billing.md` § Payment Providers. The bullet and the closing checklist now carry core/85's three lanes: Paddle for every currency but TRY, PayTR for TRY one-off charges, iyzico for TRY subscriptions only where `docs/DECISIONS.md` records the NON3D decision; no provider falls back to another (W-2fd7cfd1). Grader in `tests/test_payments_fulfilment_rule_packs.py`.
 
 ### Fixed — plan-ticket discovery reads a malformed lock's owned_paths safely (2026-10-20)
 
@@ -40,11 +47,18 @@ All notable changes to this project will be documented in this file.
 
 - `claude_rotate.py --merge-shared` now refuses with "nothing moved" when the lock itself fails (ENOLCK) or the fleet root cannot be read (ValueError, RuntimeError, or a root that exists but cannot be listed), `--dry-run` included, where it printed a traceback or a false "nothing to merge". The rotation tick removes a FIFO or link planted at its record's staging name and creates the file exclusively, so the write never blocks (a directory there fails closed). A raise in the tick-row block prints one line and no longer skips the advisory or the quota posture. The twin copy in `scripts/aro-wake/` is updated byte for byte (W-21b4c0e5).
 
+### Fixed — an uncommitted deletion in the hub no longer deletes or freezes a synced file in every project (2026-10-20)
+W-bb97199e; D-1067. The fleet sync read a tracked file's bytes from HEAD but decided which files exist from the hub's working tree. So a synced file that a sibling deleted without committing shipped nothing, and projects kept a stale copy without any message. In `libs/` and `.windsurf/rules/` it was worse: the orphan prunes deleted the project's copy. The sync now takes the file set from HEAD as well. Such a file ships HEAD's bytes and the run report names it "deleted in the working tree". A deletion that is committed is still removed from projects. A file that is gone and whose HEAD copy cannot be read produces one warning line instead of stopping that project's whole sync. The project's `synced.lock` now also covers files shipped from HEAD. Follow-up: W-47d91afa (`scripts/enforcement` has no orphan prune).
+
 ### Fixed — the docs link check no longer grades links inside code examples (2026-10-20)
 W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link written inside an inline code span or a `~~~` fence as broken, and a `~~~` fence that showed a ```` ``` ```` line made the next real fence swallow the real link between them. The check now blanks both fence kinds and inline code spans before reading links, following CommonMark's rules, in one linear pass over the lines. `_strip_quoted` and `check_doc_links` are unchanged. Across the 44 repos under /opt, findings drop from 382 to 375; the 7 removed are all code examples, and none were added. Follow-ups: W-b9af1d47 (the same class, latent in `check_doc_links`) and W-8f9a7d2c (the `Status:`/`Owner:` scans).
 
 ### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
 W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
+
+### Fixed — a registrar role name never captures another project's role (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: every per-project role is `<db>_<suffix>` and every database's owner role carries the database's name, so names collide across projects. One fail-closed guard, `_foreign_role_reasons`, marks an existing role as someone else's when it owns a database or objects outside its own database. `create_database` refuses, before the database exists, to adopt an existing role that holds any grant, policy row or membership (it would have reset that role's password and made another project's credential the new database's owner); a leftover owner of a dropped database is still adopted. The watchdog roles (both checked before either is created), the subagent-ins role and the payments mint refuse such a role and touch nothing; the message names the fix — rename one project's database with `depends.postgres` (W-f599a88c).
 
 ### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
 

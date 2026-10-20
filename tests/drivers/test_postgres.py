@@ -138,16 +138,18 @@ class TestCreateDatabase:
         assert len(result["password"]) == PASSWORD_LENGTH
         assert all(c in PASSWORD_ALPHABET for c in result["password"])
 
-        # 3 batches: existence SELECT, CREATE DATABASE, (CREATE ROLE + GRANT merged)
-        assert len(calls) == 3
+        # 4 batches: existence SELECT, role-exists probe (the foreign-role guard runs only for an
+        # existing role, W-f599a88c), CREATE DATABASE, (CREATE ROLE + GRANT merged)
+        assert len(calls) == 4
         assert "pg_database" in calls[0]
-        assert "CREATE DATABASE" in calls[1]
-        assert "DO $$" in calls[2]
-        assert "CREATE ROLE" in calls[2]
-        assert "ALTER ROLE" in calls[2]  # reset password when the role already exists
-        assert "GRANT ALL PRIVILEGES" in calls[2]
-        assert 'ALTER DATABASE "my_proj" OWNER TO "my_user"' in calls[2]  # role owns DB → RLS
-        assert result["password"] in calls[2]
+        assert "pg_roles" in calls[1]
+        assert "CREATE DATABASE" in calls[2]
+        assert "DO $$" in calls[3]
+        assert "CREATE ROLE" in calls[3]
+        assert "ALTER ROLE" in calls[3]  # reset password when the role already exists
+        assert "GRANT ALL PRIVILEGES" in calls[3]
+        assert 'ALTER DATABASE "my_proj" OWNER TO "my_user"' in calls[3]  # role owns DB → RLS
+        assert result["password"] in calls[3]
 
     def test_db_user_equal_to_postgres_skips_role_creation(self):
         calls: list[str] = []

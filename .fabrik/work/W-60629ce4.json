@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T04:57:02.691947Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-60629ce4",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide the receipt timing (lane by /fabrik-task start; design critique by the Opus + Fable pair), then edit both commands and review_receipt/task_lane if needed; tell kaizen to answer the two rows",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "agents' request (four agents, each pays one receipt re-make per nested review); one reversible decision across two commands, /fabrik-task lane with design critique",
+  "status": "open",
+  "tags": [
+    "mail-01m5bsvanzwx2a7sngv3n4vpct"
+  ],
+  "title": "mail 01M5BSVANZ (kaizen): when is a nested full /fabrik-review's receipt made? Four agents ask that a review over committed work make its receipt ONCE after the last fix commit (seats on pins first), against fabrik-review.md § Reporting 'created before Pass 1' and fabrik-task.md:201,:240-247; may change what task_lane.py check (d) proves; feedback rows 1792464865, 1792450211 stay open until it lands"
+}

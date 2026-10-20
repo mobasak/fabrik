@@ -973,3 +973,459 @@ def test_the_new_records_reset_before_the_manifest_bind(hub) -> None:
     bind = main_body.index("refusal = _bind_manifest_from_head()")
     for marker in ("_head_unread.clear()", "_head_drift_why.clear()", "_head_drift.clear()"):
         assert -1 < main_body.index(marker) < bind, marker
+
+
+# ---- W-bb97199e: the FILE SET comes from HEAD too, not only the bytes ----------------------------
+# T12.17 read a tracked file's bytes from HEAD, but every caller decided WHICH files exist from the
+# working tree: a sibling's uncommitted deletion shipped nothing (a stale project copy, silently),
+# and the vendored and governance-dir orphan prunes DELETED the project copy.
+
+
+def _deleted_hub(hub, tmp_path: Path):
+    """The hub fixture plus a vendored dir, a governance dir and one listed source, all committed;
+    the project holds stale copies; then the working tree loses one file in each place."""
+    mod, hub_root, _committed, _untracked = hub
+    rels = {
+        "walked": "scripts/enforcement/gone.py",
+        "vendored": "libs/vend/gone.py",
+        "govdir": ".windsurf/rules/gone.md",
+        "listed": "AGENTS-gone.md",
+    }
+    for rel in (*rels.values(), "libs/vend/kept.py", ".windsurf/rules/kept.md"):
+        (hub_root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (hub_root / rel).write_text(f"# {rel} HEAD\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "synced set"], check=True)
+    project = tmp_path / "proj"
+    a_day_ago = time.time() - 86400  # a stale copy predates HEAD's commit, as a real one does
+    for rel in rels.values():
+        (project / rel).parent.mkdir(parents=True, exist_ok=True)
+        (project / rel).write_text(f"# {rel} stale\n", encoding="utf-8")
+        os.utime(project / rel, (a_day_ago, a_day_ago))
+    for rel in rels.values():
+        (hub_root / rel).unlink()  # the sibling's UNCOMMITTED deletion
+    mod.VENDORED_DIRS = ["libs/vend"]
+    mod.GOVERNANCE_DIRS = [".windsurf/rules"]
+    mod.GOVERNANCE_FILES = [rels["listed"]]
+    for name in (
+        "CORE_SCRIPTS",
+        "RUN_SCRIPTS",
+        "GOVERNANCE_TEMPLATES",
+        "REFERENCE_DOCS",
+        "AGENT_HOOK_FILES",
+    ):
+        setattr(mod, name, [])
+    mod._head_drift.clear()
+    mod._head_drift_why.clear()
+    return mod, hub_root, project, rels
+
+
+def test_a_listed_source_deleted_in_the_tree_ships_head(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    rel = rels["listed"]
+    assert (project / rel).read_text() == f"# {rel} HEAD\n", "the stale copy was left in place"
+    assert mod._head_drift_why.get(rel) == "deleted in the working tree", mod._head_drift_why
+
+
+def test_a_walked_file_deleted_in_the_tree_ships_head(hub, tmp_path: Path) -> None:
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    for key in ("walked", "vendored", "govdir"):
+        rel = rels[key]
+        assert (project / rel).is_file(), f"{rel}: the project copy was deleted"
+        assert (project / rel).read_text() == f"# {rel} HEAD\n", rel
+        assert mod._head_drift_why.get(rel) == "deleted in the working tree", rel
+
+
+def test_the_prunes_keep_what_head_holds_and_drop_what_it_retired(hub, tmp_path: Path) -> None:
+    """A COMMITTED deletion is still a retirement: the prunes drop it. Only HEAD decides."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    for rel in (rels["vendored"], rels["govdir"]):
+        subprocess.run(["git", "-C", str(hub_root), "rm", "-q", "--cached", rel], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "retire"], check=True)
+    mod._head_cache.clear()
+    result = mod.sync_scripts_to_project(project)
+    for rel in (rels["vendored"], rels["govdir"]):
+        assert not (project / rel).exists(), f"{rel}: a retired file survived the prune"
+    deleted = {r.destination for r in result.files if r.action == "DELETE"}
+    assert {project / rels["vendored"], project / rels["govdir"]} <= deleted, deleted
+    assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
+
+
+def test_a_deleted_head_symlink_is_not_shipped_as_a_file(hub, tmp_path: Path) -> None:
+    """HEAD records a symlink as mode 120000 with the link TEXT as its blob: shipped, it landed as
+    an unreadable mode-0 file in every project. A deleted one is skipped, as before, and named."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "AGENTS-link.md"
+    link.symlink_to("AGENTS-kept.md")
+    subprocess.run(["git", "-C", str(hub_root), "add", "AGENTS-link.md"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    mod.GOVERNANCE_FILES = ["AGENTS-link.md"]
+    mod.sync_scripts_to_project(project)
+    assert not (project / "AGENTS-link.md").exists()
+    assert mod._link_refused["AGENTS-link.md"] == "a symlink in HEAD", (
+        mod._link_refused
+    )  # W-d537275a
+
+
+def test_an_unreadable_gone_blob_is_one_warn_not_an_aborted_project(hub, tmp_path: Path) -> None:
+    """Hashing the missing path raised FileNotFoundError and the whole project's sync stopped —
+    the rest of the walk, the lock and the worktrees skipped. Now it is one WARN line."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    _corrupt_object(hub_root, _rev(hub_root, f"HEAD:{rels['vendored']}"))
+    result = mod.sync_scripts_to_project(project)
+    assert result.success, result.message
+    warned = {r.destination: r.reason for r in result.files if r.action == "WARN"}
+    assert warned.get(project / rels["vendored"]) == mod._GONE_UNREADABLE
+    lines = mod._file_lines(result.files, verbose=False, dry_run=False)
+    assert f"  WARN ({mod._GONE_UNREADABLE}): gone.py" in lines, lines  # its own reason, printed
+    assert (project / "libs/vend/kept.py").read_text() == "# libs/vend/kept.py HEAD\n"
+    assert (project / ".fabrik" / "synced.lock").is_file(), "the lock leg never ran"
+
+
+def test_a_project_edit_newer_than_heads_commit_is_not_clobbered(hub, tmp_path: Path) -> None:
+    """A gone hub source has no mtime; HEAD's commit time stands in, so the "destination newer"
+    guard protects a later project edit exactly as it does for a present source."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    edited = project / rels["listed"]
+    edited.write_text("# a project-side edit\n", encoding="utf-8")  # mtime: now, after HEAD
+    result = mod.sync_scripts_to_project(project)
+    assert edited.read_text() == "# a project-side edit\n"
+    assert any(r.action == "WARN" and r.destination == edited for r in result.files)
+
+
+def test_the_lock_carries_a_file_shipped_from_head(hub, tmp_path: Path) -> None:
+    """The manifest's pairs walk the working tree; a walked file shipped from HEAD was missing from
+    the lock, so check_synced_unmodified stopped guarding exactly that copy."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    mod.sync_scripts_to_project(project)
+    import json
+
+    lock = json.loads((project / ".fabrik" / "synced.lock").read_text())
+    for key in ("walked", "vendored", "govdir", "listed"):
+        assert rels[key] in lock, (rels[key], sorted(lock))
+
+
+def test_a_gone_source_is_read_once_and_keeps_its_reason(hub, monkeypatch) -> None:
+    """Uncached, a gone source cost three blob reads per project; a cache hit must still name it."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.unlink()
+    rel = "scripts/enforcement/committed.py"
+    real_run = mod.subprocess.run
+    reads: list[list[str]] = []
+
+    def counting(cmd, *a, **kw):
+        if "cat-file" in cmd:
+            reads.append(cmd)
+        return real_run(cmd, *a, **kw)
+
+    monkeypatch.setattr(mod.subprocess, "run", counting)
+    for _ in range(3):
+        mod._head_drift_why.clear()
+        assert mod._head_source(committed) == (b"COMMITTED = 1\n", 0o100755)
+        assert mod._head_drift_why[rel] == "deleted in the working tree"
+    assert len(reads) == 1, reads
+
+
+def _git_project(project: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".gitignore").write_text("# the project's own\n", encoding="utf-8")
+
+
+def test_the_lock_never_takes_the_projects_own_gitignore(hub, tmp_path: Path) -> None:
+    """Review pass 1: the lock's union took every COPY/SKIP result, the `.gitignore` block patch
+    among them, so a project adding its own ignore line failed check_synced_unmodified."""
+    mod, _hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    _git_project(project)
+    mod.sync_scripts_to_project(project)
+    import json
+
+    lock = json.loads((project / ".fabrik" / "synced.lock").read_text())
+    assert ".gitignore" not in lock, sorted(lock)
+
+
+def test_the_guard_dates_a_gone_source_by_its_own_last_commit(hub, tmp_path: Path) -> None:
+    """Review pass 1: HEAD's LATEST commit time let an unrelated later commit make an older project
+    edit look stale — edited after the file's own last commit, it was clobbered."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    two_days, one_day = time.time() - 2 * 86400, time.time() - 86400
+    rel = rels["listed"]
+    (hub_root / rel).write_text("# v2\n", encoding="utf-8")
+    env = {**os.environ, "GIT_COMMITTER_DATE": f"{int(two_days)} +0000"}
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qam", "v2"], check=True, env=env)
+    (hub_root / "unrelated.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", "unrelated.txt"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "later, unrelated"], check=True)
+    (hub_root / rel).unlink()
+    edited = project / rel
+    edited.write_text("# a project-side edit\n", encoding="utf-8")
+    os.utime(edited, (one_day, one_day))
+    mod._head_cache.clear()
+    mod.sync_scripts_to_project(project)
+    assert edited.read_text() == "# a project-side edit\n"
+
+
+def test_a_head_shipped_copy_carries_its_commit_time(hub, tmp_path: Path) -> None:
+    """Written with mtime "now", the copy reads as a newer project edit to every later sync."""
+    mod, hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    rel = rels["walked"]
+    (hub_root / rel).write_text("# v2\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(hub_root), "add", rel], check=True)
+    two_days = f"{int(time.time() - 2 * 86400)} +0000"  # far from "now", so a match is no accident
+    env = {**os.environ, "GIT_COMMITTER_DATE": two_days}
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "v2"], check=True, env=env)
+    (hub_root / rel).unlink()
+    three_days = time.time() - 3 * 86400  # the stale copy predates the file's own commit
+    os.utime(project / rel, (three_days, three_days))
+    mod._head_cache.clear()
+    mod.sync_scripts_to_project(project)
+    when = int(
+        subprocess.run(
+            ["git", "-C", str(hub_root), "log", "-1", "--format=%ct", "HEAD", "--", rels["walked"]],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert int((project / rels["walked"]).stat().st_mtime) == when
+
+
+def test_a_head_symlink_in_a_walked_dir_is_not_shipped(hub, tmp_path: Path) -> None:
+    """The walk's own symlink skip — `_hub_present`'s check guards only the listed loops."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "libs" / "vend" / "link.py"
+    link.symlink_to("kept.py")
+    subprocess.run(["git", "-C", str(hub_root), "add", "libs/vend/link.py"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    mod.sync_scripts_to_project(project)
+    assert not (project / "libs" / "vend" / "link.py").exists()
+
+
+def test_a_head_read_failing_at_the_copy_is_one_warn(hub, tmp_path: Path, monkeypatch) -> None:
+    """The copy consults HEAD again; a transient failure there fell through to `copy2` of a path
+    that is gone — FileNotFoundError, the whole project aborted."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def flaky(source):
+        calls["n"] += 1
+        return None if calls["n"] >= 3 else real(source)  # the copy's own consult is the 3rd
+
+    monkeypatch.setattr(mod, "_head_source", flaky)
+    source = mod.FABRIK_ROOT / rels["listed"]
+    result = mod.sync_single_file(source, project / rels["listed"])
+    assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
+
+
+@pytest.mark.parametrize("shape", ["new file", "symlink", "forced"])
+def test_every_copy_branch_warns_when_the_head_read_fails(
+    hub, tmp_path: Path, monkeypatch, shape
+) -> None:
+    """Review pass 2: the guard covered only the final overwrite; the new-file, symlink and --force
+    branches go through `_atomic_copy`, whose `copy2` of the gone path aborted the project. A
+    replaced symlink is no longer unlinked first, so a WARN leaves it where it was."""
+    mod, _hub_root, project, rels = _deleted_hub(hub, tmp_path)
+    dest = project / rels["listed"]
+    dest.unlink()
+    if shape == "symlink":
+        (project / "other.md").write_text("x\n", encoding="utf-8")
+        dest.symlink_to(project / "other.md")
+    elif shape == "forced":
+        dest.write_text("# stale\n", encoding="utf-8")
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def flaky(source):
+        calls["n"] += 1
+        return None if calls["n"] >= 2 else real(source)  # the copy's own consult is the 2nd
+
+    monkeypatch.setattr(mod, "_head_source", flaky)
+    source = mod.FABRIK_ROOT / rels["listed"]
+    result = mod.sync_single_file(source, dest, force=shape == "forced")
+    assert (result.action, result.reason) == ("WARN", mod._GONE_UNREADABLE), result
+    if shape == "symlink":
+        assert dest.is_symlink(), "the link was removed before a copy that never happened"
+
+
+# ---- W-d537275a: a symlinked hub source is refused, never shipped ---------------------------------
+# `_head_source` read `source.resolve()`, i.e. the target the WORKING TREE points at: an uncommitted
+# retarget shipped the new target, a link leaving the hub shipped the outside file's working bytes,
+# and a committed link replaced by a regular file shipped the link text as a mode-0 file.
+
+
+def _link_hub(hub, tmp_path: Path):
+    mod, hub_root, _committed, _untracked = hub
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "ext.md").write_text("EXTERNAL working bytes\n", encoding="utf-8")
+    (hub_root / "a.md").write_text("A committed\n", encoding="utf-8")
+    (hub_root / "b.md").write_text("B committed\n", encoding="utf-8")
+    (hub_root / "real").mkdir()
+    (hub_root / "real" / "x.md").write_text("X committed\n", encoding="utf-8")
+    (hub_root / "link.md").symlink_to("a.md")
+    (hub_root / "out.md").symlink_to(outside / "ext.md")
+    (hub_root / "dirlink").symlink_to("real")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "links"], check=True)
+    project = tmp_path / "proj"
+    project.mkdir()
+    mod._head_unread.clear()
+    return mod, hub_root, project
+
+
+def _refused(mod, source: Path, dest: Path) -> None:
+    result = mod.sync_single_file(source, dest)
+    assert result.action == "WARN", result
+    assert result.reason.startswith("symlinked hub source not shipped"), result
+    rel = mod._lexical_rel(source)[1]
+    mod._head_source(source)
+    assert "symlink" in mod._link_refused.get(rel, ""), mod._link_refused
+    assert rel not in mod._head_unread, "a refusal is not a HEAD read failure"
+
+
+def test_a_retargeted_symlink_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    (hub_root / "link.md").unlink()
+    (hub_root / "link.md").symlink_to("b.md")  # the uncommitted retarget
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists(), "the working tree's new target shipped"
+
+
+def test_a_symlink_leaving_the_hub_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    _refused(mod, hub_root / "out.md", project / "out.md")
+    assert not (project / "out.md").exists(), "a file outside the hub shipped"
+
+
+def test_a_link_replaced_by_a_file_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    (hub_root / "link.md").unlink()
+    (hub_root / "link.md").write_text("UNCOMMITTED regular file\n", encoding="utf-8")
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists(), "the link text or the working file shipped"
+
+
+def test_a_file_under_a_symlinked_dir_is_refused(hub, tmp_path: Path) -> None:
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    _refused(mod, hub_root / "dirlink" / "x.md", project / "x.md")
+    assert not (project / "x.md").exists()
+
+
+@pytest.mark.parametrize("in_tree", [True, False])
+def test_a_link_committed_after_the_memo_answered_is_refused(hub, tmp_path, in_tree) -> None:
+    """Review pass 1: the memo is per run, and a sibling's commit can add a link mid-run. A stale
+    "not a link" answer must not ship it — present, the tree scan catches it; deleted, the HEAD
+    listing `_head_source` makes itself does (its blob is link TEXT, once shipped as a mode-0 file)."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    mod._link_refusal_cache["link.md"] = None  # the memo answered before the commit landed
+    if not in_tree:
+        (hub_root / "link.md").unlink()
+    _refused(mod, hub_root / "link.md", project / "link.md")
+    assert not (project / "link.md").exists()
+
+
+def test_a_source_spelled_through_the_real_root_is_still_checked(hub, tmp_path) -> None:
+    """Review pass 1: a hub root reached through a symlink, with a source spelled by the real path,
+    fell outside the lexical check while `_head_source` (which resolves both) read through it."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    alias = (
+        tmp_path.parent / f"{tmp_path.name}-alias"
+    )  # beside the hub (the fixture hub IS tmp_path)
+    alias.symlink_to(hub_root)
+    mod.FABRIK_ROOT = alias
+    _refused(mod, hub_root / "out.md", project / "out.md")
+
+
+def test_a_walked_link_deleted_from_the_tree_keeps_its_project_copy(hub, tmp_path) -> None:
+    """Review pass 1: HEAD's 120000 entries were left out of the walk, so a link deleted from the
+    working tree was in neither live set and the prune deleted the project copy, unnamed."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    link = hub_root / "libs" / "vend" / "link.py"
+    link.symlink_to("kept.py")
+    subprocess.run(["git", "-C", str(hub_root), "add", "libs/vend/link.py"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "link"], check=True)
+    link.unlink()
+    copy = project / "libs" / "vend" / "link.py"
+    copy.write_text("# the project's copy\n", encoding="utf-8")
+    result = mod.sync_scripts_to_project(project)
+    assert copy.read_text() == "# the project's copy\n", "the prune deleted a copy HEAD still lists"
+    assert any(r.action == "WARN" and r.destination == copy for r in result.files), result.files
+
+
+def test_the_writer_never_copies_through_a_refused_link(hub, tmp_path) -> None:
+    """Review pass 1: `_atomic_copy` fell back to `copy2` through the link when called directly."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    with pytest.raises(FileNotFoundError):
+        mod._atomic_copy(hub_root / "out.md", project / "out.md")
+    assert not (project / "out.md").exists()
+
+
+def test_the_overwrite_tail_never_copies_through_a_late_link(hub, tmp_path, monkeypatch) -> None:
+    """Review pass 2: round 1 guarded `_atomic_copy` but not the overwrite tail's own `copy2`
+    fallback — an untracked source turned into a link between consults shipped the outside file."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    src = hub_root / "u.md"
+    src.write_text("UNTRACKED\n", encoding="utf-8")
+    dest = project / "u.md"
+    dest.write_text("# older\n", encoding="utf-8")
+    old = time.time() - 86400
+    os.utime(dest, (old, old))
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def swapping(source):
+        calls["n"] += 1
+        if calls["n"] == 3:  # the tail's own consult: the source has become a link
+            src.unlink()
+            src.symlink_to(tmp_path / "outside" / "ext.md")
+        return real(source)
+
+    monkeypatch.setattr(mod, "_head_source", swapping)
+    result = mod.sync_single_file(src, dest)
+    assert result.action == "WARN" and "symlinked hub source" in result.reason, result
+    assert dest.read_text() == "# older\n", "the outside file shipped through the late link"
+
+
+def test_a_directory_link_in_a_walked_dir_is_refused(hub, tmp_path) -> None:
+    """A committed directory link inside a walked dir is listed from HEAD and refused, never
+    copied (copy2 of a directory raised IsADirectoryError and aborted the project — critique)."""
+    mod, hub_root, project, _rels = _deleted_hub(hub, tmp_path)
+    (hub_root / "pkg").mkdir()
+    (hub_root / "pkg" / "m.py").write_text("M = 1\n", encoding="utf-8")
+    (hub_root / "libs" / "vend" / "dirlink").symlink_to("../../pkg")
+    subprocess.run(["git", "-C", str(hub_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(hub_root), "commit", "-qm", "dirlink"], check=True)
+    result = mod.sync_scripts_to_project(project)
+    assert result.success, result.message
+    dest = project / "libs" / "vend" / "dirlink"
+    assert any(r.action == "WARN" and r.destination == dest for r in result.files), result.files
+    assert not dest.exists()
+
+
+def test_a_new_file_whose_source_becomes_a_link_names_the_refusal(
+    hub, tmp_path, monkeypatch
+) -> None:
+    """Review pass 3: the new-file branch's copy refused through `_GoneSourceError`, but the WARN
+    said "source missing and no readable HEAD copy" — nothing shipped, under the wrong reason."""
+    mod, hub_root, project = _link_hub(hub, tmp_path)
+    src = hub_root / "u.md"
+    src.write_text("UNTRACKED\n", encoding="utf-8")
+    real = mod._head_source
+    calls = {"n": 0}
+
+    def swapping(source):
+        calls["n"] += 1
+        if calls["n"] == 2:  # `_atomic_copy`'s own consult
+            src.unlink()
+            src.symlink_to(tmp_path / "outside" / "ext.md")
+        return real(source)
+
+    monkeypatch.setattr(mod, "_head_source", swapping)
+    result = mod.sync_single_file(src, project / "u.md")
+    assert result.action == "WARN", result
+    assert result.reason.startswith("symlinked hub source not shipped"), result
+    assert not (project / "u.md").exists()

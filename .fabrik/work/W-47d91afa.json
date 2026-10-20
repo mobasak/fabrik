@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T03:34:43.036554Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-47d91afa",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add an enforcement-dir prune keyed on _hub_files' live set, guarded like the vendored one; measure the fleet's orphaned enforcement copies first",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "bug on a sync path reaching every repo (a deleted enforcement check lingers in all projects); one script plus a test",
+  "status": "open",
+  "tags": [
+    "intel",
+    "queued"
+  ],
+  "title": "sync: scripts/enforcement has no orphan prune — a committed deletion or rename of an enforcement check leaves the old copy in every project forever (vendored and governance dirs prune; W-bb97199e Opus critique #4)"
+}
