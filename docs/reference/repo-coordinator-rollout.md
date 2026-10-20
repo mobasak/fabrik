@@ -113,7 +113,8 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   reattaching to a running grid does not touch it. Without swap 0 a cap only pushes a runaway into swap. Over a cap
   the kernel kills the largest process in that scope (or, at the slice ceiling, in any repo's pane) — usually claude
   itself, and then the pane says it was killed (exit 137) before its resume hint; a killed child process leaves claude
-  running without it. A scope that cannot be started leaves a pane that says so and keeps a shell. The
+  running without it. A scope that cannot be started, or a kept shell that exits non-zero, leaves a pane that says so and waits for Enter;
+  it never opens a shell outside the cap. The
   slice sits under `fabrik.slice` beside the tests' `fabrik-tests.slice`. The launcher sets `XDG_RUNTIME_DIR` itself
   when the user bus exists, since a launch from a .bat carries none. With no user manager the panes run uncapped,
   said on stderr and in every pane; a manager that refuses the slice ceiling refuses the launch. Sessions started from

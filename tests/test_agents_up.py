@@ -255,10 +255,10 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
         got.stdout
     )
     assert seen["LANG"] == "C.UTF-8", got.stdout
-    # the scope runs from the allow-list too, and so do the shell a pane keeps after claude exits (inside it) and the
-    # fallback shell after a scope that ended badly; PATH is fixed ONCE — three fixed copies of a 4 KB WSL PATH brought
-    # a pane command near the size tmux takes in one message (review round 1)
-    assert run.count("env -i ") == 4 and _inner(run).rstrip().endswith("bash -l"), run
+    # the scope runs from the allow-list too, and so does the shell a pane keeps after claude exits (inside it); the
+    # branch after a scope that ended badly opens no shell at all (review round 2). PATH is fixed ONCE — three fixed
+    # copies of a 4 KB WSL PATH brought a pane command near the size tmux takes in one message (review round 1)
+    assert run.count("env -i ") == 3 and _inner(run).rstrip().endswith("bash -l"), run
     assert run.count(f"PATH={home}/.local/bin:") == 1, run
     # one scope per pane (its argv logged on one line; the pane command it carries holds a newline of its own)
     scoped = [
@@ -1221,25 +1221,43 @@ def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
     ), got.stdout
 
 
-def test_a_scope_that_cannot_start_says_so_and_keeps_a_shell(tmp_path: Path) -> None:
-    """A capped pane whose systemd-run fails says so and keeps a clean shell, never a pane that just closes."""
+def test_a_scope_that_ends_badly_says_so_and_opens_no_uncapped_shell(tmp_path: Path) -> None:
+    """A capped pane whose systemd-run fails says so, never a pane that just closes. The same branch runs when the kept
+    shell inside the scope exits non-zero (review round 2), so it opens NO shell of its own — a shell there would be
+    outside the cap — and only waits for Enter."""
     repo = _repo(tmp_path, {DEV1: "dev1"})
     home = _home(tmp_path, transcripts=((repo, DEV1),))
-    (home / ".local" / "bin" / "systemd-run").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-    out = _run("--print", str(repo), home=home)
-    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
-    got = subprocess.run(
-        ["/bin/sh", "-c", run[len("run dev1 ") :]],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
-        stdin=subprocess.DEVNULL,
-    )
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake.chmod(0o755)
+
+    def pane(stdin: str) -> str:
+        out = _run("--print", str(repo), home=home)
+        run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+        got = subprocess.run(
+            ["/bin/sh", "-c", run[len("run dev1 ") :]],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+            input=stdin,
+        )
+        return got.stdout + got.stderr
+
+    # the kept shell exits non-zero; a line typed after it must reach no second (uncapped) shell
+    said = pane("false\nexit\necho ESCAPED\n")
     assert (
-        "[dev1: the capped scope ended with exit 1 — if nothing ran above, systemd-run could not start it]"
-        in (got.stdout)
-    ), got.stdout + got.stderr
+        "the capped scope ended with exit 1" in said and "press Enter to close this pane" in said
+    ), said
+    assert "ESCAPED" not in said, said
+    # systemd-run itself cannot start the scope
+    (home / ".local" / "bin" / "systemd-run").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    said = pane("echo ESCAPED\n")
+    assert (
+        "[dev1: the capped scope ended with exit 1 — if nothing ran above, systemd-run could not start it"
+        in said
+    )
+    assert "ESCAPED" not in said, said
 
 
 def test_no_user_manager_runs_uncapped_with_a_warning(tmp_path: Path) -> None:
@@ -1250,7 +1268,9 @@ def test_no_user_manager_runs_uncapped_with_a_warning(tmp_path: Path) -> None:
     (home / "manager-down").write_text("", encoding="utf-8")
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
-    assert "WARNING — no systemd user manager answers" in out.stderr, out.stderr
+    assert "WARNING — no systemd-run on PATH, or no systemd user manager answers" in out.stderr, (
+        out.stderr
+    )
     assert "cap dev1 uncapped" in out.stdout, out.stdout
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
     assert run.startswith("run dev1 echo '[UNCAPPED:") and "systemd-run" not in run, run

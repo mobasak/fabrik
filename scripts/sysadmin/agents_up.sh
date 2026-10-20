@@ -295,7 +295,7 @@ CAPPED=0
 if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
   CAPPED=1
 else
-  echo "agents_up: WARNING — no systemd user manager answers (XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}); the panes run UNCAPPED, with no memory or task bound" >&2
+  echo "agents_up: WARNING — no systemd-run on PATH, or no systemd user manager answers (XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}); the panes run UNCAPPED, with no memory or task bound" >&2
 fi
 
 proj_of() {  # $1 = folder; claude stores a session under its start folder with every non-alphanumeric character as `-`
@@ -363,9 +363,10 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   fi
   if [ "$CAPPED" = 1 ]; then
     # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap; a
-    # scope that cannot be made leaves a pane that says so and keeps a shell, never one that closes without a word (the
-    # same branch runs when the kept shell itself exits non-zero, so the line names both)
-    echo "$env $path_now systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner") || { echo \"[$1: the capped scope ended with exit \$? — if nothing ran above, systemd-run could not start it]\"; exec $env PATH=\"\$PATH\" bash -l; }"
+    # scope that cannot be made leaves a pane that says so, never one that closes without a word. It opens NO shell:
+    # the same branch runs when the kept shell itself exits non-zero, and a shell here would be outside the cap
+    # (review round 2), so it only waits for Enter
+    echo "$env $path_now systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner") || { echo \"[$1: the capped scope ended with exit \$? — if nothing ran above, systemd-run could not start it; press Enter to close this pane]\"; read -r _; }"
   else
     echo "echo '[UNCAPPED: no systemd user manager answered at launch — this pane has no memory or task bound]'; $inner"
   fi

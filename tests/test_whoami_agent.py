@@ -780,12 +780,14 @@ def test_trim_keeps_each_names_newest_binding(store):
     assert "sid-b1-old" not in ids and "sid-norepo" not in ids, ids
 
 
-def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(store):
+def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(store, monkeypatch):
     # Review round 1: (a) a session force-renamed alice -> bob keeps its OLD alice row only while that row is still
     # the session's last, so the trim cannot hand the session back to alice; (b) the pair this bind supersedes goes;
-    # (c) a hand-edited row with a list for a name, or an `at` of Infinity, never aborts the bind.
+    # (c) a hand-edited row with a list for a name, or an `at` of Infinity, never aborts the bind. The bind's own
+    # scope is pinned, so (b) is exercised from any cwd — outside a repo `_toplevel()` is "" and (b) would pass vacuously.
     m = _mod()
-    top = m._toplevel()
+    top = "/opt/mine/.git"
+    monkeypatch.setattr(m, "_toplevel", lambda: top)
     rows = [
         {"session_id": "s1", "name": "alice", "toplevel": "/opt/shop/.git", "at": 1},
         {"session_id": "s1", "name": "bob", "toplevel": "/opt/shop/.git", "at": 2, "force": True},
