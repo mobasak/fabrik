@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "operator ask; hub side is a render plus a message",
   "status": "open",
+  "tags": [
+    "waits-youtube-bindings"
+  ],
   "title": "youtube coordinator rollout (operator 2026-10-20: 'youtube project, i want to make it coordinator managed, it has 3 agent windows'): youtube-coordinator in VS Code plus builders yt1-yt3 in worktrees; brief mailed as youtube 01M5CCFRPC; hub side: render Youtube Agents.bat once the yt bindings exist, then tell the operator to open the coordinator"
 }
