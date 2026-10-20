@@ -21,7 +21,8 @@ DOWNGRADE is a `handoff`, not a terminal met, so it is named there and nowhere i
 {{include:delegated-reads}}
 
 - **DOWNGRADE check (BLOCKING, before anything else — spec § The delta D9):** read the newest row of the
-  lane-refusal ledger (`lane-refusals.jsonl`, beside the run-record state dir) whose declared `--file` list
+  lane-refusal ledger (`lane-refusals.jsonl`, beside the run-record state dir: `~/.claude/state/lane-refusals.jsonl`,
+  or `lane-refusals.jsonl` in the parent of `$COMMAND_RUN_DIR` when that is set — `command_run.py::_lane_ledger`) whose declared `--file` list
   overlaps this brief's surface — not only this session's refusals; the spec may run in a new window. When
   the brief in fact settles **one reversible decision with no open trade-off**, this work never needed a
   design: **WRITE the seed file to disk FIRST** — a scratch path carrying a `## RESUME` heading that names
@@ -311,7 +312,7 @@ build this — never pick an approach from training memory or first instinct:
 
 **Parallelism — UNCONDITIONAL, every run.** Ground with **one native `fabrik-researcher` seat PER DEPENDENCY/capability, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
 have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
-verify-sample; then **you** synthesize. A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed, and its brief carries them, so a recommended practice cannot rest on a mechanism those facts refute: the 1a wave and the 1c wave are two dispatches, each with its own `dispatch_headroom.py` call, stamp and three-seat floor, and the seats of one wave go in one message. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
+verify-sample; then **you** synthesize. A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed, and its brief carries them, so a recommended practice cannot rest on a mechanism those facts refute: the 1a wave and the 1c wave are two dispatches, each with its own `dispatch_headroom.py` call, stamp and three-seat floor, and the seats of one wave go in one message. Each research seat's brief names the search and fetch arms with this session's verdict on each — every `<server>: <verdict>` line and every `MCP-HEALTH:` line the ORIENT `mcp_health.py` run printed, and every arm a seat of an earlier wave reported failing: a `DEAD`, `TIMEOUT` or `UNAUTHORIZED` server is down; a `CONNECTED` one with no `key check` line, or one whose key check reads `unverified`, is reachable but its key is unknown; and an arm with no line (a `SKIPPED` entry, the built-in `WebSearch` and `WebFetch`, and every server when the repo has no `.mcp.json`) is unknown. A seat whose arm fails as an arm (auth, credit, quota, transport — never one page's 404 or host block) says so in a line after its verdicts, which the brief asks for, and stops calling that arm. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
 the design judgment stay yours.
 
 ## Phase 2 — Collaborative Q&A (pin intent)
@@ -375,6 +376,10 @@ demonstrably more maintenance/complexity than the researched standard.
 - **Duplicate functionality?** Re-check `docs/BUSINESS_MODEL.md` § Portfolio (you did this in Phase 0 — confirm the approach didn't drift into an existing product).
 
 {{include:judge-panel}}
+
+Before the judge brief goes out, write it to a file in the run's `RUN-SCRATCH:` folder and run
+`python3 /opt/fabrik/scripts/enforcement/check_citations_resolve.py --root <repo> --doc <that file>` over it; a cite
+it reports is corrected first.
 
 If the research direction is fundamentally wrong for Fabrik (e.g. AWS serverless when everything deploys to a VPS via `fabrik apply`), **say so directly** and recommend the alternative — don't quietly spec it.
 
@@ -472,7 +477,13 @@ spec's plan is drafted before it and approved with it).
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
   vendor ladder? is any external claim ungrounded or from memory? does every backticked `path:line` resolve
-  (grep it)? Then grade the DRAFT the way the CONVERGED flip will: copy it to scratch under its own filename,
+  (grep it)? Run `python3 /opt/fabrik/scripts/enforcement/check_citations_resolve.py --root <repo> --doc <the spec>`
+  too (its `--changed` reads `git diff`, so it never sees an untracked draft), confirm it printed `--doc examined 1
+  file(s)` (a path it cannot open prints a clean zero), and fix every cite it reports. It grades only a line past
+  the end of its file or a blank target, and never an absolute path as itself: the plain `/opt/fabrik/…` form is
+  skipped, and one with a `.` or `-` in a segment is cut there and its tail graded against `<repo>`. So write a
+  cite into `<repo>` repo-relative, open a cite into another repo, which stays absolute, by hand (a finding on it
+  is the cut tail, not the cite), and still open each cite a design step rests on. Then grade the DRAFT the way the CONVERGED flip will: copy it to scratch under its own filename,
   set the copy's Status line to `CONVERGED`, and run `python3 scripts/enforcement/check_spec_convergence.py <the copy>` — the script skips a spec with no `Status: CONVERGED` text (`NOT-CONVERGED: <path> - a DRAFT is not graded`),
   and the copy prints every finding the flip is graded on (`SILENT-1a`, `APPROACH-FLOOR`, `NO-PERSONAS`,
   `NO-LIFECYCLE` and `NO-INTAKE` among them) that the flip's reviewer — `/fabrik-spec-review`, or
