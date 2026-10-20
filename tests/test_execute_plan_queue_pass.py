@@ -257,9 +257,13 @@ def test_a_linked_worktree_grades_its_own_tree_not_a_shared_runtime() -> None:
         " `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says."
         " - **Verify your owned paths are clean:**"
     ) in _norm()
-    assert "issued against the running service (from a linked worktree, read Before You Start step 8 first), with" \
+    assert (
+        "issued against the running service (from a linked worktree, read Before You Start step 8 first), with"
         " its actual" in _norm()
-    doc = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "multi-agent-operating-model.md").read_text())
+    )
+    doc = re.sub(
+        r"\s+", " ", (ROOT / "docs" / "reference" / "multi-agent-operating-model.md").read_text()
+    )
     assert "## The shared runtime is NOT isolated" in doc
     assert "running the worktree's code in-process against a throwaway database clone" in doc
 
@@ -273,5 +277,23 @@ def test_finish_step_5_says_the_run_flips_its_own_plan_and_when_the_coordinator_
         ' included; in the hub the coordinator does both only "once every ticket is merged and its builder confirms no run will resume it",'
         " `/opt/fabrik/docs/reference/agents/coordinator.md`), **and cite the step-1 whole-plan review artifact"
     ) in _norm()
-    charter = re.sub(r"\s+", " ", (ROOT / "docs" / "reference" / "agents" / "coordinator.md").read_text())
+    charter = re.sub(
+        r"\s+", " ", (ROOT / "docs" / "reference" / "agents" / "coordinator.md").read_text()
+    )
     assert "once every ticket is merged and its builder confirms no run will resume it" in charter
+
+
+def test_the_loop_step_names_the_phase_review_artifact() -> None:
+    """Rows 1792433336, 1792472008, 1792465109: the artifact rule sat only in item 3b, so the loop step never said it."""
+    loop = _section("/fabrik-review on phase's changed surface", "UPDATE THE PLAN FILE")
+    # pinned from the line before to the line after, so a prefixed or appended clause turns it red
+    assert (
+        "THEN next phase → before the phase's closing commit (the one that stages the plan file), write its receipt to"
+        " docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole"
+        " stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file,"
+        " so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without"
+        " one (item 3b's artifact rule) fix CONFIRMED findings"
+    ) in loop
+    item_3b = _section("3b. **GUI phases", "4. **All HARD STOPS")
+    assert 'goes through `--review-waived "<reason>"`' in item_3b
+    assert '`--review-waived "Profile: small' in item_3b

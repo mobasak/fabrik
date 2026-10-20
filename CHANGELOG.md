@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
+
+- `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
+
 ### Changed — /fabrik-plan-review: a changed predicate runs against its pinning tests, and five other queued verdicts answered (2026-10-20)
 
 - `commands/_sources/fabrik-plan-review.md` runs a predicate, matcher or filter the plan changes on a scratch copy against the tests that assert its current behaviour and every input shape its grammar admits, before the first pin. `commands/_sources/fabrik-plan-after-chat.md`'s reader census counts the copies that run, classed by lineage and delivery channel, not the paths its grep returned. `commands/_fragments/design-critique.md` has a concern give the exact text when its change is a wording. `commands/_fragments/term-edit.md` and `term-coverage.md` round zero have a behavioural claim a fix writes cite the line that implements it. Graders in `tests/test_plan_review_queue_pass.py`.

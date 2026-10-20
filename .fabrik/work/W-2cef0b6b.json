@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T09:49:38.963710Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2cef0b6b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-plan-after-chat carrying these three rows",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "Edit /fabrik-plan-after-chat so the census names each existing test the spec's MIRROR refuses, with its planned edit; and /fabrik-plan-review so it flags a test edit that substitutes a value and names the guard it exercised (rows 1792464433, 1792453856, 1792413935 of the /fabrik-execute-plan queue)"
+}
