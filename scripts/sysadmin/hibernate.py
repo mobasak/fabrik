@@ -51,7 +51,10 @@ NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 def _session_files(home: Path) -> list[Path]:
     seen: set[str] = set()
     out: list[Path] = []
-    for pattern in (str(home / ".claude*" / "sessions" / "*.json"), str(home / ".claude-fleet" / "*" / "sessions" / "*.json")):
+    for pattern in (
+        str(home / ".claude*" / "sessions" / "*.json"),
+        str(home / ".claude-fleet" / "*" / "sessions" / "*.json"),
+    ):
         for f in sorted(glob.glob(pattern)):
             real = os.path.realpath(f)
             if real not in seen:
@@ -96,7 +99,11 @@ def _bindings(store: Path) -> dict[str, str]:
             r = json.loads(line)
         except ValueError:
             continue
-        if isinstance(r, dict) and isinstance(r.get("session_id"), str) and isinstance(r.get("name"), str):
+        if (
+            isinstance(r, dict)
+            and isinstance(r.get("session_id"), str)
+            and isinstance(r.get("name"), str)
+        ):
             owner[r["session_id"]] = r["name"]
     return owner
 
@@ -128,7 +135,9 @@ def live_sessions(home: Path, proc: Path) -> list[dict]:
                 "peer": d.get("name") or "",
                 "entrypoint": d.get("entrypoint") or "",
                 "agent": _environ_agent(proc, pid) or names.get(sid) or "",
-                "repo": "/opt/" + cwd[5:].split("/")[0] if cwd.startswith("/opt/") and len(cwd) > 5 else "",
+                "repo": "/opt/" + cwd[5:].split("/")[0]
+                if cwd.startswith("/opt/") and len(cwd) > 5
+                else "",
             }
         )
     return out
@@ -140,7 +149,10 @@ def merge_owner(repo: str) -> tuple[str, str]:
         return "", "no ledger"
     try:
         out = subprocess.run(
-            [sys.executable, str(DECISIONS), "--merge-owner", repo], capture_output=True, text=True, timeout=30
+            [sys.executable, str(DECISIONS), "--merge-owner", repo],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return "", f"lookup failed ({exc})"
@@ -156,7 +168,9 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
     agents = [s for s in sessions if s["entrypoint"] in AGENT_ENTRYPOINTS]
     pool = [s for s in sessions if s["entrypoint"] not in AGENT_ENTRYPOINTS]
     agent_pids = {s["pid"] for s in agents}
-    for p in pool:  # a seat whose parent chain reaches a live agent is that agent's own subagent work
+    for (
+        p
+    ) in pool:  # a seat whose parent chain reaches a live agent is that agent's own subagent work
         p["parent_agent"] = ""
         pid, hops = p.get("ppid"), 0
         while pid and hops < 8:
@@ -179,11 +193,16 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
         owner, why = merge_owner(repo)
         holders = [s for s in row["sessions"] if owner and s["agent"] == owner]
         if not owner and len(row["sessions"]) == 1:
-            holders, why = row["sessions"], "the repo's only live agent session (no merge owner declared)"
+            holders, why = (
+                row["sessions"],
+                "the repo's only live agent session (no merge owner declared)",
+            )
         row["owner"], row["owner_why"] = owner, why
         row["coordinator"] = holders[0] if len(holders) == 1 else None
         if len(holders) > 1:
-            row["note"] = f"{len(holders)} live sessions hold {owner} — message each session directly"
+            row["note"] = (
+                f"{len(holders)} live sessions hold {owner} — message each session directly"
+            )
         elif not holders and repo == self_repo:
             row["note"] = "this is your own repo — send the agent text to each session directly"
         elif not holders:
@@ -191,7 +210,12 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
         else:
             row["note"] = ""
         row["others"] = [s for s in row["sessions"] if s not in holders or len(holders) > 1]
-    return {"repos": [repos[k] for k in sorted(repos)], "outside": outside, "pool": pool, "self": self_sid}
+    return {
+        "repos": [repos[k] for k in sorted(repos)],
+        "outside": outside,
+        "pool": pool,
+        "self": self_sid,
+    }
 
 
 # ── the pause text ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -255,7 +279,10 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
     m = _read_marker(home)
     paused_at = m.get("paused_at")
     if not isinstance(paused_at, (int, float)):
-        return 1, "no pause is marked (hibernate.py mark was never run) — nothing to resume from here"
+        return (
+            1,
+            "no pause is marked (hibernate.py mark was never run) — nothing to resume from here",
+        )
     wake = None
     if isinstance(m.get("lifted_at"), (int, float)) and m["lifted_at"] >= paused_at:
         wake = ("lifted by the hub", m["lifted_at"])
@@ -282,15 +309,25 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
     except OSError:
         pass
     if wake is None:
-        return 1, f"no wake since the pause at {time.strftime('%F %T', time.localtime(paused_at))} — stay paused"
+        return (
+            1,
+            f"no wake since the pause at {time.strftime('%F %T', time.localtime(paused_at))} — stay paused",
+        )
     if self_sid:
         try:
-            rec = json.loads((home / ".claude" / "state" / "command-runs" / f"{self_sid}.json").read_text("utf-8"))
+            rec = json.loads(
+                (home / ".claude" / "state" / "command-runs" / f"{self_sid}.json").read_text(
+                    "utf-8"
+                )
+            )
         except (OSError, ValueError):
             rec = {}
         if rec.get("state") == "running" and float(rec.get("started_epoch") or 0) > wake[1]:
             return 1, "already resumed: your run is running again since the wake"
-    return 0, f"RESUME — {wake[0]} at {time.strftime('%F %T', time.localtime(wake[1]))}: resume your item from its seed"
+    return (
+        0,
+        f"RESUME — {wake[0]} at {time.strftime('%F %T', time.localtime(wake[1]))}: resume your item from its seed",
+    )
 
 
 # ── status ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -298,7 +335,9 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
 
 def _git(path: str, *args: str) -> subprocess.CompletedProcess[str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    return subprocess.run(["git", "-C", path, *args], capture_output=True, text=True, timeout=60, env=env)
+    return subprocess.run(
+        ["git", "-C", path, *args], capture_output=True, text=True, timeout=60, env=env
+    )
 
 
 def worktree_state(path: str) -> tuple[bool, str]:
@@ -331,21 +370,41 @@ def worktree_state(path: str) -> tuple[bool, str]:
 def status(home: Path, proc: Path, self_sid: str) -> tuple[int, list[dict]]:
     sessions = [s for s in live_sessions(home, proc) if s["entrypoint"] in AGENT_ENTRYPOINTS]
     if not sessions:
-        return 2, [{"error": "no live agent session found — the session records or /proc are not readable from here"}]
+        return 2, [
+            {
+                "error": "no live agent session found — the session records or /proc are not readable from here"
+            }
+        ]
     if self_sid and not any(s["sid"] == self_sid for s in sessions):
-        return 2, [{"error": f"this session ({self_sid}) is not among the live sessions — wrong records dir or pid namespace"}]
+        return 2, [
+            {
+                "error": f"this session ({self_sid}) is not among the live sessions — wrong records dir or pid namespace"
+            }
+        ]
     rows = []
     for s in sessions:
         if s["sid"] == self_sid:
             continue
         blocks, why = worktree_state(s["cwd"])
         try:
-            rec = json.loads((home / ".claude" / "state" / "command-runs" / f"{s['sid']}.json").read_text("utf-8"))
+            rec = json.loads(
+                (home / ".claude" / "state" / "command-runs" / f"{s['sid']}.json").read_text(
+                    "utf-8"
+                )
+            )
         except (OSError, ValueError):
             rec = {}
         if rec.get("state") == "running":
             blocks, why = True, f"run /{rec.get('command', '?')} still running; " + why
-        rows.append({"repo": s["repo"] or "outside /opt", "agent": s["agent"] or s["peer"], "cwd": s["cwd"], "blocks": blocks, "why": why})
+        rows.append(
+            {
+                "repo": s["repo"] or "outside /opt",
+                "agent": s["agent"] or s["peer"],
+                "cwd": s["cwd"],
+                "blocks": blocks,
+                "why": why,
+            }
+        )
     rows.sort(key=lambda r: (r["repo"], r["agent"]))
     return (1 if any(r["blocks"] for r in rows) else 0), rows
 
@@ -400,16 +459,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         for r in t["repos"]:
             c = r["coordinator"]
-            print(f"{r['repo']}: coordinator {r['owner'] or '-'} ({r['owner_why']})" + (f" → peer {c['peer']}" if c else ""))
+            print(
+                f"{r['repo']}: coordinator {r['owner'] or '-'} ({r['owner_why']})"
+                + (f" → peer {c['peer']}" if c else "")
+            )
             if r["note"]:
                 print(f"  ! {r['note']}")
             for s in r["others"]:
                 print(f"  - {s['agent'] or '(unnamed)'} → peer {s['peer']}  [{s['cwd']}]")
         for s in t["outside"]:
-            print(f"outside /opt: {s['agent'] or '(unnamed)'} → peer {s['peer']}  [{s['cwd']}] — send the agent text directly")
+            print(
+                f"outside /opt: {s['agent'] or '(unnamed)'} → peer {s['peer']}  [{s['cwd']}] — send the agent text directly"
+            )
         if t["pool"]:
             seats = sum(1 for p in t["pool"] if p.get("parent_agent"))
-            print(f"pool: {len(t['pool'])} headless session(s), never messaged ({seats} are a live agent's own seats)")
+            print(
+                f"pool: {len(t['pool'])} headless session(s), never messaged ({seats} are a live agent's own seats)"
+            )
         return 0
     rc, rows = status(home, proc, a.self)
     if a.json:
@@ -419,8 +485,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hibernate: NOT SAFE — {rows[0]['error']}", file=sys.stderr)
         return 2
     for r in rows:
-        print(f"{'BLOCKS' if r['blocks'] else 'ok    '}  {r['repo']:28} {r['agent']:24} {r['why']}  [{r['cwd']}]")
-    print("SAFE TO HIBERNATE" if rc == 0 else f"NOT SAFE — {sum(r['blocks'] for r in rows)} row(s) block")
+        print(
+            f"{'BLOCKS' if r['blocks'] else 'ok    '}  {r['repo']:28} {r['agent']:24} {r['why']}  [{r['cwd']}]"
+        )
+    print(
+        "SAFE TO HIBERNATE"
+        if rc == 0
+        else f"NOT SAFE — {sum(r['blocks'] for r in rows)} row(s) block"
+    )
     return rc
 
 

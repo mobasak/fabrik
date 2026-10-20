@@ -134,7 +134,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # surfaced outcome twice; phase 2 tables a marker-block or append-only file's malformed shapes, tells the brief a
 # fabrik-reviewer seat has no web tool, and says when --design-amend runs (rows 1792467014, 1792452880,
 # 1792445219, 1792459184, 1792451004, 1792412516, 1792418646; an Opus + Fable panel kept 6 of 11 insertions, for 7 rows).
-SIZE_CAP = 25756
+# D-1070 (infra, 2026-10-20): 25756 -> 26238 — a nested full /fabrik-review over committed work keeps its rows in a
+# `<durable>` draft during the passes and makes its receipt ONCE, after the last --commit, the gate run before that
+# --init (kaizen mail 01M5BSVANZ, rows 1792464865, 1792450211); the raise landed late — W-60629ce4 shipped over the cap.
+SIZE_CAP = 26238
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -907,7 +910,7 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     ) in text
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
-    assert raw.count("<durable>") == 9
+    assert raw.count("<durable>") == 11  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5)
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
         "`<durable>/design.md`. A mechanism copied",

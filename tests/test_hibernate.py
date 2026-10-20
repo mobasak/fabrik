@@ -61,22 +61,31 @@ class Box:
             "entrypoint": entrypoint,
             "procStart": str(start if record_start is None else record_start),
         }
-        ((records or self.home / ".claude" / "sessions") / f"{pid}.json").write_text(json.dumps(rec), encoding="utf-8")
+        ((records or self.home / ".claude" / "sessions") / f"{pid}.json").write_text(
+            json.dumps(rec), encoding="utf-8"
+        )
         p = self.proc / str(pid)
         p.mkdir()
         fields = ["S", str(ppid)] + ["0"] * 17 + [str(start)]
         (p / "stat").write_text(f"{pid} ({comm}) " + " ".join(fields) + "\n", encoding="utf-8")
         (p / "comm").write_text(comm + "\n", encoding="utf-8")
-        (p / "environ").write_bytes((f"CLAUDE_AGENT={env_agent}\0" if env_agent else "") .encode() + b"HOME=/h\0")
+        (p / "environ").write_bytes(
+            (f"CLAUDE_AGENT={env_agent}\0" if env_agent else "").encode() + b"HOME=/h\0"
+        )
         if bound:
-            self.store.append({"session_id": sid, "name": bound, "toplevel": cwd + "/.git", "at": 1})
+            self.store.append(
+                {"session_id": sid, "name": bound, "toplevel": cwd + "/.git", "at": 1}
+            )
             (self.home / ".claude" / "state" / "agent-identity.jsonl").write_text(
                 "".join(json.dumps(r) + "\n" for r in self.store), encoding="utf-8"
             )
 
-    def run_record(self, sid: str, state: str, command: str = "fabrik-task", started: float = 0) -> None:
+    def run_record(
+        self, sid: str, state: str, command: str = "fabrik-task", started: float = 0
+    ) -> None:
         (self.home / ".claude" / "state" / "command-runs" / f"{sid}.json").write_text(
-            json.dumps({"state": state, "command": command, "started_epoch": started}), encoding="utf-8"
+            json.dumps({"state": state, "command": command, "started_epoch": started}),
+            encoding="utf-8",
         )
 
 
@@ -88,10 +97,25 @@ def test_targets_groups_live_agents_by_repo_with_the_ledgers_coordinator(tmp_pat
     """A live agent session (record + matching start time + comm claude) is grouped by its /opt repo; the coordinator
     is the session holding the ledger's merge owner — by CLAUDE_AGENT or by its whoami binding — never a position."""
     box = Box(tmp_path)
-    box.session(101, "s-coord", "/opt/fabrik", "fabrik-64", entrypoint="claude-vscode", bound="coordinator")
+    box.session(
+        101, "s-coord", "/opt/fabrik", "fabrik-64", entrypoint="claude-vscode", bound="coordinator"
+    )
     box.session(102, "s-infra", "/opt/fabrik/.claude/worktrees/infra", "infra", env_agent="infra")
-    box.session(103, "s-lead", "/opt/fabrik-lib", "fabrik-lib-5d", entrypoint="claude-vscode", env_agent="fabrik-lib-coordinator")
-    box.session(104, "s-dev1", "/opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1", "fabrik-lib-dev1", env_agent="fabrik-lib-dev1")
+    box.session(
+        103,
+        "s-lead",
+        "/opt/fabrik-lib",
+        "fabrik-lib-5d",
+        entrypoint="claude-vscode",
+        env_agent="fabrik-lib-coordinator",
+    )
+    box.session(
+        104,
+        "s-dev1",
+        "/opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1",
+        "fabrik-lib-dev1",
+        env_agent="fabrik-lib-dev1",
+    )
     out = _run(box.home, box.proc, "targets", "--json", "--self", "none")
     assert out.returncode == 0, out.stderr
     t = json.loads(out.stdout)
@@ -99,7 +123,9 @@ def test_targets_groups_live_agents_by_repo_with_the_ledgers_coordinator(tmp_pat
     # the real hub and fabrik-lib ledgers are read through decisions.py: their merge owners are the live truth
     assert rows["/opt/fabrik"]["coordinator"]["peer"] == "fabrik-64", rows["/opt/fabrik"]
     assert [s["agent"] for s in rows["/opt/fabrik"]["others"]] == ["infra"]
-    assert rows["/opt/fabrik-lib"]["coordinator"]["peer"] == "fabrik-lib-5d", rows["/opt/fabrik-lib"]
+    assert rows["/opt/fabrik-lib"]["coordinator"]["peer"] == "fabrik-lib-5d", rows[
+        "/opt/fabrik-lib"
+    ]
 
 
 def test_targets_never_messages_pool_sessions_and_drops_stale_records(tmp_path: Path) -> None:
@@ -108,7 +134,14 @@ def test_targets_never_messages_pool_sessions_and_drops_stale_records(tmp_path: 
     whose process is not claude is not live."""
     box = Box(tmp_path)
     box.session(201, "s-infra", "/opt/fabrik/.claude/worktrees/infra", "infra", env_agent="infra")
-    box.session(202, "s-seat", "/opt/fabrik/.claude/worktrees/infra", "fabrik-77", entrypoint="sdk-cli", ppid=201)
+    box.session(
+        202,
+        "s-seat",
+        "/opt/fabrik/.claude/worktrees/infra",
+        "fabrik-77",
+        entrypoint="sdk-cli",
+        ppid=201,
+    )
     box.session(203, "s-pool", "/opt/youtube", "youtube-94", entrypoint="sdk-cli", ppid=1)
     box.session(204, "s-stale", "/opt/fabrik", "fabrik-11", record_start=999)
     box.session(205, "s-node", "/opt/fabrik", "fabrik-12", comm="node")
@@ -123,15 +156,31 @@ def test_targets_flags_duplicate_missing_and_outside_sessions(tmp_path: Path) ->
     """Two live sessions holding the coordinator's name, or none, make the row say to message each session; a session
     outside /opt is listed for a direct message; the caller's own session is excluded."""
     box = Box(tmp_path)
-    box.session(301, "s-c1", "/opt/fabrik", "fabrik-64", entrypoint="claude-vscode", bound="coordinator")
-    box.session(302, "s-c2", "/opt/fabrik", "fabrik-6f", entrypoint="claude-vscode", bound="coordinator")
-    box.session(303, "s-lib", "/opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1", "fabrik-lib-dev1", env_agent="fabrik-lib-dev1")
+    box.session(
+        301, "s-c1", "/opt/fabrik", "fabrik-64", entrypoint="claude-vscode", bound="coordinator"
+    )
+    box.session(
+        302, "s-c2", "/opt/fabrik", "fabrik-6f", entrypoint="claude-vscode", bound="coordinator"
+    )
+    box.session(
+        303,
+        "s-lib",
+        "/opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1",
+        "fabrik-lib-dev1",
+        env_agent="fabrik-lib-dev1",
+    )
     box.session(304, "s-home", "/home/u", "u-1")
     box.session(305, "s-me", "/opt/fabrik/.claude/worktrees/infra", "infra", env_agent="infra")
     t = json.loads(_run(box.home, box.proc, "targets", "--json", "--self", "s-me").stdout)
     rows = {r["repo"]: r for r in t["repos"]}
-    assert rows["/opt/fabrik"]["coordinator"] is None and "2 live sessions hold coordinator" in rows["/opt/fabrik"]["note"]
-    assert rows["/opt/fabrik-lib"]["coordinator"] is None and "no live coordinator" in rows["/opt/fabrik-lib"]["note"]
+    assert (
+        rows["/opt/fabrik"]["coordinator"] is None
+        and "2 live sessions hold coordinator" in rows["/opt/fabrik"]["note"]
+    )
+    assert (
+        rows["/opt/fabrik-lib"]["coordinator"] is None
+        and "no live coordinator" in rows["/opt/fabrik-lib"]["note"]
+    )
     assert [s["sid"] for s in t["outside"]] == ["s-home"]
     assert all(s["sid"] != "s-me" for r in t["repos"] for s in r["sessions"])
 
@@ -141,30 +190,38 @@ def test_records_in_a_second_sessions_dir_are_found(tmp_path: Path) -> None:
     box = Box(tmp_path)
     other = box.home / ".claude-youtube-headless" / "sessions"
     other.mkdir(parents=True)
-    box.session(401, "s-yt", "/opt/youtube/.claude/worktrees/yt1", "yt1", env_agent="yt1", records=other)
+    box.session(
+        401, "s-yt", "/opt/youtube/.claude/worktrees/yt1", "yt1", env_agent="yt1", records=other
+    )
     t = json.loads(_run(box.home, box.proc, "targets", "--json", "--self", "none").stdout)
     assert [s["sid"] for r in t["repos"] for s in r["sessions"]] == ["s-yt"], t
 
 
-def test_brief_carries_the_drill_the_three_closes_and_the_cached_token_warning(tmp_path: Path) -> None:
+def test_brief_carries_the_drill_the_three_closes_and_the_cached_token_warning(
+    tmp_path: Path,
+) -> None:
     """The agent text says to let one's own subagents finish, commit and push on one's own branch, close each run in
     the first form the local command_run.py accepts, that the wake drops the cached prompt, and how to resume; the
     coordinator text carries the agent text verbatim."""
     box = Box(tmp_path)
-    agent = _run(box.home, box.proc, "brief", "--role", "agent", "--words", "we need to hibernate").stdout
+    agent = _run(
+        box.home, box.proc, "brief", "--role", "agent", "--words", "we need to hibernate"
+    ).stdout
     for must in (
         'The operator, verbatim: "we need to hibernate"',
         "Let your OWN subagents and review\n   seats finish",
-        "blocked --command <the live run> --paused --reason \"operator: we need to hibernate\"",
+        'blocked --command <the live run> --paused --reason "operator: we need to hibernate"',
         "handoff --command <the run> --reason",
         "--resume <a file with a ## RESUME block>",
-        "blocked --command <the run> --reason \"operator pause (no --paused in this copy)",
+        'blocked --command <the run> --reason "operator pause (no --paused in this copy)',
         "The wake DROPS your cached prompt",
         "PAUSED — <item> — branch pushed <sha> — seed <path|none> — next <step>",
         "woke",
     ):
         assert must in agent, must
-    coord = _run(box.home, box.proc, "brief", "--role", "coordinator", "--words", "we need to hibernate").stdout
+    coord = _run(
+        box.home, box.proc, "brief", "--role", "coordinator", "--words", "we need to hibernate"
+    ).stdout
     assert coord.startswith("URGENT — HIBERNATE") and agent in coord
 
 
@@ -176,12 +233,16 @@ def _git_repo(path: Path, remote: Path | None = None) -> None:
     g("init", "-q", "-b", "main")
     g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "c0")
     if remote is not None:
-        subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "init", "-q", "--bare", str(remote)], check=True, capture_output=True
+        )
         g("remote", "add", "origin", str(remote))
         g("push", "-q", "-u", "origin", "main")
 
 
-def test_status_says_safe_only_when_every_agent_worktree_is_clean_pushed_and_idle(tmp_path: Path) -> None:
+def test_status_says_safe_only_when_every_agent_worktree_is_clean_pushed_and_idle(
+    tmp_path: Path,
+) -> None:
     """Each live agent's cwd: a running run record, uncommitted tracked changes, unpushed commits, or a branch on no
     remote blocks; untracked files never block; SAFE only when nothing blocks."""
     box = Box(tmp_path)
@@ -191,12 +252,29 @@ def test_status_says_safe_only_when_every_agent_worktree_is_clean_pushed_and_idl
     box.session(501, "s-ok", str(ok), "ok", env_agent="ok")
     box.session(502, "s-me", str(ok), "me", env_agent="me")
     out = _run(box.home, box.proc, "status", "--self", "s-me")
-    assert out.returncode == 0 and "SAFE TO HIBERNATE" in out.stdout and "1 untracked" in out.stdout, out.stdout
+    assert (
+        out.returncode == 0 and "SAFE TO HIBERNATE" in out.stdout and "1 untracked" in out.stdout
+    ), out.stdout
     box.run_record("s-ok", "running")
     out = _run(box.home, box.proc, "status", "--self", "s-me")
     assert out.returncode == 1 and "run /fabrik-task still running" in out.stdout, out.stdout
     box.run_record("s-ok", "blocked")
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "c1"], cwd=ok, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "c1",
+        ],
+        cwd=ok,
+        check=True,
+    )
     out = _run(box.home, box.proc, "status", "--self", "s-me")
     assert out.returncode == 1 and "1 commit(s) not pushed" in out.stdout, out.stdout
     lone = tmp_path / "w" / "lone"
@@ -232,15 +310,21 @@ def test_woke_answers_only_for_a_real_wake_after_the_current_mark(tmp_path: Path
     box = Box(tmp_path)
     assert _run(box.home, box.proc, "woke", "--self", "s1").returncode == 1  # no mark
     assert _run(box.home, box.proc, "mark", "--words", "we need to hibernate").returncode == 0
-    paused = json.loads((box.home / ".claude" / "state" / "hibernate.json").read_text())["paused_at"]
+    paused = json.loads((box.home / ".claude" / "state" / "hibernate.json").read_text())[
+        "paused_at"
+    ]
     _ledger(box, {"event": "resume-wake", "ts": paused - 100, "gap_s": 9000})
     out = _run(box.home, box.proc, "woke", "--self", "s1")
     assert out.returncode == 1 and "stay paused" in out.stdout, out.stdout
     _ledger(box, {"event": "resume-wake", "ts": paused + 0.001, "gap_s": 300})
-    assert _run(box.home, box.proc, "woke", "--self", "s1").returncode == 1  # a 5-minute gap is no sleep
+    assert (
+        _run(box.home, box.proc, "woke", "--self", "s1").returncode == 1
+    )  # a 5-minute gap is no sleep
     _ledger(box, {"event": "resume-wake", "ts": paused + 0.001, "gap_s": 38732})
     out = _run(box.home, box.proc, "woke", "--self", "s1")
-    assert out.returncode == 0 and out.stdout.startswith("RESUME — the box slept 38732 s"), out.stdout
+    assert out.returncode == 0 and out.stdout.startswith("RESUME — the box slept 38732 s"), (
+        out.stdout
+    )
     box.run_record("s1", "running", started=paused + 120)
     out = _run(box.home, box.proc, "woke", "--self", "s1")
     assert out.returncode == 1 and "already resumed" in out.stdout, out.stdout
