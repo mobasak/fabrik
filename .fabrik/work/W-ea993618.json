@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:54:59.722200Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ea993618",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: now, before W-89474fc1 slice 2; back up ~/.vscode-server/data/Machine/settings.json before touching the setting; the hub coordinator tests each stage live in this window",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "operator ask, fastest; a box-local wrapper script plus one setting; staged so a broken wrapper can never lock every chat tab",
+  "status": "open",
+  "title": "Option C trial (operator 2026-10-20: 'how can we try this fastest?'): a claudeCode.claudeProcessWrapper script that sets CLAUDE_AGENT from the folder a VS Code chat tab starts in (the repo's merge owner via decisions.py --merge-owner) and applies the memory cap, so every repo's coordinator can run as a chat tab in ONE VS Code window; staged: (1) a log-only wrapper proves the launch contract (argv, cwd, env), (2) identity from cwd with a plain-claude fallback, (3) the cap; multi-root folder behaviour measured in step 1"
+}

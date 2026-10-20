@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:21.327783Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-019b4b00",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5BRWXPVVNQHYY9ZGSE9CDQP, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "kaizen work: three /fabrik-task rows need script code (capped_run.sh exit code; step --design-amend under a nested review; a stale command_run.py copy)",
+  "status": "open",
+  "tags": [
+    "mail-01m5brwxpvvnqhyy9zgse9cdqp"
+  ],
+  "title": "Three /fabrik-task feedback rows ask for script code: capped_run.sh exit code, step --design-amend under a nested review, a stale command_run.py copy (mail 01M5BRWXPVVNQHYY9ZGSE9CDQP, from kaizen)"
+}

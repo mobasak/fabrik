@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:17.867735Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-16d0ef14",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5CDMVMG7D1JJ6VQBHRRK8QK, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "rollout: agent_status.py's roster is the hub's beats, so no other repo can vendor it; one roster source change",
+  "status": "open",
+  "tags": [
+    "mail-01m5cdmvmg7d1jj6vqbhrrk8qk"
+  ],
+  "title": "Rollout runbook step 2 vendors agent_status.py, but its roster is the HUB's beats — every repo's coordinator would see the hub's agents (mail 01M5CDMVMG7D1JJ6VQBHRRK8QK, from yt2)"
+}

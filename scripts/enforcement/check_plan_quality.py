@@ -24,6 +24,7 @@ reclassified by a later rule):
 """
 
 import re
+import sys
 from pathlib import Path
 
 try:
@@ -124,21 +125,24 @@ TICKET_FIELDS = [
 
 # Fenced code blocks are QUOTED content — a ticket citing `Status: 200 OK` in an
 # API example must not trip the Status ban.
-_FENCE_RE = re.compile(
-    # PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
-    # fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
-    # plus inline single-line ```…``` quotes. Out of contract (documented, not
-    # chased): tilde fences, over-long closers, and unpaired line-start fence
-    # PAIRS — the emitting commands write balanced 3-backtick fences and quote
-    # templates with 4-backtick outers, both in-contract; no live fleet file
-    # violates this (verified 2026-08-05).
-    # Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
-    # ```.*?``` — an unpaired backtick in prose would pair with the NEXT
-    # block's opener and swallow real document body (live fleet regression:
-    # calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
+# PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
+# fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
+# plus inline single-line ```…``` quotes. Out of contract (documented, not
+# chased): tilde fences, over-long closers, and unpaired line-start fence
+# PAIRS — the emitting commands write balanced 3-backtick fences and quote
+# templates with 4-backtick outers, both in-contract; no live fleet file
+# violates this (verified 2026-08-05).
+# Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
+# ```.*?``` — an unpaired backtick in prose would pair with the NEXT
+# block's opener and swallow real document body (live fleet regression:
+# calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
+# The match set is `_fences.py`'s, one linear scanner shared by every check that
+# strips fences (W-276255e7: the regex it replaced was quadratic).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
 
 
 def _strip_fences(text: str) -> str:
