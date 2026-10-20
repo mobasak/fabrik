@@ -1039,15 +1039,27 @@ def _strip_quoted(content: str) -> str:
     bare ```.*?```, which swallows across an unpaired backtick), then blockquoted
     lines: a `> Status: DRAFT` grammar example above the real line must not win
     first-match (fail-open: misreported status + a defeated COMPLETE check). Same
-    consumer-side strip as check_plan_tickets/check_plan_quality; the blockquote
+    consumer-side strip as check_plan_tickets/check_plan_quality — the fences are
+    `scripts/enforcement/_fences.py`'s linear scanner (W-276255e7); the blockquote
     regex keeps `>` for cross-module byte-parity (Lesson 103)."""
-    scan = re.sub(
-        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-        "",
-        content,
-        flags=re.M | re.S,
-    )
-    return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
+    return re.sub(r"^[ \t]*>.*$", "", _fences_module().strip(content), flags=re.M)
+
+
+def _fences_module() -> Any:
+    """The shared fence scanner, imported when a parse first needs it (W-276255e7) — so `--sync`, the renders
+    and the merge-owner adoption keep running in a project whose `scripts/enforcement/` lags a sync, and only
+    the Status/Owner/link parse fails, naming the file. Imported by the sibling directory, the way every check
+    imports it, so a by-path load (work.py) resolves it too."""
+    enforcement = str(Path(__file__).resolve().parent / "enforcement")
+    if enforcement not in sys.path:
+        sys.path.insert(0, enforcement)
+    try:
+        import _fences
+    except ImportError as exc:
+        raise ImportError(
+            f"docs_updater: cannot import scripts/enforcement/_fences.py ({exc})"
+        ) from exc
+    return _fences
 
 
 # Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue

@@ -39,9 +39,13 @@ def _section(content: str, title_substr: str) -> str | None:
 
 
 # Balanced line-anchored fences + inline single-line quotes — the shared parsing
-# contract (keep in step with check_plan_tickets._FENCE_RE): a fenced example
+# contract, `_fences.py`'s one linear scanner (W-276255e7): a fenced example
 # `Given` row must not count as a behavior.
-_FENCE_RE = re.compile(r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)", re.M | re.S)
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
 
 
 def _bold_contract_regions(stripped: str) -> str:
