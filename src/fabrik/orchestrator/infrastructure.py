@@ -1533,8 +1533,30 @@ class InfrastructureProvisioner:
                 bearer_token=bearer_token,
                 dry_run=dry_run,
             )
-            ctx.add_resource("prometheus", name, status=result.get("status"))
-            logger.info("prometheus: %s -> %s", name, result.get("status"))
+            reload = result.get("reload")
+            # a config promtool refused is recorded failed, never created (review B-1)
+            status = "failed" if reload == "refused" else result.get("status")
+            ctx.add_resource("prometheus", name, status=status)
+            logger.info("prometheus: %s -> %s", name, status)
+            # the reload outcome reaches the operator (W-cc9b0532): a config promtool refused is
+            # INVALID on vps1 (the next restart crash-loops Prometheus, D-513) — a failure; an
+            # unavailable Prometheus loads the valid config on its next reload — a warning,
+            # re-checked every apply because the exists branch reloads too
+            if reload == "refused":
+                raise RuntimeError(
+                    f"scrape target for {name} is in prometheus.yml, but promtool rejects the file "
+                    "on vps1, so Prometheus did not load it and its next restart would crash-loop; "
+                    "run `promtool check config` in the prometheus container (or "
+                    "scripts/sync_prometheus_to_vps.sh --verify-secrets), fix the file, re-apply"
+                )
+            if reload == "unavailable":
+                warning = (
+                    f"prometheus: scrape target for {name} is in prometheus.yml, but Prometheus did not load it "
+                    "(no running container, or the reload and restart failed); it scrapes once "
+                    "Prometheus reloads — re-run `fabrik apply` to re-check"
+                )
+                logger.warning("%s", warning)
+                ctx.registrar_warnings.append(warning)
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "prometheus", e)
 
