@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MEASURE replays an item's proposed fix, and six other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-task.md` phase 1 replays the fix a work item proposes on a copy before the design adopts it, reads an unreachable tool's server source, where one exists, before recording a claim unverified (the read never upgrades it), searches the prior record by the item's id (plans and specs included) and runs a surfaced outcome twice to the line the operator reads. Phase 2 tables a marker-block or append-only file's malformed shapes, has the lead fetch provider-docs facts into the brief, and runs `--design-amend` only while the `fabrik-task` record is the top one. SIZE_CAP 25020 -> 25756 (D-1068, after an Opus + Fable panel cut the draft from +1139 B). Graders in `tests/test_fabrik_task_queue_pass.py`.
+
 ### Fixed — `--merge-shared` checks an unlistable fleet root before a leftover swap link (2026-10-20)
 
 - `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could be searched but not listed (with its lock file present) still took the lock, finished the swap and reported nothing to merge while accounts held real lists. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says the staging name is cleared of anything but a directory, which is left in place (W-973887d5).
