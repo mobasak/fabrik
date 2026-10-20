@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub no longer tracks the `vault` link to the operator's notes (2026-10-20)
+
+- `vault` (a symlink to /mnt/c/ObsidianVault/OneNote) was tracked, so every `git archive` pin carried it, and a seat copy that followed links copied 946 MB of the operator's private notes into review scratch. It is now untracked and `/vault` is gitignored; `tests/test_tracked_symlinks.py` fails on any tracked symlink that points outside the repo (W-36c2607c, D-1064).
+
 ### Changed — agents_up.sh resumes each builder's newest whoami binding, so a /clear needs no registry edit (2026-10-20)
 
 - `scripts/sysadmin/agents_up.sh` now reads the whoami identity store the way `whoami_agent.py` does and resumes each builder's newest binding for the repo, so after a /clear the window's `whoami_agent.py --as <name> --force` re-bind is all the launcher needs. The registry's id stands only when its transcript is newer than the binding and the bound session, or when there is no binding, store or git scope; stderr says which. A session that would serve two panes refuses the launch, coordinator sessions included. Panes get the store path, and the exit hint names the re-bind.
