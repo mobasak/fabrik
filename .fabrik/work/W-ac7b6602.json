@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:28:37.476152Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ac7b6602",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CG40NVB92QRVQXYT96WXQ6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "check_undeclared_imports false-positives every editable in-repo package from a linked worktree (mt_router in youtube)"
+}
