@@ -3,7 +3,7 @@
   "created": "2026-10-19T12:37:29.809149Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0c0941de245d5d8f870babd7af22ccb6617d083f",
   "id": "W-66e2f6a7",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: a break on agents (stale hardcoded session ids open the wrong chat after a /clear) and an operator ask (D-1042 launchers); LOW effort: one script onto the merged launcher plus a registry write in whoami",
-  "status": "open",
+  "status": "done",
   "title": "Move the hub's ~/bin/hub-up onto scripts/sysadmin/agents_up.sh: a hub .fabrik/session-agents.json registry that whoami_agent.py --force keeps current, so a /clear never needs a hand edit of session ids; keep the 'Fabrik Agents' WT profile/.bat working (W-6c7c3292's unbuilt second slice; overlaps W-bb6c9d9a, which then gives the hub its .bat)"
 }

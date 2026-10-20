@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T01:19:50.354477Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-01815aee",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "validate monitoring.scheme (http|https) and monitoring.target (host:port) in spec_loader; rewrite the job when target/scheme/path differ from the file",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security, monitoring.scheme/target reach prometheus.yml unvalidated and an existing job is never rewritten when they change; LOW effort: validation plus a rewrite path",
+  "status": "open",
+  "title": "prometheus add_scrape_target compares job_name only, so a spec whose monitoring.target or monitoring.scheme changed is never rewritten; and monitoring.scheme/target reach prometheus.yml unvalidated (a bad scheme can make promtool refuse the whole config on vps1) — found by the W-cc9b0532 design critique 2026-10-20 (owner: fleet)"
+}

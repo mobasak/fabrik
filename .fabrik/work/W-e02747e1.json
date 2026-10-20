@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T23:59:43.164523Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e02747e1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B996J9R616AZ4HR8JE4ASN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "four /fabrik-review-scoped feedback rows are about the coordinator charter and record-keeping"
+}

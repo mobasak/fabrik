@@ -9441,11 +9441,79 @@ def test_an_unlockable_fleet_root_is_refused_with_nothing_moved(tmp_path, monkey
     assert _tree(tmp_path) == before
 
 
+def test_a_lock_the_filesystem_refuses_is_refused_with_nothing_moved(tmp_path, monkeypatch, capsys):
+    """flock itself failing (ENOLCK on a filesystem without locks) is the same refusal, never a
+    traceback (W-21b4c0e5)."""
+    import errno
+
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    before = _tree(tmp_path)
+    real = cr.fcntl.flock
+
+    def no_locks(fd, op):
+        if op == cr.fcntl.LOCK_EX:
+            raise OSError(errno.ENOLCK, "No locks available")
+        return real(fd, op)
+
+    monkeypatch.setattr(cr.fcntl, "flock", no_locks)
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 1
+    err = capsys.readouterr().err
+    assert "cannot lock the fleet root" in err and "nothing moved" in err, err
+    assert _tree(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [ValueError("embedded null byte"), RuntimeError("Could not determine home directory")],
+    ids=["valueerror", "runtimeerror"],
+)
+def test_an_unreadable_fleet_root_is_refused_before_the_lock(tmp_path, monkeypatch, capsys, exc):
+    """`_fleet_root` raises ValueError (a NUL in the path) or RuntimeError (no home), which
+    `_fleet_dirs` does not catch: the pending check refuses with nothing moved, and so does
+    `--dry-run` (W-21b4c0e5)."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    before = _tree(tmp_path)
+
+    def unreadable():
+        raise exc
+
+    monkeypatch.setattr(cr, "_fleet_root", unreadable)
+    for argv in (["--merge-shared", "tasks"], ["--merge-shared", "tasks", "--dry-run"]):
+        capsys.readouterr()
+        assert cr.main(argv) == 1, argv
+        err = capsys.readouterr().err
+        assert "cannot read the fleet root" in err and "nothing moved" in err, (argv, err)
+    assert _tree(tmp_path) == before
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 directory")
+def test_a_fleet_root_that_cannot_be_listed_is_refused_not_read_as_empty(
+    tmp_path, monkeypatch, capsys
+):
+    """`_fleet_dirs` reads an OSError as "no fleet" — right for an ABSENT root — so an existing root
+    that cannot be listed (EACCES) reported "nothing to merge" at exit 0 while accounts held real
+    lists; it is refused instead (W-21b4c0e5 review). An absent root still has nothing to merge."""
+    fleet, cdir = _fragmented(tmp_path, monkeypatch)
+    fleet.chmod(0)
+    try:
+        capsys.readouterr()
+        assert cr.main(["--merge-shared", "tasks"]) == 1
+        err = capsys.readouterr().err
+        assert "cannot read the fleet root" in err and "nothing moved" in err, err
+    finally:
+        fleet.chmod(0o755)
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "no-such-fleet"))
+    capsys.readouterr()
+    assert cr.main(["--merge-shared", "tasks"]) == 0
+    assert "nothing to merge" in capsys.readouterr().out
+
+
 def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_step(
     tmp_path, monkeypatch, capsys
 ):
-    """After every `_renameat2`, `os.rename`, `os.replace`, `os.unlink`, `os.rmdir`, `Path.rename`,
-    `Path.unlink` and `Path.rmdir` the merge makes, each non-active account's tasks/ is either still
+    """After every `_renameat2`, `os.rename`, `os.replace`, `os.unlink`, `os.rmdir`, `os.remove`,
+    `os.symlink`, `Path.rename`, `Path.unlink` and `Path.rmdir` the merge makes, each non-active account's tasks/ is either still
     its own real dir or a link straight to canonical — never a hop through another link such as
     `active/tasks`, which loops once the pointer names that account — and each ends as that link
     (W-b3bad109: the existing atomicity test checked these accounts only for existence, and only
@@ -9476,8 +9544,10 @@ def test_every_non_active_list_resolves_to_its_own_dir_or_canonical_at_every_ste
 
     with monkeypatch.context() as m:  # a context, never a bare undo: the fixture's patches stay
         m.setattr(cr, "_renameat2", watched("renameat2", cr._renameat2))
-        for name in ("rename", "replace", "unlink", "rmdir"):
+        for name in ("rename", "replace", "unlink", "rmdir", "remove"):
             m.setattr(cr.os, name, watched(f"os.{name}", getattr(os, name)))
+        # os.symlink(src, dst): the path it makes is its second argument (Path.symlink_to calls it)
+        m.setattr(cr.os, "symlink", watched("os.symlink", os.symlink, path_arg=1))
         for name in ("rename", "unlink", "rmdir"):
             m.setattr(Path, name, watched(name, getattr(Path, name)))
         assert cr.main(["--merge-shared", "tasks"]) == 0
@@ -9731,6 +9801,72 @@ def test_an_advisory_error_still_writes_the_posture(tmp_path, monkeypatch):
     assert posture["fleet"]["hold"] is not None, (
         "the hold armed this tick is in this tick's posture"
     )
+
+
+def test_a_tick_row_error_still_runs_the_advisory_and_the_posture(tmp_path, monkeypatch, capsys):
+    """The tick-row block is telemetry: a raise there prints one line, and the advisory and this
+    tick's posture still run (W-21b4c0e5 — before, the row block sat above the posture's `finally`)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    _point(fleet, "seo")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("row broke")
+
+    advised = []
+    monkeypatch.setattr(cr, "_active_account_walled", boom)
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", lambda *a, **k: advised.append(a))
+    assert cr._cmd_tick() == 0
+    assert "tick row not written — RuntimeError: row broke" in capsys.readouterr().out
+    assert advised, "the advisory still ran"
+    assert json.loads(cr._posture_path().read_text())["ts"] == FLEET_NOW
+
+
+def test_a_fifo_at_the_staging_name_never_hangs_the_record_write(tmp_path, monkeypatch):
+    """A FIFO planted at the per-process staging name is removed and the record is written: an
+    open for write on it would block with no reader (W-21b4c0e5)."""
+    import threading
+
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    stage = rec.with_name(f".{rec.name}.{os.getpid()}")
+    os.mkfifo(stage)
+    out = {}
+    t = threading.Thread(
+        target=lambda: out.setdefault("v", cr._write_tick_last_end(123.5)), daemon=True
+    )
+    try:
+        t.start()
+        t.join(5)
+        assert not t.is_alive(), "the record write blocked on a FIFO"
+        assert out["v"] is True
+        assert rec.read_text() == "123.5\n"
+        assert not os.path.lexists(stage)
+    finally:
+        os.close(fd)
+        if t.is_alive():  # unblock the writer so the test process can exit
+            os.close(os.open(stage, os.O_RDONLY | os.O_NONBLOCK))
+
+
+def test_a_directory_at_the_staging_name_fails_closed(tmp_path, monkeypatch):
+    """A directory planted at the staging name is left alone and the write reports False — the
+    tick then wakes nobody, never a storm; the name carries the pid, so the next tick uses
+    another (W-21b4c0e5 review)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    try:
+        rec = cr._rotate_state_dir() / "tick-last-end"
+        stage = rec.with_name(f".{rec.name}.{os.getpid()}")
+        (stage / "kept").mkdir(parents=True)
+        assert cr._write_tick_last_end(7.0) is False
+        assert (stage / "kept").is_dir() and not rec.exists()
+    finally:
+        os.close(fd)
 
 
 def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):

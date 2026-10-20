@@ -2735,9 +2735,29 @@ def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
                 data = json.loads(lf.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            if not isinstance(data, dict):
+                _note(f"NOTE: plan_tickets discovery: {lf.name} is not a JSON object — skipped")
+                continue
             if data.get("status") != "active":
                 continue
             owned = data.get("owned_paths", [])
+            # a STRING iterates its characters, so `_path_covers` would match single letters
+            # (W-7caa8a90): one path written bare is read as that one path, and said
+            if isinstance(owned, str):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths is a string, not a list — read as one path"
+                )
+                owned = [owned]
+            elif not isinstance(owned, list):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths is not a list — lock skipped"
+                )
+                continue
+            if any(not isinstance(o, str) for o in owned):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths has a non-string entry — dropped"
+                )
+                owned = [o for o in owned if isinstance(o, str)]
             if any(any(_path_covers(o, c) for o in owned) for c in changed):
                 cand = root / "docs" / "development" / "plans" / lf.stem
                 if cand.is_dir():

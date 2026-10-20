@@ -7,10 +7,11 @@ it, or name in the brief why the shape does not have it.
 
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
-  check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
-  docstring instruction as a caller would, and hand each seat of the brief that same command to run under § Seat
-  isolation — one that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe
-  each exception a rewritten docstring says the function still raises.
+  check the END STATE a recipe exists to produce, not only each step, against the artifact the next step compares it
+  with (a lock file, a manifest), not only the source it reads; run a README snippet, usage text or rewritten docstring
+  instruction as a caller would, and hand each seat of the brief that same command to run under § Seat isolation — one
+  that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe each exception a
+  rewritten docstring says the function still raises.
 - A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
   that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
   `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
@@ -152,10 +153,12 @@ it, or name in the brief why the shape does not have it.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned
-  after printing its matched span; a byte-identical refactor gets a HEAD-vs-new differential harness; two emitted
-  artifacts are diffed whole for an alias change; a red's failure message is diffed against the baseline and printed
-  beside its FAILED line; an import-path fix is graded from the root conftest and a child process; a grader exclusion
-  says whether it matches an exact name or a pattern.
+  after printing its matched span; a byte-identical refactor gets a HEAD-vs-new differential harness, and a fix that
+  swaps one call, guard or protocol for another (`in` plus `[]` for `.get`) gets one over the input types its callers
+  pass, subclasses and registered virtual types included, before each pin; two emitted artifacts are diffed whole for an
+  alias change; a red's failure message is diffed against the baseline and printed beside its FAILED line; an
+  import-path fix is graded from the root conftest and a child process; a grader exclusion says whether it matches an
+  exact name or a pattern.
 
 ## Prose and docs fixes
 - Read a fragment's scope sentences, and a rule already in a fragment is quoted in its own words and pointed at; a
@@ -179,7 +182,8 @@ it, or name in the brief why the shape does not have it.
   lines in the pack, doc summary rows and artifact generators that restate it; residue words of a flipped decision; a
   cross-pack citation's terms against the section it cites; a `path:line` cite a merge or an edit shifted, remapped by
   CONTENT in one script over every doc that cites the file (find the symbol the prose names, compare it with the target
-  line), never renumbered by hand.
+  line), never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a
+  brief or mutant list carries.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
@@ -233,7 +237,12 @@ it, or name in the brief why the shape does not have it.
   recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed loader reds in the pass. A
   script a seat runs is run from its archive copy with every path argument under scratch (a script may treat any
   argument as a write path), and the pin carries the changed files' one-hop callees that are repo files
-  (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root).
+  (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root). The
+  pin also carries each file a fix's text points at by path, and the brief says the pin holds only the files it lists,
+  so a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins
+  laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
+  live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and
+  name UNPINNED.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
@@ -261,17 +270,16 @@ it, or name in the brief why the shape does not have it.
   `git` inside a `-c` program or heredoc as a git call, so the seat writes such a probe to a file) and hands readers a
   ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home
   directory can settle is recorded up front for the lead.
-- Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
-  claim is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database
-  variable: no `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
-  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses
-  the same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where
-  TCP `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
-  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so
-  no seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false
-  red; a seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
-  CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base
-  copy.
+- Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers" claim
+  is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database variable: no
+  `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
+  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses the
+  same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where TCP
+  `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
+  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so no
+  seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false red; a
+  seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
+  CHANGELOG or ledger hunk) has that file pinned next pass, so the seat never reads the base copy.
 - Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
   to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
   directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`

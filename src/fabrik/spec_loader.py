@@ -347,7 +347,19 @@ class Shape(BaseModel):
             "subscriptions and a permissive INSERT+SELECT policy on webhook_events, "
             "so PgWebhookStore.resolve_org() can discover the tenant a webhook belongs "
             "to (its tenant is the unknown being resolved). Requires needs_database. "
-            "See drivers/postgres.py::create_payments_ingest_role."
+            "See drivers/postgres.py::mint_payments_role and grant_payments_role."
+        ),
+    )
+    needs_payments_fulfilment: bool = Field(
+        default=False,
+        description=(
+            "True if the service vendors fabrik-lib's `payments` module and runs its "
+            "fulfilment worker (claims `jobs`, records `purchases`). Gates the postgres "
+            "registrar to mint a scoped NOBYPASSRLS `<db>_payments_fulfilment` login, "
+            "granted ONLY by fabrik-lib's `payments_grant_fulfilment` (no hub-written "
+            "fallback), and to inject PAYMENTS_FULFILMENT_DATABASE_URL once. Independent "
+            "of needs_payments_ingest. Requires needs_database. See "
+            "drivers/postgres.py::mint_payments_role and grant_payments_role."
         ),
     )
     # StrictBool (D7-registrar-O6): the registrar's ``_app_role_flag`` refuses every
@@ -407,6 +419,18 @@ class Shape(BaseModel):
             raise ValueError(
                 "shape.needs_payments_ingest requires needs_database: true "
                 "(the ingest role + policies are provisioned on the project's DB)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _payments_fulfilment_needs_database(self) -> "Shape":
+        """The fulfilment role is granted inside the project's DB, so
+        needs_payments_fulfilment is meaningless without needs_database. Fail loud
+        rather than mint a role against no DB."""
+        if self.needs_payments_fulfilment and not self.needs_database:
+            raise ValueError(
+                "shape.needs_payments_fulfilment requires needs_database: true "
+                "(the fulfilment role is granted on the project's DB)"
             )
         return self
 

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:31:04.649502Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9e9e881d",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:cut-the-unasked-addition-first — fabrik-command-improve.md:227-229 'SIZE THE EDIT TO THE VERDICT: every clause you add is a new surface the next round revi",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}

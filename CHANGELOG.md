@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the governance contracts cite final_gate.py's setup-error and tier lines where they now are (2026-10-20)
+
+- c4a3f26a1 added comment lines to `scripts/final_gate.py`, so § Completion Contract 2's cites `:3337-3354` (the setup-error envelope) and `:3356-3362` (the tier choice) pointed one line early, and `tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name` went red on master. The cite-bearing sentences of both contracts (`CLAUDE.md`, `templates/governance/CLAUDE.md`), which the test pins identical, now cite `:3338-3355` and `:3357-3363` (found by intel).
+
+### Fixed — `docs/preplan.md` is a governed doc, so check_structure stops warning on the scaffold's own file (2026-10-20)
+
+- The scaffold's preplan layering writes `docs/preplan.md` into any project scaffolded with a preplan, outside the template map, so no doc-registry row named it and `check_structure.py` warned that it "should be in a docs/ subdirectory". `scripts/enforcement/_doc_registry.py` now lists it in a new `SCAFFOLD_WRITTEN` set that `docs_allowlist()` includes for every project type; it is never seeded or stub-required. The registry-down fallback carries it too, and the scaffold comment and the Docusaurus unpublished-docs test follow (W-c6d19bda, fleet mail 01M5AQ5FY4).
+
+### Fixed — node pack: PayTR is the Turkish one-off lane, not WooCommerce-only (2026-10-20)
+
+- `.windsurf/rules/core/12-node.md` § Turkish constraints said PayTR applied only to WooCommerce / physical D2C, not to Node SaaS backends, contradicting `core/85-payments-billing.md` § Payment Providers. The bullet and the closing checklist now carry core/85's three lanes: Paddle for every currency but TRY, PayTR for TRY one-off charges, iyzico for TRY subscriptions only where `docs/DECISIONS.md` records the NON3D decision; no provider falls back to another (W-2fd7cfd1). Grader in `tests/test_payments_fulfilment_rule_packs.py`.
+
+### Fixed — plan-ticket discovery reads a malformed lock's owned_paths safely (2026-10-20)
+
+- `check_plan_tickets.py` read a plan lock's `owned_paths` with no shape check, so a bare string iterated its characters and one-letter "paths" covered any changed file under a directory of that letter, pulling an unrelated plan into the gate. A string is now read as that one path, a non-list skips the lock, a non-string entry is dropped, and a lock that is not a JSON object is skipped; each case prints a NOTE (W-7caa8a90).
+
+### Changed — /fabrik-review: the close order is a numbered list, and eight queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-review.md` § Reporting's close order is now four numbered steps (stage and gate while `IN-PROGRESS`, embed, flip, gate again and re-embed), so the embed is its own step. The Residual paragraph says a same-pass duplicate raise of a confirmed defect is named in that defect's row, while a later pass's raise of a fixed defect is a fresh candidate. Phase 3 asks whether a seat-proposed behaviour change still holds the bound it claims to protect. Phase 4's delta brief carries the environment values earlier seats set. Phase 1 names a generated script's root-only paths as a referent and states that a `confirmed:`/`unexecuted:` token in a Method cell gets the row refused (`_row_refusals`, with the `_label_exempt` carve-out). `commands/_fragments/review-probe-catalogue.md` runs the `path:line` remap after each round's fix. Graders in `tests/test_review_queue_pass.py`.
+
+### Fixed — self-healing pack: `pause_worker` runs once listed, not "unreachable today" (2026-10-20)
+
+- The signup-flood worked example in `.windsurf/rules/core/self-healing.md` still called the watchdog's `pause_worker` unreachable until upstream carried parameters. fabrik-lib's sidecar declares its `resource` and `ttl_sec` params, and the pack's own § What the sidecar can execute today says it runs once the spec lists it in `watchdog.llm_actions`. The example now says that (W-d0e5a017).
+
+### Changed — the payments packs state the fulfilment worker's minted login (2026-10-20)
+
+- `core/85-payments-billing.md` now states what `fabrik apply` does for `shape.needs_payments_fulfilment` (mint `<db>_payments_fulfilment`, inject its DSN before the grant, grant only through `payments_grant_fulfilment`, a pending grant warns, four states fail the step), and `saas/95` and `saas/88` point at it instead of saying the login does not exist. PayTR stays off until the project's worker boots its own login green (D-1065, W-693ee1ca).
+
+### Fixed — --merge-shared refuses instead of crashing, and the tick survives a planted FIFO and a bad tick row (2026-10-20)
+
+- `claude_rotate.py --merge-shared` now refuses with "nothing moved" when the lock itself fails (ENOLCK) or the fleet root cannot be read (ValueError, RuntimeError, or a root that exists but cannot be listed), `--dry-run` included, where it printed a traceback or a false "nothing to merge". The rotation tick removes a FIFO or link planted at its record's staging name and creates the file exclusively, so the write never blocks (a directory there fails closed). A raise in the tick-row block prints one line and no longer skips the advisory or the quota posture. The twin copy in `scripts/aro-wake/` is updated byte for byte (W-21b4c0e5).
+
 ### Fixed — an uncommitted deletion in the hub no longer deletes or freezes a synced file in every project (2026-10-20)
 W-bb97199e; D-1067. The fleet sync read a tracked file's bytes from HEAD but decided which files exist from the hub's working tree. So a synced file that a sibling deleted without committing shipped nothing, and projects kept a stale copy without any message. In `libs/` and `.windsurf/rules/` it was worse: the orphan prunes deleted the project's copy. The sync now takes the file set from HEAD as well. Such a file ships HEAD's bytes and the run report names it "deleted in the working tree". A deletion that is committed is still removed from projects. A file that is gone and whose HEAD copy cannot be read produces one warning line instead of stopping that project's whole sync. The project's `synced.lock` now also covers files shipped from HEAD. Follow-up: W-47d91afa (`scripts/enforcement` has no orphan prune).
 
@@ -13,6 +45,11 @@ W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link writte
 ### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
 W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
 
+### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `_reload_prometheus_outcome()` names `reloaded` · `restarted` · `refused` (promtool printed FAILED on the config now on vps1) · `unavailable`; `add_scrape_target` and `add_aro_wake_target` return it as `reload` on created AND exists (the exists branch reloads, so every apply re-checks); the removes return False when the rewrite was not loaded (W-cc9b0532).
+- `fabrik apply`: a refused config records the prometheus registrar `failed` and exits 2 (its next restart would crash-loop Prometheus); an unavailable Prometheus prints one `⚠` registrar warning. `fabrik vultr provision` prints every monitoring registration that did not land.
+
 ### Fixed — a code host is credited to a vendor only by domain evidence (2026-10-20)
 W-b81263e8; D-1062. `gather_envs` used to fall back to treating a host's name as an env-key prefix, so `modal-labs.com` was credited to modal, `hf-token.com` to huggingface, and a customer's S3 bucket or Azure resource name to that vendor. Both fallbacks are gone: a host is credited only by the vendor's url, its `hosts` list or its own domain. No live code host depended on them (0 of 592); an unknown host is triaged and curated as before.
 
@@ -21,6 +58,15 @@ W-281e3ed2 (kaizen 01M5B6F0PZ). A seat refused by the worktree guard assembled `
 
 ### Changed — the researcher re-reads every cached current value live (2026-10-20)
 W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a version figure on a docs page read from exa. It now covers any current value: a price, a rate or usage limit, a quota, a default, a current version or a status. That applies whenever the value was read from a cached source: exa (whose fetch can never be forced live), firecrawl without `maxAge: 0`, or a search result. Such a value needs a live firecrawl read before it is `VERIFIED`, `STALE` or `WRONG`. WebFetch may only confirm a value a raw source quoted, and a value no live source reaches is `NEEDS-RAW-FETCH`. Quotes, PDF text and figures in documents fixed once published are unaffected. Shape 4's `INFERENCE` clause now states step 4's bounds.
+
+### Fixed — the hub no longer tracks the `vault` link to the operator's notes (2026-10-20)
+
+- `vault` (a symlink to /mnt/c/ObsidianVault/OneNote) was tracked, so every `git archive` pin carried it, and a seat copy that followed links copied 946 MB of the operator's private notes into review scratch. It is now untracked and `/vault` is gitignored; `tests/test_tracked_symlinks.py` fails on any tracked symlink that points outside the repo (W-36c2607c, D-1064).
+
+### Changed — agents_up.sh resumes each builder's newest whoami binding, so a /clear needs no registry edit (2026-10-20)
+
+- `scripts/sysadmin/agents_up.sh` now reads the whoami identity store the way `whoami_agent.py` does and resumes each builder's newest binding for the repo, so after a /clear the window's `whoami_agent.py --as <name> --force` re-bind is all the launcher needs. The registry's id stands only when its transcript is newer than the binding and the bound session, or when there is no binding, store or git scope; stderr says which. A session that would serve two panes refuses the launch, coordinator sessions included. Panes get the store path, and the exit hint names the re-bind.
+- The hub gets a gitignored `.fabrik/session-agents.json`; seeding it and retiring `~/bin/hub-up` are post-merge steps in `docs/reference/repo-coordinator-rollout.md` (W-66e2f6a7, D-1063).
 
 ### Added — after a host sleep the rotation tick wakes every armed self-watch, and the posture shows the stamp the tick left (2026-10-20)
 
@@ -34,6 +80,22 @@ W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a ve
 - Four tests in `tests/test_claude_fleet.py` (seven cases) guard `claude_rotate.py --merge-shared tasks`. A failed finish of a swap a hard kill interrupted exits 1 with nothing else moved. Every error the fleet-root lock can raise is refused before anything moves. Each non-active account's `tasks/` stays its own real dir or a direct link to `~/.claude/tasks` after every rename, unlink or rmdir. A `.tasks.held-*` that links to a real dir elsewhere is cleared, never adopted (W-b3bad109).
 - Each guard was proven by a mutant run in a throwaway worktree: 10 mutants were killed, and the one correct variant (the exchange's arguments flipped) stays green.
 - `docs/workstation/claude-account-rotation.md` names the two narrower windows that remain, where a task write can fail during the merge.
+
+### Fixed — round zero's probed count no longer forbids the re-derivation that checks it (2026-10-20)
+
+- `term-coverage.md` and `term-edit.md` said a probed count is "never re-derived by a finder" (or "by a seat"), while the closing pass re-derives every count. Each now says a seat's own re-derivation never replaces the probe, and a different answer is raised as a candidate. Answers /fabrik-review-scoped feedback row 1792418569.
+
+### Changed — two held review-catalogue subjects recurred and are edited (2026-10-20)
+
+- The probe catalogue now has a recipe's end state checked against the artifact the next step compares it with (a lock file, a manifest), and gives a fix that swaps one call, guard or protocol for another a HEAD-vs-new differential over the input types its callers pass, subclasses and registered virtual types included. Answers /fabrik-review-scoped feedback rows 1792424989 and 1792428944, second verdicts on two held subjects (D-711).
+
+### Changed — a seat brief tells each seat to create its folder first (2026-10-20)
+
+- `subagents-core.md`'s seat-folder rule now has the brief tell each seat to create its folder first with `mkdir -p` on the absolute path, as the Workflow's seat prompt already does; two Agent-tool seats hit ENOENT without it. Answers /fabrik-review-scoped feedback row 1792414928.
+
+### Changed — a review brief says what the pin holds and where seats read the rest (2026-10-20)
+
+- The probe catalogue's § Seat isolation now makes the pin carry each file a fix's text points at by path, and has the brief say the pin holds only the files it lists: a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` for a `--base` pin, else the archive of its `base_sha`), never from the live tree. Answers /fabrik-review-scoped feedback rows 1792446899, 1792432410 and 1792416541.
 
 ### Changed — a review seat never disguises an act a guard refused (2026-10-20)
 
@@ -50,6 +112,12 @@ W-c01b59db; D-1060. `fabrik-researcher`'s freshness rule used to cover only a ve
 ### Changed — /fabrik-docs-review's verdict table covers the researcher's INFERENCE and NEEDS-RAW-FETCH (2026-10-20)
 
 - The fabrik-researcher agent returns two verdicts the table had no row for (D-1056). INFERENCE (no source line states the external claim, but what the seat read implies it) is not VERIFIED: the claim is rewritten to what a line states and re-verified. NEEDS-RAW-FETCH is the orchestrator's curl of the named URL and section (or the archive URL of a source that existed), classified by the other rows; when that curl cannot read the source either, a re-dispatched researcher seat checks other live sources and the claim is classified by what they say (a source that seat cannot read either counts as none), UNVERIFIABLE only when none states or contradicts it. A grader fails when the agent's Return line and Method step 4 disagree, or name a verdict the table lacks (W-21b629ed).
+
+### Added — the payments fulfilment-worker role: `shape.needs_payments_fulfilment` mints `<db>_payments_fulfilment` and injects `PAYMENTS_FULFILMENT_DATABASE_URL` (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: `create_payments_ingest_role` is split into `mint_payments_role(db, lane)` (the NOBYPASSRLS login and nothing else) and `grant_payments_role(db, lane)` (CONNECT, USAGE, then the lane's grant; returns `{"grants": <path>}`, the path it took). The `fulfilment` lane is granted only by fabrik-lib's `payments_grant_fulfilment(regrole)`; `drop_database` drops both roles. Re-apply re-asserts the role's attributes and resets its settings, and refuses a same-named superuser or database owner.
+- `src/fabrik/orchestrator/infrastructure.py`: each payments role is minted, its DSN injected, then granted, ingest first; the grant path sets the status — `provisioned`, `pending` (a new `DeploymentContext.registrar_warnings` line, exit 0) or `failed` (exit 2). An `infra.postgres: false` override turns the payments rows off too.
+- `src/fabrik/cli.py`: `fabrik apply` and `fabrik redeploy --refresh-infra` print each registrar warning as a `⚠` line (W-7ba06610, W-4b1dfd76).
 
 ### Fixed — the hub's watchdog text matches fabrik-lib SB-103: `scale_concurrency` retired, the DB-write pair enabled through the project `.env` (2026-10-19)
 

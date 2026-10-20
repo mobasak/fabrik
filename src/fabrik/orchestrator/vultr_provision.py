@@ -359,6 +359,8 @@ def _register_observability(name: str, mesh_ip: str, report: dict[str, Any]) -> 
 
         r = add_aro_wake_target(name, mesh_ip)
         obs["prometheus"] = r.get("status", "?")
+        if r.get("reload") in ("refused", "unavailable"):  # written but not loaded (W-cc9b0532)
+            obs["prometheus"] += f" (prometheus {r['reload']})"
     except Exception as e:  # noqa: BLE001 — best-effort post-deploy registration
         obs["prometheus"] = f"error: {e}"
         logger.warning("prometheus aro-wake register %s failed: %s", name, e)

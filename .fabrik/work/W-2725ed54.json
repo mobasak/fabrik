@@ -13,14 +13,15 @@
     "plan": "",
     "spec": ""
   },
-  "next": "fix the lessons-learnt template (and its project copies) so its ``` blocks close where the author meant, then land the CommonMark fence model (char + run length, ~~~, info strings) with a fleet diff showing 0 new findings",
+  "next": "parked (coordinator, 2026-10-20) until the 15 project repos fix their docs/lessons-learnt.md outer example fences (three backticks close early under CommonMark; the hub template already uses four); intel mailed each repo the exact edit (01M5BHWVPV..01M5BHWY1K). Lift the tag when the replies are in and a fleet diff shows 0 new findings, then land the checker change.",
   "note": "",
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
   "status": "open",
   "tags": [
-    "needs-template-fix"
+    "needs-template-fix",
+    "waits-lessons-fences"
   ],
   "title": "check_doc_links fences: _iter_refs toggles on any line starting with ``` (no run length, no ~~~, a trailing-text closer closes); a CommonMark fence model measured 16 NEW hard-gate findings across 15 project repos, all docs/lessons-learnt.md from a shared template whose fences only balance by the toggle (W-f11e740e review)"
 }

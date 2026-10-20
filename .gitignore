@@ -125,6 +125,11 @@ scripts/kilo-benchmarks/cache/update.log*
 # already captures the change set — never committed.
 /.fabrik/review/
 
+# The builder registry agents_up.sh reads (W-66e2f6a7): box-local state naming this box's sessions — never committed.
+/.fabrik/session-agents.json
+# the operator's private notes vault, linked here on this box only: never tracked, so no git archive, pin or seat copy carries it (W-36c2607c)
+/vault
+
 # Local artifacts (originally appended by a `fabrik scaffold update` run in the hub)
 #
 # IMPORTANT — this is /opt/fabrik, the HUB. Fabrik-synced SOURCE files are

@@ -1133,9 +1133,9 @@ def pin(
     _lock_tree(pins_dir)
     if base:
         base_dir.mkdir(parents=True, exist_ok=True)
-        # a member the "data" filter refuses — an absolute or escaping symlink, a device: the hub itself tracks
-        # `vault -> /…` — is SKIPPED and named, never fatal (dogfooding this verb on the hub died on it with a
-        # traceback and a half-extracted 94 MB base)
+        # a member the "data" filter refuses — an absolute or escaping symlink, a device: the hub once tracked
+        # `vault -> /…`, untracked since W-36c2607c — is SKIPPED and named, never fatal (dogfooding this verb on the
+        # hub died on it with a traceback and a half-extracted 94 MB base)
         skipped: list[str] = []
         try:
             with tempfile.TemporaryDirectory() as tmp:

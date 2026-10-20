@@ -840,3 +840,94 @@ def test_a_seat_never_disguises_a_refused_act() -> None:
     assert re.sub(r"\s+", " ", core).count(f"{tail}. A {body}.") == 1
     for text in (agent, re.sub(r"\s+", " ", core)):
         assert hint in text and "keep that word out of code you run" not in text
+
+
+def test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read() -> None:
+    """Rows 1792446899, 1792432410 and 1792416541: a pin holds only the files it names, so seats either missed a file a
+    fix pointed at or copied the rest of a module from the live tree. The isolation bullet now pins each file a fix's
+    text points at and names the base tree, with the pins laid over it, as the place every other file is read."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "or outside the repo root). The pin also carries each file a fix's text points at by path, and the brief says"
+        " the pin holds only the files it lists, so a seat reads any other file, the rest of a changed module's"
+        " directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken"
+        " `--base`, else the archive of its `base_sha`), never from the live tree beyond what the seat prompt's recipes"
+        " (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and name UNPINNED."
+        in iso
+    )
+
+
+def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
+    """Row 1792414928: two Agent-tool seats hit ENOENT writing into a seat folder nothing had created. The Workflow's
+    seat prompt already says "create it first with `mkdir -p SCRATCH` — its parent exists and nothing creates it for
+    you"; the subagents-core seat-folder rule, which a lead's own brief follows, now says so. It names no parent, since in the
+    `RUN-SCRATCH: none` case the folder sits under a session scratchpad `start` may not have found."""
+    core = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text())
+    assert (
+        "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and the brief tells each seat to"
+        " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;"
+        in core
+    )
+
+
+def test_two_held_catalogue_subjects_recurred_and_are_edited() -> None:
+    """D-711 recurrences: row 1792424989 repeats HELD:agent-recipe-probed-over-artifact-life-cycle (a pasted command
+    run against the artifact the next step compares it with) and row 1792428944 repeats HELD:guard-cut-fuzz-differential
+    (a differential over the input corpus before a replacement lands). Each extends the catalogue line its held reason
+    cited; both bullets are pinned whole by equality, as the catalogue's own Graders rule asks of fixed prose, so a
+    clause added beside the new one reds too."""
+
+    def bullet(prefix: str) -> str:
+        lines = CAT.read_text().split("\n")
+        start = next(i for i, line in enumerate(lines) if line.startswith(prefix))
+        end = next(
+            i
+            for i in range(start + 1, len(lines))
+            if lines[i].startswith("- ") or lines[i].startswith("#") or not lines[i].strip()
+        )
+        return " ".join(line.strip() for line in lines[start:end])
+
+    assert bullet("- Run the changed artifact end to end when it can run") == (
+        "- Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its "
+        "real shell), and check the END STATE a recipe exists to produce, not only each step, against the "
+        "artifact the next step compares it with (a lock file, a manifest), not only the source it reads; run a "
+        "README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of "
+        "the brief that same command to run under § Seat isolation — one that writes a live store, sends, "
+        "commits, deploys or reaches a host stays the lead's — and probe each exception a rewritten docstring "
+        "says the function still raises."
+    )
+    assert bullet("- Test hygiene: a test stub records what it RECEIVED") == (
+        "- Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; "
+        "isolation is proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves "
+        "nothing on teardown; non-ASCII literals are checked by bytes; the whole suite directory of a changed "
+        "test runs; a golden value is pinned after printing its matched span; a byte-identical refactor gets a "
+        "HEAD-vs-new differential harness, and a fix that swaps one call, guard or protocol for another (`in` "
+        "plus `[]` for `.get`) gets one over the input types its callers pass, subclasses and registered virtual "
+        "types included, before each pin; two emitted artifacts are diffed whole for an alias change; a red's "
+        "failure message is diffed against the baseline and printed beside its FAILED line; an import-path fix is"
+        " graded from the root conftest and a child process; a grader exclusion says whether it matches an exact "
+        "name or a pattern."
+    )
+
+
+def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
+    """Row 1792418569: round zero's rule (1) said a probed count is "never re-derived by a finder" (term-coverage) or
+    "by a seat" (term-edit), while the closing pass re-derives every count and a seat's re-derivation is what caught a
+    25-vs-29 count. The 2026-09-17 spec meant the probe stays the record, so each fragment now says a seat's
+    re-derivation never replaces the probe and a different answer is raised as a candidate; the two keep their own
+    nouns, as that spec requires."""
+    frag = ROOT / "commands" / "_fragments"
+    cov = re.sub(r"\s+", " ", (frag / "term-coverage.md").read_text())
+    edit = re.sub(r"\s+", " ", (frag / "term-edit.md").read_text())
+    assert (
+        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
+        " and gets a different answer raises the difference as a candidate." in cov
+    )
+    assert (
+        "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
+        " rule asks, and gets a different answer raises the difference as a candidate." in edit
+    )
+    for text in (cov, edit):
+        assert (
+            "never re-derived by a finder" not in text and "never re-derived by a seat" not in text
+        )

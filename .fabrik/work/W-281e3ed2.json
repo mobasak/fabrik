@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T23:10:48.014825Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-281e3ed2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B6F0PZE71ZJGNEP0RW63GG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "SEAT_ISOLATION: add the no-disguise sentence the agent-side seat homes now carry (a seat built git from 'gi'+'t' after a guard refusal)"
+}

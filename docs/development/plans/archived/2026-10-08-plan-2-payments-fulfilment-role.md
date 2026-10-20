@@ -1,6 +1,7 @@
 # Plan — the payments fulfilment-worker role in the hub registrar
 
-Status: CONVERGED
+Status: EXECUTED
+Whole-plan review: docs/development/reviews/2026-10-08-plan-2-payments-fulfilment-role-review.md (CONVERGED f77c32572; every phase EXECUTED; merged 0a910fa46, Status flipped and archived by the coordinator)
 Profile: small
 **Owner:** —
 Spec: `docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md` (CONVERGED, D-464; approved for planning by D-652 item 4)
@@ -116,7 +117,7 @@ No `🆕 fabrik-lib candidate`.
   Inside a phase the review seats run in parallel and merge in the orchestrator's adjudication; the real-PG
   tests and unit tests of a phase run together in one pytest call.
 
-## Phase A — Driver: mint, deliver, grant for both payments lanes; the flag
+## Phase A — Driver: mint, deliver, grant for both payments lanes; the flag — ✅ EXECUTED 2026-10-20 (9b7349a8f; review fixes 5e514bd21, 8f34e1e36, 996e4a3b5, 66b6198fb, 0fa333962)
 
 Appetite: 120
 Implements spec § The delta items 1, 2, 3, 4, 6.
@@ -196,7 +197,7 @@ Implements spec § The delta items 1, 2, 3, 4, 6.
 - **Given** a database name at the boundary length, **When** the fulfilment role name is built, **Then** the 63-character guard refuses the over-long name (spec § The delta item 2)
 - **Given** a database with both payments roles, **When** `drop_database` runs, **Then** both roles are dropped in either branch (`src/fabrik/drivers/postgres.py:1756`, `:1779`)
 
-## Phase B — Orchestrator, context and CLI: inject before grant, status from the path, warnings shown
+## Phase B — Orchestrator, context and CLI: inject before grant, status from the path, warnings shown — ✅ EXECUTED 2026-10-20 (3d11f15be; review fixes d9b7ea9a9)
 
 Appetite: 100
 Implements spec § The delta item 5; folds in W-7ba06610 and W-4b1dfd76.
@@ -245,7 +246,7 @@ Implements spec § The delta item 5; folds in W-7ba06610 and W-4b1dfd76.
 - **Given** a grant that raises or returns `unknown`, **When** the block records its resource, **Then** it records `failed` and the apply exits 2 (spec § The delta item 5)
 - **Given** a `registrar_warnings` line, **When** `fabrik apply` or `fabrik redeploy --refresh-infra` ends on success or on registrar failure, **Then** the line is printed as `⚠` in that summary (`src/fabrik/cli.py:546`, `:537-545`, `:1293`, `:1282-1292`)
 
-## Phase C — Docs, the build's decision row, and the Finish
+## Phase C — Docs, the build's decision row, and the Finish — ✅ EXECUTED 2026-10-20 (51ae4b562; docs-review fixes 5dc6e71f2, 66b92a965; Finish fixes 758e37675, 1d1abb96a; receipt f77c32572)
 
 Appetite: 60
 Implements spec § Documentation landing sites, § Contract deltas (the docs half).

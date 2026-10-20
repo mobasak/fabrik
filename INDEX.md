@@ -103,6 +103,7 @@
 | **libs/deep_research/packs/loop-research.yaml** | Engineering-evidence pack for fabrik-lib's `deep-research` engine — quoted, dated primary sources with a cobra note per card (D-348). | Research packs | Manual |
 | **tests/test_review_loop_workflow.py** | Pins on the workflow script: literal `meta`, `files_read` required, `fabrik-reviewer` seats on cheap models, no resume, the sources and brief name it. | Command-loop program | Manual |
 | **tests/test_seat_home_read_rule.py** | Pins on the seat home-read rule (D-962): the reviewer house rule, the subagents pack and the design-critique house rules each asserted between their neighbours, and no seat-facing sentence pairing a home-rooted `.claude` path with a stall. | The seat home-read rule changes | pytest |
+| **tests/test_tracked_symlinks.py** | Every symlink the hub tracks points inside the repo, so no `git archive`, pin or seat copy carries what it names (W-36c2607c: the tracked `vault` link to the operator's notes). | A symlink is tracked | pytest |
 | **tests/test_app_role_driver.py** | Fake-`_run_sql` tests of the `<db>_app` role driver in `src/fabrik/drivers/postgres.py` — ensure/probe/drop SQL shape and control flow (owner refusal, fresh-role drop on grants failure, probe parse). | The app-role driver changes | pytest |
 | **src/fabrik/app_role_check.py** | The pre-cutover check for the `<db>_app` switch: `scan_repo` (DDL and migration sites that still reach `DATABASE_URL`), `run_check` (scan + privilege probe, fail-closed), `project_repo_dir`; behind `fabrik app-role-check`. | The app-role cutover changes | `tests/test_app_role_check.py` |
 | **tests/test_app_role_check.py** | Behaviour tests for the pre-cutover scan and check (patterns, connection-source suppression, compose structure, fail-closed paths, the CLI). | The pre-cutover check changes | pytest |
@@ -111,6 +112,7 @@
 | **tests/test_scaffold_audit_log.py** | Per-type audit-log emission, the committed and rendered jobs companion, the no-window, concurrent-writer, cursor and probe real-PostgreSQL rows, and the jobs' idle-when-unconfigured row. | The scaffolder's audit-log delivery changes | pytest |
 | **tests/test_app_role_real_pg.py** | Real PostgreSQL 18 tests of the `<db>_app` role from a real login session (append-only `audit_log`, grant-option chains, memberships, CREATE, legacy PUBLIC grants), each seeding the bad state; hosts the shared `scratch_pg()` helper T05 imports. | The app-role driver changes | pytest (docker) |
 | **tests/test_payments_ingest_real_pg.py** | Real PostgreSQL 16 tests of the payments-ingest grants over fabrik-lib's payments schema: `payments_grant_ingest` extends the policies and grants columns only; a missing `jobs` fails the step, a missing schema defers, a refusal from the function fails the step; the legacy block runs only without the function, and an upgrade narrows a legacy grant. | The payments-ingest driver block | pytest (docker + /opt/fabrik-lib) |
+| **tests/test_payments_fulfilment_real_pg.py** | Real PostgreSQL tests of both payments lanes over fabrik-lib's payments schema: the fulfilment role claims a job and scopes it through `payments_grant_fulfilment`; missing `jobs`, a pre-migration install and a changed signature fail the step, an absent or partial schema is `pending`; a PUBLIC insert policy is refused; a legacy-migrated install grants ingest first; the fulfilment role is no member of the ingest role; a failing grant keeps the minted password; re-mint narrows an out-of-band escalation and refuses a foreign superuser or database owner; `drop_database` drops both roles. | The payments mint/grant driver (both lanes) | pytest (docker + /opt/fabrik-lib) |
 | **tests/test_scaffold_glitchtip_release.py** | The re-vendored GlitchTip module's release/environment read rules through `init_glitchtip()`, and the scaffolded python-api and node-api composes resolved with real `docker compose config` against a deployer-shaped `.env` hand the container the DSN, `APP_GIT_SHA` and `ENVIRONMENT` (docker/node legs skip when absent; mail 01M491AE33, D-626). | The scaffold compose template, the node GlitchTip module or the vendored `glitchtip_init.py` changes | pytest |
 | **tests/orchestrator/test_deployer_git_sha.py** | The deployer persists the deployed commit as `GIT_SHA` in the app's `.env` over a blank spec value, keeps it through `inject_env`, writes the new SHA on redeploy and `old_sha` on rollback, and leaves `.env` alone on a failed or non-hex `rev-parse` (fake ssh; D-626). | `deployer_ssh.py`'s git deploy, redeploy or `.env` building changes | pytest |
 | **tests/test_reconcile_all_deployed_set.py** | T03 graders: `reconcile-all`'s Compose-backed deployed set (one `ls` per host, `Name`/`ConfigFiles` match), the invariant-2 exit rule as a parametrized battery, the stem filter before the load, the 80-character cut on both `error` rows, and `refresh_infrastructure`'s host-scoped `app_dir` walk with the real `_host_env` swap. | `reconcile-all`, `refresh_infrastructure` or spec D3 / invariant 2 change | pytest |
@@ -362,7 +364,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-19T02:20 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -425,7 +427,6 @@ docs/
 │   │   │   ├── T05e-rebuild-and-reference-docs.md
 │   │   │   ├── T06-window-runbook.md
 │   │   │   └── T07-integration.md
-│   │   ├── 2026-10-08-plan-2-payments-fulfilment-role.md
 │   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
 │   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
@@ -1077,6 +1078,7 @@ docs/
 │       ├── 2026-10-08-pass-row-shape-agreement-review.md
 │       ├── 2026-10-08-pin-refusal-wording-review.md
 │       ├── 2026-10-08-pin-verb-launchers-review.md
+│       ├── 2026-10-08-plan-2-payments-fulfilment-role-review.md
 │       ├── 2026-10-08-plan-3-review-coverage-commit-scope-review.md
 │       ├── 2026-10-08-print-ban-call-boundary-review.md
 │       ├── 2026-10-08-probe-worktree-copy-in-review.md
@@ -1278,10 +1280,32 @@ docs/
 │       ├── 2026-10-18-wdeb8eb0f-exception-name-guard-committed-review.md
 │       ├── 2026-10-18-wf11e740e-link-readers-review.md
 │       ├── 2026-10-18-work-edit-render-review.md
+│       ├── 2026-10-19-agents-up-launcher-review.md
+│       ├── 2026-10-19-install-log-drop-rule-retire-review.md
 │       ├── 2026-10-19-panel-joint-artifact-review.md
+│       ├── 2026-10-19-range-named-review-surfaces-review.md
+│       ├── 2026-10-19-round-slices-ledger-echo-review.md
+│       ├── 2026-10-19-w-0b09fae6-pin-base-sha-review.md
+│       ├── 2026-10-19-w-1f70f2e9-locks-local-lock-dir-review.md
+│       ├── 2026-10-19-w-3350006b-mcp-health-key-check-review.md
+│       ├── 2026-10-19-w-3d834ded-authelia-locks-review.md
+│       ├── 2026-10-19-w-42e79070-monitoring-mktemp-staging-review.md
+│       ├── 2026-10-19-w-8bb683e6-dns-ssh-status-review.md
+│       ├── 2026-10-19-w-ad71f248-doc-stubs-review.md
+│       ├── 2026-10-19-w2356-argparse-percent-final-review.md
+│       ├── 2026-10-19-w4ad7ff2d-review-loop-gate-layout-review.md
+│       ├── 2026-10-19-w7e467f2d-retire-classifier-review.md
 │       ├── 2026-10-19-w8008e144-halt-list-and-job7-review.md
+│       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
+│       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
+│       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1460,6 +1484,8 @@ docs/
 │   ├── product-adoption-forces.md
 │   ├── prompt-audit-2026-10-05.md
 │   ├── receipts-2026-08-07-autotrigger.md
+│   ├── repo-coordinator-rollout-repos.md
+│   ├── repo-coordinator-rollout.md
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md

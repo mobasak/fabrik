@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T02:54:14.791720Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-b9af1d47",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "blank inline spans before link_targets only (never the _BARE_RE scan), measured with a fleet diff; ~~~ stays with W-2725ed54",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "latent advisory: no live false positive today; one reader",
   "status": "open",
   "tags": [
     "link-reader"

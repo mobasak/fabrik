@@ -5,7 +5,7 @@
   "created": "2026-10-02T18:55:20.077364Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bc5a971dd8955fc21a84a25f01e45dce0167e8ba",
   "id": "W-cc9b0532",
   "impact": "high",
   "kind": "backlog",
@@ -20,6 +20,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — apply reports created when config never loaded",
-  "status": "open",
+  "status": "done",
   "title": "drivers/prometheus add_scrape_target/remove_scrape_target/add_aro_wake_target/remove_aro_wake_target discard _reload_prometheus()'s bool (each calls it bare): a config written but never loaded (reload refused, restart skipped by the promtool gate, W-5aa5e3d8) still reports status=created to fabrik apply; only a WARNING log says otherwise (restart-S1, predates the gate)"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T02:54:15.083225Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-8f9a7d2c",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure fleet plans for a backticked Status:/Owner: line ahead of the real one; fix in the scan, keeping _strip_quoted's six parity copies (Lesson 103)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "rare edge: a backticked Status: example winning first-match; one scan",
   "status": "open",
   "tags": [
     "link-reader"
