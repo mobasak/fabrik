@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T11:41:35.547000Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-10146d20",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measure which Firecrawl calls seats made this month (scrape/crawl/map vs extract/search); wrap web-scrape + doc-crawl as a local MCP server registered in the hub .mcp.json (emit_mcp_project_config.py); update the tier-2 ladder text in CLAUDE.md § External Knowledge only through its owner; browserless on vps1 must hold the extra load (W-cbd80821 raises it to 3G)",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "MEDIUM: removes a metered dependency the fleet already duplicates in-house; nobody blocked (exa and web search still serve tier 1 and 2); LOW-ish effort: one MCP wrapper over two vendored modules plus the roster row",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Research seats' scrape/crawl leg runs on the metered Firecrawl MCP (out of credits 2026-10-21) although fabrik-lib web-scrape (httpx + vps1 browserless) and doc-crawl already cover scrape, render and crawl — give the seats an own-infra tool (an MCP or tool wrapper over web-scrape/doc-crawl) and keep Firecrawl only for LLM-schema extraction, if at all (operator 2026-10-21: 'dont we have fabrik-lib modules to do exact same as like firecrawl?')"
+}
