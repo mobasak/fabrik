@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-c47be58f",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,13 +16,13 @@
   "next": "send test-saas-scaffold a request mail (mail.py send --to test-saas-scaffold --kind finding) naming the route, the spec and the template change; ack when test-saas-scaffold replies it is removed",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "security: an unauthenticated chat route spends the app's own key in a live project; one mail per repo",
+  "priority": 3,
+  "score_reason": "not live: none of the five is deployed (0 of vps1's 33 containers; no HTTPS answer); the fix is each project's own agent's; a deploy with the route present is refused",
   "status": "open",
   "tags": [
-    "queued",
     "security",
-    "waits-adoption-reply"
+    "waits-adoption-reply",
+    "waits-project-session"
   ],
   "title": "adopt W-ab242b11 in test-saas-scaffold: /opt/test-saas-scaffold/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail test-saas-scaffold to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
 }
