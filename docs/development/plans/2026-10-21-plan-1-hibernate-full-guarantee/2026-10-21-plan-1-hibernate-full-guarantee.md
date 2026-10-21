@@ -57,7 +57,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | The pause marker and the hibernate.py verbs | — | ⛓️ | ⬜ | |
+| T01a | The pause marker and the hibernate.py verbs | — | ⛓️ | ✅ | squash of cb64f9bd5 |
 | T01b | The status checks and the deadline header | T01a | ⛓️ | ⬜ | |
 | T02 | The hooks hold the pause | T01a | ⚡ | ⬜ | |
 | T03a | Cron launchers skip while paused | T01a | ⚡ | ⬜ | |
@@ -83,7 +83,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
   `$ROTATE_STATE_DIR/hibernate.json` when set, else `<home>/.claude/state/hibernate.json`; `read_marker(home) -> dict`
   (empty dict on any read error); `update_marker(home, fn)` read-modify-writes under `fcntl.flock` on
   `hibernate.json.lock`. Keys: `paused_at` (float), `deadline_at` (float, optional), `words`, `lifted_at` (float,
-  optional), `lift_path` (`sleep`|`outage`|`cancelled`|`hub`|`migration`). Consumers: T02 reads the JSON inline (a synced hook must
+  optional), `lift_path` (`sleep`|`outage`|`cancelled`|`hub`|`migration`). Every reader resolves the state dir the way `hibernate.py` does (T01a, review P4-statedir): `$ROTATE_STATE_DIR` when set, else `<passwd home>/.claude/state` — the passwd home, never `$HOME`, so the hooks (T02) and the tick (T06) read the marker `mark` wrote. Consumers: T02 reads the JSON inline (a synced hook must
   not import a hub module), T06 calls `update_marker` through the file path, never an import of a hub-only path from a
   synced file. Seam test: `tests/test_hibernate_hooks.py::test_the_hook_reads_the_marker_the_verbs_write` (T02).
 - **P — `hibernate.py paused`.** Producer T01a: exit 0 while marked and not lifted, 1 otherwise, ≥ 2 on its own error.
@@ -118,6 +118,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** an uncommitted tree, **When** `status` runs, **Then** the row names up to five paths, then `+N more` (scripts/sysadmin/hibernate.py:414; spec § Chosen approach L2)
 - **Given** a run closed `blocked` without a seed after the mark, **When** `status` runs, **Then** it BLOCKS, and a `done` close after the mark is its own non-blocking row (scripts/sysadmin/hibernate.py:430; spec § Chosen approach L2)
 - **Given** a marked pause, **When** `status` prints, **Then** the header names the pause, T-3, T and the time left, and SAFE prints only after two reads (scripts/sysadmin/hibernate.py:430; spec § Chosen approach L2)
+- **Given** a uid with no passwd entry, **When** `hibernate.py paused` runs, **Then** it reads the marker under `$HOME` and never exits 1 on that error (scripts/sysadmin/hibernate.py:936; T01a review P4-keyerror)
 - **Given** the `hibernate` tier and an unlifted mark, **When** the tick log is days old or missing, **Then** `quota_stop` still holds world-changing tools (.claude/hooks/quota_stop.py:717; spec § Chosen approach L2)
 - **Given** the `hibernate` tier, **When** a held session runs `python3 /opt/fabrik/scripts/sysadmin/hibernate.py status`, **Then** the hook allows it (.claude/hooks/quota_stop.py:107; spec § Chosen approach L2)
 - **Given** a marked pause, **When** a session with a live run calls `Agent` or `command_run.py start`, **Then** the posture hook denies it, before and after T-3 (scripts/sysadmin/quota_posture_hook.py:1089; spec § Chosen approach L2)
@@ -415,6 +416,7 @@ gate. Ticket primary paths: `scripts/sysadmin/hibernate.py:511` (T01a), `scripts
 ### Execution notes (/fabrik-execute-plan)
 
 - 2026-10-21, T01a acceptance: the spec's abandoned-seat rule (spec § Chosen approach L2: the run close carries each still-running seat into the record and its seed) had no owning ticket; `scripts/command_run.py` is T06's, so T06's Scope and Behavior Contract gained the `--abandoned-seat` close (one row, mirrored in the roll-up) — inside the File Scope, no new ticket. T01a's `FABRIK_LIFT_TTY` seam was a bypass of the plain-shell check and went back to its coder as a fixup (tests use a real pseudo-terminal).
+- 2026-10-21, T01a merged (squash of cb64f9bd5; review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01a-review.md`, 4 rounds 14 → 9 → 6 → 0, the scope-growth stop at round 3). Its routed residue went to T01b (the KeyError fallback, test_g2 under a real terminal, the module docstring) and to Interface M (the passwd-home rule for every reader). The coder's report was lost to the 19:32 WSL restart, so the CHANGELOG entry was rebuilt from the commits.
 - 2026-10-21, after the hibernate wake: W-1961cc42 (agents_up.sh from a non-TTY shell never records the grid's root and tries to attach) joined T05, which owns `scripts/sysadmin/agents_up.sh` — one Scope sentence and one row (mirrored in the roll-up).
 
 ## Self-audit

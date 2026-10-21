@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /hibernate T01a: a lock-held pause marker, `paused`, a deadline, an owner-only `lift`, and a `woke` that answers only after the lift (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py`: the marker (`hibernate.json`, under `$ROTATE_STATE_DIR` or `~/.claude/state`) is read-modify-written under one `flock`; `mark --deadline <5m…24h>` adds a hard deadline (T-3 and T printed by `brief --deadline`); `paused` exits 0 marked, 1 not, 2 on a marker it cannot parse; `lift` passes only the merge owner's session or the operator's plain terminal (the caller found by walking the process chain to pid 1, `sdk-*` seats refused), every path writing a rotate-ledger row with the tick's own append discipline; `woke` answers RESUME only after a lift, for 24 h, never for a migration lift, and lists the session's seeds and abandoned seats; one passwd-derived home for every verb.
+- Plan: `docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` T01a (W-6e656dac, D-1099); review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01a-review.md`.
+
 ### Fixed — the secret gate flags today's AWS key ids, every GitHub token prefix, fine-grained PATs and OpenAI project keys (2026-10-21)
 
 - `scripts/enforcement/check_secrets.py`: adds AWS `ASIA`/`ABIA`/`ACCA` key ids (case-sensitive base32), merges the `ghp_`/`gho_` rows into `gh[pousr]_`, adds `github_pat_` fine-grained PATs and OpenAI `sk-proj-`/`sk-svcacct-`/`sk-admin-` keys, keeping every old row so the gate stays a superset (D-1089; fabrik-lib mail 01M5EC2S14). `tests/test_check_secrets_shapes.py` pins each new and old shape.

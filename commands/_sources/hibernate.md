@@ -62,11 +62,14 @@ your cached prompt, so the seed, the RESUME note and memory are all you will hav
 
 ## After the wake
 
-Any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") → run `python3 $H woke`.
-Exit 0 means the box slept (or the hub lifted the pause): resume the SAME item from its seed without being told again.
-Exit 1 says why to stay put (no wake yet, or you already resumed). The hub coordinator, once awake, ALWAYS runs
-`python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none
-either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle
-until prompted.
+Any RESUME or wake line → run `python3 $H woke`. Exit 0 means the pause was lifted: resume the SAME item from the
+seeds it lists, newest first, without being told again, and re-run only the seats it says exited with no output.
+Exit 1 (`no pending resume`) says why: the pause is not lifted yet (stay paused), the lift is over 24 hours old, or
+you already started a run since the lift. Exit 2: it cannot tell (a corrupt marker or run record) — stay paused and
+tell the hub coordinator. The rotation tick lifts the pause on its own after the sleep, after a
+network outage, or 30 minutes past the deadline. `python3 $H lift` is only the hub coordinator's manual override, for
+example when the tick is dead. It passes for the hub's merge owner's session or the operator's plain shell, and it is
+refused (exit 3, logged in the rotate ledger) for every other session; a forged `--proc`/`--home` exits 2, logged
+the same way.
 
 {{include:close-chain}}
