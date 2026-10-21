@@ -372,9 +372,9 @@ def _repo_with_worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def _clear_caches(mod) -> None:
     for name in ("_work_tree_of", "_tracked_in"):
-        cached = getattr(mod, name, None)
-        if cached is not None:
-            cached.cache_clear()
+        clear = getattr(getattr(mod, name, None), "cache_clear", None)
+        if clear is not None:
+            clear()
 
 
 @pytest.mark.parametrize("installed_from", ["main", "sibling"])
