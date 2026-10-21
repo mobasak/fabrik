@@ -17,10 +17,10 @@
     "aa404bf64d7b3f617df526e3d884546c869110af71d43ebf950b8b1c4fc393c1"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-21: 'ok we can append if needed' — the two ledger rows D-1104 and D-1105 appended and committed; the test-repo approval had already been recorded on the operator's 'ok'; the browserless go stands as the recorded answer on W-cbd80821, fleet acts from its queue, no separate nudge",
   "owner": "",
   "priority": 2,
   "question": "Shall I retry the three refused acts, or will you do them: append the two ledger rows, record the test-repo deletion approval, and tell fleet to run the browserless redeploy?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Shall I retry the three refused acts, or will you do them: append the two ledger rows, record the test-repo deletion approval, and tell fleet to run the browserless redeploy?"
 }
