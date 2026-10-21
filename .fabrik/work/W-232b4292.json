@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T18:19:25.792723Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-232b4292",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FTRV4N1WBYTSAMWNJKCHM9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "W-10146d20 slice 1a — web-scrape-mcp + web-scrape G5 G6 G7 G10 G11 MERGED (fabrik-lib main a3ef7fad)"
+}
