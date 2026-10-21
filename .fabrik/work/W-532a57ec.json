@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T04:45:04.765148Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-532a57ec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5EBGM4D6X3NPSPQT777D73F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: upstream-feedback for fabrik-lib payments — please relay to fabrik-lib: carry price_refs, line_items, amount_total, occurred_at and the Paddle transaction id in the fulfilment job payload, and add now= to process_webhook."
+}

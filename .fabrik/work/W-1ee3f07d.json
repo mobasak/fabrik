@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T04:45:04.142958Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1ee3f07d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Widen check_secrets.py as fabrik-lib's copy now reads (mail § HOW (1): keep AKIA verbatim; add (?-i:(?:ASIA|ABIA|ACCA)[A-Z2-7]{16}); merge gh rows into gh[pousr]_[a-zA-Z0-9]{36}; add github_pat_; let sk- bodies carry '-'); red-first tests per shape; the file is on the governance-sync path, so the full /fabrik-review and ONE commit; ack the mail with the merge sha",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a security issue (D-956) — the hub's secret gate lets current GitHub PAT and AWS STS shapes into commits fleet-wide; LOW effort: regex rows plus tests in one synced file",
+  "status": "open",
+  "tags": [
+    "mail-01m5ec2s14e7zqvgstn5tpepx2",
+    "security"
+  ],
+  "title": "SECURITY (fabrik-lib-sentinel mail 01M5EC2S14E7ZQVGSTN5TPEPX2, fabrik-lib D-519): scripts/enforcement/check_secrets.py models only 2021-era credential shapes — :16 AKIA only (no ASIA/ABIA/ACCA STS prefixes), :21-22 ghp_/gho_ only (no ghu_/ghs_/ghr_, no github_pat_ fine-grained PATs), :19 sk-[a-zA-Z0-9]{32,} misses OpenAI sk-proj- keys"
+}

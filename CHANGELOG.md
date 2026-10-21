@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a markdown file full of unmatched backticks can no longer stall the link check (2026-10-21)
+W-16c00597; D-1086. `docs_updater` blanks inline code spans before the link check and the plan Status and Owner scans read a file, and for every backtick run with no matching closer it scanned to the end of the paragraph: 2 000 such runs on one 2 MB line took 1.75 s per call, and dense backtick pairs on one long line 26 s at 4 MB. The blanker now examines each stretch of text once and finds each closer by lookup — 0.003 s on the same line — and returns exactly what it returned before: the old function stays in the tests as the reference, matched on fuzz input and on all 14 673 readable markdown files in the fleet.
+
 ### Fixed — The container memory alerts judge the working set, and the host-memory alert evaluates again (2026-10-21)
 
 W-4801e4c3. `ContainerHighMemory` divided `container_memory_usage_bytes` (page cache included) by the limit: in one

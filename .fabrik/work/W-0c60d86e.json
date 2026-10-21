@@ -2,6 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-19T23:08:15.530165Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-0c60d86e",
   "impact": "low",
@@ -15,8 +16,8 @@
   "next": "persist registrar_warnings beside registrar_failures in .fabrik/state (state.py schema + _persist_state), show them in fabrik status; make reconcile-all read the refresh ctx's failures and warnings; decide whether deploy_router notifications carry warnings",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
-  "score_reason": "MEDIUM: real value (registrar warnings reach only the two CLI summaries, not the state file, fabrik status or reconcile-all), nobody blocked; LOW effort",
+  "priority": 3,
+  "score_reason": "MEDIUM (tag kept): registrar warnings reach only the CLI summaries; real value, nobody blocked; LOW effort: one persistence path",
   "status": "open",
   "tags": [
     "medium"
