@@ -50,7 +50,9 @@ Intake: 11 items — 8 IN (one partly), 3 OUT-OF-SCOPE (each named), 0 ASK.
 - `uv` for every package operation; the server's own venv is created and filled with `uv`, never `pip`
   (`core/10-python.md:22`); the hub's shared `.venv` and `pyproject.toml`/`uv.lock` are not touched.
 - Python service ports are 8000-8099 (`core/10-python.md:282`); the server listens on `127.0.0.1:8034` only.
-- No write outside this repo except the gated unit file in Phase B; no edit under `/opt/fabrik-lib` (cross-repo).
+- No write outside this repo except the gated Phase B steps (the main checkout's server venv and the unit file) and
+  the run's own scratch folders (`/opt/fabrik/.tmp/runs/<session>/<run>/` and the `RUN-SCRATCH:` folder its `start`
+  prints); no edit under `/opt/fabrik-lib` (cross-repo).
 - Command and agent text is edited in `commands/_sources/` and `commands/_agents/` only; the rendered corpus is the
   coordinator's merge-time render (CLAUDE.md § Behavior, merge-time render only).
 - No secret is printed; the browserless token stays in `/opt/fabrik/.env`.
@@ -74,6 +76,8 @@ No new capability is built fresh in the hub: every module is fabrik-lib's, vendo
 
 ## Constraints Digest
 
+Quotes are verbatim with markdown emphasis removed (backticks and `*`), the checker's convention.
+
 | Quote | Source |
 |---|---|
 | Reference: docs/reference/**/*.md | `.windsurf/rules/core/40-documentation.md:192` |
@@ -92,14 +96,14 @@ authoritative registry; the generated block is left alone.
 
 ## Phase A — `proxy: "basic"` on every Firecrawl line (no dependency; runs now)
 
-Appetite: 45
+Appetite: 60
 
 Implements spec § Lifecycle, slice 1a ("every command or seat line naming a Firecrawl tool gains `proxy: "basic"`")
 and spec § Fallback contract (why Firecrawl's default `auto` mode is not allowed). DO-NOT: change any fetch order,
 switch any command to `fabrik-scrape`, or touch the search-chain grader.
 
 Complexity: inline
-Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py -q
+Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_research_tier_order.py -q
 
 ### Touches
 
@@ -112,25 +116,36 @@ Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py -q
 
 ### Behavior Contract
 
-- **Given** a command or agent source line names `firecrawl_scrape` or `firecrawl_crawl`, **When** the grader scans `commands/_sources/` and `commands/_agents/`, **Then** the same line, or the bullet it belongs to, carries `proxy: "basic"` (spec § Lifecycle 1a)
-- **Given** a line names only `firecrawl_search`, **When** the grader scans it, **Then** it is not required to carry the pin (search takes no proxy; spec § Fallback contract)
+- **Given** a Firecrawl scrape or crawl instruction in `commands/_sources/` or `commands/_agents/` (`firecrawl_scrape`, `firecrawl_crawl`, `mcp__firecrawl__*`, or firecrawl followed by `maxAge`), **When** the grader scans it, **Then** its own clause carries `proxy: "basic"` or `"proxy": "basic"`, not negated (spec § Lifecycle 1a)
+- **Given** a pin outside the mention's clause, a negated pin, or a search-only name, **When** the grader judges it, **Then** the first two fail and the third is not a mention (spec § Fallback contract)
 
 ### Steps
 
-1. Write `tests/test_firecrawl_proxy_basic.py`: collect every line under `commands/_sources/*.md` and
-   `commands/_agents/*.md` matching `firecrawl_(scrape|crawl)`; for each, read its paragraph (the line plus the
-   continuation lines up to the next blank line or list item); assert `proxy: "basic"` occurs in it; on failure list
-   every `path:line` that lacks it. Measure the fire rate first: today it fires on all 12 lines (Evidence A).
-2. Run it and confirm it FAILS red for the right reason (12 lines listed): `.venv/bin/python -m pytest
-   tests/test_firecrawl_proxy_basic.py -q` → 1 failed.
-3. Add `proxy: "basic"` beside each `firecrawl_scrape` / `firecrawl_crawl` mention in the five files above (12 lines,
-   Evidence A), keeping each sentence's meaning: e.g. "`firecrawl_scrape` with `maxAge: 0`" becomes
-   "`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`".
-4. Re-run the gate → `1 passed`. Prove red-on-revert in a throwaway worktree (`git worktree add <scratch>/probe HEAD`,
-   revert one edited line there, run the test there → red; never in the shared tree).
+1. Write `tests/test_firecrawl_proxy_basic.py` from the prototype `proto_grader2.py` (Evidence A): a MENTION is
+   `firecrawl_scrape`, `firecrawl_crawl`, `mcp__firecrawl__*`, or "firecrawl `maxAge" (search- and map-only names are
+   not mentions); its CLAUSE runs from the mention to the next `.`, `;`, `→` or ` — ` outside a code span, across
+   wrapped lines; the PIN is `proxy: "basic"` or `"proxy": "basic"` in that clause, not preceded in it by "never" or
+   "not". One parametrised test over the six fixtures in Evidence A (each must be judged as listed) and one over the
+   real corpus that lists every `path:line` lacking the pin. Today the corpus test fires on 15 instructions in 5 files
+   (Evidence A).
+2. Run it and confirm the corpus test FAILS red for the right reason, listing the 15 lines, while the fixture test
+   passes: `.venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py -q` → 1 failed, 6 passed.
+3. Add `proxy: "basic"` inside the clause of each of the 15 instructions (Evidence A), keeping each sentence's meaning:
+   e.g. "`firecrawl_scrape` with `maxAge: 0`" becomes "`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`";
+   researcher `:22` names the family `mcp__firecrawl__*`, so its clause says scrape and crawl calls pass
+   `proxy: "basic"`.
+4. Re-run the gate → all passed. Prove red-on-revert in a throwaway worktree: `git worktree add <RUN-SCRATCH>/probe
+   HEAD`; copy the six Touches files from the working tree into the probe; assert the probe holds the edit (`grep -c
+   'proxy: "basic"' <probe>/commands/_sources/fabrik-spec.md` ≥ 4); revert ONE pinned clause there and assert it lacks
+   the pin; run the grader from inside the probe → red naming exactly that line; remove the probe. Never in the shared
+   tree.
 5. `python3 scripts/enforcement/check_doc_sync.py` → no ERROR; CHANGELOG entry under `[Unreleased]`
    (`### Changed — Firecrawl calls in commands pin the basic proxy (2026-10-21)`); `INDEX.md` row for the new test.
-6. `.venv/bin/python commands/assemble_commands.py --check` → no drift error (render stays the coordinator's job).
+6. Render to a temp directory, never the live corpus: `.venv/bin/python commands/assemble_commands.py --dest
+   <RUN-SCRATCH>/render` (a non-live `--dest` writes agents under `<dest>/_agents`, never `~/.claude/agents`,
+   `commands/assemble_commands.py:1171`); then `rg -c 'proxy: "basic"' <RUN-SCRATCH>/render` shows the pin in the four
+   rendered commands and `_agents/fabrik-researcher.md`. `--check` is not the gate here: it diffs against the installed
+   corpus and must report drift until the coordinator's merge-time render (`commands/assemble_commands.py:10`).
 7. **`/fabrik-review` on this phase's changed surface — BLOCKING, run to its coverage-adjudicated exit** (the
    command sources are a governance-sync surface, CLAUDE.md § Orient lane row 1): partitioned file slices, a Sonnet
    and a Haiku finder per slice, every candidate executed by the lead, delta rounds to a closing round that confirms
@@ -151,7 +166,7 @@ returning `blocked: unsupported`"), and § Shape (one local MCP server process, 
 DO-NOT: enable rendering, edit the vendored code, or touch `libs/web_scrape/` (the older kilo-db copy).
 
 Complexity: inline
-Gate: /opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py --probe http://127.0.0.1:8034/mcp — Expected: `initialize` answers with `serverInfo` and `tools/list` contains `scrape` (a bare GET on a streamable-HTTP MCP endpoint answers 406, as the precedent does on :8033, so it is never the gate)
+Gate: .venv/bin/python -m pytest tests/test_scrape_ledger.py tests/test_emit_mcp_project_config.py -q, then /opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py --probe http://127.0.0.1:8034/mcp — Expected: tests pass; `initialize` answers with `serverInfo` and `tools/list` contains `scrape` (a bare GET on a streamable-HTTP MCP endpoint answers 406, as the precedent does on :8033, so it is never the gate)
 
 Start condition, self-service: fabrik-lib's reply mail names the merge SHAs of W-89c8b88f and W-eadc4d0a
 (`python3 scripts/mail.py list` shows it). Until then the phase does not start; this is an event wait, not a question.
@@ -163,7 +178,9 @@ own repo. So steps 1-8 are worktree work merged by the coordinator; steps 9-12 r
 
 - libs/web_scrape_mcp/ — NEW, the vendored module (copied whole from `/opt/fabrik-lib/web-scrape-mcp/` at the merged SHA)
 - libs/web_tools.py — re-vendored from `/opt/fabrik-lib/web-tools/web_tools.py` at W-eadc4d0a's SHA
-- scripts/scrape_ledger.py — NEW, the MCP probe and ledger runner (used by this phase's gate and by Phase C)
+- scripts/scrape_ledger.py — NEW, the MCP probe, transcript harvest and ledger runner (used by this phase's gate and by Phase C)
+- tests/test_scrape_ledger.py — NEW, its tests with a mocked MCP client
+- scripts/sysadmin/emit_mcp_project_config.py — `fabrik-scrape` joins the universal set
 - scripts/sysadmin/mcp_defs.json — the `fabrik-scrape` http entry
 - scripts/sysadmin/systemd/fabrik-scrape-mcp.service — NEW, the unit's source of truth in the repo
 - docs/reference/fabrik-scrape-mcp.md — NEW, the subsystem doc
@@ -175,6 +192,8 @@ own repo. So steps 1-8 are worktree work merged by the coordinator; steps 9-12 r
 - **Given** the server is started by its unit, **When** `scripts/scrape_ledger.py --probe` posts an MCP `initialize` to `http://127.0.0.1:8034/mcp`, **Then** it gets `serverInfo` back and `tools/list` contains `scrape` (spec § Chosen approach 1)
 - **Given** the spec's capability ledger U1-U7 with fact strings fixed before the run, **When** each URL goes through `scrape`, **Then** U1, U2, U3, U4 and U7 grade PASS, U6 returns `blocked: bot-wall` with `status` 403 and no render, and U5 returns `blocked: unsupported` (spec § Lifecycle 1a)
 - **Given** `scrape` on `http://127.0.0.1:8033/`, **When** called, **Then** it returns `blocked: scope` (spec § fabrik-lib asks G7)
+- **Given** `scripts/scrape_ledger.py` and a mocked MCP client, **When** it runs an input, **Then** every fact string round-trips byte-identical, each row carries facts found, clean ratio, path, `blocked` reason and `status`, and an input row without an `expected` field is refused (spec § Test ledger)
+- **Given** the emitter, **When** it renders any repo's `.mcp.json`, **Then** `fabrik-scrape` is in the set and `scripts/enforcement/check_mcp_scope.py` exits 0 (spec § Chosen approach 2: every repo's seats)
 - **Given** the re-vendored `libs/web_tools.py`, **When** its Firecrawl payloads are built, **Then** each carries `proxy: "basic"` and each call logs its caller and URL (spec § fabrik-lib asks, the web-tools row)
 
 ### Steps
@@ -190,11 +209,16 @@ Pre-merge, in the worktree:
    web_tools|from web_tools import|import web_tools" tests scripts` lists `tests/test_rivals_run.py` and
    `scripts/rivals_run.py` — with `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest
    tests/test_rivals_run.py -q`.
-3. Write `scripts/scrape_ledger.py` (typed, results to stdout and a JSON file in the run folder, `# AFTER-EDIT:`
-   header naming `docs/reference/fabrik-scrape-mcp.md`): `--probe <url>` runs `initialize` + `tools/list`; `<input
-   json>` runs each URL through the `scrape` tool, grades the input's fixed fact strings and the clean-text ratio, and
-   never edits a fact string. It runs under the server's venv (it needs the MCP client), so the hub's dependencies are
-   unchanged.
+3. Write `tests/test_scrape_ledger.py` first (mocked MCP client; the Behavior Contract row above) and watch it fail;
+   then write `scripts/scrape_ledger.py` (typed, results to stdout and to `--out <json>`, `# AFTER-EDIT:` header naming
+   `docs/reference/fabrik-scrape-mcp.md`) with three modes: `--probe <url>` runs `initialize` + `tools/list`;
+   `--harvest --since 2026-10-01 --out <json>` reads subagent transcripts under `~/.claude/projects/*/*/subagents/` and
+   `~/.claude-fleet/*/projects/*/*/subagents/`, keeps those whose `agent-*.meta.json` says `"agentType":
+   "fabrik-researcher"`, and extracts `input.url` / `input.urls` from their `mcp__firecrawl__firecrawl_scrape`,
+   `mcp__exa__web_fetch_exa` and `WebFetch` tool calls, de-duplicated; and `<input json>` runs each row through
+   `scrape`, refusing a row without an `expected` field (`pass` or a named `blocked` reason with its spec cite), and
+   grades PASS as every fact string found AND clean ratio ≥ 0.6 (spec § Test ledger). The script runs under the
+   server's venv (it needs the MCP client); its test runs under the hub `.venv`, which already carries `mcp` 1.29.0.
 4. Write `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` modelled on the precedent unit (Evidence B):
    `User=ozgur`, `WorkingDirectory=/opt/fabrik`, NO `EnvironmentFile=` — the hub's secrets never enter a
    network-facing fetcher's environment (the same rule as `scripts/sysadmin/systemd/session-archive.service:3-4`), and
@@ -204,7 +228,12 @@ Pre-merge, in the worktree:
    hardening — `Restart=always`, `RestartSec=3`, `StartLimitIntervalSec=60`, `StartLimitBurst=5`, `MemoryMax=512M`,
    `MemorySwapMax=0`, `OOMPolicy=stop`, `NoNewPrivileges=true`. Port 8034 is free (Evidence B).
 5. Add `"fabrik-scrape": {"type": "http", "url": "http://127.0.0.1:8034/mcp"}` to `scripts/sysadmin/mcp_defs.json`
-   beside the precedent entry (`:28-31`).
+   beside the precedent entry (`:28-31`), and add `"fabrik-scrape"` to `UNIVERSAL6` in
+   `scripts/sysadmin/emit_mcp_project_config.py:39-46` — the researcher renders to every repo, so every repo's
+   `.mcp.json` must carry the server. That widens the D-013 universal set: mint its row (`python3 scripts/decisions.py
+   --reserve-id .`, supersedes nothing, extends D-013) and edit `docs/workstation/mcp-roster.md` in the same commit
+   (`scripts/enforcement/check_mcp_scope.py:20-22`); run `tests/test_emit_mcp_project_config.py` and
+   `python3 scripts/enforcement/check_mcp_scope.py` → exit 0.
 6. Docs: write `docs/reference/fabrik-scrape-mcp.md` (what it is, tools, `blocked` reasons, unit, port, venv rebuild,
    re-vendor steps) + its `INDEX.md` row; a `docs/workstation/mcp-roster.md` row beside the precedent (`:75`); a
    `PORTS.md` row in "Development Services (WSL Only)"; CHANGELOG entry; `check_doc_sync.py` → no ERROR.
@@ -221,8 +250,8 @@ Post-merge, on the main checkout, as a gate:
    libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt`, then `sudo install -m 644
    scripts/sysadmin/systemd/fabrik-scrape-mcp.service /etc/systemd/system/`, `sudo systemctl daemon-reload`, `sudo
    systemctl enable --now fabrik-scrape-mcp`.
-10. Infra runs `python3 scripts/sysadmin/emit_mcp_project_config.py` (dry-run flag from its header first) so the hub's
-    generated `.mcp.json` gains `fabrik-scrape`; `python3 scripts/sysadmin/mcp_health.py` → `fabrik-scrape` live.
+10. Infra runs `python3 scripts/sysadmin/emit_mcp_project_config.py` (dry-run flag from its header first) so every
+    repo's generated `.mcp.json` gains `fabrik-scrape`; `python3 scripts/sysadmin/mcp_health.py` → `fabrik-scrape` live.
 11. Run the phase gate; then the capability ledger U1-U7 through `scrape` (the spec's URLs and the pass table above,
     fact strings re-fixed before the run from an independent read) and the scope call; results in the run folder. A
     FAIL is mailed to fabrik-lib and stops Phase C.
@@ -245,7 +274,7 @@ rule, DEAD rule, credit-error rules; the contract copies' fetch sentence) and sp
 per `blocked` reason). DO-NOT: switch any other command; widen `_TIER1`; edit `/opt/fabrik-lib/CLAUDE.md` (mailed).
 
 Complexity: inline
-Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_research_tier_order.py tests/test_researcher_fallback_contract.py -q
+Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_research_tier_order.py tests/test_researcher_fallback_contract.py tests/test_scrape_ledger.py -q — Expected: all passed
 
 Start condition: Phase B's post-merge steps done — `fabrik-scrape` is live and in the hub `.mcp.json` — and the
 session is a NEW one started after that, so a `fabrik-researcher` seat it dispatches can reach the server.
@@ -261,30 +290,38 @@ session is a NEW one started after that, so a `fabrik-researcher` seat it dispat
 ### Behavior Contract
 
 - **Given** the researcher's ledger input of URLs with fact strings fixed beforehand, **When** `scripts/scrape_ledger.py` runs them through `fabrik-scrape`, **Then** every URL grades PASS or returns the `blocked` reason the spec expects, and no fact string is edited after the run (spec § Test ledger)
-- **Given** the ledger is all-pass, **When** the agent file switches, **Then** `mcpServers` lists `fabrik-scrape` and the raw-fetch order is `fabrik-scrape` → exa → Firecrawl (spec § Chosen approach 2)
+- **Given** the ledger is all-pass, **When** the agent file switches, **Then** `mcpServers` lists `fabrik-scrape` and the raw-fetch order is `fabrik-scrape` → exa (per `blocked` reason) → Firecrawl (closed until slice 1d except an operator-cleared source) (spec § Chosen approach 2, § Fallback contract)
 - **Given** the switched agent file, **When** the grader reads it, **Then** it states the Fallback-contract rules: `robots`, `scope` and `http-429` never go to exa or Firecrawl, `bot-wall` and `empty` never go to Firecrawl, an exa read is cited as exa's cached copy, and every Firecrawl entry point is closed until the slice-1d test (spec § Fallback contract)
-- **Given** the two hub contract copies, **When** the fetch sentence gains `fabrik-scrape`, **Then** `tests/test_research_tier_order.py` stays green and `_TIER1` is unchanged (spec § Chosen approach 2)
+- **Given** the two hub contract copies, **When** the new fetch sentence lands, **Then** the grader finds it byte-identical in both and outside the tier ladder sentence, and `tests/test_research_tier_order.py` stays green (spec § Chosen approach 2)
 
 ### Steps
 
-1. Build the researcher's URL list from session transcripts: `fabrik-researcher` seats' `firecrawl_scrape`,
-   `web_fetch_exa` and `WebFetch` calls since 2026-10-01 (the `fc_calls.py` method, D-845), sampling up to 20 distinct
-   URLs across kinds (docs page, API reference, GitHub raw file, PDF, a long page).
-2. For each URL fix its fact strings BEFORE any run: one independent read (`WebFetch`), the strings quoted from it,
-   that read recorded beside them in the ledger input (spec § Test ledger).
-3. Run `/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py <input>`. All-pass means every URL
-   grades PASS or returns the `blocked` reason the spec expects (a PDF is `unsupported` until slice 1b). A FAIL stops
-   the phase: the researcher keeps Firecrawl, and the failing kind goes to fabrik-lib as a new ask.
-4. Write `tests/test_researcher_fallback_contract.py` first and watch it fail on today's agent file: it asserts
-   `mcpServers` names `fabrik-scrape`, the raw-fetch order, and that the text carries each Fallback-contract rule
-   named in the Behavior Contract above.
+1. Build the researcher's URL list: `/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py
+   --harvest --since 2026-10-01 --out <RUN-SCRATCH>/researcher-urls.json` (Phase B step 3), recording the command line;
+   sample at least 10 and at most 20 distinct URLs with at least one per kind (docs page, API reference, GitHub raw
+   file, PDF, a long page).
+2. For each URL fix BEFORE any run: its fact strings, from one independent read (`WebFetch`) recorded beside them, and
+   its `expected` outcome — `pass`, or a named `blocked` reason with the spec cite that predicts it (a PDF is
+   `unsupported` until slice 1b) — in `<RUN-SCRATCH>/researcher-ledger-input.json` (spec § Test ledger).
+3. Run `/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py
+   <RUN-SCRATCH>/researcher-ledger-input.json --out <RUN-SCRATCH>/researcher-ledger.json`. All-pass means every row's
+   result equals its pre-fixed `expected` (PASS = every fact string found AND clean ratio ≥ 0.6). A row that differs
+   stops the phase: the researcher keeps Firecrawl, and the failing kind goes to fabrik-lib as a new ask.
+4. Write `tests/test_researcher_fallback_contract.py` first and watch it fail on today's files: it asserts the
+   researcher's `mcpServers` names `fabrik-scrape`, the raw-fetch order, and that its text carries each
+   Fallback-contract rule named in the Behavior Contract above; and that the fetch sentence of step 6 appears
+   byte-identical in `CLAUDE.md` and `templates/governance/CLAUDE.md`, in a sentence of its own after the tier-2
+   sentence, never inside the `tier 1 is …` chain.
 5. On all-pass, edit `commands/_agents/fabrik-researcher.md`: `mcpServers` (line 4, Evidence C) gains `fabrik-scrape`;
    the raw-fetch order, the long-page rule (`:36-44`), the DEAD rule (`:86`, keyed on the `status` of a `blocked`
-   result) and the credit-error rules follow spec § Chosen approach 2; the Fallback-contract rules are stated in
-   substance. Both graders go green.
-6. Edit the fetch sentence in `CLAUDE.md` § External Knowledge (`:302`) and `templates/governance/CLAUDE.md` (`:276`)
-   to name `fabrik-scrape` as the raw-page fetch beside `WebFetch`, outside the search chain; mail fabrik-lib the same
-   sentence for `/opt/fabrik-lib/CLAUDE.md`. Add `fabrik-scrape` to rule 57's agent-time roster line
+   result) and the credit-error rules follow spec § Chosen approach 2; the spec's § Fallback contract table is carried
+   row by row, every Firecrawl leg marked closed until slice 1d except an operator-cleared source named in the plan or
+   work item. Both graders go green.
+6. Add this sentence, byte-identical, to `CLAUDE.md` § External Knowledge and `templates/governance/CLAUDE.md`, as its
+   own sentence right after the tier-2 sentence (`CLAUDE.md:302-306`, template `:276-280`) — never inside the
+   `tier 1 is …` chain: "For a raw page read (an exact quote, a live re-fetch), call `fabrik-scrape` `scrape(url)`
+   first — a fetch, not a search engine, outside this ladder; on a `blocked` result follow its reason
+   (`commands/_agents/fabrik-researcher.md`)." Mail fabrik-lib the same sentence for `/opt/fabrik-lib/CLAUDE.md`. Add `fabrik-scrape` to rule 57's agent-time roster line
    (`.windsurf/rules/core/57-external-data-sourcing.md:64`, beside `firecrawl`).
 7. Run the phase gate → all passed; `check_doc_sync.py` → no ERROR; CHANGELOG entry; `INDEX.md` row for the test.
 8. **`/fabrik-review` on this phase's changed surface — BLOCKING, run to its coverage-adjudicated exit** (synced
@@ -312,6 +349,7 @@ Produces: the switched researcher; the ledger result JSON the merge request cite
 | doc-sync triggers (CHANGELOG, INDEX, new reference doc, curated PORTS row) | MATCHED core/40-documentation.md | UNCHECKED |
 | tests: one per behaviour, watched-fail-first | MATCHED core/45-testing-strategy.md | UNCHECKED |
 | agent-time MCP vs runtime module; the bypass line | MATCHED core/57-external-data-sourcing.md | UNCHECKED |
+| resilience: fallback, retry and 429 handling (57 sends readers to 58) | core/58-resilience.md | UNCHECKED |
 | recurrence: fail-open vs fail-closed on every gate/guard | standing class | UNCHECKED |
 | recurrence: cost/quota/limit accounting edges | standing class | UNCHECKED |
 | recurrence: boundary/sentinel/prefix collisions | standing class | UNCHECKED |
@@ -408,7 +446,7 @@ Produces: the switched researcher; the ledger result JSON the merge request cite
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### core/10-python.md  (hit: libs/web_tools.py, scripts/scrape_ledger.py, tests/test_firecrawl_proxy_basic.py)
+### core/10-python.md  (hit: libs/web_tools.py, scripts/scrape_ledger.py, scripts/sysadmin/emit_mcp_project_config.py)
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -431,7 +469,7 @@ Produces: the switched researcher; the ledger result JSON the merge request cite
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 | `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 
-### core/40-documentation.md  (hit: CLAUDE.md, PORTS.md, commands/_agents/fabrik-researcher.md)
+### core/40-documentation.md  (hit: .windsurf/rules/core/57-external-data-sourcing.md, CLAUDE.md, PORTS.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
@@ -442,7 +480,7 @@ Produces: the switched researcher; the ledger result JSON the merge request cite
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 
-### core/45-testing-strategy.md  (hit: tests/test_firecrawl_proxy_basic.py)
+### core/45-testing-strategy.md  (hit: tests/test_firecrawl_proxy_basic.py, tests/test_researcher_fallback_contract.py, tests/test_scrape_ledger.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -542,10 +580,13 @@ commands/_sources/fabrik-spec.md:4
 proxy-basic count above (empty = 0 files)
 ```
 
-Pre-pin prototype of Phase A's grader (`proto_grader.py` in the run's RUN-SCRATCH folder, same paragraph rule as Phase A step 1), run read-only on today's sources — it fires on exactly the 12 lines above and nothing else:
+Pre-pin prototype v2 of Phase A's grader (`proto_grader2.py` in the plan run's RUN-SCRATCH folder; the clause rule
+of Phase A step 1, widened after plan-review pass 1 to `mcp__firecrawl__*` and "firecrawl `maxAge"), run read-only on
+today's sources — 15 instructions lack the pin (the 12 above plus researcher `:22`, `:150`, `:154`), and all six
+fixtures are judged as listed (a pin outside the clause and a negated pin fail; a search-only name is no mention):
 
 ```text
-mentions 12, missing the pin 12
+mentions 15, missing the pin 15
   commands/_sources/fabrik-plan-after-chat.md:221
   commands/_sources/fabrik-spec-review.md:77
   commands/_sources/fabrik-spec-review.md:89
@@ -554,10 +595,19 @@ mentions 12, missing the pin 12
   commands/_sources/fabrik-spec.md:262
   commands/_sources/fabrik-spec.md:264
   commands/_sources/fabrik-vision.md:572
+  commands/_agents/fabrik-researcher.md:22
   commands/_agents/fabrik-researcher.md:35
   commands/_agents/fabrik-researcher.md:37
   commands/_agents/fabrik-researcher.md:86
   commands/_agents/fabrik-researcher.md:121
+  commands/_agents/fabrik-researcher.md:150
+  commands/_agents/fabrik-researcher.md:154
+OK  want 0 got 0: `firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`.
+OK  want 1 got 1: `firecrawl_scrape` with `maxAge: 0`. Later: `proxy: "basic"`.
+OK  want 1 got 1: `firecrawl_scrape` but never `proxy: "basic"`.
+OK  want 0 got 0: `firecrawl_crawl` with `"proxy": "basic"` in scrapeOptions.
+OK  want 1 got 1: settled by firecrawl `maxAge: 0`, else the verdict
+OK  want 0 got 0: `mcp__firecrawl__firecrawl_search` for a query.
 ```
 
 ### Phase B
@@ -600,6 +650,7 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 
 | Pass | seats · axes | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
+| 1 | opus-1 (Phases A and C, Global Constraints, Digest, Coverage, Evidence, File Scope) · sonnet-1 (the rest) | findings 25 · confirmed 23 (sonnet 9; opus 14 new, 2 duplicates of sonnet's capability-ledger and rule-57 rows) · refuted 0 | each claim executed by the lead: 406 on a bare GET to :8033, `emit_mcp_project_config.py:39-46` UNIVERSAL6, `assemble_commands.py:1171` non-live `--dest`, the v2 grader's six fixtures and 15-line corpus run, the researcher subagent `meta.json` `agentType` field | 68dad3bf → (pins-2) |
 
 ## Self-audit
 
@@ -636,6 +687,8 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 - docs/workstation/mcp-roster.md
 - PORTS.md
 - scripts/scrape_ledger.py
+- tests/test_scrape_ledger.py
+- scripts/sysadmin/emit_mcp_project_config.py
 - tests/test_researcher_fallback_contract.py
 - .windsurf/rules/core/57-external-data-sourcing.md
 - CLAUDE.md
