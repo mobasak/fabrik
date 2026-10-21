@@ -123,8 +123,9 @@ from fabrik.spec_loader import OWNER_ENV_FILE
 # The owner split (D-754): the two findings it adds, their text the remedy a project agent acts on.
 OWNER_HANDOFF_REMEDY = (
     "the owner DSN is not interpolable from compose after the owner split (it lives in .env.owner, "
-    "which compose interpolation never reads): give the service env_file [.env, {path: .env.owner, "
-    "required: false}] and have the tool read DATABASE_URL_OWNER from its environment (alembic: in "
+    "which compose interpolation never reads): give the service env_file [{path: .env, required: "
+    "false}, {path: .env.owner, required: false}] and have the tool read DATABASE_URL_OWNER from its "
+    "environment (alembic: in "
     "env.py); run it as docker compose run --rm <that service> ..."
 )
 NO_OWNER_CONSUMER = (

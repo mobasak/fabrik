@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — app_role_check's owner-handoff remedy no longer tells a project to make `.env` required (2026-10-21)
+
+W-e80e79f0. `OWNER_HANDOFF_REMEDY`, the text a project agent acts on after the owner split, said
+`env_file [.env, {path: .env.owner, required: false}]`; the short `.env` entry is required, so a fresh
+checkout with no `.env` fails `docker compose config` (the D-931/D-938 class). It now says
+`[{path: .env, required: false}, {path: .env.owner, required: false}]`, and spec_loader's `owner_env`
+description states both renderers truthfully. `tests/test_app_role_check.py` parses the remedy's example and
+requires both entries optional.
+
 ### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
 
 - `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
