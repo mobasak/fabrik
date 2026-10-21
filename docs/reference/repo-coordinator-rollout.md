@@ -115,7 +115,9 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
    `docs_updater.py --adopt` would stamp old plans with owners. Confirm with `decisions.py --merge-owner /opt/<repo>`.
 8. Put these rules where the repo's sessions will read them. A synced repo (pre-flight check 3) cannot edit
    `CLAUDE.md`, so it writes them into every charter of step 6, coordinator and builders alike (youtube 01M5CCR5VG);
-   the synced `CLAUDE.md` already carries the coordinator paragraph and the quota bands. A repo with its own
+   the synced `CLAUDE.md` already carries the coordinator paragraph, the quota bands and the AUTONOMY paragraph that
+   states D-1034, D-943, D-558 and D-961 for the agents beside the coordinator (W-890fc8a8) — the one copy an unnamed
+   window, which reads no charter, still loads. A repo with its own
    `CLAUDE.md` (fabrik-lib) writes them there:
    - The coordinator paragraph from the hub's `CLAUDE.md` § Orient (synced repos already have it).
    - The coordinator is the merge owner and the holder of the bare mail arm: mail sent to the repo with no

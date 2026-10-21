@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the synced contract states the coordinator rulings for the agents beside a repo's coordinator (2026-10-21)
+
+- `templates/governance/CLAUDE.md`: one AUTONOMY paragraph after the coordinator paragraph carries hub D-1034, D-943, D-558 and D-961 for every agent that is not the repo's coordinator — no operator asks, no `AskUserQuestion`, no own `DECISION NEEDED` block, the coordinator reached by `SendMessage` or fabrik-mail, the Opus + Fable panel, no `Workflow` tool — and is inert in a single-window repo. An unnamed window, which reads no charter, now loads them too (D-1085; youtube mail 01M5CCR5VG). `docs/reference/repo-coordinator-rollout.md` step 8 says so; `tests/test_governance_template_split.py` pins the paragraph and its placement.
+
 ### Added — /hibernate: pause every agent, prove the box safe to sleep, resume after the wake (2026-10-21)
 
 - `scripts/sysadmin/hibernate.py` (`targets` · `brief` · `mark` · `lift` · `status` · `woke`) and the `/hibernate` command: the hub coordinator finds every live agent from the session records, sends each repo's coordinator (its ledger's merge owner) one URGENT pause text, collects a PAUSED line per agent, and says "safe to hibernate" only when `status` prints `SAFE TO HIBERNATE`; after the wake `woke` tells an agent the box slept so it resumes its own item. `claude -p` pool workers and review seats are never messaged (D-1079, `docs/reference/hibernate.md`).
