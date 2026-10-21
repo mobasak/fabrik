@@ -452,9 +452,10 @@ def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() ->
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
         "The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn '<a"
-        " phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two"
-        " sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is"
-        " extended." in p3
+        " phrase of each neighbour>' tests/`), and the new text goes where its subject reads, a pinned span it lands inside"
+        " or beside re-anchored in the same edit to cover, as one span, the new text and every word it covered, the test"
+        " edited with the sentence; a pin that ends at a sentence's period also fails when that sentence is extended."
+        in p3
     )
     p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
     assert (
@@ -516,8 +517,9 @@ def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -
     lengthened catalogue bullet pushed the overflow down a line twice before a script rewrapped it whole."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole,"
-        " at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
+        "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole"
+        " (only the lines the edit lengthened when a test pins the file's raw lines or caps its line length, as the probe"
+        " catalogue's `After the edit:` bullet says), at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
         " unchanged, before PHASE 4's first pin. A row that prescribes" in p3
     )
     # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
@@ -582,8 +584,8 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert span == (
         "Before the first draft, the files the target points at by path for the same subject are read too (a"
         " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
-        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a place the pins"
-        " sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside the"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — each"
+        " one's lead-in and the items beside the"
         " new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
         " sentence below says. "
     ), span
@@ -729,3 +731,51 @@ def test_the_lock_check_set_of_scripts_that_mention_owned_paths_is_pinned() -> N
         if b"owned_paths" in path.read_bytes():
             found.add(path.relative_to(ROOT).as_posix())
     assert found == set(known), sorted(found ^ set(known))
+
+
+def test_the_audit_seat_returns_text_and_quotes_what_it_cites() -> None:
+    """Rows 1792610014 and 1792454557 (held cite-by-quoted-phrase-not-coined-label), 1792562581 (held
+    multi-span-coherence) and 1792560167, 1792544842: an audit seat cited drifting line numbers, was told to write a
+    report file its harness forbids, and proposed sentences unread against their paragraph."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "proposes against the phases that rely on the sentence it would change. Its brief has it return the report as"
+        " its hand-back text, never a report file, quote each line it cites verbatim from its pinned copy, so a reject"
+        " finds that line by search once this pass's edit moves it, and read each sentence it proposes against the"
+        " whole paragraph that sentence joins and every rule that paragraph names." in p2
+    )
+
+
+def test_a_size_capped_target_is_sized_before_the_draft() -> None:
+    """Row 1792473769 (held size-cap-met-by-recorded-raise): a per-command SIZE_CAP refused an edit drafted unsized."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "say in the commit what the growth buys. A target a test caps by size (`command grep -rln SIZE_CAP tests/`"
+        " names one) is sized to that cap before the draft, since a note in the commit does not raise a cap the test"
+        " asserts." in p3
+    )
+
+
+def test_the_copy_recipe_is_named_by_its_constant_and_the_rewrap_is_bounded() -> None:
+    """Rows 1792467367 and 1792452242 (held copy-recipe-on-each-mechanism) and 1792488990 (held
+    rewrap-pinned-bullet-by-script, third sighting): BASE_PIN went unnamed, and a whole rewrap broke a raw-line pin."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "and intel's `SEAT_ISOLATION` and `BASE_PIN` (`.claude/workflows/fabrik-review-loop.js`, whose sibling recipe"
+        " constants are read before one is named) and `seat_guard.py` (mailed, never edited here)"
+        in p3
+    )
+    assert (
+        "is rewrapped whole (only the lines the edit lengthened when a test pins the file's raw lines or caps its line"
+        " length, as the probe catalogue's `After the edit:` bullet says), at its width" in p3
+    )
+
+
+def test_the_review_seats_check_each_rows_timing_and_venue() -> None:
+    """Row 1792445250: three review rounds each found one of a row's timing and venue missing."""
+    p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
+    assert (
+        "and each hit is reworded with the sentence. The brief asks each seat, for each row it finds answered, whether"
+        " that line also states when the row's step runs and in which phase or file, so a row answered in one but not"
+        " the other is found in round 1." in p4
+    )
