@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:50:09.370488Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-6904b41e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "walk the labels once with a single forward finditer for the next heading instead of re-slicing the rest of the text per label; byte-identical regions on the fleet plans",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "check_phase_tests._contract_regions re-slices text[m.end():] per **Behavior Contract label — quadratic (1.8 s on 8 000 labels / 344 KB; 4x input = 17x time), found by the W-d2eef742 Opus design critique"
+}

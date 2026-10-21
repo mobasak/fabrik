@@ -185,3 +185,152 @@ def test_docs_updater_imports_the_scanner_lazily(tmp_path: Path) -> None:
     assert "PARSE-ERROR" in out.stdout and "scripts/enforcement/_fences.py" in out.stdout, (
         out.stdout + out.stderr[-800:]
     )
+
+
+# ── W-d2eef742: the plan checks' three fence strips ────────────────────────────────────────────────────────────
+# The regexes they replaced, kept as the oracle. plan_appetite's pair took 15.8 s on a 40 KB backtick run, a newline
+# and 40 KB of text; check_phase_tests' backreference pair and check_plan_lock_release's run-length `_FENCE`
+# backtracked the same way on unclosed openers and on one long run with no newline.
+OLD_PA_BACKTICK = re.compile(r"^[ \t]*`{3,}[^\n]*\n.*?^[ \t]*`{3,}[ \t]*$", re.M | re.S)
+OLD_PA_TILDE = re.compile(r"^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[ \t]*$", re.M | re.S)
+OLD_PA_OPEN = re.compile(r"^[ \t]*(?:`{3,}|~{3,})[^\n]*$", re.M)
+OLD_LOCK = re.compile(r"^[ \t]*(`{3,}|~{3,})[^\n]*\n(?:.*?^[ \t]*\1[ \t]*$|.*\Z)", re.M | re.S)
+OLD_PHASE = r"(?ms)^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$"
+
+
+def _old_plan_appetite_strip(text: str) -> str:
+    text = OLD_PA_TILDE.sub("", OLD_PA_BACKTICK.sub("", text))
+    dangling = OLD_PA_OPEN.search(text)
+    return text[: dangling.start()] if dangling else text
+
+
+def _plan_strips() -> dict:
+    sys.path.insert(0, str(ROOT))
+    from scripts.enforcement import check_plan_lock_release as lr
+    from scripts.enforcement import plan_appetite as pa
+
+    return {
+        "plan_appetite": (pa.strip_fences, _old_plan_appetite_strip),
+        "lock_release": (lr._strip_fences, lambda t: OLD_LOCK.sub("", t)),
+        "phase_tests": (_fences().strip_three_marker_fences, lambda t: re.sub(OLD_PHASE, "", t)),
+    }
+
+
+PLAN_FIXTURES = [
+    "",
+    "```\na\n```\n",
+    "```py\nStatus: EXECUTED\n```\nStatus: IN-PROGRESS\n",
+    "~~~\nx\n~~~~\nafter",
+    "````\nx\n```\ny\n````\nz",
+    "```\nx\n~~~\ny\n```\n",
+    "```\n~~~\nAppetite: 1\n```\n~~~\nAppetite: 2\n",
+    "  ```\n\tx\n ```  \nrest",
+    "```\nunclosed\nStatus: EXECUTED\n",
+    "~~~",
+    "```x\r\nbody\r\n```\r\nafter\r\n",
+    "text\n```",
+    "```\n```\n```\n",
+    "```\x0b\nx\n```\x0c\n ```\n",
+]
+
+
+@pytest.mark.parametrize("name", ["plan_appetite", "lock_release", "phase_tests"])
+def test_plan_strips_equal_the_old_regexes(name: str) -> None:
+    new, old = _plan_strips()[name]
+    for t in PLAN_FIXTURES:
+        assert new(t) == old(t), (name, t)
+    rng = random.Random(0xD2EEF742)
+    tokens = [
+        "`",
+        "``",
+        "```",
+        "````",
+        "~",
+        "~~~",
+        "~~~~",
+        " ",
+        "\t",
+        "\n",
+        "\n",
+        "\n",
+        "a",
+        "\r",
+        "> ",
+    ]
+    for _ in range(20000):
+        t = "".join(rng.choice(tokens) for _ in range(rng.randint(0, 40)))
+        assert new(t) == old(t), (name, t)
+
+
+PLAN_WORST = {
+    "a 40 KB backtick run, a newline and 40 KB of text": "`" * 40_000 + "\n" + "x" * 40_000,
+    "one 200 KB backtick run, no newline": "`" * 200_000,
+    "20 000 unclosed ``` openers": "```x\n" * 20_000,
+    "20 000 unclosed ~~~ openers": "~~~x\n" * 20_000,
+}
+# Which strip each input was slow for before W-d2eef742 (seconds on this box): plan_appetite 15.8 on the first and
+# about 15 on the last two, check_phase_tests about 15 on the last two, check_plan_lock_release about 20 on the second.
+PLAN_WORST_FOR = {
+    "a 40 KB backtick run, a newline and 40 KB of text": ("plan_appetite",),
+    "one 200 KB backtick run, no newline": ("lock_release",),
+    "20 000 unclosed ``` openers": ("plan_appetite", "phase_tests"),
+    "20 000 unclosed ~~~ openers": ("plan_appetite", "phase_tests"),
+}
+
+
+@pytest.mark.parametrize("label", list(PLAN_WORST))
+def test_plan_strips_are_linear_on_the_slow_inputs(label: str) -> None:
+    """The bound is test_scanner_is_linear's: far below the old regexes' seconds, far above the milliseconds."""
+    t = PLAN_WORST[label]
+    for name, (new, _) in _plan_strips().items():
+        start = time.perf_counter()
+        new(t)
+        assert time.perf_counter() - start < 2.0, (name, label, PLAN_WORST_FOR[label])
+
+
+def test_plan_strip_consumers_dropped_the_old_regexes() -> None:
+    olds = (OLD_PA_BACKTICK.pattern, OLD_PA_TILDE.pattern, OLD_LOCK.pattern, OLD_PHASE)
+    for rel in ("plan_appetite.py", "check_plan_lock_release.py", "check_phase_tests.py"):
+        src = (ENF / rel).read_text(encoding="utf-8")
+        for old in olds:
+            assert old not in src, (rel, old)
+
+
+def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
+    """check_phase_tests is a warn_only gate row, and a warn_only row that exits non-zero is a blocking red
+    (final_gate.py's run_optional_check). Where _fences.py is missing it must still exit 0: the module never imports
+    the scanner at load, and the import inside _contract_regions fails under the per-lock guard. check_plan_tickets
+    is a stub here — the real one imports _fences at load, and its failure would reach the guard first — so the
+    `_fences` error on stderr is _contract_regions' own, reached by the live lock below."""
+    enf = tmp_path / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    shutil.copy(ENF / "check_phase_tests.py", enf / "check_phase_tests.py")
+    (enf / "check_plan_tickets.py").write_text(
+        'import re\nGIVEN_ROW_RE = re.compile(r"^\\s*[-*]\\s+(.*Given.*)$", re.M)\n',
+        encoding="utf-8",
+    )
+    locks = tmp_path / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    plan = tmp_path / "docs" / "plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        "# Plan\n\n## Behavior Contract\n\n- **Given** a, when b, then c\n", encoding="utf-8"
+    )
+    (locks / "p.json").write_text(
+        '{"status": "active", "plan": "docs/plan.md", "owned_paths": ["src/**"], "baseline_commit": "HEAD"}',
+        encoding="utf-8",
+    )
+    out = subprocess.run(
+        [sys.executable, "-I", str(enf / "check_phase_tests.py")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert out.returncode == 0, out.stdout + out.stderr[-800:]
+    assert "No module named '_fences'" in out.stderr, (
+        "the live lock never reached the scanner",
+        out.stdout,
+        out.stderr[-800:],
+    )

@@ -79,11 +79,14 @@ def _contract_regions(text: str) -> str:
     bullet/continuation block)."""
     import re
 
+    import _fences  # here, not at the top: this row is warn_only, so a missing _fences.py must stay fail-soft
+
     # Fenced code blocks are illustrative prose — a fence-quoted contract label/row must
     # never mint a declared row (review findings, live-reproduced for ``` and for the
-    # equally-valid CommonMark ~~~ form; the backreference pairs like with like). Paired
-    # fences only; unbalanced markdown is left as-is (fail toward counting → the WARN).
-    text = re.sub(r"(?ms)^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", "", text)
+    # equally-valid CommonMark ~~~ form; a ``` opener closes only on ```, a ~~~ on ~~~). Paired
+    # fences only; unbalanced markdown is left as-is (fail toward counting → the WARN). The
+    # strip is `_fences.py`'s linear one (W-d2eef742); the regex it replaced backtracked.
+    text = _fences.strip_three_marker_fences(text)
     regions: list[str] = []
     heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):

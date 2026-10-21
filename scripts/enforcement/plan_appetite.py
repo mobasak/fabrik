@@ -37,8 +37,15 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from datetime import date
 from pathlib import Path
+
+# The fence strips are `_fences.py`'s linear scanner (W-d2eef742), imported by its own name the way every check
+# imports it, so a package import and command_run's by-path load share one module.
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
 
 LANE_ROLLOUT_DATE = "2026-10-03"
 
@@ -96,8 +103,6 @@ _SPINE_MARKER_RE = re.compile(r"^##\s+Ticket Board\b", re.I | re.M)
 _PHASE_HEADING_RE = re.compile(r"^##[ \t]+(?P<title>Phase[ \t]+\S[^\n]*)$", re.M)
 _SECTION_END_RE = re.compile(r"^#{1,2}[ \t]", re.M)
 _BLOCKQUOTE_LINE_RE = re.compile(r"^[ \t]*>.*$", re.M)
-_BACKTICK_FENCE_RE = re.compile(r"^[ \t]*`{3,}[^\n]*\n.*?^[ \t]*`{3,}[ \t]*$", re.M | re.S)
-_TILDE_FENCE_RE = re.compile(r"^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[ \t]*$", re.M | re.S)
 _OPEN_FENCE_RE = re.compile(r"^[ \t]*(?:`{3,}|~{3,})[^\n]*$", re.M)
 _FIRST_SECTION_RE = re.compile(r"^#{2,6}\s", re.M)
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-")
@@ -106,8 +111,9 @@ _TICKET_NAME_RE = re.compile(r"^(T\d{2}[a-z]?)-[^/]*\.md$")
 
 def strip_fences(text: str) -> str:
     """Remove fenced blocks; an UNCLOSED opener swallows the rest (fail-closed: a quoted
-    `Appetite:` inside a dangling fence never satisfies a phase)."""
-    text = _TILDE_FENCE_RE.sub("", _BACKTICK_FENCE_RE.sub("", text))
+    `Appetite:` inside a dangling fence never satisfies a phase). Backtick fences first, then tilde fences, each
+    closed by the first later line of 3+ of its own character."""
+    text = _fences.strip_marker_fences(_fences.strip_marker_fences(text, "`"), "~")
     dangling = _OPEN_FENCE_RE.search(text)
     return text[: dangling.start()] if dangling else text
 
