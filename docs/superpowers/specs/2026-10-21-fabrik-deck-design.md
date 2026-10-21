@@ -1,10 +1,12 @@
 # Fabrik Deck — a non-coding VS Code for many repos, in one browser window
 
-Status: DRAFT
+Status: CONVERGED
 Work item: W-42d1ccb5 (owner fleet) · related: W-ea993618 (the tab router, agent picking inside a pane — separate,
 queued) · W-a02d1c86 (every existing and new repo Deck-ready: scaffolder + rollout — separate, after this spec) ·
 rulings: D-1092 (coordinator in the Claude extension GUI, builders in tmux, no fixed count), D-1072 (WSL NAT: Windows
-reaches WSL only at its address — superseded for this service by the measured localhost forwarding below).
+reaches WSL only at its address; after the 2026-10-20 reboot `http://localhost:<port>` from Windows timed out — the
+same NAT config forwarded 8443 and 8445 on 2026-10-21, so whether forwarding survives a WSL restart and a Windows reboot
+is an open unknown below, and the approval row records the measurement beside D-1072).
 
 ## Personas
 
@@ -15,9 +17,9 @@ reaches WSL only at its address — superseded for this service by the measured 
 | **Builders** (AI agents in tmux, D-1092) | Per-repo worker sessions | Not opened as Deck tabs; their waiting state still shows on the board, labelled by agent name, so the operator knows to go to tmux |
 | **fleet** (this agent) | Box-local tooling owner | Builds and maintains the Deck server, board, hook, profile, launcher, doc |
 | **infra** | Owner of `.claude/hooks/`, `install_user_hooks.py` and `hooks-index.md` (beat: hooks) | Reviews the `ENTRIES` rows and the hooks-index row the attention hook needs |
-| The **Claude Code hook runtime** (automated) | Fires `Notification` / `UserPromptSubmit` / `Stop` in every session on the box, extension and tmux alike | Runs the hook that writes and clears the per-session attention files the board reads |
+| The **Claude Code hook runtime** (automated) | Fires `Notification` / `UserPromptSubmit` / `Stop` / `PostToolUse` / `SessionEnd` in every session on the box, extension and tmux alike | Runs the hook that writes and clears the per-session attention files the board reads |
 | The **systemd user manager** (automated, WSL) | Runs the operator's user services from boot (linger on) | Starts both Deck services at WSL boot and restarts either after a crash |
-| The **launcher** (automated, a Windows `.bat`) | Runs on the operator's double-click | Starts the two servers if they are not answering, then opens the browser |
+| The **launcher** (automated, a Windows `.bat`) | Runs on the operator's double-click | Starts the two systemd user services if either is not active, waits for the board, and opens Vivaldi only when it is not already running |
 
 **The primary's loop, counted — the STEP BUDGET (5):** (1) double-click *Fabrik Deck* on the Windows desktop →
 (2) Vivaldi opens with the board tab and the repo tabs from last time → (3) click a repo on the board (a dot marks a
@@ -92,26 +94,34 @@ Four pieces, all box-local, in WSL as the operator's user unless marked:
 1. **code-server** (installed, live since step 1): `~/.local/lib/code-server-4.141.0-linux-amd64`, config
    `~/.config/code-server/config.yaml` = `bind-addr: 127.0.0.1:8443`, `auth: none`, `cert: false`. Started with a
    CLEAN environment (`env -i` keeping only `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `LANG`, `DISPLAY`,
-   `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME`) — measured 2026-10-21: a start from inside a Claude session leaked `CLAUDE_AGENT`, the session id and the
+   `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME` and `FABRIK_DECK`) — measured 2026-10-21: a start from inside a Claude session leaked `CLAUDE_AGENT`, the session id and the
    messaging token into every workbench's claude process. The start moves into the repo as
    `scripts/sysadmin/fabrik_deck.py code-server` (tracked); the untracked `~/.local/bin/fabrik-deck-server`, which
    appends to `~/.local/share/code-server-deck.log`, is retired by the build. Its port comes from
    `FABRIK_DECK_CODE_PORT` (default 8443), passed as `--bind-addr 127.0.0.1:<port>`, which overrides the config file's
-   `bind-addr` — one source for the port.
+   `bind-addr` — one source for the port. Under systemd no parent shell supplies the environment, so the env file
+   (Lifecycle, Supervision) carries what the workbenches' claude processes need: `CLAUDE_CONFIG_DIR` and
+   `CLAUDE_QUOTA_HOME` set to `~/.claude-fleet/active` as absolute paths (the values the step-1 start set, and the
+   running Deck claude carries today — `/proc/<pid>/environ`, executed), so every tab follows the box's account
+   rotation; and a `PATH` that includes `~/.local/bin` and the node install, so repo hooks that call `node` or `uv` by
+   name keep working (a unit's default `PATH` is `/usr/local/bin:/usr/bin:/bin`).
 2. **The Deck server** — `scripts/sysadmin/fabrik_deck.py serve`, stdlib `http.server.ThreadingHTTPServer`
    (one thread per request, so an open event stream never blocks another request), bound to `127.0.0.1` on
    `FABRIK_DECK_PORT` (default 8445). It refuses a request whose `Host` header is not `localhost:<port>` or
    `127.0.0.1:<port>` (DNS rebinding) and accepts GET only; the one state it changes is deleting attention files
    older than 24 h, so no web page can change anything through it. It serves
    the **board** (`GET /`) and two JSON reads:
-   - `GET /api/repos` — the **repo catalog**, never a hand list: every entry of `data/projects.yaml` (52 at this
-     spec's base commit) plus every other git repo directly under `/opt` (a `.git` present), each `{name, path,
-     agents}` where `agents` are the names in that repo's `.fabrik/session-agents.json` (a map of session id → agent
+   - `GET /api/repos` — the **repo catalog**, never a hand list: every entry of `data/projects.yaml` plus every
+     other repository directly under `/opt` (a `.git` present), with no duplicates; an entry whose path does not exist
+     is dropped, and one with no `.git` is listed but marked; each `{name, path, agents}` where `agents` are the names in that repo's `.fabrik/session-agents.json` (a map of session id → agent
      name; 3 repos carry one today: fabrik, fabrik-lib, youtube). A repo with no file opens as a plain session — the
      fallback I17 asks for; W-a02d1c86 gives the rest their files.
    - `GET /api/attention` — the waiting sessions, read from the attention files (below), each mapped to its repo by
      `cwd` (a path under `<repo>/.claude/worktrees/` maps to `<repo>`), named by its agent where that repo's
-     `session-agents.json` knows the session id, otherwise as `session <first 8 characters of the id>`.
+     `session-agents.json` knows the session id, otherwise by where it runs: a session inside a Deck tab as
+     `coordinator (<repo> tab)`, a tmux one as `session <first 8 characters of the id> (tmux)`, anything else as
+     `session <first 8 characters>`. A waiting session whose `cwd` lies under no catalog repo is shown in an `other`
+     row.
 
    The board is one page: the repo list (a search box, one row per repo, a dot and the agent name when a session there
    waits, a link that opens `http://localhost:<code port>/?folder=<path>` in a new tab). It follows `/api/attention`
@@ -125,15 +135,25 @@ Four pieces, all box-local, in WSL as the operator's user unless marked:
    hibernation reloads a workbench tab is an open unknown the build's acceptance settles (a reload costs the view, never
    the agent, which runs server-side).
 4. **Attention hook** — `scripts/sysadmin/fabrik_deck.py hook`, registered with no matcher for `Notification`,
-   `UserPromptSubmit` and `Stop` as one `ENTRIES` row per event in `scripts/sysadmin/install_user_hooks.py` (its rows
+   `UserPromptSubmit`, `Stop`, `PostToolUse` and `SessionEnd` as one `ENTRIES` row per event in `scripts/sysadmin/install_user_hooks.py` (its rows
    are command lists with no matcher field, `install_user_hooks.py:29-68`, so the hook filters `notification_type`
-   itself). States, per `session_id`:
-   - `Notification` with `notification_type` ∈ {`permission_prompt`, `idle_prompt`, `elicitation_dialog`} → write
-     `<state dir>/attention/<session_id>.json` (state dir: `FABRIK_DECK_STATE`, default `~/.local/state/fabrik-deck`,
-     read by the hook and the server alike) = `{cwd, type, at}` (atomic replace). Every other type is
-     ignored.
-   - `UserPromptSubmit` or `Stop` → delete that file. A permission prompt answered by a click keeps its dot until the
-     turn ends (`Stop`); an agent that then sits waiting for input is re-marked by `idle_prompt`.
+   itself). It runs as `python3` from the rows, so it is stdlib-only, and because it fires on every prompt and
+   tool call in every session on the box it must never get in a session's way: it prints nothing on stdout, always
+   exits 0 (any error becomes one stderr line), and finishes well inside the row's timeout. States, per `session_id`,
+   each a file `<state dir>/attention/<session_id>.json` (state dir: `FABRIK_DECK_STATE`, default
+   `~/.local/state/fabrik-deck`, read by the hook and the server alike) holding `{cwd, type, origin, at}`, written by
+   atomic replace; `origin` is `tmux` when the session carries `TMUX`, else `deck` when it carries `FABRIK_DECK=1`
+   (set in the env file, so only processes under the Deck's code-server inherit it — `VSCODE_IPC_HOOK_CLI`, which the
+   Deck's claude carries, is set by desktop VS Code too and cannot tell them apart), else `other`:
+   - `Notification` with `notification_type` ∈ {`permission_prompt`, `idle_prompt`, `elicitation_dialog`} → write the
+     file with that type (waiting). Every other type is ignored.
+   - `Stop` → write the file with type `turn_ended`: the turn is over and the agent waits for the operator's next
+     prompt (shown as a dot like the others).
+   - `PostToolUse` → delete the file only when its type is `permission_prompt` (a tool ran, so the prompt was
+     answered). This path runs on every tool call of every session, so it only stats the file and returns; a bare
+     `python3` start measured 22–35 ms (two 20-run averages on 2026-10-21, executed), the accepted per-call cost. An answered
+     `elicitation_dialog` keeps its dot until `Stop` or the next prompt, as no event marks the answer.
+   - `UserPromptSubmit` or `SessionEnd` → delete the file.
    - The server deletes files older than 24 h on each read.
 
    The hook fires in every session on the box (user-level hooks reach every account dir), so builders' waits show on
@@ -152,13 +172,17 @@ it is. The values are grounded in code-server 4.141.0's own settings schema (Ext
 
 **Launcher** — `Fabrik Deck.bat` on the Windows desktop, written by `fabrik_deck.py launcher --desktop <dir>` (the
 `scripts/sysadmin/agents_bat.py` pattern: a marker line, never overwriting a file it did not write). It runs
-`wsl.exe` to (a) start the two systemd user services if either is not active (`systemctl --user start` — normally a
-no-op, because they are enabled and already running); (b) wait until `http://localhost:<deck port>/`
+`wsl.exe` (which also reads the ports from the env file — a `.bat` cannot read a WSL file itself) to (a) start the two
+systemd user services if either is not active (`systemctl --user start` — normally a no-op, because they are enabled
+and already running), with `XDG_RUNTIME_DIR=/run/user/<uid>` exported first, since a launch from a `.bat` carries none
+and `systemctl --user` then finds no bus (`scripts/sysadmin/agents_up.sh:289-293` does the same); (b) wait until `http://localhost:<deck port>/`
 answers from Windows (measured: a newly bound port took up to ~15 s to forward; it waits up to 30 s, then shows an
-error); (c) open the browser — on the board URL the first time (a marker file beside the `.bat`, written only after the board answered and the browser started, records it), and with
-no URL afterwards, so Vivaldi's session restore brings back the board and the repo tabs without a duplicate board. The
-install step in the doc sets Vivaldi's startup to the last session (Settings → Startup), a one-time operator click. The
-browser path is a launcher flag (`--browser`), default the Vivaldi
+error); (c) open the browser only when it is not already running — on the board URL the first time (a marker file
+beside the `.bat`, written only after the board answered and the browser started, records it), and with no URL
+afterwards, so Vivaldi's session restore brings back the board and the repo tabs without a duplicate board or a second
+window; when Vivaldi is already running the launcher only verifies the servers. The install step in the doc sets
+Vivaldi's startup to the last session and its home page to the board (Settings → Startup), one-time operator clicks, so
+a closed board tab is one Home click away. The browser path is a launcher flag (`--browser`), default the Vivaldi
 path above.
 
 **How it resolves the motivating failure:** every repo's coordinator is a tab in one window (I1, I2); tabs tile or stay
@@ -185,8 +209,10 @@ which repo waits (I7); the browser restores its tabs (I8); the list comes from t
 - **Supervision:** `fabrik_deck.py install` writes two systemd user services, `fabrik-deck-code.service`
   (`fabrik_deck.py code-server`) and `fabrik-deck.service` (`fabrik_deck.py serve`), each `Restart=always`, `RestartSec=10`,
   `StartLimitIntervalSec=0` (so a repeated failure never parks a unit in `failed`) and `WantedBy=default.target`,
-  with `EnvironmentFile=%h/.config/fabrik-deck/env` (`%h` is systemd's home specifier; a `~` path is ignored as not absolute — `systemd-analyze --user verify`, executed) — the one file that holds `FABRIK_DECK_PORT`,
-  `FABRIK_DECK_CODE_PORT` and `FABRIK_DECK_STATE`, which the hook and the launcher read too — and enables them — the shape of the box's existing `code-tunnel.service`
+  with `EnvironmentFile=%h/.config/fabrik-deck/env` (`%h` is systemd's home specifier; a `~` path is ignored as not absolute — `systemd-analyze --user verify`, executed) — the one file, written by `install`, that holds
+  `FABRIK_DECK_PORT`, `FABRIK_DECK_CODE_PORT` and `FABRIK_DECK_STATE` (which the hook and the launcher read too) and
+  the workbench environment of Chosen approach 1 (`CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME`, `PATH`) and `FABRIK_DECK=1`, with `ExecStart`
+  naming absolute paths (`/usr/bin/python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py …`) — and enables them — the shape of the box's existing `code-tunnel.service`
   (`~/.config/systemd/user/code-tunnel.service`). With linger on for the operator's user (`loginctl show-user`:
   `Linger=yes`, executed 2026-10-21) they start when WSL boots, before any window opens, and restart after a crash;
   `journalctl --user -u <unit>` shows their stdout. This is item W-e89a9b5b (the operator, after the 19:32 WSL
@@ -202,8 +228,8 @@ which repo waits (I7); the browser restores its tabs (I8); the list comes from t
   files; delete the `.bat` and its marker file; remove the `ENTRIES` rows, then delete the
   registration from each account dir's `settings.json` by hand after a backup (`install_user_hooks.py` adds and
   repairs but has no remove — its only flags are `--check` and `--warn`, `install_user_hooks.py:133-141`); restore
-  config.yaml and settings.json from their backups, or delete `~/.local/share/code-server` and
-  `~/.local/state/fabrik-deck`. Nothing in any project repo depends on it.
+  config.yaml and settings.json from their backups, or delete `~/.local/share/code-server`,
+  `~/.local/state/fabrik-deck` and `~/.config/fabrik-deck`. Nothing in any project repo depends on it.
 
 ## External dependencies
 
@@ -212,7 +238,7 @@ which repo waits (I7); the browser restores its tabs (I8); the list comes from t
 | code-server 4.141.0 (Code 1.141.0) | Installed and running; no X-Frame-Options (executed header read); the extension's `claude` process runs under code-server's extension host (executed `ps`); settings schema in `lib/vscode/out/vs/code/browser/workbench/workbench.js`: `workbench.startupEditor` enum includes `"none"`, `workbench.editor.showTabs` enum `["multiple","single","none"]`, `workbench.activityBar.location` enum `["default","top","bottom","hidden"]`; `breadcrumbs.enabled`, `workbench.statusBar.visible`, `editor.minimap.enabled` defined (executed grep) | executed 2026-10-21 |
 | Vivaldi 8.2 tab tiling | "There’s no limit to how many tabs you can tile at once"; tile by dragging a tab into the page ("Drop to tile"), right-click → Tile, or Quick Commands "Tile Vertically/Horizontally/to Grid"; untile per tab or all | https://help.vivaldi.com/desktop/tabs/tab-tiling/ |
 | Chromium cross-origin iframe throttling (why the iframe shell was rejected) | "This feature standardizes throttling, so it applies to all cross-origin iframes, regardless of whether they're same-process or cross-process." | https://learn.microsoft.com/en-us/deployedge/edge-learnmore-iframe-throttling-display |
-| Claude Code hooks | "Claude Code fires the same hook events wherever it runs: sessions in the terminal, IDE extensions, …"; `Notification` input carries `notification_type` (`permission_prompt`, `idle_prompt`, `elicitation_dialog` among others) and `cwd`; `UserPromptSubmit` and `Stop` carry `session_id` | https://code.claude.com/docs/en/hooks |
+| Claude Code hooks | "Claude Code fires the same hook events wherever it runs: sessions in the terminal, IDE extensions, …"; `Notification` input carries `notification_type` (`permission_prompt`, `idle_prompt`, `elicitation_dialog` among others) and `cwd`; every event receives `session_id` and `cwd` ("Hook events receive these fields as JSON, in addition to event-specific fields"); `PostToolUse` and `SessionEnd` are events of the same page | https://code.claude.com/docs/en/hooks |
 | Claude Code VS Code extension | `preferredLocation` (`sidebar` · `panel`), `claudeProcessWrapper`, `environmentVariables`; no documented attention badge | https://code.claude.com/docs/en/vs-code |
 | WSL2 localhost forwarding | Windows `curl.exe http://localhost:8443/` → 302 (3/3); a newly bound 8445 answered 200 (3/3) after ~15 s and failed in its first seconds (executed) | executed 2026-10-21 |
 | Browser secure context on localhost (the board's notifications) | "Top-level documents provide a secure context when their URL is a potentially trustworthy URL", with `http://localhost` listed as "Secure (localhost URL)"; the Notification API is available only in secure contexts, and browsers are moving to refuse a permission request not made from a user gesture | https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts · https://developer.mozilla.org/en-US/docs/Web/API/Notification |
@@ -238,7 +264,7 @@ flags, no VPS. Runs in WSL as the operator's user; the browser runs on Windows.
   (`FABRIK_DECK_PORT`, `FABRIK_DECK_CODE_PORT`, `FABRIK_DECK_STATE`), the profile keys, the attention hook, the measured memory per tab,
   rollback (the Retirement steps), and the accepted auth-none exposure.
 - `docs/CONFIGURATION.md` + `.env.example` — the three env variables (a new environment variable, `.windsurf/rules/core/40-documentation.md:68`).
-- `INDEX.md` — the doc's and the script's rows; `docs/workstation/hooks-index.md` — the hook's row (infra's doc,
+- `INDEX.md` — the doc's, the script's and the test file's rows; `docs/workstation/hooks-index.md` — the hook's row (infra's doc,
   edited with the `ENTRIES` rows); `CHANGELOG.md` — one entry per build commit.
 - `docs/DECISIONS.md` — the approach and the auth-none exposure acceptance, minted at approval.
 
@@ -252,12 +278,36 @@ flags, no VPS. Runs in WSL as the operator's user; the browser runs on Windows.
 - Box-local: nothing deploys; no project repo changes (the hub gains the script, the `ENTRIES` rows and docs).
 - No third-party JavaScript: the board is plain HTML and JS served by the stdlib server.
 
+## Tests (the Behaviour Contract, `.windsurf/rules/core/45-testing-strategy.md:20`)
+
+Each behaviour below gets its own test in `tests/test_fabrik_deck.py`, driven through the script's entry points
+(the hook fed JSON on stdin, the server over HTTP on a free loopback port, `profile`/`launcher` against a temp home):
+
+1. The hook writes a waiting file for each of `permission_prompt`, `idle_prompt` and `elicitation_dialog`, ignores
+   every other `notification_type`, writes `turn_ended` on `Stop`, deletes on `UserPromptSubmit` and `SessionEnd`,
+   and deletes on `PostToolUse` only a `permission_prompt` file.
+2. The hook records `origin` from `TMUX` / `FABRIK_DECK`, and on malformed JSON or an unwritable state
+   dir still exits 0 with empty stdout.
+3. A `cwd` under `<repo>/.claude/worktrees/` maps to `<repo>`; one under no catalog repo lands in `other`.
+4. Labels: a registered session shows its agent name; an unregistered one shows the `coordinator (<repo> tab)` /
+   `(tmux)` / plain forms.
+5. The server deletes attention files older than 24 h on a read and keeps younger ones.
+6. The server refuses a foreign `Host` header and any method but GET.
+7. The catalog is the union of `data/projects.yaml` and the repositories under `/opt`, with no duplicates, a missing
+   path dropped and a non-repository marked.
+8. `profile` writes the backup first, sets the listed keys, and leaves every other key unchanged.
+9. `launcher` writes the `.bat` with its marker line and refuses to overwrite a file without the marker.
+10. `install` writes both unit files with the env file path in `%h` form, and each passes
+    `systemd-analyze --user verify`.
+
 ## Open / blocking unknowns
 
 | Unknown | Status | Resolution step |
 |---|---|---|
-| The approach (browser tiling + board, vs the dockview iframe shell the judges ranked before the coordinator's Vivaldi input) | OPEN | The Opus + Fable approval panel at `/fabrik-spec-review` rules; a split goes to the coordinator |
+| The approach (browser tiling + board, vs the dockview iframe shell) | RESOLVED | The Opus + Fable design-approval panel approved browser tiling + board, with the changes folded in this spec (the approval row in `docs/DECISIONS.md`) |
 | Vivaldi restores the board, the code-server tabs and their tiling after a restart (its "last session" startup) | OPEN | The build's acceptance closes and reopens Vivaldi with 3 repo tabs, 2 of them tiled, and confirms all return |
-| Tiling, untiling or tab hibernation reloads a workbench tab | OPEN | The build's acceptance tiles and untiles a repo tab mid-chat and leaves one in the background past Vivaldi's hibernation delay, and records whether the chat view reloads; if hibernation reloads it, the doc tells the operator to exclude `localhost` from hibernation |
+| Tiling, untiling or tab hibernation reloads a workbench tab, or silences the board | OPEN | The build's acceptance tiles and untiles a repo tab mid-chat and leaves one in the background past Vivaldi's hibernation delay, and records whether the chat view reloads; it also leaves the board in the background past that delay, triggers a waiting session, and confirms the browser notification fires; on either failure the doc tells the operator to exclude `localhost` from hibernation |
+| Windows `localhost` forwarding survives a WSL restart and a Windows reboot under `networkingMode=nat` (D-1072 measured a timeout after the 2026-10-20 reboot) | OPEN | The build's acceptance runs `wsl --shutdown`, then a Windows reboot, and after each checks `curl.exe http://localhost:8443/` and `:8445` from Windows; the doc names the fallback the measurement supports (restart WSL, or reach the NAT address `10.90.0.2` from `.wslconfig`, which needs the servers bound there — an exposure change put to the operator first) |
+| A second launch while Vivaldi runs, and a closed board tab | OPEN | The build's acceptance double-clicks the `.bat` with Vivaldi open (expects no new window) and closes the board tab, then reopens it with Home |
 | Memory per open repo tab (code-server extension host + workbench) | OPEN | The build's acceptance opens 6 tabs and records RSS in the doc |
 | The `ENTRIES` rows and their hooks-index row (infra's surface) | OPEN | The plan names infra as reviewer of those rows |
