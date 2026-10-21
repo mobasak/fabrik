@@ -263,7 +263,7 @@ contract copies and `tests/test_research_tier_order.py` in the same slice. D-109
 | G1 | web-scrape returns the content type and bytes, so a PDF reaches pdf-extract | U5's URL yields pdf-extract text through `scrape` |
 | G2 | doc-crawl include/exclude path patterns applied to sitemap seeds AND links, and `use_sitemap=False` | U8 stays under `/latest/concepts/` |
 | G3 | doc-crawl reports fetch errors instead of `except Exception: continue` | a failing fetcher yields an error row |
-| G5 | web-scrape returns status, final URL and title beside the HTML | a 404 URL reports 404; U1 reports 200 and its title |
+| G5 | web-scrape returns status, final URL, title and the response headers beside the HTML (G11's `x-datadome` signal needs the headers) | a 404 URL reports 404; U1 reports 200 and its title; U6's static fetch exposes `x-datadome` |
 | G6 | `ScopeError` exported from the package `__init__` as the README says | an import test |
 | G7 | web-scrape ships the non-public-address transport (today a pattern in watchdog) for `transport=` | a 127.0.0.1 URL and a redirect to 169.254.169.254 both raise |
 | G8 | pdf-extract keeps word spaces (pdfplumber tolerance) | U5 contains "Ashish Vaswani" |
@@ -330,6 +330,6 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 - Operator gate, not tested or used: Firecrawl's docs say "No API key needed to get started", which suggests a keyless,
   rate-limited tier. Switching to it while the keyed team is at −6 credits would be using another identity to get past
   a cap the vendor set — rule 57's field 4 makes that "an operator decision with the ToS quoted — never an engineering
-  convenience" (`.windsurf/rules/core/57-external-data-sourcing.md`:129-132), and D-1093 ruled out spending past the
+  convenience" (`.windsurf/rules/core/57-external-data-sourcing.md`:129-133), and D-1093 ruled out spending past the
   cap. Nothing in this design calls it.
 - Size: not small (a new MCP server, fabrik-lib changes, ten command and contract surfaces) — the full chain.
