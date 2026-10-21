@@ -2747,7 +2747,10 @@ def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
             if not isinstance(data, dict):
                 _note(f"NOTE: plan_tickets discovery: {lf.name} is not a JSON object — skipped")
                 continue
-            if data.get("status") not in _LOCK_MID_FLIGHT:
+            status = data.get("status")
+            # a non-string status (hand-edited `["active"]`) is unhashable in the frozenset test: skip the lock, as
+            # the old `!= "active"` did, never abort discovery (review pass 1, W-b2bbc1f1)
+            if not isinstance(status, str) or status not in _LOCK_MID_FLIGHT:
                 continue
             owned = data.get("owned_paths", [])
             # a STRING iterates its characters, so `_path_covers` would match single letters

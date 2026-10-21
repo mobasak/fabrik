@@ -3299,11 +3299,19 @@ def test_a_lock_entry_selects_its_plan_in_every_written_shape(
 
 
 @pytest.mark.parametrize(
-    ("status", "selects"), [("active", True), ("paused", True), ("released", False)]
+    ("status", "selects"),
+    [
+        ("active", True),
+        ("paused", True),
+        ("released", False),
+        (["active"], False),
+        ({"s": 1}, False),
+    ],
 )
 def test_a_paused_lock_still_selects_its_plan(tmp_path, status: str, selects: bool) -> None:
     """Design critique (Opus, W-b2bbc1f1): `/fabrik-execute-plan` writes `paused` on a quota pause and the plan stays
-    mid-flight — a live web-ecommerce-factory lock owned 23 paths and was never selected."""
+    mid-flight — a live web-ecommerce-factory lock owned 23 paths and was never selected. A non-string status skips the
+    lock and never aborts discovery (review pass 1: a list status raised TypeError in the frozenset test)."""
     root = _repo(tmp_path)
     plan_dir = _build(root)
     _git(root, "add", "-A")
