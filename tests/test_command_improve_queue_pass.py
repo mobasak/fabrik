@@ -279,7 +279,7 @@ def test_fabrik_task_third_queue_pass_lines() -> None:
         " or flag the change extends, since a test that runs a script by subprocess never imports it)",
         "a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing"
         " until it can fail",
-        "and every vendored copy outside it (`find /opt` by the file's name)",
+        "and every vendored copy outside it (`find /opt` by the file's name, `.claude/worktrees/` counted apart)",
         "A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail"
         " root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there",
         "before phase 4, MEASURE's test slice re-runs on the built tree,",
