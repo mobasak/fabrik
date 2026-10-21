@@ -62,6 +62,18 @@ an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (
 fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
 slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
 receives the slice-1a requests next.
+### Fixed — A re-applied payments role loses its settings in every database, not only its own (2026-10-22)
+
+`mint_payments_role` reset a re-applied payments role's per-database settings only in the project's database, so a setting attached out of band in any other database (for example `row_security = off`) survived every re-apply. It now walks `pg_db_role_setting` for that role and resets it in each database that holds one, skipping a database dropped in between. The unit test pins the refusal guard's and the loop's role filters; the real-Postgres test plants three settings (counted before the re-mint) and a bystander role's setting that must survive (W-3c302832, D-1115).
+
+### Added — VS Code chat-tab router: any repo's agent in one window (2026-10-21)
+
+`scripts/sysadmin/claude_tab_router.py` and the wrapper source `scripts/sysadmin/claude-agent-wrapper.sh` (the `claudeCode.claudeProcessWrapper`): a new Claude chat tab offers a picker of every repo's agents and opens the pick in that repo as that agent; a restored tab from another repo is re-rooted; anything else launches as before. Reviewed in full (/fabrik-review, 9 → 4 → 0 confirmed): a session live elsewhere is never re-rooted, live roles are matched per repo, a role-less pick drops the window's agent, `--add-dir` drops all its values, only UUID session ids reach the transcript lookup, the picker's 30 s counts from the router's start. Not installed yet — `docs/workstation/claude-tab-router.md` § Install runs after the merge (W-ea993618, D-1112).
+
+### Added — The Fabrik Deck's code-server runs as a systemd user service (2026-10-21)
+
+A WSL restart on 2026-10-21 killed the hand-started code-server and the operator could not reach the repos from Vivaldi. `scripts/sysadmin/fabrik_deck.py install` now writes `~/.config/fabrik-deck/env` (appending only missing keys, read the way systemd reads it) and `fabrik-deck-code.service` (linger, `Restart=always`, `RestartSec=10`, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=2`), verifies it, reloads and enables it; `--start` also starts it when the port is free. Every check runs before the first write. `fabrik_deck.py code-server` is the unit's start: a keep-list environment and `--bind-addr 127.0.0.1:<port>`. Box doc `docs/workstation/fabrik-deck.md`; tests `tests/test_fabrik_deck.py` (W-e89a9b5b, D-1106).
+
 ### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
 
 - `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.
