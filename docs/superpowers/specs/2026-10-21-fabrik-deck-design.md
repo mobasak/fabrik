@@ -16,6 +16,7 @@ reaches WSL only at its address — superseded for this service by the measured 
 | **fleet** (this agent) | Box-local tooling owner | Builds and maintains the Deck server, board, hook, profile, launcher, doc |
 | **infra** | Owner of `.claude/hooks/`, `install_user_hooks.py` and `hooks-index.md` (beat: hooks) | Reviews the `ENTRIES` rows and the hooks-index row the attention hook needs |
 | The **Claude Code hook runtime** (automated) | Fires `Notification` / `UserPromptSubmit` / `Stop` in every session on the box, extension and tmux alike | Runs the hook that writes and clears the per-session attention files the board reads |
+| The **systemd user manager** (automated, WSL) | Runs the operator's user services from boot (linger on) | Starts both Deck services at WSL boot and restarts either after a crash |
 | The **launcher** (automated, a Windows `.bat`) | Runs on the operator's double-click | Starts the two servers if they are not answering, then opens the browser |
 
 **The primary's loop, counted — the STEP BUDGET (5):** (1) double-click *Fabrik Deck* on the Windows desktop →
@@ -67,8 +68,9 @@ pauses an agent; the browser only renders. That is the property behind "hidden t
 | I15 | coordinator: keep the router usable inside a code-server pane | OUT-OF-SCOPE | W-ea993618 sets `claudeCode.claudeProcessWrapper` when it ships; this spec sets nothing for it |
 | I16 | coordinator (relayed): "Vivaldi tiles any number of tabs natively … weigh it, do not assume" | IN | Chosen approach (weighed against the dockview shell; Rejected alternatives) |
 | I17 | operator (relayed): "now all existing and new repos will support this setup ? if not they should." | IN (registry read) · OUT-OF-SCOPE (rollout) | Repo catalog reads every repo with a plain-session fallback; the scaffolder + rollout runbook is W-a02d1c86 |
+| I18 | operator (relayed), after the 19:32 WSL restart: "via vivaldi i cant reach the repos why?" — the coordinator: code-server must run as a systemd user service | IN | Lifecycle: Supervision (W-e89a9b5b) |
 
-Intake: 17 items — 14 IN, 2 OUT-OF-SCOPE, 1 split (IN for the registry read, OUT-OF-SCOPE for the rollout), 0 ASK.
+Intake: 18 items — 15 IN, 2 OUT-OF-SCOPE, 1 split (IN for the registry read, OUT-OF-SCOPE for the rollout), 0 ASK.
 
 ## Constraints Digest
 
@@ -80,8 +82,8 @@ Intake: 17 items — 14 IN, 2 OUT-OF-SCOPE, 1 split (IN for the registry read, O
 | Source, config, or Docker file changed | `.windsurf/rules/core/40-documentation.md:67` |
 
 (12-Factor axes applied as design constraints: III — every port and path the Deck reads comes from env or a flag with
-a default; XI — both servers write to stdout, held by a tmux pane, never a logfile; VIII — no daemonizing, no PID
-files: the servers run in the foreground of a tmux window.)
+a default; XI — both servers write to stdout, which systemd's journal holds, never a logfile; VIII — no daemonizing, no PID
+files: each server runs in the foreground of its own systemd user service.)
 
 ## Chosen approach — browser tiling + a Deck board
 
@@ -150,9 +152,8 @@ it is. The values are grounded in code-server 4.141.0's own settings schema (Ext
 
 **Launcher** — `Fabrik Deck.bat` on the Windows desktop, written by `fabrik_deck.py launcher --desktop <dir>` (the
 `scripts/sysadmin/agents_bat.py` pattern: a marker line, never overwriting a file it did not write). It runs
-`wsl.exe` to (a) start tmux session `deck` with one window per server, each running `fabrik_deck.py code-server` or
-`fabrik_deck.py serve` in a restart loop, when either port is not answering — stdout stays in the tmux pane (`tmux
-attach -t deck` shows it) and the servers outlive the `.bat` window; (b) wait until `http://localhost:<deck port>/`
+`wsl.exe` to (a) start the two systemd user services if either is not active (`systemctl --user start` — normally a
+no-op, because they are enabled and already running); (b) wait until `http://localhost:<deck port>/`
 answers from Windows (measured: a newly bound port took up to ~15 s to forward; it waits up to 30 s, then shows an
 error); (c) open the browser — on the board URL the first time (a marker file beside the `.bat`, written only after the board answered and the browser started, records it), and with
 no URL afterwards, so Vivaldi's session restore brings back the board and the repo tabs without a duplicate board. The
@@ -174,21 +175,31 @@ which repo waits (I7); the browser restores its tabs (I8); the list comes from t
 | One VS Code window with a multi-root workspace | The Claude extension scopes chat tabs and history to the first folder (measured under W-ea993618). |
 | A VS Code-side attention signal (title / badge) | None exists for the extension's webview (Claude Code VS Code docs); hooks are the documented channel. |
 | `--cert` + the WSL address | Operator: no password, dynamic IP; localhost forwarding is a secure context with no cert. |
-| systemd user units for the servers | No user bus in this WSL (`systemctl --user is-system-running` → "Failed to connect to bus", executed); tmux is the box's existing home for long-lived sessions (D-1092). |
+| A tmux session holding the two servers in a restart loop | Survives only while tmux does: the 19:32 WSL restart on 2026-10-21 killed the hand-started code-server and the operator could not reach the repos; systemd user services with linger start at boot and restart on a crash (W-e89a9b5b). |
 
 ## Lifecycle
 
 - **First run:** `fabrik_deck.py install` backs up and writes config.yaml and the profile, and writes the `.bat`;
   infra registers the hook rows. The board opens with no repo tabs; the operator opens the ones they want, and Vivaldi
   remembers them.
+- **Supervision:** `fabrik_deck.py install` writes two systemd user services, `fabrik-deck-code.service`
+  (`fabrik_deck.py code-server`) and `fabrik-deck.service` (`fabrik_deck.py serve`), each `Restart=always`, `RestartSec=10`,
+  `StartLimitIntervalSec=0` (so a repeated failure never parks a unit in `failed`) and `WantedBy=default.target`,
+  with `EnvironmentFile=~/.config/fabrik-deck/env` — the one file that holds `FABRIK_DECK_PORT`,
+  `FABRIK_DECK_CODE_PORT` and `FABRIK_DECK_STATE`, which the hook and the launcher read too — and enables them — the shape of the box's existing `code-tunnel.service`
+  (`~/.config/systemd/user/code-tunnel.service`). With linger on for the operator's user (`loginctl show-user`:
+  `Linger=yes`, executed 2026-10-21) they start when WSL boots, before any window opens, and restart after a crash;
+  `journalctl --user -u <unit>` shows their stdout. This is item W-e89a9b5b (the operator, after the 19:32 WSL
+  restart: "via vivaldi i cant reach the repos why?").
 - **Daily:** one double-click; Vivaldi restores the tabs; the board shows waiting agents.
 - **Growth:** each open repo tab is a VS Code workbench in the browser plus an extension host process in code-server.
   The build's acceptance opens 6 repo tabs and records code-server's and Vivaldi's memory in the doc, and the doc's
   guidance is drawn from that measurement. No hard cap — closing a tab is the operator's lever.
-- **Degradation:** code-server down → workbench tabs show VS Code web's reconnect banner and recover when the restart
-  loop brings it back; the Deck server down → the board shows the browser's error until the loop restarts it;
+- **Degradation:** code-server down → workbench tabs show VS Code web's reconnect banner and recover when systemd
+  restarts it; the Deck server down → the board shows the browser's error until systemd restarts it;
   Windows localhost forwarding stuck (measured transient: one `000` on 2026-10-21) → the launcher's wait says so.
-- **Retirement:** `tmux kill-session -t deck`; delete the `.bat` and its marker file; remove the `ENTRIES` rows, then delete the
+- **Retirement:** `systemctl --user disable --now fabrik-deck.service fabrik-deck-code.service` and delete their unit
+  files; delete the `.bat` and its marker file; remove the `ENTRIES` rows, then delete the
   registration from each account dir's `settings.json` by hand after a backup (`install_user_hooks.py` adds and
   repairs but has no remove — its only flags are `--check` and `--warn`, `install_user_hooks.py:133-141`); restore
   config.yaml and settings.json from their backups, or delete `~/.local/share/code-server` and
