@@ -16,7 +16,7 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 
 | Layer | File | Content |
 |---|---|---|
-| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: the universal set + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full 16, the hub the full set minus `HUB_EXCLUDE` (D-638) |
+| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: the universal set + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full roster, the hub the full set minus `HUB_EXCLUDE` (D-638) |
 | USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib's own `.mcp.json` (landed by its agent with `--repo`) carries its full roster on top |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
 | PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the six pre-D-1102 universal servers** (no fabrik-scrape: this profile is not emitted) |
@@ -49,7 +49,7 @@ on demand — zero context cost), but the *processes* spawn regardless. That is 
 
 ---
 
-## The servers (16 active + 2 retired + 1 planned)
+## The servers (18 active + 2 retired + 1 planned)
 
 Weight = measured RSS across live processes (per-window cost scales with window count).
 
@@ -142,8 +142,8 @@ the planned row) — standing rule: any health project gets all three overlays a
 hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
-**Headcount effect (post-D-021):** headless types run **6 servers instead of 16**; web-GUI types
-8-10; mobile-app 8.
+**Headcount effect (post-D-021, widened by D-1102):** headless types run **the universal set alone instead of 16**; web-GUI
+and mobile types add only their per-type sets from the table above.
 
 ## Playwright — the ruling in full (D-015 + D-016)
 
@@ -205,7 +205,7 @@ already-registered sources; decision rides the same split.
 
 ## The two standing rulings behind the split
 
-**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the universal set and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
+**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the five of § Config topology and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
 
 **Related:** [MCP_HTTP_TRANSPORT.md](MCP_HTTP_TRANSPORT.md) (transport detail) ·
 [wsl-mcp.md](wsl-mcp.md) (the Claude-Desktop bridge server; `wsl-shell-mcp-setup.md` is the superseded stdio bridge) ·
