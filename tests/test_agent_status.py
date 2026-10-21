@@ -15,6 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 STATUS = REPO / "scripts" / "agent_status.py"
 WORK = REPO / "scripts" / "work.py"
@@ -44,11 +46,20 @@ def _env(tmp: Path, agent: str | None = "coordinator") -> dict[str, str]:
 
 
 def _git(cwd: Path, env: dict, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(
+        ["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=True
+    ).stdout
 
 
 def _work(repo: Path, env: dict, *args: str) -> str:
-    r = subprocess.run([sys.executable, str(WORK), *args], cwd=repo, env=env, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        [sys.executable, str(WORK), *args],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert r.returncode == 0, r.stderr
     return r.stdout
 
@@ -56,7 +67,12 @@ def _work(repo: Path, env: dict, *args: str) -> str:
 def _status(repo: Path, env: dict, *args: str, stdin: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(STATUS), "--repo", str(repo), *args],
-        cwd=repo, env=env, input=stdin, capture_output=True, text=True, timeout=60,
+        cwd=repo,
+        env=env,
+        input=stdin,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
 
 
@@ -73,7 +89,9 @@ def _setup(tmp: Path, *, present: tuple[str, ...] = ()) -> tuple[dict, Path, dic
     _git(repo, env, "commit", "-q", "-m", "store")
     # the hub's shape: its builders named in the session registry (W-16d0ef14 — the roster is the repo's own)
     (repo / ".fabrik" / "session-agents.json").write_text(
-        json.dumps({"s0": "coordinator", "s1": "infra", "s2": "fleet", "s3": "intel", "s4": "kaizen"}),
+        json.dumps(
+            {"s0": "coordinator", "s1": "infra", "s2": "fleet", "s3": "intel", "s4": "kaizen"}
+        ),
         encoding="utf-8",
     )
     trees = {}
@@ -92,7 +110,9 @@ def _setup(tmp: Path, *, present: tuple[str, ...] = ()) -> tuple[dict, Path, dic
 
 
 def _add(repo: Path, env: dict, title: str, owner: str = "", *extra: str) -> str:
-    item = Path(_work(repo, env, "add", "--kind", "task", "--title", title).strip().splitlines()[-1]).stem
+    item = Path(
+        _work(repo, env, "add", "--kind", "task", "--title", title).strip().splitlines()[-1]
+    ).stem
     if owner:
         _work(repo, env, "assign", item, "--owner", owner, *extra)
     return item
@@ -101,7 +121,14 @@ def _add(repo: Path, env: dict, title: str, owner: str = "", *extra: str) -> str
 def _record(env: dict, sid: str, **fields) -> None:
     d = Path(env["COMMAND_RUN_DIR"])
     d.mkdir(parents=True, exist_ok=True)
-    rec = {"session_id": sid, "updated_ts": time.time(), "phase": 2, "phases": 5, "phase_title": "t", **fields}
+    rec = {
+        "session_id": sid,
+        "updated_ts": time.time(),
+        "phase": 2,
+        "phases": 5,
+        "phase_title": "t",
+        **fields,
+    }
     (d / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
 
 
@@ -115,12 +142,42 @@ def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
     """NOW is the role's newest RUNNING record from any repo (another repo is named), its claim and
     whether a window is up; a done record, another agent's record and the distributor are not rows."""
     env, repo, trees = _setup(tmp_path, present=("infra",))
-    _record(env, "s1", agent="infra", state="running", command="fabrik-task", surface="the reader",
-            repo_root=str(trees["infra"]))
-    _record(env, "s2", agent="infra", state="done", command="fabrik-review", surface="old", repo_root=str(trees["infra"]))
-    _record(env, "s3", agent="fleet", state="running", command="fabrik-deploy", surface="vps1",
-            repo_root="/opt/some-project")
-    _record(env, "s4", agent="sp1", state="running", command="fabrik-spec", surface="x", repo_root="/opt/other")
+    _record(
+        env,
+        "s1",
+        agent="infra",
+        state="running",
+        command="fabrik-task",
+        surface="the reader",
+        repo_root=str(trees["infra"]),
+    )
+    _record(
+        env,
+        "s2",
+        agent="infra",
+        state="done",
+        command="fabrik-review",
+        surface="old",
+        repo_root=str(trees["infra"]),
+    )
+    _record(
+        env,
+        "s3",
+        agent="fleet",
+        state="running",
+        command="fabrik-deploy",
+        surface="vps1",
+        repo_root="/opt/some-project",
+    )
+    _record(
+        env,
+        "s4",
+        agent="sp1",
+        state="running",
+        command="fabrik-spec",
+        surface="x",
+        repo_root="/opt/other",
+    )
     item = _add(repo, env, "build the reader", "infra")
     claim_env = {**env, "CLAUDE_AGENT": "infra", "CLAUDE_CODE_SESSION_ID": "s1"}
     _work(repo, claim_env, "claim", item)  # claims sit in the shared folder every tree reads
@@ -130,7 +187,9 @@ def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
     assert infra["live"] is True and fleet["live"] is False
     assert infra["now"]["command"] == "fabrik-task" and infra["now"]["surface"] == "the reader"
     assert infra["claim"]["id"] == item and infra["claim"]["title"] == "build the reader"
-    assert fleet["now"]["command"] == "fabrik-deploy" and fleet["now"]["repo"] == "/opt/some-project"
+    assert (
+        fleet["now"]["command"] == "fabrik-deploy" and fleet["now"]["repo"] == "/opt/some-project"
+    )
     assert rows["intel"]["now"] is None
 
 
@@ -139,16 +198,56 @@ def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> Non
     likely gone), and a record whose updated_ts is not a finite number ("abc", "inf", NaN, an int too
     large for a float) is skipped, never a crash."""
     env, repo, trees = _setup(tmp_path)
-    _record(env, "old", agent="infra", state="running", command="fabrik-deploy", surface="x",
-            repo_root=str(trees["infra"]), updated_ts=time.time() - 13 * 3600)
-    _record(env, "bad", agent="fleet", state="running", command="fabrik-spec", surface="y",
-            repo_root=str(trees["fleet"]), updated_ts="abc")
-    _record(env, "inf", agent="fleet", state="running", command="fabrik-spec", surface="z",
-            repo_root=str(trees["fleet"]), updated_ts="inf")
-    _record(env, "nan", agent="fleet", state="running", command="fabrik-spec", surface="n",
-            repo_root=str(trees["fleet"]), updated_ts=float("nan"))
-    _record(env, "big", agent="fleet", state="running", command="fabrik-spec", surface="b",
-            repo_root=str(trees["fleet"]), updated_ts=10**400)  # float() of it raises OverflowError
+    _record(
+        env,
+        "old",
+        agent="infra",
+        state="running",
+        command="fabrik-deploy",
+        surface="x",
+        repo_root=str(trees["infra"]),
+        updated_ts=time.time() - 13 * 3600,
+    )
+    _record(
+        env,
+        "bad",
+        agent="fleet",
+        state="running",
+        command="fabrik-spec",
+        surface="y",
+        repo_root=str(trees["fleet"]),
+        updated_ts="abc",
+    )
+    _record(
+        env,
+        "inf",
+        agent="fleet",
+        state="running",
+        command="fabrik-spec",
+        surface="z",
+        repo_root=str(trees["fleet"]),
+        updated_ts="inf",
+    )
+    _record(
+        env,
+        "nan",
+        agent="fleet",
+        state="running",
+        command="fabrik-spec",
+        surface="n",
+        repo_root=str(trees["fleet"]),
+        updated_ts=float("nan"),
+    )
+    _record(
+        env,
+        "big",
+        agent="fleet",
+        state="running",
+        command="fabrik-spec",
+        surface="b",
+        repo_root=str(trees["fleet"]),
+        updated_ts=10**400,
+    )  # float() of it raises OverflowError
     rows = _rows(repo, env)
     assert rows["infra"]["now"]["stale"] is True
     assert rows["fleet"]["now"] is None
@@ -179,15 +278,32 @@ def test_done_finds_a_quiet_roles_merge_behind_many_commits(tmp_path: Path) -> N
     """A role that merged long ago still shows that merge: the log is filtered to merge subjects
     BEFORE the commit limit applies, so 450 later non-merge commits cannot push it out of view."""
     env, repo, _ = _setup(tmp_path)
-    _git(repo, env, "commit", "-q", "--allow-empty", "-m", "merge(coordinator): worktree-fleet — request 01OLD, item W-33333333")
+    _git(
+        repo,
+        env,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "merge(coordinator): worktree-fleet — request 01OLD, item W-33333333",
+    )
     head = _git(repo, env, "rev-parse", "HEAD").strip()
     stream = []
     for n in range(450):
         msg = f"chore: filler {n}\n"
-        stream.append(f"commit refs/heads/master\ncommitter t <t@example.invalid> {1790000000 + n} +0000\n"
-                      f"data {len(msg)}\n{msg}" + (f"from {head}\n" if n == 0 else "") + "\n")
-    subprocess.run(["git", "fast-import", "--quiet", "--force"], cwd=repo, env=env, input="".join(stream),
-                   capture_output=True, text=True, check=True)
+        stream.append(
+            f"commit refs/heads/master\ncommitter t <t@example.invalid> {1790000000 + n} +0000\n"
+            f"data {len(msg)}\n{msg}" + (f"from {head}\n" if n == 0 else "") + "\n"
+        )
+    subprocess.run(
+        ["git", "fast-import", "--quiet", "--force"],
+        cwd=repo,
+        env=env,
+        input="".join(stream),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     _git(repo, env, "reset", "-q", "--hard", "master")
     fleet = _rows(repo, env)["fleet"]["done"]
     assert [m["item"] for m in fleet["merges"]] == ["W-33333333"], fleet
@@ -205,7 +321,11 @@ def test_next_is_the_roles_queue(tmp_path: Path) -> None:
     _add(repo, env, "fleet's", "fleet")
     _add(repo, env, "nobody's")
     nxt = _rows(repo, env)["infra"]["next"]
-    assert [i["id"] for i in nxt["top"]] == [high, mid, low] or [i["id"] for i in nxt["top"]] == [high, mid, extra]
+    assert [i["id"] for i in nxt["top"]] == [high, mid, low] or [i["id"] for i in nxt["top"]] == [
+        high,
+        mid,
+        extra,
+    ]
     assert nxt["queued"] == 4 and nxt["parked"] == 1
     assert parked not in [i["id"] for i in nxt["top"]]
 
@@ -235,21 +355,32 @@ def test_the_session_start_entry_is_guarded(tmp_path: Path) -> None:
     """The SessionStart entry is its own hook (its own 10,000-character budget), guarded by `test -f`,
     so a repo the governance sync reaches without the script runs nothing and exits 0."""
     hooks = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["SessionStart"]
-    cmds = [h["command"] for e in hooks for h in e.get("hooks", []) if "agent_status.py" in h["command"]]
+    cmds = [
+        h["command"] for e in hooks for h in e.get("hooks", []) if "agent_status.py" in h["command"]
+    ]
     assert len(cmds) == 1, cmds
     cmd = cmds[0]
-    assert cmd.startswith('test -f "${CLAUDE_PROJECT_DIR}/scripts/agent_status.py" &&') and cmd.endswith("|| true")
+    assert cmd.startswith(
+        'test -f "${CLAUDE_PROJECT_DIR}/scripts/agent_status.py" &&'
+    ) and cmd.endswith("|| true")
     absent = tmp_path / "project"
     absent.mkdir()
-    r = subprocess.run(["sh", "-c", cmd], env={"PATH": os.environ["PATH"], "CLAUDE_PROJECT_DIR": str(absent)},
-                       capture_output=True, text=True, timeout=30)
+    r = subprocess.run(
+        ["sh", "-c", cmd],
+        env={"PATH": os.environ["PATH"], "CLAUDE_PROJECT_DIR": str(absent)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
     assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
 
 
 # ── the box view: every repo under the /opt seam (W-7159f8e2) ─────────────────────────────────────
 
 
-def _box_repo(opt: Path, env: dict, name: str, *, store: bool = True, worktrees: tuple[str, ...] = ()) -> Path:
+def _box_repo(
+    opt: Path, env: dict, name: str, *, store: bool = True, worktrees: tuple[str, ...] = ()
+) -> Path:
     repo = opt / name
     _git(opt, env, "init", "-q", "-b", "master", str(repo))
     (repo / "README").write_text("seed\n", encoding="utf-8")
@@ -261,7 +392,16 @@ def _box_repo(opt: Path, env: dict, name: str, *, store: bool = True, worktrees:
         _git(repo, env, "add", ".fabrik")
         _git(repo, env, "commit", "-q", "-m", "store")
     for wt in worktrees:
-        _git(repo, env, "worktree", "add", "-q", "-b", f"worktree-{wt}", str(repo / ".claude" / "worktrees" / wt))
+        _git(
+            repo,
+            env,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            f"worktree-{wt}",
+            str(repo / ".claude" / "worktrees" / wt),
+        )
     return repo
 
 
@@ -270,13 +410,21 @@ def _window(proc: Path, n: int, cwd: Path, agent: str = "", argv: str = "claude"
     d.mkdir(parents=True)
     (d / "comm").write_text("claude\n", encoding="utf-8")
     (d / "cmdline").write_bytes(argv.replace(" ", "\0").encode() + b"\0")
-    (d / "environ").write_bytes((f"CLAUDE_AGENT={agent}\0" if agent else "").encode() + b"PATH=/bin\0")
+    (d / "environ").write_bytes(
+        (f"CLAUDE_AGENT={agent}\0" if agent else "").encode() + b"PATH=/bin\0"
+    )
     os.symlink(cwd, d / "cwd")
 
 
 def _box(opt: Path, env: dict) -> dict[str, dict]:
-    r = subprocess.run([sys.executable, str(STATUS), "--json", "--all", "--opt", str(opt)],
-                       cwd=opt, env=env, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        [sys.executable, str(STATUS), "--json", "--all", "--opt", str(opt)],
+        cwd=opt,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert r.returncode == 0, r.stderr
     return {repo["name"]: repo for repo in json.loads(r.stdout)["repos"]}
 
@@ -302,7 +450,15 @@ def test_box_roster_from_windows_records_and_claims(tmp_path: Path) -> None:
     _window(proc, 104, shop, argv="claude -p hello")  # a headless child is no window
     week = time.time() - 8 * 86400
     _record(env, "m1", agent="wef2", state="done", command="fabrik-review", repo_root=str(shop))
-    _record(env, "o1", agent="wef9", state="done", command="fabrik-task", repo_root=str(shop), updated_ts=week)
+    _record(
+        env,
+        "o1",
+        agent="wef9",
+        state="done",
+        command="fabrik-task",
+        repo_root=str(shop),
+        updated_ts=week,
+    )
     _record(env, "l1", agent="lib-dev1", state="done", command="fabrik-task", repo_root=str(lib))
     item = _add(shop, env, "fix the cart", "wef4")
     _work(shop, {**env, "CLAUDE_AGENT": "wef4", "CLAUDE_CODE_SESSION_ID": "c1"}, "claim", item)
@@ -310,9 +466,16 @@ def test_box_roster_from_windows_records_and_claims(tmp_path: Path) -> None:
     assert "quiet" in repos and repos["quiet"]["agents"] == []
     shop_agents = _agents(repos["shop"])
     assert sorted(shop_agents) == ["wef1", "wef2", "wef3", "wef4"], sorted(shop_agents)
-    assert shop_agents["wef1"]["window"] and shop_agents["wef3"]["window"] and shop_agents["wef2"]["window"]
+    assert (
+        shop_agents["wef1"]["window"]
+        and shop_agents["wef3"]["window"]
+        and shop_agents["wef2"]["window"]
+    )
     assert shop_agents["wef2"]["named_from"] == "record"
-    assert shop_agents["wef4"]["window"] is False and shop_agents["wef4"]["claim"]["title"] == "fix the cart"
+    assert (
+        shop_agents["wef4"]["window"] is False
+        and shop_agents["wef4"]["claim"]["title"] == "fix the cart"
+    )
     assert repos["shop"]["dormant"] == 1  # wef9: last seen 8 days ago
     assert list(_agents(repos["lib"])) == ["lib-dev1"] and repos["lib"]["store"] is False
 
@@ -327,13 +490,31 @@ def test_box_state_comes_from_windows_and_records_not_bindings(tmp_path: Path) -
     shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef3"))
     proc = tmp_path / "proc"
     _window(proc, 101, shop / ".claude" / "worktrees" / "wef1")
-    _record(env, "r3", agent="wef3", state="running", command="fabrik-task", surface="the cart",
-            repo_root=str(shop / ".claude" / "worktrees" / "wef3"))
+    _record(
+        env,
+        "r3",
+        agent="wef3",
+        state="running",
+        command="fabrik-task",
+        surface="the cart",
+        repo_root=str(shop / ".claude" / "worktrees" / "wef3"),
+    )
     _record(env, "r5", agent="wef5", state="done", command="fabrik-task", repo_root=str(shop))
     start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(")", 1)[1].split()[19]
-    Path(env["AGENT_IDENTITY_FILE"]).write_text(json.dumps({
-        "session_id": "b5", "name": "wef5", "pid": os.getpid(), "pid_start": int(start),
-        "toplevel": str(shop / ".git"), "at": int(time.time())}) + "\n", encoding="utf-8")
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(
+        json.dumps(
+            {
+                "session_id": "b5",
+                "name": "wef5",
+                "pid": os.getpid(),
+                "pid_start": int(start),
+                "toplevel": str(shop / ".git"),
+                "at": int(time.time()),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     agents = _agents(_box(opt, env)["shop"])
     assert agents["wef3"]["state"] == "working" and agents["wef3"]["now"]["surface"] == "the cart"
     assert agents["wef1"]["state"] == "idle"
@@ -360,22 +541,65 @@ def test_box_edges_are_named_honestly(tmp_path: Path) -> None:
     (proc / "103" / "environ").chmod(0)  # unreadable: the window stays, named by its tree
     _window(proc, 104, wt / "agent-0123456789abcdef")  # a harness tree: nobody's window
     _window(proc, 105, old)  # a main window whose only record is 9 days old
-    _record(env, "st", agent="wef8", state="running", command="fabrik-task", repo_root=str(shop),
-            updated_ts=time.time() - 13 * 3600)
-    _record(env, "fu", agent="wef9", state="running", command="fabrik-task", repo_root=str(shop),
-            updated_ts=time.time() + 10 * 86400)
+    _record(
+        env,
+        "st",
+        agent="wef8",
+        state="running",
+        command="fabrik-task",
+        repo_root=str(shop),
+        updated_ts=time.time() - 13 * 3600,
+    )
+    _record(
+        env,
+        "fu",
+        agent="wef9",
+        state="running",
+        command="fabrik-task",
+        repo_root=str(shop),
+        updated_ts=time.time() + 10 * 86400,
+    )
     _record(env, "nf", agent="wef5", state="running", command="fabrik-task", repo_root=str(shop))
     nf = Path(env["COMMAND_RUN_DIR"]) / "nf.json"
-    nf.write_text(nf.read_text(encoding="utf-8").replace(str(json.loads(nf.read_text())["updated_ts"]), "NaN"),
-                  encoding="utf-8")
-    _record(env, "o9", agent="ancient", state="done", command="fabrik-task", repo_root=str(old),
-            updated_ts=time.time() - 9 * 86400)
+    nf.write_text(
+        nf.read_text(encoding="utf-8").replace(
+            str(json.loads(nf.read_text())["updated_ts"]), "NaN"
+        ),
+        encoding="utf-8",
+    )
+    _record(
+        env,
+        "o9",
+        agent="ancient",
+        state="done",
+        command="fabrik-task",
+        repo_root=str(old),
+        updated_ts=time.time() - 9 * 86400,
+    )
     _record(env, "mo", agent="boss", state="done", command="fabrik-review", repo_root=str(shop))
-    _record(env, "mx", agent="former", state="done", command="fabrik-review", repo_root=str(shop),
-            updated_ts=time.time() - 3600)
-    Path(env["AGENT_IDENTITY_FILE"]).write_text(json.dumps({
-        "session_id": "b1", "name": "ghost", "pid": 1, "pid_start": 1, "toplevel": str(shop / ".git"),
-        "at": int(time.time())}) + "\n", encoding="utf-8")
+    _record(
+        env,
+        "mx",
+        agent="former",
+        state="done",
+        command="fabrik-review",
+        repo_root=str(shop),
+        updated_ts=time.time() - 3600,
+    )
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(
+        json.dumps(
+            {
+                "session_id": "b1",
+                "name": "ghost",
+                "pid": 1,
+                "pid_start": 1,
+                "toplevel": str(shop / ".git"),
+                "at": int(time.time()),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     repos = _box(opt, env)
     assert "shop-alias" not in repos
     shop_agents = _agents(repos["shop"])
@@ -402,16 +626,22 @@ def test_box_reports_each_agents_pause(tmp_path: Path) -> None:
     (bare / ".fabrik" / "work").mkdir(parents=True)  # a work dir with no config.json
     _git(bare, env, "init", "-q")
     proc = tmp_path / "proc"
-    _window(proc, 101, shop / ".claude" / "worktrees" / "wef1", agent="lead")  # named unlike its tree
+    _window(
+        proc, 101, shop / ".claude" / "worktrees" / "wef1", agent="lead"
+    )  # named unlike its tree
     _window(proc, 102, shop / ".claude" / "worktrees" / "wef2")
     _window(proc, 103, shop)  # a main window with no record: "(unnamed)"
     _window(proc, 104, bare / ".fabrik")
     _record(env, "b1", agent="bob", state="done", command="fabrik-task", repo_root=str(bare))
     marker = shop / ".git" / "fabrik-work" / "paused"
     marker.mkdir(parents=True)
-    (marker / "wef1.json").write_text(json.dumps({"by": "operator", "actor": "", "at": time.time()}))
+    (marker / "wef1.json").write_text(
+        json.dumps({"by": "operator", "actor": "", "at": time.time()})
+    )
     (shop / "scripts").mkdir()
-    (shop / "scripts" / "work.py").write_text("def cmd_pause(repo, args):\n    pass\n", encoding="utf-8")
+    (shop / "scripts" / "work.py").write_text(
+        "def cmd_pause(repo, args):\n    pass\n", encoding="utf-8"
+    )
     repos = _box(opt, env)
     shop_agents = _agents(repos["shop"])
     assert shop_agents["lead"]["paused"]["name"] == "wef1"  # caught by its window's tree
@@ -438,7 +668,9 @@ def test_box_pause_edges(tmp_path: Path) -> None:
     cmt = _box_repo(opt, env, "cmt")
     proc = tmp_path / "proc"
     wt = shop / ".claude" / "worktrees"
-    _window(proc, 101, wt / "wef1", agent="lead")  # lead's two windows: wef1 (paused) and wef2 (not)
+    _window(
+        proc, 101, wt / "wef1", agent="lead"
+    )  # lead's two windows: wef1 (paused) and wef2 (not)
     _window(proc, 102, wt / "wef2", agent="lead")
     _window(proc, 103, wt / "wef3", agent="cara")  # paused by her own name
     _window(proc, 104, wt / "wef4", agent="duo")  # duo's two windows: both trees paused
@@ -455,11 +687,16 @@ def test_box_pause_edges(tmp_path: Path) -> None:
     (fifo / "scripts").mkdir()
     os.mkfifo(fifo / "scripts" / "work.py")
     (cmt / "scripts").mkdir()
-    (cmt / "scripts" / "work.py").write_text("# TODO: def cmd_pause(repo, args)\n", encoding="utf-8")
+    (cmt / "scripts" / "work.py").write_text(
+        "# TODO: def cmd_pause(repo, args)\n", encoding="utf-8"
+    )
     repos = _box(opt, env)  # a FIFO read would block here until the test's timeout
     shop_agents = _agents(repos["shop"])
     assert shop_agents["cara"]["paused"]["names"] == ["cara"]
-    assert shop_agents["cara"]["paused"]["at"] is None and shop_agents["cara"]["paused"]["partial"] is False
+    assert (
+        shop_agents["cara"]["paused"]["at"] is None
+        and shop_agents["cara"]["paused"]["partial"] is False
+    )
     lead = shop_agents["lead"]["paused"]
     assert lead["names"] == ["wef1"] and lead["partial"] is True  # its wef2 window still runs
     duo = shop_agents["duo"]["paused"]
@@ -476,9 +713,74 @@ def test_box_now_is_keyed_by_repo(tmp_path: Path) -> None:
     opt.mkdir()
     crm = _box_repo(opt, env, "crm")
     trade = _box_repo(opt, env, "trade")
-    _record(env, "a", agent="agent-1", state="running", command="fabrik-spec", surface="crm side", repo_root=str(crm))
-    _record(env, "b", agent="agent-1", state="running", command="fabrik-task", surface="trade side",
-            repo_root=str(trade), updated_ts=time.time() - 60)
+    _record(
+        env,
+        "a",
+        agent="agent-1",
+        state="running",
+        command="fabrik-spec",
+        surface="crm side",
+        repo_root=str(crm),
+    )
+    _record(
+        env,
+        "b",
+        agent="agent-1",
+        state="running",
+        command="fabrik-task",
+        surface="trade side",
+        repo_root=str(trade),
+        updated_ts=time.time() - 60,
+    )
     repos = _box(opt, env)
     assert _agents(repos["crm"])["agent-1"]["now"]["surface"] == "crm side"
     assert _agents(repos["trade"])["agent-1"]["now"]["surface"] == "trade side"
+
+
+# ── W-16d0ef14: the roster is the repo's own builders ───────────────────────────────────────────────────────────
+def _bind(env: dict, repo: Path, *names: str) -> None:
+    with open(env["AGENT_IDENTITY_FILE"], "a", encoding="utf-8") as fh:
+        for n, name in enumerate(names):
+            row = {"session_id": f"sid-{name}-{n}", "name": name, "toplevel": str(repo / ".git")}
+            fh.write(json.dumps(row) + "\n")
+
+
+def test_roster_without_a_registry_is_bound_builders_with_worktrees(tmp_path: Path) -> None:
+    """youtube, fabrik-lib and trade-intelligence read the hub's five beats before W-16d0ef14. With no registry, a
+    name bound to this repo that has a worktree is a builder; a task worktree nobody is bound to is not
+    (web-ecommerce-factory's t03-… trees), and neither is a bound name with no worktree."""
+    env, repo, _ = _setup(tmp_path)
+    (repo / ".fabrik" / "session-agents.json").unlink()
+    task = repo / ".claude" / "worktrees" / "t03-task"
+    _git(repo, env, "worktree", "add", "-q", "-b", "t03-task", str(task))
+    _bind(env, repo, "infra", "fleet", "ghost", "coordinator")
+    assert sorted(_rows(repo, env)) == ["fleet", "infra"]
+
+
+def test_roster_is_the_registry_minus_the_coordinators(tmp_path: Path) -> None:
+    """Distinct string names of the registry, minus the distributor (here `lead`, not coordinator-shaped), any
+    `*-coordinator` name and a value that is not a string (a TypeError before the guard)."""
+    env, repo, _ = _setup(tmp_path)
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["distributor"] = "lead"
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    registry = {
+        "a": "lead",
+        "b": "x-coordinator",
+        "c": "infra",
+        "d": "infra",
+        "e": None,
+        "f": 3,
+        "g": "fleet",
+    }
+    (repo / ".fabrik" / "session-agents.json").write_text(json.dumps(registry), encoding="utf-8")
+    assert sorted(_rows(repo, env)) == ["fleet", "infra"]
+
+
+@pytest.mark.parametrize("body", ["{not json", '["infra"]', '{"s": "coordinator"}', "{}"])
+def test_a_builderless_or_damaged_registry_falls_back(tmp_path: Path, body: str) -> None:
+    env, repo, _ = _setup(tmp_path)
+    (repo / ".fabrik" / "session-agents.json").write_text(body, encoding="utf-8")
+    _bind(env, repo, "fleet")
+    assert sorted(_rows(repo, env)) == ["fleet"]
