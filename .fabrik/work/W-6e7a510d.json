@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:14:11.799927Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6e7a510d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DYBVJTERFW4QA1Z1Q8J6XT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "85-payments-billing.md:45 — \"the grant does not refuse one\" is false since fabrik-lib f1a1159a (SB-096)"
+}
