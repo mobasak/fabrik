@@ -1,0 +1,31 @@
+# fabrik-scrape MCP server — the research seats' raw-page fetch (docs/reference/fabrik-scrape-mcp.md, D-1100).
+# Installed by the operator gate of plan 3 Phase B into /etc/systemd/system/ (sudo install -m 644 …, daemon-reload,
+# enable --now). Modelled on the citation verifier's unit (/etc/systemd/system/fabrik-citation-verifier-mcp.service).
+#
+# No EnvironmentFile=: the server needs no credential (rendering is off in slice 1a), and a network-facing fetcher
+# must never hold the hub's secrets (the rule session-archive.service states). Only the three non-secret variables
+# serve.py reads are set here.
+[Unit]
+Description=Fabrik scrape MCP server (fabrik-scrape, streamable-http, loopback only)
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ozgur
+WorkingDirectory=/opt/fabrik
+Environment=PYTHONPATH=/opt/fabrik/libs/web_scrape_mcp
+Environment=WEB_SCRAPE_MCP_HOST=127.0.0.1
+Environment=WEB_SCRAPE_MCP_PORT=8034
+Environment=WEB_SCRAPE_MCP_CACHE_DIR=/opt/fabrik/.tmp/web-scrape-mcp
+ExecStart=/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python /opt/fabrik/libs/web_scrape_mcp/serve.py
+Restart=always
+RestartSec=3
+MemoryMax=512M
+MemorySwapMax=0
+OOMPolicy=stop
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
