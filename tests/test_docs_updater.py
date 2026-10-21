@@ -988,3 +988,146 @@ def test_two_stray_backticks_around_the_only_header_still_read_it(tmp_path):
         tmp_path, "**Status:** EXECUTED — see `scripts/x.py\n**Owner:** intel — also `y` here\n"
     )
     assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")
+
+
+# ── W-16c00597: _blank_code_spans is linear, with the quadratic original as its oracle ─────────────────────────────
+# The function below is `_blank_code_spans` VERBATIM as it stood at commit ed16ac2a7 (the last change before
+# W-16c00597), renamed and pointed at the module's own regex constants. It scanned forward from every unmatched
+# opener to its paragraph's end and found each opener's line start by an rfind — quadratic on one long line.
+import bisect  # noqa: E402
+
+import docs_updater as du  # noqa: E402
+
+
+def _old_blank_code_spans(content: str) -> str:
+    runs = list(du._BACKTICK_RUN_RE.finditer(content))
+    tails = [(m.start(1), m.end(1)) for m in du._LINK_TAIL_RE.finditer(content)]
+    tail_starts = [start for start, _ in tails]
+    out, kept, i = [], 0, 0
+    while i < len(runs):
+        opener = runs[i]
+        i += 1
+        if opener.start() and content[opener.start() - 1] == "\\":
+            continue
+        t = bisect.bisect_right(tail_starts, opener.start()) - 1
+        if t >= 0 and opener.start() < tails[t][1]:
+            continue
+        line_start = content.rfind("\n", 0, opener.start()) + 1
+        one_line = du._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
+        seen = opener.end()
+        for j in range(i, len(runs)):
+            # only the text since the last run is new; each line it starts is checked whole
+            starts = [m.end() for m in re.finditer("\n", content[seen : runs[j].start()])]
+            if starts and (
+                one_line or any(du._BLOCK_START_RE.match(content, seen + s) for s in starts)
+            ):
+                break
+            seen = runs[j].end()
+            if len(runs[j].group()) == len(opener.group()):
+                out += [
+                    content[kept : opener.start()],
+                    du._blank(content[opener.start() : runs[j].end()]),
+                ]
+                kept, i = runs[j].end(), j + 1
+                break
+    return "".join(out) + content[kept:]
+
+
+_FUZZ_TOKENS = [
+    "`",
+    "``",
+    "```",
+    "````",
+    "`````",
+    "x",
+    " ",
+    "\t",
+    "\n",
+    "\n\n",
+    "\r",
+    "\r\n",
+    "# h\n",
+    "#h",
+    "- ",
+    "+ ",
+    "1. ",
+    "2) ",
+    "> ",
+    ">",
+    "| a |",
+    "\\`",
+    "\\\\",
+    "[a](b`c)",
+    "[t]",
+    "](x)",
+    "[a [b] c](d `e (f`) g)",
+    "[",
+    "]",
+    "(",
+    ")",
+    "===\n",
+    "---\n",
+    "***\n",
+    "* * *\n",
+    "___\n",
+    "~~~",
+    "```x\n",
+    "    ",
+    "é",
+]
+
+_FIXTURES = [
+    "",
+    "`a`",
+    "`a\n- `x",
+    "`a\n```b` c",
+    "`` a ` b ``",
+    "\\`a` `b`",
+    "[a](x `y) z` w",
+    "a `b\n\nc` d",
+    "a `b\r\n\r\nc` d",
+    "# h `a\nb` c",
+    "| `a | b` |\n| c |",
+    "a `b\n    c` d",
+    "a `b\n===\nc` d",
+    "`" * 5 + "a" + "`" * 3 + "b" + "`" * 5,
+    "`a\n" * 50 + "`",
+]
+
+
+@pytest.mark.parametrize("text", _FIXTURES)
+def test_blank_code_spans_equals_the_quadratic_original_on_fixtures(text: str) -> None:
+    assert du._blank_code_spans(text) == _old_blank_code_spans(text)
+
+
+def test_blank_code_spans_equals_the_quadratic_original_on_fuzz() -> None:
+    import random
+
+    rng = random.Random(0x16C00597)
+    for _ in range(5000):
+        text = "".join(rng.choice(_FUZZ_TOKENS) for _ in range(rng.randint(0, 40)))
+        assert du._blank_code_spans(text) == _old_blank_code_spans(text), repr(text)
+
+
+def _best_of_3(text: str) -> float:
+    import time
+
+    best = float("inf")
+    for _ in range(3):
+        start = time.perf_counter()
+        du._blank_code_spans(text)
+        best = min(best, time.perf_counter() - start)
+    return best
+
+
+def test_blank_code_spans_is_linear_on_unmatched_runs() -> None:
+    """Quadrupling the unmatched distinct-length runs on one line costs about 4x, never the 12-16x of a forward scan
+    to the paragraph's end per opener (the old function took 1.7 s on 2 MB). The ratio, not an absolute bound, so a
+    slow box does not flake it. The old per-opener line-start rfind (26 s on 4 MB of dense pairs) separates from the
+    new walk only past ~2 MB, too slow for the suite — the equality tests above guard that path's answer."""
+
+    def shape(n: int) -> str:
+        return " x ".join("`" * (k + 1) + " y" for k in range(n))
+
+    ratio = _best_of_3(shape(2000)) / max(_best_of_3(shape(500)), 1e-4)
+    assert ratio < 8, ratio
