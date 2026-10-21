@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
+W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
+
 ### Fixed — a repo's own editable package no longer reads as an undeclared dependency from a builder worktree (2026-10-21)
 W-c83c550c; D-1083. Builder worktrees share the main checkout's `.venv`, so an editable first-party package (youtube's `mt_router`) resolved to the main checkout's copy, and `check_undeclared_imports` reported it as missing from `requirements.txt` in every worktree while the main checkout passed. A path outside the worktree now counts as the repo's own code when git places it in another working tree of the same repository and this worktree tracks the same path; anything else, and any git failure, is still flagged. Across 299 trees on the box the verdict changes only in youtube's three builder worktrees.
 
