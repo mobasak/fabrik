@@ -1,8 +1,10 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-21T00:39:18.473337Z",
   "creator": "fleet",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-3c10eef4",
   "impact": "high",
@@ -16,12 +18,11 @@
   "next": "SIZED 2026-10-21 (fleet): spec-chain, not /fabrik-task — the saas-skeleton worker claims jobs cross-org as <db>_app (scaffold.py:3280-3520, DSN = DATABASE_URL), so revoking app's jobs DML breaks every saas worker on next apply; 9 /opt projects create a jobs table. Needs /fabrik-spec: a dedicated job-queue worker login (own DSN, scaffold worker change, existing-project migration), designed with fabrik-lib SB-143",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "security: the registrar's <db>_app login has cross-tenant SELECT/UPDATE/DELETE on jobs; fabrik-lib SB-143 waits on it",
+  "priority": 2,
+  "score_reason": "re-scored on fleet's sizing: a dedicated job-queue login needs its own DSN, a scaffold worker change, a migration for nine projects and a design agreed with fabrik-lib SB-143 — spec-chain major",
   "status": "open",
   "tags": [
     "payments",
-    "queued",
     "security"
   ],
   "title": "Registrar: <db>_app holds cross-tenant SELECT/UPDATE/DELETE on the payments job queue table jobs through the blanket DML grant (drivers/postgres.py ~:1201); exclude jobs or hand it a job-queue-owned grant (fabrik-lib SB-143 / W-93ab373c waits on the hub)"
