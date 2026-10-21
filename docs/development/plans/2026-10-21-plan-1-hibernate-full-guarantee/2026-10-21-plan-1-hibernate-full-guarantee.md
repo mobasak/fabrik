@@ -151,6 +151,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** a pending `.holdlifted resume`, **When** the hibernate lift fans out, **Then** the file reads `hibernate` (scripts/sysadmin/claude_rotate.py:7480; spec § Chosen approach L3)
 - **Given** a hibernate lift row, **When** the wall advisory looks for an open episode, **Then** the row ends no quota episode (scripts/sysadmin/claude_rotate.py:7864; spec § Chosen approach L3)
 - **Given** a `command_run.py step` in a repo with a hub `wip_backup.sh`, **When** the step saves, **Then** a detached single-repo snapshot starts, at most once per 2 minutes per repo, and never when the cron's lock is held (scripts/command_run.py:6542; spec § Chosen approach L1)
+- **Given** a run closed `blocked --paused` with two `--abandoned-seat` values, **When** the close writes its seed, **Then** the record and the seed both carry `abandoned_seats` with both entries in the names `woke` reads (scripts/command_run.py:7728; spec § Chosen approach L2)
 - **Given** the `hibernate` tier and an unlifted mark, **When** the Stop hook reads a stale or missing tick log, **Then** it still yields as under a hold (.claude/hooks/final_gate_stop.py:4854; spec § Chosen approach L2)
 - **Given** the stamp's raw line 2 is `hibernate`, **When** `quota_stop` evaluates a held session's tool, **Then** it holds on the tier the minute cron writes (.claude/hooks/quota_stop.py:668; spec § Chosen approach L2)
 - **Given** the minute cron's heartbeat file, **When** `hibernate.py status` reads it, **Then** a fresh file passes the check and a 3-minute-old one blocks (scripts/sysadmin/hibernate.py:430; spec § Chosen approach L2)
@@ -409,6 +410,10 @@ The minute cron the T-3 arm needs is not installed (spec § Chosen approach L2);
 gate. Ticket primary paths: `scripts/sysadmin/hibernate.py:511` (T01a), `scripts/sysadmin/hibernate.py:430` (T01b), `.claude/hooks/quota_stop.py:717` (T02),
 `scripts/sysadmin/weekly_catchup.sh:63` (T03a), `scripts/sysadmin/claude_broker.py:149` (T03b), `scripts/sysadmin/selfwatch_arm.sh:49` (T04),
 `scripts/sysadmin/agents_up.sh:362` (T05), `scripts/sysadmin/claude_rotate.py:7328` (T06).
+
+### Execution notes (/fabrik-execute-plan)
+
+- 2026-10-21, T01a acceptance: the spec's abandoned-seat rule (spec § Chosen approach L2: the run close carries each still-running seat into the record and its seed) had no owning ticket; `scripts/command_run.py` is T06's, so T06's Scope and Behavior Contract gained the `--abandoned-seat` close (one row, mirrored in the roll-up) — inside the File Scope, no new ticket. T01a's `FABRIK_LIFT_TTY` seam was a bypass of the plain-shell check and went back to its coder as a fixup (tests use a real pseudo-terminal).
 
 ## Self-audit
 
