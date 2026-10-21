@@ -132,6 +132,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** a relaunched builder, **When** its pane starts, **Then** the command is `claude -n <name> --resume <sid> "<wake prompt>"` with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its env and `oom_score_adj` 200 (scripts/sysadmin/agents_up.sh:362; spec § Chosen approach L1, L4, L5)
 - **Given** a box with 27 GiB MemTotal, **When** the grid is built, **Then** the parent slice gets `MemoryHigh`=MemTotal−4G and `MemoryMax`=MemTotal−2G and no pane gets a `MemoryMax`, and a MemTotal under 8G keeps the old ceiling (scripts/sysadmin/agents_up.sh:282; spec § Chosen approach L5)
 - **Given** MemAvailable under 3 GiB, **When** `capped_run.sh` starts a job, **Then** it waits up to the admission bound, then starts and says so, and an unreadable meminfo starts at once (scripts/capped_run.sh:30; spec § Chosen approach L5)
+- **Given** `agents_up.sh` run from a non-TTY shell, **When** it builds the grid, **Then** the grid's root is recorded on the session and the script detaches and says so instead of failing to attach (scripts/sysadmin/agents_up.sh:463; W-1961cc42)
 - **Given** a `.holdlifted` reading `<epoch> hibernate`, **When** the self-watch's lift branch fires, **Then** it waits for three API answers and jitter and prints the hibernate RESUME line, naming `lift_path`, ending in the STAYS ARMED clause (scripts/sysadmin/selfwatch_arm.sh:49; spec § Chosen approach L3)
 - **Given** the kind is replaced while the gate waits, **When** the gate passes, **Then** the printed line uses the kind read after the gate (~/.claude/bin/claude-selfwatch.sh:55; spec § Chosen approach L3)
 - **Given** a boot, **When** the reboot sweep runs, **Then** it builds every registered grid detached and never resumes a session with `claude -p` (~/.claude/bin/claude-reboot-sweep.sh:222; spec § Chosen approach L4)
@@ -414,6 +415,7 @@ gate. Ticket primary paths: `scripts/sysadmin/hibernate.py:511` (T01a), `scripts
 ### Execution notes (/fabrik-execute-plan)
 
 - 2026-10-21, T01a acceptance: the spec's abandoned-seat rule (spec § Chosen approach L2: the run close carries each still-running seat into the record and its seed) had no owning ticket; `scripts/command_run.py` is T06's, so T06's Scope and Behavior Contract gained the `--abandoned-seat` close (one row, mirrored in the roll-up) — inside the File Scope, no new ticket. T01a's `FABRIK_LIFT_TTY` seam was a bypass of the plain-shell check and went back to its coder as a fixup (tests use a real pseudo-terminal).
+- 2026-10-21, after the hibernate wake: W-1961cc42 (agents_up.sh from a non-TTY shell never records the grid's root and tries to attach) joined T05, which owns `scripts/sysadmin/agents_up.sh` — one Scope sentence and one row (mirrored in the roll-up).
 
 ## Self-audit
 
