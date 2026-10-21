@@ -83,7 +83,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
   `$ROTATE_STATE_DIR/hibernate.json` when set, else `<home>/.claude/state/hibernate.json`; `read_marker(home) -> dict`
   (empty dict on any read error); `update_marker(home, fn)` read-modify-writes under `fcntl.flock` on
   `hibernate.json.lock`. Keys: `paused_at` (float), `deadline_at` (float, optional), `words`, `lifted_at` (float,
-  optional), `lift_path` (`sleep`|`outage`|`cancelled`|`hub`). Consumers: T02 reads the JSON inline (a synced hook must
+  optional), `lift_path` (`sleep`|`outage`|`cancelled`|`hub`|`migration`). Consumers: T02 reads the JSON inline (a synced hook must
   not import a hub module), T06 calls `update_marker` through the file path, never an import of a hub-only path from a
   synced file. Seam test: `tests/test_hibernate_hooks.py::test_the_hook_reads_the_marker_the_verbs_write` (T02).
 - **P — `hibernate.py paused`.** Producer T01a: exit 0 while marked and not lifted, 1 otherwise, ≥ 2 on its own error.
@@ -103,10 +103,10 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 
 ## Behavior Contract
 
-- **Given** a pause marked with `--deadline 10m`, **When** `hibernate.py paused` runs, **Then** it exits 0, 1 after a lift, and 2 on an unreadable marker it cannot parse (scripts/sysadmin/hibernate.py:507; spec § Chosen approach L2)
+- **Given** a pause marked with `--deadline 10m`, **When** `hibernate.py paused` runs, **Then** it exits 0, 1 after a lift or with no marker file, and 2 on a marker file it cannot parse (scripts/sysadmin/hibernate.py:507; spec § Chosen approach L2)
 - **Given** two writers updating the marker at once, **When** both finish, **Then** neither key set is lost (scripts/sysadmin/hibernate.py:291; spec § Chosen approach L3)
-- **Given** a lifted pause, **When** `woke` runs for a session that started a run after the lift or 24 h after it, **Then** it exits 1 `no pending resume` (scripts/sysadmin/hibernate.py:336; spec § Chosen approach L3)
-- **Given** a held session that is not the merge owner's, **When** it runs `hibernate.py lift`, **Then** the lift is refused with exit 3 and a `hibernate-lift-refused` ledger row (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L2)
+- **Given** a lifted pause, **When** `woke` runs for a session that started a run after the lift, 24 h after it, or under `lift_path=migration`, **Then** it exits 1 `no pending resume` (scripts/sysadmin/hibernate.py:336; spec § Chosen approach L3)
+- **Given** a held session that is not the merge owner's, a headless `sdk-*` session, or a detached process with no terminal, **When** it runs `hibernate.py lift`, **Then** the lift is refused with exit 3 and a `hibernate-lift-refused` ledger row (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L2)
 - **Given** the merge owner's session or a plain shell with no claude ancestor, **When** it runs `hibernate.py lift`, **Then** it writes `lifted_at` and `lift_path=hub` and touches no stamp (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L3)
 - **Given** `mark --deadline 10m`, **When** `brief --deadline` prints, **Then** it names T-3 and T as clock times and no longer says the exit means the box slept (scripts/sysadmin/hibernate.py:260; spec § Chosen approach L2)
 - **Given** seeds written since the mark, **When** `woke` answers RESUME, **Then** it lists them newest first with each abandoned seat's state and a `get_chat` line (scripts/sysadmin/hibernate.py:336; spec § Chosen approach L3)
@@ -124,6 +124,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** a marked pause, **When** any hub launcher in the cron census starts, **Then** it starts no worker, its stamp untouched (scripts/sysadmin/weekly_catchup.sh:63; spec § Personas)
 - **Given** `FABRIK_REGISTRY_RECONCILE=apply` and a marked pause, **When** `audit_all_registrars.py` runs, **Then** it reconciles in report mode only (scripts/audit_all_registrars.py:181; spec § Personas)
 - **Given** `hibernate.py paused` exits 2, times out or is absent, **When** a launcher checks it, **Then** it proceeds and logs one line (scripts/ci_fix_dispatcher.py:259; spec § Personas)
+- **Given** the CI fix dispatcher, **When** it spawns its `claude -p` worker, **Then** the worker's env carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and its `oom_score_adj` reads 500 (scripts/ci_fix_dispatcher.py:233; spec § Chosen approach L1, L5)
 - **Given** a synced launcher in a repo with no hub `hibernate.py`, **When** it runs, **Then** it proceeds as if not paused (scripts/rivals_run.py:1368; spec § Personas)
 - **Given** a hub seat dispatcher, **When** it spawns a `claude -p` seat, **Then** the seat's env carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and its `oom_score_adj` reads 500 (scripts/sysadmin/claude_broker.py:65; spec § Chosen approach L1, L5)
 - **Given** `agents_up.sh --detach <repo>`, **When** the grid is built, **Then** no `attach` or `switch-client` runs (scripts/sysadmin/agents_up.sh:479; spec § Chosen approach L4)
@@ -131,15 +132,17 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** a box with 27 GiB MemTotal, **When** the grid is built, **Then** the parent slice gets `MemoryHigh`=MemTotal−4G and `MemoryMax`=MemTotal−2G and no pane gets a `MemoryMax`, and a MemTotal under 8G keeps the old ceiling (scripts/sysadmin/agents_up.sh:282; spec § Chosen approach L5)
 - **Given** MemAvailable under 3 GiB, **When** `capped_run.sh` starts a job, **Then** it waits up to the admission bound, then starts and says so, and an unreadable meminfo starts at once (scripts/capped_run.sh:30; spec § Chosen approach L5)
 - **Given** a `.holdlifted` reading `<epoch> hibernate`, **When** the self-watch's lift branch fires, **Then** it waits for three API answers and jitter and prints the hibernate RESUME line, naming `lift_path`, ending in the STAYS ARMED clause (scripts/sysadmin/selfwatch_arm.sh:49; spec § Chosen approach L3)
-- **Given** the kind is replaced while the gate waits, **When** the gate passes, **Then** the printed line uses the kind read after the gate (scripts/sysadmin/selfwatch_arm.sh:49; spec § Chosen approach L3)
-- **Given** a boot, **When** the reboot sweep runs, **Then** it builds every registered grid detached and never resumes a session with `claude -p` (scripts/sysadmin/agents_bat.py:209; spec § Chosen approach L4)
-- **Given** a builder the boot leg relaunched, **When** the sweep's notify leg runs, **Then** it sends no resume-by-hand notice for it (scripts/sysadmin/agents_bat.py:209; spec § Chosen approach L4)
+- **Given** the kind is replaced while the gate waits, **When** the gate passes, **Then** the printed line uses the kind read after the gate (~/.claude/bin/claude-selfwatch.sh:55; spec § Chosen approach L3)
+- **Given** a boot, **When** the reboot sweep runs, **Then** it builds every registered grid detached and never resumes a session with `claude -p` (~/.claude/bin/claude-reboot-sweep.sh:222; spec § Chosen approach L4)
+- **Given** a builder the boot leg relaunched, **When** the sweep's notify leg runs, **Then** it sends no resume-by-hand notice for it (scripts/sysadmin/agents_up.sh:16; spec § Chosen approach L4)
 - **Given** the installer and a reviewed mesh copy, **When** it runs, **Then** the live file is backed up first, the copy passes `bash -n`, and the replace is atomic (scripts/dr_claude_backup.sh:91; spec § Lifecycle)
-- **Given** the tracked harness, **When** it runs with `MESH_TEST_SRC` on `scripts/sysadmin/mesh`, **Then** W10f, W10g and R20 pass on the tracked edits with the untracked mesh files taken from `~/.claude/bin` (scripts/dr_claude_backup.sh:91; spec § Chosen approach L3, L4)
+- **Given** the tracked harness, **When** it runs with `MESH_TEST_SRC` on `scripts/sysadmin/mesh`, **Then** W10f, W10g and R20 pass on the tracked edits with the untracked mesh files taken from `~/.claude/bin` (~/.claude/bin/claude-mesh-test.sh:10; spec § Chosen approach L3, L4)
 - **Given** a marked pause with T-3 reached and no sleep since the last tick end, **When** the minute cron runs, **Then** it writes the `hibernate` tier and its heartbeat, and with the mark lifted or T past it writes the heartbeat only (scripts/sysadmin/claude_rotate.py:7251; spec § Chosen approach L2)
 - **Given** a `walled` or `battery` stamp at T-3, **When** the minute cron arms, **Then** the stamp becomes the `hibernate` tier with line 1 kept (scripts/sysadmin/claude_rotate.py:7197; spec § Chosen approach L2)
 - **Given** a quota relief, a low battery or a promise coming due under the `hibernate` tier, **When** the tick touches its stamp, **Then** the `hibernate` tier stays (scripts/sysadmin/claude_rotate.py:7061; spec § Chosen approach L2)
-- **Given** a sleep under the hold, **When** the tick runs, **Then** it writes a `resume-wake` row and lifts the pause by path (a), writing `lifted_at` and `.holdlifted hibernate` (scripts/sysadmin/claude_rotate.py:7328; spec § Chosen approach L3)
+- **Given** a `hibernate` stamp and a walled account, **When** the wall advisory runs, **Then** the stamp still reads `hibernate` (scripts/sysadmin/claude_rotate.py:8265; spec § Chosen approach L2)
+- **Given** an unlifted mark and a charged battery, **When** `_battery_lift` runs, **Then** it refuses and the `hibernate` tier stays (scripts/sysadmin/claude_rotate.py:7213; spec § Chosen approach L2)
+- **Given** a sleep under the hold, **When** the tick runs, **Then** it writes a `resume-wake` row and lifts the pause by path (a) when the gap began after the mark and spans T-3 (a gap ending before T-3 lifts nothing), writing `lifted_at` and `.holdlifted hibernate` (scripts/sysadmin/claude_rotate.py:7328; spec § Chosen approach L3)
 - **Given** an outage that starts and ends before T, **When** ticks run, **Then** nothing lifts, and one starting after T that lasts two slots lifts by (b) (scripts/sysadmin/claude_rotate.py:3391; spec § Chosen approach L3)
 - **Given** no sleep and no outage, **When** T+30 passes, **Then** the pause lifts by (c), T being the mark when there is no deadline (scripts/sysadmin/claude_rotate.py:3391; spec § Chosen approach L3)
 - **Given** a lift while the quota is hot or the battery low, **When** the lift leg runs, **Then** the stamp goes to that tier and nobody is woken (scripts/sysadmin/claude_rotate.py:7213; spec § Chosen approach L2)
@@ -158,8 +161,9 @@ enforce one invariant over one file or one mechanism and a split would spread th
 - T01a — every row is one verb of one CLI over one marker contract (Interface M); splitting the verbs splits the lock.
 - T01b — every row is one row of one `status` table; the checks share one reader of sessions and records.
 - T02 — the two hooks must agree on one rule (the marked pause holds); split, they could disagree, which is the defect.
-- T03a — one rule (`paused` before a new job) at four call sites; the synced `check_mutation.py` gets the same one-line
-  gate and its own fail-open row.
+- T03a — one rule (`paused` before a new job) at four call sites, the synced `check_mutation.py` with the same one-line
+  gate and its own fail-open row; plus the `WIP_BACKUP_ONLY` mode of `wip_backup.sh`, a one-variable filter T06 consumes,
+  and the CI fix worker's watchdog and kill order — each too small to review alone.
 - T04 — the self-watch, the sweep and the installer ship as one mesh install; the harness that proves them is one file.
 - T05 — `agents_up.sh` and `capped_run.sh` share the one parent ceiling; splitting them leaves a window with two ceilings.
 - T06 — the Integration ticket, holding the over-budget files by design.
@@ -267,6 +271,7 @@ enforce one invariant over one file or one mechanism and a split would spread th
 - docs/workstation/claude-config-backup-restore.md
 - docs/reference/health-monitoring.md
 - docs/CONFIGURATION.md
+- docs/reference/long-command-monitoring.md
 
 ## Coverage Checklist
 
@@ -354,21 +359,22 @@ $ python3 scripts/review_rubric.py --changed <the File Scope entries of this spi
 
 | Class | Source | Verdict | Evidence |
 |---|---|---|---|
-| uv / no package-manager verb in any step | FLOOR core/10-python.md | UNCHECKED | — |
-| state that must survive a restart is never under /tmp | FLOOR core/10-python.md | UNCHECKED | — |
-| 12-factor: no logfile written by app code (XI), no PID file (VIII) | FLOOR 12-FACTOR | UNCHECKED | — |
-| docs: fenced code, no skipped headings, every touched doc named in a ticket | MATCHED core/40-documentation.md | UNCHECKED | — |
-| every behaviour has a test seen red first | MATCHED core/45-testing-strategy.md | UNCHECKED | — |
-| fail-open vs fail-closed on every gate/guard | standing | UNCHECKED | — |
-| cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | standing | UNCHECKED | — |
-| boundary/sentinel/prefix collisions | standing | UNCHECKED | — |
-| behavior-without-a-test | standing | UNCHECKED | — |
+| uv / no package-manager verb in any step | FLOOR core/10-python.md | CLEAN | `grep -rnE 'uv (run|sync|add)\|pip install\|poetry'` over the set → 3 hits, all inside the pasted rubric; 12 of 12 `Gate:` lines run `.venv/bin/python` under `capped_run.sh` or the harness |
+| state that must survive a restart is never under /tmp | FLOOR core/10-python.md | CLEAN | marker, heartbeat, snapshot rate stamp and seeds live under `$ROTATE_STATE_DIR`/`~/.claude/state` (Interfaces M, H; T06); `/tmp/wip-backup.lock` is the existing cron's lock, not state |
+| 12-factor: no logfile written by app code (XI), no PID file (VIII) | FLOOR 12-FACTOR | CLEAN | box tooling, not a service: the launchers' skip lines go to their cron-redirected logs; the heartbeat is a state file, no PID file is added (T03a, T06) |
+| docs: fenced code, no skipped headings, every touched doc named in a ticket | MATCHED core/40-documentation.md | FIXED | pass 1 S2-C9, S2-C15: every edited script's AFTER-EDIT doc now in a ticket's Touches (T04, T05, T06) |
+| every behaviour has a test seen red first | MATCHED core/45-testing-strategy.md | FIXED | pass 1 S1-C7, S1-C8: 17 rows added, each ticket's Gate runs the test file holding its rows; red-first is the executor's per-ticket floor (§ Execution Discipline) |
+| fail-open vs fail-closed on every gate/guard | standing | FIXED | pass 1 S2-C12 (launchers proceed on rc≥2, a timeout or a missing script — T03a), S1-C3 (the Stop hook holds on a missing tick log — T06), S1-C1 (the hub-lift clear — T06); the tier fails closed with the hub's `lift` as the escape (T02) |
+| cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | standing | FIXED | pass 1 S2-C5, S2-C6: a MemTotal under 8G or unreadable keeps the old ceiling, an unreadable meminfo or PSI starts at once (T05); a lift under a hot quota or low battery wakes nobody (T06) |
+| boundary/sentinel/prefix collisions | standing | FIXED | pass 1 S2-C3/C4 and T01b: whole-second `updated_ts`+1 against floor(`paused_at`); names compared after `_selfwatch_safe`; only a pending `resume` wake file is replaced (T06) |
+| behavior-without-a-test | standing | FIXED | pass 1 S1-C7, S1-C8, S2-C8 (the kill order now has rows in T03b and T05) |
 
 ## Pass Ledger
 
 | Pass | seats · scope | counters | method | set md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (T01-T02-T06 + the spine's rule sections) + sonnet×1 (T03a-T03b-T04-T05 + the rest) · shape: agent-tool (D-961) · full pass | found: 34, new: 34, confirmed: 33, fixed: 33, unexecuted: 0, edits: 33 | method: citation — full pass; the lead executed the decisive claims (`grep oom_score` → 0 in the plan; `final_gate_stop.py:4849-4854` requires `_tick.exists()`; `quota_posture_hook.py:1089` returns before `decide`; `claude-mesh-test.sh:10` defaults SRC to `~/.claude/bin` and `:19` copies two untracked files); S2-C11 REFUTED (conftest pins `ROTATE_STATE_DIR` per test, `tests/conftest.py:275`); fixes: T01 split into T01a/T01b, T04 after T05, 17 rows added, the docs moved to T06 | 42e5208a… → f29f29ad… |
+| Pass 2 | the round-1 seats on their own slices over the fix diff · shape: agent-tool (D-961) · delta | found: 21, new: 21, confirmed: 18, fixed: 18, unexecuted: 0, edits: 18 | method: re-derivation — S1 EXECUTED its N1 (a scratch `claude_rotate.py` tick turned `0 hibernate` into `0 walled` under the `battery_held` fix); the lead read `hibernate.py:186-194` (8-hop, agents-only walk), `agents_up.sh:16` (the `pane <name> <sid>` line) and `claude-selfwatch.sh:55` (the kind read); fixes: the advisory returns before `_touch_stamp`, `_clear_stamp` re-reads under the flock, the lift walk goes to pid 1 and needs a terminal, (a) spans T-3, the migration is a gated step with `lifted_at`=`paused_at`, the harness reads `$PWD`, Leg B skips `.boot-relaunched`, the CI worker is armed, the slice rename's docs are in T06; RECORDED: S2-R1 (a sub-8G box keeps the old ceiling — the stated choice), S2-R2 (whether `--print` refuses uncapped — T05's coder), S2-R3 (review loops dispatch through the Agent tool, which T02 denies) | f29f29ad… → c693e103… |
 
 ## Evidence
 
@@ -393,7 +399,7 @@ $ crontab -l | grep -c -- --battery-tick
 
 ```
 $ .venv/bin/python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee
-✓ [plan_tickets] /opt/fabrik/.claude/worktrees/infra/docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee: graded 7 ticket(s), 44 Touches path(s), 34 Context-Files entry(ies); READ budget measured against /opt/fabrik/.claude/worktrees/infra; 0 finding(s)
+✓ [plan_tickets] /opt/fabrik/.claude/worktrees/infra/docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee: graded 8 ticket(s), 53 Touches path(s), 37 Context-Files entry(ies); READ budget measured against /opt/fabrik/.claude/worktrees/infra; 0 finding(s)
 ```
 
 The minute cron the T-3 arm needs is not installed (spec § Chosen approach L2); T06 carries its install as an operator
@@ -403,9 +409,9 @@ gate. Ticket primary paths: `scripts/sysadmin/hibernate.py:511` (T01a), `scripts
 
 ## Self-audit
 
-(a) Coverage — every "What we already agreed" line and every Intake row points to a ticket: L1 → T03a and T03b (launchers) and
-T06 (step snapshot), T05 (watchdog); L2 → T01a (verbs), T01b (checks), T02 (hooks), T06 (arm); L3 → T01a (`woke`), T04
-(self-watch), T06 (lifts); L4 → T04 (sweep), T05 (`--detach`, prompt); L5 → T05; L6 → no code (the operator's API
+(a) Coverage — every "What we already agreed" line and every Intake row points to a ticket: L1 → T03a and T03b (launchers, and the watchdog for their
+workers and seats), T06 (step snapshot), T05 (watchdog for the panes); L2 → T01a (verbs), T01b (checks), T02 (hooks), T06 (arm); L3 → T01a (`woke`), T04
+(self-watch), T06 (lifts); L4 → T04 (sweep), T05 (`--detach`, prompt); L5 → T05 (panes, ceiling, admission), T03a and T03b (worker and seat kill order); L6 → no code (the operator's API
 call; T06 documents it). (b) Cross-ticket names — `marker_path`/`read_marker`/`update_marker` (T01a) are read the same way
 by T02 inline and T06 by path; the stamp line `hibernate` (T06) is what T02's raw read compares; `battery-tick-last`
 (T06) is the name T01b's check reads; `--detach` (T05) and `--list` (T04) are the flags the sweep (T04) calls. Not yet
