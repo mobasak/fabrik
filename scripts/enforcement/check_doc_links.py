@@ -314,16 +314,29 @@ def _iter_refs(text: str):
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
     file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
     line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
-    raw. The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
+    raw, and fence lines and bodies are blanked before the span pass (a closing fence's ``` would pair with
+    an inline ``` below it). The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
     second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
     spaces."""
-    in_fence = False
-    blanked = _blank_spans(text)
-    pos = 0
+    rows = []  # (line, its offset in text, fence line or fence body)
+    in_fence, pos = False, 0
     for raw in text.splitlines(keepends=True):
         line = raw.splitlines()[0]
-        span_free = blanked[pos : pos + len(line)]
+        stripped = line.lstrip()
+        toggle = stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+        rows.append((line, pos, toggle or in_fence))
+        in_fence ^= toggle
         pos += len(raw)
+    # Fence lines and bodies are blanked before the span pass, so a fence's ``` never pairs with an inline
+    # ``` run in the paragraph after it (and a body's backticks never reach out): a blank line ends a span.
+    masked = list(text)
+    for line, start, fenced in rows:
+        if fenced:
+            masked[start : start + len(line)] = " " * len(line)
+    blanked = _blank_spans("".join(masked))
+    in_fence = False
+    for line, start, _fenced in rows:
+        span_free = blanked[start : start + len(line)]
         stripped = line.lstrip()
         if stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped):
             in_fence = not in_fence

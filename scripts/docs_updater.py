@@ -1105,7 +1105,12 @@ def _blank_code_fences(content: str) -> str:
 def _blank_code_spans(content: str) -> str:
     """Inline code spans blanked, length-preserving: `_fences.blank_code_spans`, the one copy check_doc_links
     shares (W-b9af1d47; linear since W-16c00597)."""
-    return _fences_module().blank_code_spans(content)
+    blank = getattr(_fences_module(), "blank_code_spans", None)
+    if blank is None:  # a _fences.py older than W-b9af1d47: named, like a missing file
+        raise ImportError(
+            "docs_updater: scripts/enforcement/_fences.py has no blank_code_spans (it lags the sync)"
+        )
+    return blank(content)
 
 
 def _link_scan_text(content: str) -> str:

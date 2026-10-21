@@ -348,5 +348,5 @@ def test_the_span_blanker_has_one_copy() -> None:
         "_ONE_LINE_BLOCK_RE =",
     ):
         assert name not in du_src and name not in cdl_src, name
-    assert "_fences_module().blank_code_spans(" in du_src
+    assert 'getattr(_fences_module(), "blank_code_spans"' in du_src
     assert 'getattr(_fences, "blank_code_spans"' in cdl_src

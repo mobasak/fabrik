@@ -476,3 +476,38 @@ def test_check_doc_links_reads_raw_lines_without_the_scanner(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "['docs/nope-raw.md']", r.stdout + r.stderr
+
+
+def test_a_closing_fence_never_pairs_with_an_inline_triple_backtick_below_it():
+    """Design critique (Opus): blanked whole, a fence's closing ``` paired with the inline ```x``` in the
+    paragraph after it and blanked the real link between them; fence lines are blanked first."""
+    text = "```\ncode\n```\nSee [real](docs/nope-after-fence.md) then ```x``` end\n"
+    assert ("docs/nope-after-fence.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_an_old_scanner_without_the_blanker_reads_raw_lines(tmp_path):
+    """A _fences.py that predates blank_code_spans is present but lacks the name: the check reads raw lines."""
+    enf = tmp_path / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "check_doc_links.py").write_bytes(
+        (REPO / "scripts" / "enforcement" / "check_doc_links.py").read_bytes()
+    )
+    (enf / "_fences.py").write_text(
+        "def strip(text, repl=''):\n    return text\n", encoding="utf-8"
+    )
+    code = (
+        "import importlib.util\n"
+        f"spec = importlib.util.spec_from_file_location('cdl', {str(enf / 'check_doc_links.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(m)\n"
+        "print(sorted(t for t, k in m._iter_refs('`[a](docs/nope-old.md)`\\n') if k == 'link'))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "['docs/nope-old.md']", r.stdout + r.stderr
