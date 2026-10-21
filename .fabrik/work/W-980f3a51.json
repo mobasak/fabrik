@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "WAITS on fabrik-lib (mail 01M5EDSPR6, 2026-10-21): their validate_i18n.py imports httpx at module top (:40) though only Level 3 (:795) uses it; the kit runs in JS-only scaffolds (system python3, no venv), so a byte-identical re-vendor would crash Levels 1-2. Asked them to make the import lazy. Then: re-vendor templates/i18n-kit/scripts/validate_i18n.py byte-identical from fabrik-lib i18n/ (drops the retired Kilo back-translator, D-529), update tests/test_i18n_kit_validate_json.py, request the scaffolded copies re-vendor",
+  "next": "UNBLOCKED 2026-10-21: fabrik-lib W-4ab9622f merged on fabrik-lib main as 80f2a64e (D-526/D-527) — validate_i18n.py runs Levels 0-2 without httpx. Re-vendor templates/i18n-kit's validator byte-identical from fabrik-lib i18n/ at 80f2a64e or later (this also drops the kit's Kilo back-translator, retired by D-529); verify on a JavaScript scaffold under the system python3 that Levels 1-2 run with no venv; normal review size (templates/i18n-kit is not on the governance-sync filter, measured by fleet).",
   "note": "",
   "owner": "fleet",
   "priority": 3,
@@ -21,8 +21,7 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium",
-    "waits-fabrik-lib"
+    "medium"
   ],
   "title": "templates/i18n-kit/scripts/validate_i18n.py Level 2 lags fabrik-lib's i18n: it fails the run on drift (a measured false-red: 7 of 12 correct UI labels), samples only youtube's six key prefixes (auth. queue. watchlists. common. failure. nav.) so other projects check few or no strings, and passes product context to the back-translator; fabrik-lib SB-107 (drift warns, could-not-run fails) and SB-136 (sample every key, fail-closed _context.json scope, blind call) fix both (mails 01M5AFMZV4, 01M5ANKQ1T, 2026-10-19, owner: fleet)"
 }
