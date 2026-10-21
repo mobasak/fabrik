@@ -25,7 +25,8 @@ A small window, **"Claude — open which agent in this tab?"**, lists:
 Enter or double-click picks; Esc, closing the window, or the **30 s countdown** gives a plain chat. Repos are listed
 when they have a known agent: `<repo>/.fabrik/session-agents.json`, the identity store
 `~/.claude/state/agent-identity.jsonl` (last row per session wins), the router's own map
-`~/.claude/state/tab-router.jsonl`, plus the repo's merge owner (`decisions.py --merge-owner`).
+`~/.claude/state/tab-router.jsonl`. A listed repo also offers its merge owner (`decisions.py --merge-owner`) as a
+role; a merge owner alone does not list a repo.
 
 No window appears for: the extension's `auth status` and config-probe launches, a tab you resume from its own history
 list, and a **restored** routed tab — that one is re-rooted silently to its session's folder with its role.
@@ -55,6 +56,7 @@ binds by `CLAUDE_AGENT` only — no identity-store row until `whoami_agent.py --
 After the change is merged to master (the wrapper calls the main checkout's router):
 
 ```bash
+mkdir -p ~/.claude/bin/backups
 cp ~/.claude/bin/claude-agent-wrapper.sh ~/.claude/bin/backups/claude-agent-wrapper.sh.$(date +%Y%m%d-%H%M%S)
 cp /opt/fabrik/scripts/sysadmin/claude-agent-wrapper.sh ~/.claude/bin/claude-agent-wrapper.sh
 chmod 755 ~/.claude/bin/claude-agent-wrapper.sh
