@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: the inputs table records each input's live counts from an executed read (2026-10-21)
+
+- `commands/_sources/fabrik-task.md`: beside each input, phase 2's table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows; phase 2 tables each tag a parser the change adds or extends reads, quoted inside its own content too; the vendored-copy census counts `.claude/worktrees/` apart. SIZE_CAP 26238 -> 26506 (D-1103), 53 bytes cut from the `--design` once-only sentence. `tests/test_fabrik_task_queue_pass.py` pins the three rules and the cut sentence. The rest of the 41-row queue was rejected with reasons (W-be343c22).
+
 ### Changed — /fabrik-review-scoped: a brief names the bound on the evidence it hands a seat (2026-10-21)
 
 - `commands/_fragments/review-probe-catalogue.md`: a measurement or proof a brief hands a seat names, up front, the bound that limits it, so the seat attacks it as bounded. `tests/test_review_scoped_queue_pass.py` pins it, and the input-class grader now compares its whole bullet by equality, so a decoy bullet carrying the anchor fails (W-d4468ce4).
