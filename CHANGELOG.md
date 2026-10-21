@@ -20,6 +20,14 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
 
+### Changed — the vendored web-tools pins Firecrawl to the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase B step 2. `libs/web_tools.py` is re-vendored from fabrik-lib main c7ab67e4 (their D-539/D-540).
+Every Firecrawl payload (sync and async scrape, crawl, search) now sends `proxy: "basic"` unless code passes another
+one: the LLM tools (`execute_web_tool`) ignore a `proxy` in a model's `arguments`, and only direct callers pass
+`firecrawl_proxy=`. Each billed call logs its caller and URL. fabrik-lib's two tests now run against the hub copy:
+`tests/test_web_tools_firecrawl_proxy.py` (71 passed, 53 red on the previous copy @8337a7f) and
+`tests/test_web_tools_firecrawl_log.py` (20 passed).
+
 ### Added — fabrik-scrape: a local MCP server for research page reads (2026-10-21)
 W-10146d20, plan 3 Phase B (D-1102). `libs/web_scrape_mcp/` vendors fabrik-lib's web-scrape-mcp with the web-scrape and doc-crawl copies it needs; `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` runs it sandboxed on loopback :8034; `mcp_defs.json` and the emitter's universal set register it for every repo; `scripts/scrape_ledger.py` probes it and grades a capability ledger. Not live yet: building its venv, installing the unit and re-emitting every repo's `.mcp.json` is an operator gate after merge. See `docs/reference/fabrik-scrape-mcp.md`.
 ### Changed — Firecrawl calls in commands pin the basic proxy (2026-10-21)
