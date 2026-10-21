@@ -511,3 +511,18 @@ def test_an_old_scanner_without_the_blanker_reads_raw_lines(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "['docs/nope-old.md']", r.stdout + r.stderr
+
+
+def test_a_fence_body_never_pairs_with_an_opener_above_the_fence():
+    """Review pass 2 (W-b9af1d47): a fence opening after a form feed is a fence to this toggle but not a line
+    break to the span blanker, so with only the fence line blanked the body's `` closed the `` above it and hid
+    the link; fence bodies are blanked too."""
+    for sep in ("\f", "\v", "\u2028"):
+        text = f"``[a](docs/nope-above.md) {sep}```\nb ``\n"
+        assert ("docs/nope-above.md", "link") in list(cdl._iter_refs(text)), repr(sep)
+    # and below it: a closing fence ended by a lone \r or a U+2028 is not a line break to the blanker either
+    for text in (
+        "```\r`\r```\r[l](docs/nope-below.md) and `x`\r",
+        "```\n`\n```\u2028[l](docs/nope-below.md) and `x`\n",
+    ):
+        assert ("docs/nope-below.md", "link") in list(cdl._iter_refs(text)), repr(text)

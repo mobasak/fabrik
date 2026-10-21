@@ -314,19 +314,23 @@ def _iter_refs(text: str):
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
     file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
     line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
-    raw, and fence lines are blanked before the span pass (a closing fence's ``` would pair with
+    raw, and fence lines and bodies are blanked before the span pass (a closing fence's ``` would pair with
     an inline ``` below it). The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
     second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
     spaces."""
-    rows = []  # (line, its offset in text, a fence line)
-    pos = 0
+    rows = []  # (line, its offset in text, a fence line or fence body)
+    in_fence, pos = False, 0
     for raw in text.splitlines(keepends=True):
         line = raw.splitlines()[0]
         stripped = line.lstrip()
-        rows.append((line, pos, stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)))
+        toggle = stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+        rows.append((line, pos, toggle or in_fence))
+        in_fence ^= toggle
         pos += len(raw)
-    # Fence lines are blanked before the span pass, so a fence's ``` never pairs with an inline ``` run in the
-    # paragraph after it: a blank line ends a span, which also keeps a body's backticks inside the fence.
+    # Fence lines and bodies are blanked before the span pass, so a fence's ``` never pairs with an inline ```
+    # run in the paragraph after it, and a body's backticks never pair with an opener above the fence — a
+    # blanked fence line alone does not stop that when the fence opens after a \f, \v or U+2028, which this
+    # toggle splits on and the span blanker does not (review pass 2).
     masked = list(text)
     for line, start, fenced in rows:
         if fenced:
