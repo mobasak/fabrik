@@ -7,8 +7,9 @@ The rule is strict and literal, fail-closed by design:
 - A MENTION is any match of `MENTION`; its CLAUSE runs from the mention to the next `END` match outside a code span,
   with line wraps collapsed first by `WRAP` (double-backtick spans masked before single ones). A newline `WRAP` keeps
   — a blank line, or one that opens a list item, table row, heading, quote or fence — ends the clause.
-- A clause PASSES only when it holds a `PIN` match, no `NEG` match and no `OTHER` match. The constants ARE the lists;
-  this text names them rather than repeating them, so it cannot drift from the code.
+- A clause PASSES only when it holds a `PIN` match and no `NEG` match, and no `OTHER` match sits in the clause or
+  anywhere after it in the same paragraph (a stealth retry after a `;` or ` — ` is still the same instruction). The
+  constants ARE the lists; this text names them rather than repeating them, so it cannot drift from the code.
 The cost is a false red on a correct clause that negates something unrelated ("(not exa)"), names a word `OTHER`
 holds, or holds a `.` that `END` reads as a clause end (a URL, an abbreviation other than e.g., i.e., cf., vs. and
 etc.); its remedy is rewording that one clause, which the failure message says. A false red costs a rewrite; a false
@@ -33,11 +34,12 @@ MENTION = re.compile(
     r"firecrawl_(?:\w*scrape|crawl)\b|mcp__firecrawl__\*"
     r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:scrap|crawl)\w*"
     r"|\b(?:scrap|crawl)\w*\s+(?:\S+\s+){0,5}?(?:with|via|through)\s+firecrawl\b"
-    r"|\bfirecrawl\b(?=[^.;→\n]{0,60}`maxAge)",
+    r"|\bfirecrawl\b(?=[^.;→\n]{0,60}`maxAge)"
+    r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:read|fetch|re-fetch|scrap|crawl)\w*)",
     re.I,
 )
 PIN = re.compile(r"""["']?proxy["']?\s*[:=]\s*["']basic["']""")
-OTHER = re.compile(r"\b(?:stealth|auto|enhanced)\b", re.I)
+OTHER = re.compile(r"\b(?:stealth|auto|enhanced)\b|\bdefault\s+proxy\b|\bproxy\s+default\b", re.I)
 NEG = re.compile(
     r"\b(?:never|not|no|nor|neither|without|instead|drop\w*|omit\w*|unless|avoid\w*|skip\w*|except|cannot)\b"
     r"|n['’]t\b",
@@ -124,6 +126,14 @@ FIXTURES = {
     "Firecrawl search for the page.": 0,
     "exa serves a crawl cache, and a page firecrawl serves live is not dead.": 0,
     "Prometheus scrapes the metrics.": 0,
+    # a forbidden mode later in the same paragraph is the same instruction
+    '`firecrawl_scrape` with `proxy: "basic"`; on a block, retry with `proxy: "stealth"`.': 1,
+    '`firecrawl_scrape` with `proxy: "basic"` — on a block, retry through the stealth proxy.': 1,
+    '`firecrawl_scrape` with `proxy: "basic"`, falling back to the default proxy on a block.': 1,
+    '`firecrawl_scrape` with `proxy: "basic"`.\n\nThe stealth proxy is for other tools.': 0,
+    # a fetch verb after Firecrawl is a mention
+    "Use Firecrawl to read the page with the stealth proxy.": 1,
+    'Use Firecrawl to read the page with `proxy: "basic"`.': 0,
 }
 
 
@@ -132,8 +142,8 @@ def _collapse(s: str) -> str:
 
 
 def _mask(s: str) -> str:
-    """Blank code: fenced blocks first, then double- and single-backtick spans; a newline inside stays a newline."""
-    return re.sub(r"```.*?```|``.*?``|`[^`\n]*`", lambda m: re.sub(r"[^\n]", "x", m.group(0)), s, flags=re.S)
+    """Blank code spans (a fence is caught by the double-backtick form); a newline inside stays a newline."""
+    return re.sub(r"``.*?``|`[^`\n]*`", lambda m: re.sub(r"[^\n]", "x", m.group(0)), s, flags=re.S)
 
 
 def _clause(text: str, start: int) -> str:
@@ -147,7 +157,9 @@ def _failing_offsets(raw: str) -> list[int]:
     bad = []
     for m in MENTION.finditer(text):
         cl = _clause(text, m.start())
-        if not PIN.search(cl) or NEG.search(cl) or OTHER.search(cl):
+        para_end = text.find("\n", m.start())
+        rest = text[m.start() : para_end if para_end != -1 else len(text)]
+        if not PIN.search(cl) or NEG.search(cl) or OTHER.search(rest):
             bad.append(m.start())
     return bad
 
