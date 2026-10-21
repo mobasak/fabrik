@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the link check no longer reports a link written as a code example inside backticks (2026-10-21)
+W-b9af1d47; D-1088. `check_doc_links` skipped links in fenced code blocks but graded one inside an inline code span, so a doc showing `` `[a](x.md)` `` as an example would fail the gate for a missing x.md. The link reader now reads each line with inline code spans blanked, using the same blanker `docs_updater` uses — moved into `scripts/enforcement/_fences.py` so both share one copy. Bare paths are still checked as before, and a project whose `_fences.py` is older keeps today's behaviour. Across 44 repos the change leaves every current finding as it was (306 before and after).
+
 ### Fixed — a markdown file full of unmatched backticks can no longer stall the link check (2026-10-21)
 W-16c00597; D-1086. `docs_updater` blanks inline code spans before the link check and the plan Status and Owner scans read a file, and for every backtick run with no matching closer it scanned to the end of the paragraph: 2 000 such runs on one 2 MB line took 1.75 s per call, and dense backtick pairs on one long line 26 s at 4 MB. The blanker now examines each stretch of text once and finds each closer by lookup — 0.003 s on the same line — and returns exactly what it returned before: the old function stays in the tests as the reference, matched on fuzz input and on all 14 673 readable markdown files in the fleet.
 
