@@ -506,11 +506,20 @@ async def health():
     deps = {}
     all_ok = True
 
-    # Database check (only if configured)
+    # Database LIVENESS — a real SELECT 1 round-trip, 503 on failure
     if db_url:
         try:
-            # TODO: Replace with actual async DB ping when DB is added
-            deps["database"] = "configured"
+            import asyncpg
+
+            raw = db_url.replace("postgresql+asyncpg://", "postgresql://")
+            conn = await asyncpg.connect(raw, timeout=5.0)
+            try:
+                await conn.execute("SELECT 1")
+            finally:
+                await conn.close()
+            deps["database"] = "ok"
+        except ImportError:
+            deps["database"] = "configured (no driver)"  # no driver in deps → nothing to ping
         except Exception as e:
             deps["database"] = f"error: {str(e)}"
             all_ok = False

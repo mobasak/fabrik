@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: now, before W-89474fc1 slice 2; back up ~/.vscode-server/data/Machine/settings.json before touching the setting; the hub coordinator tests each stage live in this window",
+  "next": "MEASURED by the operator 2026-10-21 ~15:10 in a two-folder workspace (/opt/fabrik first, /opt/youtube added): the Claude extension's 'Open in New Tab' never asks which folder, and its history list shows ONLY the first folder's (fabrik's) conversations, even with a youtube file active. So the one-VS-Code-window-for-all-coordinators idea fails on extension 2.1.301 regardless of the wrapper: the wrapper can fix identity, not the folder a tab belongs to. Stage 2 is therefore NOT 'identity per tab in one window'; the one-window goal moves to the browser test W-7b58b3e3 (code-server = one VS Code web window per repo, or Claudeck). Keep the stage-1 wrapper (its log rows from 14:47-14:52 are useful) and decide with the operator whether W-ea993618 closes as measured or re-targets code-server's settings.json (same claudeCode.claudeProcessWrapper key).",
   "note": "",
   "owner": "infra",
   "priority": 0,

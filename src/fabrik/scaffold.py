@@ -2215,7 +2215,9 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f'"""Health endpoint tests."""\n'
         f"\n"
         f"import os\n"
-        f"from unittest.mock import patch\n"
+        f"import sys\n"
+        f"from types import SimpleNamespace\n"
+        f"from unittest.mock import AsyncMock, patch\n"
         f"\n"
         f"from fastapi.testclient import TestClient\n"
         f"\n"
@@ -2235,13 +2237,56 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f'        assert data["dependencies"]["database"] == "not_configured"\n'
         f"\n"
         f"\n"
-        f"def test_health_returns_200_with_db_configured():\n"
-        f'    """Health returns 200 when DB is configured (mocked)."""\n'
-        f'    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n'
+        f"# The DB tests swap the driver module itself (sys.modules), so each branch of /health runs the\n"
+        f"# same whether or not asyncpg is installed and never needs a real database.\n"
+        f'_DB_ENV = {{"DATABASE_URL": "postgresql+asyncpg://test@localhost/test"}}\n'
+        f"\n"
+        f"\n"
+        f"def test_health_returns_200_when_db_ping_succeeds(monkeypatch):\n"
+        f'    """Health pings the DB (SELECT 1) and returns 200 when the ping succeeds."""\n'
+        f"    conn = AsyncMock()\n"
+        f"    fake = SimpleNamespace(connect=AsyncMock(return_value=conn))\n"
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
         f'        response = client.get("/health")\n'
-        f"        assert response.status_code == 200\n"
-        f"        data = response.json()\n"
-        f'        assert data["dependencies"]["database"] == "configured"\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert response.json()["dependencies"]["database"] == "ok"\n'
+        f'    fake.connect.assert_awaited_once_with("postgresql://test@localhost/test", timeout=5.0)\n'
+        f'    conn.execute.assert_awaited_once_with("SELECT 1")\n'
+        f"    conn.close.assert_awaited_once()\n"
+        f"\n"
+        f"\n"
+        f"def test_health_returns_503_when_db_ping_fails(monkeypatch):\n"
+        f'    """Health returns 503 (degraded) when the DB cannot be reached."""\n'
+        f'    fake = SimpleNamespace(connect=AsyncMock(side_effect=OSError("connection refused")))\n'
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 503\n"
+        f"    data = response.json()\n"
+        f'    assert data["status"] == "degraded"\n'
+        f'    assert data["dependencies"]["database"].startswith("error:")\n'
+        f"\n"
+        f"\n"
+        f"def test_health_closes_the_connection_when_the_query_fails(monkeypatch):\n"
+        f'    """A DB that accepts the connection but fails SELECT 1 is 503, and the connection is still closed."""\n'
+        f"    conn = AsyncMock()\n"
+        f'    conn.execute.side_effect = RuntimeError("query failed")\n'
+        f"    fake = SimpleNamespace(connect=AsyncMock(return_value=conn))\n"
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 503\n"
+        f"    conn.close.assert_awaited_once()\n"
+        f"\n"
+        f"\n"
+        f"def test_health_reports_no_driver_without_asyncpg(monkeypatch):\n"
+        f'    """Without a DB driver there is nothing to ping: 200, reported honestly as no driver."""\n'
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", None)  # import asyncpg now raises ImportError\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert response.json()["dependencies"]["database"] == "configured (no driver)"\n'
         f"\n"
         f"\n"
         f"def test_root_endpoint():\n"
@@ -2253,13 +2298,15 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f"\n"
         f"def test_health_returns_correlation_id():\n"
         f'    """Health response includes X-Request-ID header."""\n'
-        f'    response = client.get("/health")\n'
+        f"    with patch.dict(os.environ, {{}}, clear=True):  # no DB: never a network call\n"
+        f'        response = client.get("/health")\n'
         f'    assert "x-request-id" in response.headers\n'
         f"\n"
         f"\n"
         f"def test_health_preserves_provided_request_id():\n"
         f'    """Health response preserves client-provided X-Request-ID."""\n'
-        f'    response = client.get("/health", headers={{"X-Request-ID": "test-123"}})\n'
+        f"    with patch.dict(os.environ, {{}}, clear=True):\n"
+        f'        response = client.get("/health", headers={{"X-Request-ID": "test-123"}})\n'
         f'    assert response.headers["x-request-id"] == "test-123"\n'
     )
 

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T09:12:01.334617Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-99624d7e",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide whether discovery should resolve data[plan] (a dir, or the dir holding the .md) as check_plan_lock_release.resolve_plan does; measure the live locks it would newly select; owner decision on single-file plans",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
+  "score_reason": "LOW: discovery finds a plan by the lock's file stem not its plan field (6 of 8 active locks miss) — advisory warnings only, nobody blocked; LOW effort: read the plan field in one function",
   "status": "open",
   "title": "check_plan_tickets._discover_dirs finds a lock's plan by the lock FILE stem, not its plan field: 6 of 8 active /opt locks have no plan dir at their stem (single-file plans or undated stems like tojlo-mail plan-1-phase0-live-gate), so discovery never selects them"
 }

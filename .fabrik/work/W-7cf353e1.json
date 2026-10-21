@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:25:55.659101Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a031ab1ede9a4c681dd922aa2c0e31ff064a72ed",
   "id": "W-7cf353e1",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "pre-existing: a fresh python-api's health starter test needs asyncpg; one dependency line",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],
