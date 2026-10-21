@@ -680,6 +680,9 @@ Every completed `fabrik apply` / `redeploy --refresh-infra` writes an 11-field J
   "registrar_failures": [
     {"registrar": "redis", "error": "REDIS_URL injection failed: ..."}
   ],
+  "registrar_warnings": [
+    "payments-ingest-role: grant pending — <db> has not applied the fabrik-lib payments schema yet; ..."
+  ],
   "registrars_applied": [
     {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
     {"type": "prometheus", "id": "my-api", "status": "created", "data_bearing": false}
