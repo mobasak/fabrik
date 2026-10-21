@@ -156,7 +156,9 @@ re-check every absence with a second method before recording it.
    - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason}` with `reason` one of:
      `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
      retries; a 429 is retried after its `Retry-After` when that is at most 30 s, else reported at once as `http-429` — G12), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
-     `empty` (under 50 characters of text after every attempt), `render-unavailable` (browserless unreachable),
+     `empty` (under 50 characters of text after every attempt). The wall check runs on every body the server sees —
+     the static page before any render, and a 5xx's body (`FetchError.body`) before it is called `http-5xx` — so a
+     wall that answers 503, or one met when browserless is down, is `bot-wall`, not a transient error; `render-unavailable` (browserless unreachable),
      `unsupported` (an image-only PDF, a content type it cannot read).
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
@@ -187,15 +189,19 @@ re-check every absence with a second method before recording it.
 | `blocked: http-5xx`, `blocked: render-unavailable` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
 | `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and Firecrawl's default fetch escalates to enhanced proxies on a failure (below) |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
+| `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
+| a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
 
 **Why Firecrawl and not exa is the line.** Rule 57 names the tooling layer — anti-bot bypass and proxy services — not
 every other fetcher. Firecrawl's default proxy mode is `auto`, which "will automatically retry scraping with enhanced
 proxies if the basic proxy fails" (https://docs.firecrawl.dev/features/proxies, 2026-10-21): sending it a blocked page
-asks it to rotate past the block. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no documented
-escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall goes to
-neither.
-| `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
-| a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
+asks it to rotate past the block. So **every Firecrawl call this design makes passes `proxy: "basic"`** — still a
+documented mode, though the page marks the `proxy` parameter deprecated; if the API stops accepting it, every Firecrawl
+row above shrinks to operator-cleared sources only. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
+documented escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall
+goes to neither. exa answers from its cache by default ("instant results from our cache, with automatic live crawling as
+fallback", https://exa.ai/docs/reference/get-contents, 2026-10-21) and the `web_fetch_exa` tool cannot ask for a live
+read, so a page read through exa is cited as exa's cached copy — never as the live re-fetch the dispute rule needs.
 
 **A departure from the work item, surfaced for the spec gate.** The work item says "a failed own-tool call falls
 through to it, never to a miss"; this contract does not fall through to Firecrawl on `bot-wall`, `robots`, `scope`,
@@ -282,8 +288,9 @@ Bot-walled pages (and only for operator-cleared sources); LLM schema extraction;
 - **Growth:** rendered fetches load the single vps1 browserless container. Trigger: more than 20 rendered fetches a day,
   or any browserless 5xx, raises the memory limit (gate W-cbd80821) before anything else.
 - **Degradation:** browserless down → static fetches still work and renders return `blocked: render-unavailable`.
-  Server down → `mcp_health.py` reports it (FIX-FIRST) and seats use `exa`; Firecrawl only for a source the operator has
-  cleared, because without the server nothing classifies a page, so a wall cannot be told from an outage.
+  Server down → `mcp_health.py` reports it (FIX-FIRST) and seats use `exa` (cited as exa's cached copy, never a live
+  re-fetch); Firecrawl only for a source the operator has cleared, because without the server nothing classifies a
+  page, so a wall cannot be told from an outage.
 - **Retirement:** if the Firecrawl fallback goes unused for a full billing period, the plan is downgraded or dropped (an
   operator spend decision). The server is retired only if a hosted tool replaces fabrik-lib's modules.
 
@@ -305,7 +312,8 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 | what spent the 5 000 credits | transcripts show 128 agent calls in the period, far too few; runtime callers (rivals_run, web-tools users, other repos sharing the key) leave no log | read Firecrawl's activity log (operator dashboard) or count runtime calls per caller once `FABRIK_SCRAPE_LEG` logs them; it decides which caller switches first |
 | Firecrawl's output on the same URLs | out of credits, so no side-by-side run | re-run the capability ledger with a Firecrawl column after 2026-11-12 |
 | the bot-wall detector's precision | `is_bot_wall` knew only Cloudflare and missed U6 (DataDome); other vendors may follow | the server logs `blocked` reasons and short results; review them after two weeks |
-| how exa's crawler behaves on a bot wall | exa documents no proxy escalation, but its live crawl is opaque (an error names `CRAWL_LIVECRAWL_TIMEOUT`) | exa stays a fallback for `empty` only while its results on such pages are logged; a page exa reads past a known wall is reported to the operator |
+| how exa's crawler behaves on a bot wall | exa documents no proxy escalation, but its live crawl is opaque (an error names `CRAWL_LIVECRAWL_TIMEOUT`) | the seat records each `empty` → exa outcome in its research ledger (URL, text length); if exa returns content for a page later classified `bot-wall` (after G11 or a new marker), exa is dropped from the `empty` row. P4 (intel) reviews the records after two weeks |
+| whether a keyless Firecrawl call works while the keyed team is at −6 credits | the proxies page's samples say "No API key needed to get started", suggesting a keyless, rate-limited tier; untested | one keyless `scrape` call of a public page in slice 1; if it works, the fallback rows use it until 2026-11-12 |
 | how many sites serve markdown on request | measured on one site (U2) | the server logs which path answered; the per-command ledgers show it |
 | browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
 | the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | block private ranges in browserless's own request interception, verified by a redirect test against vps1 |
