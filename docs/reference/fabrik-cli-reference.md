@@ -258,7 +258,7 @@ fabrik reconcile-all --filter my-api        # dry-run, scoped to one
 fabrik reconcile-all --yes                  # apply across fleet
 ```
 
-A spec counts as deployed when its target host's `docker compose ls -a` lists a project named `<name>`/`fabrik-<name>` or one whose config file lives in an `app_dir` candidate; a host that cannot be read becomes a row, never an abort. A dry run prints its failure rows and exits 0; `--yes` exits 1 on any `host-unreachable`, `error`, `spec-error` or `lock-timeout` row, and either mode exits 1 when no host could be read.
+A spec counts as deployed when its target host's `docker compose ls -a` lists a project named `<name>`/`fabrik-<name>` or one whose config file lives in an `app_dir` candidate; a host that cannot be read becomes a row, never an abort. A dry run prints its failure rows and exits 0; `--yes` exits 1 on any `host-unreachable`, `error`, `spec-error`, `lock-timeout` or `registrar-failed` row (a refresh that recorded registrar failures), and either mode exits 1 when no host could be read. A refresh's registrar warnings (a payments grant left pending, a Prometheus target not loaded) print under the table and never fail a row; `fabrik status` and `fabrik audit-registrars` (its text output, not `--json`) show the last apply's recorded warnings from `.fabrik/state/<id>.json`.
 
 ---
 

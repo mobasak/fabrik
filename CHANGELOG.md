@@ -14,6 +14,15 @@ W-1b9ae5f2; D-1090. Claude Code 2.1.304 delivers a prompt typed while the agent 
 ### Fixed — the link check no longer reports a link written as a code example inside backticks (2026-10-21)
 W-b9af1d47; D-1088. `check_doc_links` skipped links in fenced code blocks but graded one inside an inline code span, so a doc showing `` `[a](x.md)` `` as an example would fail the gate for a missing x.md. The link reader now reads each line with inline code spans blanked, using the same blanker `docs_updater` uses — moved into `scripts/enforcement/_fences.py` so both share one copy. Bare paths are still checked as before, and a project whose `_fences.py` is older keeps today's behaviour. Across 44 repos the change leaves every current finding as it was (306 before and after).
 
+### Fixed — registrar warnings persist into `.fabrik/state` and reach `status`, `audit-registrars` and `reconcile-all` (2026-10-21)
+
+W-0c60d86e. A registrar warning (a payments grant left `pending`, a Prometheus target not loaded) reached only the
+summary of the run that produced it. The state record now carries `registrar_warnings` beside `registrar_failures`
+(sanitised the same way), `fabrik status` prints them, and `fabrik audit-registrars` names a spec whose last apply
+recorded any (warnings never count toward its exit). `fabrik reconcile-all` no longer discards the refresh's result:
+a refresh that recorded registrar failures is a `registrar-failed` row (exit 1 under `--yes`), and its warnings
+print under the table.
+
 ### Changed — browserless's vps1 memory limit raised to 3G in the compose mirror, provisionally (2026-10-21)
 
 W-30b7ce3f. Over 7 days browserless was OOM-killed 5 times at its 2G limit (working-set p99 1805 MiB, peak at the

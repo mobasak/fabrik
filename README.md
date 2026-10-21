@@ -673,7 +673,7 @@ python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp D
 
 ### 9. Deploy State Store (`.fabrik/`)
 
-Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 10-field manifest recording exactly what was deployed, which registrars fired, and which failed (`registrar_failures`). This is the backbone of the deploy/destroy/audit pipeline.
+Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 11-field manifest recording exactly what was deployed, which registrars fired, which failed (`registrar_failures`) and which warned (`registrar_warnings`). This is the backbone of the deploy/destroy/audit pipeline.
 
 **State file schema (written by `state.py` after each `fabrik apply`):**
 
@@ -684,12 +684,15 @@ Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` 
   "coolify_uuid": "lgg84cs8gkso0swk8g4cwo80",
   "domain": "my-api.vps1.ocoron.com",
   "git_sha": "ce9d1ed...",
+  "registrar_failures": [],
+  "registrar_warnings": [],
   "registrars_applied": [
     {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
     {"type": "prometheus", "id": "my-api", "status": "created", "data_bearing": false}
   ],
   "spec_hash": "72f31d75097f4672",
-  "spec_path": "/opt/fabrik/specs/services/my-api.yaml"
+  "spec_path": "/opt/fabrik/specs/services/my-api.yaml",
+  "target_vps": "vps1"
 }
 ```
 
