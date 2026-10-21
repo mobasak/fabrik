@@ -1,6 +1,6 @@
 # Review — the VS Code chat-tab router (W-ea993618)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 8b6993313bddf42131461333f829f188ceea2841; range tip 8b6993313bddf42131461333f829f188ceea2841; `git diff 06433fe12..8b6993313 -- scripts/sysadmin/claude_tab_router.py scripts/sysadmin/claude-agent-wrapper.sh tests/test_claude_tab_router.py docs/workstation/claude-tab-router.md INDEX.md CHANGELOG.md docs/DECISIONS.md` md5 a2af104e3d74a6a85080b2d2be8803e1 (71232 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/claude_tab_router.py`, `scripts/sysadmin/claude-agent-wrapper.sh`, `tests/test_claude_tab_router.py`, `docs/workstation/claude-tab-router.md`, `INDEX.md`, `CHANGELOG.md`, `docs/DECISIONS.md`
 **Lane:** fabrik-task
@@ -110,19 +110,19 @@ $ python scripts/review_rubric.py --changed scripts/sysadmin/claude_tab_router.p
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/sysadmin/claude_tab_router.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/claude-agent-wrapper.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_claude_tab_router.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workstation/claude-tab-router.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/sysadmin/claude_tab_router.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (R1 route() no re-root of a session live elsewhere; R2 live_by_agent keyed (repo, agent); R4 variadic `--add-dir`; R5 picker_deadline(); R7 UUID-only sid before the glob; R8 write inside the fail-open try) |
+| Hunt: `scripts/sysadmin/claude-agent-wrapper.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (R3 a role-less pick unsets the inherited CLAUDE_AGENT) |
+| Hunt: `tests/test_claude_tab_router.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (R6 the router stub reads stdin; new tests for R1 R2 R3 R4 R5 R7; fixture id SX made a UUID) |
+| Hunt: `docs/workstation/claude-tab-router.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (R9 merge-owner listing rule; `mkdir -p ~/.claude/bin/backups` before the backup copy) |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | CLEAN (INDEX.md rows for claude_tab_router.py, claude-agent-wrapper.sh, test_claude_tab_router.py and the doc tree line, read against the files they name) |
+| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | CLEAN (CHANGELOG.md entry 'VS Code chat-tab router' read against the fixed behaviours R1-R7 and the not-yet-installed state) |
+| Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/DECISIONS.md D-1112 six cells, `decisions.py --check` rc 0, its claims read against claude_tab_router.py route() and entries()) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (R8 stdout write and r2 flush inside main()'s fail-open try; every router failure still launches plain) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED r1 (R5 the 30 s picker deadline counts from the router start inside the wrapper's timeout 35; r2 no Tk window once it has passed) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (R4 variadic `--add-dir` and r2 its `=` form; R7 `*`/`../x` session ids reached the transcript glob) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (R6 the stdin test passed trivially; new tests for R1 R2 R7 proven red against mutants in a throwaway worktree, R3 R4 red-first) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (the worktree-toplevel residual states its population: 0 of 63 rows in ~/.claude/state/agent-identity.jsonl; the live `claude_tab_router.py entries` listing shows none) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED r1 (R6 replaced a proxy test with one that fails when the router reads stdin; R4 grounded in `claude --help` output `--add-dir <directories...>`) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -148,6 +148,9 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×1 (slice A sonnet, slice A haiku, slice B sonnet; the slice-B haiku seat trimmed by the box cap and owed) | found: 25, new: 25, confirmed: 9, fixed: 9, unexecuted: 0 | method: citation — full pass over the build 6b03d2bb9 (2026-10-21 17:31:30); the lead executed R1-R9 after the Deck interruption: route() re-root path, live_by_agent key, wrapper agent export, `claude --help` for `--add-dir`, entries() before the deadline, the stdin stub, the sid glob, main()'s try, the doc's install steps |
+| Pass 2 | native sonnet×2 + haiku×1 (fresh seats: the pass-1 seats died with the 19:32 WSL restart; the haiku seat is the one owed from pass 1) | found: 7, new: 7, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation — delta over 6b03d2bb9..7520f4894 plus one hop; 23 tests run; `claude --help`, the UUID regex and the 35 s/30 s budget re-derived; own-fix 4 of 4 (round 1's hunks) → scope-growth stop (in-lane) |
+| Pass 3 | native sonnet×1 (slice A, the pass-2 seat) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the pass-2 fixed set only (7520f4894..cb7a42048): the flush inside the try, the Tk skip past the deadline, the `--add-dir=` values, the docstring, the extended test; standing clean since pass 2: every other class |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -160,6 +163,17 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| Id | Verdict |
+|---|---|
+| L1 | RECORDED — measured (worktree folders listed as repos; 0 of 63 identity rows carry a worktree toplevel, and the live listing shows none) |
+| L2 | RECORDED — measured (own_sid is used by the tests only; route() returns before entries() on every resume) |
+| L3 | RECORDED — measured (a router-map row with an invalid role name is shown as an unbindable row, never bound) |
+| L4 | RECORDED — measured (signal handlers are not restored after the picker; the router process exits right after) |
+| L5 | RECORDED — measured (record() writes the map row before the wrapper launches; a failed launch leaves one stale row, read later as a resumable session) |
+| L6 | RECORDED — measured (the hung-router test runs about 35 s by design, the wrapper's own timeout) |
+| C1 | RECORDED — measured (a positional prompt after `--add-dir` is dropped; the real CLI reads it as a directory too, and a stream-json launch carries none) |
+| A3 | RECORDED — measured (a flush failure can leave exit-time stderr noise; the exit code stays non-zero, so the wrapper launches plain) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
@@ -181,7 +195,7 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — the chat-tab router (W-ea993618, build 6b03d2bb9 and fixes through cb7a42048): CLEAN after pass 3 — R1-R9 fixed with tests (R8 by reading), pass-2 residue fixed, closing pass confirmed 0
 
 ## Gate
 
@@ -190,7 +204,13 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "failures": [],
+  "skipped_checks": [
+    "static tier"
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
