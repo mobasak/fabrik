@@ -13,15 +13,17 @@
     "plan": "",
     "spec": ""
   },
-  "next": "command grep -rl 'validate_i18n' /opt --include='*.py' (outside /opt/fabrik-lib) to name the consumer set; one mail per consumer repo carrying both notes verbatim (read them in /opt/fabrik-mail/fabrik/archive/) plus the check commands; reply to fabrik-lib with the consumer list (send --to fabrik-lib --to-agent fabrik-lib-dev2 --kind reply --re 01M5CH9GPF1A5AN2R9RYNGHA7V); then tell the coordinator so it acks both claimed mails",
+  "next": "FOUR fabrik-lib i18n/ consumer notes to relay, all archived under the coordinator's claim in /opt/fabrik-mail/fabrik/archive/: 01M5BKRR080GBV2911N50ZTE48 (SB-140 Level-1 type judging), 01M5BT0TCP7Q9ZR3Z5KJK52S9P (three false passes closed), 01M5CH9GPF1A5AN2R9RYNGHA7V (ERROR lines not tracebacks; translate fails OPEN on absent _context.json), 01M5EBHWZC0R52MFVH66PJ5E96 (translate_i18n credential redaction + lone-surrogate DATA-LOSS fix, D-516/D-518). command grep -rl 'validate_i18n\\|translate_i18n' /opt --include='*.py' (outside /opt/fabrik-lib) names the consumer set; one mail per consumer carrying all four notes verbatim plus the check commands (the 64-test file from fabrik-lib i18n/ at 7e31e604); reply to fabrik-lib-dev2 with the consumer list; then tell the coordinator so it acks the four claimed mails",
   "note": "",
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: another repo's request (fabrik-lib asks the hub to relay, D-956); LOW effort: a grep for the consumer set plus one mail per consumer, no code",
   "status": "open",
   "tags": [
+    "mail-01m5bkrr080gbv2911n50zte48",
     "mail-01m5bt0tcp7q9zr3z5kjk52s9p",
-    "mail-01m5ch9gpf1a5an2r9ryngha7v"
+    "mail-01m5ch9gpf1a5an2r9ryngha7v",
+    "mail-01m5ebhwzc0r52mfvh66pj5e96"
   ],
   "title": "Relay fabrik-lib i18n/ consumer notes (mails 01M5BT0TCP7Q9ZR3Z5KJK52S9P and 01M5CH9GPF1A5AN2R9RYNGHA7V, archived under the coordinator's claim): the re-vendored validator newly FAILS blank/non-text array items and bad _meta, WARNS on type and length mismatches, and translate fails OPEN on an absent _context.json — find every /opt project vendoring i18n/ and mail each one the two notes with the post-re-vendor check"
 }
