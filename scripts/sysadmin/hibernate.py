@@ -7,16 +7,17 @@ text, prove the box is safe to sleep, and tell a woken agent that the box slept.
                                   owner) and the pool sessions that are never messaged
   brief --role coordinator|agent --words "<the operator's words>"   the pause text to send
   mark --words "…"                start a pause (the only writer of ~/.claude/state/hibernate.json)
-  lift                            end the pause without a sleep (the hub, when no resume-wake will come)
-  status [--json] [--self SID]    one table: every live agent's worktree clean and pushed, no run `running`;
-                                  prints SAFE TO HIBERNATE only when every blocking row is clean
+  lift                            the hub, once awake: every paused agent's `woke` answers RESUME (adds lifted_at)
+  status [--json] [--self SID]    one table: every live agent's worktree clean and pushed, no run `running` (the
+                                  caller's own run excepted); SAFE TO HIBERNATE only when no row blocks
   woke [--self SID]               exit 0 when the box slept (or the hub lifted) after the current pause and this
                                   session has not resumed yet; never writes
 
 A session is LIVE when its record (`~/.claude*/sessions/<pid>.json`, `~/.claude-fleet/*/sessions/<pid>.json`) names a
-pid whose /proc stat start time equals the record's `procStart` and whose comm is `claude`. Only an `entrypoint` of
-`cli` or `claude-vscode` is an agent; `sdk-cli`/`sdk-ts` sessions are pool workers or review seats (`claude -p`): they
-are listed, never messaged, never a coordinator (every record carries kind "interactive", so `kind` cannot tell).
+pid whose /proc stat start time equals the record's `procStart` and whose comm is `claude`. An `entrypoint` of
+`sdk-cli`/`sdk-ts` is a pool worker or review seat (`claude -p`): listed, never messaged, never a coordinator, never a
+`status` row; every other entrypoint, an unknown or missing one included, is an agent (every record carries kind
+"interactive", so `kind` cannot tell).
 The agent's name comes from CLAUDE_AGENT in its environ, else its newest identity-store binding. Each repo's
 coordinator is `decisions.py --merge-owner <repo>` (D-874), never a position. Everything read from another repo is
 read-only (`git status`, `git rev-list`, `git branch -r --contains`).
@@ -30,19 +31,22 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
-import re
+import shlex
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
-AGENT_ENTRYPOINTS = {"cli", "claude-vscode"}
+POOL_ENTRYPOINTS = {
+    "sdk-cli",
+    "sdk-ts",
+}  # a denylist: an entrypoint nobody listed is an agent (fail closed)
 DECISIONS = Path(__file__).resolve().parent.parent / "decisions.py"
-WAKE_GAP_FLOOR_S = 900  # the rotation tick's own resume-wake floor (claude_rotate.py), so a 15-minute lid close counts
-NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
+NO_OWNER = {"no ledger", "the ledger declares no merge owner"}  # a FAILED lookup is not "no owner"
 
 
 # ── discovery ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -108,7 +112,16 @@ def _bindings(store: Path) -> dict[str, str]:
     return owner
 
 
-def live_sessions(home: Path, proc: Path) -> list[dict]:
+def _repo_of(cwd: str, opt: str) -> str:
+    """`<opt>/<repo>` for a cwd under it, else "" (an empty first segment — `/opt//x` — is not a repo)."""
+    prefix = opt.rstrip("/") + "/"
+    if not cwd.startswith(prefix):
+        return ""
+    first = cwd[len(prefix) :].split("/")[0]
+    return prefix + first if first else ""
+
+
+def live_sessions(home: Path, proc: Path, opt: str = "/opt") -> list[dict]:
     names = _bindings(home / ".claude" / "state" / "agent-identity.jsonl")
     out = []
     for f in _session_files(home):
@@ -135,9 +148,7 @@ def live_sessions(home: Path, proc: Path) -> list[dict]:
                 "peer": d.get("name") or "",
                 "entrypoint": d.get("entrypoint") or "",
                 "agent": _environ_agent(proc, pid) or names.get(sid) or "",
-                "repo": "/opt/" + cwd[5:].split("/")[0]
-                if cwd.startswith("/opt/") and len(cwd) > 5
-                else "",
+                "repo": _repo_of(cwd, opt),
             }
         )
     return out
@@ -163,10 +174,10 @@ def merge_owner(repo: str) -> tuple[str, str]:
     return "", f"lookup failed (exit {out.returncode})"
 
 
-def targets(home: Path, proc: Path, self_sid: str) -> dict:
-    sessions = live_sessions(home, proc)
-    agents = [s for s in sessions if s["entrypoint"] in AGENT_ENTRYPOINTS]
-    pool = [s for s in sessions if s["entrypoint"] not in AGENT_ENTRYPOINTS]
+def targets(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> dict:
+    sessions = live_sessions(home, proc, opt)
+    agents = [s for s in sessions if s["entrypoint"] not in POOL_ENTRYPOINTS]
+    pool = [s for s in sessions if s["entrypoint"] in POOL_ENTRYPOINTS]
     agent_pids = {s["pid"] for s in agents}
     for (
         p
@@ -192,7 +203,9 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
     for repo, row in repos.items():
         owner, why = merge_owner(repo)
         holders = [s for s in row["sessions"] if owner and s["agent"] == owner]
-        if not owner and len(row["sessions"]) == 1:
+        if repo == self_repo:  # the caller coordinates its own repo; nobody else there relays
+            holders = []
+        elif not owner and why in NO_OWNER and len(row["sessions"]) == 1:
             holders, why = (
                 row["sessions"],
                 "the repo's only live agent session (no merge owner declared)",
@@ -203,7 +216,7 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
             row["note"] = (
                 f"{len(holders)} live sessions hold {owner} — message each session directly"
             )
-        elif not holders and repo == self_repo:
+        elif repo == self_repo:
             row["note"] = "this is your own repo — send the agent text to each session directly"
         elif not holders:
             row["note"] = "no live coordinator — message each session directly"
@@ -221,17 +234,22 @@ def targets(home: Path, proc: Path, self_sid: str) -> dict:
 # ── the pause text ───────────────────────────────────────────────────────────────────────────────────────────────
 
 
+FEEDBACK = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: <your command>, paused for a hibernate"
+
+
 def brief(role: str, words: str) -> str:
     hub = str(Path(__file__).resolve())
+    fb = f'--feedback "{FEEDBACK}"'
     agent = f"""URGENT — PAUSE NOW for a hibernate. The operator, verbatim: "{words}".
 1. Finish the step you are on and stop there; a foreground wait or poll ends now. Let your OWN subagents and review
    seats finish (never stop one mid-write); dispatch nothing new and start no new step.
 2. Commit your WIP on your own worktree branch (explicit pathspecs, provenance trailers; "wip(pause): …" is fine) and
    push it. Never commit on a default branch's main checkout what you did not author (leave runtime files untracked).
-3. Close every live run record with the operator's words, the first form your command_run.py accepts:
-   a. python3 scripts/command_run.py blocked --command <the live run> --paused --reason "operator: {words}"
-   b. no --paused in your copy: python3 scripts/command_run.py handoff --command <the run> --reason "operator pause: {words}" --resume <a file with a ## RESUME block>
-   c. handoff refused too (a receipt owed): python3 scripts/command_run.py blocked --command <the run> --reason "operator pause (no --paused in this copy): {words}"
+3. Close every live run record with the operator's words, the first form your command_run.py accepts (each needs the
+   four-field feedback; write your own verdicts, or keep the `none` ones):
+   a. python3 scripts/command_run.py blocked --command <the live run> --paused --reason {shlex.quote("operator: " + words)} {fb}
+   b. no --paused in your copy: python3 scripts/command_run.py handoff --command <the run> --reason {shlex.quote("operator pause: " + words)} --resume <a file with a ## RESUME block> {fb}
+   c. handoff refused too (a receipt owed): python3 scripts/command_run.py blocked --command <the run> --reason {shlex.quote("operator pause (no --paused in this copy): " + words)} {fb}
 4. The wake DROPS your cached prompt: you resume from what is on disk, nothing else. Write your resume point to memory
    (and the run's RESUME note): the item, the files, the seed path the close printed, and the exact next step.
 5. Reply ONE line: PAUSED — <item> — branch pushed <sha> — seed <path|none> — next <step>
@@ -244,6 +262,7 @@ told again (`command_run.py start --command <name> --phases <N> --resume-from <s
 1. Send the AGENT text below, verbatim, to each of your live agents (ListAgents; `python3 {hub} targets` shows
    them by repo). Pool and review-seat sessions (`claude -p`) are never messaged.
 2. Do the same steps yourself: finish your step, commit and push what you hold, close your runs (same three forms).
+   Then reply to the hub — never close the hub's /hibernate run, which is the hub's own.
 3. Collect each agent's PAUSED line. When all are in (or after 15 minutes), reply to the hub with the lines, one per
    agent, and name any agent that did not answer.
 
@@ -270,9 +289,42 @@ def _write_marker(home: Path, data: dict) -> None:
     path = _marker(home)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".hibernate.", suffix=".tmp")
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-    os.replace(tmp, path)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _safe_sid(sid: str) -> str:
+    """command_run.py's record filename for a session id — a copy, pinned to it by tests/test_hibernate.py."""
+    safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in sid)
+    if not safe:
+        return "nosession"
+    if safe != sid:
+        safe += "-" + hashlib.blake2s(sid.encode("utf-8", "replace"), digest_size=4).hexdigest()
+    return safe
+
+
+def _run_record(home: Path, sid: str) -> dict | None:
+    """The session's run record: {} when it has none, None when one exists but is not a readable JSON object."""
+    path = home / ".claude" / "state" / "command-runs" / f"{_safe_sid(sid)}.json"
+    try:
+        rec = json.loads(path.read_text("utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
+def _epoch(value: object) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def woke(home: Path, self_sid: str) -> tuple[int, str]:
@@ -297,12 +349,12 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
                 continue
             if not isinstance(r, dict) or r.get("event") != "resume-wake":
                 continue
+            # the tick writes resume-wake only past its own gap threshold (CLAUDE_RESUME_GAP_MIN), so no floor here
             ts, gap = r.get("ts"), r.get("gap_s")
             if (
                 isinstance(ts, (int, float))
                 and isinstance(gap, (int, float))
                 and ts > paused_at
-                and gap >= WAKE_GAP_FLOOR_S
                 and (wake is None or ts > wake[1])
             ):
                 wake = (f"the box slept {int(gap)} s (resume-wake)", ts)
@@ -314,15 +366,8 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
             f"no wake since the pause at {time.strftime('%F %T', time.localtime(paused_at))} — stay paused",
         )
     if self_sid:
-        try:
-            rec = json.loads(
-                (home / ".claude" / "state" / "command-runs" / f"{self_sid}.json").read_text(
-                    "utf-8"
-                )
-            )
-        except (OSError, ValueError):
-            rec = {}
-        if rec.get("state") == "running" and float(rec.get("started_epoch") or 0) > wake[1]:
+        rec = _run_record(home, self_sid) or {}
+        if rec.get("state") == "running" and _epoch(rec.get("started_epoch")) > wake[1]:
             return 1, "already resumed: your run is running again since the wake"
     return (
         0,
@@ -335,18 +380,23 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
 
 def _git(path: str, *args: str) -> subprocess.CompletedProcess[str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    return subprocess.run(
-        ["git", "-C", path, *args], capture_output=True, text=True, timeout=60, env=env
-    )
+    try:
+        return subprocess.run(
+            ["git", "-C", path, *args], capture_output=True, text=True, timeout=60, env=env
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return subprocess.CompletedProcess(args, 124, "", str(exc))
 
 
 def worktree_state(path: str) -> tuple[bool, str]:
     """(blocks, why) for one live agent's worktree."""
+    if not path or not os.path.isabs(path):  # `git -C ""` reads the CALLER's cwd
+        return True, "no absolute cwd recorded"
     if not Path(path).is_dir():
         return True, "missing"
     st = _git(path, "status", "--porcelain")
     if st.returncode != 0:
-        return True, "not a git checkout"
+        return True, "not a git checkout" + (" (git timed out)" if st.returncode == 124 else "")
     lines = [ln for ln in st.stdout.splitlines() if ln]
     tracked = [ln for ln in lines if not ln.startswith("??")]
     untracked = len(lines) - len(tracked)
@@ -367,15 +417,19 @@ def worktree_state(path: str) -> tuple[bool, str]:
     return False, "clean, pushed" + (f" ({untracked} untracked file(s))" if untracked else "")
 
 
-def status(home: Path, proc: Path, self_sid: str) -> tuple[int, list[dict]]:
-    sessions = [s for s in live_sessions(home, proc) if s["entrypoint"] in AGENT_ENTRYPOINTS]
+def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[int, list[dict]]:
+    if not self_sid:
+        return 2, [{"error": "no session id — pass --self (CLAUDE_CODE_SESSION_ID is unset)"}]
+    sessions = [
+        s for s in live_sessions(home, proc, opt) if s["entrypoint"] not in POOL_ENTRYPOINTS
+    ]
     if not sessions:
         return 2, [
             {
                 "error": "no live agent session found — the session records or /proc are not readable from here"
             }
         ]
-    if self_sid and not any(s["sid"] == self_sid for s in sessions):
+    if not any(s["sid"] == self_sid for s in sessions):
         return 2, [
             {
                 "error": f"this session ({self_sid}) is not among the live sessions — wrong records dir or pid namespace"
@@ -383,18 +437,14 @@ def status(home: Path, proc: Path, self_sid: str) -> tuple[int, list[dict]]:
         ]
     rows = []
     for s in sessions:
-        if s["sid"] == self_sid:
-            continue
         blocks, why = worktree_state(s["cwd"])
-        try:
-            rec = json.loads(
-                (home / ".claude" / "state" / "command-runs" / f"{s['sid']}.json").read_text(
-                    "utf-8"
-                )
-            )
-        except (OSError, ValueError):
-            rec = {}
-        if rec.get("state") == "running":
+        rec = _run_record(home, s["sid"])
+        # the caller's own /hibernate run is running by design; its tree is not exempt
+        if s["sid"] == self_sid:
+            why += " (you)"
+        elif rec is None:
+            blocks, why = True, "run record unreadable; " + why
+        elif rec.get("state") == "running":
             blocks, why = True, f"run /{rec.get('command', '?')} still running; " + why
         rows.append(
             {
@@ -416,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     ap.add_argument("--home", default=os.path.expanduser("~"), help=argparse.SUPPRESS)
     ap.add_argument("--proc", default="/proc", help=argparse.SUPPRESS)
+    ap.add_argument("--opt", default="/opt", help=argparse.SUPPRESS)
     sub = ap.add_subparsers(dest="verb", required=True)
     for name in ("targets", "status"):
         p = sub.add_parser(name)
@@ -453,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
         print(msg)
         return rc
     if a.verb == "targets":
-        t = targets(home, proc, a.self)
+        t = targets(home, proc, a.self, a.opt)
         if a.json:
             print(json.dumps(t, indent=2))
             return 0
@@ -477,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"pool: {len(t['pool'])} headless session(s), never messaged ({seats} are a live agent's own seats)"
             )
         return 0
-    rc, rows = status(home, proc, a.self)
+    rc, rows = status(home, proc, a.self, a.opt)
     if a.json:
         print(json.dumps({"rc": rc, "rows": rows}, indent=2))
         return rc

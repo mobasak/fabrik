@@ -8,34 +8,39 @@ decides.
 
 `hibernate.py targets` reads every session record in `~/.claude*/sessions/<pid>.json` and
 `~/.claude-fleet/*/sessions/<pid>.json` (de-duplicated by real path). A record is a live session when its pid's start
-time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. Only an `entrypoint` of `cli`
-or `claude-vscode` is an agent; `sdk-cli` and `sdk-ts` sessions are cron-pool workers or review seats (`claude -p`):
-they are counted, never messaged and never a coordinator. Every record says `kind: interactive`, so `kind` cannot tell
-them apart.
+time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. An `entrypoint` of `sdk-cli`
+or `sdk-ts` is a cron-pool worker or a review seat (`claude -p`): counted, never messaged, never a coordinator and
+never a `status` row. Every other entrypoint, an unknown or missing one included, is an agent, so a new client fails
+toward being checked. Every record says `kind: interactive`, so `kind` cannot tell them apart.
 
 An agent's name is `CLAUDE_AGENT` in its environment, else its newest whoami binding. Agents are grouped by repo
 (`/opt/<repo>` from the cwd). A repo's coordinator is its ledger's merge owner (`decisions.py --merge-owner`, D-874);
-a repo with none and one live agent has that agent as its coordinator. A repo whose coordinator is not live, or held by
-two sessions, is messaged session by session; so is a session outside `/opt`. The caller's own session is excluded.
+a repo whose ledger declares none (or has no ledger) and has one live agent has that agent as its coordinator, while a
+FAILED lookup names nobody. A repo whose coordinator is not live, or held by two sessions, is messaged session by
+session; so is the caller's own repo, which the caller coordinates, and a session outside `/opt`. The caller's own
+session is never a target.
 
 ## When it is safe
 
-`hibernate.py status` checks each live agent's cwd:
+`hibernate.py status` needs the caller's session id (`--self`, default `CLAUDE_CODE_SESSION_ID`) and checks each live
+agent's cwd, the caller's own included (its row says `(you)`):
 
-- a run record (`~/.claude/state/command-runs/<sid>.json`) still `running` blocks;
+- a run record (`~/.claude/state/command-runs/<sid>.json`, named as `command_run.py` names it) still `running` blocks,
+  and so does one that is not readable JSON — except the caller's own, whose `/hibernate` run is running by design;
 - uncommitted tracked changes block; untracked files are listed, never blocking;
 - a branch with commits ahead of its upstream blocks; a branch with no upstream blocks unless its HEAD is on some
-  remote branch; a detached HEAD, a missing folder or a git error blocks.
+  remote branch; a detached HEAD, a missing folder, a cwd that is empty or relative, or a git error or timeout blocks.
 
-It prints `SAFE TO HIBERNATE` only when no row blocks. No live session found, or the caller not among them, is exit 2 —
-never safe: an empty table is not a safe one.
+It prints `SAFE TO HIBERNATE` only when no row blocks. No session id, no live session found, or the caller not among
+them, is exit 2 — never safe: an empty table is not a safe one.
 
 ## After the wake
 
-`hibernate.py mark` (the hub, at the start) writes `~/.claude/state/hibernate.json`; it is the only writer of a pause.
+`hibernate.py mark` (the hub, at the start) writes `~/.claude/state/hibernate.json` and so starts a pause; `lift` (the
+hub, once awake — always, since a sleep during a fleet-quota hold writes no `resume-wake` row) adds `lifted_at` to it.
 `hibernate.py woke` never writes: it answers 0 when, after the current mark, the rotation tick wrote a `resume-wake`
-row with a gap of at least 15 minutes to `~/.claude/state/rotate-ledger.jsonl` (D-1058), or the hub ran
-`hibernate.py lift` — and this session's own run is not running again. The kernel's boot time is no signal on WSL (it
+row to `~/.claude/state/rotate-ledger.jsonl` (the tick writes one only for a gap past its own `CLAUDE_RESUME_GAP_MIN`
+threshold, D-1058) or the hub ran `lift` — and this session's own run is not running again since that wake. The kernel's boot time is no signal on WSL (it
 moves forward by every sleep), and the self-watch still words a resume-wake as "the fleet-quota hold LIFTED"
 (W-b01aa1ec), which is why agents ask `woke` instead of reading the wake line.
 
