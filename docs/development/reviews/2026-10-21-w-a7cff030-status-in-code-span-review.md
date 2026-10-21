@@ -215,3 +215,26 @@ The open DECISION before the next round: when the markdown is ambiguous, which w
 - Option 2: keep CommonMark pairing, which matched the oracle 2799/3000 against 2682 before, and accept C1.
 Take it to the Opus + Fable panel first (CLAUDE.md § Autonomy). Then fix C2/C3 by anchoring the match on the original
 line, extend the read to C4's two sites, add an end-to-end test for C5, and run the closing pass with the same two seats.
+
+### Panel verdict (2026-10-21 ~23:35) — both seats C, neither underivable; this settles the open DECISION above
+
+- opus: "VERDICT: C. Run the match on the ORIGINAL text with a line-anchored, `[^\S\n]`-only regex. A match counts as
+  spanned when `blank_code_spans` blanks its key offset. Each reader takes two reads, the raw first match and the first
+  unspanned match. When the two disagree, the reader's own safe direction decides: the spine is DRAFT only if both
+  reads say DRAFT, PLANNED or ABSENT, and an archived plan is mid-flight only if both reads say mid-flight."
+- fable: "VERDICT: C — keep CommonMark pairing (blank_code_spans) but match on the ORIGINAL text and treat a
+  span-hidden Status line as a REJECTED candidate, never an invisible one. Rule: first Status-shaped line (original
+  text) whose key is NOT blanked wins; if every Status-shaped line is blanked, the reader takes its strict branch —
+  plan_quality: not draft (ERROR), convergence: the hidden value (flag)."
+
+Build plan for round 2, the two verdicts merged:
+- Add one shared helper in `_fences`: `status_candidates(text, pattern) -> list[(value, hidden)]`. It runs
+  `pattern.finditer` on the ORIGINAL text with `[^\S\n]`-only tails, and marks a candidate hidden when
+  `blank_code_spans(text)` blanks its key offset.
+- Each reader resolves the candidates in its own stated direction. check_plan_quality's spine read (and the :240/:455
+  sites, C4) is draft only when the unhidden read says draft; a set whose only candidates are hidden reads not-draft,
+  which is strict. check_convergence's archived read flags if the first unhidden value is mid-flight, or if every
+  candidate is hidden and any of them is mid-flight.
+- Write the D-row with the commit; it is a decision received from the panel.
+- Tests: C1, C2 and C3 as named cases, both tie-breaks, and the two call sites driven end to end (C5).
+- Re-run the fleet measurement, then run the closing pass with the same seats.
