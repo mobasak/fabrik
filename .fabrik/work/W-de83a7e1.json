@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T04:11:43.931608Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-de83a7e1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a known-good upstream call per research arm at session start (exa and firecrawl fetch example.com, brave one query), reported per arm with its error code, so a geo-blocked egress or a dead key shows before a seat hits it mid-grounding",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mcp_health.py proves the MCP research servers are UP, not that their upstream calls work — exa 403, firecrawl connect timeout and a revoked brave key all passed 'all 14 probed servers live' (fabrik-lib mail 01M5AGYPD6, 2026-10-19)"
+}
