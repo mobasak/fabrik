@@ -157,8 +157,10 @@ re-check every absence with a second method before recording it.
      `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
      retries; a 429 is retried after its `Retry-After` when that is at most 30 s, else reported at once as `http-429` — G12), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
      `empty` (under 50 characters of text after every attempt). The wall check runs on every body the server sees —
-     the static page before any render, and a 5xx's body (`FetchError.body`) before it is called `http-5xx` — so a
-     wall that answers 503, or one met when browserless is down, is `bot-wall`, not a transient error; `render-unavailable` (browserless unreachable),
+     the static page before any render, and any 4xx or 5xx body (`FetchError.body` for a 5xx) before its status is
+     reported — so a wall is `bot-wall` whatever status it answers with (U6 answers the static request with 403, a
+     DataDome page and an `x-datadome` header, `inspect6.py`), and one met when browserless is down is not mistaken for
+     a transient error; `render-unavailable` (browserless unreachable),
      `unsupported` (an image-only PDF, a content type it cannot read).
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
