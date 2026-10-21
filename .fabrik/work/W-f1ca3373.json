@@ -1,0 +1,26 @@
+{
+  "block_digest": "55c7629e4bbf4889852f6a3c2d369ca7b9965e557008f6cc63945a90d45aed23",
+  "blocked_by": [],
+  "created": "2026-10-21T12:26:10.707552Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-f1ca3373",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "47e228eda06368c5ac61841ba3c3723d1dcd2bfd4a064b31e5c7c509d3ef6c20"
+  ],
+  "next": "",
+  "note": "operator via the coordinator (fabrik-ef), verbatim: \"ok we had internet back but weekly quota is limited, so i want to address only urgent items.\" — internet pause over; quota hold lifted at 15:00 (ob's weekly reset, hibernate.py lift)",
+  "owner": "",
+  "priority": 2,
+  "question": "Is your internet pause over, so I should resume my three items?",
+  "status": "done",
+  "title": "Is your internet pause over, so I should resume my three items?"
+}
