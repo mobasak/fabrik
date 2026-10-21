@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T23:25:55.659101Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-7cf353e1",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "src/fabrik/scaffold.py:2200 test vs :1944 handler — measured 2026-10-21 in a fresh python-api after make setup-dev: 1 failed, 6 passed; decide whether the test asserts the no-driver value or patches asyncpg in",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "pre-existing: a fresh python-api's health starter test needs asyncpg; one dependency line",
   "status": "open",
   "tags": [
     "scaffold"
