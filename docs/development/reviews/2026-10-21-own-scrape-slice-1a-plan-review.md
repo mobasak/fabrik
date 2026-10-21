@@ -14,7 +14,8 @@ The plan carries the same ledger in its own § Pass Ledger; this copy is the rec
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (Phases A and C, Global Constraints, Digest, Coverage, Evidence, File Scope) + sonnet×1 (Goal, agreed, Intake, Context Ledger, Phase B, Residual unknowns) · full pass | found: 25, confirmed: 23 (2 duplicates), refuted: 0 | lead executed each claim: a bare GET on :8033 → 406; `emit_mcp_project_config.py:39-46`; `assemble_commands.py:1171`; prototype grader v2; subagent `meta.json` `agentType` | 68dad3bf → e9fcc3f7 |
 | Pass 2 | the same seats, each over the pass-1 fix diff + one hop | found: 8, confirmed: 7, own-fix: 5, refuted: 0 | lead executed: grader v3 (16/16 fixtures, 16 corpus lines); spec :217-227 and :245-249; `tests/test_emit_mcp_project_config.py:24/:42/:47`; emitter `:331`/`:334` | e9fcc3f7 → 17da142e |
-| Pass 3 | the same seats, each over the pass-2 fix diff + one hop | sonnet: found 0 · opus: pending | — | 17da142e → |
+| Pass 3 | the same seats, each over the pass-2 fix diff + one hop | found: 3, confirmed: 2 (both in grader text this review wrote), refuted: 1, sonnet 0 | lead: the negation heuristic replaced by a strict literal rule that fails closed (`proto_grader4.py`, 25/25 fixtures, 17 mentions on 16 lines); `grep -n` on the emitter's flags; Coverage Checklist 13/13 adjudicated | 17da142e → 5225c266 |
+| Pass 4 | opus×1 (the only slice the pass-3 fix touched; sonnet's untouched since its pass-3 zero) · the pass-3 fixed set alone, after the scope-growth stop (D-355) | pending | — | 5225c266 → |
 
 ## Findings
 
@@ -50,3 +51,6 @@ The plan carries the same ledger in its own § Pass Ledger; this copy is the rec
 | opus P2-opus-3 / sonnet P2-1 | 2 | emitter test outside scope, cannot fail | FIXED r2 (Touches, File Scope, `:24/:42/:47`) |
 | opus P2-opus-4 | 2 | Global Constraints vs the emitter's `/opt` writes | FIXED r2 |
 | sonnet P2-2 | 2 | emitter dry-run flag misnamed; `--root /opt` | FIXED r2 (`--check`, operator gate) |
+| opus P-opus-4 (wrap) | 3 | a `maxAge` mention wrapped onto the next line | FIXED r3 (wraps collapsed before matching) |
+| opus P3-opus-1 | 3 | the 20-character negation window misjudged both ways; `.` after a letter or digit | FIXED r3 (strict literal rule: no negation word anywhere in the clause; `.` ends a clause except `e.g.`, `i.e.`, `cf.`, digit.digit) |
+| opus note r3 | 3 | emitter `--root`/`--check` cited one line off | REFUTED (`grep -n` prints `:331` and `:334`, as cited) |
