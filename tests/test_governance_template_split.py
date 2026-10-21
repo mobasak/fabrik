@@ -1968,42 +1968,6 @@ def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None
     assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1
 
 
-AUTONOMY_LEAD = "**AUTONOMY — the agents beside a repo's coordinator**"
-
-
-def test_the_agents_beside_a_coordinator_carry_the_autonomy_rulings_in_the_synced_contract() -> None:
-    """W-890fc8a8 (youtube mail 01M5CCR5VG): a synced repo cannot edit its CLAUDE.md, and its charters reach only a
-    named session, so an unnamed builder window read none of hub D-943, D-1034, D-558, D-961. The template carries
-    them once, role-gated (inert where the one agent is its own coordinator), between the coordinator paragraph and
-    step 0; the hub keeps its own routes and no copy. Mutants: drop the paragraph; glue it onto the coordinator
-    paragraph (the D-888 identity test reds); drop any operative phrase."""
-    hub = (FABRIK / "CLAUDE.md").read_bytes().decode("utf-8")
-    template = (FABRIK / TEMPLATE_REL).read_bytes().decode("utf-8")
-    assert hub.count(AUTONOMY_LEAD) == 0, "the hub carries its own autonomy routes, never the template's paragraph"
-    assert template.count(AUTONOMY_LEAD) == 1, template.count(AUTONOMY_LEAD)
-    paragraphs = _paragraph_led_by(template, AUTONOMY_LEAD)
-    assert len(paragraphs) == 1, "the paragraph must open its own blank-line-separated run"
-    body = " ".join(paragraphs[0].split())
-    for phrase in (
-        "hub D-1034, D-943, D-558, D-961",
-        "never asks the operator, never calls `AskUserQuestion` and never writes a `DECISION NEEDED` block",
-        "the `distributor` its `.fabrik/work/config.json` names",
-        "by fabrik-mail to the repo with no `--to-agent` while the coordinator's window is closed",
-        "ends its run `handoff`",
-        "a targeted allow rule or a one-time answer, never a bypass",
-        "a panel that answers IS the decision",
-        "the operator's own question (`owned`)",
-        "never the `Workflow` tool (D-961)",
-        "answers its caller, never the coordinator",
-        "In a single-window repo the one agent is its own coordinator and this paragraph is inert.",
-    ):
-        assert phrase in body, phrase
-    # placement: after the coordinator paragraph, before step 0 of the routing list
-    assert template.index(COORDINATOR_LEAD) < template.index(AUTONOMY_LEAD) < template.index(
-        "0. **Task→skill routing:**"
-    )
-
-
 def test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere() -> None:
     """W-2bc42fc3 (operator 2026-10-15: "why did you say this needs full fabrik-review for just editing an md file"):
     the trigger read as ANY operator request. Row 1b now scopes it in both contracts; every other site points there.

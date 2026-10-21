@@ -8,10 +8,6 @@ All notable changes to this project will be documented in this file.
 
 - W-c638bb08: master went red after the /hibernate merge (dc99ebd76) on two corpus readers. `commands/_sources/hibernate.md` now includes `run-record` and `orient` between its intro and `## Phase 1` (`tests/test_orient_fragment.py`), and `scripts/command_run.py`'s `NO_CLOSING_PASS` lists `hibernate`, whose source orders no loop round (`tests/test_command_run.py::test_no_closing_pass_set_matches_the_command_sources`).
 
-### Changed — the synced contract states the coordinator rulings for the agents beside a repo's coordinator (2026-10-21)
-
-- `templates/governance/CLAUDE.md`: one AUTONOMY paragraph after the coordinator paragraph carries hub D-1034, D-943, D-558 and D-961 for every agent that is not the repo's coordinator — no operator asks, no `AskUserQuestion`, no own `DECISION NEEDED` block, the coordinator reached by `SendMessage` or fabrik-mail, the Opus + Fable panel, no `Workflow` tool — and is inert in a single-window repo. An unnamed window, which reads no charter, now loads them too (D-1085; youtube mail 01M5CCR5VG). `docs/reference/repo-coordinator-rollout.md` step 8 says so; `tests/test_governance_template_split.py` pins the paragraph and its placement.
-
 ### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
 W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
 
