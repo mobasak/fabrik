@@ -109,7 +109,7 @@ is a plain browserless `/content` render, never stealth.
 | U3 | rivals verify-stage pricing page | linear.app/pricing | static | 4/4 · 0.92 | PASS | PASS |
 | U4 | GitHub README fact check | github.com/browserless/browserless | static | 1/2 · 0.88 | PARTIAL | PASS — the README text is all there (`docker run`, `ghcr.io/browserless` ×3); "TOKEN" is not in that README |
 | U5 | PDF paper | arxiv.org/pdf/1706.03762 | PDF bytes → pdf-extract | 2/3 · 0.92 | PARTIAL | PARTIAL — 35 525 chars extracted, but some lines lose their word spaces ("AshishVaswani"); gap G8 |
-| U6 | review site behind a DataDome captcha | g2.com/products/linear/reviews | static (1.7 KB) → plain render (2.6 KB) | 0/2 · 0.0 | FAIL | FAIL, as it should — the page is a `captcha-delivery.com` (DataDome) interstitial with 0 chars of text; `is_bot_wall` has no DataDome marker, so it did not say so (ask G11) |
+| U6 | review site behind a DataDome interstitial (`captcha-delivery.com/interstitial`) | g2.com/products/linear/reviews | static (1.7 KB) → plain render (2.6 KB) | 0/2 · 0.0 | FAIL | FAIL, as it should — the page is a `captcha-delivery.com` (DataDome) interstitial with 0 chars of text; `is_bot_wall` has no DataDome marker, so it did not say so (ask G11) |
 | U7 | blog article | simonwillison.net/2024/Dec/31/llms-in-2024/ | static | 2/2 · 0.95 | PASS | PASS |
 | U8 | docs crawl, depth 2, cap 8 pages | docs.pydantic.dev/latest/concepts/models/ | doc-crawl over static | 1 of 8 pages in the subtree | PARTIAL | PARTIAL — the crawl seeds the whole origin's sitemap and follows nav links first, so 7 of 8 pages left `/latest/concepts/`; gap G2 |
 
@@ -144,8 +144,8 @@ re-check every absence with a second method before recording it.
      `{status, final_url, content_type, title, markdown, truncated, short, path}` with `path` one of markdown, static,
      rendered, pdf.
      The first request asks for markdown (`Accept: text/markdown, text/html;q=0.9`); a site that answers with
-     `text/markdown` is used as-is, because docs sites increasingly serve their full reference that way and a reduced
-     page as HTML (U2). Otherwise static HTML, converted. `auto` renders through plain browserless `/content` when an
+     `text/markdown` is used as-is, because some docs sites serve their full reference that way and a reduced page as
+     HTML (measured: platform.claude.com, U2). Otherwise static HTML, converted. `auto` renders through plain browserless `/content` when an
      HTML page's text is under 800 characters; `always` forces a render; `never` returns the static result as it is.
      The 800-character test applies to HTML only — plain text, JSON, XML and markdown responses are returned whatever
      their length. The stealth path is never called. A PDF content type goes to pdf-extract. `start_index` reads a long
