@@ -781,3 +781,41 @@ def test_a_queued_prompt_is_filtered_like_a_user_row(tmp_path):
     assert hook._in_operator_entries("harness text", _transcript(tmp_path, reminded)) is False
     for prefixed in (f"Stop hook feedback: {_QUESTION}", f"[SCHEDULED TASK] {_QUESTION}"):
         assert hook._operator_said(json.loads(_queued_prompt(prefixed))) is None, prefixed
+
+
+def _queued_with_uuid(text: str, uuid: str) -> str:
+    row = json.loads(_queued_prompt(text))
+    row["uuid"] = uuid
+    return json.dumps(row)
+
+
+def test_a_backed_brief_before_a_queued_prompt_passes(tmp_path, panel_mode):
+    """W-6424f2e8 (W-1b9ae5f2 Opus critique, case G): a PANEL APPROVED brief written before an operator prompt queued
+    mid-turn is judged against the verdicts the seats returned up to that prompt — the queued prompt used to clear
+    them, so a properly backed brief was refused at the end-of-turn Stop."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+
+
+def test_a_brief_after_a_queued_prompt_still_needs_verdicts_given_after_it(tmp_path, panel_mode):
+    """The cut-off is per brief: a brief written AFTER the queued prompt still reads verdicts only from after it."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question entirely", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
