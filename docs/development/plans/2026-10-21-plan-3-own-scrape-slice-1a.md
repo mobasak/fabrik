@@ -131,16 +131,18 @@ Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_
    `;`, `→` or ` — ` outside a code span (double-backtick spans masked first), and a `.` does not end it only inside
    `e.g.`, `i.e.`, `cf.` or between digits; the clause PASSES only when it holds the literal `proxy: "basic"` (either
    quote style), no negation word anywhere (never, not, no, nor, neither, without, instead, drop, omit, unless, avoid,
-   skip…, except, cannot, or a word ending in n't) and no `stealth`, `auto` or `enhanced` anywhere in the clause. A negation unrelated to the proxy also fails the clause — the failure message says
+   skip…, except, cannot, or a word ending in n't with either apostrophe) and no `stealth`, `auto` or `enhanced` anywhere in the clause. A negation unrelated to the proxy also fails the clause — the failure message says
    to reword that clause; a false red costs a rewrite, a false green ships an unpinned call. The grader guards PRESENCE
    against regression; natural-language negation is unbounded, so the cheapest way to satisfy it without the outcome
-   is a negation spelled outside its list — written in the test's docstring, and answered by step 7's named check,
-   never by a longer list. One parametrised test over
-   the 35 fixtures in Evidence A (each judged as listed, covering all five mention spellings) and one over the real
+   is a negation spelled outside its list — written in the test's docstring, and answered by a named check, never by
+   a longer list: step 7 here, and for every later change, the test's failure message and docstring say that a review
+   of a change to a pinned clause reads that clause and states that it instructs the basic proxy. The docstring names
+   the `MENTION`, `NEG`, `OTHER` and `PIN` constants as the lists instead of repeating them, so it cannot drift. One parametrised test over
+   the 36 fixtures in Evidence A (each judged as listed, covering all five mention spellings) and one over the real
    corpus that lists every `path:line` lacking the pin. Today the corpus test fires on 17 mentions on 16 lines in 5
    files (Evidence A).
 2. Run it and confirm the corpus test FAILS red for the right reason, listing the 17 mentions, while the fixtures
-   pass: `.venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py -q` → 1 failed, 35 passed.
+   pass: `.venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py -q` → 1 failed, 36 passed.
 3. Add `proxy: "basic"` inside the clause of each of the 17 mentions (Evidence A), wording each clause with no negation word, keeping each sentence's meaning:
    e.g. "`firecrawl_scrape` with `maxAge: 0`" becomes "`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`";
    researcher `:22` names the family `mcp__firecrawl__*`, so its clause says scrape and crawl calls pass
@@ -598,9 +600,9 @@ proxy-basic count above (empty = 0 files)
 ```
 
 Pre-pin prototype v5 of Phase A's grader (`proto_grader5.py`; the strict literal rule of Phase A step 1, its
-negation and mode lists widened by plan-review pass 4), run read-only on today's sources — 17 mentions on 16 lines
-lack the pin (the 12 above plus researcher `:22`, `:149`, `:150`, `:154`; `fabrik-spec-review.md:89` holds two),
-and all 35 fixtures are judged as listed:
+negation and mode lists widened by plan-review passes 4-5), run read-only on today's sources — 17 mentions on 16
+lines lack the pin (the 12 above plus researcher `:22`, `:149`, `:150`, `:154`; `fabrik-spec-review.md:89` holds
+two), and all 36 fixtures are judged as listed:
 
 ```text
 mentions 17, missing the pin 17
@@ -655,8 +657,9 @@ OK  want 1 got 1: '`firecrawl_scrape` with neither `maxAge: 0` nor `proxy: "basi
 OK  want 1 got 1: '`firecrawl_scrape` with `proxy: "basic"`, or the stealth proxy on a retry.'
 OK  want 1 got 1: '`firecrawl_scrape` with `proxy: "basic"` and then auto mode if it fails.'
 OK  want 1 got 1: 're-fetch the page with Firecrawl scrape (a live fetch).'
+OK  want 1 got 1: '`firecrawl_scrape` doesn’t need `proxy: "basic"`.'
 OK  want 0 got 0: 're-fetch the page with Firecrawl scrape and `proxy: "basic"`.'
-fixtures 35/35
+fixtures 36/36
 ```
 
 ### Phase B
@@ -702,7 +705,8 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 | 1 | opus-1 (Phases A and C, Global Constraints, Digest, Coverage, Evidence, File Scope) · sonnet-1 (the rest) | findings 25 · confirmed 23 (sonnet 9; opus 14 new, 2 duplicates of sonnet's capability-ledger and rule-57 rows) · refuted 0 | each claim executed by the lead: 406 on a bare GET to :8033, `emit_mcp_project_config.py:39-46` UNIVERSAL6, `assemble_commands.py:1171` non-live `--dest`, the v2 grader's six fixtures and 15-line corpus run, the researcher subagent `meta.json` `agentType` field | 68dad3bf → e9fcc3f7 (pins-2) |
 | 2 | the same two seats, each re-verifying its own slice over the pass-1 fix diff plus one hop | findings 8 · confirmed 7 (opus: grader fail-open spellings, Fallback-row contradiction with spec :219-225, emitter test outside scope, Global Constraints vs the emitter's writes, and P-opus-4/P-opus-16 still true; sonnet: emitter test (duplicate) and the emitter's `--check` / `--root /opt`) · 5 of them inside text round 1 added · refuted 0 | lead executed: `proto_grader3.py` 16/16 fixtures and a 16-line corpus run, spec :217-227 and :245-249 read, `tests/test_emit_mcp_project_config.py:24/:42/:47`, emitter `:331`/`:334`, `CLAUDE.md:306` and template `:280` | e9fcc3f7 → 17da142e (pins-3) |
 | 3 | the same two seats, each over the pass-2 fix diff plus one hop | findings 3 · confirmed 2 (opus: P-opus-4 wrapped `maxAge` spelling, P3-opus-1 the negation window misjudged both ways — both inside grader text this review wrote) · refuted 1 (opus note: emitter `--root`/`--check` at `:331`/`:334`, re-read, correct) · sonnet 0 | lead replaced the negation heuristic with a strict literal rule that fails closed (`proto_grader4.py`, 25/25 fixtures, 17 mentions on 16 lines); Coverage Checklist adjudicated, 13 of 13 | 17da142e → 5225c266 (pins-4) |
-| 4 | opus-1 alone (the only slice the pass-3 fix touched), the pass-3 fixed set after the scope-growth stop | findings 2 · confirmed 2 (P4-opus-1: negations and modes in other words and a prose mention pass the v4 grader; P4-opus-2: the behavior-without-a-test verdict overstated) · both inside text this review wrote · refuted 0 | lead: v5 lists widened (35/35 fixtures, corpus unchanged at 17); presence is the grader's scope, meaning is Phase A step 7's named check; the Coverage verdict restated; the prototype now pinned beside the plan | 5225c266 → (pins-5) |
+| 4 | opus-1 alone (the only slice the pass-3 fix touched), the pass-3 fixed set after the scope-growth stop | findings 2 · confirmed 2 (P4-opus-1: negations and modes in other words and a prose mention pass the v4 grader; P4-opus-2: the behavior-without-a-test verdict overstated) · both inside text this review wrote · refuted 0 | lead: v5 lists widened (35/35 fixtures, corpus unchanged at 17); presence is the grader's scope, meaning is Phase A step 7's named check; the Coverage verdict restated; the prototype now pinned beside the plan | 5225c266 → 60b32e6d (pins-5) |
+| 5 | opus-1 alone, the pass-4 fixed set with the prototype pinned beside the plan | findings 2 · confirmed 2 (P5-opus-1: a typographic apostrophe in n't; P5-opus-2: the prototype docstring still described v4) · both minor, inside text this review wrote · refuted 0 | lead: `n['’]t`, docstring names the constants, the meaning check made standing in the test's message (the seat's design judgement, adopted); 36/36 fixtures, corpus 17 | 60b32e6d → (pins-6) |
 
 ## Self-audit
 
