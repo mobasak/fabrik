@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_check_convergence.py, tests/enforcement/test_spec_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
+# AFTER-EDIT: tests/test_check_convergence.py, tests/enforcement/test_status_in_code_span.py, tests/enforcement/test_spec_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
 """Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
 
 A markdown artifact that CLAIMS convergence must PROVE it. Inspects only
@@ -813,6 +813,20 @@ _STATUS_LINE = re.compile(r"^\s*\**Status\**:\**\s*\**\s*([A-Za-z][A-Za-z -]*)",
 _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
 
 
+def _archived_plan_status(text: str) -> str | None:
+    """An archived plan's own Status value: fences stripped, then the first Status line starting in the first 4000
+    characters whose key no inline code span hides. The match runs on the original text (`_fences.status_candidates`),
+    so a stray backtick cannot erase the real line. Both archived-plan reads go through here (W-a7cff030). They fail
+    CLOSED, so when only spanned candidates exist the strict branch returns a mid-flight value among them."""
+    candidates = _fences.status_candidates(FENCE_STRIP.sub("", text), _STATUS_LINE, endpos=4000)
+    shown = [m for m, hidden in candidates if not hidden]
+    if shown:
+        return shown[0].group(1).strip()
+    # only spanned candidates: this read fails CLOSED, so its strict branch flags a mid-flight value it can see
+    hidden_midflight = [m for m, _ in candidates if m.group(1).strip().upper() in _MIDFLIGHT]
+    return hidden_midflight[0].group(1).strip() if hidden_midflight else None
+
+
 def _archived_midflight(root: Path) -> list[str]:
     """Archived PLAN files whose own Status still claims work is in flight."""
     try:
@@ -836,12 +850,10 @@ def _archived_midflight(root: Path) -> list[str]:
         f = root / dst
         if not f.is_file():
             continue
-        m = _STATUS_LINE.search(
-            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))[:4000]
-        )
-        if m and m.group(1).strip().upper() in _MIDFLIGHT:
+        status = _archived_plan_status(f.read_text(encoding="utf-8", errors="replace"))
+        if status and status.upper() in _MIDFLIGHT:
             fails.append(
-                f"{dst}: archived while its own Status reads {m.group(1).strip()!r}. Archiving is "
+                f"{dst}: archived while its own Status reads {status!r}. Archiving is "
                 "the 'nothing is left' act. If the EXECUTED flip was lost by `git mv` (it moves "
                 "INDEXED content, not your working tree), re-stage: `git add <the archived path>`"
             )
@@ -1452,9 +1464,9 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         if not text:
             continue  # untracked, or unreadable at HEAD — not a committed claim
         if _ARCHIVED_PLAN.search("/" + str(rel)):
-            m = _STATUS_LINE.search(text[:4000])
-            if m and m.group(1).strip().upper() in _MIDFLIGHT:
-                out.append(f"{rel}: archived while its own Status reads {m.group(1).strip()!r}")
+            status = _archived_plan_status(text)
+            if status and status.upper() in _MIDFLIGHT:
+                out.append(f"{rel}: archived while its own Status reads {status!r}")
             continue
         if not EXECUTED.search(text):
             continue
