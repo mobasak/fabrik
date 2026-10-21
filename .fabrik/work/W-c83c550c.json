@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:22.002580Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "04d9f7df96e16e753b9a87f0df57a9e0e300e0ac",
   "id": "W-c83c550c",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "bug blocking builders in every linked worktree: check_undeclared_imports false-fires on a first-party editable package (youtube mt_router; two youtube mails)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5cg2qc2thz6rdvcnqtrhny5",
     "mail-01m5cg40nvb92qrvqxyt96wxq6"
