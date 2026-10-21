@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "once vps1 is reachable (gate W-ca7e97d0): docker exec postgres-main psql -c the pg_roles/pg_auth_members query; reply to fabrik-lib re mail 01M5B5CS5N6AK41XYP4HK6ZHMF",
+  "next": "ANSWERED 2026-10-21 via a one-off vps2 jump (no .env change): postgres-main 16.11, 52 roles; the only BYPASSRLS role is the superuser postgres, with 0 pg_auth_members memberships; no non-superuser BYPASSRLS role exists, so none inherits a project role — fabrik-lib's rule excepts superusers; replied to fabrik-lib",
   "note": "",
   "owner": "fleet",
   "priority": 3,
