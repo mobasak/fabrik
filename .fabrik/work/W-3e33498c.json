@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:50:59.506005Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3e33498c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B5CZ089Q7EGV1F872QBT0A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib-coordinator progress report, 2026-10-20 (hub D-1031): SB-096 has landed, and the next major is SB-142."
+}

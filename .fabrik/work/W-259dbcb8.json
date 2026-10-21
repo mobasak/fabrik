@@ -17,5 +17,8 @@
   "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-2026-10-21"
+  ],
   "title": "WHAT: three of the tier-2 research arms are failing for native seats on this box: (1) `mcp__exa__web_fetch_exa` and `mcp__exa__web_search_exa` return a Cloudflare \"Attention Required\" 403 page for EVERY URL, including the control `https://example.com`; (2) `mcp__firecrawl__firecrawl_scrape` (maxAge"
 }
