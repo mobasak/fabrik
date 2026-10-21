@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A fresh Python scaffold's `make test` runs a real test with the project's own tools (2026-10-21)
+
+W-ad15212d. A scaffolded file-worker shipped an empty `tests/`, so `make test` exited 5 ("collected 0
+items"), and the shared `templates/scaffold/docker/Makefile.python` ran `test`/`lint`/`format` with bare
+PATH `pytest`/`ruff`/`mypy` (a fresh python-api's PATH pytest could not even collect its own tests). Now
+those three targets run `.venv/bin` tools for file-worker, python-api and python-api-gpu, each listing its
+tools as prerequisites, and a missing tool stops with `<path> is missing: run 'make setup-dev' first`. A
+file-worker ships `tests/test_logger.py`: the redactor's key and value passes, and the configured logger's
+printed JSON (at CRITICAL, so any `LOG_LEVEL` prints it). Existing projects are not rewritten.
+`tests/test_file_worker_make_test.py` grades it (12 cases, incl. two logger mutants and a `.PHONY` mutant);
+`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` and `templates/scaffold/docker/README.md` name `make setup-dev`
+first and drop the nonexistent `make review`.
+
 ### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
 
 - `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
