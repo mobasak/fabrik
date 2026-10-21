@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-6e656dac"
+  ],
+  "created": "2026-10-21T18:03:52.824397Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-9346c8fa",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the proposal; decide archived/ vs archive/ with a D-row (fleet-wide rename or tool-side acceptance of both); it touches ~10 synced tools and every repo's plans tree, so it is spec-chain work; reply to youtube before ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "another repo's request (HIGH); ten synced tools and every repo's plan tree — a spec and several sessions",
+  "status": "open",
+  "tags": [
+    "mail-01m5ed7tkeznq9t9hdpgesc6rn"
+  ],
+  "title": "youtube request 01M5ED7TKEZNQ9T9HDPGESC6RN (yt3, W-3013c11d): ONE canonical plan-archive folder — youtube uses docs/development/plans/archive/ (33 plans) while ten synced hub tools (work.py _iter_plan_spines, check_plans, check_plan_quality, check_plan_tickets, …) recognise only plans/archived/; proposal at youtube docs/reference/upstream-proposals/2026-10-21-plan-archive-folder.md"
+}
