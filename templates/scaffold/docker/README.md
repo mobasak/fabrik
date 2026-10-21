@@ -47,7 +47,8 @@ docker compose -f compose.yaml -f compose.dev.yaml up --build
 
 | Command | Purpose |
 |---------|---------|
-| `make dev` | Local development with hot reload |
+| `make setup-dev` | Create `.venv` with the dev tools (run once first; `test`, `lint` and `format` use `.venv/bin`) |
+| `make dev` | Run locally (python-api: uvicorn with reload; file-worker: the worker loop) |
 | `make test` | Run tests |
 | `make lint` | Lint code |
 | `make docker-smoke` | Build + run + health check (before push) |

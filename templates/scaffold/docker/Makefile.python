@@ -31,16 +31,22 @@ install:
 dev:
 	PYTHONPATH=src uvicorn <package_name>.main:app --host 0.0.0.0 --port $(PORT) --reload
 
-test:
-	pytest -v
+# test, lint and format run the project's own tools from .venv (what `make setup-dev` installs),
+# never a PATH tool that cannot import the project's dependencies. A missing tool says what to run.
+# These three paths are files, never .PHONY: listed there, the rule would fire with the venv filled.
+.venv/bin/pytest .venv/bin/ruff .venv/bin/mypy:
+	@echo "$@ is missing: run 'make setup-dev' first" >&2; exit 1
 
-lint:
-	ruff check .
-	mypy src
+test: .venv/bin/pytest
+	.venv/bin/pytest -v
 
-format:
-	ruff format .
-	ruff check --fix .
+lint: .venv/bin/ruff .venv/bin/mypy
+	.venv/bin/ruff check .
+	.venv/bin/mypy src
+
+format: .venv/bin/ruff
+	.venv/bin/ruff format .
+	.venv/bin/ruff check --fix .
 
 gate-lean:
 	@.venv/bin/ruff check . --fix && .venv/bin/ruff format . && .venv/bin/mypy src
