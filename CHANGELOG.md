@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
 
+### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
+W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
+converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
+an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (out of credits until 2026-11-12) stays a
+fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
+slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
+receives the slice-1a requests next.
 ### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
 
 - `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.
