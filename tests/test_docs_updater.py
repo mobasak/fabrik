@@ -1120,14 +1120,16 @@ def _best_of_3(text: str) -> float:
     return best
 
 
-def test_blank_code_spans_is_linear_on_unmatched_runs() -> None:
-    """Quadrupling the unmatched distinct-length runs on one line costs about 4x, never the 12-16x of a forward scan
-    to the paragraph's end per opener (the old function took 1.7 s on 2 MB). The ratio, not an absolute bound, so a
-    slow box does not flake it. The old per-opener line-start rfind (26 s on 4 MB of dense pairs) separates from the
-    new walk only past ~2 MB, too slow for the suite — the equality tests above guard that path's answer."""
+def test_blank_code_spans_beats_the_quadratic_original_on_unmatched_runs() -> None:
+    """1 500 unmatched distinct-length runs on one line: the original scans to the paragraph's end per opener (about
+    a second here), the linear walk takes milliseconds. Measured against the oracle on the same box, so a slow or busy
+    box slows both and the ~300x gap stays far above the 20x asserted. The original's other cost, a line-start rfind
+    per opener (26 s on 4 MB of dense pairs), separates from the forward walk only past ~2 MB, too slow for the suite —
+    the equality tests above guard that path's answer, not its speed."""
+    import time
 
-    def shape(n: int) -> str:
-        return " x ".join("`" * (k + 1) + " y" for k in range(n))
-
-    ratio = _best_of_3(shape(2000)) / max(_best_of_3(shape(500)), 1e-4)
-    assert ratio < 8, ratio
+    text = " x ".join("`" * (k + 1) + " y" for k in range(1500))
+    start = time.perf_counter()
+    _old_blank_code_spans(text)
+    old = time.perf_counter() - start
+    assert _best_of_3(text) * 20 < old, (old, _best_of_3(text))
