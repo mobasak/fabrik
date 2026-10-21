@@ -8,17 +8,19 @@ its tests unchanged); `.claude/hooks/seat_guard.py` (651 lines), `tests/test_sea
 
 Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (DRAFT, `Size: small`, `Profile: delta`;
 refined in this run by D-914). `/fabrik-plan-review` grades its sections together with this plan and flips both. Source:
-mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's round 1): ≈250 code lines in ONE code file,
-`.claude/hooks/seat_guard.py` (redirect capture and fd-number drop in `_simple_commands` ≈20, the destination rule
-`_write_reason` with its per-verb option tables ≈75, its call before every `continue` in `_scan` ≈8, the unparseable
-fallback ≈5, docstring ≈20); tests ≈160 lines in `tests/test_seat_guard.py`; one row in `docs/workstation/hooks-index.md`.
+mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's rounds 1-2): ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
+(redirect capture with the empty-list case and the stream-offset fd test in `_simple_commands` ≈45, the destination
+rule `_write_reason` with its per-verb option tables, glob prefix and `/dev` exemption ≈130, its call before
+`if not words` and every `continue` in `_scan` ≈10, the `env -C` scoping ≈10, the `_HEREDOC` fix ≈1, the unparseable
+fallback ≈10, docstring ≈45); tests ≈220 lines in `tests/test_seat_guard.py`; one row in
+`docs/workstation/hooks-index.md`.
 
 ## What this plan is
 
 Two inline phases the orchestrator codes itself in the `worktree-intel` worktree; no coder is dispatched:
 
 - **A — the guard**: the shell write rule, the unparseable fallback, the tool-list pin, the docstring and the
-  hooks-index row (spec § The delta items 1-4).
+  hooks-index row and the two scanner fixes (spec § The delta items 1-5).
 - **B — Finish**: the whole-plan `/fabrik-review` (the hook is a governance-sync path), CHANGELOG, the gate, commit,
   push, merge request.
 
@@ -42,8 +44,8 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 - Goal and personas: `spec § Goal`, `spec § Personas`; today's code: `spec § What exists today`; external facts:
   `spec § External dependencies`.
-- The delta 1-4 and the stated blind spots with the tripwire: `spec § The delta`; contract deltas and the MIRROR census:
-  `spec § Contract deltas`; validation 1-6: `spec § Validation`; cost: `spec § Cost`; lifecycle: `spec § Lifecycle`.
+- The delta 1-5 and the stated blind spots with the tripwire: `spec § The delta`; contract deltas and the MIRROR census:
+  `spec § Contract deltas`; validation 1-7: `spec § Validation`; cost: `spec § Cost`; lifecycle: `spec § Lifecycle`.
 - Approach B (judge panel 3/3, D-913), the tool-list pin replacing the tool-write hook (D-914) and the `perl -i` graft:
   `spec § Decisions taken`; rejected A, C, D and a per-seat cwd: `spec § Rejected alternatives`. The approval row is
   minted by `/fabrik-plan-review` at its gate (a `Size: small` spec is approved there, not here).
@@ -123,7 +125,9 @@ delta 2, 3 and 5, cited rather than restated):
    red against today's hook (`.venv/bin/python -m pytest tests/test_seat_guard.py -q`). The rows green today are
    proven by a named neuter in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), each watched
    red and restored: A1 — add `Write` to the `tools:` line; A2 — drop `decide()`'s early return (`:566-567`); A4 —
-   drop the `/dev/` and fd exemptions; A5 — judge `cp` sources as destinations; A8's allow half — match every `>`
+   drop the `/dev/` and fd exemptions; A5 — judge `cp` sources as destinations, and drop the `-M`/`-m`/`-I` exclusion
+   for the `perl -Mstrict` case; A10's allow half — judge the `env -C` command's operands against the cwd from before
+   it; A8's allow half — match every `>`
    in the fallback; A9 — let the new path's exception escape `main()`.
 2. The tool-list pin (A1): a test reading `commands/_agents/fabrik-reviewer.md`'s frontmatter `tools:` line.
 3. `_Cmd` with `.redirs` and the fd-number drop in `_simple_commands`.
@@ -142,10 +146,10 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** `commands/_agents/fabrik-reviewer.md`, **When** its frontmatter `tools:` line is read, **Then** it names none of `Write`, `Edit`, `NotebookEdit`, `MultiEdit` (A1)
 - **Given** the lead (no `agent_id`) and a `general-purpose` agent, cwd = the repo, **When** `echo x > Makefile` or `rm -rf src`, **Then** allowed (A2)
 - **Given** a seat with cwd = the repo, **When** `echo x > Makefile`, `echo x >> docs/a.md`, `ls | tee Makefile`, `cmd &> out.log`, `cmd >& out.log`, `cmd &>2`, `cmd <> Makefile`, `> Makefile`, `{ echo x; } > Makefile`, `(true) > Makefile`, `for i in a; do echo; done > Makefile`, `exec 3> Makefile`, `cp <scratch>/a 2 >/dev/null`, **Then** denied, the reason naming the destination (A3)
-- **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, **Then** allowed (A4)
+- **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, `rm -f <scratch>/*.tmp`, `dd if=f of=/dev/null`, `ls | tee /dev/stderr`, `curl -s -o /dev/null URL`, `gzip -c f > <scratch>/f.gz`, `echo "2>x"`, **Then** allowed (A4)
 - **Given** the same seat, **When** `cp <live file> <scratch>/`, `cp -r src <scratch>/s`, `cat Makefile`, `perl -Mstrict -ne print Makefile`, **Then** allowed (A5)
-- **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
-- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, **Then** denied (unknown, home, glob or ancestor-of-scratch destination) (A7)
+- **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed -Ei s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
+- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, **Then** denied (unknown, home, glob-prefix or ancestor-of-scratch destination) (A7)
 - **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` and `echo "unterminated 2>/dev/null` stay allowed (A8)
 - **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) (A9)
 - **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
@@ -187,7 +191,7 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | FLOOR core/10-python | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; hunted: Global Constraints |
 | FLOOR 12-FACTOR | no config, no env added | CLEAN — no new env var or file sink; hunted: Phase A Interfaces |
 | MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; D-914 in the same change as the spec refinement | CLEAN — Phase B step 2, Phase A step 6, this plan's commit |
-| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A9 map spec § Validation 1-6 (Self-audit); A1's red is proven on revert |
+| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A11 map spec § Validation 1-7 (Self-audit); A1's red is proven on revert |
 | RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny | FIXED r1 — A7, A9 (A9 re-stated: a crash leaves the seat's `updatedInput` envelope, never a deny) |
 | RECURRENCE cost/quota/limit accounting | none | CLEAN — no new hook invocation, no seat or quota change |
 | RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by `realpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
@@ -341,6 +345,15 @@ $ _strip_heredocs('cat <<EOF\nbody\nEOF\nls')               -> 'cat <<EOF\nls'
 $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 ```
 
+- The glued-fd test on the tokeniser's own stream (spec § The delta 2), run 2026-10-22 with `shlex.shlex(io.StringIO(s),
+  posix=True, punctuation_chars=True)`, `whitespace_split=True`, recording `instream.tell()` after each token: the gap
+  before `>` differs by one, so `2 >` and `2>` are told apart without re-reading the raw text:
+
+```text
+'cp /tmp/a 2 >/dev/null' -> [('cp', 3), ('/tmp/a', 10), ('2', 12), ('>', 14), ('/dev/null', 22)]
+'cp /tmp/a 2>/dev/null'  -> [('cp', 3), ('/tmp/a', 10), ('2', 12), ('>', 13), ('/dev/null', 21)]
+```
+
 - External: https://code.claude.com/docs/en/hooks (subagent `agent_id`/`agent_type`; exact-string matchers) and
   https://code.claude.com/docs/en/tools-reference (no MultiEdit row), fetched 2026-10-15 (exa, WebFetch).
 
@@ -348,7 +361,7 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 
 - Every behaviour in `spec § Validation` maps to a row: spec 1 → A1, 2 → A2, 3 → A3/A4, 4 → A5/A6/A7, 5 → A8, 6 → A9,
   7 → A10/A11.
-- Every item in What we already agreed maps to Phase A (delta 1-4) or Phase B (review, CHANGELOG, merge request).
+- Every item in What we already agreed maps to Phase A (delta 1-5) or Phase B (review, CHANGELOG, merge request).
 - Diff estimate ≈250 code lines in 1 code file (tests excluded) after round 1: inside `Profile: small` (≤ ~400, ≤ 5).
 - Cross-phase names: `_Cmd`, `.redirs` and `_write_reason` are produced and consumed in Phase A only.
 - Every touchpoint is a `path:line` in today's hook, re-read by the Opus grounding seat (its drift corrections are
@@ -359,7 +372,8 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 - **R1 — resolved.** The live tool-write payload no longer matters: the seat has no write tool (D-914).
 - **R2 — resolved.** An adopted RUN-SCRATCH folder lies in the adopting session's pad (Evidence), so `_in_scratch`'s
   other-session test never refuses it.
-- **R3 — open, by design.** The blind spots in spec § The delta (interpreters, `xargs`/`find` writes, depth > 3,
+- **R3 — open, by design.** The blind spots in spec § The delta (interpreters, `xargs`/`find` writes, depth > 3, a
+  `$(…)` body judged against the cwd from before the line's `cd`, unlisted verbs and forms,
   side-effect writes such as `.pytest_cache`) stay; the tripwire there names the resolution.
 
 ## Pass Ledger

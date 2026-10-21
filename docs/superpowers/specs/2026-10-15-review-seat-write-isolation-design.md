@@ -1,7 +1,7 @@
 # Review seats — write isolation in the seat guard (design)
 
 Status: DRAFT
-Size: small (≈300 lines across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
+Size: small (≈470 lines: ≈250 hook, ≈220 tests, one doc row; across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
 
@@ -25,7 +25,7 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
-| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered differently | § The delta — no write tool (pinned, delta 1) and a shell-write rule (delta 2); defence-in-depth against accidental writes, not a mounted read-only tree (§ The blind spots) |
+| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered differently | § The delta — no write tool (pinned, delta 1) and a shell-write rule (delta 2); defence-in-depth against accidental writes, not a mounted read-only tree (§ The delta, its blind-spot paragraph) |
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 
@@ -100,21 +100,26 @@ working directory, their briefs, or the lead session.
 2. **Shell writes with a literal destination.** `_simple_commands()` keeps each OUTPUT redirect's target (`>`, `>>`,
    `>|`, `<>`, `&>`, `&>>`, and `>& <file>`) with its command instead of dropping it — also when the command's word list
    is empty or ends on a keyword or closer (`> f`, `{ …; } > f`, `( … ) > f`, `done > f`, `exec 3> f`, `X=1 > f`) — and
-   drops an fd number from the words only when it is glued to the operator in the raw text (`2>`; `2 >` is a word `2`
-   and a redirect). Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. A
-   redirect target whose `realpath` lies under `/dev/` and input redirects are never destinations. `_scan()` gains a
+   drops an fd number from the words only when it is glued to the operator (`2>`; `2 >` is a word `2` and a
+   redirect), decided on the tokeniser's own stream — the source offsets between shlex tokens — so a quoted `2>` is
+   text, never an fd. Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. Any
+   destination whose `realpath` lies under `/dev/` (`> /dev/null`, `dd of=/dev/null`, `tee /dev/stderr`), a `-`
+   value of `-o`/`-O` (stdout) and input redirects are never destinations. `_scan()` gains a
    write rule, judged on every simple command BEFORE its `if not words` and every `continue`, so a redirect on a `cd`,
    `bash -c` or keyword line is seen. Destinations: every redirect target; `tee` operands; `cp`/`install`/`ln` — the
    last operand, or the `-t` value (alone, in a flag cluster `-rt <dir>`, glued `-t<dir>`, or
    `--target-directory[= ]<dir>`), every operand of `install -d`, and the cwd for a one-operand `ln`; EVERY operand of
    `mv` and of `rsync --remove-source-files` (both delete their source), else `rsync`'s last operand;
    `rm`/`rmdir`/`unlink`/`shred`/`touch`/`mkdir`/`truncate`/`gzip`/`gunzip` (every operand, each verb's value-taking
-   options skipped); `sort -o`, `curl -o`/`--output`, `wget -O`; `sed` with `-i[SUF]` or `--in-place[=SUF]` (its file
+   options skipped; `gzip`/`gunzip` with `-c`/`--stdout`/`-l`/`-t` write no file); `sort -o`, `curl -o`/`--output`, `wget -O`; `sed` with `i` anywhere in a short flag cluster (`-i`, `-Ei`, `-ni.bak`: the rest of the cluster after `i` is the
+   suffix) or `--in-place[=SUF]` (its file
    operands, after the script, unless `-e`/`--expression`/`-f` gives it) and `perl` with `i` in a short cluster that
    is not `-M`/`-m`/`-I` (its file operands after the code from `-e` or a cluster ending in `e`); `dd of=`. Each
-   joins the tracked `cwd`, a leading `~` is outside scratch, and a path holding a glob character (`*?[`) or naming
-   `/tmp`, `/tmp/claude-<uid>` or `/tmp/claude-<uid>/<slug>` itself is outside scratch (an ancestor of other
-   sessions' scratch is never this seat's). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
+   joins the tracked `cwd`, a leading `~` is outside scratch, and a path naming `/tmp`, `/tmp/claude-<uid>` or
+   `/tmp/claude-<uid>/<slug>` itself is outside scratch (an ancestor of other sessions' scratch is never this seat's).
+   A path holding a glob or brace character (`*?[{`) is judged by its fixed prefix — the path up to the first such
+   character — which must be inside scratch and not one of those ancestors (`rm -f <scratch>/*.tmp` stays allowed;
+   `rm -rf /tmp/*` and `touch <scratch>/{x,/../../opt/f}` do not). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
    stays allowed — `cp` and `install` sources are reads.
 3. **Unparseable.** The existing fallback (`:510-517`) also denies an untokenisable command that names one of those write
    verbs as a word not preceded by `/`, `-` or `.`, or an output redirect to something other than `/dev/…` or an fd —
@@ -132,9 +137,12 @@ interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a write
 search (`xargs rm`, `find -delete`, `find -exec`), a write nested deeper than the scanner's three levels of `bash -c`/`$(…)`,
 a side-effect write by a tool run in the live tree (`pytest`'s `.pytest_cache`), and a variable holding the path
 (fail-closed only when the variable is the destination itself). The guard is defence-in-depth against ACCIDENTAL writes, not a boundary against an
-adversarial seat; the brief's prose stays as the second layer. Write verbs outside the list are blind spots too: `chmod`/`chown`,
-`patch`, `split`, `tar -x`/`-C`, `unzip -d`, `bzip2`/`xz`, and any other verb until a refused-or-missed seat write
-names it (§ Lifecycle, growth). **Tripwire:** a confirmed seat write to a live tree through
+adversarial seat; the brief's prose stays as the second layer. Write verbs and forms outside the list are blind spots too: `chmod`/`chown`,
+`patch`, `split`, `tar -x`/`-C`, `unzip -d`, `bzip2`/`xz`, `curl -O` and a bare `wget URL` (both write into the cwd),
+`sed`'s `w file` and `s///w file`, and any other verb or form until a refused-or-missed seat write names it
+(§ Lifecycle, growth). A `$(…)`/backtick body is judged against the cwd from before the command line's own `cd`
+(the scanner extracts substitutions before it tracks `cd`): `cd <scratch> && v=$(touch x)` is refused and
+`cd <live> && v=$(touch x)` started in scratch is missed — accepted until a seat trips it, the tripwire below. **Tripwire:** a confirmed seat write to a live tree through
 an interpreter re-opens this design with approach D (below) or a filesystem-level fence.
 
 ## Contract deltas
@@ -163,7 +171,7 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
 
 ## Cost
 
-One hook file (+≈130 lines), its tests (+≈160 lines), one doc row. No disk, no retention, no brief or settings change.
+One hook file (+≈250 lines), its tests (+≈220 lines), one doc row. No disk, no retention, no brief or settings change.
 No new hook invocation: the Bash hook already runs on every seat command.
 
 ## Validation
