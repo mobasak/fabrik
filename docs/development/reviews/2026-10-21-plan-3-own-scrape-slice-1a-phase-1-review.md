@@ -139,20 +139,20 @@ $ python scripts/review_rubric.py --changed tests/test_firecrawl_proxy_basic.py 
 
 | Class | Status |
 |---|---|
-| Hunt: `tests/test_firecrawl_proxy_basic.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-spec.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-vision.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_agents/fabrik-researcher.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `tests/test_firecrawl_proxy_basic.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (A-opus-3 block boundaries, A-opus-4 spellings, A-opus-5 _fragments, A-opus-8 vs./etc./kwarg, A-sonnet-1 inflections, A-sonnet-6 docstring, A-haiku-1/2/3 paragraph-wide mode check, default proxy, fetch-verb mention; 6 of 7 mutants killed, the 7th an equivalent alternative deleted) |
+| Hunt: `commands/_sources/fabrik-spec.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-sonnet-1: the pin names scrape alone in the search/scrape pair at :140) |
+| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-sonnet-1 at :77; the :89 rewording kept its meaning, read by B-sonnet and B-haiku) |
+| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-sonnet-1 at :221, inside the bold span) |
+| Hunt: `commands/_sources/fabrik-vision.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-sonnet-1 at :572) |
+| Hunt: `commands/_agents/fabrik-researcher.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (A-opus-2 :149 cached-arm meaning, A-opus-6 no new crawl claim at :22, A-opus-7 :35 grammar) |
+| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-sonnet-2 = B-haiku-1: the restated count dropped; the test owns it) |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | CLEAN (INDEX.md test row: path, scope commands/_sources + commands/_agents and the fixture count checked against the pin by B-sonnet and B-haiku) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (A-opus-3 and A-haiku-1: two false greens in tests/test_firecrawl_proxy_basic.py closed; an empty corpus fails loudly) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (the change pins the cheapest Firecrawl proxy in commands/_sources and commands/_agents; no counter or limit is introduced) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (_line_of in tests/test_firecrawl_proxy_basic.py: 1108309 offsets over 20000 random texts, 0 mismatches against a reference) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (A-opus-1: tests/test_agent_definitions.py and tests/test_spec_plan_lane_text.py pinned the old wording and now pin the new) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (every count in this receipt carries its population: 16 mentions in 72 corpus files, 97 corpus-reading test files, 20000 texts) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED r1 (A-opus-9 refuted from the live firecrawl_scrape and firecrawl_crawl tool schemas, not from memory) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -178,6 +178,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native opus×1 + sonnet×2 (wave 1) + haiku×2 (wave 2, after the box hibernated; dispatch_headroom TRIMMED them from wave 1) | found: 24, new: 24, confirmed: 13, fixed: 13, unexecuted: 0 | method: citation — full partitioned pass, slice A (the grader + the researcher agent) and slice B (four command sources, CHANGELOG, INDEX), shape: agent-tool; seats: A-opus 7/9 · A-sonnet 3/6 · B-sonnet 2/2 · A-haiku 4/4 · B-haiku 2/3 (confirmed/raised, duplicates credited to each raiser); hygiene 0 hits over 6 files at the start; stop: confirmed 13; fix: the grader rewritten in place plus 16 prose and test-string edits |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -209,9 +210,15 @@ whether a `D-nnn` is a row of the ledger is checked only where `_ledger_ids` rea
 with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED — unexecuted` never enter
 `confirmed:`; `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
+| A-opus-9 | REFUTED (the live `mcp__firecrawl__firecrawl_scrape` schema lists `proxy` with enum basic, stealth, enhanced, auto at the top level; `firecrawl_crawl` takes it inside `scrapeOptions`) |
+| A-sonnet-4 | REFUTED (the clause describes the call form the measurement used; `auto` tries the basic proxy first, so the measured excerpt is the basic-proxy result) |
+| A-sonnet-5 | REFUTED (superseded by A-opus-2's fix: the clause now names every non-live Firecrawl read) |
+| A-sonnet-2 | RECORDED — by design (D-1101) — the plan pins scrape and crawl; `firecrawl_extract`, `_agent`, `_interact` and `_map` appear nowhere in the 72-file corpus |
+| live-box drift | RECORDED — by design (D-1101) — `test_the_live_box_matches_the_repo_sources` reads the installed corpus, which only the coordinator's merge-time render updates |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — Phase A, proxy: "basic" on every Firecrawl line: IN REVIEW (pass 2 owed)
 
 ## Gate
 
