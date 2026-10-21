@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
+
+- `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
+
 ### Fixed — A fresh Python scaffold's `make test` runs a real test with the project's own tools (2026-10-21)
 
 W-ad15212d. A scaffolded file-worker shipped an empty `tests/`, so `make test` exited 5 ("collected 0
@@ -59,6 +63,12 @@ first and drop the nonexistent `make review`.
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 
 - On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
+
+### Fixed — the plan checks' last slow fence strips are linear (2026-10-21)
+W-d2eef742; D-1080. Three more fence-stripping regexes backtracked badly: `plan_appetite` took 15.8 s on a 40 KB backtick run followed by text, `check_phase_tests` about 15 s on 20 000 unclosed fence openers, and `check_plan_lock_release` about 13 s on one 200 KB backtick run with no newline. Each is now a line walk that returns exactly what its regex returned (the regexes stay in `tests/enforcement/test_fences.py` as the oracle): two new functions in `scripts/enforcement/_fences.py` for the first two, and a local copy in `check_plan_lock_release`, whose tests allow it standard-library imports only. `check_phase_tests` imports the shared scanner inside the function that strips, so its advisory gate row still exits 0 in a project whose sync left `_fences.py` out.
+
+### Fixed — a Status or Owner line quoted in a code span no longer passes for a plan's header (2026-10-20)
+W-8f9a7d2c; D-1078. `docs_updater` read the first `Status:` and `Owner:` line of a plan after removing fenced blocks and block quotes, but not inline code spans, so a code span running across a line break with `Status: DRAFT` at the start of its second line beat the plan's real `**Status:** COMPLETE` (and an `Owner:` line the real owner). The PLANS table, the plan checks, `--adopt` and `work.py` all read those values. Each scan now skips a header line whose key sits inside a code span and still reads a value written in code font, such as `**Owner:** `[infra]``. No plan in the fleet reads differently (0 of 1492).
 
 ### Fixed — one bad markdown file can no longer stall the gate's fence parsing (2026-10-20)
 W-276255e7; D-1077. The regex that strips code fences before the plan and convergence checks read a file — copied into `docs_updater` and four checks — backtracked badly: 400 lines of different-length backtick runs took 15.7 s, one 200 KB run of backticks 10.2 s, and two more regexes in `check_convergence` had the same flaw. A new shared module, `scripts/enforcement/_fences.py`, replaces all of them with a linear scanner that finds exactly the same fences (equal on 500 000 random documents and all 14 675 markdown files in the fleet), so the worst inputs now take milliseconds. Every check imports the one module; `docs_updater` loads it only when it parses and writes no bytecode, so `--dry-run` still writes nothing.

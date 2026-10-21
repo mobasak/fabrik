@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:28:39.199796Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-036001c9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CDMVMG7D1JJ6VQBHRRK8QK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "Rollout runbook step 2 vendors agent_status.py, but its roster is the HUB's beats — every repo's coordinator would see the hub's agents"
+}

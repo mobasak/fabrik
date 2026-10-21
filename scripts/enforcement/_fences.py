@@ -7,7 +7,11 @@ counts as a fence is unchanged (a CommonMark model is W-2725ed54's question, and
 
 - the strip regex ``(?:^[ \\t]*(`{3,})[^\\n]*\\n.*?^[ \\t]*\\1[ \\t]*$|```[^`\\n]+```)`` (re.M | re.S), once
   copied into docs_updater and five checks, and its two extracting variants in check_convergence;
-- check_convergence's ``FENCE_BLOCK`` (```` ```[^\\n]*\\n(.*?)``` ````, re.S) and ``_HTML_COMMENT`` (``<!--.*?-->``).
+- check_convergence's ``FENCE_BLOCK`` (```` ```[^\\n]*\\n(.*?)``` ````, re.S) and ``_HTML_COMMENT`` (``<!--.*?-->``);
+- plan_appetite's backtick and tilde strips and check_phase_tests' paired ```/~~~ strip (W-d2eef742:
+  ``strip_marker_fences``, ``strip_three_marker_fences`` — check_phase_tests imports this module lazily, because its
+  gate row is warn_only and must exit 0 where this file is missing). check_plan_lock_release keeps its own copy: its
+  import allowlist admits the stdlib names it already uses and nothing else.
 
 The regexes backtracked: for every line opening with a backtick run of length R the block alternative tried each
 k = R, R-1, ... 3 and scanned to the end of the text for a closer of exactly k backticks (15.7 s on 81 KB of
@@ -170,3 +174,78 @@ def strip_html_comments(text: str) -> str:
         pos = end + 3
     parts.append(text[pos:])
     return "".join(parts)
+
+
+# W-d2eef742: the plan checks' fence strips, each the exact ``.sub("", text)`` of the regex it replaced.
+_MARKER_OPENER = {c: re.compile(rf"[ \t]*{re.escape(c)}{{3,}}") for c in "`~"}
+_MARKER_CLOSER = {c: re.compile(rf"[ \t]*{re.escape(c)}{{3,}}[ \t]*") for c in "`~"}
+_THREE_CLOSER = re.compile(r"[ \t]*(```|~~~)[ \t]*")
+
+
+def _lines(text: str) -> tuple[list[str], list[int]]:
+    lines = text.split("\n")
+    starts: list[int] = []
+    pos = 0
+    for line in lines:
+        starts.append(pos)
+        pos += len(line) + 1
+    return lines, starts
+
+
+def _cut(text: str, spans: list[tuple[int, int]]) -> str:
+    parts: list[str] = []
+    prev = 0
+    for start, end in spans:
+        parts.append(text[prev:start])
+        prev = end
+    parts.append(text[prev:])
+    return "".join(parts)
+
+
+def strip_marker_fences(text: str, char: str) -> str:
+    """plan_appetite's ``^[ \\t]*X{3,}[^\\n]*\\n.*?^[ \\t]*X{3,}[ \\t]*$`` (re.M | re.S) ``.sub("", text)`` for X =
+    ``char`` (a backtick or a tilde): an opener is a line with a newline after it starting ``[ \\t]*`` + 3+ ``char``;
+    its closer is the FIRST later line that is ``[ \\t]*`` + 3+ ``char`` (any length) + ``[ \\t]*``. An unclosed
+    opener matches nothing and stays."""
+    lines, starts = _lines(text)
+    opener, closer = _MARKER_OPENER[char], _MARKER_CLOSER[char]
+    closers = [i for i, line in enumerate(lines) if char in line and closer.fullmatch(line)]
+    spans: list[tuple[int, int]] = []
+    i, last = 0, len(lines) - 1  # the last segment has no newline after it, so it never opens
+    while i < last:
+        if char in lines[i] and opener.match(lines[i]):
+            k = bisect_right(closers, i)
+            if k < len(closers):
+                j = closers[k]
+                spans.append((starts[i], starts[j] + len(lines[j])))
+                i = j + 1
+                continue
+        i += 1
+    return _cut(text, spans)
+
+
+def strip_three_marker_fences(text: str) -> str:
+    """check_phase_tests' ``(?ms)^[ \\t]*(```|~~~).*?^[ \\t]*\\1[ \\t]*$`` ``.sub("", text)``: an opener is any line
+    starting ``[ \\t]*`` + ``` or ~~~ (no newline needed after it); its closer is the FIRST later line that is
+    ``[ \\t]*`` + exactly those three characters + ``[ \\t]*``. An unclosed opener matches nothing and stays."""
+    lines, starts = _lines(text)
+    closers: dict[str, list[int]] = {"```": [], "~~~": []}
+    for i, line in enumerate(lines):
+        if "`" in line or "~" in line:
+            m = _THREE_CLOSER.fullmatch(line)
+            if m:
+                closers[m.group(1)].append(i)
+    spans: list[tuple[int, int]] = []
+    i = 0
+    while i < len(lines):
+        head = lines[i].lstrip(" \t")[:3]
+        if head in closers:
+            rows = closers[head]
+            k = bisect_right(rows, i)
+            if k < len(rows):
+                j = rows[k]
+                spans.append((starts[i], starts[j] + len(lines[j])))
+                i = j + 1
+                continue
+        i += 1
+    return _cut(text, spans)

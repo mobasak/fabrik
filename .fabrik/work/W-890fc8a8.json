@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:17.198971Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-890fc8a8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5CCR5VGA3WMRPDC4ZC425VM, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "blocks rollout step 8 in every synced repo (operator: the setup applies to all repos); the template needs D-943/D-558/D-961; synced path",
+  "status": "open",
+  "tags": [
+    "mail-01m5ccr5vga3wmrpdc4zc425vm"
+  ],
+  "title": "Coordinator rollout step 8 cannot land in a SYNCED repo — the governance template needs D-943 / D-558 / D-961 (mail 01M5CCR5VGA3WMRPDC4ZC425VM, from youtube)"
+}
