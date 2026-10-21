@@ -178,6 +178,7 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 ```bash
 /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>          # open (or reattach to) the grid
+/opt/fabrik/scripts/sysadmin/agents_up.sh --detach /opt/<repo> # build the grid, never attach (boot sweep, cron)
 /opt/fabrik/scripts/sysadmin/agents_up.sh --print /opt/<repo>  # show the grid it would build; launches nothing
 ```
 
@@ -188,25 +189,33 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
   or `*-coordinator`, or the repo's declared merge owner (`decisions.py --merge-owner`); a ledger that cannot be read
   refuses the launch.
-- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id>` ONLY in the builder's worktree,
+- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
+  session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
+  otherwise carry on) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in the builder's worktree,
   `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
   of its path is a symlink). A name with no such worktree gets no pane, said on stderr, and a repo left with no builder
   refuses (exit 2). The main checkout is the coordinator's, and a builder resumed there would edit main's tree and read
   main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
-  `fabrik-agents.slice`, with `MemoryMax` (`FABRIK_AGENT_MEM_MAX`, default 3G), `MemorySwapMax=0` and `TasksMax`
-  (`FABRIK_AGENT_TASKS_MAX`, default 1024) (W-56b3f90d). Each launch of a new grid first sets the slice's own runtime
-  ceiling, `FABRIK_AGENT_SLICE_MAX` (default 16G, no swap), and the last launch's value holds for every grid;
-  reattaching to a running grid does not touch it. Without swap 0 a cap only pushes a runaway into swap. Over a cap
-  the kernel kills the largest process in that scope (or, at the slice ceiling, in any repo's pane) — usually claude
-  itself, and then the pane says it was killed (exit 137) before its resume hint; a killed child process leaves claude
-  running without it. A scope that cannot be started, or a kept shell that exits non-zero, leaves a pane that says so and waits for Enter;
-  it never opens a shell outside the cap. The
-  slice sits under `fabrik.slice` beside the tests' `fabrik-tests.slice`. The launcher sets `XDG_RUNTIME_DIR` itself
-  when the user bus exists, since a launch from a .bat carries none. With no user manager the panes run uncapped,
-  said on stderr and in every pane; a manager that refuses the slice ceiling refuses the launch. Sessions started from
-  VS Code (the coordinators) are not capped. `--print` prints a `cap <name> <mem> <tasks>` (or `uncapped`) line per
-  pane and never touches the slice.
+  `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
+  `MemoryMax` of its own (W-56b3f90d, then W-6e656dac L5: `FABRIK_AGENT_MEM_MAX` is retired — a set value is warned
+  about and ignored; a pane killed at a per-pane cap lost a review's seats). One ceiling bounds every pane and every
+  `capped_run.sh` job (whose `fabrik-agents-tests.slice` nests under it): `MemoryHigh` = MemTotal − max(4G, floor) and
+  `MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G, with `floor` = `FABRIK_AGENT_NONAGENT_FLOOR` (default
+  12G, whole G; W-0b8a0fba) kept for Windows, VS Code and the system, and swap unlimited. MemTotal is read from
+  `$FABRIK_PROC_ROOT/meminfo` (default `/proc`); under 8G, unreadable, or a floor that leaves nothing keeps D-1075's
+  16G `MemoryMax`, said on stderr; `FABRIK_AGENT_SLICE_MAX` still overrides the derived `MemoryMax`. Each launch of a
+  new grid first sets that runtime ceiling (the last launch's value holds for every grid); reattaching to a running grid
+  does not touch it. Over the ceiling the kernel's OOM killer picks by `oom_score_adj` (builder panes 200) — usually
+  claude itself, and then the pane says it was killed (exit 137) before its resume hint; a killed child process leaves
+  claude running without it. A scope that cannot be started, or a kept shell that exits non-zero, leaves a pane that
+  says so and waits for Enter; it never opens a shell outside the cap. The slice sits under `fabrik.slice`. The launcher
+  sets `XDG_RUNTIME_DIR` itself when the user bus exists, since a launch from a .bat carries none. With no user manager
+  an interactive launch REFUSES (exit 2, naming why) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` (the boot path)
+  launches uncapped with D-1075's warning, said on stderr and in every pane; a manager that refuses the slice ceiling
+  refuses the launch. Sessions started from VS Code (the coordinators) are not capped. `--print` prints a `slice
+  <name> MemoryHigh=<v> MemoryMax=<v>` line and a `cap <name> <tasks>` (or `uncapped`) line per pane and never touches
+  the slice.
 - Each pane starts from an empty environment (`env -i`) and is given only the shell basics (`HOME`, `USER`,
   `LOGNAME`, `SHELL`, `TERM`, and `LANG`, which falls back to `C.UTF-8` when unset), `PATH`, `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` (the active
   fleet account), `CLAUDE_AGENT`, `AGENT_IDENTITY_FILE` when the launcher was given one, and `XDG_RUNTIME_DIR` when
@@ -215,8 +224,10 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   session's variables (its session id, messaging token, effort level, `GIT_EDITOR`, the `VSCODE_*` set).
 - A grid already up is reattached as it is, and only when it belongs to this repo: the launcher records the repo root
   on the tmux session, and refuses (exit 2) when a session with the same name belongs to another folder or records
-  no root (another tool's session). Run from
-  inside tmux, it switches the client to the grid instead of nesting.
+  no root (another tool's session). The option read and write name the session `=<name>:` — tmux 3.4 answers `no such
+  session` to the bare `=<name>` for an option command (W-1961cc42). Run from
+  inside tmux, it switches the client to the grid instead of nesting; with no terminal on stdin or stdout (a
+  coordinator's Bash tool, cron) it leaves the grid detached and says so, and `--detach` does that on purpose.
 - The coordinator gets no pane (the first bullet above says how it is known); the operator reaches it in VS Code, as
   at the hub.
 - A pane whose session is already running elsewhere only says so, in any form a session can run in: a terminal
@@ -335,8 +346,9 @@ W-0076b052:
   Nothing in a rollout may depend on Windows reaching a WSL service through `localhost`. The desktop .bat never does:
   it starts the grid through `wsl.exe` (§ The Windows side).
 - **Agents run memory-capped.** Every pane the launcher starts runs in its own `systemd-run --user --scope` in
-  `fabrik-agents.slice` (3G, no swap, 1024 tasks per pane; 16G for the slice), uncapped only when no user manager
-  answers, which the launcher says (§ Launching a repo's builders, W-56b3f90d). Sessions started from VS Code, which
+  `fabrik-agents.slice` (1024 tasks per pane, no per-pane memory cap; the parent slice holds MemTotal minus the
+  non-agent floor), uncapped only when no user manager answers on the boot path, which the launcher says (§ Launching a
+  repo's builders, W-56b3f90d, W-6e656dac). Sessions started from VS Code, which
   is where every coordinator runs, are not capped. After a
   box reboot, the reboot sweep is to resume no more autonomous sessions than the work-in-progress limit; that limit is
   infra's open slice of W-56b3f90d / W-89474fc1, and until it lands a reboot may resume more autonomous sessions

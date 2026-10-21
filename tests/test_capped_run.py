@@ -449,7 +449,9 @@ def _stub_home(tmp_path: Path) -> Path:
     return home
 
 
-def _proc(tmp_path: Path, avail_kb: int | None, psi: str | None = "0.00", name: str = "proc") -> Path:
+def _proc(
+    tmp_path: Path, avail_kb: int | None, psi: str | None = "0.00", name: str = "proc"
+) -> Path:
     """A fake /proc root: MemAvailable and (optionally) the memory PSI line. None leaves the file out."""
     root = tmp_path / name
     (root / "pressure").mkdir(parents=True, exist_ok=True)
@@ -481,8 +483,12 @@ def test_the_run_nests_under_the_agents_slice(tmp_path):
     run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 8_000_000), "0"))
     assert run.returncode == 0, run.stderr
     sysctl = (home / "systemctl.log").read_text(encoding="utf-8")
-    assert "set-property --runtime fabrik-agents-tests.slice MemoryMax=12G MemorySwapMax=0" in sysctl, sysctl
-    assert "--slice=fabrik-agents-tests.slice" in (home / "systemd-run.log").read_text(encoding="utf-8")
+    assert (
+        "set-property --runtime fabrik-agents-tests.slice MemoryMax=12G MemorySwapMax=0" in sysctl
+    ), sysctl
+    assert "--slice=fabrik-agents-tests.slice" in (home / "systemd-run.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_a_healthy_box_starts_at_once_and_says_nothing(tmp_path):
@@ -520,10 +526,16 @@ def test_the_wait_ends_as_soon_as_the_box_recovers(tmp_path):
     env = _admit_env(home, proc, "30")
     t0 = time.monotonic()
     child = subprocess.Popen(
-        [str(CAPPED), "--", "true"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        [str(CAPPED), "--", "true"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     time.sleep(2)
-    (proc / "meminfo").write_text("MemTotal: 28000000 kB\nMemAvailable: 9000000 kB\n", encoding="utf-8")
+    (proc / "meminfo").write_text(
+        "MemTotal: 28000000 kB\nMemAvailable: 9000000 kB\n", encoding="utf-8"
+    )
     _, err = child.communicate(timeout=30)
     assert child.returncode == 0, err
     assert time.monotonic() - t0 < 20
@@ -540,7 +552,10 @@ def test_an_unreadable_meminfo_or_psi_starts_at_once_and_says_so(tmp_path):
         run = _capped("--", "true", env=_admit_env(home, proc, "30"))
         assert run.returncode == 0, (label, run.stderr)
         assert time.monotonic() - t0 < 10, label
-        assert "admission: unreadable" in run.stderr and "starting at once" in run.stderr, (label, run.stderr)
+        assert "admission: unreadable" in run.stderr and "starting at once" in run.stderr, (
+            label,
+            run.stderr,
+        )
 
 
 def test_a_bad_admission_wait_exits_2(tmp_path):
