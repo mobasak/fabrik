@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
+
+- `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
+
 ### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
 
 - `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.
