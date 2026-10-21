@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T00:46:26.131912Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-90163522",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "guard rec['stack'] with isinstance(list), map _git 124/127 in the symbolic-ref branch like the status branch, decide the mcp entrypoint against a live record, and order mark after start in the command text — each with a test seen red",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "four follow-ons the review's scope-growth stop split off hibernate.py; none blocks the command",
   "status": "open",
   "tags": [
     "hibernate"
