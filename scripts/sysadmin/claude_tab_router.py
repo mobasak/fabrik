@@ -73,6 +73,11 @@ DEADLINE_SECONDS = 30
 MAP_NAME = "tab-router.jsonl"
 
 
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
+
 def slug(path: str) -> str:
     """The CLI's project-directory name for a cwd: every non-alphanumeric character becomes '-'."""
     return re.sub(r"[^A-Za-z0-9]", "-", path)
@@ -102,6 +107,10 @@ def _jsonl(path: Path) -> list[dict]:
 
 
 def _transcript(projects: Path, sid: str) -> Path | None:
+    if not _UUID_RE.fullmatch(
+        sid
+    ):  # the id is glob input: `*` or `../x` would match a foreign transcript
+        return None
     hits = [p for p in projects.glob(f"*/{sid}.jsonl") if p.is_file()]
     return max(hits, key=lambda p: p.stat().st_mtime) if hits else None
 
@@ -169,10 +178,12 @@ def entries(home: Path, proc: Path, opt: str = "/opt", own_sid: str = "") -> lis
         s for s in hibernate.live_sessions(home, proc, opt) if not own_sid or s["sid"] != own_sid
     ]
     live_by_sid = {s["sid"]: s for s in live if s["sid"]}
-    live_by_agent: dict[str, dict] = {}
+    live_by_agent: dict[
+        tuple[str, str], dict
+    ] = {}  # (repo, agent): one role name may run in several repos
     for s in live:
         if s.get("agent"):
-            live_by_agent.setdefault(s["agent"], s)
+            live_by_agent.setdefault((s.get("repo") or "", s["agent"]), s)
     agents = known_agents(home, opt)
     rows: list[dict] = []
     for repo in sorted(agents):
@@ -195,7 +206,7 @@ def entries(home: Path, proc: Path, opt: str = "/opt", own_sid: str = "") -> lis
                 continue
             hit = next(
                 (live_by_sid[s] for s in sids if s in live_by_sid), None
-            ) or live_by_agent.get(role)
+            ) or live_by_agent.get((repo, role))
             if hit is not None:
                 rows.append(
                     {
@@ -412,6 +423,10 @@ def route(
         target = session_cwd(t)
         if not target:
             return None
+        if any(s["sid"] == sid for s in hibernate.live_sessions(home, proc, opt)):
+            return (
+                None  # live elsewhere: a re-rooted resume would run a second process on one session
+            )
         kept = rewrite_args(argv, {"kind": RESUME, "sid": sid}, target)
         return [target, role_of(home, sid), *kept]
     if chooser is pick_with_tk:
@@ -451,11 +466,11 @@ def main(args: list[str] | None = None) -> int:
     argv = ns.argv[1:] if ns.argv[:1] == ["--"] else ns.argv
     try:
         out = route(ns.cwd, argv, home, proc, ns.opt, wrapper_pid=ns.wrapper_pid)
+        if not out:
+            return 1
+        sys.stdout.write("\0".join(out))
     except Exception:  # noqa: BLE001 — fail OPEN: the wrapper launches exactly as today
         return 1
-    if not out:
-        return 1
-    sys.stdout.write("\0".join(out))
     return 0
 
 

@@ -32,6 +32,7 @@ CHAT = [
 ]
 SID_YT = "11111111-1111-1111-1111-111111111111"
 SID_FLEET = "22222222-2222-2222-2222-222222222222"
+SID_SX = "33333333-3333-3333-3333-333333333333"  # session ids are UUIDs (the router rejects others)
 
 
 @pytest.fixture()
@@ -110,18 +111,18 @@ def test_entries_from_fixture_box(r, box):
     _agents(hub, {SID_FLEET: "fleet"})
     # the identity store binds the coordinator's session; last row per sid wins
     box.store += [
-        {"session_id": "SX", "name": "yt2", "toplevel": yt + "/.git"},
-        {"session_id": "SX", "name": "youtube-coordinator", "toplevel": yt + "/.git"},
+        {"session_id": SID_SX, "name": "yt2", "toplevel": yt + "/.git"},
+        {"session_id": SID_SX, "name": "youtube-coordinator", "toplevel": yt + "/.git"},
     ]
     (box.home / ".claude" / "state" / "agent-identity.jsonl").write_text(
         "".join(json.dumps(x) + "\n" for x in box.store), encoding="utf-8"
     )
     _transcript(box, yt, SID_YT, 1_790_000_000)
-    _transcript(box, yt, "SX", 1_790_000_500)
+    _transcript(box, yt, SID_SX, 1_790_000_500)
     rows = r.entries(box.home, box.proc, str(box.opt))
     labels = [x["label"] for x in rows]
     assert any(
-        x["kind"] == r.RESUME and x["role"] == "youtube-coordinator" and x["sid"] == "SX"
+        x["kind"] == r.RESUME and x["role"] == "youtube-coordinator" and x["sid"] == SID_SX
         for x in rows
     )
     assert any(
@@ -129,7 +130,7 @@ def test_entries_from_fixture_box(r, box):
         for x in rows
     )
     assert not any(x.get("role") == "yt2" for x in rows), (
-        "SX's LAST binding is youtube-coordinator, not yt2"
+        "SID_SX's LAST binding is youtube-coordinator, not yt2"
     )
     assert "New session in youtube" in labels and "New session in fabrik" in labels
     assert "New session in quiet" not in labels
@@ -383,3 +384,46 @@ def test_router_exits_when_the_wrapper_dies(r, tmp_path):
     assert r.wrapper_alive(dead.pid) is False
     assert r.wrapper_alive(os.getpid()) is True
     assert r.wrapper_alive(0) is True  # no pid given: never treated as dead
+
+
+# Review pass 1 (W-ea993618, resumed 2026-10-21): R1, R2, R7 -------------------------------------------------------
+def test_restore_of_a_session_live_elsewhere_is_not_rerooted(r, box):
+    yt = box.repo("youtube", owner=None)
+    hub = box.repo("fabrik", owner=None)
+    _transcript(box, yt, SID_YT)
+    r.record(box.home, SID_YT, "yt1", yt, yt)
+    box.session(
+        6161, SID_YT, yt, "yt1", env_agent="yt1"
+    )  # the session already runs in another window
+
+    def never(rows, cwd):
+        raise AssertionError("no picker on a restore")
+
+    argv = ["/bin/claude", *CHAT, f"--resume={SID_YT}"]
+    assert r.route(hub, argv, box.home, box.proc, str(box.opt), chooser=never) is None
+
+
+def test_a_role_live_in_one_repo_does_not_block_the_same_role_in_another(r, box):
+    a = box.repo("alpha", owner="coordinator")
+    b = box.repo("beta", owner="coordinator")
+    _agents(a, {SID_YT: "builder"})  # entries lists repos the registries know
+    _agents(b, {SID_FLEET: "builder"})
+    box.session(7171, "S-A", a, "coordinator", env_agent="coordinator")
+    rows = r.entries(box.home, box.proc, str(box.opt))
+    kinds = {(x["repo"], x["kind"]) for x in rows if x.get("role") == "coordinator"}
+    assert (a, r.LIVE) in kinds
+    assert (b, r.LIVE) not in kinds and (b, r.NEW_ROLE) in kinds
+
+
+def test_a_non_uuid_resume_id_never_reaches_the_glob(r, box):
+    hub = box.repo("fabrik", owner=None)
+    yt = box.repo("youtube", owner=None)
+    _transcript(
+        box, yt, SID_YT
+    )  # a `*` id would glob-match this foreign transcript and re-root the tab
+    for bad in ("*", "../x", "a/b", "[x]"):
+        argv = ["/bin/claude", *CHAT, f"--resume={bad}"]
+        assert (
+            r.route(hub, argv, box.home, box.proc, str(box.opt), chooser=lambda rows, cwd: None)
+            is None
+        )
