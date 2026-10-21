@@ -3,7 +3,7 @@
   "created": "2026-10-19T12:21:14.115728Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "89f75141f680d3e7f2a6e5375a17410c5e7ad352",
   "id": "W-1f70f2e9",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: security issue (predictable /tmp lock path in hub-side locks_local.py, the class D-1044 fixed on the VPS); LOW effort: one driver",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "security"
