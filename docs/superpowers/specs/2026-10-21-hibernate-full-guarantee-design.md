@@ -161,8 +161,10 @@ only" (fails "fully": the deadline is announced, not enforced).
   T-3 becomes the `hibernate` tier, so a quota relief cannot end the pause; a hibernate lift while the quota is hot
   hands the stamp back to the quota's tier and wakes nobody, as the battery lift does; `quota_stop.py`'s fail-open on a
   stale or unknown tick age does not open a `hibernate` tier while the pause is marked and not lifted, however long the
-  sleep, so the minutes after a wake, before the first tick, stay held — a dead cron is escaped by the hub's `lift`,
-  which also clears the tier (touchpoints `scripts/sysadmin/claude_rotate.py:7061-7085`, `:7203-7238`, `:8140`;
+  sleep, so the minutes after a wake, before the first tick, stay held. The pause's own verbs pass the hold — the exact
+  `hibernate.py lift`, `status`, `woke` and `paused` command forms join the hold's allow-list beside `selfwatch_arm.sh`'s
+  (D-356) — so the coordinator can read `status` from T-3 and a dead cron is escaped by the hub's `lift` (touchpoints
+  `.claude/hooks/quota_stop.py:105-111`; `scripts/sysadmin/claude_rotate.py:7061-7085`, `:7203-7238`, `:8140`;
   `.claude/hooks/quota_stop.py:688-693`, `:717-722`; the vendored copy `scripts/aro-wake/claude_rotate.py` changes in
   step).
 - A seat still running at T-3 is ABANDONED, and it is recorded where the hold still lets its parent write: on the run
@@ -207,7 +209,10 @@ only" (fails "fully": the deadline is announced, not enforced).
   `woke`'s, so an agent is never told to resume while the hold still stands (this replaces today's rule, under which a
   `resume-wake` row alone answers RESUME, `scripts/sysadmin/hibernate.py:345-367`). With no lift it names the lift
   paths.
-- `lift` stays as the hub's manual override and prints the RESUME text.
+- Every lift — the tick's three paths and the hub's `lift`, its manual override — judges the MARK, not the tier: it
+  writes `lifted_at`, clears the `hibernate` tier if one stands, and prints or fans out the RESUME text, whether or not
+  the tier was ever armed (a lid closed before T-3 sleeps with no tier); the minute cron never arms the tier once a
+  `resume-wake` row follows the mark, so a box that slept before T-3 is not held after it wakes.
 
 **L4 — the full-boot restore (folds W-89474fc1 slice 2, D-1092).**
 - `agents_up.sh` relaunches each registered builder as `claude -n <name> --resume <sid> "<wake prompt>"`, so the
