@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
+
+- `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.
+
 ### Changed — /fabrik-plan-after-chat: the census covers state writers and each refused test's planned edit, and every count names its command (2026-10-21)
 
 - `commands/_sources/fabrik-plan-after-chat.md`: a new mechanism's census also covers the writers of each state it reads, and each existing test a change's MIRROR refuses is listed with its planned edit. Every measured count names the command that printed it, fenced blocks are redirected from that output, and Constraints Digest quotes are read from their `file:line` at write time. A small plan's code steps are prototyped by default in throwaway worktrees of the base, and a module plan reads the module README's test recipe first. Graders in `tests/test_plan_after_chat_queue_pass.py`.
