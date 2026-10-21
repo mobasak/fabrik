@@ -26,8 +26,8 @@ the run records of that repo in the last 7 days and the claim holders, plus each
 (work.py ``_paused``) and whether the repo's own work.py carries the ``pause`` verb. ``--session-start`` is the
 coordinator's SessionStart hook (``.claude/settings.json``, its own entry, so its own 10,000-character
 output budget): it prints only for the distributor, never in a ``claude -p`` child, one line when the
-identity is unknown, one line on any error, and always exits 0. The three modules are the hub's own,
-loaded by file path (never via sys.path), read only.
+identity is unknown, one line on any error, and always exits 0. The modules it uses (work, command_run,
+whoami_agent, decisions) sit beside it and are loaded by file path (never via sys.path), read only.
 
 COBRA: the table can read "no run" for an agent busy without a record (an ad-hoc edit, a stale or
 missing record) — so the header repeats the charter's rule: no record, or an old one, means ask the
@@ -210,7 +210,8 @@ def _roster(work: ModuleType, main: Path, distributor: str) -> list[str]:
     """The repo's builders (W-16d0ef14): the names in its `.fabrik/session-agents.json` when that file — a regular
     file, read bounded — is a JSON object naming at least one builder; otherwise the names bound to this repository in
     the identity store that have a registered worktree under `.claude/worktrees/` (a task tree nobody is bound to is
-    not a builder). The launcher (agents_up.sh) takes its panes from the same two sources. Always minus the
+    not a builder). The launcher (agents_up.sh) reads the same registry first; its fallback is every bound name, and
+    a pane needs the worktree anyway, so the two agree wherever a pane can exist. Always minus the
     distributor, the ledger's merge owner and any `coordinator` / `*-coordinator` name."""
     skip = _coordinators(main, distributor)
 
@@ -233,7 +234,11 @@ def _roster(work: ModuleType, main: Path, distributor: str) -> list[str]:
                 named = builders({v for v in data.values() if isinstance(v, str)})
                 if named:
                     return named
-    except (OSError, ValueError):
+    except (
+        OSError,
+        ValueError,
+        RecursionError,
+    ):  # a damaged registry (a deep nest included) falls back
         pass
     bound: set[str] = set()
     try:
@@ -241,7 +246,8 @@ def _roster(work: ModuleType, main: Path, distributor: str) -> list[str]:
         for row in who._rows(who.store_path()):
             top = str(row.get("toplevel") or "").rstrip("/")
             top = top[: -len("/.git")] if top.endswith("/.git") else top
-            if top and Path(top).name == main.name and isinstance(row.get("name"), str):
+            # this repository by PATH — a same-named clone elsewhere on the box binds nothing here
+            if top and Path(top).resolve() == main and isinstance(row.get("name"), str):
                 bound.add(row["name"])
     except Exception:  # noqa: BLE001 — no identity store: no bound builders
         return []

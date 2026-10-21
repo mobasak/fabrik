@@ -784,3 +784,47 @@ def test_a_builderless_or_damaged_registry_falls_back(tmp_path: Path, body: str)
     (repo / ".fabrik" / "session-agents.json").write_text(body, encoding="utf-8")
     _bind(env, repo, "fleet")
     assert sorted(_rows(repo, env)) == ["fleet"]
+
+
+def test_a_binding_to_another_repo_of_the_same_name_is_not_a_builder(tmp_path: Path) -> None:
+    """The identity store is matched by PATH: a clone elsewhere with this repo's folder name binds nothing here."""
+    env, repo, _ = _setup(tmp_path)
+    (repo / ".fabrik" / "session-agents.json").unlink()
+    elsewhere = tmp_path / "elsewhere" / repo.name
+    _bind(env, elsewhere, "infra")
+    _bind(env, repo, "fleet")
+    assert sorted(_rows(repo, env)) == ["fleet"]
+
+
+def test_the_bare_coordinator_name_is_never_a_row(tmp_path: Path) -> None:
+    """With a distributor that is not `coordinator`, the bare name is dropped by the name rule alone."""
+    env, repo, _ = _setup(tmp_path)
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["distributor"] = "lead"
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    registry = {"a": "coordinator", "b": "infra"}
+    (repo / ".fabrik" / "session-agents.json").write_text(json.dumps(registry), encoding="utf-8")
+    assert sorted(_rows(repo, env)) == ["infra"]
+
+
+def test_the_ledger_merge_owner_is_never_a_row(tmp_path: Path) -> None:
+    """A merge owner that differs from config's distributor (runbook step 7 can move it) reads the table too."""
+    env, repo, _ = _setup(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "DECISIONS.md").write_text(
+        "| ID | Date | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        "| D-1 | 2026-01-01 | operator | MERGE OWNER: infra | the test | here |\n",
+        encoding="utf-8",
+    )
+    assert sorted(_rows(repo, env)) == ["fleet", "intel", "kaizen"]
+
+
+def test_a_registry_that_is_not_a_regular_file_falls_back_without_hanging(tmp_path: Path) -> None:
+    """A FIFO at the registry path would block a plain read forever; it is skipped like a damaged file."""
+    env, repo, _ = _setup(tmp_path)
+    reg = repo / ".fabrik" / "session-agents.json"
+    reg.unlink()
+    os.mkfifo(reg)
+    _bind(env, repo, "fleet")
+    assert sorted(_rows(repo, env)) == ["fleet"]

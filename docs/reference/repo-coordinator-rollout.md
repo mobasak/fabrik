@@ -85,11 +85,11 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
    `"distributor"` must be the coordinator (init copies the merge owner at that moment, so set it by hand when step 7
    changes the merge owner later). Reference: `docs/reference/work-tracking.md`.
 2. Vendor `scripts/decisions.py` (`--merge-owner`, `--reserve-id`, `--check`) and `scripts/agent_status.py` with the
-   modules it loads beside it (`work.py`, `command_run.py`, `whoami_agent.py`). Its rows are the repo's own builders
+   modules it loads beside it (`work.py`, `command_run.py`, `whoami_agent.py`, `decisions.py`). Its rows are the repo's own builders
    (W-16d0ef14): the names in `.fabrik/session-agents.json` when that registry names one, else the names bound to the
    repo in the identity store that have a worktree under `.claude/worktrees/`; the distributor, the merge owner and any
    `coordinator` or `*-coordinator` name are never rows. The synced SessionStart line that calls it prints the
-   coordinator's table once the file is present. Add `/.fabrik/session-agents.json` to the repo's own `.gitignore` (the synced block
+   coordinator's table once `scripts/agent_status.py` is vendored; the registry is optional. Add `/.fabrik/session-agents.json` to the repo's own `.gitignore` (the synced block
    does not carry it), so the optional box-local registry step 9 mentions can never be committed.
 3. Vendor `.claude/hooks/agent_role.py` and register it as a SessionStart hook in `.claude/settings.json`, so a
    session started with `CLAUDE_AGENT=<name>` gets its charter from `docs/reference/agents/<name>.md`.
