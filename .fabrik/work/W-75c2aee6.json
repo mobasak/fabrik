@@ -5,7 +5,7 @@
   "created": "2026-10-21T00:39:51.908892Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "41382c1eefe94d507e4c98ac5776c484c612e57e",
   "id": "W-75c2aee6",
   "impact": "low",
   "kind": "task",
@@ -20,7 +20,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "a read-only listing for fabrik-lib; needs vps1",
-  "status": "open",
+  "status": "done",
   "tags": [
     "payments"
   ],
