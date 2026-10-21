@@ -2268,6 +2268,18 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f'    assert data["dependencies"]["database"].startswith("error:")\n'
         f"\n"
         f"\n"
+        f"def test_health_closes_the_connection_when_the_query_fails(monkeypatch):\n"
+        f'    """A DB that accepts the connection but fails SELECT 1 is 503, and the connection is still closed."""\n'
+        f"    conn = AsyncMock()\n"
+        f'    conn.execute.side_effect = RuntimeError("query failed")\n'
+        f"    fake = SimpleNamespace(connect=AsyncMock(return_value=conn))\n"
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 503\n"
+        f"    conn.close.assert_awaited_once()\n"
+        f"\n"
+        f"\n"
         f"def test_health_reports_no_driver_without_asyncpg(monkeypatch):\n"
         f'    """Without a DB driver there is nothing to ping: 200, reported honestly as no driver."""\n'
         f'    monkeypatch.setitem(sys.modules, "asyncpg", None)  # import asyncpg now raises ImportError\n'

@@ -275,7 +275,11 @@ class TestPythonApiLogging:
             "PYTHONWARNINGS",
             "CI",
         }
-        env = {k: v for k, v in os.environ.items() if k not in dropped}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in dropped and not k.startswith(("PYTEST_", "COV_CORE_"))
+        }
         env["PYTHONPATH"] = str(project / "src")
         result = subprocess.run(
             [
@@ -299,6 +303,7 @@ class TestPythonApiLogging:
         for name in (
             "test_health_returns_200_when_db_ping_succeeds",
             "test_health_returns_503_when_db_ping_fails",
+            "test_health_closes_the_connection_when_the_query_fails",
             "test_health_reports_no_driver_without_asyncpg",
         ):
             assert f"PASSED tests/test_health.py::{name}" in result.stdout, result.stdout[-3000:]
