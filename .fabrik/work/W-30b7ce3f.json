@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "Read the 7-day working-set p95/max for browserless from Prometheus; set the limit from it (headroom, not usage); it is a deploy — board the gate through the coordinator before fabrik apply",
+  "next": "REPO DONE e56453a08 (mirror 3G, provisional). WAITS on the operator's deploy gate: on vps1, back up /opt/browserless/compose.yaml, copy infra/vps1/browserless/compose.yaml over it (NOT fabrik apply — specs/infrastructure/browserless.yaml has no memory limit and would default 256M), docker compose up -d, then docker inspect -f '{{.HostConfig.Memory}}' browserless = 3221225472 and set both inventory rows to 3g; watch container_oom_events_total for 7 days and lower CONCURRENT if OOMs continue",
   "note": "",
   "owner": "fleet",
   "priority": 3,

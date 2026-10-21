@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: claim mail 01M5CCR5VGA3WMRPDC4ZC425VM, size it against the lane table, work it, review, reply, ack",
+  "next": "MEASURED 2026-10-21 04:10: templates/governance/CLAUDE.md has 0 hits for D-943/D-558/D-961/D-1034 (command grep -c); mail 01M5CCR5VG claimed. Build = /fabrik-task (lane row 1: synced path, full /fabrik-review): add an AUTONOMY bullet beside the coordinator-role paragraph, adapted from /opt/fabrik-lib/CLAUDE.md:293-301 and gated 'in a coordinator-managed repo' so single-window repos read it as inert; mind tests/test_governance_template_split.py (D-888 byte-identical coordinator paragraph) and the template's byte budget; then reply to youtube",
   "note": "",
   "owner": "infra",
   "priority": 1,

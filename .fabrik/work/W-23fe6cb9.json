@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:33:33.887561Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-23fe6cb9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5EC2S14E7ZQVGSTN5TPEPX2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "SECURITY — subagents ledger redactor + secret gate learned current credential shapes (fabrik-lib D-519, merged 7ecb7b3c); your check_secrets.py has the same gaps"
+}

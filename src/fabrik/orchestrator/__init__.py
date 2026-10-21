@@ -607,6 +607,7 @@ class DeploymentOrchestrator:
                     {"registrar": label, "error": error}
                     for label, _, error in (str(f).partition(": ") for f in ctx.registrar_failures)
                 ],
+                registrar_warnings=list(ctx.registrar_warnings),
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("state.save failed (non-fatal): %s", e)

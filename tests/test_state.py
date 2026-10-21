@@ -81,6 +81,7 @@ def test_save_writes_every_field():
         "domain",
         "git_sha",
         "registrar_failures",
+        "registrar_warnings",
         "registrars_applied",
         "spec_hash",
         "spec_path",

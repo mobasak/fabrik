@@ -931,3 +931,73 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
         assert (
             "never re-derived by a finder" not in text and "never re-derived by a seat" not in text
         )
+
+
+def _clause_after(text: str, after: str, end: str) -> tuple[str, str]:
+    """The text that follows the ONE copy of `after`, up to and including `end`, and what follows that."""
+    assert text.count(after) == 1, f"anchor not unique or moved: {after!r} x{text.count(after)}"
+    i = text.index(after) + len(after)
+    assert end in text[i:], f"end marker moved: {end!r}"
+    j = text.index(end, i) + len(end)
+    return text[i:j], text[j:]
+
+
+def test_the_seat_reads_the_pins_own_change_diff() -> None:
+    """Rows 1792460599, 1792540937: a lead-built diff was briefed, and a committed fix pinned an empty change.diff."""
+    clause, rest = _clause_after(
+        _norm(CAT),
+        "(a range carries every sibling commit landed in it). ",
+        "uncommitted edit included.",
+    )
+    assert clause == (
+        "The brief names the fix that way, and the diff a seat reads is still the pin's own `change.diff`, never one"
+        " the lead pastes in its place; a fix already committed is pinned with `--from <its last commit>`, plus"
+        " `--base <the commit before the fix>` when it spans several, since a working-tree pin of a committed surface"
+        " prints each file `UNCHANGED` with only a header line in its `change.diff`, and `--base` without `--from`"
+        " pins the working tree, a sibling's later commit or uncommitted edit included."
+    )
+    assert rest.startswith(" Seats copy the pin to their seat folder")
+
+
+def test_a_channel_sentence_is_executed_on_each_channel() -> None:
+    """Row 1792473876: a sentence about where text is carried was drafted without probing both channels."""
+    clause, rest = _clause_after(
+        _norm(CAT), "a scoped exception beats a new section note; ", "before the pin."
+    )
+    assert clause == (
+        "tool claims are written from the source (a sentence describing a record format or a code string quotes the"
+        " emit site's keys or the string verbatim), then checked against the live corpus and the tool's real output"
+        " variants, and each stream and input channel the sentence names (stdout or stderr; argv, stdin or a flag) is"
+        " executed before the pin."
+    )
+    assert rest.startswith(" - ")
+
+
+def test_the_input_class_names_every_reader_of_a_printed_command() -> None:
+    """Row 1792455756: a printed command was swept for one shell only, not a paste or another locale."""
+    cat = _norm(CAT)
+    bullet, _ = _clause_after(cat, "- Enumerate the fix's input class whole (", "PATH), ")
+    assert bullet.endswith(
+        "every Unicode whitespace class, every reader of a shell recipe or printed command (its own shell, a paste,"
+        " another shell or locale; IFS, noglob, PATH), "
+    ), "the input-class bullet's head no longer leads to the reader clause"
+    assert bullet.startswith("boundary, empty, unset, mandated,"), (
+        "the head is a decoy, not the input-class bullet"
+    )
+    clause, rest = _clause_after(cat, "every Unicode whitespace class, ", "PATH), ")
+    assert clause == (
+        "every reader of a shell recipe or printed command (its own shell, a paste, another shell or locale; IFS,"
+        " noglob, PATH), "
+    )
+    assert rest.startswith("the real committed files' shapes")
+
+
+def test_the_rewrap_waits_for_the_files_own_pins() -> None:
+    """Rows 1792473663, 1792544062: a whole-paragraph rewrap broke a raw-line pin and a 120-character line cap."""
+    clause, rest = _clause_after(_norm(CAT), "- After the edit: ", "again after it;")
+    assert clause == (
+        "rewrap the whole paragraph by tool once each test that caps the file's line length or pins its raw lines is"
+        " found (grep `tests/` for the file's basename, since a test may build the path in parts) and run, a raw-line pin"
+        " bounding the rewrap to the lines the edit lengthened, and run those tests again after it;"
+    )
+    assert rest.startswith(" re-read an inserted sentence with the one after it")
