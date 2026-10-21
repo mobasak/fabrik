@@ -28,8 +28,8 @@ Every pick drops each `--add-dir`: a routed agent gets no access to the window's
 whoami_agent.py would not bind (`_NAME_RE`) is listed "cannot bind", never offered.
 
 Roles come from each repo's `.fabrik/session-agents.json` (sid -> role), the identity store
-(~/.claude/state/agent-identity.jsonl, last row per sid wins, as whoami_agent.py reads it), this router's own map, and
-the repo's merge owner (`decisions.py --merge-owner`). Liveness is hibernate.live_sessions; a live process holding the
+(~/.claude/state/agent-identity.jsonl, last row per sid wins, as whoami_agent.py reads it), this router's own map; a repo
+listed that way also offers its merge owner (`decisions.py --merge-owner`), which alone never lists a repo. Liveness is hibernate.live_sessions; a live process holding the
 very sid this tab resumes is this tab reattaching, never "elsewhere".
 
 Fail direction: OPEN, to today's plain launch, on every error — the wrapper sits under every chat tab on the box. A
@@ -300,10 +300,11 @@ def rewrite_args(argv: list[str], pick: dict, new_cwd: str) -> list[str]:
             i += 1 if eq else 2
             continue
         if name == "--add-dir":  # every one: a routed agent gets none of the window's folders
+            # `--add-dir <directories...>` (claude --help): every value up to the next flag is its own, after the
+            # `=` form too; the extension passes no positional prompt (its input is stream-json), so nothing is lost
             i += 1
-            if not eq:  # `--add-dir <directories...>` (claude --help): every value up to the next flag is its own
-                while i < len(argv) and not argv[i].startswith("-"):
-                    i += 1
+            while i < len(argv) and not argv[i].startswith("-"):
+                i += 1
             continue
         out.append(a)
         i += 1
@@ -362,6 +363,10 @@ def record(home: Path, sid: str, role: str, repo: str, cwd: str) -> None:
 
 def pick_with_tk(rows: list[dict], cwd: str, wrapper_pid: int = 0) -> dict | None:
     """The picker: None on cancel, the deadline, the wrapper's death, a signal or no display."""
+    if (
+        picker_deadline() <= time.monotonic()
+    ):  # listing the repos used the whole 30 s: no window at all
+        return None
     import tkinter as tk
 
     choices = [{"kind": PLAIN, "label": f"Plain chat in {cwd} — as today"}, *rows]
@@ -482,6 +487,7 @@ def main(args: list[str] | None = None) -> int:
         if not out:
             return 1
         sys.stdout.write("\0".join(out))
+        sys.stdout.flush()  # a broken pipe fails here, inside the fail-open path
     except Exception:  # noqa: BLE001 — fail OPEN: the wrapper launches exactly as today
         return 1
     return 0
