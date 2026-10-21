@@ -61,6 +61,7 @@
 | [2026-10-18-external-services-page-design.md](docs/superpowers/specs/2026-10-18-external-services-page-design.md) | CONVERGED spec (W-3e9e2f4c; approved by the Opus + Fable panel): the external-services inventory rendered by one page-layer function into the board's Services view and the daily chain's static file — attention first, one table per category, the 331-row untriaged backlog as a counted queue; `dashboard_server.py` retired |
 | [2026-10-18-plan-1-external-services-inventory.md](docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md) | EXECUTED plan set (W-3e9e2f4c, 2026-10-18; /fabrik-plan-review, D-970): four tickets — the page-layer additions, the inventory module, the static file with `dashboard_server.py` retired, and the Integration ticket wiring the live section into the board's Services view (seams D-967) |
 | [2026-10-18-external-services-inventory-plan-review.md](docs/development/reviews/2026-10-18-external-services-inventory-plan-review.md) | /fabrik-plan-review receipt for the W-3e9e2f4c plan set: nine passes through Agent-tool seats, confirmed 19 → 7 → 5 → 2 → 6 → 1 → 1 → 1 → 0, and the spec amendment D-968 (the live read in a killable child process) |
+| [2026-10-21-own-scrape-slice-1a-plan-review.md](docs/development/reviews/2026-10-21-own-scrape-slice-1a-plan-review.md) | /fabrik-plan-review receipt for plan 3 (own scrape tool, slice 1a, hub side, W-10146d20): Agent-tool seats, confirmed 23 → 7 → … |
 | [2026-10-18-plan-1-external-services-inventory-T01-review.md](docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T01-review.md) | /fabrik-review wave-1 receipt for the W-3e9e2f4c plan set's T01 (page-layer additions): four passes, confirmed 12 → 4 → 4 → 0, scope-growth stop after pass 3, residue routed to W-f67b6977 |
 | [2026-10-18-plan-1-external-services-inventory-T02-review.md](docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T02-review.md) | /fabrik-review wave-2 receipt for the W-3e9e2f4c plan set's T02 (the inventory module): four passes, confirmed 17 → 5 → 5 → 0, scope-growth stop after pass 3, residue routed to W-da612c6e |
 | [2026-10-18-plan-1-external-services-inventory-T03-review.md](docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T03-review.md) | /fabrik-review wave-3 receipt for the W-3e9e2f4c plan set's T03 (the static file; `dashboard_server.py` retired): three passes, confirmed 6 → 3 → 0, the third the round-1 seats over their own slices |
@@ -1307,6 +1308,7 @@ docs/
 │       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
 │       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
 │       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
+│       ├── 2026-10-21-own-scrape-slice-1a-plan-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
