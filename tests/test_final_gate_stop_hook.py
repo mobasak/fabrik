@@ -1709,7 +1709,16 @@ def test_a_notification_in_any_real_shape_ends_the_stand_down(
 ) -> None:
     note = "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n<status>completed</status>\n"
     if shape == "attachment":
-        done = {"type": "attachment", "attachment": {"type": "queued_command", "prompt": note}}
+        # 2.1.304's notice attachment carries commandMode task-notification (all 15 073 seen); W-1b9ae5f2 reads a
+        # notice only from a notice-shaped row, so a hand-back quoting one no longer closes a seat
+        done = {
+            "type": "attachment",
+            "attachment": {
+                "type": "queued_command",
+                "prompt": note,
+                "commandMode": "task-notification",
+            },
+        }
     else:
         done = {
             "type": "user",
