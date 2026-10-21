@@ -34,10 +34,10 @@ registered on this box; and `fabrik-researcher` switches its raw-page fetch to i
 | I2 | spec § Lifecycle 1a: "every command or seat line naming a Firecrawl tool gains `proxy: "basic"`" | IN | Phase A |
 | I3 | spec § Lifecycle 1a: "infra registers it" | IN | Phase B (infra executes the unit install under a gate) |
 | I4 | spec § Lifecycle 1a: "Then `fabrik-researcher` switches (its own ledger first)" | IN | Phase C |
-| I5 | spec § Chosen approach 2: the three contract copies gain `fabrik-scrape` in the fetch sentence | IN for the hub's two copies (Phase C); OUT-OF-SCOPE for `/opt/fabrik-lib/CLAUDE.md` — a cross-repo file, requested from fabrik-lib by mail in Phase C |
+| I5 | spec § Chosen approach 2: the three contract copies gain `fabrik-scrape` in the fetch sentence | IN for the hub's two copies (Phase C); OUT-OF-SCOPE for `/opt/fabrik-lib/CLAUDE.md` — a cross-repo file, requested from fabrik-lib by mail in Phase C | Phase C |
 | I6 | spec § Lifecycle 1b, 1c, 1d (crawl, rendering, the proxyUsed test) | OUT-OF-SCOPE | later plans, one per slice; 1d is gated on the operator's approval (spec § Fallback contract) |
 | I7 | the seven other commands' switches (spec § Lifecycle: "one command per slice") | OUT-OF-SCOPE | later plans after this one; `fabrik-researcher` goes first |
-| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B step 2, checked for the call log AND the `proxy: "basic"` payload), built by fabrik-lib as W-eadc4d0a |
+| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B step 2, checked for the call log AND the `proxy: "basic"` payload), built by fabrik-lib as W-eadc4d0a | Phase B step 2 |
 | I9 | spec § Lifecycle 1a: "the capability ledger re-runs THROUGH `scrape` … must grade PASS on U1, U2, U3, U4 and U7" | IN | Phase B step 11 |
 | I10 | spec § Documentation landing sites: `.windsurf/rules/core/57-external-data-sourcing.md` (the agent-time roster) | IN | Phase C step 6 |
 | I11 | spec § Documentation landing sites: the precedent's PORTS row lists 8032 while its endpoint is `:8033/mcp` | OUT-OF-SCOPE | infra's row, mailed to infra at this plan's close |
@@ -195,7 +195,8 @@ own repo. So steps 1-8 are worktree work merged by the coordinator; steps 9-12 r
 ### Touches
 
 - libs/web_scrape_mcp/ — NEW, the vendored module (copied whole from `/opt/fabrik-lib/web-scrape-mcp/` at the merged SHA)
-- libs/web_tools.py — re-vendored from `/opt/fabrik-lib/web-tools/web_tools.py` at W-eadc4d0a's SHA
+- libs/web_tools.py — re-vendored from `/opt/fabrik-lib/web-tools/web_tools.py` at W-eadc4d0a's SHA (executed at c7ab67e4, which holds it and the proxy pin)
+- tests/test_web_tools_firecrawl_proxy.py, tests/test_web_tools_firecrawl_log.py — NEW in execution, fabrik-lib's two web-tools tests retargeted at the hub copy
 - scripts/scrape_ledger.py — NEW, the MCP probe, transcript harvest and ledger runner (used by this phase's gate and by Phase C)
 - tests/test_scrape_ledger.py — NEW, its tests with a mocked MCP client
 - scripts/sysadmin/emit_mcp_project_config.py — `fabrik-scrape` joins the universal set
@@ -228,6 +229,13 @@ Pre-merge, in the worktree:
    web_tools|from web_tools import|import web_tools" tests scripts` lists `tests/test_rivals_run.py` and
    `scripts/rivals_run.py` — with `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest
    tests/test_rivals_run.py -q`.
+   Executed 2026-10-21 (amended in execution): re-vendored at fabrik-lib main c7ab67e4 (their D-539/D-540, the proxy
+   pin), a descendant of 49c09f6d (W-eadc4d0a, the call log), so both halves landed. The payloads now pin through a
+   helper, `"proxy": _fc_proxy(...)`, whose default is `"basic"`, so the literal `rg` above finds NOTHING; the check
+   is `rg -n '"proxy"' libs/web_tools.py`, which lists the four payloads (sync and async scrape, crawl and search
+   `scrapeOptions`) and the helper. The proof is fabrik-lib's own two tests, carried into the hub with the module
+   loaded from its path: `tests/test_web_tools_firecrawl_proxy.py` (71 passed; 53 red on the 8337a7f copy) and
+   `tests/test_web_tools_firecrawl_log.py` (20 passed; 16 red with `_log_fc` returning early).
 3. Write `tests/test_scrape_ledger.py` first (mocked MCP client; the Behavior Contract row above) and watch it fail;
    then write `scripts/scrape_ledger.py` (typed, results to stdout and to `--out <json>`, `# AFTER-EDIT:` header naming
    `docs/reference/fabrik-scrape-mcp.md`) with three modes: `--probe <url>` runs `initialize` + `tools/list`;
@@ -267,7 +275,9 @@ Post-merge, on the main checkout, as a gate:
 
 9. Gate (deploy): building the venv and installing the unit write outside this worktree (`/opt/fabrik/libs/
    web_scrape_mcp/.venv`, `/etc/systemd/system/`) — the operator approves through the coordinator; on approval infra
-   runs, from `/opt/fabrik`: `uv venv libs/web_scrape_mcp/.venv`, `uv pip install --python
+   runs, from `/opt/fabrik`: `uv venv --python /usr/bin/python3 libs/web_scrape_mcp/.venv` (amended in execution:
+   the Phase B review sandboxed the unit with `ProtectHome=true`, so the interpreter must live outside `/home`),
+   `uv pip install --python
    libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt`, then `sudo install -m 644
    scripts/sysadmin/systemd/fabrik-scrape-mcp.service /etc/systemd/system/`, `sudo systemctl daemon-reload`, `sudo
    systemctl enable --now fabrik-scrape-mcp`.
@@ -282,7 +292,7 @@ Post-merge, on the main checkout, as a gate:
 ### Interfaces
 
 Consumes: fabrik-lib `web-scrape-mcp` at its merged SHA (tool `scrape`, spec § Chosen approach 1's return shape);
-fabrik-lib `web-tools` at W-eadc4d0a.
+fabrik-lib `web-tools` at W-eadc4d0a (executed at c7ab67e4).
 Produces: the live MCP endpoint `http://127.0.0.1:8034/mcp` named `fabrik-scrape`, present in the hub `.mcp.json`;
 `scripts/scrape_ledger.py` (`--probe <url>`, `<input json>` → result JSON); both consumed by Phase C.
 
@@ -746,6 +756,9 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 - commands/_agents/fabrik-researcher.md
 - libs/web_scrape_mcp/
 - libs/web_tools.py
+- tests/test_web_tools_firecrawl_proxy.py
+- tests/test_web_tools_firecrawl_log.py
+- tests/enforcement/test_check_mcp_scope.py
 - scripts/sysadmin/mcp_defs.json
 - scripts/sysadmin/systemd/fabrik-scrape-mcp.service
 - docs/reference/fabrik-scrape-mcp.md

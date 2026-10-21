@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/enforcement/test_phase_tests_gate.py
+# AFTER-EDIT: tests/enforcement/test_phase_tests_gate.py, tests/enforcement/test_contract_regions_linear.py
 """Behavior-Contract test-accompaniment advisory — WARN when a plan-execution window
 declares behaviors but has added no tests.
 
@@ -23,9 +23,12 @@ advisory must never break a commit).
 
 from __future__ import annotations
 
+import bisect
 import json
+import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -69,6 +72,24 @@ def _given_rows(plan_path: str) -> list[str]:
     return [m.group(1).strip() for m in GIVEN_ROW_RE.finditer(scoped)]
 
 
+_LINE_BREAK = re.compile(
+    "\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]"
+)  # str.splitlines' boundaries
+
+
+def _lines_from(text: str, start: int) -> Iterator[str]:
+    """`text[start:].splitlines()`, yielded lazily without copying the rest of the text: a caller that stops at the
+    end of its block reads only that block. LOCKSTEP with check_test_proposal._lines_from (W-6904b41e)."""
+    pos, size = start, len(text)
+    while pos < size:
+        brk = _LINE_BREAK.search(text, pos)
+        if brk is None:
+            yield text[pos:]
+            return
+        yield text[pos : brk.start()]
+        pos = brk.end()
+
+
 def _contract_regions(text: str) -> str:
     """Behavior-Contract regions only — check_plan_tickets scopes GIVEN_ROW_RE to
     `_section(scan, "Behavior Contract")` and an unscoped scan here would drift from it
@@ -89,21 +110,26 @@ def _contract_regions(text: str) -> str:
     text = _fences.strip_three_marker_fences(text)
     regions: list[str] = []
     heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
+    next_heading = re.compile(r"(?m)^#{2,4}\s")
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
-        rest = text[m.end() :]
-        stop = re.search(r"(?m)^#{2,4}\s", rest)
-        end = m.end() + (stop.start() if stop else len(rest))
+        # searched from m.end() in place: slicing the rest of the text per heading was quadratic (W-6904b41e)
+        stop = next_heading.search(text, m.end())
+        end = stop.start() if stop else len(text)
         heading_spans.append((m.start(), end))
         regions.append(text[m.end() : end])
+    span_starts = [s for s, _ in heading_spans]
     for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", text):
         # LOCKSTEP with check_test_proposal._bold_contract_regions — the two checks grade the
         # same construct and must accept the same grammar (tryton-crm 01M17EKV); edit both.
         # A bold label nested INSIDE a heading region is already captured above — scanning it
         # again would double-count its rows (review finding, live-reproduced: 2 rows printed 3).
-        if any(s <= m.start() < e for s, e in heading_spans):
+        # spans are sorted and disjoint, so one bisect finds the only span that could hold the label;
+        # testing every span per label was labels x headings (W-6904b41e)
+        i = bisect.bisect_right(span_starts, m.start()) - 1
+        if i >= 0 and m.start() < heading_spans[i][1]:
             continue
         lines: list[str] = []
-        for line in text[m.end() :].splitlines():
+        for line in _lines_from(text, m.end()):
             if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
                 lines.append(line)
                 continue

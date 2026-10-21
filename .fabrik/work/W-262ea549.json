@@ -17,10 +17,10 @@
     "eef92a053f332bd47638541c8f1dd3415ecf4cc2cd314f00313e3f1cf020fd5d"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-21: ok — approved, after the WSL window (W-4d452199) is green and within the runbook's 7-day bound; section 1 probes and the disk gate must PASS; dump with the 18 client, Backrest snapshot off-host, new volume, old volume kept, rollback cut-off at step 7; sequence with the admin-password rotation (W-a2ee211b) since the window uses the admin password",
   "owner": "",
   "priority": 2,
   "question": "May the operator run the PostgreSQL 18 hub window on vps1 (dump postgres-main 16, restore into 18 on a new volume, keep the old volume), following docs/operations/postgres-major-upgrade-runbook.md § 3, after the WSL window is green?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May the operator run the PostgreSQL 18 hub window on vps1 (dump postgres-main 16, restore into 18 on a new volume, keep the old volume), following docs/operations/postgres-major-upgrade-runbook.md § 3, after the WSL window is green?"
 }

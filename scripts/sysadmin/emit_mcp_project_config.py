@@ -8,7 +8,7 @@ per-repo overlays below MIRROR docs/workstation/mcp-roster.md (canonical —
 edit the roster first, then this table, same change; the AFTER-EDIT header
 couples them).
 
-Derivation per repo: universal 6 + per-type set (live `project.yaml::type`
+Derivation per repo: the universal set + per-type set (live `project.yaml::type`
 read at run time) + per-repo overlay row. The hub gets the full defs set minus
 HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07); fabrik-lib keeps
 the full roster, maestro included (the same ruling).
@@ -36,14 +36,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-UNIVERSAL6 = [
+UNIVERSAL = [
     "session-recall",
     "exa",
     "brave-search",
     "firecrawl",
     "postgres-pro",
     "serena",
-]  # D-013 + D-020 + D-021
+    "fabrik-scrape",
+]  # D-013 + D-020 + D-021 + D-1102
 
 TYPE_SETS: dict[str, list[str]] = {
     # D-015 (+D-019 chrome-devtools rides with playwright) · D-014 shadcn/magicui saas
@@ -272,7 +273,7 @@ def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
         rtype = _repo_type(repo)
         if rtype is None or rtype not in TYPE_SETS:
             return None
-        wanted = list(UNIVERSAL6) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+        wanted = list(UNIVERSAL) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
     return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
 
 

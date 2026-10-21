@@ -1,0 +1,26 @@
+{
+  "block_digest": "8b730c489d6cf6e7bd48da9cb832f1f4dce8d431e1984fdad1b0fe811723fb1b",
+  "blocked_by": [],
+  "created": "2026-10-21T19:18:21.538066Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-f59fe72b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "f9c60fa98b73304c83392af68069539822eccadae77a1bcacd8a6a7fe63ef6a3"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "After the merge, may infra install our own scrape server on this machine and add it to every repo's MCP config? That means building its Python environment on the system Python, installing and starting `fabrik-scrape-mcp.service`, checking it lists its `scrape` tool, and then rewriting every repo's generated `.mcp.json`.",
+  "status": "awaiting-operator",
+  "title": "After the merge, may infra install our own scrape server on this machine and add it to every repo's MCP config? That means building its Python environment on the system Python, installing and starting `fabrik-scrape-mcp.service`, checking it lists its `scrape` tool, and then rewriting every repo's generated `.mcp.json`."
+}

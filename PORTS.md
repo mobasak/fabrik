@@ -73,6 +73,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 5050 | Email Reader | /opt/email-reader | Gmail/M365 integration |
 | 5051 | Claude quota dashboard | /opt/fabrik | Box-local account-quota board, loopback only — `scripts/sysadmin/quota_dashboard.py`, docs/workstation/quota-dashboard.md |
 | 8000 | Local dev server | varies | Default FastAPI port |
+| 8034 | fabrik-scrape MCP server | /opt/fabrik | Research seats' raw-page fetch, loopback only — `libs/web_scrape_mcp`, `fabrik-scrape-mcp.service`, docs/reference/fabrik-scrape-mcp.md |
 
 ---
 

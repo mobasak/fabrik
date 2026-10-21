@@ -16,10 +16,10 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 
 | Layer | File | Content |
 |---|---|---|
-| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full 16, the hub the full set minus `HUB_EXCLUDE` (D-638) |
+| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: the universal set + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full roster, the hub the full set minus `HUB_EXCLUDE` (D-638) |
 | USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib's own `.mcp.json` (landed by its agent with `--repo`) carries its full roster on top |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
-| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the universal 6** |
+| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the six pre-D-1102 universal servers** (no fabrik-scrape: this profile is not emitted) |
 
 **Credentials (D-641):** the catalog `scripts/sysadmin/mcp_defs.json` carries `${VAR}` placeholders
 only; the emitter fills them from the active fleet roster (`~/.claude-fleet/active/.claude.json`, per
@@ -49,7 +49,7 @@ on demand — zero context cost), but the *processes* spawn regardless. That is 
 
 ---
 
-## The servers (16 active + 2 retired + 1 planned)
+## The servers (18 active + 2 retired + 1 planned)
 
 Weight = measured RSS across live processes (per-window cost scales with window count).
 
@@ -73,11 +73,12 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 | pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair + the health projects | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator (D-022) + longephedia-vault + supplement-tracker-advisor — **D-025 sweep**: the health-overlay predicate applied to the EXISTING fleet, not only future adoptions |
 | wsl | Claude Desktop ↔ WSL bridge: `bash`/`read_file`/`write_file`/`edit_file`/`list_dir` (`/opt/fabrik/tools/wsl-mcp`, systemd `wsl-mcp.service`, HTTP :8040; Desktop reaches it via Windows-native `npx mcp-remote`, never `wsl.exe`) — see [wsl-mcp.md](wsl-mcp.md) | Claude Desktop only (Claude Code has native Bash) | light | ON Desktop — REPLACES `wsl-shell` + `wsl-filesystem` (D-616) |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED (D-022: the health pair is cross-wired MCP↔MCP)** |
+| fabrik-scrape | raw-page fetch for research seats — one tool, `scrape(url)` → markdown or `{blocked, reason, status}` (`libs/web_scrape_mcp`, systemd `fabrik-scrape-mcp.service`, MCP :8034; `docs/reference/fabrik-scrape-mcp.md`) | every repo — the researcher's first raw fetch (W-10146d20) | service | ON everywhere — **RULED (D-1102: universal)**; Firecrawl stays the fallback, pinned to the basic proxy |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED (D-021: adopt-and-wire)**: zero usage before wiring was zero corpus wiring, not quality; named in plan-after-chat's grounding phase + review's adjudication. Still unused after wiring = a retirement case with evidence |
 
-**Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
-universal set: session-recall + exa + brave-search + firecrawl + postgres-pro + serena); the full
+**Net effect of the split as RULED:** a typical headless API repo drops 16 → the universal set alone
+(session-recall + exa + brave-search + firecrawl + postgres-pro + serena + fabrik-scrape, D-1102); the full
 roster survives only in fabrik-lib, maestro included (D-015, D-638: maestro is for mobile projects and
 fabrik-lib, which vendors and tests the mobile modules); the hub carries it minus the four per-session
 heavy servers (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`; `HUB_EXCLUDE` in the emitter,
@@ -104,24 +105,25 @@ phantom arm (the wef 01M17XXF defect class).
 | `brave-search` | named in the same grounding orders (9 commands), as tier 1 — every repo runs these |
 | `firecrawl` | RULED universal (D-013, "no exception") |
 | `postgres-pro` | RULED universal (D-020) — operator: "fix postgres-pro and wire it all type of projects" |
+| `fabrik-scrape` | RULED universal (D-1102): `fabrik-researcher` renders to every repo and names it as its raw-page fetch, so every repo's `.mcp.json` must carry it; a loopback service on :8034 (`docs/reference/fabrik-scrape-mcp.md`) |
 | `serena` | RULED universal (D-021: adopt-and-wire) — the corpus names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = a measured retirement case |
 
 (`github` is RETIRED end-to-end per D-014 — the corpus teaches the `gh` CLI; `firecrawl` is universal per D-013.)
 
-| Scaffold type | Beyond the universal 6 | Evidence |
+| Scaffold type | Beyond the universal set | Evidence |
 |---|---|---|
-| `python-api` | — (universal 6 only) | no command names anything type-specific for headless |
-| `python-api-gpu` | — (universal 6 only) | as python-api |
-| `node-api` | — (universal 6 only) | as python-api |
-| `file-api` | — (universal 6 only) | as python-api |
-| `file-worker` | — (universal 6 only) | as python-api |
+| `python-api` | — (universal set only) | no command names anything type-specific for headless |
+| `python-api-gpu` | — (universal set only) | as python-api |
+| `node-api` | — (universal set only) | as python-api |
+| `file-api` | — (universal set only) | as python-api |
+| `file-worker` | — (universal set only) | as python-api |
 | `saas-skeleton` | playwright · chrome-devtools · shadcn · magicui | fabrik-gui declares `mcpServers: [playwright, shadcn, chrome-devtools]`; /fabrik-ui-design drives the shadcn MCP by name; magicui = the operator's SaaS pair |
 | `chrome-extension` | playwright · chrome-devtools | fabrik-gui dispatches here (MV3 loop via bundled Chromium) |
 | `mobile-app` | maestro · mobile-mcp | the Build-Verification Loop's mobile branch: "mobile (RN): Maestro MCP + Mobile Next MCP" (plan-after-chat/execute-plan/user-test) + 80-mobile pack |
 | `desktop-app` | playwright · chrome-devtools · shadcn² | Electron web UI → fabrik-gui's set; ²shadcn when the design system is shadcn-based (ui-design: "when the system is shadcn-based") |
 | `static-site` | playwright · chrome-devtools · shadcn² | rendered-site design-review/user-test via fabrik-gui |
 | `docusaurus` | playwright · chrome-devtools | reader-journey certification via fabrik-gui |
-| `wordpress` | — (universal 6 only) | legacy, out of fabrik |
+| `wordpress` | — (universal set only) | legacy, out of fabrik |
 | `office-extension` (PENDING fleet adoption — proposal 01M19PSJN3) | playwright · chrome-devtools | the taskpane is a hosted web page — same UI-bearing logic as D-015/D-019; row activates with the type |
 
 ¹ (retired footnote) postgres-pro rode `shape.needs_database` until D-020 made it universal.
@@ -140,8 +142,8 @@ the planned row) — standing rule: any health project gets all three overlays a
 hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
-**Headcount effect (post-D-021):** headless types run **6 servers instead of 16**; web-GUI types
-8-10; mobile-app 8.
+**Headcount effect (post-D-021, widened by D-1102):** headless types run **the universal set alone instead of 16**; web-GUI
+and mobile types add only their per-type sets from the table above.
 
 ## Playwright — the ruling in full (D-015 + D-016)
 
@@ -203,7 +205,7 @@ already-registered sources; decision rides the same split.
 
 ## The two standing rulings behind the split
 
-**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the universal set and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
+**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the five of § Config topology and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
 
 **Related:** [MCP_HTTP_TRANSPORT.md](MCP_HTTP_TRANSPORT.md) (transport detail) ·
 [wsl-mcp.md](wsl-mcp.md) (the Claude-Desktop bridge server; `wsl-shell-mcp-setup.md` is the superseded stdio bridge) ·

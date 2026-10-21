@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:14:24.822784Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a687f4c0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claim the mail; edit the row-1b sentence in CLAUDE.md and templates/governance/CLAUDE.md together (D-888 keeps the paragraph byte-identical), full /fabrik-review, one commit after it, let the post-commit sync distribute",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a rule update on a governance-sync path (HIGH); one sentence in two files, one session",
+  "status": "open",
+  "tags": [
+    "mail-01m5fx673v"
+  ],
+  "title": "kaizen finding 01M5FX673V (from the /fabrik-task queue pass): CLAUDE.md lane row 1b should name a thread-shared lock or cache as 'concurrency' — a governance-sync path, so infra's"
+}

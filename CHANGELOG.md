@@ -8,6 +8,16 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-review.md`: the example Pass ledger names the file loop's Sonnet + Haiku seats; the leak baseline also hashes the shared repository `config` and lists its hooks. `commands/_fragments/subagents-core.md`: a fix made between round-1 waves is in the next wave's pin. `commands/_fragments/review-probe-catalogue.md`: the input class takes every arrival order of duplicate records; a seat's scratch repository is checked before its first write and runs hermetic; a measured count names what it leaves out; each slice runs a mutant per added guard. `tests/test_review_queue_pass.py` pins the six rules (W-ac1b7d77).
 
+### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
+W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and
+check_phase_tests also did it once per `## Behavior Contract` heading. 8 000 labels took ~5 s, and 4x the input took
+12-22x the time. They now read forward from each match: a lazy `_lines_from` keeps `str.splitlines`' boundaries, and
+the next heading is searched in place. A bold label is checked against the sorted heading spans with one bisect,
+instead of against every span (labels x headings). On 8 000 labels: 0.06 s and 0.04 s on this box. A mixed document
+of 4 000 headings and 4 000 labels went from 1.44 s to 0.03 s. Output is identical on all 488 plan files
+in the hub. `tests/enforcement/test_contract_regions_linear.py` counts copied characters, so no timing is read; its
+copy-count tests fail on the old code.
+
 ### Fixed — payments pack: the fulfilment grant refuses a fingerprinted role since fabrik-lib SB-096 (2026-10-21)
 
 - `.windsurf/rules/core/85-payments-billing.md`: line 45 said the fulfilment grant does not refuse a tenant-facing role. Since fabrik-lib SB-096 it refuses PUBLIC, a SUPERUSER or BYPASSRLS role and a role holding a privilege on a payments table the lane does not grant; a tenant-facing role without one still passes and gets `purchases` INSERT and cross-org `jobs` SELECT, UPDATE, so the dedicated-login rule stands (fleet mail 01M5DYBVJT; review `docs/development/reviews/2026-10-21-payments-fulfilment-grant-wording-review.md`).
@@ -24,6 +34,16 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
 
+### Changed — the vendored web-tools pins Firecrawl to the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase B step 2. `libs/web_tools.py` is re-vendored from fabrik-lib main c7ab67e4 (their D-539/D-540).
+Every Firecrawl payload (sync and async scrape, crawl, search) now sends `proxy: "basic"` unless code passes another
+one: the LLM tools (`execute_web_tool`) ignore a `proxy` in a model's `arguments`, and only direct callers pass
+`firecrawl_proxy=`. Each billed call logs its caller and URL. fabrik-lib's two tests now run against the hub copy:
+`tests/test_web_tools_firecrawl_proxy.py` (71 passed, 53 red on the previous copy @8337a7f) and
+`tests/test_web_tools_firecrawl_log.py` (20 passed).
+
+### Added — fabrik-scrape: a local MCP server for research page reads (2026-10-21)
+W-10146d20, plan 3 Phase B (D-1102). `libs/web_scrape_mcp/` vendors fabrik-lib's web-scrape-mcp with the web-scrape and doc-crawl copies it needs; `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` runs it sandboxed on loopback :8034; `mcp_defs.json` and the emitter's universal set register it for every repo; `scripts/scrape_ledger.py` probes it and grades a capability ledger. Not live yet: building its venv, installing the unit and re-emitting every repo's `.mcp.json` is an operator gate after merge. See `docs/reference/fabrik-scrape-mcp.md`.
 ### Changed — Firecrawl calls in commands pin the basic proxy (2026-10-21)
 W-10146d20, plan 3 Phase A (D-1101). Every Firecrawl scrape or crawl instruction in `fabrik-spec`, `fabrik-spec-review`, `fabrik-plan-after-chat`, `fabrik-vision` and the `fabrik-researcher` agent now passes `proxy: "basic"`: Firecrawl's default `auto` mode retries a blocked page through stealth proxies at a higher credit price, and the own-scrape spec allows only the basic proxy until a tested slice-1d check. `tests/test_firecrawl_proxy_basic.py` guards every such instruction; a clause it refuses is reworded, and a review of any later change to a pinned clause reads it for meaning.
 ### Added — plan approved: own scrape tool, slice 1a, hub side (2026-10-21)

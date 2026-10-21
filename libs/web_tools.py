@@ -25,7 +25,11 @@ into output/error. Endpoints + auth grounded live 2026-07-05:
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
+import sys
+import threading
 import time
 import unicodedata
 from collections.abc import Iterable, Mapping
@@ -141,6 +145,59 @@ _CRAWL_MAX_PAGES = 20
 _CRAWL_TERMINAL_FAIL = frozenset({"failed", "cancelled", "canceled", "error"})
 _MAX_RESP_BYTES = 2_000_000  # streaming read aborts past this — bounds peak memory
 _SNIPPET = 1000  # per-result text cap before the overall _truncate
+
+
+# Every Firecrawl call logs one WARNING line naming its caller and URL (hub W-10146d20 slice 1a, D-1100): the
+# credits are paid and were spent by runtime callers that left no record, so the next period must be attributable.
+# WARNING, not INFO, so Python's last-resort handler prints it to stderr in a consumer that configured no logging —
+# the callers this exists to find. The caller is the first stack frame outside this file and outside asyncio,
+# threading and concurrent.futures, as `<path>:<line> in <function>` — the path names the repo; no call signature
+# changes. A coroutine run as a task (gather, create_task) names the code that started the event loop; a call in a
+# worker thread whose frames are all library frames names the program (`sys.argv[0]`) and the thread. A crawl logs
+# its start only: the status polls are not billed. A URL's `user:password@` is never logged, CR/LF in a logged value
+# are escaped (a URL cannot forge a second line), and a raising log handler never stops the call.
+_FC_LOG = logging.getLogger("web_tools.firecrawl")
+
+
+_FC_SKIP_MODULES = frozenset({"asyncio", "threading", "concurrent"})
+
+
+def _fc_caller() -> str:
+    here = os.path.normcase(os.path.abspath(__file__))
+    frame = sys._getframe(1)
+    while frame is not None:
+        path = frame.f_code.co_filename
+        module = str(frame.f_globals.get("__name__", ""))
+        if os.path.normcase(os.path.abspath(path)) != here and module.split(".")[0] not in _FC_SKIP_MODULES:
+            return f"{path}:{frame.f_lineno} in {frame.f_code.co_name}"
+        frame = frame.f_back  # type: ignore[assignment]
+    program = (getattr(sys, "argv", None) or ["?"])[0] or "?"  # an embedded interpreter may have argv == []
+    return f"{program} (thread {threading.current_thread().name})"
+
+
+# Everything up to the LAST `@` before the first `/`, `?` or `#` after an optional scheme (leading whitespace is
+# lstripped first: a `^\s*` here overlaps `[^/?#]*` and backtracks quadratically on an all-space URL) —
+# userinfo, whatever the rest looks like (a password may itself hold `@`). A pattern, never a parser: urlsplit's
+# `.port` raises on a bad port and reads a scheme-less `user:pw@host` as a scheme, and either way the raw URL —
+# password included — was the fallback.
+_USERINFO_RE = re.compile(r"^((?:[A-Za-z][A-Za-z0-9+.-]*:)?//)?[^/?#]*@")
+
+
+def _one_line(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n")
+
+
+def _log_fc(kind: str, url: str, extra: str = "") -> None:
+    try:
+        _FC_LOG.warning(
+            "firecrawl %s url=%s%s caller=%s",
+            kind,
+            _one_line(_USERINFO_RE.sub(r"\1", url.lstrip(), count=1)),
+            _one_line(extra),
+            _fc_caller(),
+        )
+    except Exception:  # noqa: BLE001 — the log is a record, never a gate: a raising handler must not stop the call
+        pass
 
 
 class _MissingKeyError(Exception):
@@ -418,12 +475,31 @@ def _fc_render(data: Any, formats: list[Any]) -> str:
     return "\n\n".join(parts)
 
 
-def _firecrawl_scrape(args: dict[str, Any], client: httpx.Client, timeout_s: float) -> ToolResult:
+def _fc_proxy(args: dict[str, Any]) -> str:
+    """The Firecrawl ``proxy`` every payload sends: ``args["proxy"]``, else ``"basic"``. Firecrawl's own default is
+    ``"auto"`` (basic, retried through ``"enhanced"`` proxies on a blocked page); the hub's design (D-1100) allows basic
+    only, so the default is pinned here, never left to the API. A falsy or blank value falls back; a string is
+    lowercased and stripped and passed through — the API is the authority on which values exist, as it is for
+    ``formats`` (no frozen enum to re-vendor when Firecrawl renames one); any other type raises ``ValueError``, so the
+    call is ``ok=False`` with no request (the payload is built before the call is logged or sent)."""
+    raw = args.get("proxy")
+    if not raw:
+        return "basic"
+    if not isinstance(raw, str):
+        raise ValueError(f"proxy must be a string, got {type(raw).__name__}")
+    return raw.strip().lower() or "basic"
+
+
+def _firecrawl_scrape(
+    args: dict[str, Any], client: httpx.Client, timeout_s: float, *, proxy: Any = None
+) -> ToolResult:
+    # `proxy` is execute_web_tool's `firecrawl_proxy`, never read from `args` (the model's arguments)
     key = _need("FIRECRAWL_API_KEY")
     formats = _fc_payload_formats(args)
-    payload: dict[str, Any] = {"url": str(args["url"]), "formats": formats}
+    payload: dict[str, Any] = {"url": str(args["url"]), "formats": formats, "proxy": _fc_proxy({"proxy": proxy})}
     if args.get("actions"):
         payload["actions"] = args["actions"]
+    _log_fc("scrape", payload["url"])
     body = _fetch(
         client,
         "POST",
@@ -436,17 +512,24 @@ def _firecrawl_scrape(args: dict[str, Any], client: httpx.Client, timeout_s: flo
     return ToolResult(ok=True, output=_truncate(out or "(empty)"))
 
 
-def _firecrawl_crawl(args: dict[str, Any], client: httpx.Client, timeout_s: float) -> ToolResult:
+def _firecrawl_crawl(
+    args: dict[str, Any], client: httpx.Client, timeout_s: float, *, proxy: Any = None
+) -> ToolResult:
+    # `proxy` is execute_web_tool's `firecrawl_proxy`, never read from `args` (the model's arguments)
     key = _need("FIRECRAWL_API_KEY")
     hdr = {"Authorization": f"Bearer {key}"}
     limit = min(max(int(args.get("limit", _CRAWL_MAX_PAGES)), 1), _CRAWL_MAX_PAGES)
+    # formats named, not left to how Firecrawl merges a partial scrapeOptions: the poll below reads `markdown`
+    # (the plain-string form; search sends the object form `[{"type": "markdown"}]` — both are live API shapes)
+    crawl_body = {"url": str(args["url"]), "limit": limit, "scrapeOptions": {"formats": ["markdown"], "proxy": _fc_proxy({"proxy": proxy})}}
+    _log_fc("crawl", str(args["url"]))
     start = _fetch(
         client,
         "POST",
         f"{_FC_BASE}/crawl",
         headers=hdr,
         timeout_s=timeout_s,
-        json_body={"url": str(args["url"]), "limit": limit},
+        json_body=crawl_body,
     )
     job = _obj(start).get("id")
     if not job:
@@ -519,11 +602,14 @@ def execute_web_tool(
     *,
     timeout_s: float = _DEFAULT_TIMEOUT,
     client: httpx.Client | None = None,
+    firecrawl_proxy: str | None = None,
 ) -> ToolResult:
     """Dispatch one web tool. NEVER raises — every failure (unset key, HTTP status,
     timeout, bad JSON, non-dict response/args) returns ``ToolResult(ok=False, …)``.
     ``client`` is injectable (tests pass ``httpx.Client(transport=httpx.MockTransport(...))``);
-    when omitted a short-lived client is created and closed."""
+    when omitted a short-lived client is created and closed. ``firecrawl_proxy`` is the Firecrawl proxy for
+    ``web_scrape``/``web_crawl`` (default ``"basic"``); a ``proxy`` key in ``arguments`` — the model's — is ignored,
+    so a model never chooses the proxy."""
     owns_client = client is None
     cli = client if client is not None else httpx.Client(timeout=timeout_s)
     try:
@@ -532,9 +618,9 @@ def execute_web_tool(
         if name == "web_search_brave":
             return _brave_search(arguments, cli, timeout_s)
         if name == "web_scrape":
-            return _firecrawl_scrape(arguments, cli, timeout_s)
+            return _firecrawl_scrape(arguments, cli, timeout_s, proxy=firecrawl_proxy)
         if name == "web_crawl":
-            return _firecrawl_crawl(arguments, cli, timeout_s)
+            return _firecrawl_crawl(arguments, cli, timeout_s, proxy=firecrawl_proxy)
         if name == "docs_lookup":
             return _context7_docs(arguments, cli, timeout_s)
         return ToolResult(ok=False, output="", error=f"unknown web tool {name!r}")
@@ -736,7 +822,7 @@ def _firecrawl_search_body(args: dict[str, Any], iso: str, market: str) -> dict[
         "country": iso,
         "scrapeOptions": {
             "formats": [{"type": "markdown"}],
-            "proxy": str(args.get("proxy") or "basic"),  # `or`: a None value falls back, not "None"
+            "proxy": _fc_proxy(args),
             "parsers": [],
         },
     }
@@ -798,13 +884,15 @@ async def a_firecrawl_search(
             ok=False, rows=[], error="includeDomains and excludeDomains are mutually exclusive"
         )
     try:
+        search_body = _firecrawl_search_body(args, iso, market)  # built first: a bad arg raises before any line
+        _log_fc("search", f"{_FC_BASE}/search", f" market={market}")
         body = await _a_fetch(
             client,
             "POST",
             f"{_FC_BASE}/search",
             headers={"Authorization": f"Bearer {config.firecrawl_api_key}"},
             timeout_s=config.timeout_s,
-            json_body=_firecrawl_search_body(args, iso, market),
+            json_body=search_body,
         )
         rows, credits = _parse_firecrawl_search(_obj(body), text_budget=config.text_budget)
         return LegResult(ok=True, rows=rows, credits=credits)
@@ -822,9 +910,10 @@ async def a_firecrawl_scrape(
         return LegResult(ok=False, rows=[], error="FIRECRAWL_API_KEY not set")
     try:
         formats = _fc_payload_formats(args)
-        payload: dict[str, Any] = {"url": str(args["url"]), "formats": formats}
+        payload: dict[str, Any] = {"url": str(args["url"]), "formats": formats, "proxy": _fc_proxy(args)}
         if args.get("actions"):
             payload["actions"] = args["actions"]
+        _log_fc("scrape", payload["url"])
         body = await _a_fetch(
             client,
             "POST",
