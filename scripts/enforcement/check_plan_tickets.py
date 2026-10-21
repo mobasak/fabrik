@@ -2862,7 +2862,7 @@ def main() -> int:
         return 0
     # Explicit --plan-dir = the author's own emit gate → full severity ("cli").
     # No-arg discovery = the shared Tier-2 gate path → "gate" (DRAFT downgrade
-    # applies). A dir selected ONLY via a sibling's active lock is that sibling's
+    # applies). A dir selected ONLY via a sibling's mid-flight lock (active, paused or blocked) is that sibling's
     # plan — ALL its findings become advisory WARNs (this session cannot fix them).
     run_context = "cli" if args.plan_dir else "gate"
     all_results: list[CheckResult] = []
@@ -2892,7 +2892,7 @@ def main() -> int:
                     f"NOTE: plan_tickets — {demoted} ERROR(s) for {d.name} demoted to advisory "
                     f"[sibling plan]: "
                     + (
-                        "this dir was selected via an active LOCK, and discovery cannot tell your "
+                        "this dir was selected via a mid-flight LOCK (active, paused or blocked), and discovery cannot tell your "
                         "own lock from a sibling's. "
                         if lock_only.get(d) == "lock"
                         else "this dir was selected via a plan file changed in an unpushed commit "

@@ -740,7 +740,7 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     # the MIRROR of test_the_demotion_note_names_the_real_selection_reason: this fixture IS
     # lock-selected, so the reason text must say so. Without it, "always say upstream" — the same
     # defect in the opposite direction — passed the entire suite.
-    assert "via an active LOCK" in out, out[:600]
+    assert "via a mid-flight LOCK" in out, out[:600]
     assert "no lock is involved" not in out, out[:600]
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
 
@@ -889,7 +889,7 @@ def test_the_demotion_note_names_the_real_selection_reason(tmp_path, capsys, mon
     assert cpt.main() == 0
     out = capsys.readouterr().out
     assert "no lock is involved" in out, f"the NOTE must not blame a lock:\n{out[:500]}"
-    assert "via an active LOCK" not in out, out[:500]
+    assert "via a mid-flight LOCK" not in out, out[:500]
 
 
 def test_a_lock_only_dir_with_no_errors_prints_no_demotion_note(
@@ -3303,6 +3303,7 @@ def test_a_lock_entry_selects_its_plan_in_every_written_shape(
     [
         ("active", True),
         ("paused", True),
+        ("blocked", True),
         ("released", False),
         (["active"], False),
         ({"s": 1}, False),
