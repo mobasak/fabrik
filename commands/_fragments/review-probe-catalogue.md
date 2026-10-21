@@ -22,10 +22,11 @@ it, or name in the brief why the shape does not have it.
   every branch it summarises (refusals and fallbacks, not only the happy path), and execute
   every "X only when Y" claim the fix adds.
 - Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or
-  dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, the
+  dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, every
+  reader of a shell recipe or printed command (its own shell, a paste, another shell or locale; IFS, noglob, PATH), the
   real committed files' shapes counted by an independent parser) and probe it again before each delta; keep an
-  adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
-  false green and false red — committing the positive/negative probe list beside it.
+  adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions — false
+  green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
   side, and before adding a sibling of a pinned or guarded line, read the comment on the line it copies; port vendored
@@ -167,11 +168,14 @@ it, or name in the brief why the shape does not have it.
   ported rule is re-derived against this command's machinery; a parser rule is stated positively, not as a terminator
   list; a scoped exception beats a new section note; tool claims are written from the source (a sentence describing a
   record format or a code string quotes the emit site's keys or the string verbatim), then checked against the live
-  corpus and the tool's real output variants.
-- After the edit: rewrap the whole paragraph by tool; re-read an inserted sentence with the one after it; a long-line
-  replacement keeps its neighbours' opening clauses; re-read a cited range after rewording its citation; moved table
-  rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
-  are marked before they are rewritten.
+  corpus and the tool's real output variants, and each stream and input channel the sentence names (stdout or stderr;
+  argv, stdin or a flag) is executed before the pin.
+- After the edit: rewrap the whole paragraph by tool once each test that caps the file's line length or pins its raw
+  lines is found (grep `tests/` for the file's basename, since a test may build the path in parts) and run, a raw-line
+  pin bounding the rewrap to the lines the edit lengthened, and run those tests again after it; re-read an inserted
+  sentence with the one after it; a long-line replacement keeps its neighbours' opening clauses; re-read a cited range
+  after rewording its citation; moved table rows are placed by computed position and checked by an inversion diff
+  against base; sentences a test pins verbatim are marked before they are rewritten.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
   wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
   writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
@@ -201,29 +205,34 @@ it, or name in the brief why the shape does not have it.
 
 ## Seat isolation
 - The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped diff,
-  never a bare range on a branch others commit to (a range carries every sibling commit landed in it). Seats copy the
-  pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path
-  (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that folder) — and assert
-  its md5s first; a tree is staged there only by the archive or the clone this section gives, never by copying the live
-  checkout; tests run against an archive of the pinned SHA by the seat prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the
-  whole test tree archived so collection succeeds, the live repo's `.venv` python (never `uv run`), no `.env` copied (a
-  dummy on `.invalid` only for an import-failing variable). A brief the lead writes itself tells each seat to read and
-  follow `PIN_IMPORT` — and `PYTEST_PINS` when it runs pytest — in `.claude/workflows/fabrik-review-loop.js`, and gives
-  the values that recipe's `${args.base_sha}` and `${args.pins_dir}` stand for (and `${args.base_pin_dir}` when the lead
-  wrote a base copy) and the seat's own folder as `SCRATCH`; the seat derives `ROOTS` as the recipe says, plus the roots
-  this section's next sentence has the brief add, and the brief carries no import or pytest recipe of the lead's own (a
-  pins dir on `sys.path` alone, or pytest's `--rootdir` at a copy, imports the live checkout's installed package). The
-  recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
-  read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
-  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a
-  worktree. An editable install's `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs
-  instead of the pin through a `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo (`PYTEST_PINS`) and a
-  child process started with its own `env=`, which resolves the `.pth` again. The pins line follows the real layout and
-  the digest is the pin authority. A SEAT never runs `git worktree add` on the live repo (its metadata lands in the
-  shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by `PYTEST_PINS`, and the lead's
-  red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a `PYTHONPATH` copy — set its
-  upstream and link `.env` before its first gate. A seat test that reads git history or the tracked set (`git ls-files`:
-  neither the archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C <scratch> clone --shared
+  never a bare range on a branch others commit to (a range carries every sibling commit landed in it). The brief names
+  the fix that way, and the diff a seat reads is still the pin's own `change.diff`, never one the lead pastes in its
+  place; a fix already committed is pinned with `--from <its last commit>`, plus `--base <the commit before the fix>`
+  when it spans several, since a working-tree pin of a committed surface prints each file `UNCHANGED` with only a header
+  line in its `change.diff`, and `--base` without `--from` pins the working tree, a sibling's later commit or
+  uncommitted edit included. Seats copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's
+  `RUN-SCRATCH:` path (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that
+  folder) — and assert its md5s first; a tree is staged there only by the archive or the clone this section gives, never
+  by copying the live checkout; tests run against an archive of the pinned SHA by the seat prompt's
+  `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's `.venv`
+  python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). A brief the
+  lead writes itself tells each seat to read and follow `PIN_IMPORT` — and `PYTEST_PINS` when it runs pytest — in
+  `.claude/workflows/fabrik-review-loop.js`, and gives the values that recipe's `${args.base_sha}` and
+  `${args.pins_dir}` stand for (and `${args.base_pin_dir}` when the lead wrote a base copy) and the seat's own folder as
+  `SCRATCH`; the seat derives `ROOTS` as the recipe says, plus the roots this section's next sentence has the brief add,
+  and the brief carries no import or pytest recipe of the lead's own (a pins dir on `sys.path` alone, or pytest's
+  `--rootdir` at a copy, imports the live checkout's installed package). The recipe names its roots by what the tests
+  import, so the brief extends it to every top-level path the tests import, read or run (a test that renders
+  `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red without it) and names the live repo
+  as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree. An editable install's
+  `.pth` entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs instead of the pin through a
+  `PYTHONPATH` entry (`PIN_IMPORT`), a pytest run from the live repo (`PYTEST_PINS`) and a child process started with
+  its own `env=`, which resolves the `.pth` again. The pins line follows the real layout and the digest is the pin
+  authority. A SEAT never runs `git worktree add` on the live repo (its metadata lands in the shared `.git`): a seat's
+  red-on-revert overlays the revert on its archive copy by `PYTEST_PINS`, and the lead's red-on-revert and
+  mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a `PYTHONPATH` copy — set its upstream and link
+  `.env` before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: neither the
+  archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C <scratch> clone --shared
   --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until
   then its status reads every file deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config
   remote.origin.pushurl /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote

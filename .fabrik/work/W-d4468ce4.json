@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:19:22.554371Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-d4468ce4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "next /fabrik-command-improve fabrik-review-scoped pass: tighten test_the_input_class_names_every_reader_of_a_printed_command",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "tests/test_review_scoped_queue_pass.py E3 grader: a decoy bullet before the input-class bullet that repeats its first four items ('boundary, empty, unset, mandated,') still passes; make the slice unable to cross a bullet (check whether the real slice holds ' - ' first)"
+}
