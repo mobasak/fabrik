@@ -109,7 +109,7 @@ is a plain browserless `/content` render, never stealth.
 | U3 | rivals verify-stage pricing page | linear.app/pricing | static | 4/4 · 0.92 | PASS | PASS |
 | U4 | GitHub README fact check | github.com/browserless/browserless | static | 1/2 · 0.88 | PARTIAL | PASS — the README text is all there (`docker run`, `ghcr.io/browserless` ×3); "TOKEN" is not in that README |
 | U5 | PDF paper | arxiv.org/pdf/1706.03762 | PDF bytes → pdf-extract | 2/3 · 0.92 | PARTIAL | PARTIAL — 35 525 chars extracted, but some lines lose their word spaces ("AshishVaswani"); gap G8 |
-| U6 | review site behind a DataDome interstitial (`captcha-delivery.com/interstitial`) | g2.com/products/linear/reviews | static (1.7 KB) → plain render (2.6 KB) | 0/2 · 0.0 | FAIL | FAIL, as it should — the page is a `captcha-delivery.com` (DataDome) interstitial with 0 chars of text; `is_bot_wall` has no DataDome marker, so it did not say so (ask G11) |
+| U6 | review site behind a DataDome interstitial (`captcha-delivery.com/interstitial`) | g2.com/products/linear/reviews | static (403, 1.7 KB) → plain render (2.6 KB); the server would stop at the 403 page as `bot-wall` | 0/2 · 0.0 | FAIL | FAIL, as it should — the page is a `captcha-delivery.com` (DataDome) interstitial with 0 chars of text; `is_bot_wall` has no DataDome marker, so it did not say so (ask G11) |
 | U7 | blog article | simonwillison.net/2024/Dec/31/llms-in-2024/ | static | 2/2 · 0.95 | PASS | PASS |
 | U8 | docs crawl, depth 2, cap 8 pages | docs.pydantic.dev/latest/concepts/models/ | doc-crawl over static | 1 of 8 pages in the subtree | PARTIAL | PARTIAL — the crawl seeds the whole origin's sitemap and follows nav links first, so 7 of 8 pages left `/latest/concepts/`; gap G2 |
 
@@ -156,12 +156,12 @@ re-check every absence with a second method before recording it.
    - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason}` with `reason` one of:
      `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
      retries; a 429 is retried after its `Retry-After` when that is at most 30 s, else reported at once as `http-429` — G12), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
-     `empty` (under 50 characters of text after every attempt). The wall check runs on every body the server sees —
-     the static page before any render, and any 4xx or 5xx body (`FetchError.body` for a 5xx) before its status is
-     reported — so a wall is `bot-wall` whatever status it answers with (U6 answers the static request with 403, a
-     DataDome page and an `x-datadome` header, `inspect6.py`), and one met when browserless is down is not mistaken for
-     a transient error; `render-unavailable` (browserless unreachable),
+     `empty` (under 50 characters of text after every attempt), `render-unavailable` (browserless unreachable),
      `unsupported` (an image-only PDF, a content type it cannot read).
+   - **The wall check runs on every body the server sees** — the static page before any render, and any 4xx or 5xx
+     body (`FetchError.body` for a 5xx) before its status is reported — so a wall is `bot-wall` whatever status it
+     answers with (U6 answers the static request with 403, a DataDome page and an `x-datadome` header,
+     `inspect6.py`), and one met when browserless is down is not mistaken for a transient error.
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
      fabrik-lib's `_SsrfSafeTransport` pattern as `WebScraper(transport=…)` (`/opt/fabrik-lib/web-scrape/README.md`,
@@ -170,7 +170,9 @@ re-check every absence with a second method before recording it.
 2. **Seats and commands.** `fabrik-scrape` joins tier 1 of the research ladder as its raw-page fetch, beside `WebFetch`
    (which summarises); the ladder's ORDER and its search engines are unchanged, and `firecrawl` stays in tier 2 for
    structured extraction and the fallback rows below. `fabrik-researcher.md` gets `fabrik-scrape` in `mcpServers` and
-   its raw-fetch order becomes `fabrik-scrape` → `exa` `web_fetch_exa` → `firecrawl_scrape`; its rules that turn a
+   its raw-fetch order becomes `fabrik-scrape` → `exa` `web_fetch_exa` → `firecrawl_scrape`, and every command or
+   seat line that names `firecrawl_scrape` or `firecrawl_crawl` passes `proxy: "basic"` (the installed `firecrawl-mcp`
+   v3.24.0 schema accepts it for scrape and for crawl's `scrapeOptions`); its rules that turn a
    Firecrawl credit error into NEEDS-RAW-FETCH are re-pointed at the new order. The three contract copies, the eight
    command sources and `tests/test_research_tier_order.py` change in the same slices.
 3. **Runtime code.** fabrik-lib `web-tools` (`web_scrape`, `web_crawl`, `a_firecrawl_scrape`'s role) and the hub
@@ -189,7 +191,7 @@ re-check every absence with a second method before recording it.
 | `blocked: http-4xx` (except 429) | report the page unreadable; an error page is never cited as content |
 | `blocked: http-429` (after the server honoured a `Retry-After` of at most 30 s, or at once when it asks for longer) | report the page rate-limited — never exa or Firecrawl (rule 57's bypass line names evading a hard rate limit) |
 | `blocked: http-5xx`, `blocked: render-unavailable` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
-| `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and Firecrawl's default fetch escalates to enhanced proxies on a failure (below) |
+| `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and the only thing keeping Firecrawl off its escalating default is a parameter its docs mark deprecated (below) — a probable wall is not trusted to it |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
 | `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
 | a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
@@ -269,7 +271,7 @@ contract copies and `tests/test_research_tier_order.py` in the same slice. D-109
 | G10 | web-scrape gains an OPT-IN `accept_markdown=False` parameter: when True it sends `Accept: text/markdown, text/html;q=0.9`, returns a `text/markdown` answer as-is, and puts the Accept value in the cache key (`_cache_key` hashes only url, method and body today, `webscrape.py`:495). `_do_request` takes no headers today (`self._client.get(url)`, `webscrape.py`:474), so per-request headers are threaded through `fetch_static`, the retry loop and `_do_request`. Only `web-scrape-mcp` passes True, so callers that parse HTML (`__NEXT_DATA__`, the module's purpose) are unchanged | U2 yields `anthropic-version` and `stop_sequences` with the flag; a mock transport asserts the Accept header sent; the same URL without the flag still returns HTML from a separate cache entry |
 | G11 | `is_bot_wall` recognises DataDome (`captcha-delivery.com`) beside its Cloudflare markers | U6 returns `blocked: bot-wall` |
 | G12 | web-scrape honours a 429's `Retry-After` (delay-seconds or HTTP-date, RFC 9110 §10.2.3; a 429 may carry it, RFC 6585 §4) instead of its fixed 1/2/4 s backoff (`webscrape.py`:454-465 never reads headers): one wait of at most 30 s, at most 60 s of waiting per call in total; a longer ask raises `FetchError(status=429)` at once | `Retry-After: 2` waits at least 2 s before the retry; an HTTP-date 2 s ahead does the same; `Retry-After: 3600` raises immediately with status 429; three 429s in a row stop at the 60 s total |
-| — | web-tools routes scrape and crawl to web-scrape first behind `FABRIK_SCRAPE_LEG` (§ Chosen approach 3) | a test per fallback row |
+| — | web-tools routes scrape and crawl to web-scrape first behind `FABRIK_SCRAPE_LEG` (§ Chosen approach 3), and every Firecrawl `scrape`/`crawl` payload it builds — sync and async (`web_tools.py`:424 builds `{"url", "formats"}` with no `proxy` today) — carries `proxy: "basic"`; the hub's `rivals_run.py` calls the same functions (P4 re-vendors) | a test per fallback row; a mock transport asserts `proxy: "basic"` in every Firecrawl payload |
 
 ### Kept on Firecrawl (large gaps)
 
@@ -315,7 +317,6 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 | Firecrawl's output on the same URLs | out of credits, so no side-by-side run | re-run the capability ledger with a Firecrawl column after 2026-11-12 |
 | the bot-wall detector's precision | `is_bot_wall` knew only Cloudflare and missed U6 (DataDome); other vendors may follow | the server logs `blocked` reasons and short results; review them after two weeks |
 | how exa's crawler behaves on a bot wall | exa documents no proxy escalation, but its live crawl is opaque (an error names `CRAWL_LIVECRAWL_TIMEOUT`) | the seat records each `empty` → exa outcome in its research ledger (URL, text length); if exa returns content for a page later classified `bot-wall` (after G11 or a new marker), exa is dropped from the `empty` row. P4 (intel) reviews the records after two weeks |
-| whether a keyless Firecrawl call works while the keyed team is at −6 credits | the proxies page's samples say "No API key needed to get started", suggesting a keyless, rate-limited tier; untested | one keyless `scrape` call of a public page in slice 1; if it works, the fallback rows use it until 2026-11-12 |
 | how many sites serve markdown on request | measured on one site (U2) | the server logs which path answered; the per-command ledgers show it |
 | browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
 | the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | block private ranges in browserless's own request interception, verified by a redirect test against vps1 |
@@ -326,4 +327,9 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 - Report to fabrik-lib that its D-132 removal is unfinished: 39 projects still carry `libs/subagents/web_tools.py`
   past the 2026-09-14 acknowledgement date (the hub copy stays, frozen by D-547).
 - Operator gate, outside this spec: rotate the Firecrawl key (it sits in several backups, by design).
+- Operator gate, not tested or used: Firecrawl's docs say "No API key needed to get started", which suggests a keyless,
+  rate-limited tier. Switching to it while the keyed team is at −6 credits would be using another identity to get past
+  a cap the vendor set — rule 57's field 4 makes that "an operator decision with the ToS quoted — never an engineering
+  convenience" (`.windsurf/rules/core/57-external-data-sourcing.md`:129-132), and D-1093 ruled out spending past the
+  cap. Nothing in this design calls it.
 - Size: not small (a new MCP server, fabrik-lib changes, ten command and contract surfaces) — the full chain.
