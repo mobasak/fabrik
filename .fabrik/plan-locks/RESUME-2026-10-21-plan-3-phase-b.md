@@ -26,3 +26,5 @@ When both are done: mark Phase B EXECUTED in the plan, then start Phase C in a n
 - the researcher ledger, built from `scrape_ledger.py --harvest`;
 - then the switch, behind a flag that defaults to the old path, with Firecrawl as the fallback.
 The plan's Phase C section has the steps.
+
+**Lock note (2026-10-22, coordinator fabrik-d2):** `CLAUDE.md` and `templates/governance/CLAUDE.md` were released from this lock's `owned_paths` so kaizen's W-4a03df79 (the approval model, D-1110) can build in § Autonomy and § FINAL OUTPUT. Add both back to `owned_paths` when Phase C step 6 (the fetch sentence) starts, and rebase that sentence onto kaizen's change if it merged first.

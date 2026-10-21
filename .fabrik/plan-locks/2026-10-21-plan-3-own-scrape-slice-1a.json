@@ -19,9 +19,7 @@
     "docs/workstation/mcp-roster.md",
     "PORTS.md",
     "tests/test_researcher_fallback_contract.py",
-    ".windsurf/rules/core/57-external-data-sourcing.md",
-    "CLAUDE.md",
-    "templates/governance/CLAUDE.md"
+    ".windsurf/rules/core/57-external-data-sourcing.md"
   ],
   "branch": "worktree-intel",
   "started_at": "2026-10-21T21:16:15Z",
