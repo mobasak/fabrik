@@ -136,7 +136,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `glitchtip-worker` | 512m | GlitchTip background worker (Celery) |
 | `meilisearch` | 512m | Shared search engine, per-service index via registrar |
 | `n8n` | 2g | Visual workflow automation (`auto.vps1.ocoron.com`) |
-| `browserless` | 2g | Headless Chrome HTTP API |
+| `browserless` | 2g (3g in the repo mirror, pending the gated redeploy — W-30b7ce3f) | Headless Chrome HTTP API |
 | `gotenberg` | 512m | LibreOffice + Chrome → PDF service |
 | `site-provisioner` | 512m | **INTERIM** — DNS / domain registrar API (Namecheap + Cloudflare + DomainNameAPI). Stood up manually 2026-05-31; `fabrik apply` pipeline not yet ready — see "site-provisioner status" above |
 | `ocoron-com-nginx-1` | — | Tenant: ocoron.com WordPress front-end |
@@ -604,7 +604,7 @@ Implication for current ops: most of the "service URL", "M2M auth", "metrics" co
 | :--- | :--- |
 | `postgres-main` | 2g |
 | `n8n` | 2g |
-| `browserless` | 2g |
+| `browserless` | 2g (3g in the repo mirror, pending the gated redeploy — W-30b7ce3f) |
 | `prometheus` | 1.5g |
 | `apprise` | 768m |
 | `site-provisioner` | 512m (interim) |
