@@ -831,7 +831,7 @@
       "claude-haiku-4-5-20251001": 259220
     },
     "2026-10-18": {
-      "claude-opus-5-5": 6093980754,
+      "claude-opus-5-5": 6166698278,
       "claude-haiku-5-5": 290472946,
       "claude-sonnet-5-5": 262887669,
       "claude-fable-5-1": 29731038
@@ -843,14 +843,20 @@
       "claude-fable-5-1": 22040401
     },
     "2026-10-20": {
-      "claude-opus-5-5": 5009425795,
-      "claude-sonnet-5-5": 152538756,
-      "claude-haiku-5-5": 185938780,
-      "claude-fable-5-1": 27299003
+      "claude-opus-5-5": 5854910518,
+      "claude-sonnet-5-5": 179566391,
+      "claude-haiku-5-5": 214294714,
+      "claude-fable-5-1": 70646965
+    },
+    "2026-10-21": {
+      "claude-opus-5-5": 1662757527,
+      "claude-fable-5-1": 73604220,
+      "claude-haiku-5-5": 72151251,
+      "claude-sonnet-5-5": 50455319
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-20T14:36:43+03:30",
+  "merged_at": "2026-10-21T06:01:47+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -1008,46 +1014,47 @@
     "2026-10-17": "transcripts",
     "2026-10-18": "transcripts",
     "2026-10-19": "transcripts",
-    "2026-10-20": "transcripts"
+    "2026-10-20": "transcripts",
+    "2026-10-21": "transcripts"
   },
   "_discrepancy": {
     "2026-08-29": {
       "extension": 9114327083,
-      "transcripts": 4090267046
+      "transcripts": 4074185608
     },
     "2026-08-30": {
       "extension": 5690264053,
-      "transcripts": 3121662157
+      "transcripts": 3166307198
     },
     "2026-08-31": {
       "extension": 5722954580,
-      "transcripts": 3304989687
+      "transcripts": 3130226836
     },
     "2026-09-01": {
       "extension": 1589061808,
-      "transcripts": 1317316826
+      "transcripts": 1345597615
     },
     "2026-09-02": {
       "extension": 9047971726,
-      "transcripts": 3958037964
+      "transcripts": 4002139727
     },
     "2026-09-03": {
       "extension": 7905971878,
-      "transcripts": 3745458667
+      "transcripts": 3865727454
     },
     "2026-09-04": {
       "extension": 1164249864,
-      "transcripts": 1419033303
+      "transcripts": 1292780680
     }
   },
   "transcript_source": "/home/ozgur/.claude/projects",
-  "_discrepancy_days": 110,
+  "_discrepancy_days": 111,
   "collector_version": 3,
   "_unusable": {},
   "_added": 0,
-  "_total_days": 157,
-  "_transcript_added": 0,
-  "_transcript_refreshed": 1,
+  "_total_days": 158,
+  "_transcript_added": 1,
+  "_transcript_refreshed": 2,
   "extension_source_present": true,
   "extension_last_day": "2026-09-04"
 }
