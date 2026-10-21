@@ -3,7 +3,7 @@
   "created": "2026-10-21T01:52:13.069494Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "9694b2f2569b0a0f4bd93a72e76fcb25e3757f18",
   "id": "W-c4f60000",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: another repo's request (fabrik-lib asks the hub to relay, D-956); LOW effort: a grep for the consumer set plus one mail per consumer, no code",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5bkrr080gbv2911n50zte48",
     "mail-01m5bt0tcp7q9zr3z5kjk52s9p",
