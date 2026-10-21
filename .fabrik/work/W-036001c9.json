@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Rollout runbook step 2 vendors agent_status.py, but its roster is the HUB's beats — every repo's coordinator would see the hub's agents"
 }
