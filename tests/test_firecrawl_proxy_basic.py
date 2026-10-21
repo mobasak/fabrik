@@ -7,9 +7,10 @@ The rule is strict and literal, fail-closed by design:
 - A MENTION is any match of `MENTION`; its CLAUSE runs from the mention to the next `END` match outside a code span,
   with line wraps collapsed first by `WRAP` (double-backtick spans masked before single ones). A newline `WRAP` keeps
   — a blank line, or one that opens a list item, table row, heading, quote or fence — ends the clause.
-- A clause PASSES only when it holds a `PIN` match and no `NEG` match, and no `OTHER` match sits in the clause or
-  anywhere after it in the same paragraph (a stealth retry after a `;` or ` — ` is still the same instruction). The
-  constants ARE the lists; this text names them rather than repeating them, so it cannot drift from the code.
+- A clause PASSES only when it holds a `PIN` match and no `NEG` match, and no `OTHER` match sits anywhere in the
+  mention's block — the text between blank lines around it, so a stealth retry before it, after a `;` or ` — `, or in
+  a sub-item of the same list is the same instruction. The constants ARE the lists; this text names them rather than
+  repeating them, so it cannot drift from the code.
 The cost is a false red on a correct clause that negates something unrelated ("(not exa)"), names a word `OTHER`
 holds, or holds a `.` that `END` reads as a clause end (a URL, an abbreviation other than e.g., i.e., cf., vs. and
 etc.); its remedy is rewording that one clause, which the failure message says. A false red costs a rewrite; a false
@@ -30,16 +31,19 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = [p for d in ("_sources", "_agents", "_fragments") for p in sorted((ROOT / "commands" / d).glob("*.md"))]
 
+# a fetch verb in any inflection, never a lookalike ("ready", "scrapbook")
+_VERB = r"(?:scrap(?:e|es|ed|ing|er)|crawl(?:s|ed|ing|er)?|read(?:s|ing)?|fetch(?:es|ed|ing)?|re-fetch)\b"
 MENTION = re.compile(
     r"firecrawl_(?:\w*scrape|crawl)\b|mcp__firecrawl__\*"
-    r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:scrap|crawl)\w*"
-    r"|\b(?:scrap|crawl)\w*\s+(?:\S+\s+){0,5}?(?:with|via|through)\s+firecrawl\b"
+    r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:" + _VERB + r")"
+    r"|\b(?:" + _VERB + r")\s+(?:\S+\s+){0,5}?(?:with|via|through|using|by|from)\s+firecrawl\b"
+    r"|\bfirecrawl\w*(?:\(\))?\.\s*(?:scrap|crawl)\w*"
     r"|\bfirecrawl\b(?=[^.;→\n]{0,60}`maxAge)"
-    r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:read|fetch|re-fetch|scrap|crawl)\w*)",
+    r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:" + _VERB + r"))",
     re.I,
 )
 PIN = re.compile(r"""["']?proxy["']?\s*[:=]\s*["']basic["']""")
-OTHER = re.compile(r"\b(?:stealth|auto|enhanced)\b|\bdefault\s+proxy\b|\bproxy\s+default\b", re.I)
+OTHER = re.compile(r"\b(?:stealth|auto|automatic|enhanced)\b|\bdefault\s+proxy\b|\bproxy\s+default\b", re.I)
 NEG = re.compile(
     r"\b(?:never|not|no|nor|neither|without|instead|drop\w*|omit\w*|unless|avoid\w*|skip\w*|except|cannot)\b"
     r"|n['’]t\b",
@@ -48,8 +52,9 @@ NEG = re.compile(
 END = re.compile(
     r"(?<!\be\.g)(?<!\bi\.e)(?<!\bcf)(?<!\bvs)(?<!\betc)(?<!\d)\.(?![a-z]\.)|(?<=\d)\.(?!\d)|[;→\n]|\s—\s"
 )
+BLANK = re.compile(r"\n[ \t]*\n")
 # A newline is a wrap (joined into one line) unless the next line is blank or opens a block of its own.
-WRAP = re.compile(r"(?<!```)[ \t]*\n(?![ \t]*(?:\n|[-*+]\s|\||#|>|\d+[.)]\s|```))[ \t]*")
+WRAP = re.compile(r"(?<!```)(?<!\n)[ \t]*\n(?![ \t]*(?:\n|[-*+]\s|\||#|>|\d+[.)]\s|```))[ \t]*")
 
 REMEDY = (
     'Each listed clause needs the literal `proxy: "basic"`, no word from NEG and none from OTHER - reword the clause, '
@@ -134,6 +139,20 @@ FIXTURES = {
     # a fetch verb after Firecrawl is a mention
     "Use Firecrawl to read the page with the stealth proxy.": 1,
     'Use Firecrawl to read the page with `proxy: "basic"`.': 0,
+    # the mode check covers the whole block: before the mention, and a sub-item of the same list
+    'If the page blocks, switch to the stealth proxy after `firecrawl_scrape` with `proxy: "basic"`.': 1,
+    'On a block use `proxy: "stealth"`; first `firecrawl_scrape` with `proxy: "basic"`.': 1,
+    '- `firecrawl_scrape` with `proxy: "basic"`.\n  - on a block, retry with the stealth proxy.': 1,
+    '1) `firecrawl_scrape` with `proxy: "basic"` on the first try,\n2) then the stealth proxy on a block.': 1,
+    '`firecrawl_scrape` with `proxy: "basic"`; on a block, retry in automatic mode.': 1,
+    # more spellings of a Firecrawl fetch
+    "scrape it using Firecrawl.": 1,
+    "Scrape the page by Firecrawl.": 1,
+    "call `FirecrawlApp().scrape_url(url)` here.": 1,
+    "call `firecrawl.scrape(url)` here.": 1,
+    # lookalike words are no fetch verb
+    "Firecrawl is ready for the call.": 0,
+    "the Firecrawl scrapbook of notes.": 0,
 }
 
 
@@ -151,15 +170,20 @@ def _clause(text: str, start: int) -> str:
     return text[start : m.start() if m else len(text)]
 
 
+def _block(text: str, at: int) -> str:
+    """The text between the blank lines around offset `at` (a blank line survives `_collapse`)."""
+    starts = [m.end() for m in BLANK.finditer(text, 0, at)]
+    end = BLANK.search(text, at)
+    return text[starts[-1] if starts else 0 : end.start() if end else len(text)]
+
+
 def _failing_offsets(raw: str) -> list[int]:
     """Offsets, in the collapsed text, of mentions whose clause fails the literal rule."""
     text = _collapse(raw)
     bad = []
     for m in MENTION.finditer(text):
         cl = _clause(text, m.start())
-        para_end = text.find("\n", m.start())
-        rest = text[m.start() : para_end if para_end != -1 else len(text)]
-        if not PIN.search(cl) or NEG.search(cl) or OTHER.search(rest):
+        if not PIN.search(cl) or NEG.search(cl) or OTHER.search(_block(text, m.start())):
             bad.append(m.start())
     return bad
 
