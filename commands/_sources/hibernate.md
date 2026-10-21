@@ -7,6 +7,9 @@ argument-hint: "[the operator's words, quoted — they ride into every pause]"
 The run record below and the Phase sections are the hub coordinator's alone: a repo coordinator or an agent
 receiving the pause text opens none for it.
 
+{{include:run-record}}
+{{include:orient}}
+
 ## Phase 1 — the hub coordinator marks the pause and finds every agent
 
 1. **Mark the pause**: `python3 $H mark --words "<the operator's words>"`. It starts a fresh pause, so a wake from an
@@ -65,7 +68,5 @@ Exit 1 says why to stay put (no wake yet, or you already resumed). The hub coord
 `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none
 either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle
 until prompted.
-
-{{include:run-record}}
 
 {{include:close-chain}}

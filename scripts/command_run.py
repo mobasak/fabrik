@@ -325,6 +325,7 @@ NO_CLOSING_PASS = frozenset(
         "fabrik-task",
         "fabrik-upstream",
         "fabrik-vision",
+        "hibernate",
     }
 )
 
