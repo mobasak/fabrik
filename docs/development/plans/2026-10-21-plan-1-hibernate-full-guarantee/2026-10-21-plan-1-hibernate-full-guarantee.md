@@ -60,7 +60,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 | T01a | The pause marker and the hibernate.py verbs | — | ⛓️ | ✅ | squash of cb64f9bd5 |
 | T01b | The status checks and the deadline header | T01a | ⛓️ | ✅ | squash of 4135193fe |
 | T02 | The hooks hold the pause | T01a | ⚡ | ✅ | squash of 8fffbb831 |
-| T03a | Cron launchers skip while paused | T01a | ⚡ | ⬜ | |
+| T03a | Cron launchers skip while paused | T01a | ⚡ | ✅ | squash of b9bf4e018 |
 | T03b | Seat dispatchers skip while paused | T01a | ⚡ | ⬜ | |
 | T05 | Grid relaunch, watchdog env and the memory ceiling | T01a | ⚡ | ⬜ | |
 | T04 | Mesh scripts get a tracked home and the hibernate wake | T01a, T05 | ⛓️ | ⬜ | |
@@ -416,6 +416,7 @@ gate. Ticket primary paths: `scripts/sysadmin/hibernate.py:511` (T01a), `scripts
 ### Execution notes (/fabrik-execute-plan)
 
 - 2026-10-21, T01a acceptance: the spec's abandoned-seat rule (spec § Chosen approach L2: the run close carries each still-running seat into the record and its seed) had no owning ticket; `scripts/command_run.py` is T06's, so T06's Scope and Behavior Contract gained the `--abandoned-seat` close (one row, mirrored in the roll-up) — inside the File Scope, no new ticket. T01a's `FABRIK_LIFT_TTY` seam was a bypass of the plain-shell check and went back to its coder as a fixup (tests use a real pseudo-terminal).
+- 2026-10-21, wave 2 merged (T01b, T02, T03a; review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01b-review.md`, 3 rounds 14 → 1 → 0). T03a also edited three tests outside its Touches, each because its own change broke or needed them: `tests/test_check_mutation.py` and `tests/test_registry_reconcile.py` (autouse fixtures pointing the new probe at an absent script) and `tests/test_hub_write_root.py` (allowlist rows for the probe path). Accepted as in-scope; the merge kept one `hibernate.py` allowlist row.
 - 2026-10-21, T01a merged (squash of cb64f9bd5; review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01a-review.md`, 4 rounds 14 → 9 → 6 → 0, the scope-growth stop at round 3). Its routed residue went to T01b (the KeyError fallback, test_g2 under a real terminal, the module docstring) and to Interface M (the passwd-home rule for every reader). The coder's report was lost to the 19:32 WSL restart, so the CHANGELOG entry was rebuilt from the commits.
 - 2026-10-21, after the hibernate wake: W-1961cc42 (agents_up.sh from a non-TTY shell never records the grid's root and tries to attach) joined T05, which owns `scripts/sysadmin/agents_up.sh` — one Scope sentence and one row (mirrored in the roll-up).
 

@@ -48,6 +48,7 @@ Exit codes
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -170,6 +171,25 @@ def _push_to_gateway(metrics_path: Path) -> None:
         )
 
 
+def _hibernate_paused() -> bool:
+    """True while `hibernate.py paused` exits 0; exit 1, >=2, a 10 s timeout or a missing script is
+    fail-open (False), one log line on an error (W-6e656dac T03a)."""
+    script = os.environ.get("FABRIK_HIBERNATE_PY", "/opt/fabrik/scripts/sysadmin/hibernate.py")
+    if not Path(script).is_file():
+        logger.warning("hibernate.py not found at %s — proceeding", script)
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except Exception as exc:  # noqa: BLE001 — a probe must never kill the audit push (fail-open)
+        logger.warning("hibernate.py paused failed (%s) — proceeding", exc.__class__.__name__)
+        return False
+    if rc not in (0, 1):
+        logger.warning("hibernate.py paused rc=%s — proceeding", rc)
+    return rc == 0
+
+
 def _reconcile(
     results: list[tuple[str, dict[str, object]]], specs: dict[str, object], error_count: int
 ) -> tuple[list[registry_reconcile.HealResult], bool]:
@@ -181,6 +201,9 @@ def _reconcile(
     m = registry_reconcile.mode()
     if m == "off":
         return [], True
+    if m == "apply" and _hibernate_paused():
+        logger.info("hibernate pause marked — reconciling in report mode only")
+        m = "report"
     try:
         claim_map, unresolved = registry_reconcile.claims(specs.values())
         heals = registry_reconcile.reconcile_postgres(

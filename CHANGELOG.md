@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cron launchers skip while a /hibernate pause is marked (2026-10-21)
+
+- `weekly_catchup.sh`, `ci_fix_dispatcher.py`, `audit_all_registrars.py` (report-only reconcile) and the fleet-synced `check_mutation.py` ask `hibernate.py paused` (10 s) before starting new work and skip only on exit 0 — every other exit, a timeout or a missing script proceeds and logs one line; any probe error is fail-open. The CI fix worker runs with `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 500. `wip_backup.sh` gains `WIP_BACKUP_ONLY=<repo>`, resolved once and exiting 2 when it matches no repo (W-6e656dac T03a).
+
 ### Added — The hooks hold the /hibernate pause (2026-10-21)
 
 - `.claude/hooks/quota_stop.py` (fleet-synced) keeps a `hibernate`-tier stamp holding through a stale or missing tick log while the pause is marked, and admits only the exact `hibernate.py status|woke|paused|lift` forms its argparse accepts; `scripts/sysadmin/quota_posture_hook.py` denies `Agent`, `Workflow` and every `command_run.py start` for every session while the pause is marked, before its early return. A corrupt marker of any shape reads as unmarked in both hooks and never crashes them (W-6e656dac T02).

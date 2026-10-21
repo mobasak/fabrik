@@ -310,6 +310,8 @@ ALLOWLIST: dict[str, str] = {
     # ── reads, not write roots ──
     "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
     "scripts/sysadmin/kaizen_outcomes.py": "no-write: `/opt/fabrik/scripts/capped_run.sh` is the EXECUTABLE `_capped_run` falls back to after FABRIK_CAPPED_RUN and this tree's own copy (W-162398ef) — run, never written",
+    "scripts/ci_fix_dispatcher.py": "no-write: `/opt/fabrik/scripts/sysadmin/hibernate.py` is the EXECUTABLE the `paused` probe runs (T03a) — run, never written",
+    "scripts/enforcement/check_mutation.py": "no-write: `/opt/fabrik/scripts/sysadmin/hibernate.py` is the EXECUTABLE the `paused` probe runs (T03a, synced file: hub path, fail-open when absent) — run, never written",
     # ── config: already follow fabrik.config.FABRIK_ROOT ──
     "scripts/audit_all_registrars.py": "config: `from fabrik.config import FABRIK_ROOT`",
     "src/fabrik/cli.py": "config: imports FABRIK_ROOT (ticket DO-NOT — scaffold.py/cli.py follow without edits)",

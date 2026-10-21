@@ -62,6 +62,23 @@ if [ -f "$STAMP" ]; then
     [ "$age" -lt "$PERIOD" ] && exit 0
 fi
 
+# Hibernate pause (W-6e656dac T03a, seam P): `hibernate.py paused` exit 0 = skip this cycle, stamp
+# untouched (the next hourly slot after the lift catches up). Exit 1, >=2, a 10 s timeout or a
+# missing script proceeds (fail-open); an error logs one line.
+HIB_PY="${FABRIK_HIBERNATE_PY:-/opt/fabrik/scripts/sysadmin/hibernate.py}"
+if [ -f "$HIB_PY" ]; then
+    timeout 10 python3 "$HIB_PY" paused >/dev/null 2>&1
+    hib_rc=$?
+    if [ "$hib_rc" -eq 0 ]; then
+        echo "weekly_catchup: ${JOB} skipped — hibernate pause marked ($(date -Is))"
+        exit 0
+    elif [ "$hib_rc" -ne 1 ]; then
+        echo "weekly_catchup: hibernate.py paused rc=${hib_rc} — proceeding ($(date -Is))" >&2
+    fi
+else
+    echo "weekly_catchup: hibernate.py not found — proceeding ($(date -Is))" >&2
+fi
+
 echo "weekly_catchup: running ${JOB} ($(date -Is))"
 # rc semantics differ per job: audit_authelia_gates exits 1 when the AUDIT RAN and
 # found drift (a finding, not a run failure) — stamping on it keeps the weekly
