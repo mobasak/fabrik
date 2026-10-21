@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the plan-ticket check now finds a paused plan's lock and reads globbed lock paths (2026-10-21)
+W-b2bbc1f1; D-1094. When `check_plan_tickets` runs at the gate it looks for plans whose lock owns a changed file, so their findings show as warnings. It only counted locks marked `active`, so a plan paused at a quota wall dropped out of view, and it compared lock paths literally, so `src/app/**`, `./src/x.py` or a re-cased path owned nothing. It now counts every lock whose plan is still in flight (active, paused or blocked) and reads lock paths the way the epic check already does. These findings stay warnings, never a failure.
+
 ### Fixed — the Stop hook reads prompts and notices that Claude Code now delivers as attachments (2026-10-21)
 W-1b9ae5f2; D-1090. Claude Code 2.1.304 delivers a prompt typed while the agent is busy, and a subagent's report, as attachment rows rather than user messages. The Stop hook missed the operator's queued prompt when a decision block quoted it, and it treated a subagent's report that quoted another subagent's completion notice as that notice — ending the wait for a subagent still running. It now finds the operator's queued words, and counts a completion only from a real notice. Readers that mark where a turn ends are unchanged on purpose: a queued prompt arrives mid-turn, so ending the turn there would let a block written before it go unchecked.
 
