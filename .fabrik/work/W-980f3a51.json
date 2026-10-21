@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "decide re-vendor the kit's validate_i18n.py from fabrik-lib i18n vs port SB-107/SB-136 into the kit's diverged copy (specs: fabrik-lib docs/superpowers/specs/2026-10-19-i18n-level2-drift-verdict-design.md and ...-sample-and-cost-design.md); then request the 12 scaffolded copies re-vendor",
+  "next": "WAITS on fabrik-lib (mail 01M5EDSPR6, 2026-10-21): their validate_i18n.py imports httpx at module top (:40) though only Level 3 (:795) uses it; the kit runs in JS-only scaffolds (system python3, no venv), so a byte-identical re-vendor would crash Levels 1-2. Asked them to make the import lazy. Then: re-vendor templates/i18n-kit/scripts/validate_i18n.py byte-identical from fabrik-lib i18n/ (drops the retired Kilo back-translator, D-529), update tests/test_i18n_kit_validate_json.py, request the scaffolded copies re-vendor",
   "note": "",
   "owner": "fleet",
   "priority": 3,
