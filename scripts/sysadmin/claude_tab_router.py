@@ -70,6 +70,16 @@ CONTINUE_FLAGS = {"--continue", "-c"}
 # The extension fails a chat whose process has not initialised within 60 s (extension.js initializeTimeoutMs):
 # the picker's ABSOLUTE deadline plus the CLI's own start-up must stay under that; the wrapper's `timeout` sits above.
 DEADLINE_SECONDS = 30
+# Counted from the router's own start, not from when the picker opens: listing the repos (entries(), a
+# `decisions.py --merge-owner` per repo) runs first, and the wrapper's `timeout 35` counts from the start too.
+_STARTED = time.monotonic()
+
+
+def picker_deadline() -> float:
+    """The picker's absolute deadline on the monotonic clock: DEADLINE_SECONDS after this process started."""
+    return _STARTED + DEADLINE_SECONDS
+
+
 MAP_NAME = "tab-router.jsonl"
 
 
@@ -369,7 +379,7 @@ def pick_with_tk(rows: list[dict], cwd: str, wrapper_pid: int = 0) -> dict | Non
     box.selection_set(0)
     box.pack(padx=8, pady=8)
     result: dict = {}
-    deadline = time.monotonic() + DEADLINE_SECONDS
+    deadline = picker_deadline()
 
     def close(*_args):
         try:

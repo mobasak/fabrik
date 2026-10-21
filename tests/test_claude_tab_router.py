@@ -454,3 +454,11 @@ def test_rewrite_drops_every_value_of_a_variadic_add_dir(r):
     argv = ["/bin/claude", "--add-dir", "/opt/a", "/opt/b", "--x", "--add-dir=/opt/c"]
     out = r.rewrite_args(argv, {"kind": r.RESUME, "sid": SID_YT}, "/opt/yt")
     assert out == ["/bin/claude", "--x", f"--resume={SID_YT}"]
+
+
+def test_picker_deadline_counts_from_the_router_start(r, monkeypatch):
+    """R5: time spent listing repos before the picker opens comes off the 30 s, so the router ends inside the
+    wrapper's `timeout 35` instead of being killed mid-countdown."""
+    monkeypatch.setattr(r, "_STARTED", 1000.0)
+    monkeypatch.setattr(r.time, "monotonic", lambda: 1020.0)  # 20 s already spent on entries()
+    assert r.picker_deadline() == 1030.0
