@@ -17,10 +17,10 @@
     "e1740cbe5b30c56c2fbc92c79e0de891bbd78e1d2741290cbbae1c4517c46461"
   ],
   "next": "",
-  "note": "",
+  "note": "panel unanimous: obsolete. The hub tmux grid ended with the 19:31 WSL restart; tmux ls shows only fabrik, fabrik-lib, youtube",
   "owner": "",
   "priority": 2,
   "question": "May I close the stale `hub` tmux grid, which holds four idle agent sessions from 15–18 October running in the main checkout?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May I close the stale `hub` tmux grid, which holds four idle agent sessions from 15–18 October running in the main checkout?"
 }

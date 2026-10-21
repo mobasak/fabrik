@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:01:05.450494Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d8528473",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add --dry-run and backup steps to the script, route ssh through the D-973 jump, run the drift census, re-board W-7a248daf with the itemized preview attached",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM (real value, nobody blocked); one script, one session",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Prerequisite for the VPS sysadmin sync (W-7a248daf, panel 2026-10-21): scripts/sync-vps-sysadmin.sh needs an rsync -n --itemize-changes preview, a per-host tarball of the target dirs, and the FABRIK_SSH_JUMP_VPS route instead of raw ssh vps; re-run scripts/sysadmin/vps_script_drift.py fresh, then re-board"
+}

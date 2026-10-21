@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:01:06.680628Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a53df3f1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "run scratch_sweep.py dry-run plus a du census, write the new list beside the old review doc, board the removal as a new gate",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: clean-up; one census run",
+  "status": "open",
+  "title": "Fresh read-only scratch census (panel 2026-10-21 found the 2026-10-15 legacy list obsolete: 1 of 57 paths on disk after the WSL restart) — produce a new signed list for the operator to strike before any removal"
+}
