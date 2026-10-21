@@ -3258,6 +3258,8 @@ def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
         ("src/app/", True),
         ("src/app/schema.py/inner", False),
         ("src/other/**", False),
+        ("Src/App/schema.py", True),
+        ("**", True),
     ],
     ids=[
         "literal",
@@ -3268,6 +3270,8 @@ def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
         "dir",
         "below-the-file",
         "other-glob",
+        "case-folded",
+        "bare-double-star",
     ],
 )
 def test_a_lock_entry_selects_its_plan_in_every_written_shape(
@@ -3292,3 +3296,35 @@ def test_a_lock_entry_selects_its_plan_in_every_written_shape(
     (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
     _, lock_only = cpt._discover_dirs(root)
     assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, entry
+
+
+@pytest.mark.parametrize(
+    ("status", "selects"), [("active", True), ("paused", True), ("released", False)]
+)
+def test_a_paused_lock_still_selects_its_plan(tmp_path, status: str, selects: bool) -> None:
+    """Design critique (Opus, W-b2bbc1f1): `/fabrik-execute-plan` writes `paused` on a quota pause and the plan stays
+    mid-flight — a live web-ecommerce-factory lock owned 23 paths and was never selected."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": status, "owned_paths": ["src/app/**"]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, status
+
+
+def test_the_mid_flight_statuses_match_the_lock_release_partition() -> None:
+    """`_LOCK_MID_FLIGHT` is a copy (no check imports a sibling check): it must equal check_plan_lock_release's
+    NON_TERMINAL, the writer-derived partition."""
+    from scripts.enforcement import check_plan_lock_release as cplr
+
+    assert cpt._LOCK_MID_FLIGHT == cplr.NON_TERMINAL
