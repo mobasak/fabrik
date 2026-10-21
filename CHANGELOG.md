@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
+
+- `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
+
 ### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
 W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
 converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,

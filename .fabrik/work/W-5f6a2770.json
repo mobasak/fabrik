@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T13:30:13.265948Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5f6a2770",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-execute-plan",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: OFFTOPIC: the whole-plan review's tests seat is /fabrik-review's (Finish step 1 runs /fabrik-review over the whole plan); seat briefs that mutate existing behav",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-execute-plan"
+}
