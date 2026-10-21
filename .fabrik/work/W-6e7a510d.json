@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "85-payments-billing.md:45 — \"the grant does not refuse one\" is false since fabrik-lib f1a1159a (SB-096)"
 }
