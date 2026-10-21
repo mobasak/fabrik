@@ -185,8 +185,15 @@ re-check every absence with a second method before recording it.
 | `blocked: http-4xx` (except 429) | report the page unreadable; an error page is never cited as content |
 | `blocked: http-429` (after the server honoured a `Retry-After` of at most 30 s, or at once when it asks for longer) | report the page rate-limited — never exa or Firecrawl (rule 57's bypass line names evading a hard rate limit) |
 | `blocked: http-5xx`, `blocked: render-unavailable` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
-| `blocked: empty` | report it and cite another source — never exa or Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and another vendor's live fetch past it is the hand-off the `bot-wall` row forbids |
+| `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and Firecrawl's default fetch escalates to enhanced proxies on a failure (below) |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
+
+**Why Firecrawl and not exa is the line.** Rule 57 names the tooling layer — anti-bot bypass and proxy services — not
+every other fetcher. Firecrawl's default proxy mode is `auto`, which "will automatically retry scraping with enhanced
+proxies if the basic proxy fails" (https://docs.firecrawl.dev/features/proxies, 2026-10-21): sending it a blocked page
+asks it to rotate past the block. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no documented
+escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall goes to
+neither.
 | `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
 | a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
 
@@ -235,6 +242,7 @@ contract copies and `tests/test_research_tier_order.py` in the same slice. D-109
 | Firecrawl credit API | v1 fields `remaining_credits`, `plan_credits`, `billing_period_start`, `billing_period_end`; read: -6, 5000, 2026-10-12 → 2026-11-12. v2 renames them camelCase (`remainingCredits`, …) at `/v2/team/credit-usage`; `fc_credits.py`, `quota_dashboard.py` and `mcp_health.py` call v1 | https://docs.firecrawl.dev/api-reference/v1-endpoint/credit-usage and https://docs.firecrawl.dev/api-reference/endpoint/credit-usage; call executed 2026-10-21 |
 | MCP Python SDK | latest v2.3.0 (2026-10-02); v2 renames `FastMCP` to `MCPServer` and moves transport options off the constructor; the precedent `fabrik-citation-verifier` runs v1.27.0 with `FastMCP` | `gh release list -R modelcontextprotocol/python-sdk`; https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md; 2026-10-21 |
 | MCP fetch server | markdown output, `max_length` default 5 000, `start_index`, robots obeyed for model requests, non-public addresses refused by default | https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/README.md, 2026-10-21 |
+| Firecrawl proxy modes | default `auto` "will automatically retry scraping with enhanced proxies if the basic proxy fails"; `proxy` parameter deprecated in favour of `auto` | https://docs.firecrawl.dev/features/proxies (fetched as `text/markdown`), 2026-10-21 |
 | browserless v2 on vps1 | `POST /content` (token query parameter) renders a page; `/function` runs a script (the stealth path, not used) | https://docs.browserless.io/rest-apis/content; executed renders U2 and U6, 2026-10-21 |
 
 ## fabrik-lib asks (I4 — small gaps, by mail to fabrik-lib)
@@ -251,8 +259,8 @@ contract copies and `tests/test_research_tier_order.py` in the same slice. D-109
 | G8 | pdf-extract keeps word spaces (pdfplumber tolerance) | U5 contains "Ashish Vaswani" |
 | G9 | doc-crawl `DocPage` carries the page title | U8 pages have titles |
 | G10 | web-scrape gains an OPT-IN `accept_markdown=False` parameter: when True it sends `Accept: text/markdown, text/html;q=0.9`, returns a `text/markdown` answer as-is, and puts the Accept value in the cache key (`_cache_key` hashes only url, method and body today, `webscrape.py`:495). `_do_request` takes no headers today (`self._client.get(url)`, `webscrape.py`:474), so per-request headers are threaded through `fetch_static`, the retry loop and `_do_request`. Only `web-scrape-mcp` passes True, so callers that parse HTML (`__NEXT_DATA__`, the module's purpose) are unchanged | U2 yields `anthropic-version` and `stop_sequences` with the flag; a mock transport asserts the Accept header sent; the same URL without the flag still returns HTML from a separate cache entry |
-| G12 | web-scrape honours a 429's `Retry-After` (seconds or HTTP-date, RFC 6585 §4) up to a 30 s cap instead of its fixed 1/2/4 s backoff (`webscrape.py`:454-465 never reads headers); above the cap it raises `FetchError(status=429)` at once | a 429 with `Retry-After: 2` waits at least 2 s before the retry; a 429 with `Retry-After: 3600` raises immediately with status 429 |
 | G11 | `is_bot_wall` recognises DataDome (`captcha-delivery.com`) beside its Cloudflare markers | U6 returns `blocked: bot-wall` |
+| G12 | web-scrape honours a 429's `Retry-After` (delay-seconds or HTTP-date, RFC 9110 §10.2.3; a 429 may carry it, RFC 6585 §4) instead of its fixed 1/2/4 s backoff (`webscrape.py`:454-465 never reads headers): one wait of at most 30 s, at most 60 s of waiting per call in total; a longer ask raises `FetchError(status=429)` at once | `Retry-After: 2` waits at least 2 s before the retry; an HTTP-date 2 s ahead does the same; `Retry-After: 3600` raises immediately with status 429; three 429s in a row stop at the 60 s total |
 | — | web-tools routes scrape and crawl to web-scrape first behind `FABRIK_SCRAPE_LEG` (§ Chosen approach 3) | a test per fallback row |
 
 ### Kept on Firecrawl (large gaps)
@@ -297,6 +305,7 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 | what spent the 5 000 credits | transcripts show 128 agent calls in the period, far too few; runtime callers (rivals_run, web-tools users, other repos sharing the key) leave no log | read Firecrawl's activity log (operator dashboard) or count runtime calls per caller once `FABRIK_SCRAPE_LEG` logs them; it decides which caller switches first |
 | Firecrawl's output on the same URLs | out of credits, so no side-by-side run | re-run the capability ledger with a Firecrawl column after 2026-11-12 |
 | the bot-wall detector's precision | `is_bot_wall` knew only Cloudflare and missed U6 (DataDome); other vendors may follow | the server logs `blocked` reasons and short results; review them after two weeks |
+| how exa's crawler behaves on a bot wall | exa documents no proxy escalation, but its live crawl is opaque (an error names `CRAWL_LIVECRAWL_TIMEOUT`) | exa stays a fallback for `empty` only while its results on such pages are logged; a page exa reads past a known wall is reported to the operator |
 | how many sites serve markdown on request | measured on one site (U2) | the server logs which path answered; the per-command ledgers show it |
 | browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
 | the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | block private ranges in browserless's own request interception, verified by a redirect test against vps1 |
