@@ -329,7 +329,7 @@ def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
         check=False,
     )
     assert out.returncode == 0, out.stdout + out.stderr[-800:]
-    assert "_fences" in out.stderr, (
+    assert "No module named '_fences'" in out.stderr, (
         "the live lock never reached the scanner",
         out.stdout,
         out.stderr[-800:],
