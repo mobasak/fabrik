@@ -840,3 +840,50 @@ def test_a_stale_earlier_copy_of_the_queued_uuid_never_backs_a_brief(tmp_path, p
         _queued_with_uuid("an earlier queued prompt", "q-1"),
     )
     assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_a_queued_prompt_written_twice_in_the_turn_keeps_the_verdicts_before_it(
+    tmp_path, panel_mode
+):
+    """Review pass 1 (W-6424f2e8): a queued row re-written within the same turn must not move the cut-off past the
+    first copy's reset — the snapshot is the first copy's."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("also fix the typo", "q-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+
+
+def test_a_multi_block_final_message_keeps_its_cut_off(tmp_path, panel_mode):
+    """Review pass 1 (W-6424f2e8): the hook's final_text joins the last entry's text blocks, so it equals no single
+    walked block — it takes the cut-off of the newest block it contains."""
+    brief = _BRIEF.format(panel=_approve_line())
+    last = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": brief},
+                    {"type": "text", "text": "one more note"},
+                ]
+            },
+        }
+    )
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        last,
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, brief + "\none more note") == ""

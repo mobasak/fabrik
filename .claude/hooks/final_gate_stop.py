@@ -3954,10 +3954,11 @@ def _panel_problem(
     """ "" when the `Panel:` line is backed by the transcript, else what is missing. ``outcomes``
     are the endings this caller accepts; `fable unavailable` in the line lets a SECOND, distinct
     Opus seat stand in for the Fable one (D-613). ``stop_at_uuid`` judges the line against the verdicts
-    held just BEFORE the queued operator prompt with that uuid, read at its LAST copy (W-6424f2e8): a
-    brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts,
-    and Claude Code re-writes a queued row with the same uuid across compactions, so the first copy can
-    be a stale one thousands of rows earlier."""
+    held just BEFORE the queued operator prompt with that uuid (W-6424f2e8): a brief written before a
+    prompt queued mid-turn is not judged after that prompt cleared the verdicts. Claude Code re-writes a
+    queued row with the same uuid (across compactions, sometimes twice in a turn), so the snapshot is the
+    one taken at the prompt's first copy since the operator's last `user` row — a later copy keeps it, and
+    a `user` row discards a stale one from an earlier turn."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4009,7 +4010,9 @@ def _panel_problem(
 
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
-    snapshot = None  # the stores just before the LAST copy of `stop_at_uuid`'s queued prompt
+    snapshot = (
+        None  # the stores just before `stop_at_uuid`'s queued prompt, at its first copy this turn
+    )
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -4028,7 +4031,10 @@ def _panel_problem(
                     att = entry.get("attachment")
                     origin = att.get("origin") if isinstance(att, dict) else None
                     if _queued_operator_prompt(att):
-                        if stop_at_uuid and entry.get("uuid") == stop_at_uuid:
+                        # the FIRST copy since the operator's last `user` row: a later copy of the same
+                        # prompt (re-written within the turn) keeps it, since that copy's reset would
+                        # already have emptied the stores; an operator `user` row discards it
+                        if stop_at_uuid and entry.get("uuid") == stop_at_uuid and snapshot is None:
                             snapshot = (
                                 {k: list(v) for k, v in said.items()},
                                 dict(seats),
@@ -4057,6 +4063,9 @@ def _panel_problem(
                 if entry.get("type") != "user":
                     continue
                 if _is_operator_prompt(entry):
+                    snapshot = (
+                        None  # a snapshot from before the operator's new word is a past turn's
+                    )
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
                     # the line stores too, or a both-approve brief reads pre-operator verdicts
                     said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
@@ -4171,7 +4180,8 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
     if final_text:
         # the hook passes the turn's last assistant text: when it is a walked text, it keeps that text's
         # cut-off (otherwise a brief before a trailing queued prompt is judged with none — Fable critique)
-        own = next((c for t, c in texts if t.strip() == final_text.strip()), None)
+        # final_text joins the last entry's text blocks; walked texts are newest-first, one per block
+        own = next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
         texts.insert(0, (final_text, own))
     for text, text_cut in texts:
         fences = _fence_spans(text)
