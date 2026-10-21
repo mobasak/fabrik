@@ -70,9 +70,11 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 
 - **"The plan" in the termination contract = the SET.** The anti-cheat hash is the COMBINED hash —
   `(cd "<plan-dir>" && find . -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum) | md5sum` —
-  recorded per pass, run from inside the set so md5sum's path column reads the same relative `./…` for a
-  seat re-deriving it on its `cp -r` copy of the set (a typed `<plan-dir>` puts its own spelling into every
-  line, and the hashes differ); `d41d8cd98f00b204e9800998ecf8427e` is the empty input — the `cd` failed, never
+  recorded per pass by the orchestrator, run from inside the set so md5sum's path column reads the same relative
+  `./…` wherever the set sits (a typed `<plan-dir>` puts its own spelling into every line, and the hashes differ); a
+  seat never runs it, since its `cd`, `&&` and pipes are shapes the seats' one-plain-command rule bars, and states
+  instead the per-file hash it read against the pin's `MANIFEST.pins.md5` (the Subagents section);
+  `d41d8cd98f00b204e9800998ecf8427e` is the empty input — the `cd` failed, never
   record it. A mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
   the next pass, standard ledger semantics — never a reason to restart the ledger.
 - **The partition per ticket** (the **Parallelism — the partition** paragraph in Phase 1 below): every ticket sits in exactly one slice and each slice is read by one fresh seat —
@@ -142,7 +144,13 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
    so no seat is the first to execute it. A predicate, matcher or filter the plan changes is also run on a scratch
    copy against the tests that assert its current behaviour, each failure named as the change the plan intends or a
    defect, and against every input shape its grammar admits beyond the plan's own cases (another schema, a
-   column-level grant).
+   column-level grant). Each such run's script, corpus and output go inline in the plan's Evidence from round 1,
+   never only in scratch, which the seats' pinned copy of the plan does not carry; before every later pin at which a
+   fix or a folded panel change touches what a run exercised, it is re-run over its whole corpus, a changed
+   predicate's old and new versions side by side, each difference named as intended or a defect, its output
+   replacing the earlier run's in the Evidence before that pin. Under the `Size:
+   small` joint loop the same holds for a command the spec prescribes for a consumer to run (a CI step, through a
+   shell stand-in for its runner).
 3. **Constraints-Digest audit (the rule-grounding floor, 2026-08-30).** The rubric run from step 1
    IS the plan's computed MUST-READ set — now audit the plan's `## Constraints Digest` against it:
    every MATCHED pack must be named in the digest, and you spot-verify **≥2 digest quotes verbatim
@@ -256,7 +264,12 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   **Behavior Contract**: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky
   ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships
   behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note
-  the cheap **pool** authors these via `/fabrik-generate-tests`). A plan light on test coverage must NOT converge.
+  the cheap **pool** authors these via `/fabrik-generate-tests`). A plan light on test coverage must NOT converge. A
+  step or ticket that edits an existing test by substituting a value (an expected literal, an input, a threshold)
+  names, in its own Scope (a monolith step: in the step itself) and never as a Behavior Contract row, the guard that
+  test exercised and the test that
+  still exercises it after the edit; an unnamed one is a
+  finding, since a substituted value can leave a test that no longer fails when its behaviour regresses.
 - **Wired-consumer audit (anti stored-and-never-read)** — for EVERY new module, artifact, or output
   field the plan produces, the plan names the PRODUCTION caller that consumes it (`path:line`) —
   either inside File Scope or already live in the repo (OPEN it and confirm the call site). A
@@ -282,7 +295,8 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 - **Context Files complete (the read-set rule)** — the cold coder reads ONLY Scope + Touches + Context
   Files; anything it must know that isn't reachable from those three is a defect HERE, not the coder's
   problem later.
-- **Behavior Contract ≤8 G/W/T rows**, each grounded — and the per-ticket grounding floor holds (≥1 real
+- **Behavior Contract ≤8 G/W/T rows** (and the Behavior Contract pillar's substituted-test-value rule holds for the
+  ticket), each grounded — and the per-ticket grounding floor holds (≥1 real
   `path:line` citation per non-Integration ticket).
 - **Interfaces signature-consistent CROSS-ticket** — the producer's emitted signature matches every
   consumer's assumption; every seam test is NAMED and its file sits in the CONSUMER's Touches.
