@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Seat dispatchers skip while a /hibernate pause is marked (2026-10-22)
+
+- `claude_broker.py` (a paused request gets a 503, audited, no window charged), `cloud_dispatch.py dispatch` (exits 0 before any registry or ledger work) and the fleet-synced `rivals_run.py` (checks once in `main()`) ask `hibernate.py paused` before any new seat; every other exit, a timeout or a missing script proceeds — the check fails open on a host without the hub checkout. Every seat they start carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500 (W-6e656dac T03b).
+
 ### Added — Cron launchers skip while a /hibernate pause is marked (2026-10-21)
 
 - `weekly_catchup.sh`, `ci_fix_dispatcher.py`, `audit_all_registrars.py` (report-only reconcile) and the fleet-synced `check_mutation.py` ask `hibernate.py paused` (10 s) before starting new work and skip only on exit 0 — every other exit, a timeout or a missing script proceeds and logs one line; any probe error is fail-open. The CI fix worker runs with `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 500. `wip_backup.sh` gains `WIP_BACKUP_ONLY=<repo>`, resolved once and exiting 2 when it matches no repo (W-6e656dac T03a).

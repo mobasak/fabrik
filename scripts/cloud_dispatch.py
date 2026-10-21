@@ -346,6 +346,38 @@ def fire_api(
     return sid, url
 
 
+def hibernate_paused() -> bool:
+    """True while a hibernate pause is marked (`hibernate.py paused` exit 0). Exit 1, >=2, a 10 s
+    timeout or a missing script is fail-open (False), one line on an error (W-6e656dac T03b)."""
+    script = os.environ.get(
+        "FABRIK_HIBERNATE_PY", str(ROOT / "scripts" / "sysadmin" / "hibernate.py")
+    )
+    if not Path(script).is_file():
+        print(f"hibernate.py not found at {script} — proceeding", file=sys.stderr)
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(
+            f"hibernate.py paused failed ({exc.__class__.__name__}) — proceeding", file=sys.stderr
+        )
+        return False
+    if rc not in (0, 1):
+        print(f"hibernate.py paused rc={rc} — proceeding", file=sys.stderr)
+    return rc == 0
+
+
+def seat_preexec() -> None:
+    """Kill order (spec L5): a headless seat is the first the OOM killer takes. Fail-open."""
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("500")
+    except OSError:
+        pass
+
+
 def _run_claude(argv: list[str], env: dict, cwd: Path, stdin_text: str = "") -> tuple[int, str]:
     run = subprocess.run(
         argv,
@@ -356,6 +388,7 @@ def _run_claude(argv: list[str], env: dict, cwd: Path, stdin_text: str = "") -> 
         text=True,
         timeout=300,
         check=False,
+        preexec_fn=seat_preexec,
     )
     return run.returncode, run.stdout + run.stderr
 
@@ -374,6 +407,8 @@ def _account_env(cfg: Path) -> dict:
         # covers any FABRIK_HEADLESS reader (mail_notify, mcp_watch) that ever does load
         "FABRIK_HEADLESS": "1",
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        # a frozen API call retries through a hibernate wake (spec L1)
+        "CLAUDE_CODE_RETRY_WATCHDOG": "1",
     }
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     return env
@@ -1325,6 +1360,9 @@ def _cmd_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_dispatch(args: argparse.Namespace) -> int:
+    if hibernate_paused():  # before any ledger write: a pause starts no new seat
+        print("cloud_dispatch: hibernate pause marked — dispatching nothing", file=sys.stderr)
+        return 0
     reg = load_registry(args.registry)
     task = Path(args.task_file).read_text(encoding="utf-8") if args.task_file else args.task
     try:

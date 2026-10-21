@@ -53,6 +53,8 @@ into your own tree breaks nothing, and the two-hop version turned a one-rival sc
 errand (which is exactly how a project agent got stuck, 2026-08-27). The split is gone; do not
 reintroduce it.
 
+**A `/hibernate` pause starts nothing:** `main()` runs `hibernate.py paused` once, before any key load or `claude -p` seat, and exits 0 with one line while a pause is marked; the check fails open when the hub path is absent (a host without the hub checkout, such as a cloud worker or CI) or errors, and each seat carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500.
+
 ## What it costs
 
 **The LLM is `claude -p` — subscription-billed — and the command dispatches NO agents.** No pool

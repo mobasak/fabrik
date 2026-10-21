@@ -61,7 +61,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 | T01b | The status checks and the deadline header | T01a | ⛓️ | ✅ | squash of 4135193fe |
 | T02 | The hooks hold the pause | T01a | ⚡ | ✅ | squash of 8fffbb831 |
 | T03a | Cron launchers skip while paused | T01a | ⚡ | ✅ | squash of b9bf4e018 |
-| T03b | Seat dispatchers skip while paused | T01a | ⚡ | ⬜ | |
+| T03b | Seat dispatchers skip while paused | T01a | ⚡ | ✅ | squash of 565e702f1 |
 | T05 | Grid relaunch, watchdog env and the memory ceiling | T01a | ⚡ | ⬜ | |
 | T04 | Mesh scripts get a tracked home and the hibernate wake | T01a, T05 | ⛓️ | ⬜ | |
 | T06 | The rotation tick's hold, lifts and step snapshot (Integration) | T01b, T02, T03a, T03b, T04 | ⛓️ | ⬜ | |

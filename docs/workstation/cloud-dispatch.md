@@ -46,6 +46,8 @@ refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags
 `--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new` and `--allow-plan-usage`,
 `wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
 
+**A `/hibernate` pause starts nothing:** `dispatch` runs `hibernate.py paused` before any ledger write and exits 0 with one line while a pause is marked (fail-open when the check errors); a CLI-path seat carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500.
+
 ## Two fire paths
 
 | path | when | cost | failure |
