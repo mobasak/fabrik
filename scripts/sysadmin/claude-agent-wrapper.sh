@@ -54,7 +54,8 @@ if [ "${#routed[@]}" -ge 4 ] && [ "${routed[-1]}" = "0" ]; then
   new_agent="${routed[1]}"
   if cd "$new_cwd" 2>/dev/null; then
     { printf '  router: cwd=%s agent=%s argv:' "$new_cwd" "$new_agent"; printf ' %q' "${routed[@]:2}"; printf '\n'; } >> "$log" 2>/dev/null || true
-    if [ -n "$new_agent" ]; then export CLAUDE_AGENT="$new_agent"; fi
+    # a role-less pick (New session in <repo>, a re-root with no role) must not inherit the window's own agent
+    if [ -n "$new_agent" ]; then export CLAUDE_AGENT="$new_agent"; else unset CLAUDE_AGENT; fi
     set -- "${routed[@]:2}"
   fi
 fi

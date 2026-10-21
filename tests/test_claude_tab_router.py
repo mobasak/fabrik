@@ -427,3 +427,22 @@ def test_a_non_uuid_resume_id_never_reaches_the_glob(r, box):
             r.route(hub, argv, box.home, box.proc, str(box.opt), chooser=lambda rows, cwd: None)
             is None
         )
+
+
+def test_wrapper_drops_an_inherited_agent_on_a_roleless_pick(tmp_path):
+    """R3: a pick with no role (New session in repo) must not run as the window's own agent."""
+    target = tmp_path / "repo"
+    target.mkdir()
+    env, fake, rec = _wrapper_env(
+        tmp_path,
+        f"""\
+        sys.stdout.write("\\0".join([{str(target)!r}, "", sys.argv[sys.argv.index("--") + 1], "--x"]))
+        """,
+        CLAUDE_AGENT="fleet",
+    )
+    p, _ = _run_wrapper(tmp_path, env, fake, CHAT, tmp_path)
+    got = json.loads(rec.read_text())
+    assert p.returncode == 0 and got["cwd"] == str(target)
+    assert got["agent"] == "", (
+        "an inherited CLAUDE_AGENT would bind the new session to the window's agent"
+    )
