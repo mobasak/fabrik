@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "Bring the browserless spec to the deployer's contract (memory limit matching the compose mirror; make the compose validator pass) so fabrik apply and the mirror agree; no deploy in this item",
-  "note": "",
+  "note": "premise refuted by fleet's measurement: the spec never loaded, so a memory key fixed nothing; superseded by W-b64d9cd7 (retire the 7 specs, D-1097)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "MEDIUM: a spec that would mis-size a live shared service if anyone ran fabrik apply on it; real value, nobody blocked today because the mirror is used; LOW effort: one spec and a validator pass",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

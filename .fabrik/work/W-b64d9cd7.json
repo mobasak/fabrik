@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T13:00:17.111243Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b64d9cd7",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Steps from the panel: (1) diff each spec against its mirror first and port load-bearing comments (ARM64 notes, browserless v1->v2 env rationale, glitchtip secret-reconciliation warning) into the mirror headers; file any orphan line as an item; then git rm the 7 files and the directory. (2) Rewrite docs/DEPLOYMENT_ARCHITECTURE.md § 3.1 (:165-178): infra services are hand-maintained compose stacks at /opt/<svc>/ mirrored under infra/vps1/, deploy = copy mirror + docker compose up -d; add glitchtip to the table; use the :180 monitoring wording. (3) Repoint PORTS.md:31-35,46 (synced, SEEDED_NOT_ENFORCED — note the re-seed in the D-row) and drop or mark the phantom minio row :33. (4) Repoint CONFIGURATION.md:261,267 (keep the glitchtip warning, reworded around /opt/glitchtip/compose.yaml), docs/operations/n8n-webhooks.md:11,20,26,283, docs/reference/apis/glitchtip-api.md:122, docs/reference/prebuilt-app-containers.md:295 (drift note moot), docs/LESSONS_LEARNT.md:4411; reword docs/workstation/liveness.md:42 and scripts/sysadmin/liveness_audit.py:31 to 'the spec WAS at … (retired D-1097)'. (5) Guard test: load_spec over specs/**/*.yaml must succeed for every file. (6) CHANGELOG. History (DECISIONS, plans, reviews, archives) stays as-is per D-595. Review: the full /fabrik-review, two slices (deletions+test, docs), as D-595's receipt.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: removes 7 drifted config-shaped files that get grepped as sources and corrects docs that call them deploy inputs; real value, nobody blocked; LOW effort: deletions plus about 8 doc edits and one guard test, one session",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Retire the 7 non-appliable specs/infrastructure/*.yaml (D-1097, panel both-A on fleet's W-170540af measurement): apprise, authelia, browserless, glitchtip, gotenberg, meilisearch, n8n load nowhere (no id/template, spec_loader.py:909-914), no code reads them, all drifted from the infra/vps1/<svc>/compose.yaml mirrors that deployments actually use — the mirror becomes the single repo truth, as D-595 did for the monitoring copies"
+}
