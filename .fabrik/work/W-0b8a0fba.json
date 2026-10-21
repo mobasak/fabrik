@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:47:45.401732Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0b8a0fba",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure per-pane peaks over a day (systemd-cgtop or MemoryPeak), raise FABRIK_AGENT_SLICE_MAX from 16G toward the box's real headroom (47 GB total, ~22 GB in use by processes), or make the slice ceiling a function of MemTotal and live pane count; keep MemorySwapMax=0; regression test on the computed ceiling",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: builders are being OOM-killed (two tonight) — a break on agents; one launcher constant and its test, one session",
+  "status": "open",
+  "title": "fabrik-agents.slice sits AT its 16G ceiling (MemoryCurrent 17179811840 of MemoryMax 17179869184 at 23:15) with 10 builders up, and the OOM killer took intel's scope at 22:37 (2.6G peak) and fabrik-lib-dev1's — the slice cap, not the per-pane 3G, is what kills builders now that the box has 47 GB (operator 2026-10-21: no fixed agent limit, D-1092; 'limit management must be dynamic not static')"
+}
