@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T04:31:57.707816Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c638bb08",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Reproduce the two tests on master; add {{include:orient}} to commands/_sources/hibernate.md between its start and its first phase (or exempt it in that test with the reason), add 'hibernate' to command_run.py's no-closing-pass set; re-render commands (render then --check) since _sources changed; /fabrik-review-scoped; merge request",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: master red refuses every merge's tests, so every builder's finished work is blocked (D-956 'every agent blocked'); the author of dc99ebd76 owns it (D-448). LOW effort: one include line and one set entry, plus a render",
+  "status": "open",
+  "tags": [
+    "master-red"
+  ],
+  "title": "Master RED since the /hibernate merge dc99ebd76 (W-1e9ae1e5): tests/test_orient_fragment.py::test_every_command_source_includes_orient_between_its_start_and_its_first_phase fails (hibernate.md has no {{include:orient}} between its start and its first phase) and tests/test_command_run.py::test_no_closing_pass_set_matches_the_command_sources fails ('hibernate' is missing from command_run.py's no-closing-pass set) — found by kaizen's reader tests on W-faab0f5f, 2026-10-21"
+}
