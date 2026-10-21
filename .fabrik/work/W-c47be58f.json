@@ -17,9 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "security: an unauthenticated route spends the repo's model key; one cross-repo request mail",
+  "score_reason": "security: an unauthenticated chat route spends the app's own key in a live project; one mail per repo",
   "status": "open",
   "tags": [
+    "queued",
     "security",
     "waits-adoption-reply"
   ],
