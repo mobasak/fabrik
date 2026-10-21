@@ -9,7 +9,7 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1113",
     "plan": "",
     "spec": ""
   },
