@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A re-applied payments role loses its settings in every database, not only its own (2026-10-22)
+
+`mint_payments_role` reset a re-applied payments role's per-database settings only in the project's database, so a setting attached out of band in any other database (for example `row_security = off`) survived every re-apply. It now walks `pg_db_role_setting` for that role and resets it in each database that holds one, skipping a database dropped in between. The unit test pins the refusal guard's and the loop's role filters; the real-Postgres test plants three settings (counted before the re-mint) and a bystander role's setting that must survive (W-3c302832, D-1115).
+
 ### Added — VS Code chat-tab router: any repo's agent in one window (2026-10-21)
 
 `scripts/sysadmin/claude_tab_router.py` and the wrapper source `scripts/sysadmin/claude-agent-wrapper.sh` (the `claudeCode.claudeProcessWrapper`): a new Claude chat tab offers a picker of every repo's agents and opens the pick in that repo as that agent; a restored tab from another repo is re-rooted; anything else launches as before. Reviewed in full (/fabrik-review, 9 → 4 → 0 confirmed): a session live elsewhere is never re-rooted, live roles are matched per repo, a role-less pick drops the window's agent, `--add-dir` drops all its values, only UUID session ids reach the transcript lookup, the picker's 30 s counts from the router's start. Not installed yet — `docs/workstation/claude-tab-router.md` § Install runs after the merge (W-ea993618, D-1112).
