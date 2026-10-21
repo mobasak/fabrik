@@ -20,8 +20,7 @@
   "score_reason": "HIGH: a bug — check_plan_tickets.py lock discovery compares owned_paths without the normalisation check_phase_tests applies, so './s/x.py' silently misses and _path_covers is symmetric; LOW effort: one script plus tests. Given to intel under D-983: infra's queue is 90 deep",
   "status": "open",
   "tags": [
-    "queued",
-    "waits-2026-10-21"
+    "queued"
   ],
   "title": "check_plan_tickets.py lock discovery: owned_paths entries are compared without the _norm_path normalisation check_phase_tests applies ('./s/x.py' silently misses), _path_covers is symmetric (an entry below a file selects it, advisory only), and status is matched exactly where work.py tolerates variants"
 }

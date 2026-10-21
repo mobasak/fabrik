@@ -20,8 +20,7 @@
   "score_reason": "blocks rollout step 8 in every synced repo (operator: the setup applies to all repos); the template needs D-943/D-558/D-961; synced path",
   "status": "open",
   "tags": [
-    "mail-01m5ccr5vga3wmrpdc4zc425vm",
-    "waits-2026-10-21"
+    "mail-01m5ccr5vga3wmrpdc4zc425vm"
   ],
   "title": "Coordinator rollout step 8 cannot land in a SYNCED repo — the governance template needs D-943 / D-558 / D-961 (mail 01M5CCR5VGA3WMRPDC4ZC425VM, from youtube)"
 }
