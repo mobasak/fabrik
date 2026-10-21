@@ -18,8 +18,9 @@ Two things are still open in Phase B, both waiting on someone else:
    - `emit_mcp_project_config.py --check`, then the real run, then `mcp_health.py`.
    After that, intel runs the capability ledger U1-U7. The expected outcomes are U1-U4 and U7 PASS, U6 bot-wall and
    U5 unsupported. Then the scope call: `http://127.0.0.1:8033/` gives `scope`.
-2. Step 2: re-vendor libs/web_tools.py once fabrik-lib answers mail 01M5FV664J, their basic-proxy pin on the Firecrawl
-   scrape and crawl payloads. Check with `rg '"proxy"'` on both payloads, then run `tests/test_rivals_run.py`.
+2. Step 2: DONE (9df9090ed, merge request 01M5FZEKHW). libs/web_tools.py is re-vendored at fabrik-lib c7ab67e4 and
+   guarded by tests/test_web_tools_firecrawl_{proxy,log}.py. web-ecommerce-factory was asked to re-vendor its two copies
+   (mail 01M5FYPHA0); that is their work, not a Phase B blocker.
 
 When both are done: mark Phase B EXECUTED in the plan, then start Phase C in a new session. Phase C is:
 - the researcher ledger, built from `scrape_ledger.py --harvest`;
