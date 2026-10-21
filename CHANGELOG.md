@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: a worktree lead copies its scratch files into SCRATCH:, cwd-rooted tools run after an os.chdir, and three other queued verdicts answered (2026-10-21)
+
+- `commands/_fragments/subagents-core.md`: a lead in a linked worktree writes its briefs, fix lists, notes and drafts into the main-checkout `SCRATCH:` folder by a Bash `cp`, never leaving the only copy in the reboot-cleared scratchpad. A tool that roots itself at the working directory (`scripts/docs_updater.py`) runs only from a python program that `os.chdir`s into the seat's copy before importing it.
+- `commands/_sources/fabrik-review.md`: a `RECORDED — by design` D-id owner is the row that decides that residual, since the gate checks only that the owner exists. `commands/_fragments/review-probe-catalogue.md`: a tests slice's seats write their own mutants. `commands/_fragments/no-workflow-hub.md`: a dead resumed seat is re-dispatched fresh with its ledger and REFUTED list. Graders in `tests/test_review_queue_pass.py`.
+
 ### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
 
 - `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
