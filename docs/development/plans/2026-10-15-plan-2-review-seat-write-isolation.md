@@ -1,6 +1,6 @@
 # Plan — review seats: write isolation in the seat guard (W-72dfd448)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring, re-grounded at 21744dd43 (2026-10-22; seat_guard.py and
@@ -109,7 +109,9 @@ delta 2, 3 and 5, cited rather than restated):
 - `_write_reason(words, redirs, ctx, cwd_before) -> str` — "" or the reason `a review seat writes only under its
   scratch dir — <dest> is outside it`; the destinations are spec § The delta 2's, redirects judged against
   `cwd_before`.
-- `_scan()` (`:504-561`) — calls `_write_reason` for every simple command right after `_strip` and BEFORE the
+- `_scan()` (`:504-561`) — calls `_write_reason` inside its OWN `try` (panel condition, D-1116: an exception in the new
+  rule is caught per command and treated as no write reason, so the existing kill and git rules still judge that
+  command), for every simple command right after `_strip` and BEFORE the
   `if not words: continue` (`:534-535`), the `cd`/`pushd` (`:537-547`) and `bash -c` (`:548-557`) `continue`s; then
   `_kill_reason` and `_git_reason` as today (`:558`).
 - `_strip()` (`:255-260`) — an `env -C <dir>` changes `ctx["cwd"]` for the stripped command only; the scan restores
@@ -118,7 +120,8 @@ delta 2, 3 and 5, cited rather than restated):
 - the `_UnparseableError` fallback (`:510-517`) — spec § The delta 3; a bare unterminated `echo "x` stays allowed
   (`tests/test_seat_guard.py:231`).
 - The module docstring and the reason text name the rule, the blind spots (spec § The delta) and the COBRA line.
-- `docs/workstation/hooks-index.md:104` — the `seat_guard.py` row names the write rule and its blind spots.
+- `docs/workstation/hooks-index.md:104` — the `seat_guard.py` row names the write rule and carries the blind-spot list
+  of spec § The delta verbatim, as does the module docstring (panel condition, D-1116).
 
 **Steps** (sequential):
 1. Write the Phase A graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run them and see each DENY row
@@ -135,11 +138,16 @@ delta 2, 3 and 5, cited rather than restated):
 4. `_write_reason` and its call in `_scan`; the unparseable fallback.
 5. Run the whole file green — the 33 existing tests unchanged — then `ruff check` and `ruff format --check` on both files.
 6. The docstring and the hooks-index row.
-7. One live probe: dispatch a `fabrik-reviewer` seat (Agent tool, its scratch absolute, `cd` there first) told to run
+7. False-refusal measure (panel condition, D-1116): replay every Bash command `fabrik-reviewer` seats ran in the
+   subagent transcripts since 2026-10-01 (the `scrape_ledger.py --harvest` walk, reading `Bash` tool_use inputs) through
+   the new `decide()` with each seat's own cwd and scratch, and paste refusals per N in Evidence. Each refusal of a
+   command that wrote only under scratch is a defect fixed before step 8, or a stated cost in spec § The delta.
+7b. One live probe: dispatch a `fabrik-reviewer` seat (Agent tool, its scratch absolute, `cd` there first) told to run
    `printf x > <its scratch>/ok` and then `printf x > /opt/fabrik/.claude/worktrees/intel/.seat-probe-<sid>`; paste both
    outcomes in Evidence (the second must be refused) and `git status --short` after the seat (no new file). The hook is
    read from `${CLAUDE_PROJECT_DIR}` at every call (`.claude/settings.json:150`), so the edited file is live in this
-   worktree without a reload.
+   worktree without a reload. The Workflow path is not probed live (hub agents never call it, D-961); its seats carry
+   the same `agent_type`, which A3-A7 exercise through the payload.
 8. `/fabrik-review-scoped` on Phase A's surface; fix what it finds. A shell-grammar edge case found here, or in
    the Finish review, gets its row in the Behaviour Contract and is decided by the running hook (spec § The delta,
    "Where the grammar is decided").
@@ -154,7 +162,7 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed -Ei s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
 - **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, `rm <scratch>/*/../../opt/f`, `rm -rf /tmp/cl*`, `rm -rf /tmp/claude-<uid>/<slug-prefix>*`, `cp /tmp/s/a "2">/dev/null`, **Then** denied (unknown, home, brace, glob-directory or ancestor-of-scratch destination; a quoted digit is a word) (A7)
 - **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` and `echo "unterminated 2>/dev/null` stay allowed (A8)
-- **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) (A9)
+- **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny from the write rule — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) — and on `touch x; git reset --hard` with the write path raising, the git rule still denies (A9)
 - **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
 - **Given** the same seat, **When** `cat <<< hi` followed on later lines by `git reset --hard` and `hi`, **Then** denied (a here-string hides nothing) (A11)
 - **Mocked:** only A9's crash injection (`monkeypatch` on the new write path, in-process); every other grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
@@ -170,7 +178,9 @@ Appetite: 60
 2. `CHANGELOG.md` entry (`### Changed — review seats cannot write outside their scratch (<the commit date>)`); a
    `docs/DECISIONS.md` row only if the build takes a decision the spec did not (D-913, D-914 are the design rows; the
    approval row is `/fabrik-plan-review`'s).
-3. `python scripts/final_gate.py --check --json` green; commit by pathspec with trailers; push; `merge_request.py
+3. After the merge, re-run step 7b's probe against the merged hook in the main checkout's session and paste it in
+   the review receipt (panel condition, D-1116).
+4. `python scripts/final_gate.py --check --json` green; commit by pathspec with trailers; push; `merge_request.py
    request --review <receipt> --item W-72dfd448`.
 
 ## File Scope (owned paths)
@@ -382,4 +392,17 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 
 ## Pass Ledger
 
-(written by `/fabrik-plan-review`)
+Written by `/fabrik-plan-review` (2026-10-22). Two author-blind section seats: an Opus seat on § Global Constraints,
+§ Phase A and spec § The delta / Contract deltas / Validation, and a Sonnet seat on every other section of both files.
+The orchestrator executed the refutations.
+
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 1 | native opus×1 + sonnet×1 (sections A, B) | found: 24, new: 24, confirmed: 15, fixed: 15, unexecuted: 0 | method: tokeniser, `_in_scratch` and hook-subprocess probes on a pinned copy; every cite opened |
+| Pass 2 | same seats, own sections | found: 11, new: 11, confirmed: 6, fixed: 6, unexecuted: 0 | method: re-verification over the round-1 fold; the `_HEREDOC` change run on the 33 existing tests |
+| Pass 3 | same seats, own sections | found: 7, new: 7, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-verification; the scope-growth stop fired (own-fix 4 of 6, then 5 of 5) |
+| Pass 4 | same seats, the fixed set only | found: 5, new: 5, confirmed: 4, fixed: 4, unexecuted: 0 | method: the fixed hunks re-run as a path-rule model and a shlex-offset run; further grammar routed to Phase A |
+| Pass 5 | same seats, the fixed set only | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation of every round-4 fix (model and shlex runs) and the routing paragraph |
+
+Artifact hashes at the closing pass: plan `11a9471760f195df0a8e28c29424cf0d`, spec `1800d4ffef2c9344c42b7b11779a9a56`
+(before this ledger and the Status flips).
