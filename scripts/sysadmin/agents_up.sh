@@ -313,6 +313,7 @@ FLOOR_G=$((10#$FLOOR_G))
 SLICE_HIGH=infinity
 SLICE_MAX=16G
 CEILING_NOTE=""
+MARGIN_NOTE=""
 MEMTOTAL_KB="$(awk '/^MemTotal:/ { print $2; exit }' "$PROC_ROOT/meminfo" 2>/dev/null)"
 case "$MEMTOTAL_KB" in
   "" | *[!0-9]*) CEILING_NOTE="MemTotal is unreadable ($PROC_ROOT/meminfo)" ;;
@@ -324,7 +325,10 @@ case "$MEMTOTAL_KB" in
       HIGH_G=$((TOTAL_G - (FLOOR_G > 4 ? FLOOR_G : 4)))
       MAXG=$((TOTAL_G - (FLOOR_G - 2 > 2 ? FLOOR_G - 2 : 2)))
       if [ "$HIGH_G" -lt 1 ]; then
-        CEILING_NOTE="a non-agent floor of ${FLOOR_G}G leaves nothing of MemTotal ${TOTAL_G}G"
+        # a floor that leaves nothing must never LOOSEN the cap (16G would exceed an 8-16G box): fall to the minimum margins
+        MARGIN_NOTE="a non-agent floor of ${FLOOR_G}G leaves nothing of MemTotal ${TOTAL_G}G — using the minimum margins (MemoryHigh=MemTotal-4G, MemoryMax=MemTotal-2G)"
+        SLICE_HIGH="$((TOTAL_G - 4))G"
+        SLICE_MAX="$((TOTAL_G - 2))G"
       else
         SLICE_HIGH="${HIGH_G}G"
         SLICE_MAX="${MAXG}G"
@@ -338,6 +342,8 @@ if [ -n "${FABRIK_AGENT_SLICE_MAX:-}" ]; then
   SLICE_HIGH=infinity
 elif [ -n "$CEILING_NOTE" ]; then
   echo "agents_up: $CEILING_NOTE — keeping D-1075's 16G ceiling" >&2
+elif [ -n "$MARGIN_NOTE" ]; then
+  echo "agents_up: $MARGIN_NOTE" >&2
 fi
 # A launch from a .bat (`wsl.exe --exec bash -l`) carries no XDG_RUNTIME_DIR, and without it every systemctl/systemd-run
 # answers "Failed to connect to bus" — so set it when the user bus is there, as capped_run.sh does.
@@ -479,18 +485,24 @@ owned_here() {
     owner="$(tmux show-options -t "=$S:" -v @agents_up_root 2>/dev/null)"
   fi
   [ "$owner" = "$ROOT" ] && return 0
+  # only a DEFINITE other owner (a non-empty root that is not ours) refuses; a grid that is up is attached whatever
+  # the read returned (W-e841ac37), so an empty owner below attaches with a warning
+  if [ -n "$owner" ]; then
+    echo "agents_up: tmux session $S belongs to $owner — not attaching; kill or rename it first" >&2
+    return 1
+  fi
   # a grid a hand-built launcher made (fabrik-lib's ~/bin/fabrik-lib-up) records no root but tags each pane with its
   # agent: adopt it when every pane is one of THIS repo's builders, so moving to the generated launcher never shows an
   # error pane; any other unrecorded session is still refused (W-bb6c9d9a)
-  if [ -z "$owner" ] && adoptable; then
+  if adoptable; then
     tmux set-option -t "=$S:" @agents_up_root "$ROOT" >/dev/null
     echo "agents_up: adopted the $S grid a hand-built launcher made — every pane is one of this repo's builders" >&2
     # its panes were started without this script's env allow-list, so they may carry the VS Code session's variables
     echo "agents_up: those panes keep the environment they started with; for clean panes: tmux kill-session -t =$S, then launch again" >&2
     return 0
   fi
-  echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
-  return 1
+  echo "agents_up: could not confirm that tmux session $S is this repo's (it records no root and not every pane is one of this repo's builders) — attaching to it anyway" >&2
+  return 0
 }
 
 adoptable() {  # every pane of the session carries an @agent that names one of this repo's builders

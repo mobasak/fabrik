@@ -505,7 +505,6 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
     # "other-tagged": another folder's recorded grid is never adopted, even when its panes carry this repo's names
     for label, owner in (
         ("other", "/opt/elsewhere/fabrik-lib"),
-        ("none", None),
         ("other-tagged", "/opt/elsewhere/fabrik-lib"),
     ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=owner)
@@ -520,7 +519,8 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
 def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> None:
     """W-bb6c9d9a: fabrik-lib's ~/bin/fabrik-lib-up builds a grid under the same name with no recorded root, but tags
     every pane with its agent. That grid is adopted — its root recorded, reattached as it is — only when every pane is
-    one of this repo's builders; a stranger pane, an untagged pane or no pane at all still refuses."""
+    one of this repo's builders; a stranger pane, an untagged pane or no pane at all is NOT adopted, but a grid that is
+    up is attached whatever the root read returned (W-e841ac37): it attaches with a warning, root unrecorded."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     ours = _tmux_home(tmp_path / "ours", repo, has=True, owner=None)
     (ours / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
@@ -538,12 +538,25 @@ def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> 
     ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=None)
         (home / "tmux-panes").write_text(panes, encoding="utf-8")
-        out = _run(str(repo), home=home)
-        assert out.returncode == 2 and "not attaching" in out.stderr, (label, out.stderr)
-        assert not any(ln.startswith(("attach", "set-option")) for ln in _log(home)), (
+        out = _run(str(repo), home=home, tty=True)
+        assert out.returncode == 0, (label, out.stderr)
+        assert "could not confirm that tmux session fabrik-lib is this repo's" in out.stderr, (
+            label,
+            out.stderr,
+        )
+        assert "adopted" not in out.stderr and "not attaching" not in out.stderr, out.stderr
+        assert not any(
+            ln.startswith(("set-option", "new-session", "split-window")) for ln in _log(home)
+        ), (
             label,
             _log(home),
         )
+        assert _log(home)[-1] == "attach -t =fabrik-lib", (label, _log(home))
+    # no panes at all and no recorded root (a failed root write): attached with the warning, never refused
+    home = _tmux_home(tmp_path / "bare", repo, has=True, owner=None)
+    out = _run(str(repo), home=home, tty=True)
+    assert out.returncode == 0 and "attaching to it anyway" in out.stderr, out.stderr
+    assert _log(home)[-1] == "attach -t =fabrik-lib", _log(home)
 
 
 def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path) -> None:
@@ -1297,14 +1310,15 @@ def test_a_small_or_unreadable_memtotal_keeps_the_old_ceiling_and_says_so(tmp_pa
         line, err = _slice_line(home, repo)
         assert line == "slice fabrik-agents.slice MemoryHigh=infinity MemoryMax=16G", (label, line)
         assert why in err and "keeping D-1075's 16G ceiling" in err, (label, err)
-    _meminfo(
-        home, 8
-    )  # exactly 8G is derived: floor 12G leaves nothing, so the old ceiling again, said
-    line, err = _slice_line(home, repo)
-    assert line.endswith("MemoryHigh=infinity MemoryMax=16G") and "leaves nothing" in err, (
-        line,
-        err,
-    )
+    # a floor that leaves nothing never LOOSENS the cap: the minimum margins, said (an 8G box is not given 16G)
+    for gib in (8, 12):
+        _meminfo(home, gib)
+        line, err = _slice_line(home, repo)
+        assert line == f"slice fabrik-agents.slice MemoryHigh={gib - 4}G MemoryMax={gib - 2}G", (
+            gib,
+            line,
+        )
+        assert "leaves nothing" in err and "minimum margins" in err and "16G" not in err, err
     _meminfo(home, 8)
     line, _ = _slice_line(home, repo, FABRIK_AGENT_NONAGENT_FLOOR="2G")
     assert line == "slice fabrik-agents.slice MemoryHigh=4G MemoryMax=6G", line
@@ -1565,6 +1579,29 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     assert "--permission-mode" not in run and "--dangerously" not in run, run
     # the quoting survives the nested single quotes of the scope's `bash -c '<inner>'` for ANY folder name
     assert '"' not in prompt and "'" not in prompt and "$" not in prompt, prompt
+
+
+def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
+    """W-e841ac37 on a real scratch tmux server: a same-named grid that records no root and is not this repo's builders
+    (made by hand) is attached-to (left detached for a non-TTY caller) with the warning, never refused."""
+    server = f"t05o-{os.getpid()}"
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    real = shutil.which("tmux")
+    assert real, "tmux is the launcher's own dependency"
+    wrapper = home / ".local" / "bin" / "tmux"
+    wrapper.write_text(f'#!/bin/sh\nexec {real} -L {server} "$@"\n', encoding="utf-8")
+    wrapper.chmod(0o755)
+    try:
+        subprocess.run(
+            [real, "-L", server, "new-session", "-d", "-s", "fabrik-lib", "sleep 120"], check=True
+        )
+        out = _run(str(repo), home=home)
+        assert out.returncode == 0, out.stderr
+        assert "attaching to it anyway" in out.stderr and "left detached" in out.stderr, out.stderr
+        assert "not attaching" not in out.stderr, out.stderr
+    finally:
+        subprocess.run([real, "-L", server, "kill-server"], capture_output=True)
 
 
 def test_an_uncapped_start_is_refused_on_the_bat_path_and_allowed_on_the_boot_path(

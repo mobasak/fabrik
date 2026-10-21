@@ -3,7 +3,7 @@
 Two WSL out-of-memory crashes on 2026-10-17 came from one test process growing to ~32 GB (an
 unpatched `ssh()` handing `yaml.safe_load` a MagicMock; replayed, ~300 MB/s). These tests drive the
 real `scripts/capped_run.sh` under `systemd-run --user`, each in its OWN throwaway slice: the shared
-`fabrik-tests.slice` total is a box-wide value other sessions' runs depend on, so no test ever sets
+`fabrik-agents-tests.slice` total is a box-wide value other sessions' runs depend on, so no test ever sets
 it. Every allocation here is bounded far below the box (a few hundred MB at most).
 """
 
@@ -509,6 +509,27 @@ def test_low_memory_waits_up_to_the_bound_then_starts_and_says_so(tmp_path):
     assert took >= 2, took
     assert "admission: waiting" in run.stderr and "MemAvailable" in run.stderr, run.stderr
     assert "starting anyway after 2s" in run.stderr, run.stderr
+
+
+def test_the_admission_wait_counts_against_the_runs_time_limit(tmp_path):
+    """Callers bound the whole wrapper at timeout + 60 s, so the seconds waited come off the run's own limit
+    (RuntimeMaxSec), floor 1 s, and the wait line says so."""
+    home = _stub_home(tmp_path)
+    env = _admit_env(home, _proc(tmp_path, 2_000_000), "2")
+    run = _capped("--timeout", "100", "--", "true", env=env)
+    assert run.returncode == 0, run.stderr
+    assert "count against the 100s time limit" in run.stderr, run.stderr
+    assert "RuntimeMaxSec=98 " in (home / "systemd-run.log").read_text(encoding="utf-8")
+    (home / "systemd-run.log").unlink()
+    run = _capped(
+        "--timeout", "2", "--", "true", env=env
+    )  # the whole limit waited away: floor of 1 s
+    assert run.returncode == 0, run.stderr
+    assert "RuntimeMaxSec=1 " in (home / "systemd-run.log").read_text(encoding="utf-8")
+    (home / "systemd-run.log").unlink()
+    healthy = _admit_env(home, _proc(tmp_path, 8_000_000, name="ok"), "30")
+    assert _capped("--timeout", "100", "--", "true", env=healthy).returncode == 0
+    assert "RuntimeMaxSec=100 " in (home / "systemd-run.log").read_text(encoding="utf-8")
 
 
 def test_memory_pressure_holds_the_start_too(tmp_path):

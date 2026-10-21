@@ -93,12 +93,17 @@ while why=$(admit_busy); rc_admit=$?; [ "$rc_admit" = 0 ]; do
     break
   fi
   if [ "$announced" = 0 ]; then
-    echo "capped_run: admission: waiting up to ${admit_wait}s — $why" >&2
+    echo "capped_run: admission: waiting up to ${admit_wait}s — $why (the seconds waited count against the ${tmo}s time limit)" >&2
     announced=1
   fi
   sleep 1
   waited=$((waited + 1))
 done
+# the wait counts against the run's own limit: callers bound the whole wrapper at timeout + 60 s
+if [ "$waited" -gt 0 ]; then
+  tmo=$((tmo - waited))
+  [ "$tmo" -ge 1 ] || tmo=1
+fi
 [ "$rc_admit" = 2 ] && echo "capped_run: admission: unreadable — $why; starting at once" >&2
 
 if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
