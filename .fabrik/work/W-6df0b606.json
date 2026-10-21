@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:18.555400Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "715b2bc8aabeb6eebb8d3559ed43052055f6f0ab",
   "id": "W-6df0b606",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "incident residue: 48 hung Tryton xmlrpc one-liners belonging to no repo during the 2026-10-20 starvation; find the launcher and bound it",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5c8pzsvfjqmjzc33gjqkmdw"
   ],
