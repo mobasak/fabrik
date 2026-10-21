@@ -108,6 +108,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** a lifted pause, **When** `woke` runs for a session that started a run after the lift, 24 h after it, or under `lift_path=migration`, **Then** it exits 1 `no pending resume` (scripts/sysadmin/hibernate.py:336; spec § Chosen approach L3)
 - **Given** a held session that is not the merge owner's, a headless `sdk-*` session, or a detached process with no terminal, **When** it runs `hibernate.py lift`, **Then** the lift is refused with exit 3 and a `hibernate-lift-refused` ledger row (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L2)
 - **Given** the merge owner's session or a plain shell with no claude ancestor, **When** it runs `hibernate.py lift`, **Then** it writes `lifted_at` and `lift_path=hub` and touches no stamp (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L3)
+- **Given** a plain-shell lift, **When** it passes, **Then** the rotate ledger gains a `hibernate-lift-shell` row naming its terminal (scripts/sysadmin/hibernate.py:511; spec § Chosen approach L2)
 - **Given** `mark --deadline 10m`, **When** `brief --deadline` prints, **Then** it names T-3 and T as clock times and no longer says the exit means the box slept (scripts/sysadmin/hibernate.py:260; spec § Chosen approach L2)
 - **Given** seeds written since the mark, **When** `woke` answers RESUME, **Then** it lists them newest first with each abandoned seat's state and a `get_chat` line (scripts/sysadmin/hibernate.py:336; spec § Chosen approach L3)
 - **Given** a live headless `sdk-*` session that is no agent's seat, **When** `status` runs before T-3, **Then** it is a BLOCKS row, and after T-3 a `held (headless)` row (scripts/sysadmin/hibernate.py:433; spec § Chosen approach L2)
@@ -146,7 +147,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 - **Given** an outage that starts and ends before T, **When** ticks run, **Then** nothing lifts, and one starting after T that lasts two slots lifts by (b) (scripts/sysadmin/claude_rotate.py:3391; spec § Chosen approach L3)
 - **Given** no sleep and no outage, **When** T+30 passes, **Then** the pause lifts by (c), T being the mark when there is no deadline (scripts/sysadmin/claude_rotate.py:3391; spec § Chosen approach L3)
 - **Given** a lift while the quota is hot or the battery low, **When** the lift leg runs, **Then** the stamp goes to that tier and nobody is woken (scripts/sysadmin/claude_rotate.py:7213; spec § Chosen approach L2)
-- **Given** the hub lifted the mark while the tier stands, **When** the next tick runs, **Then** it clears the tier and writes `.holdlifted hibernate` (scripts/sysadmin/claude_rotate.py:7437; spec § Chosen approach L3)
+- **Given** the hub lifted the mark while the tier stands, **When** the next tick runs, **Then** it clears the tier and writes `.holdlifted hibernate` within that tick, the clear running after `update_marker` returns (scripts/sysadmin/claude_rotate.py:7437; spec § Chosen approach L3)
 - **Given** a pending `.holdlifted resume`, **When** the hibernate lift fans out, **Then** the file reads `hibernate` (scripts/sysadmin/claude_rotate.py:7480; spec § Chosen approach L3)
 - **Given** a hibernate lift row, **When** the wall advisory looks for an open episode, **Then** the row ends no quota episode (scripts/sysadmin/claude_rotate.py:7864; spec § Chosen approach L3)
 - **Given** a `command_run.py step` in a repo with a hub `wip_backup.sh`, **When** the step saves, **Then** a detached single-repo snapshot starts, at most once per 2 minutes per repo, and never when the cron's lock is held (scripts/command_run.py:6542; spec § Chosen approach L1)
@@ -375,6 +376,7 @@ $ python3 scripts/review_rubric.py --changed <the File Scope entries of this spi
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (T01-T02-T06 + the spine's rule sections) + sonnet×1 (T03a-T03b-T04-T05 + the rest) · shape: agent-tool (D-961) · full pass | found: 34, new: 34, confirmed: 33, fixed: 33, unexecuted: 0, edits: 33 | method: citation — full pass; the lead executed the decisive claims (`grep oom_score` → 0 in the plan; `final_gate_stop.py:4849-4854` requires `_tick.exists()`; `quota_posture_hook.py:1089` returns before `decide`; `claude-mesh-test.sh:10` defaults SRC to `~/.claude/bin` and `:19` copies two untracked files); S2-C11 REFUTED (conftest pins `ROTATE_STATE_DIR` per test, `tests/conftest.py:275`); fixes: T01 split into T01a/T01b, T04 after T05, 17 rows added, the docs moved to T06 | 42e5208a… → f29f29ad… |
 | Pass 2 | the round-1 seats on their own slices over the fix diff · shape: agent-tool (D-961) · delta | found: 21, new: 21, confirmed: 18, fixed: 18, unexecuted: 0, edits: 18 | method: re-derivation — S1 EXECUTED its N1 (a scratch `claude_rotate.py` tick turned `0 hibernate` into `0 walled` under the `battery_held` fix); the lead read `hibernate.py:186-194` (8-hop, agents-only walk), `agents_up.sh:16` (the `pane <name> <sid>` line) and `claude-selfwatch.sh:55` (the kind read); fixes: the advisory returns before `_touch_stamp`, `_clear_stamp` re-reads under the flock, the lift walk goes to pid 1 and needs a terminal, (a) spans T-3, the migration is a gated step with `lifted_at`=`paused_at`, the harness reads `$PWD`, Leg B skips `.boot-relaunched`, the CI worker is armed, the slice rename's docs are in T06; RECORDED: S2-R1 (a sub-8G box keeps the old ceiling — the stated choice), S2-R2 (whether `--print` refuses uncapped — T05's coder), S2-R3 (review loops dispatch through the Agent tool, which T02 denies) | f29f29ad… → c693e103… |
+| Pass 3 | the round-1 seats on their own slices over `fix-p2.diff` · shape: agent-tool (D-961) · delta | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — S2 quiet (every N/R item FIXED, anchors opened); S1 EXECUTED its N1 re-probe (`0 hibernate` survives all three ages) and NEW-A (a second `LOCK_EX` in one process blocks); fixes: every clear runs after `update_marker` returns, an `sdk-*` caller is refused before the name check, a plain-shell lift writes a `hibernate-lift-shell` row (the tmux gap recorded in § Residual unknowns) | c693e103… → f1f004fb… |
 
 ## Evidence
 
@@ -418,6 +420,9 @@ by T02 inline and T06 by path; the stamp line `hibernate` (T06) is what T02's ra
 at a fixed point: `/fabrik-plan-review` converges it.
 
 ## Residual unknowns
+- Accepted residual (pass 3, S1 NEW-B(2)): `hibernate.py lift` cannot tell the operator's terminal from a tmux window a
+  session opens to run it, so a plain-shell lift is made AUDITABLE, not impossible — its `hibernate-lift-shell` ledger row
+  names the terminal (T01a). Closing it fully needs a credential the operator holds, which the spec does not add.
 
 - Resolved: the mesh's repo home (T04's `scripts/sysadmin/mesh/` + installer); the stamp tier's reader rule (raw read);
   the over-budget files (T06).
