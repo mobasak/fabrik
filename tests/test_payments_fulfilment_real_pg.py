@@ -313,7 +313,9 @@ def test_a_role_altered_out_of_band_is_narrowed_again_on_re_mint() -> None:
             f'ALTER ROLE "{FULFIL}" BYPASSRLS CREATEDB CREATEROLE REPLICATION NOINHERIT '
             "CONNECTION LIMIT 0 VALID UNTIL '2000-01-01';\n"
             f'ALTER ROLE "{FULFIL}" SET row_security = off;\n'
-            f'ALTER ROLE "{FULFIL}" IN DATABASE {DB} SET row_security = off;'
+            f'ALTER ROLE "{FULFIL}" IN DATABASE {DB} SET row_security = off;\n'
+            # a setting in ANOTHER database (a no-connection template) is reset too (W-3c302832)
+            f'ALTER ROLE "{FULFIL}" IN DATABASE template0 SET row_security = off;'
         )
         again = _mint(s, "fulfilment")
         assert again["status"] == "exists" and again["password"] is None
