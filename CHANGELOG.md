@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the secret gate flags today's AWS key ids, every GitHub token prefix, fine-grained PATs and OpenAI project keys (2026-10-21)
+
+- `scripts/enforcement/check_secrets.py`: adds AWS `ASIA`/`ABIA`/`ACCA` key ids (case-sensitive base32), merges the `ghp_`/`gho_` rows into `gh[pousr]_`, adds `github_pat_` fine-grained PATs and OpenAI `sk-proj-`/`sk-svcacct-`/`sk-admin-` keys, keeping every old row so the gate stays a superset (D-1089; fabrik-lib mail 01M5EC2S14). `tests/test_check_secrets_shapes.py` pins each new and old shape.
+
 ### Fixed — /hibernate opens its run record before Phase 1 and joins the no-closing-pass set (2026-10-21)
 
 - W-c638bb08: master went red after the /hibernate merge (dc99ebd76) on two corpus readers. `commands/_sources/hibernate.md` now includes `run-record` and `orient` between its intro and `## Phase 1` (`tests/test_orient_fragment.py`), and `scripts/command_run.py`'s `NO_CLOSING_PASS` lists `hibernate`, whose source orders no loop round (`tests/test_command_run.py::test_no_closing_pass_set_matches_the_command_sources`).
