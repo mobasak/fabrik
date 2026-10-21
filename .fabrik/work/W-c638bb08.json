@@ -3,7 +3,7 @@
   "created": "2026-10-21T04:31:57.707816Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "228e53f9ae496b78d844dd76f5a54fe9f5373161",
   "id": "W-c638bb08",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "URGENT: master red refuses every merge's tests, so every builder's finished work is blocked (D-956 'every agent blocked'); the author of dc99ebd76 owns it (D-448). LOW effort: one include line and one set entry, plus a render",
-  "status": "open",
+  "status": "done",
   "tags": [
     "master-red"
   ],
