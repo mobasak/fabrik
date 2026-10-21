@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:37:07.679027Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6424f2e8",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "judge each brief against the verdicts read up to the first queued operator prompt that FOLLOWS it — _panel_brief_problem records the next queued attachment's uuid per text, _panel_problem takes stop_at_uuid= and stops there; red-first on case G, keep the forged-brief case refused",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "MEDIUM: the Stop hook refuses a properly backed PANEL APPROVED brief written before a queued operator prompt — it fails CLOSED (an extra refusal, never a bypass), real value, nobody blocked; LOW effort: scope each brief's check to the verdicts before the next queued prompt, in one hook; synced path, full review",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "final_gate_stop.py _panel_brief_problem refuses a properly backed PANEL APPROVED brief written before an operator prompt queued mid-turn: _panel_problem clears the seats' verdicts at the queued prompt (fail-closed, found by the W-1b9ae5f2 Opus critique, case G)"
+}

@@ -375,6 +375,49 @@ def plan(spec_path: str, secrets: tuple):
     click.echo("=" * 60)
 
 
+def _ctx_list(value: Any) -> list:
+    """A registrar failures/warnings value as a list: a str is ONE item, a list/tuple is listed, anything
+    else (None, a missing attribute, a stub's MagicMock) is empty — fail-open on a non-list, since the real
+    ``DeploymentContext`` and the state record only ever hold lists (W-0c60d86e)."""
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return []
+
+
+def _report_recorded_registrar_problems(spec_ids: Any, echo: Any) -> int:
+    """Echo one line per spec whose last completed apply recorded registrar failures or warnings.
+
+    Returns the number of specs with recorded FAILURES — a warning never counts (W-0c60d86e).
+    Live probes cannot see a registrar step that failed after its resource was recorded (redis
+    added, then REDIS_URL injection failed) — the last completed apply's own record can.
+    """
+    import fabrik.state as state_module
+
+    failed_specs = 0
+    for sid in spec_ids:
+        state_data = state_module.load(sid) or {}
+        applied_at = state_data.get("applied_at", "?")
+        failures = [
+            f for f in _ctx_list(state_data.get("registrar_failures")) if isinstance(f, dict)
+        ]
+        if failures:
+            failed_specs += 1
+            labels = ", ".join(f.get("registrar", "?") for f in failures)
+            echo(
+                f"⚠  {sid}: last apply ({applied_at}) recorded {len(failures)} registrar "
+                f"failure(s): {labels} — see .fabrik/state/{sid}.json"
+            )
+        warnings = _ctx_list(state_data.get("registrar_warnings"))
+        if warnings:
+            echo(
+                f"⚠  {sid}: last apply ({applied_at}) recorded {len(warnings)} registrar "
+                f"warning(s) — see .fabrik/state/{sid}.json"
+            )
+    return failed_specs
+
+
 def _echo_registrar_warnings(ctx: Any) -> None:
     """Print each ``ctx.registrar_warnings`` line under a completed run's summary.
 
@@ -624,6 +667,8 @@ def status(spec_path: str):
                 failure = {"error": failure}
             who = failure.get("registrar") or "?"
             click.echo(f"   registrar_failure: {who}: {failure.get('error') or ''}")
+        for warning in _ctx_list(record.get("registrar_warnings")):
+            click.echo(f"   registrar_warning: {warning}")
     click.echo()
 
     click.echo("Live containers:")
@@ -1333,25 +1378,7 @@ def audit_registrars(spec_path: str | None, as_json: bool):
     click.echo("─" * len(header))
     click.echo("Legend: ✓=present  ✗=missing  ·=n/a  ?=unknown  ⚠=drift")
 
-    # Live probes cannot see a registrar step that failed after its resource was recorded
-    # (redis added, then REDIS_URL injection failed) — the last completed apply's own record can.
-    import fabrik.state as state_module
-
-    failed_specs = 0
-    for sid in sorted(all_results):
-        state_data = state_module.load(sid) or {}
-        recorded = state_data.get("registrar_failures")
-        failures = (
-            [f for f in recorded if isinstance(f, dict)] if isinstance(recorded, list) else []
-        )
-        if failures:
-            failed_specs += 1
-            labels = ", ".join(f.get("registrar", "?") for f in failures)
-            applied_at = state_data.get("applied_at", "?")
-            click.echo(
-                f"⚠  {sid}: last apply ({applied_at}) recorded {len(failures)} registrar "
-                f"failure(s): {labels} — see .fabrik/state/{sid}.json"
-            )
+    failed_specs = _report_recorded_registrar_problems(sorted(all_results), click.echo)
     if missing_count or drift_count or failed_specs:
         if missing_count:
             click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
@@ -1426,8 +1453,9 @@ def reconcile_all(yes: bool, filters: tuple):
     invocations from racing on the same spec.
 
     A probe failure is a row, never an abort. Exit 1 when no named host could be read, and
-    under ``--yes`` also on any ``host-unreachable``/``error``/``spec-error``/``lock-timeout``
-    row; a dry run reports its failure rows and exits 0.
+    under ``--yes`` also on any ``host-unreachable``/``error``/``spec-error``/``lock-timeout``/
+    ``registrar-failed`` row; a dry run reports its failure rows and exits 0. A refresh's registrar
+    warnings print under the table and never fail a row.
 
     Examples:
         fabrik reconcile-all --filter translator      # dry-run, scoped
@@ -1452,6 +1480,7 @@ def reconcile_all(yes: bool, filters: tuple):
     hosts: dict[str, list[dict] | Exception] = {}  # one `compose ls` per host per run
     summary: list[tuple[str, str, str]] = []  # (spec_id, status, detail)
     reminders: list[str] = []  # Phase 7: operator-manual GlitchTip webhook steps
+    spec_warnings: list[tuple[str, str]] = []  # (spec id, registrar warning) from each refresh
 
     for sp in spec_paths:
         # The filter reads the file stem BEFORE the load, so a broken spec outside it is silent.
@@ -1497,8 +1526,18 @@ def reconcile_all(yes: bool, filters: tuple):
 
         try:
             with file_lock(f"reconcile-{spec.id}", timeout_seconds=30):
-                orch.refresh_infrastructure(spec_path=sp, dry_run=not yes)
-            summary.append((spec.id, "reconciled" if yes else "dry-run", ""))
+                ctx = orch.refresh_infrastructure(spec_path=sp, dry_run=not yes)
+            # The refresh's own registrar failures fail the row, as `fabrik apply` refuses its green
+            # banner on them; its warnings keep the row and print under the table (W-0c60d86e).
+            failures = _ctx_list(getattr(ctx, "registrar_failures", None))
+            spec_warnings.extend(
+                (spec.id, w) for w in _ctx_list(getattr(ctx, "registrar_warnings", None))
+            )
+            if failures:
+                labels = ", ".join(str(f).partition(": ")[0] for f in failures)
+                summary.append((spec.id, "registrar-failed", labels[:80]))
+            else:
+                summary.append((spec.id, "reconciled" if yes else "dry-run", ""))
             rem = webhook_registration_reminder(spec)
             if rem:
                 reminders.append(rem)
@@ -1516,6 +1555,13 @@ def reconcile_all(yes: bool, filters: tuple):
             line += f" — {detail}"
         click.echo(line)
 
+    if spec_warnings:
+        click.echo()
+        from fabrik.state import _sanitize_failure
+
+        for sid, warning in spec_warnings:  # sanitised like the persisted copy
+            click.echo(f"⚠ {sid}: {_sanitize_failure(warning)}")
+
     # Phase 7 (deploy-readiness-gaps): GlitchTip has no webhook-registration API,
     # so surface the one-time operator-manual step for every error_webhook spec.
     if reminders:
@@ -1526,7 +1572,7 @@ def reconcile_all(yes: bool, filters: tuple):
     # Invariant 2: a dead fleet never reads as "reconciled" (the cheap way past the table).
     if hosts and all(isinstance(v, Exception) for v in hosts.values()):
         raise SystemExit(1)
-    failing = {"host-unreachable", "error", "spec-error", "lock-timeout"}
+    failing = {"host-unreachable", "error", "spec-error", "lock-timeout", "registrar-failed"}
     if yes and any(status in failing for _, status, _ in summary):
         raise SystemExit(1)
 

@@ -1,0 +1,26 @@
+{
+  "block_digest": "ef220891131535d2e5ddd4684cd864fa66dde6531a700321a9b63bef4b9faf47",
+  "blocked_by": [],
+  "created": "2026-10-21T10:01:29.338165Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-01e4ae97",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "d6b2b287efcde14d38c343b1b465f3a284d44a8f8d7cd89a724b50a2f1ec7030"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the post-reboot sweep's limit of 3 count only the sessions it resumes itself, or top up to 3 by counting the marked autonomous sessions it already sees alive?",
+  "status": "awaiting-operator",
+  "title": "Should the post-reboot sweep's limit of 3 count only the sessions it resumes itself, or top up to 3 by counting the marked autonomous sessions it already sees alive?"
+}

@@ -1709,7 +1709,16 @@ def test_a_notification_in_any_real_shape_ends_the_stand_down(
 ) -> None:
     note = "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n<status>completed</status>\n"
     if shape == "attachment":
-        done = {"type": "attachment", "attachment": {"type": "queued_command", "prompt": note}}
+        # 2.1.304's notice attachment carries commandMode task-notification (every one seen); W-1b9ae5f2 reads a
+        # notice only from a notice-shaped row, so a hand-back quoting one no longer closes a seat
+        done = {
+            "type": "attachment",
+            "attachment": {
+                "type": "queued_command",
+                "prompt": note,
+                "commandMode": "task-notification",
+            },
+        }
     else:
         done = {
             "type": "user",
@@ -2134,3 +2143,72 @@ def test_a_running_review_that_names_nothing_still_blocks_end_to_end(fake_projec
 # WRITER's three gates in tests/test_command_run.py. RECORDED, destination docs/STRATEGIC_BACKLOG.md:
 # the harness should take the edit's offset as a parameter so future-dated record fixtures are
 # expressible at all.
+
+
+def _quoting(agent_id: str) -> str:
+    return f"<task-notification>\n<task-id>{agent_id}</task-id>\n<status>completed</status>\n</task-notification>"
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "queued_command",
+                "commandMode": "prompt",
+                "prompt": f'<agent-message from="a9f8e7d6c5b4a3921">I read {_quoting("a1b2c3d4e5f60718")}',
+                "origin": {"kind": "peer", "from": "a9f8e7d6c5b4a3921", "handback": True},
+            },
+        },
+        {
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "content": f'<agent-message from="a9f8e7d6c5b4a3921">I read {_quoting("a1b2c3d4e5f60718")}',
+        },
+        {
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "content": f'<cross-session-message from="x">{_quoting("a1b2c3d4e5f60718")}',
+        },
+    ],
+    ids=["hand-back-attachment", "enqueued-agent-message", "enqueued-cross-session"],
+)
+def test_a_quoted_notice_never_closes_a_seat(fake_project: Path, tmp_path: Path, row: dict) -> None:
+    """W-1b9ae5f2: a seat's hand-back or a peer message that QUOTES another seat's task notice is not that notice —
+    the quoted seat stays in flight and the running record stands down."""
+    lines = [_launch_line("a1b2c3d4e5f60718"), row]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_quoted", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_task_notice_attachment_still_closes_its_seat(fake_project: Path, tmp_path: Path) -> None:
+    """The 2.1.304 notice shape — a queued_command attachment with commandMode task-notification — closes the seat."""
+    notice = {
+        "type": "attachment",
+        "attachment": {
+            "type": "queued_command",
+            "commandMode": "task-notification",
+            "prompt": _quoting("a1b2c3d4e5f60718"),
+        },
+    }
+    lines = [_launch_line("a1b2c3d4e5f60718"), notice]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_attnotice", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_an_origin_only_notice_attachment_closes_its_seat(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    """Review pass 1 (W-1b9ae5f2): an attachment whose origin alone names a task notification is a notice too."""
+    notice = {
+        "type": "attachment",
+        "attachment": {
+            "type": "queued_command",
+            "origin": {"kind": "task-notification"},
+            "prompt": _quoting("a1b2c3d4e5f60718"),
+        },
+    }
+    lines = [_launch_line("a1b2c3d4e5f60718"), notice]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_originnotice", _stamped(), lines)
+    assert _blocks_on_run_record(out), out

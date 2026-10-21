@@ -8,6 +8,46 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/enforcement/check_secrets.py`: adds AWS `ASIA`/`ABIA`/`ACCA` key ids (case-sensitive base32), merges the `ghp_`/`gho_` rows into `gh[pousr]_`, adds `github_pat_` fine-grained PATs and OpenAI `sk-proj-`/`sk-svcacct-`/`sk-admin-` keys, keeping every old row so the gate stays a superset (D-1089; fabrik-lib mail 01M5EC2S14). `tests/test_check_secrets_shapes.py` pins each new and old shape.
 
+### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: the diff a seat reads is the pin's own `change.diff`, and a committed fix is pinned with `--from <its last commit>` (plus `--base` when it spans several), since a working-tree pin of a committed surface prints `UNCHANGED` and `--base` alone pins the working tree. The prose rule executes each stream and input channel a sentence names; the input class names every reader of a printed command; the whole-paragraph rewrap waits for the tests that cap line length or pin raw lines, found by basename and re-run after it. Graders in `tests/test_review_scoped_queue_pass.py`.
+
+### Fixed — the Stop hook reads prompts and notices that Claude Code now delivers as attachments (2026-10-21)
+W-1b9ae5f2; D-1090. Claude Code 2.1.304 delivers a prompt typed while the agent is busy, and a subagent's report, as attachment rows rather than user messages. The Stop hook missed the operator's queued prompt when a decision block quoted it, and it treated a subagent's report that quoted another subagent's completion notice as that notice — ending the wait for a subagent still running. It now finds the operator's queued words, and counts a completion only from a real notice. Readers that mark where a turn ends are unchanged on purpose: a queued prompt arrives mid-turn, so ending the turn there would let a block written before it go unchecked.
+
+### Fixed — the link check no longer reports a link written as a code example inside backticks (2026-10-21)
+W-b9af1d47; D-1088. `check_doc_links` skipped links in fenced code blocks but graded one inside an inline code span, so a doc showing `` `[a](x.md)` `` as an example would fail the gate for a missing x.md. The link reader now reads each line with inline code spans blanked, using the same blanker `docs_updater` uses — moved into `scripts/enforcement/_fences.py` so both share one copy. Bare paths are still checked as before, and a project whose `_fences.py` is older keeps today's behaviour. Across 44 repos the change leaves every current finding as it was (306 before and after).
+
+### Fixed — registrar warnings persist into `.fabrik/state` and reach `status`, `audit-registrars` and `reconcile-all` (2026-10-21)
+
+W-0c60d86e. A registrar warning (a payments grant left `pending`, a Prometheus target not loaded) reached only the
+summary of the run that produced it. The state record now carries `registrar_warnings` beside `registrar_failures`
+(sanitised the same way), `fabrik status` prints them, and `fabrik audit-registrars` names a spec whose last apply
+recorded any (warnings never count toward its exit). `fabrik reconcile-all` no longer discards the refresh's result:
+a refresh that recorded registrar failures is a `registrar-failed` row (exit 1 under `--yes`), and its warnings
+print under the table.
+
+### Changed — browserless's vps1 memory limit raised to 3G in the compose mirror, provisionally (2026-10-21)
+
+W-30b7ce3f. Over 7 days browserless was OOM-killed 5 times at its 2G limit (working-set p99 1805 MiB, peak at the
+limit), so `infra/vps1/browserless/compose.yaml` now sets `memory: 3G`. The peak is censored by the old limit, so 3G is
+provisional: if OOM kills continue, lower `CONCURRENT` (10) instead. Live vps1 keeps 2G until the operator-gated
+redeploy copies the mirror; `docs/infrastructure/vps-complete-inventory.md` says so.
+
+### Fixed — a markdown file full of unmatched backticks can no longer stall the link check (2026-10-21)
+W-16c00597; D-1086. `docs_updater` blanks inline code spans before the link check and the plan Status and Owner scans read a file, and for every backtick run with no matching closer it scanned to the end of the paragraph: 2 000 such runs on one 2 MB line took 1.75 s per call, and dense backtick pairs on one long line 26 s at 4 MB. The blanker now examines each stretch of text once and finds each closer by lookup — 0.003 s on the same line — and returns exactly what it returned before: the old function stays in the tests as the reference, matched on fuzz input and on all 14 673 readable markdown files in the fleet.
+
+### Fixed — The container memory alerts judge the working set, and the host-memory alert evaluates again (2026-10-21)
+
+W-4801e4c3. `ContainerHighMemory` divided `container_memory_usage_bytes` (page cache included) by the limit: in one
+week it held above 85% for ~54 h on Prometheus while its working set never passed 85%. It now judges
+`container_memory_working_set_bytes`, as the Grafana dashboards already do. `ContainerMemoryHighOfHost` divided by
+`on() group_left() node_memory_MemTotal_bytes`, which errors on every evaluation since the spokes' node exporters
+joined, so it never fired; it now divides each container by its own cAdvisor's `machine_memory_bytes` and covers only
+containers without a limit, as its comment says. `tests/fixtures/alerts-memory-rules-test.yml` (promtool, run by
+`tests/test_alert_memory_rules.py` under the image vps1 runs) pins both rules, their `for:` windows from both sides
+included. The rules reach vps1 only through the operator-gated monitoring sync.
+
 ### Fixed — /hibernate opens its run record before Phase 1 and joins the no-closing-pass set (2026-10-21)
 
 - W-c638bb08: master went red after the /hibernate merge (dc99ebd76) on two corpus readers. `commands/_sources/hibernate.md` now includes `run-record` and `orient` between its intro and `## Phase 1` (`tests/test_orient_fragment.py`), and `scripts/command_run.py`'s `NO_CLOSING_PASS` lists `hibernate`, whose source orders no loop round (`tests/test_command_run.py::test_no_closing_pass_set_matches_the_command_sources`).

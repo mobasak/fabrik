@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T09:49:38.963710Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-2cef0b6b",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "/fabrik-command-improve fabrik-plan-after-chat carrying these three rows",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956) — three /fabrik-execute-plan feedback rows ask /fabrik-plan-after-chat and /fabrik-plan-review to name the tests a MIRROR refuses; LOW effort: command text only",
   "status": "open",
   "tags": [
-    "kaizen"
+    "kaizen",
+    "waits-internet"
   ],
   "title": "Edit /fabrik-plan-after-chat so the census names each existing test the spec's MIRROR refuses, with its planned edit; and /fabrik-plan-review so it flags a test edit that substitutes a value and names the guard it exercised (rows 1792464433, 1792453856, 1792413935 of the /fabrik-execute-plan queue)"
 }
