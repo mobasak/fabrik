@@ -307,6 +307,7 @@ def test_wrapper_applies_a_resume_pick(tmp_path):
     env, fake, rec = _wrapper_env(
         tmp_path,
         f"""\
+        sys.stdin.read()  # R6: a router that reads stdin would eat the CLI's initialize message unless the wrapper withholds it
         sys.stdout.write("\\0".join([{str(target)!r}, "yt1", sys.argv[sys.argv.index("--") + 1], "--x", "--resume=S9"]))
         """,
     )
