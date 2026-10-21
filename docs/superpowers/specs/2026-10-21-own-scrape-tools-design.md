@@ -116,8 +116,9 @@ is a plain browserless `/content` render, never stealth.
 **Served today: U1, U3, U4, U7** (static scrape). PDF and crawl work but need G8 and G2; U2 needs G10 (ask for
 markdown first); U6 is a page our tools must report, not read. The rendered path executed (U2's render returned a 7.45 MB
 DOM, `probes.out`; U6 2.6 KB) but has no passing case yet. These cases stand for capabilities; the switch itself is gated
-per command (§ Lifecycle). Every "not on the page" judgement above was re-checked with a second request method before it
-was written (the U2 lesson).
+per command (§ Lifecycle). U2's "not on the page" reading was wrong until a second request method (the markdown
+request) was tried; U1 and U4 were checked only against the same fetch's raw HTML. The per-command ledgers therefore
+re-check every absence with a second method before recording it.
 
 ## fabrik-lib verdict (I7)
 
@@ -140,7 +141,8 @@ was written (the U2 lesson).
    `scripts/sysadmin/mcp_defs.json`, a port from `PORTS.md`). It runs on the current SDK line, `mcp>=2.3,<3`, whose
    server class is `MCPServer` (v2 renamed `FastMCP`), in its own venv. Two tools:
    - `scrape(url, render="auto"|"always"|"never", max_length=20000, start_index=0, max_age_s=0)` →
-     `{status, final_url, content_type, title, markdown, truncated, path}` with `path` one of static, rendered, pdf.
+     `{status, final_url, content_type, title, markdown, truncated, short, path}` with `path` one of markdown, static,
+     rendered, pdf.
      The first request asks for markdown (`Accept: text/markdown, text/html;q=0.9`); a site that answers with
      `text/markdown` is used as-is, because docs sites increasingly serve their full reference that way and a reduced
      page as HTML (U2). Otherwise static HTML, converted. `auto` renders through plain browserless `/content` when an
@@ -153,7 +155,7 @@ was written (the U2 lesson).
      `{url, depth, title, markdown}` plus `errors`; by default only pages under the start URL's path.
    - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason}` with `reason` one of:
      `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
-     retries; 429 counts as transient), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
+     retries; a 429 is retried after `Retry-After`, then reported as `http-429`), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
      `empty` (under 50 characters of text after every attempt), `render-unavailable` (browserless unreachable),
      `unsupported` (an image-only PDF, a content type it cannot read).
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
@@ -181,7 +183,8 @@ was written (the U2 lesson).
 | `blocked: robots` | report the page unreadable — never Firecrawl (another vendor's user agent would evade the site's robots group) |
 | `blocked: scope` | report it — never fetched by anyone |
 | `blocked: http-4xx` (except 429) | report the page unreadable; an error page is never cited as content |
-| `blocked: http-5xx`, `blocked: http-429`, `blocked: render-unavailable`, `blocked: empty` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
+| `blocked: http-429` (after the server honoured `Retry-After` and its own backoff) | report the page rate-limited — never exa or Firecrawl (rule 57's bypass line names evading a hard rate limit) |
+| `blocked: http-5xx`, `blocked: render-unavailable`, `blocked: empty` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
 | `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
 | a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
