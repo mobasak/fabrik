@@ -198,7 +198,7 @@ def link_targets(text: str):
     regex truncated `docs/a(b).md` to `docs/a(b`, missed a titled link entirely and kept the
     brackets of an angle one (`<docs/x.md>`); none of those ends in a checked suffix, so a link of
     any of the three shapes to a MISSING file was never examined. check_doc_index
-    carries the same function (no enforcement check imports a sibling CHECK — `_fences` is the one shared helper); a test in
+    carries the same function (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
     opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
@@ -314,21 +314,19 @@ def _iter_refs(text: str):
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
     file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
     line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
-    raw, and fence lines and bodies are blanked before the span pass (a closing fence's ``` would pair with
+    raw, and fence lines are blanked before the span pass (a closing fence's ``` would pair with
     an inline ``` below it). The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
     second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
     spaces."""
-    rows = []  # (line, its offset in text, fence line or fence body)
-    in_fence, pos = False, 0
+    rows = []  # (line, its offset in text, a fence line)
+    pos = 0
     for raw in text.splitlines(keepends=True):
         line = raw.splitlines()[0]
         stripped = line.lstrip()
-        toggle = stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
-        rows.append((line, pos, toggle or in_fence))
-        in_fence ^= toggle
+        rows.append((line, pos, stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)))
         pos += len(raw)
-    # Fence lines and bodies are blanked before the span pass, so a fence's ``` never pairs with an inline
-    # ``` run in the paragraph after it (and a body's backticks never reach out): a blank line ends a span.
+    # Fence lines are blanked before the span pass, so a fence's ``` never pairs with an inline ``` run in the
+    # paragraph after it: a blank line ends a span, which also keeps a body's backticks inside the fence.
     masked = list(text)
     for line, start, fenced in rows:
         if fenced:
@@ -404,7 +402,7 @@ def pct_decode(text: str) -> str:
     same string the filesystem walk yields. `%2F` stays as written because a renderer resolves an
     escaped slash as part of ONE path segment, never as a separator: decoding it made
     `docs%2Fsub%2Fx.md` index and resolve `docs/sub/x.md`, a link that does not reach that file.
-    check_doc_index carries the same one-liner (no enforcement check imports a sibling CHECK — `_fences` is the one shared helper); a test in
+    check_doc_index carries the same one-liner (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
 

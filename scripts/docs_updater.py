@@ -1045,7 +1045,7 @@ def _strip_quoted(content: str) -> str:
 
 
 def _fences_module() -> Any:
-    """The shared fence scanner, imported when `_strip_quoted` first runs (W-276255e7): in a project whose
+    """The shared fence scanner, imported when `_strip_quoted` or `_blank_code_spans` first runs (W-276255e7, W-b9af1d47): in a project whose
     `scripts/enforcement/` lags a sync, a call that never strips quoted text still runs, and one that does
     raises an ImportError naming the file. Imported by the sibling directory, the way every check imports it,
     so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run` promises to write

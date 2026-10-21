@@ -187,6 +187,36 @@ def test_docs_updater_imports_the_scanner_lazily(tmp_path: Path) -> None:
     )
 
 
+def test_docs_updater_names_a_scanner_without_the_span_blanker(tmp_path: Path) -> None:
+    """W-b9af1d47: a _fences.py that predates blank_code_spans is present but lacks the name; docs_updater's span
+    blanking raises its named ImportError, as for a missing file, never a bare AttributeError."""
+    scripts = tmp_path / "scripts"
+    (scripts / "enforcement").mkdir(parents=True)
+    shutil.copy(ROOT / "scripts" / "docs_updater.py", scripts / "docs_updater.py")
+    (scripts / "enforcement" / "_fences.py").write_text(
+        "def strip(text, repl=''):\n    return text\n"
+    )
+    prog = (
+        "import importlib.util\n"
+        f"spec = importlib.util.spec_from_file_location('du_probe', {str(scripts / 'docs_updater.py')!r})\n"
+        "mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)\n"
+        "try:\n"
+        "    mod._blank_code_spans('`x`')\n"
+        "except ImportError as exc:\n"
+        "    print('NAMED', exc)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", prog],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert "NAMED" in out.stdout and "no blank_code_spans" in out.stdout, (
+        out.stdout + out.stderr[-800:]
+    )
+
+
 # ── W-d2eef742: the plan checks' three fence strips ────────────────────────────────────────────────────────────
 # The regexes they replaced, kept as the oracle. plan_appetite's pair took 15.8 s on a 40 KB backtick run, a newline
 # and 40 KB of text; check_phase_tests' backreference pair and check_plan_lock_release's run-length `_FENCE`
