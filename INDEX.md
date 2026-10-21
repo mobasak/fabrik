@@ -1700,6 +1700,7 @@ docs/
 │   ├── claude-account-rotation.md
 │   ├── claude-config-backup-restore.md
 │   ├── claude-configuration-inventory.md
+│   ├── claude-tab-router.md        # VS Code chat-tab router: any repo's agent in one window (W-ea993618)
 │   ├── cleanup-automation.md
 │   ├── cleanup-maintenance-backlog.md
 │   ├── cloud-dispatch.md
