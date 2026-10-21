@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:17.867735Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ccd83bc18fd84cdc04889bf616e0ee97369b1254",
   "id": "W-16d0ef14",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "rollout: agent_status.py's roster is the hub's beats, so no other repo can vendor it; one roster source change",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5cdmvmg7d1jj6vqbhrrk8qk"
   ],
