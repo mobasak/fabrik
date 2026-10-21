@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate: this mail's relay work is fleet's task W-c4f60000, which carries all four i18n consumer-note mail ids; the mail itself is acked when fleet reports the relay done",
   "owner": "coordinator",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "fabrik-lib i18n translate_i18n.py — credential redaction, no tracebacks on malformed catalogs, a data-loss fix (fabrik-lib D-516 / D-518)"
 }
