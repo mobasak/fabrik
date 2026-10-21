@@ -3949,10 +3949,16 @@ def _panel_problem(
     ground: str = "`ground: underivable`",
     outcomes: tuple[str, ...] = ("split", "both-underivable"),
     artifact: str = "",
+    stop_at: tuple[str, int] | None = None,
 ) -> str:
     """ "" when the `Panel:` line is backed by the transcript, else what is missing. ``outcomes``
     are the endings this caller accepts; `fable unavailable` in the line lets a SECOND, distinct
-    Opus seat stand in for the Fable one (D-613)."""
+    Opus seat stand in for the Fable one (D-613). ``stop_at`` = (uuid, k) judges the line against the
+    verdicts held just BEFORE the k-th-from-last queued operator prompt row carrying that uuid (W-6424f2e8):
+    a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
+    The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
+    (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
+    right after it is the cut."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4004,6 +4010,7 @@ def _panel_problem(
 
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
+    snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -4022,6 +4029,16 @@ def _panel_problem(
                     att = entry.get("attachment")
                     origin = att.get("origin") if isinstance(att, dict) else None
                     if _queued_operator_prompt(att):
+                        if stop_at and entry.get("uuid") == stop_at[0]:
+                            snapshots.append(
+                                (
+                                    {k: list(v) for k, v in said.items()},
+                                    dict(seats),
+                                    {k: list(v) for k, v in by_seat.items()},
+                                    {k: list(v) for k, v in said_lines.items()},
+                                    {k: list(v) for k, v in by_seat_lines.items()},
+                                )
+                            )
                         # an operator prompt queued while the agent was busy is the operator's
                         # word too: verdicts before it never back a panel written after it
                         said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
@@ -4078,6 +4095,8 @@ def _panel_problem(
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
+    if stop_at and 0 < stop_at[1] <= len(snapshots):
+        said, seats, by_seat, said_lines, by_seat_lines = snapshots[-stop_at[1]]
     seat_texts = by_seat_lines if line_local else by_seat
     if line_local:
         said = said_lines
@@ -4119,8 +4138,14 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
     """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
     operator's last row, the final message included) lacks a transcript-verified
     `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
-    the next design stage, so the final message alone would miss it."""
-    texts = [final_text] if final_text else []
+    the next design stage, so the final message alone would miss it. Each text is judged against the
+    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
+    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
+    texts: list[tuple[str, tuple[str, int] | None]] = []
+    # the nearest queued operator prompt AFTER the text being read, as (uuid, its copy count from the
+    # end) — the positional handle `_panel_problem(stop_at=)` resolves, immune to re-written copies
+    cut: tuple[str, int] | None = None
+    copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
         if '"type"' not in line:
             continue
@@ -4134,14 +4159,27 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             if _operator_text(entry):
                 break
             continue
+        if entry.get("type") == "attachment":
+            if _queued_operator_prompt(entry.get("attachment")) and isinstance(
+                entry.get("uuid"), str
+            ):
+                copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
+                cut = (entry["uuid"], copies[entry["uuid"]])
+            continue
         content = (entry.get("message") or {}).get("content")
         if entry.get("type") == "assistant" and isinstance(content, list):
             texts.extend(
-                str(b.get("text") or "")
+                (str(b.get("text") or ""), cut)
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
             )
-    for text in texts:
+    if final_text:
+        # the hook passes the turn's last assistant text: when it is a walked text, it keeps that text's
+        # cut-off (otherwise a brief before a trailing queued prompt is judged with none — Fable critique)
+        # final_text joins the last entry's text blocks; walked texts are newest-first, one per block
+        own = next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
+        texts.insert(0, (final_text, own))
+    for text, text_cut in texts:
         fences = _fence_spans(text)
         heads = [
             m
@@ -4158,6 +4196,7 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
                 ground=f"the PANEL APPROVED brief for {m.group(1)}",
                 outcomes=("both-approve",),
                 artifact=m.group(1).strip(),
+                stop_at=text_cut,
             )
             if problem:
                 return problem

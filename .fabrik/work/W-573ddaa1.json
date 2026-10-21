@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T12:46:32.777721Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-573ddaa1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each in real transcripts (re-written rows inside one turn? DECISION blocks before a trailing queued prompt? briefs past the tail?), then apply the W-6424f2e8 last-copy cut-off where it fits; red-first per shape",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: three residues from the W-6424f2e8 critiques on the hook's panel readers (a re-written queued row after compaction clears verdicts mid-turn, and two parser edges); advisory-grade, nobody blocked; LOW effort: one hook file, red-first tests",
+  "status": "open",
+  "title": "final_gate_stop.py panel readers across queued prompts — three residues from the W-6424f2e8 critiques: a re-written queued_command row (same uuid, after a compaction) clears the seats' verdicts mid-turn; parse_decision_block's panel misreads a DECISION block written before a queued prompt when no text follows it; _panel_brief_problem never judges a brief older than the 2 MB tail"
+}

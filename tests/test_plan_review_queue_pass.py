@@ -201,3 +201,69 @@ def test_a_changed_predicate_runs_against_its_pinning_tests_before_the_first_pin
         " intends or a defect, and against every input shape its grammar admits beyond the plan's own cases (another"
         " schema, a column-level grant)."
     ) in _flat("commands/_sources/fabrik-plan-review.md")
+
+
+SRC_REL = "commands/_sources/fabrik-plan-review.md"
+
+
+def _span(after: str, before: str) -> str:
+    """The raw text between the ONE live copy of `after` and the next `before`. The anchor must be live (outside every
+    HTML comment), and the span is compared with its comments kept, so an exemption hidden in a comment inside the
+    span, or a rule moved into one, cannot pass."""
+    raw = (ROOT / SRC_REL).read_text(encoding="utf-8")
+    live = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", " ", raw, flags=re.S))
+    text = re.sub(r"\s+", " ", raw)
+    assert live.count(after) == 1 == text.count(after), (
+        f"anchor not unique, moved or commented out: {after!r}"
+    )
+    i = text.index(after) + len(after)
+    assert before in text[i:], f"end marker {before!r} not after {after!r}"
+    return text[i : text.index(before, i)]
+
+
+def test_a_run_lives_in_the_plan_and_is_re_run_before_each_later_pin() -> None:
+    """Rows 1792489145, 1792560450, 1792561946, 1792543087: a prototype's corpus sat in scratch, a spec's consumer CI
+    snippet went unexecuted, and a folded fix was pinned without re-running the predecessor corpus."""
+    assert _span("(another schema, a column-level grant). ", " 3. **Constraints-Digest audit") == (
+        "Each such run's script, corpus and output go inline in the plan's Evidence from round 1, never only in"
+        " scratch, which the seats' pinned copy of the plan does not carry; before every later pin at which a fix or a"
+        " folded panel change touches what a run exercised, it is re-run over its whole corpus, a changed predicate's"
+        " old and new versions side by side, each difference named as intended or a defect, its output replacing the"
+        " earlier run's in the Evidence before that pin. Under the `Size: small`"
+        " joint loop the same holds for a command the spec prescribes for a consumer to run (a CI step, through a"
+        " shell stand-in for its runner)."
+    )
+
+
+def test_only_the_orchestrator_runs_the_combined_set_hash() -> None:
+    """Row 1792583409: the set-hash recipe told seats to re-derive it, with a cd, && and pipes they may not run."""
+    assert _span("COMBINED hash — ", " `d41d8cd98f00b204e9800998ecf8427e` is the empty input") == (
+        "`(cd \"<plan-dir>\" && find . -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum) | md5sum` —"
+        " recorded per pass by the orchestrator, run from inside the set so md5sum's path column reads the same"
+        " relative `./…` wherever the set sits (a typed `<plan-dir>` puts its own spelling into every line, and the"
+        " hashes differ); a seat never runs it, since its `cd`, `&&` and pipes are shapes the seats'"
+        " one-plain-command rule bars, and states instead the per-file hash it read against the pin's"
+        " `MANIFEST.pins.md5` (the Subagents section);"
+    )
+
+
+def test_a_substituted_test_value_names_its_guard() -> None:
+    """Row 1792413935 (W-2cef0b6b, carried from /fabrik-execute-plan): a test edit that swapped a value hid that the
+    test no longer guarded its behaviour."""
+    assert _span(
+        "A plan light on test coverage must NOT converge. ", " - **Wired-consumer audit"
+    ) == (
+        "A step or ticket that edits an existing test by substituting a value (an expected literal, an input, a"
+        " threshold) names, in its own Scope (a monolith step: in the step itself) and never as a Behavior Contract"
+        " row, the guard that test exercised and the"
+        " test that still exercises it after the edit; an"
+        " unnamed one is a finding, since a substituted value can leave a test that no longer fails when its"
+        " behaviour regresses."
+    )
+
+
+def test_each_ticket_carries_the_substituted_value_rule() -> None:
+    """Round-1 review: the rule sat only in the per-phase pillar, which a plan SET's per-ticket axes never read."""
+    assert _span("- **Behavior Contract ≤8 G/W/T rows** ", ", each grounded") == (
+        "(and the Behavior Contract pillar's substituted-test-value rule holds for the ticket)"
+    )
