@@ -16,7 +16,7 @@ restores registered builders only). Research ledger: `docs/reference/research/20
 | **Every builder agent** (interactive tmux pane, 3 to 10+ per repo, D-1092) | to finish its step, keep its place, be woken | stops intake at the mark, checkpoints by T-3, closes its run with a seed, and names every still-running seat in that close |
 | **Review seats and subagents** (a builder's children) | not to be lost silently | none — their parent's close records each one still running at T-3 |
 | **Headless pool workers** (`claude -p`: youtube's claim pool, the hub's `ci_fix_dispatcher.py`) | not to start while a pause is marked | their launcher checks `hibernate.py paused` (the hub's launchers here; another repo's by mail) |
-| **Cron jobs** (the box crontab, 46 entries on 2026-10-21, `crontab -l`; most are other repos') | not to write a git tree or start a `claude` process during a pause | each hub job that does either checks `paused` — the `weekly_catchup.sh` wrapper (its six job keys), `ci_fix_dispatcher.py`, `audit_all_registrars.py` (apply mode), `claude_rotate.py --keepalive`, `check_mutation.py`; the tick, `wip_backup.sh`, the DR backups and the dashboard keep running; another repo's jobs are that repo's (mail) |
+| **Cron jobs** (the box crontab, 46 entries on 2026-10-21, `crontab -l`; most are other repos') | not to write a git tree or start a `claude` process during a pause | each hub job that does either checks `paused` — the `weekly_catchup.sh` wrapper (its six job keys), `ci_fix_dispatcher.py`, `audit_all_registrars.py` (apply mode), `check_mutation.py`; the tick, `wip_backup.sh`, the DR backups and the dashboard keep running; another repo's jobs are that repo's (mail) |
 | **The rotation tick** (`claude_rotate.py`, cron */5) and the minute cron (`--battery-tick`) | to own the hold's clock | the minute cron arms the hard hold at T-3; the tick lifts it and fans out the wake |
 | **The self-watch** (`~/.claude/bin/claude-selfwatch.sh`, one per session) | to wake its session once the network answers | prints the `hibernate` RESUME line |
 | **The boot relaunch** (`agents_up.sh`) and the reboot sweep | to bring builders back after a full boot | the sweep starts each registered repo's grid relaunch; the relaunch passes a first prompt to `claude --resume` |
@@ -136,10 +136,10 @@ unanimously, over "a controller service" (killed: duplicates the hold, hook and 
 only" (fails "fully": the deadline is announced, not enforced).
 
 **L1 — durability, always on (covers the unplanned stop).**
-- Every `command_run.py step` lands an off-box snapshot of the run's own repo or worktree (ledger d-7, d-8: checkpoints
-  at step boundaries, on disk): `wip_backup.sh` gains a single-repo scope, the step-triggered run takes the cron's own
-  lock (`/tmp/wip-backup.lock`) and skips when the cron holds it, and at most one runs per repo per 2 minutes; the */15
-  cron stays as the floor (touchpoints `scripts/wip_backup.sh:39-44`, `:311`; `scripts/command_run.py` `step`).
+- A `command_run.py step` lands an off-box snapshot of the run's own repo or worktree (ledger d-7, d-8: checkpoints at
+  step boundaries, on disk): `wip_backup.sh` gains a single-repo scope, the step-triggered run takes the cron's own lock
+  (`/tmp/wip-backup.lock`), and at most one runs per repo per 2 minutes; a boundary that finds the lock held (the */15
+  cron, or another repo's step run) skips, and the */15 cron — the floor — covers it (touchpoints `scripts/wip_backup.sh:39-44`, `:311`; `scripts/command_run.py` `step`).
 - Every agent and seat runs with `CLAUDE_CODE_RETRY_WATCHDOG=1` in the user-level settings `env`. On this box's Claude
   Code (2.1.305) a dropped connection or server error then retries up to 300 times (about 3 h) and a 429/529 capacity
   error indefinitely, so an API call frozen by a hibernate retries through the wake instead of failing after 10 attempts;
@@ -159,10 +159,12 @@ only" (fails "fully": the deadline is announced, not enforced).
   close and stop pass (ledger d-4, d-6: the hard phase as late as possible). The tier's invariants: only a hibernate lift
   (L3) clears it — the quota relief and dwell keep it, as they keep the battery tier; a `walled` quota stamp standing at
   T-3 becomes the `hibernate` tier, so a quota relief cannot end the pause; a hibernate lift while the quota is hot
-  hands the stamp back to the quota's tier and wakes nobody, as the battery lift does; `quota_stop.py`'s stale-tick
-  fail-open does not open a `hibernate` tier while the mark is younger than the pause's 24-hour bound, so the minutes
-  after a wake, before the first tick, stay held (touchpoints `scripts/sysadmin/claude_rotate.py:7061-7085`,
-  `:7203-7238`, `:8140`; `.claude/hooks/quota_stop.py:43-46`).
+  hands the stamp back to the quota's tier and wakes nobody, as the battery lift does; `quota_stop.py`'s fail-open on a
+  stale or unknown tick age does not open a `hibernate` tier while the pause is marked and not lifted, however long the
+  sleep, so the minutes after a wake, before the first tick, stay held — a dead cron is escaped by the hub's `lift`,
+  which also clears the tier (touchpoints `scripts/sysadmin/claude_rotate.py:7061-7085`, `:7203-7238`, `:8140`;
+  `.claude/hooks/quota_stop.py:688-693`, `:717-722`; the vendored copy `scripts/aro-wake/claude_rotate.py` changes in
+  step).
 - A seat still running at T-3 is ABANDONED, and it is recorded where the hold still lets its parent write: on the run
   close (`command_run.py` passes the hold), which carries each still-running seat's brief path and purpose into the
   record and its seed, so `woke` lists it for a re-run after the wake (ledger d-3, d-5: what runs at the deadline is
@@ -172,13 +174,17 @@ only" (fails "fully": the deadline is announced, not enforced).
   1. a live `sdk-*` session that is no agent's seat is its own row: before T-3 it BLOCKS; from T-3 it reads `held
      (headless)` and does not block — the hold stops its tools, and its job is its own pool's to requeue (ledger d-3);
   2. an agent with live seats: before T-3 it BLOCKS; from T-3 it BLOCKS unless its closed record names at least as many
-     abandoned seats as it has live, and the table lists every abandoned seat;
+     abandoned seats as `status` sees live, and the table lists every abandoned seat; `status` sees only seats that are
+     processes of their own (`sdk-*` children), so the count guards those, and the parent's close names every seat it
+     dispatched that is still running, in-process subagents included;
   3. the uncommitted row names up to five paths, then `+N more`;
   4. the header names the pause, T-3, T and the time left;
   5. with a mark, a non-self agent whose run record closed `blocked`/`handoff` at or after the mark with neither a readable
      `resume_seed` nor `resume_copy` BLOCKS; a record closed before the mark, `done`, or absent does not;
-  6. an agent whose self-watch is not armed BLOCKS — the wake reaches armed sessions only (touchpoint
-     `scripts/sysadmin/selfwatch_check.py:176`, `arm_state`).
+  6. an agent whose self-watch is not armed BLOCKS — the wake reaches armed sessions only, so the test is the tick's own
+     list of who it wakes (`_armed_sids`, the per-session self-watch lock held by a live process), applied to every
+     agent row, an outside-`/opt` one included; `selfwatch_check.arm_state` judges only its caller's own session and is
+     not the test.
   `status` reads twice, 5 s apart, before it prints SAFE (ledger d-9: a busy count is never instant).
 
 **L3 — the automatic wake (no operator step).**
@@ -196,8 +202,11 @@ only" (fails "fully": the deadline is announced, not enforced).
   and resume your item from its seed`; the `resume` kind reads "the box RESUMED from sleep at HH:MM" (W-b01aa1ec).
 - `woke` prints the session's seeds written since the mark, newest first (the parent closes last), each as its
   `start --resume-from` line, a `.md` handoff as "open a fresh start and follow its ## RESUME", every abandoned seat its
-  closes recorded, and one line naming the session id and the pause time for `get_chat` (L4's third layer). With no wake
-  and no lift it names the lift paths.
+  closes recorded, and one line naming the session id and the pause time for `get_chat` (L4's third layer). It answers
+  RESUME only after the hibernate lift (`lifted_at` after the mark): a `resume-wake` row is the lift's evidence, never
+  `woke`'s, so an agent is never told to resume while the hold still stands (this replaces today's rule, under which a
+  `resume-wake` row alone answers RESUME, `scripts/sysadmin/hibernate.py:345-367`). With no lift it names the lift
+  paths.
 - `lift` stays as the hub's manual override and prints the RESUME text.
 
 **L4 — the full-boot restore (folds W-89474fc1 slice 2, D-1092).**
@@ -205,9 +214,10 @@ only" (fails "fully": the deadline is announced, not enforced).
   prompt is the session's first turn (ledger cc-16); because the same launcher is used every day, the prompt is safe
   outside a pause: it orders the self-watch re-arm (background tasks are not restored, ledger cc-2) and `hibernate.py
   woke`, resuming from the seed only when `woke` exits 0 and otherwise carrying on as usual.
-- After a boot, builders come back in their repos' tmux grids with no operator step: the reboot sweep starts each
-  registered repo's grid relaunch once the user bus answers, within a bounded wait, and the relaunch only reports a pane
-  already running. The sweep never resumes an interactive builder with `claude -p` (one session in two processes forks
+- After a boot, builders come back in their repos' tmux grids with no operator step: the reboot sweep builds each
+  registered repo's grid detached — never attaching, since cron has no terminal (`scripts/sysadmin/agents_up.sh` ends in
+  `exec tmux attach`) — once the user bus answers, within a bounded wait, the repos named by the same registry the `.bat`
+  launchers are generated from (`scripts/sysadmin/agents_bat.py`), and the relaunch only reports a pane already running. The sweep never resumes an interactive builder with `claude -p` (one session in two processes forks
   it, `~/.claude/bin/claude-reboot-sweep.sh:8-12`); a disposable worker that marked itself autonomous is consumed with a
   log line, never resumed; the sweep no longer re-exports `CLAUDE_MESH_AUTONOMOUS=1` on a resume, which re-marked the
   resumed session every boot (1da4b024 on all five logged boots). No number limits it (D-1092: "3 is not a limit").
@@ -269,9 +279,11 @@ and the API probe work unchanged on a real Linux guest. Pre-sleep hooks are not 
 - **Growth:** 10+ builders per repo (D-1092) cost one more row each in `targets`/`status` and one more `.holdlifted`
   file; the slice ceiling does not depend on the count. Trigger to revisit: a `status` run longer than 60 s, or a box
   where MemTotal − 4 GiB is under 8 GiB (the reserve then needs a ratio).
-- **Degradation:** every leg fails open on the mesh (a missing marker, an unreadable record, a dead cron) exactly as the
-  battery hold does; a hold that cannot lift is bounded by path (c); a self-watch not armed gets the boot or the next
-  prompt's arm order (`selfwatch_check.py`).
+- **Degradation:** the mesh legs fail open (a missing marker, an unreadable record) as the battery hold does, with two
+  deliberate exceptions that fail closed: the `hibernate` tier holds while the pause is marked and not lifted, a dead cron
+  included (the hub's `lift` is the escape), and the `status` checks block what they cannot prove. A hold that the tick
+  cannot lift is bounded by path (c) while the tick runs and by the hub's `lift` when it does not; an unarmed self-watch
+  is caught by check 6 before the lid closes.
 - **Retirement:** if Claude Code ships its own suspend-aware resume, L3's self-watch wording and L4's prompt shrink to a
   call of it; the hold tier stays.
 
@@ -298,7 +310,7 @@ and the API probe work unchanged on a real Linux guest. Pre-sleep hooks are not 
 ## Shape/infra implications
 
 No service, no scaffold type, no `shape:` flag: every change is hub tooling and the box-local mesh. The memory ceiling is
-a `systemctl --user set-property --runtime` on the agents slice; no compose file changes.
+a `systemctl --user set-property --runtime` on the one parent slice L5 names; no compose file changes.
 
 ## Documentation landing sites
 
@@ -366,7 +378,7 @@ A mock hibernate in a throwaway home, proc and opt (the existing `tests/test_hib
 each layer red-first then green: (1) a headless non-seat session blocks before T-3 and reads held after; (2) a live seat
 blocks before T-3, and after it blocks until the parent's close names it; (3) the uncommitted row names paths; (4) each
 of the three lift paths ends the pause and writes `.holdlifted hibernate`, none fires without its evidence, a sleep under
-the hold still leaves its `resume-wake` row, and path (c) with no `deadline_at` counts from the mark; (5) a seedless close
+the hold still leaves its `resume-wake` row, path (c) with no `deadline_at` counts from the mark, and `woke` answers RESUME only after the lift; (5) a seedless close
 after the mark blocks, a seeded one does not; (6) an unarmed agent blocks; the `hibernate` tier survives a quota relief
 and a stale tick log, a walled quota stamp at T-3 becomes it, and a lift under a hot quota wakes nobody; the posture hook
 holds `Agent` and a review start for a session with a live run while marked; `paused` gates every hub launcher the
