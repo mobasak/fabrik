@@ -887,3 +887,21 @@ def test_a_multi_block_final_message_keeps_its_cut_off(tmp_path, panel_mode):
         _queued_with_uuid("also fix the typo", "q-1"),
     )
     assert hook._panel_brief_problem(tr, brief + "\none more note") == ""
+
+
+def test_a_copy_of_the_queued_prompt_before_the_brief_still_resets(tmp_path, panel_mode):
+    """Review pass 2 (Sonnet, W-6424f2e8): with verdicts, a queued prompt, the brief, then a re-written copy of that
+    prompt, the cut-off is the copy right AFTER the brief — the first copy came before it and is the operator's word,
+    so the verdicts before it never back the brief. The cut is positional, (uuid, copy count from the end)."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("a new question", "q-1"),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")

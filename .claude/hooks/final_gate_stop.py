@@ -3949,16 +3949,16 @@ def _panel_problem(
     ground: str = "`ground: underivable`",
     outcomes: tuple[str, ...] = ("split", "both-underivable"),
     artifact: str = "",
-    stop_at_uuid: str | None = None,
+    stop_at: tuple[str, int] | None = None,
 ) -> str:
     """ "" when the `Panel:` line is backed by the transcript, else what is missing. ``outcomes``
     are the endings this caller accepts; `fable unavailable` in the line lets a SECOND, distinct
-    Opus seat stand in for the Fable one (D-613). ``stop_at_uuid`` judges the line against the verdicts
-    held just BEFORE the queued operator prompt with that uuid (W-6424f2e8): a brief written before a
-    prompt queued mid-turn is not judged after that prompt cleared the verdicts. Claude Code re-writes a
-    queued row with the same uuid (across compactions, sometimes twice in a turn), so the snapshot is the
-    one taken at the prompt's first copy since the operator's last `user` row — a later copy keeps it, and
-    a `user` row discards a stale one from an earlier turn."""
+    Opus seat stand in for the Fable one (D-613). ``stop_at`` = (uuid, k) judges the line against the
+    verdicts held just BEFORE the k-th-from-last queued operator prompt row carrying that uuid (W-6424f2e8):
+    a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
+    The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
+    (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
+    right after it is the cut."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4010,9 +4010,7 @@ def _panel_problem(
 
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
-    snapshot = (
-        None  # the stores just before `stop_at_uuid`'s queued prompt, at its first copy this turn
-    )
+    snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -4031,16 +4029,15 @@ def _panel_problem(
                     att = entry.get("attachment")
                     origin = att.get("origin") if isinstance(att, dict) else None
                     if _queued_operator_prompt(att):
-                        # the FIRST copy since the operator's last `user` row: a later copy of the same
-                        # prompt (re-written within the turn) keeps it, since that copy's reset would
-                        # already have emptied the stores; an operator `user` row discards it
-                        if stop_at_uuid and entry.get("uuid") == stop_at_uuid and snapshot is None:
-                            snapshot = (
-                                {k: list(v) for k, v in said.items()},
-                                dict(seats),
-                                {k: list(v) for k, v in by_seat.items()},
-                                {k: list(v) for k, v in said_lines.items()},
-                                {k: list(v) for k, v in by_seat_lines.items()},
+                        if stop_at and entry.get("uuid") == stop_at[0]:
+                            snapshots.append(
+                                (
+                                    {k: list(v) for k, v in said.items()},
+                                    dict(seats),
+                                    {k: list(v) for k, v in by_seat.items()},
+                                    {k: list(v) for k, v in said_lines.items()},
+                                    {k: list(v) for k, v in by_seat_lines.items()},
+                                )
                             )
                         # an operator prompt queued while the agent was busy is the operator's
                         # word too: verdicts before it never back a panel written after it
@@ -4063,9 +4060,6 @@ def _panel_problem(
                 if entry.get("type") != "user":
                     continue
                 if _is_operator_prompt(entry):
-                    snapshot = (
-                        None  # a snapshot from before the operator's new word is a past turn's
-                    )
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
                     # the line stores too, or a both-approve brief reads pre-operator verdicts
                     said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
@@ -4101,8 +4095,8 @@ def _panel_problem(
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
-    if snapshot is not None:
-        said, seats, by_seat, said_lines, by_seat_lines = snapshot
+    if stop_at and 0 < stop_at[1] <= len(snapshots):
+        said, seats, by_seat, said_lines, by_seat_lines = snapshots[-stop_at[1]]
     seat_texts = by_seat_lines if line_local else by_seat
     if line_local:
         said = said_lines
@@ -4147,10 +4141,11 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
     the next design stage, so the final message alone would miss it. Each text is judged against the
     verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
     mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
-    texts: list[tuple[str, str | None]] = []
-    cut: str | None = (
-        None  # the uuid of the nearest queued operator prompt AFTER the text being read
-    )
+    texts: list[tuple[str, tuple[str, int] | None]] = []
+    # the nearest queued operator prompt AFTER the text being read, as (uuid, its copy count from the
+    # end) — the positional handle `_panel_problem(stop_at=)` resolves, immune to re-written copies
+    cut: tuple[str, int] | None = None
+    copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
         if '"type"' not in line:
             continue
@@ -4168,7 +4163,8 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             if _queued_operator_prompt(entry.get("attachment")) and isinstance(
                 entry.get("uuid"), str
             ):
-                cut = entry["uuid"]
+                copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
+                cut = (entry["uuid"], copies[entry["uuid"]])
             continue
         content = (entry.get("message") or {}).get("content")
         if entry.get("type") == "assistant" and isinstance(content, list):
@@ -4200,7 +4196,7 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
                 ground=f"the PANEL APPROVED brief for {m.group(1)}",
                 outcomes=("both-approve",),
                 artifact=m.group(1).strip(),
-                stop_at_uuid=text_cut,
+                stop_at=text_cut,
             )
             if problem:
                 return problem
