@@ -419,3 +419,60 @@ def test_an_inline_triple_backtick_span_does_not_open_a_fence():
     link below it, which the pre-change check still graded."""
     text = "```x``` is inline\n[x](docs/nope-after.md)\n"
     assert ("docs/nope-after.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_a_link_inside_an_inline_code_span_is_not_graded():
+    """W-b9af1d47: a link written inside an inline code span is a code EXAMPLE, like a fenced one,
+    so it is not graded; the spans are blanked by _fences.blank_code_spans for the link reader only."""
+    text = "Write `[a](docs/nope-span.md)` to link.\n"
+    assert "docs/nope-span.md" not in [t for t, k in cdl._iter_refs(text) if k == "link"]
+
+
+def test_a_link_beside_a_span_and_a_bare_path_in_one_are_still_graded():
+    """Only the link reader sees the blanked text: a link next to a span is graded, and a bare path
+    inside a span is graded as before (the bare scan reads the raw line)."""
+    text = "Run `x` then [b](docs/nope-beside.md); see `docs/nope-bare.md`.\n"
+    refs = list(cdl._iter_refs(text))
+    assert ("docs/nope-beside.md", "link") in refs
+    assert ("docs/nope-bare.md", "bare") in refs
+
+
+def test_a_code_span_across_lines_holds_its_link():
+    """A span that crosses a line break inside one paragraph holds the link on its first line —
+    the whole text is blanked once, then read line by line."""
+    text = "Write `[c](docs/nope-wrap.md)\ncontinued` here.\n[d](docs/nope-after-wrap.md)\n"
+    links = [t for t, k in cdl._iter_refs(text) if k == "link"]
+    assert "docs/nope-wrap.md" not in links
+    assert "docs/nope-after-wrap.md" in links
+
+
+def test_line_breaks_only_splitlines_knows_keep_the_lines_aligned():
+    """str.splitlines also breaks on \\f, \\v and U+2028, which the blanker turns into spaces when they
+    sit in a span: the blanked line is cut at the raw line's offsets, so line k reads line k. Shifted by
+    one, the stale-marked line's link would be read beside the unmarked line above it."""
+    for sep in ("\f", "\v", " ", "\r\n", "\r"):
+        text = f"`a{sep}b` x\n⚠ [e](docs/nope-stale.md)\n[f](docs/nope-kept.md)\n"
+        links = [t for t, k in cdl._iter_refs(text) if k == "link"]
+        assert links == ["docs/nope-kept.md"], (repr(sep), links)
+
+
+def test_check_doc_links_reads_raw_lines_without_the_scanner(tmp_path):
+    """In a project whose _fences.py lags the sync, the check still runs and grades the raw line
+    (the pre-W-b9af1d47 reading) — it never crashes on the missing blanker."""
+    enf = tmp_path / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "check_doc_links.py").write_bytes(
+        (REPO / "scripts" / "enforcement" / "check_doc_links.py").read_bytes()
+    )
+    code = (
+        "import importlib.util\n"
+        f"spec = importlib.util.spec_from_file_location('cdl', {str(enf / 'check_doc_links.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(m)\n"
+        "print(sorted(t for t, k in m._iter_refs('`[a](docs/nope-raw.md)`\\n') if k == 'link'))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "['docs/nope-raw.md']", r.stdout + r.stderr
