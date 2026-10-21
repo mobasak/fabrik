@@ -3,7 +3,7 @@
   "created": "2026-10-19T23:08:15.530165Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b6c8ea6c8701839aa46ef90c77a856d205e89e2f",
   "id": "W-0c60d86e",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "MEDIUM (tag kept): registrar warnings reach only the CLI summaries; real value, nobody blocked; LOW effort: one persistence path",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],
