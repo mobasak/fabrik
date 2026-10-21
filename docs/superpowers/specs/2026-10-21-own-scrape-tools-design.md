@@ -330,6 +330,6 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 - Operator gate, not tested or used: Firecrawl's docs say "No API key needed to get started", which suggests a keyless,
   rate-limited tier. Switching to it while the keyed team is at −6 credits would be using another identity to get past
   a cap the vendor set — rule 57's field 4 makes that "an operator decision with the ToS quoted — never an engineering
-  convenience" (`.windsurf/rules/core/57-external-data-sourcing.md`:129-133), and D-1093 ruled out spending past the
-  cap. Nothing in this design calls it.
+  convenience" (`.windsurf/rules/core/57-external-data-sourcing.md`:129-133), and D-1093 rules "no Firecrawl top-up".
+  Nothing in this design calls it.
 - Size: not small (a new MCP server, fabrik-lib changes, ten command and contract surfaces) — the full chain.
