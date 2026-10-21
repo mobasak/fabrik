@@ -1,0 +1,31 @@
+{
+  "plan": "docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md",
+  "owned_paths": [
+    "tests/test_firecrawl_proxy_basic.py",
+    "commands/_sources/fabrik-spec.md",
+    "commands/_sources/fabrik-spec-review.md",
+    "commands/_sources/fabrik-plan-after-chat.md",
+    "commands/_sources/fabrik-vision.md",
+    "commands/_agents/fabrik-researcher.md",
+    "libs/web_scrape_mcp/",
+    "libs/web_tools.py",
+    "scripts/scrape_ledger.py",
+    "tests/test_scrape_ledger.py",
+    "scripts/sysadmin/emit_mcp_project_config.py",
+    "tests/test_emit_mcp_project_config.py",
+    "scripts/sysadmin/mcp_defs.json",
+    "scripts/sysadmin/systemd/fabrik-scrape-mcp.service",
+    "docs/reference/fabrik-scrape-mcp.md",
+    "docs/workstation/mcp-roster.md",
+    "PORTS.md",
+    "tests/test_researcher_fallback_contract.py",
+    ".windsurf/rules/core/57-external-data-sourcing.md",
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md"
+  ],
+  "branch": "worktree-intel",
+  "started_at": "2026-10-21T21:16:15Z",
+  "status": "active",
+  "baseline_commit": "0e40b9864506c19b8cdfdfb1f40f6d9ad48af76a",
+  "baseline_gate": {"status": "success", "red": []}
+}

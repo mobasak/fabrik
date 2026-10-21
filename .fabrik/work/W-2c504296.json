@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T18:19:26.704560Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2c504296",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FHR9EV08ZEWT8FF87KWV31",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE — web-tools logs every Firecrawl call's caller and URL (hub W-10146d20 slice 1a; fabrik-lib main 49c09f6d)"
+}

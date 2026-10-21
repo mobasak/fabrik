@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T18:15:44.028459Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ddb716ca",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md",
+    "spec": ""
+  },
+  "next": "Widen MENTION for retrieve/recrawl and the noun-then-preposition order, tighten \"read\" to fetch senses, one fixture each, mutant each; none of the four appears in the 72-file corpus today",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Firecrawl proxy grader spellings: tests/test_firecrawl_proxy_basic.py misses \"recrawls\", \"retrieves\" and \"Point the scrapers at Firecrawl via its API\", and false-reds \"Firecrawl docs are easy to read\""
+}

@@ -569,7 +569,7 @@ library/framework version, protocol/standard — ground it to **CURRENT truth**,
   past conversation records what we *concluded then*, and pricing/limits/endpoints go stale — re-ground
   live before it enters the Vision Summary) → then **LIVE**: `WebSearch`/`WebFetch` →
   `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
-  `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github`
+  `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: "basic"`) → `mcp__context7` (library docs) → `mcp__github`
   (read a dependency's actual source / latest release).
 - Capture the **real** endpoint / auth model / limits / **pricing**, and **cite the source URL + the date
   you fetched it** in the Vision Summary's External Services section.

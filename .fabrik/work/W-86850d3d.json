@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-42d1ccb5"
+  ],
+  "created": "2026-10-21T19:01:05.077631Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-86850d3d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "merge master into fleet-alloy in its worktree, fix conflicts in configs/prometheus and infra/vps1/monitoring/compose.yaml, run the alloy tests, re-board W-3247bfdd with the D3 diff clean",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Prerequisite for the Promtail-to-Alloy window (W-3247bfdd, panel 2026-10-21): merge master into fleet-alloy (21 ahead / 3,955 behind), re-run tests/test_alloy_*.py and the runbook D3 diff, re-run the D7 review on the merged result, then re-board the window"
+}
