@@ -1,31 +1,30 @@
 ## RESUME
 
-Paused for the operator's /hibernate (2026-10-21 18:36). Item: W-10146d20 (own scrape tool replacing Firecrawl).
-Plan: docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md (CONVERGED, D-1101), Phase A of 3.
+Item: W-10146d20 (own scrape tool replacing Firecrawl). Plan: docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md
+(CONVERGED, D-1101), Phase A of 3. Live runs: /fabrik-execute-plan (phase 1/3) with a nested /fabrik-review (phase 1/5,
+round 1 recorded: findings 24, confirmed 13). Receipt: docs/development/reviews/2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md
+(IN-PROGRESS, rows not yet filled). Pin: /opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-review-2026-10-21T18-21-51-0300/pins-1.
 
-Where: /fabrik-execute-plan Phase A, inside its /fabrik-review pass 1 (receipt
-docs/development/reviews/2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md, IN-PROGRESS).
+Pass 1 is complete (wave 1: A-opus, A-sonnet, B-sonnet; wave 2 after the hibernate: A-haiku, B-haiku).
 
-Done in pass 1 (all three seats returned; slice A opus+sonnet, slice B sonnet; the two Haiku seats were TRIMMED by
-dispatch_headroom and are still owed as a wave-2 full pass over slices A and B before any delta pass):
-- CONFIRMED and fixed: A-opus-1 (4 text-pin tests asserted the old wording: tests/test_agent_definitions.py,
-  tests/test_spec_plan_lane_text.py updated), A-opus-2 (researcher :149 cached-arm meaning), A-opus-3 (clause crossed
-  block boundaries: WRAP regex, fence-aware _mask, _line_of rewritten; 20000-text reference probe 0 mismatches),
-  A-opus-4 (prose spellings, case-insensitive MENTION), A-opus-5 (_fragments scanned), A-opus-8 (vs./etc., kwarg
-  form), A-sonnet-1 (inflected negations), B-sonnet-2 (CHANGELOG count dropped), B-sonnet-1/A-sonnet-3/A-opus-6
-  (pin on scrape alone in search/scrape pairs; no new crawl claim), A-opus-7 (researcher :35 grammar).
-- REFUTED: A-opus-9 (firecrawl_scrape schema has top-level proxy enum basic|stealth|enhanced|auto; crawl takes it in
-  scrapeOptions — read via ToolSearch this session), A-sonnet-4, A-sonnet-5 (superseded by A-opus-2's fix).
-- RECORDED by design: A-sonnet-2 (extract/agent/interact/map out of scope: plan pins scrape/crawl), A-sonnet-6
-  (URL-dot false red, now named in the docstring), test_the_live_box_matches_the_repo_sources (red until the
-  merge-time render, by design).
-- Tests: the four files pass except the live-box test (103 passed, 1 by-design fail). The 97-file corpus-test sweep
-  (scratchpad run_corpus_tests.sh) was STOPPED by the pause — re-run it first.
+FIXED (committed in 7b5ea84f3, the hibernate wip): A-opus-1 (text-pin tests updated), A-opus-2 (researcher :149
+meaning), A-opus-3 (block boundaries: WRAP, fence-aware _mask, _line_of; 20000-text probe 0 mismatches), A-opus-4
+(prose spellings), A-opus-5 (_fragments), A-opus-7 (:35 grammar), A-opus-8 (vs./etc., kwarg), A-sonnet-1
+(inflections), A-sonnet-6 (docstring names URL false red), B-sonnet-1 = A-sonnet-3 = A-opus-6 = A-haiku-4 = B-haiku-2
+(pin on scrape alone), B-sonnet-2 = B-haiku-1 (CHANGELOG count).
+REFUTED: A-opus-9 (scrape schema has top-level proxy; crawl has it in scrapeOptions), A-sonnet-4, A-sonnet-5.
+RECORDED by design: A-sonnet-2 (other Firecrawl tools out of scope), live-box drift test (red until merge render).
 
-Next steps on wake:
-1. `python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke`.
-2. Re-open both runs from their seeds (parent /fabrik-execute-plan first, then /fabrik-review).
-3. Re-run the 97-file corpus-test sweep; record round 1 (`round --findings 20 --confirmed 12 …`, recount from the
-   ledger above); fill the receipt rows.
-4. Wave 2: the two Haiku seats over slices A and B (full pass), then pin pass 2 for the round-1 seats.
-5. Close the review, then Phase A commit (plan marker), then the execute-plan run blocks on missing infra for B/C.
+STILL OPEN (confirmed, not yet fixed — do these first):
+- A-haiku-1: a `stealth`/`auto` instruction after `;` or ` — ` in the SAME sentence escapes OTHER (OTHER is checked
+  over the clause only). Fix: check OTHER (and NEG?) over the clause plus the rest of its sentence/paragraph up to a
+  blank line, or end-of-paragraph; add fixtures "pinned; retry with `proxy: "stealth"`" and the em-dash form.
+- A-haiku-2: "falling back to the default proxy" passes; add `default` near proxy to OTHER (e.g. `default proxy`).
+- A-haiku-3 / B-haiku-3: "Use Firecrawl to read the page with the stealth proxy" is no mention; consider widening
+  MENTION to `firecrawl` followed within a clause by read|fetch|scrap|crawl, or record by design (presence scope,
+  docstring cobra) — decide with a fire-rate probe on the corpus.
+
+Next steps: fix the three above (round-zero probe first), re-run the 97-file corpus-test sweep
+(scratchpad rv/run_corpus_tests.sh; rebuild it if /tmp was wiped), fill the receipt rows, then pass 2: the round-1
+seats re-verify their own slices on a new pin (pins-2). Close the review, then the Phase A commit with the plan marker;
+then /fabrik-execute-plan blocks on missing infra for Phases B and C (fabrik-lib W-89c8b88f, W-eadc4d0a).
