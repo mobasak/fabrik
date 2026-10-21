@@ -58,7 +58,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01a | The pause marker and the hibernate.py verbs | — | ⛓️ | ✅ | squash of cb64f9bd5 |
-| T01b | The status checks and the deadline header | T01a | ⛓️ | ⬜ | |
+| T01b | The status checks and the deadline header | T01a | ⛓️ | ✅ | squash of 4135193fe |
 | T02 | The hooks hold the pause | T01a | ⚡ | ⬜ | |
 | T03a | Cron launchers skip while paused | T01a | ⚡ | ⬜ | |
 | T03b | Seat dispatchers skip while paused | T01a | ⚡ | ⬜ | |

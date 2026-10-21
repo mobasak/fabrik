@@ -10,7 +10,7 @@ decides.
 `~/.claude-fleet/*/sessions/<pid>.json` (de-duplicated by real path). A record is a live session when its pid's start
 time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. An `entrypoint` of `sdk-*`
 (`sdk-cli`, `sdk-ts`, `sdk-py`) is a cron-pool worker or a review seat (`claude -p`): counted, never messaged, never a coordinator and
-never a `status` row. Every other entrypoint, an unknown or missing one included, is an agent, so a new client fails
+its tree never a `status` row (a live one is an agent's seat or a headless row, below). Every other entrypoint, an unknown or missing one included, is an agent, so a new client fails
 toward being checked. Every record says `kind: interactive`, so `kind` cannot tell them apart.
 
 An agent's name is `CLAUDE_AGENT` in its environment, else its newest whoami binding. Agents are grouped by repo
@@ -28,11 +28,32 @@ agent's cwd, the caller's own included (its row says `(you)`):
 - a run record (`~/.claude/state/command-runs/<sid>.json`, named as `command_run.py` names it) still `running` blocks,
   and so does a running parent frame under it (`stack`), a record that is not readable JSON, and a session record
   with no session id — only the caller's own top-frame `/hibernate` run is running by design;
-- uncommitted tracked changes block; untracked files are listed, never blocking;
+- uncommitted tracked changes block, and the row names up to five paths, then `+N more`; untracked files are
+  listed, never blocking;
 - a branch with commits ahead of its upstream blocks; a branch with no upstream blocks unless its HEAD is on some
   remote branch; a detached HEAD, a missing folder, a cwd that is empty or relative, or a git error or timeout blocks.
 
-It prints `SAFE TO HIBERNATE` only when no row blocks. No session id, no live session found, or the caller not among
+Six more checks, with T-3 the moment the hard hold arms (`deadline_at` minus 180 s; with no mark or no deadline
+every check reads "before T-3"):
+
+1. a live `sdk-*` session whose parent chain (8 hops) reaches no live agent is its own `headless` row: it blocks
+   before T-3 and reads `held (headless)`, not blocking, from T-3 (the hold stops its tools; its pool requeues it);
+2. an agent with live `sdk-*` seats (processes of their own) blocks before T-3; from T-3 it blocks unless its CLOSED
+   record (`blocked`/`handoff`/`done`) names at least as many `abandoned_seats` as are live, and the row lists them;
+3. the header (printed above the table, and as `header` in `--json`) names the pause, T-3, T and the time left, and
+   whether the hibernate hold stands, whenever a pause is marked and not lifted;
+4. with a mark, a non-self agent whose record closed `blocked`/`handoff` with `updated_ts` + 1 >= floor(`paused_at`)
+   (`command_run.py` writes whole seconds) and no readable `resume_seed`/`resume_copy` blocks; a `done` close after the
+   mark is its own non-blocking `done since the mark - verify` row;
+5. an agent whose self-watch lock (`<safe>.selfwatch.lock` in `$CLAUDE_SOUND_LOCKDIR`, else
+   `/tmp/claude-sound-locks-<uid>`) is not held by a live process blocks, an agent outside `/opt` and a missing lock
+   dir included — the tick wakes armed sessions only (`_armed_sids`);
+6. `battery-tick-last` in the state dir older than 180 s, absent or unparsable blocks as `no minute cron`.
+
+`status` reads twice, 5 s apart (the test seam `HIBERNATE_STATUS_GAP_S`, honoured under pytest only), and prints
+`SAFE TO HIBERNATE` only when no row blocks on the second read; a first read that blocks answers at once.
+
+No session id, no live session found, or the caller not among
 them, is exit 2 — never safe: an empty table is not a safe one.
 
 ## The pause marker and its timeline

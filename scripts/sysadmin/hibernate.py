@@ -14,20 +14,24 @@ text, prove the box is safe to sleep, and tell a woken agent the pause is over.
                                   or the operator's plain shell; writes lifted_at + lift_path=hub (exit 0); 1 no
                                   pause marked; 2 a forged --proc/--home or a marker it cannot write; 3 refused
   status [--json] [--self SID]    one table: every live agent's worktree clean and pushed, no run `running` (the
-                                  caller's own run excepted); SAFE TO HIBERNATE only when no row blocks
+                                  caller's own run excepted), a held self-watch, no live seat, a minute cron
+                                  that beat in the last 3 minutes; with a mark a header names the pause, T-3, T
+                                  and the time left; SAFE TO HIBERNATE only when no row blocks on two reads
+                                  5 s apart
   woke [--self SID]               exit 0 (RESUME, with this session's seeds since the mark) only after the pause was
                                   lifted, within 24 h, and while this session has started no run since; 1 no
                                   pending resume; 2 it cannot tell (a corrupt marker or run record) — stay paused and
                                   tell the hub coordinator; never writes
 
-The marker is `$ROTATE_STATE_DIR/hibernate.json` when that is set, else `~/.claude/state/hibernate.json` — the
+The marker is `$ROTATE_STATE_DIR/hibernate.json` when that is set, else `<passwd home>/.claude/state/hibernate.json`
+(`$HOME` when the uid has no passwd entry) — the
 rotation tick's own state dir, beside the rotate ledger — and every writer goes through `update_marker`, which holds
 an flock on `hibernate.json.lock` across its read-modify-write.
 
 A session is LIVE when its record (`~/.claude*/sessions/<pid>.json`, `~/.claude-fleet/*/sessions/<pid>.json`) names a
 pid whose /proc stat start time equals the record's `procStart` and whose comm is `claude`. An `entrypoint` of
-`sdk-*` (`sdk-cli`, `sdk-ts`, `sdk-py`) is a pool worker or review seat (`claude -p`): listed, never messaged, never a coordinator, never a
-`status` row; every other entrypoint, an unknown or missing one included, is an agent (every record carries kind
+`sdk-*` (`sdk-cli`, `sdk-ts`, `sdk-py`) is a pool worker or review seat (`claude -p`): listed, never messaged, never a coordinator, its
+tree never a `status` row (a live one is a seat of the agent its parent chain reaches, else a headless row); every other entrypoint, an unknown or missing one included, is an agent (every record carries kind
 "interactive", so `kind` cannot tell).
 The agent's name comes from CLAUDE_AGENT in its environ, else its newest identity-store binding. Each repo's
 coordinator is `decisions.py --merge-owner <repo>` (D-874), never a position. Everything read from another repo is
@@ -210,6 +214,16 @@ def _is_pool(s: dict) -> bool:
     return s["entrypoint"].startswith(POOL_PREFIX)
 
 
+def _agent_ancestor(proc: Path, pool_session: dict, agent_pids: set[int]) -> int | None:
+    """The pid of the live agent a pool session's parent chain reaches (8 hops), else None."""
+    pid, hops = pool_session.get("ppid"), 0
+    while pid and hops < 8:
+        if pid in agent_pids:
+            return pid
+        pid, hops = _ppid(proc, pid), hops + 1
+    return None
+
+
 def targets(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> dict:
     sessions = live_sessions(home, proc, opt)
     agents = [s for s in sessions if not _is_pool(s)]
@@ -218,12 +232,11 @@ def targets(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> dict:
     # a seat whose parent chain reaches a live agent is that agent's own subagent work
     for p in pool:
         p["parent_agent"] = ""
-        pid, hops = p.get("ppid"), 0
-        while pid and hops < 8:
-            if pid in agent_pids:
-                p["parent_agent"] = next(a["agent"] or a["peer"] for a in agents if a["pid"] == pid)
-                break
-            pid, hops = _ppid(proc, pid), hops + 1
+        owner_pid = _agent_ancestor(proc, p, agent_pids)
+        if owner_pid is not None:
+            p["parent_agent"] = next(
+                a["agent"] or a["peer"] for a in agents if a["pid"] == owner_pid
+            )
     repos: dict[str, dict] = {}
     outside = []
     self_repo = ""
@@ -866,7 +879,9 @@ def worktree_state(path: str) -> tuple[bool, str]:
     tracked = [ln for ln in lines if not ln.startswith("??")]
     untracked = len(lines) - len(tracked)
     if tracked:
-        return True, f"{len(tracked)} uncommitted change(s)"
+        names = [ln[3:] for ln in tracked[:5]]
+        more = f" +{len(tracked) - 5} more" if len(tracked) > 5 else ""
+        return True, f"{len(tracked)} uncommitted change(s): {', '.join(names)}{more}"
     head = _git(path, "symbolic-ref", "-q", "HEAD")
     if head.returncode != 0:
         return True, "detached HEAD"
@@ -882,10 +897,154 @@ def worktree_state(path: str) -> tuple[bool, str]:
     return False, "clean, pushed" + (f" ({untracked} untracked file(s))" if untracked else "")
 
 
-def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[int, list[dict]]:
+HEARTBEAT_MAX_S = 180  # the minute cron beats every 60 s; three missed beats is no cron
+CLOSED_STATES = ("blocked", "handoff", "done")
+
+
+def _lock_dir() -> Path:
+    """The self-watch lock dir, read directly: `$CLAUDE_SOUND_LOCKDIR`, else `/tmp/claude-sound-locks-<uid>`."""
+    override = os.environ.get("CLAUDE_SOUND_LOCKDIR")
+    return Path(override) if override else Path(f"/tmp/claude-sound-locks-{os.getuid()}")
+
+
+def _selfwatch_safe(sid: str) -> str:
+    """The watcher's own filename transform (`tr -c 'A-Za-z0-9_-' '_' | head -c 64`) — a copy of
+    `claude_rotate.py::_selfwatch_safe`, pinned to it by tests/test_hibernate.py."""
+    out = bytearray()
+    for b in sid.encode("utf-8", "surrogateescape"):
+        out.append(b if (chr(b).isalnum() and b < 128) or b in b"_-" else ord("_"))
+    return out[:64].decode("ascii")
+
+
+def _lock_in_proc_locks(st: os.stat_result) -> bool:
+    """Positive-only `/proc/locks` read (`selfwatch_check.py`): presence proves a holder, absence proves nothing."""
+    try:
+        text = Path("/proc/locks").read_text()
+    except OSError:
+        return False
+    want = f"{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x}:{st.st_ino}"
+    return any(
+        len(parts) >= 6 and parts[1] == "FLOCK" and parts[5] == want
+        for parts in (ln.split() for ln in text.splitlines())
+    )
+
+
+def _armed(lock_dir: Path, sid: str) -> bool:
+    """The tick's armed rule (`claude_rotate.py::_armed_sids` / `_sid_is_armed`): `<safe>.selfwatch.lock` HELD by a
+    live process. A missing dir, a missing file or a lock that cannot be probed is NOT armed (fail closed)."""
+    path = lock_dir / f"{_selfwatch_safe(sid)}.selfwatch.lock"
+    try:
+        fd = os.open(
+            str(path), os.O_RDONLY | os.O_NONBLOCK
+        )  # never blocks on a FIFO at the lock path
+    except OSError:
+        return False
+    try:
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode):
+                return False
+            if _lock_in_proc_locks(st):
+                return True
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        except OSError:
+            return False
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
+
+
+def _minute_cron_alive(home: Path, now: float) -> bool:
+    """`$ROTATE_STATE_DIR/battery-tick-last` (the minute cron's epoch) is at most 180 s old; absent, unparsable or
+    from the future (over 60 s ahead) is dead."""
+    try:
+        fd = os.open(_state_dir(home) / "battery-tick-last", os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                return False
+            beat = _num(float(os.read(fd, 64).decode("ascii", "replace").strip()))
+        finally:
+            os.close(fd)
+    except (OSError, ValueError):
+        return False
+    return beat is not None and -60 <= now - beat <= HEARTBEAT_MAX_S
+
+
+def _live_mark(home: Path) -> tuple[dict | None, str]:
+    """(the marker while a pause is marked and not lifted, "") · (None, "") unmarked · (None, why) unreadable."""
+    rc, m, why = load_marker(home)
+    if rc == 2:
+        return None, why
+    at = _num((m or {}).get("paused_at"))
+    if m is None or at is None:
+        return None, ""
+    lifted = _num(m.get("lifted_at"))
+    return (None, "") if lifted is not None and lifted >= at else (m, "")
+
+
+def _readable_file(value: object) -> bool:
+    """A regular file that reads. Opened O_NONBLOCK and checked with S_ISREG on the fd, so a FIFO swapped in at a
+    record-supplied path is "unreadable", never a hang."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        fd = os.open(value, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return False
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return False
+        os.read(fd, 1)
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+
+
+def _clean(text: object) -> str:
+    """Marker- or record-derived text made safe to print: every control character (a newline included) becomes a
+    visible escape, so it cannot forge a table line."""
+    return re.sub(
+        r"[\x00-\x1f\x7f-\x9f  ]",
+        lambda m: m.group().encode("unicode_escape").decode("ascii"),
+        str(text),
+    )
+
+
+def _seat_lines(rec: dict | None) -> list[str]:
+    seats = (rec or {}).get("abandoned_seats")
+    out = []
+    for seat in seats if isinstance(seats, list) else []:
+        if isinstance(seat, dict):
+            out.append(
+                f"abandoned seat: {seat.get('purpose') or 'seat'} ({seat.get('brief') or 'no brief recorded'})"
+            )
+    return out
+
+
+def _agent_row(s: dict, blocks: bool, why: str) -> dict:
+    return {
+        "repo": s["repo"] or "outside /opt",
+        "agent": s["agent"] or s["peer"],
+        "cwd": s["cwd"],
+        "blocks": blocks,
+        "why": why,
+    }
+
+
+def status(
+    home: Path, proc: Path, self_sid: str, opt: str = "/opt", now: float | None = None
+) -> tuple[int, list[dict]]:
+    now = time.time() if now is None else now
     if not self_sid:
         return 2, [{"error": "no session id — pass --self (CLAUDE_CODE_SESSION_ID is unset)"}]
-    sessions = [s for s in live_sessions(home, proc, opt) if not _is_pool(s)]
+    live = live_sessions(home, proc, opt)
+    sessions = [s for s in live if not _is_pool(s)]
+    pool = [s for s in live if _is_pool(s)]
     if not sessions:
         return 2, [
             {
@@ -898,7 +1057,34 @@ def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[in
                 "error": f"this session ({self_sid}) is not among the live sessions — wrong records dir or pid namespace"
             }
         ]
-    rows = []
+    mark, mark_err = _live_mark(home)
+    deadline_at = _num(mark.get("deadline_at")) if mark else None
+    in_t3 = deadline_at is not None and now >= deadline_at - T3_S
+    phase = "from T-3" if in_t3 else "before T-3"
+    paused_at = _num(mark.get("paused_at")) if mark else None
+    agent_pids = {s["pid"] for s in sessions}
+    seats_of: dict[int, list[dict]] = {}
+    rows: list[dict] = []
+    for p in (
+        pool
+    ):  # checks 1 and 2: a live `sdk-*` session is an agent's seat or a headless row of its own
+        owner = _agent_ancestor(proc, p, agent_pids)
+        if owner is not None:
+            seats_of.setdefault(owner, []).append(p)
+            continue
+        label = f"headless {p['entrypoint']} session pid {p['pid']}"
+        rows.append(
+            {
+                "repo": "headless",
+                "agent": p["peer"] or p["entrypoint"],
+                "cwd": p["cwd"],
+                "blocks": not in_t3,
+                "why": f"held (headless) — {label}; the hold stops its tools, its pool requeues it"
+                if in_t3
+                else f"{label}, no agent's seat — blocks {phase}",
+            }
+        )
+    lock_dir = _lock_dir()
     for s in sessions:
         blocks, why = worktree_state(s["cwd"])
         rec = _run_record(home, s["sid"])
@@ -919,25 +1105,150 @@ def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[in
                 ):
                     blocks, why = True, f"run /{fr.get('command', '?')} still running; " + why
                     break
+        extra_rows: list[dict] = []
+        if s["sid"]:
+            if not _armed(lock_dir, s["sid"]):  # check 6
+                blocks, why = True, "self-watch not armed (no wake reaches it); " + why
+            seats = seats_of.get(s["pid"], [])
+            if seats:  # check 2
+                # the close counts only when it is this pause's: check 5's time bound (a close from before the
+                # mark names seats of an earlier run)
+                close_ts = _num((rec or {}).get("updated_ts"))
+                this_pause = paused_at is not None and (
+                    close_ts is None or close_ts + 1 >= math.floor(paused_at)
+                )
+                named = (
+                    _seat_lines(rec)
+                    if (rec or {}).get("state") in CLOSED_STATES and this_pause
+                    else []
+                )
+                have = f"{len(seats)} live seat(s)"
+                if not in_t3:
+                    blocks, why = True, f"{have} — blocks {phase}; " + why
+                elif len(named) < len(seats):
+                    blocks, why = (
+                        True,
+                        f"{have} not named by the close ({len(named)} abandoned seat(s) recorded); "
+                        + why,
+                    )
+                else:
+                    why = f"{have}, all abandoned by the close; " + why
+                if named and in_t3:
+                    why += "; " + "; ".join(named)
+            if mark and paused_at is not None and not mine and isinstance(rec, dict):  # check 5
+                state = rec.get("state")
+                closed_ts = _num(rec.get("updated_ts"))
+                after_mark = state in CLOSED_STATES and (
+                    closed_ts is None or closed_ts + 1 >= math.floor(paused_at)
+                )
+                if after_mark and state in ("blocked", "handoff"):
+                    seeded = _readable_file(rec.get("resume_seed")) or _readable_file(
+                        rec.get("resume_copy")
+                    )
+                    if not seeded:
+                        blocks, why = (
+                            True,
+                            f"closed {state} after the mark with no resume seed; " + why,
+                        )
+                elif after_mark and state == "done":
+                    extra_rows.append(
+                        _agent_row(
+                            s,
+                            False,
+                            "done since the mark — verify the item was finished, not abandoned",
+                        )
+                    )
+        rows.append(_agent_row(s, blocks, why))
+        rows.extend(extra_rows)
+    if mark_err:
+        rows.append(
+            {"repo": "box", "agent": "pause marker", "cwd": "", "blocks": True, "why": mark_err}
+        )
+    if not _minute_cron_alive(home, now):
+        beat = _state_dir(home) / "battery-tick-last"
         rows.append(
             {
-                "repo": s["repo"] or "outside /opt",
-                "agent": s["agent"] or s["peer"],
-                "cwd": s["cwd"],
-                "blocks": blocks,
-                "why": why,
+                "repo": "box",
+                "agent": "minute cron",
+                "cwd": "",
+                "blocks": True,
+                "why": f"no minute cron — {beat} is absent or older than {HEARTBEAT_MAX_S} s, so"
+                " nothing arms the T-3 hold or lifts the pause",
             }
         )
     rows.sort(key=lambda r: (r["repo"], r["agent"]))
     return (1 if any(r["blocks"] for r in rows) else 0), rows
 
 
+def status_confirmed(
+    home: Path,
+    proc: Path,
+    self_sid: str,
+    opt: str = "/opt",
+    *,
+    gap: float = 5.0,
+    sleep=time.sleep,  # type: ignore[no-untyped-def]
+) -> tuple[int, list[dict]]:
+    """`status` read twice, `gap` seconds apart, before it answers SAFE: a busy count is never instant. A first read
+    that blocks (or errors) is the answer at once; the second read's table is the one reported."""
+    rc, rows = status(home, proc, self_sid, opt)
+    if rc != 0:
+        return rc, rows
+    sleep(gap)
+    return status(home, proc, self_sid, opt)
+
+
+def _left(seconds: float) -> str:
+    m, sec = divmod(int(abs(seconds)), 60)
+    text = f"{m} min {sec:02d} s"
+    return f"{text} left" if seconds >= 0 else f"T passed {text} ago"
+
+
+def status_header(home: Path, now: float | None = None) -> str | None:
+    """With a pause marked and not lifted: its time, the clock times of T-3 and T and the time left; else None."""
+    now = time.time() if now is None else now
+    mark, _ = _live_mark(home)
+    if not mark:
+        return None
+    at = float(mark["paused_at"])
+    words = _clean(mark.get("words") or "no words")
+    head = f"PAUSE marked at {time.strftime('%H:%M:%S', time.localtime(at))} ({words})"
+    deadline_at = _num(mark.get("deadline_at"))
+    if deadline_at is None:
+        return head + " — no deadline set (T-3 and T are undefined)"
+    try:
+        tier = (
+            (_state_dir(home) / "fleet-exhausted")
+            .read_text(errors="replace")
+            .split("\n")[1]
+            .strip()
+        )
+    except (OSError, IndexError):
+        tier = ""
+    hold = "hold: hibernate tier standing" if tier == "hibernate" else "hold: not armed yet"
+    return (
+        f"{head} — T-3 at {_clock(deadline_at - T3_S)}, T at {_clock(deadline_at)}, "
+        f"{_left(deadline_at - now)} ({hold})"
+    )
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
 def _default_home() -> Path:
-    """The ONE home every verb defaults to: the passwd home, never `$HOME` (which a caller sets as freely)."""
-    return Path(pwd.getpwuid(os.getuid()).pw_dir)
+    """The ONE home every verb defaults to: the passwd home, never `$HOME` (which a caller sets as freely) — except
+    for a uid with no passwd entry (a container), where `$HOME` (`~`) is all there is. Fails closed: when that
+    fallback is not an absolute path (no `$HOME` either, `~` stays literal and would resolve against the cwd) it
+    raises RuntimeError, which `main` turns into exit 2 for every verb."""
+    try:
+        return Path(pwd.getpwuid(os.getuid()).pw_dir)
+    except KeyError:
+        fallback = os.path.expanduser("~")
+        if not os.path.isabs(fallback):
+            raise RuntimeError(
+                "hibernate: no passwd entry for this uid and no usable $HOME — the pause marker cannot be located"
+            ) from None
+        return Path(fallback)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -969,7 +1280,12 @@ def main(argv: list[str] | None = None) -> int:
     w = sub.add_parser("woke")
     w.add_argument("--self", default=os.environ.get("CLAUDE_CODE_SESSION_ID", ""))
     a = ap.parse_args(argv)
-    home = Path(a.home) if a.home is not None else _default_home()
+    try:
+        home = Path(a.home) if a.home is not None else _default_home()
+        real_home = _default_home() if a.verb == "lift" else None
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        return 2
     proc = Path(a.proc if a.proc is not None else "/proc")
 
     if a.verb == "paused":
@@ -1005,7 +1321,7 @@ def main(argv: list[str] | None = None) -> int:
         # F2: a forged --proc (a made-up ppid chain) or --home (made-up session records) is a test's only. Each is
         # compared only when GIVEN; not given, every verb reads the passwd home and
         # /proc. A refusal leaves its ledger row like every other one (G7).
-        real_home = _default_home()
+        assert real_home is not None  # computed above for this verb
         if not _under_test():
             forged = [
                 f"--{name} {given}"
@@ -1055,16 +1371,26 @@ def main(argv: list[str] | None = None) -> int:
                 f"pool: {len(t['pool'])} headless session(s), never messaged ({seats} are a live agent's own seats)"
             )
         return 0
-    rc, rows = status(home, proc, a.self, a.opt)
+    gap = 5.0
+    if _under_test() and os.environ.get("HIBERNATE_STATUS_GAP_S"):  # the seam: a test's only
+        try:
+            gap = max(0.0, float(os.environ["HIBERNATE_STATUS_GAP_S"]))
+        except ValueError:
+            pass
+    rc, rows = status_confirmed(home, proc, a.self, a.opt, gap=gap)
+    header = status_header(home) if rc != 2 else None
     if a.json:
-        print(json.dumps({"rc": rc, "rows": rows}, indent=2))
+        print(json.dumps({"rc": rc, "header": header, "rows": rows}, indent=2))
         return rc
     if rc == 2:
         print(f"hibernate: NOT SAFE — {rows[0]['error']}", file=sys.stderr)
         return 2
+    if header:
+        print(header)
     for r in rows:
         print(
-            f"{'BLOCKS' if r['blocks'] else 'ok    '}  {r['repo']:28} {r['agent']:24} {r['why']}  [{r['cwd']}]"
+            f"{'BLOCKS' if r['blocks'] else 'ok    '}  {_clean(r['repo']):28} {_clean(r['agent']):24}"
+            f" {_clean(r['why'])}  [{_clean(r['cwd'])}]"
         )
     print(
         "SAFE TO HIBERNATE"

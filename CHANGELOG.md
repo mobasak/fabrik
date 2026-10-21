@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /hibernate T01b: `status` checks every agent's seats, records, self-watch and the minute cron before it says SAFE (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py status`: a headless `sdk-*` session and an agent's live seats block before T-3; from T-3 a seat counts only when this pause's closed record names it abandoned; an unarmed self-watch, a stale or missing minute-cron heartbeat, and a run closed blocked without a seed after the mark all block; the uncommitted row names five paths then `+N more`; the header names the pause, T-3, T and the time left; SAFE prints only after two reads. Every read of a path from a record or lock dir is non-blocking and regular-file-only; marker text is escaped before it prints; a home that cannot be resolved fails closed with exit 2 (W-6e656dac T01b).
+
 ### Added — /hibernate T01a: a lock-held pause marker, `paused`, a deadline, an owner-only `lift`, and a `woke` that answers only after the lift (2026-10-21)
 
 - `scripts/sysadmin/hibernate.py`: the marker (`hibernate.json`, under `$ROTATE_STATE_DIR` or `~/.claude/state`) is read-modify-written under one `flock`; `mark --deadline <5m…24h>` adds a hard deadline (T-3 and T printed by `brief --deadline`); `paused` exits 0 marked, 1 not, 2 on a marker it cannot parse; `lift` passes only the merge owner's session or the operator's plain terminal (the caller found by walking the process chain to pid 1, `sdk-*` seats refused), every path writing a rotate-ledger row with the tick's own append discipline; `woke` answers RESUME only after a lift, for 24 h, never for a migration lift, and lists the session's seeds and abandoned seats; one passwd-derived home for every verb.

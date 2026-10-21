@@ -8,6 +8,7 @@ real command_run.py against a fixture state dir.
 
 from __future__ import annotations
 
+import fcntl
 import importlib.util
 import json
 import os
@@ -44,6 +45,40 @@ class Box:
         self.proc.mkdir()
         self.opt.mkdir()
         self.store: list[dict] = []
+        self.locks = tmp / "locks"
+        self._held: list[
+            int
+        ] = []  # open lock fds: a flock held by THIS process is a live holder to the child
+
+    def arm(self, *sids: str) -> None:
+        """A held `<safe>.selfwatch.lock` per session: what an armed self-watch looks like to a probing process."""
+        self.locks.mkdir(exist_ok=True)
+        for sid in sids:
+            fd = os.open(self.locks / f"{sid}.selfwatch.lock", os.O_RDWR | os.O_CREAT, 0o644)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            self._held.append(fd)
+
+    def heartbeat(self, age: float = 0.0) -> None:
+        """`battery-tick-last`: the epoch the minute cron wrote `age` seconds ago."""
+        (self.state / "battery-tick-last").write_text(f"{time.time() - age}\n", encoding="utf-8")
+
+    def ready(self, *sids: str) -> None:
+        """Everything `status` needs besides the worktrees: a fresh heartbeat and an armed watch per session."""
+        self.heartbeat()
+        self.arm(*sids)
+
+    def mark(self, deadline_in: float | None = None, **extra: object) -> None:
+        now = time.time()
+        m: dict[str, object] = {"paused_at": now - 5, "words": "close the lid", **extra}
+        if deadline_in is not None:
+            m["deadline_at"] = now + deadline_in
+        (self.state / "hibernate.json").write_text(json.dumps(m), encoding="utf-8")
+
+    def closed(self, sid: str, state: str, ts: float, **extra: object) -> None:
+        (self.state / "command-runs" / f"{sid}.json").write_text(
+            json.dumps({"state": state, "command": "fabrik-task", "updated_ts": int(ts), **extra}),
+            encoding="utf-8",
+        )
 
     def repo(self, name: str, owner: str | None) -> str:
         repo = self.opt / name
@@ -141,6 +176,8 @@ class Box:
             "HOME": str(self.home),
             "TZ": "UTC",
             "ROTATE_STATE_DIR": str(self.state),
+            "CLAUDE_SOUND_LOCKDIR": str(self.locks),
+            "HIBERNATE_STATUS_GAP_S": "0",  # the seam: no 5 s wait between status's two reads
         }
         if under_pytest:
             base["PYTEST_CURRENT_TEST"] = os.environ.get("PYTEST_CURRENT_TEST", "fixture")
@@ -391,6 +428,7 @@ def test_status_says_safe_only_when_every_agent_worktree_is_clean_pushed_and_idl
     _git_repo(me, tmp_path / "r" / "me.git")
     box.session(501, "s-ok", str(ok), "ok", env_agent="ok")
     box.session(502, "s-me", str(me), "me", env_agent="me")
+    box.ready("s-ok", "s-me")
     out = _status(box)
     assert out.returncode == 0 and "SAFE TO HIBERNATE" in out.stdout, out.stdout
     assert "1 untracked" in out.stdout, out.stdout
@@ -474,19 +512,26 @@ def test_status_checks_the_callers_own_tree_but_not_its_own_run_and_skips_pool_s
     me = tmp_path / "me"
     _git_repo(me, tmp_path / "me.git")
     box.session(701, "s-me", str(me), "me", env_agent="me")
+    box.ready("s-me")
     box.run_record("s-me", "running", command="hibernate")
     out = _status(box)
     assert out.returncode == 0 and "(you)" in out.stdout, out.stdout
     pool = tmp_path / "pool"
-    pool.mkdir()  # not a git checkout: as a row it would block
+    pool.mkdir()  # not a git checkout: its tree is never a row
     box.session(702, "s-pool", str(pool), "p", entrypoint="sdk-cli")
-    assert _status(box).returncode == 0
+    out = _status(box)  # check 1: a headless session that is no agent's seat blocks before T-3 ...
+    assert out.returncode == 1 and "headless" in out.stdout, out.stdout
+    assert "not a git checkout" not in out.stdout, out.stdout
+    box.mark(deadline_in=60)  # ... and from T-3 it is held, not blocking
+    out = _status(box)
+    assert out.returncode == 0 and "held (headless)" in out.stdout, out.stdout
+    (box.state / "hibernate.json").unlink()
     box.session(703, "s-new", str(pool), "n", entrypoint="desktop-2027")
     assert _status(box).returncode == 1
     (me / "x.txt").write_text("x\n", encoding="utf-8")
     subprocess.run(["git", "add", "x.txt"], cwd=me, check=True)
     out = _status(box)
-    assert "1 uncommitted change(s) (you)" in out.stdout, out.stdout
+    assert "1 uncommitted change(s): x.txt (you)" in out.stdout, out.stdout
 
 
 def test_status_exempts_only_the_callers_own_top_frame_hibernate_run(tmp_path: Path) -> None:
@@ -496,6 +541,7 @@ def test_status_exempts_only_the_callers_own_top_frame_hibernate_run(tmp_path: P
     me = tmp_path / "me"
     _git_repo(me, tmp_path / "me.git")
     box.session(751, "s-me", str(me), "me", env_agent="me")
+    box.ready("s-me")
     box.run_record("s-me", "running", command="fabrik-task")
     out = _status(box)
     assert out.returncode == 1 and "run /fabrik-task still running" in out.stdout, out.stdout
@@ -961,9 +1007,7 @@ def test_g1_a_null_lifted_or_deadline_is_absent(tmp_path: Path) -> None:
 
 def _pw(monkeypatch: pytest.MonkeyPatch, hib, home: Path) -> None:
     """The passwd entry names `home`, whatever $HOME says."""
-    monkeypatch.setattr(
-        hib.pwd, "getpwuid", lambda _uid: type("PW", (), {"pw_dir": str(home)})()
-    )
+    monkeypatch.setattr(hib.pwd, "getpwuid", lambda _uid: type("PW", (), {"pw_dir": str(home)})())
 
 
 def test_g2_a_plain_lift_uses_the_passwd_home_whatever_home_says(
@@ -979,14 +1023,21 @@ def test_g2_a_plain_lift_uses_the_passwd_home_whatever_home_says(
     hib = _load("hib_g2_probe", HIB)
     _pw(monkeypatch, hib, passwd_home)
     seen: list[Path] = []
-    monkeypatch.setattr(hib, "live_sessions", lambda home, proc, opt="/opt": seen.append(home) or [])
+    monkeypatch.setattr(
+        hib, "live_sessions", lambda home, proc, opt="/opt": seen.append(home) or []
+    )
     stub = tmp_path / "hub-decisions-stub.py"
     stub.write_text("print('coordinator')\n", encoding="utf-8")
     monkeypatch.setattr(hib, "HUB_DECISIONS", stub)
     monkeypatch.delenv("PYTEST_CURRENT_TEST")
+    monkeypatch.setattr(
+        hib, "_terminal", lambda: ""
+    )  # under `-s` stdin is a real terminal and `lift` would pass
     hib.update_marker(passwd_home, lambda _old: {"paused_at": time.time(), "words": "w"})
     rc = hib.main(["lift"])
-    assert rc == 3, rc  # reached the caller check (refused: no terminal, no session) — never the forged-root exit 2
+    assert rc == 3, (
+        rc
+    )  # reached the caller check (refused: no terminal, no session) — never the forged-root exit 2
     assert seen == [passwd_home], seen
 
 
@@ -1230,3 +1281,328 @@ def test_g8_the_torn_line_read_never_blocks_on_a_fifo(tmp_path: Path) -> None:
     )
     out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=10)
     assert out.returncode == 0 and out.stdout.strip() == "False", (out.stdout, out.stderr)
+
+
+# ── T01b: the status checks ──────────────────────────────────────────────────────────────────────────────────────
+
+
+def _clean_agent(box: Box, tmp_path: Path, pid: int, sid: str, name: str) -> Path:
+    tree = tmp_path / "w" / name
+    _git_repo(tree, tmp_path / "r" / f"{name}.git")
+    box.session(pid, sid, str(tree), name, env_agent=name)
+    return tree
+
+
+def test_status_row_one_a_headless_session_blocks_before_t3_and_is_held_after(
+    tmp_path: Path,
+) -> None:
+    """Check 1: an `sdk-*` session whose parent chain reaches no live agent is its own row; one that IS an agent's seat
+    is not (check 2 counts it)."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1001, "s-me", "me")
+    box.ready("s-me")
+    box.session(1002, "s-head", str(tmp_path), "h", entrypoint="sdk-cli")
+    out = _status(box)
+    assert out.returncode == 1 and "BLOCKS" in out.stdout and "headless" in out.stdout, out.stdout
+    box.mark(deadline_in=100)  # inside T-3 (180 s)
+    out = _status(box)
+    assert out.returncode == 0 and "held (headless)" in out.stdout, out.stdout
+    box.mark(deadline_in=1000)  # a marked pause that is still before T-3 blocks
+    assert _status(box).returncode == 1
+
+
+def test_status_row_two_live_seats_block_until_the_close_names_them(tmp_path: Path) -> None:
+    """Check 2: an agent with a live `sdk-*` child blocks before T-3; from T-3 it blocks unless its closed record
+    names at least as many abandoned seats, and the table lists them."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1101, "s-me", "me")
+    other = _clean_agent(box, tmp_path, 1102, "s-b", "builder")
+    box.ready("s-me", "s-b")
+    box.session(1103, "s-seat", str(other), "seat", entrypoint="sdk-cli", ppid=1102)
+    out = _status(box)
+    assert out.returncode == 1 and "1 live seat(s)" in out.stdout, out.stdout
+    assert "headless" not in out.stdout, out.stdout  # an agent's seat is no headless row
+    box.mark(deadline_in=100)
+    out = _status(box)
+    assert out.returncode == 1 and "1 live seat(s)" in out.stdout and "not named" in out.stdout, (
+        out.stdout
+    )
+    abandoned = [{"purpose": "review seat A", "brief": "/b/a.md"}]
+    seed = tmp_path / "seed.json"
+    seed.write_text("{}", encoding="utf-8")
+    box.closed("s-b", "blocked", time.time(), abandoned_seats=abandoned, resume_seed=str(seed))
+    out = _status(box)
+    assert out.returncode == 0, out.stdout
+    assert "abandoned seat: review seat A (/b/a.md)" in out.stdout, out.stdout
+    box.closed("s-b", "blocked", time.time(), abandoned_seats=[])
+    assert _status(box).returncode == 1
+
+
+def test_status_row_three_names_up_to_five_uncommitted_paths_then_the_rest(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    me = _clean_agent(box, tmp_path, 1201, "s-me", "me")
+    box.ready("s-me")
+    for i in range(7):
+        (me / f"f{i}.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=me, check=True)
+    out = _status(box)
+    assert (
+        "7 uncommitted change(s): f0.txt, f1.txt, f2.txt, f3.txt, f4.txt +2 more" in out.stdout
+    ), out.stdout
+    assert "f5.txt" not in out.stdout, out.stdout
+
+
+def test_status_row_four_header_names_the_pause_t3_t_and_the_time_left(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1301, "s-me", "me")
+    box.ready("s-me")
+    out = _status(box)
+    assert "PAUSE" not in out.stdout, out.stdout  # no mark, no header
+    box.mark(deadline_in=600)
+    out = _status(box)
+    head = out.stdout.splitlines()[0]
+    assert head.startswith("PAUSE marked") and "close the lid" in head, out.stdout
+    assert "T-3 at " in head and ", T at " in head and "left" in head, head
+    js = json.loads(box.run("status", "--json", "--self", "s-me").stdout)
+    assert js["header"] == head, js
+
+
+def test_status_row_five_a_blocked_close_after_the_mark_needs_a_seed(tmp_path: Path) -> None:
+    """Check 5, with 1 s of slack for command_run's whole-second `updated_ts`; `done` after the mark is its own row."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1401, "s-me", "me")
+    _clean_agent(box, tmp_path, 1402, "s-b", "builder")
+    box.ready("s-me", "s-b")
+    box.mark(deadline_in=1000)
+    paused_at = json.loads((box.state / "hibernate.json").read_text())["paused_at"]
+    box.closed("s-b", "blocked", paused_at - 5)  # closed before the mark: not this pause's
+    assert "no resume seed" not in _status(box).stdout
+    box.closed(
+        "s-b", "blocked", paused_at - 0.5
+    )  # whole-second flooring: updated_ts + 1 >= floor(paused_at)
+    out = _status(box)
+    assert "BLOCKS" in out.stdout and "no resume seed" in out.stdout, out.stdout
+    seed = tmp_path / "seed.json"
+    seed.write_text("{}", encoding="utf-8")
+    box.closed("s-b", "blocked", paused_at + 1, resume_seed=str(seed))
+    assert "no resume seed" not in _status(box).stdout
+    box.closed("s-b", "handoff", paused_at + 1, resume_copy=str(tmp_path / "gone.md"))
+    assert "no resume seed" in _status(box).stdout  # a seed path that does not read is no seed
+    box.closed("s-b", "done", paused_at + 1)
+    out = _status(box)
+    assert "done since the mark — verify" in out.stdout and "no resume seed" not in out.stdout, (
+        out.stdout
+    )
+    done_row = next(ln for ln in out.stdout.splitlines() if "done since the mark" in ln)
+    assert done_row.startswith("ok"), done_row
+
+
+def test_status_row_six_an_unarmed_self_watch_blocks_even_outside_opt(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    me = _clean_agent(box, tmp_path, 1501, "s-me", "me")
+    box.heartbeat()
+    out = _status(box)  # the lock dir does not exist at all
+    assert out.returncode == 1 and "self-watch not armed" in out.stdout, out.stdout
+    box.arm("s-me")
+    assert _status(box).returncode == 0
+    # a lock file nobody holds is a watch that died
+    (box.locks / "s-out.selfwatch.lock").write_text("", encoding="utf-8")
+    _clean_agent(box, tmp_path, 1502, "s-out", "outsider")
+    out = _status(box)
+    assert out.returncode == 1 and "self-watch not armed" in out.stdout, out.stdout
+    assert any("outside /opt" in ln and "BLOCKS" in ln for ln in out.stdout.splitlines()), (
+        out.stdout
+    )
+    # the name the watcher writes is the tick's transform: a session id with unsafe characters
+    box.session(1503, "s/odd id", str(me), "odd", env_agent="odd")
+    box.arm("s_odd_id")
+    out = _status(box)
+    assert next(ln for ln in out.stdout.splitlines() if " odd " in ln).startswith("ok"), out.stdout
+
+
+def test_status_blocks_with_no_minute_cron(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1601, "s-me", "me")
+    box.arm("s-me")
+    out = _status(box)  # absent
+    assert out.returncode == 1 and "no minute cron" in out.stdout, out.stdout
+    box.heartbeat(age=200)
+    assert "no minute cron" in _status(box).stdout
+    box.heartbeat(age=100)
+    out = _status(box)
+    assert out.returncode == 0 and "no minute cron" not in out.stdout, out.stdout
+    (box.state / "battery-tick-last").write_text("garbage\n", encoding="utf-8")
+    assert "no minute cron" in _status(box).stdout
+
+
+def test_status_says_safe_only_after_two_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tree dirtied in the gap between the two reads turns the first SAFE into NOT SAFE."""
+    box = Box(tmp_path)
+    me = _clean_agent(box, tmp_path, 1701, "s-me", "me")
+    box.ready("s-me")
+    hib = _load("hib_two_reads", HIB)
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(box.locks))
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(box.state))
+    gaps: list[float] = []
+
+    def dirty(gap: float) -> None:
+        gaps.append(gap)
+        (me / "late.txt").write_text("x\n", encoding="utf-8")
+        subprocess.run(["git", "add", "late.txt"], cwd=me, check=True)
+
+    args = (box.home, box.proc, "s-me", str(box.opt))
+    rc, rows = hib.status_confirmed(*args, gap=5.0, sleep=dirty)
+    assert gaps == [5.0] and rc == 1, (gaps, rc, rows)
+    gaps.clear()
+    rc, _ = hib.status_confirmed(*args, gap=5.0, sleep=gaps.append)
+    assert rc == 1 and gaps == []  # a first read that blocks needs no second
+    subprocess.run(["git", "reset", "-q", "--hard"], cwd=me, check=True)
+    rc, _ = hib.status_confirmed(*args, gap=5.0, sleep=gaps.append)
+    assert rc == 0 and gaps == [5.0]
+
+
+def test_a_uid_with_no_passwd_entry_reads_the_marker_under_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """T01a review P4-keyerror: `getpwuid` raising KeyError falls back to `~`; `paused` never exits 1 on that error."""
+    monkeypatch.delenv("ROTATE_STATE_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    hib = _load("hib_keyerror", HIB)
+
+    def no_entry(_uid: int) -> None:
+        raise KeyError("getpwuid(): uid not found")
+
+    monkeypatch.setattr(hib.pwd, "getpwuid", no_entry)
+    state = tmp_path / ".claude" / "state"
+    state.mkdir(parents=True)
+    (state / "hibernate.json").write_text(json.dumps({"paused_at": time.time(), "words": "w"}))
+    assert hib.main(["paused"]) == 0
+
+
+def test_the_armed_name_transform_is_the_ticks_own() -> None:
+    """`_selfwatch_safe` is a copy of `claude_rotate.py`'s (the watcher's `tr | head -c 64`); the two must agree."""
+    hib = _load("hib_safe_probe", HIB)
+    rot = _load("rot_safe_probe", ROOT / "scripts" / "sysadmin" / "claude_rotate.py")
+    for sid in ("s-me", "s/odd id", "é-ü", "x" * 90, "a b\tc", ""):
+        assert hib._selfwatch_safe(sid) == rot._selfwatch_safe(sid), sid
+
+
+# ── T01b wave-2 review fixes ─────────────────────────────────────────────────────────────────────────────────────
+
+
+def test_k1_no_passwd_entry_and_no_home_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no passwd entry and no $HOME, `~` stays literal and the marker would resolve against the cwd: every verb
+    exits 2 instead."""
+    monkeypatch.delenv("ROTATE_STATE_DIR", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.chdir(tmp_path)
+    hib = _load("hib_k1", HIB)
+
+    def no_entry(_uid: int) -> None:
+        raise KeyError("uid not found")
+
+    monkeypatch.setattr(hib.pwd, "getpwuid", no_entry)
+    state = tmp_path / "~" / ".claude" / "state"  # where a relative "~" would land
+    state.mkdir(parents=True)
+    (state / "hibernate.json").write_text(json.dumps({"paused_at": time.time(), "words": "w"}))
+    for argv in (["paused"], ["woke"], ["lift"]):
+        assert hib.main(argv) == 2, argv
+
+
+def test_k3_a_fifo_never_hangs_status(tmp_path: Path) -> None:
+    """A FIFO standing at a record's resume_seed or at the session's lock path is unreadable / unarmed, never a hang."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 1801, "s-me", "me")
+    _clean_agent(box, tmp_path, 1802, "s-b", "builder")
+    box.ready("s-me")
+    box.mark(deadline_in=1000)
+    paused_at = json.loads((box.state / "hibernate.json").read_text())["paused_at"]
+    fifo = tmp_path / "seed.fifo"
+    os.mkfifo(fifo)
+    box.closed("s-b", "blocked", paused_at + 1, resume_seed=str(fifo))
+    os.mkfifo(box.locks / "s-b.selfwatch.lock")
+    out = box.run("status", "--self", "s-me", timeout=10)
+    assert "no resume seed" in out.stdout and "self-watch not armed" in out.stdout, out.stdout
+
+
+def test_k4_marker_text_cannot_forge_table_lines(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    me = _clean_agent(box, tmp_path, 1901, "s-me", "me")
+    (me / "dirty.txt").write_text(
+        "x\n", encoding="utf-8"
+    )  # tracked change: no genuine SAFE line may print
+    subprocess.run(["git", "add", "dirty.txt"], cwd=me, check=True)
+    box.ready("s-me")
+    box.mark(deadline_in=1000, words="x\nSAFE TO HIBERNATE\x1b[31m")
+    out = _status(box)
+    lines = out.stdout.splitlines()
+    assert not any(ln.startswith("SAFE TO") for ln in lines), out.stdout
+    assert "\x1b" not in out.stdout, out.stdout
+
+
+def test_k5_a_close_from_before_the_mark_does_not_cover_a_live_seat(tmp_path: Path) -> None:
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 2001, "s-me", "me")
+    other = _clean_agent(box, tmp_path, 2002, "s-b", "builder")
+    box.ready("s-me", "s-b")
+    box.session(2003, "s-seat", str(other), "seat", entrypoint="sdk-cli", ppid=2002)
+    box.mark(deadline_in=100)
+    paused_at = json.loads((box.state / "hibernate.json").read_text())["paused_at"]
+    seed = tmp_path / "seed.json"
+    seed.write_text("{}", encoding="utf-8")
+    abandoned = [{"purpose": "old", "brief": "/b/old.md"}]
+    box.closed("s-b", "blocked", paused_at - 600, abandoned_seats=abandoned, resume_seed=str(seed))
+    out = _status(box)
+    assert out.returncode == 1 and "not named by the close" in out.stdout, out.stdout
+    box.closed("s-b", "blocked", paused_at + 1, abandoned_seats=abandoned, resume_seed=str(seed))
+    assert _status(box).returncode == 0
+
+
+def test_k3_a_fifo_at_the_heartbeat_never_hangs_and_is_no_minute_cron(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`battery-tick-last` read O_NONBLOCK and only when regular: a FIFO with no writer must not hang `status`, and a
+    FIFO carrying a fresh epoch must not count as a beat."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 2101, "s-me", "me")
+    box.arm("s-me")
+    fifo = box.state / "battery-tick-last"
+    os.mkfifo(fifo)
+    out = box.run(
+        "status", "--self", "s-me", timeout=10
+    )  # no writer: a blocking open would hang here
+    assert "no minute cron" in out.stdout, out.stdout
+    writer = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+    try:
+        os.write(writer, f"{time.time()}\n".encode())
+        # one in-process read: a read of a FIFO consumes what it returns, so `status`'s two reads cannot show this
+        monkeypatch.setenv("ROTATE_STATE_DIR", str(box.state))
+        hib = _load("hib_beat_fifo", HIB)
+        assert not hib._minute_cron_alive(
+            box.home, time.time()
+        )  # a fresh epoch, but no regular file
+    finally:
+        os.close(writer)
+
+
+def test_k3_a_fifo_at_the_lock_path_is_not_armed_even_when_flocked(tmp_path: Path) -> None:
+    """A lock path that is no regular file is never an armed watch, whoever holds a flock on it."""
+    box = Box(tmp_path)
+    _clean_agent(box, tmp_path, 2201, "s-me", "me")
+    box.heartbeat()
+    box.locks.mkdir()
+    fifo = box.locks / "s-me.selfwatch.lock"
+    os.mkfifo(fifo)
+    out = box.run("status", "--self", "s-me", timeout=10)  # no writer: must not hang
+    assert "self-watch not armed" in out.stdout, out.stdout
+    holder = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        out = box.run("status", "--self", "s-me", timeout=10)
+        assert "self-watch not armed" in out.stdout, out.stdout
+    finally:
+        os.close(holder)
