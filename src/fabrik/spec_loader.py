@@ -889,7 +889,9 @@ class CompanionService(BaseModel):
     owner_env: bool = Field(
         default=False,
         description=(
-            "Load the owner env file too (`env_file: [.env, {path: .env.owner, required: false}]`) — "
+            "Load the owner env file too: `.env.owner` with `required: false` beside `.env` (the "
+            "committed scaffold compose writes `.env` optional too; the deploy-time template keeps "
+            "a required `- .env`, rendered after the deploy writes it — D-938) — "
             "the companion reads DATABASE_URL_OWNER (the audit-jobs companion does); every other "
             "companion loads the project .env alone (D-754)."
         ),

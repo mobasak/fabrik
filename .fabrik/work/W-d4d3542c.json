@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:01.091174Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d4d3542c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CJ7B61RE7CNS2E54CHCBPB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE — work store adopted (config 2026-09-27, distributor youtube-coordinator, coordinator_mode, queue_floor 1), three-agent worktree model adopted (youtube D-063, merge owner youtube-coordinator)"
+}

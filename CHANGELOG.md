@@ -4,10 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
+W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
+
+### Fixed — a repo's own editable package no longer reads as an undeclared dependency from a builder worktree (2026-10-21)
+W-c83c550c; D-1083. Builder worktrees share the main checkout's `.venv`, so an editable first-party package (youtube's `mt_router`) resolved to the main checkout's copy, and `check_undeclared_imports` reported it as missing from `requirements.txt` in every worktree while the main checkout passed. A path outside the worktree now counts as the repo's own code when git places it in another working tree of the same repository and this worktree tracks the same path; anything else, and any git failure, is still flagged. Across 299 trees on the box the verdict changes only in youtube's three builder worktrees.
+
 ### Changed — /fabrik-review: a worktree lead copies its scratch files into SCRATCH:, cwd-rooted tools run after an os.chdir, and three other queued verdicts answered (2026-10-21)
 
 - `commands/_fragments/subagents-core.md`: a lead in a linked worktree writes its briefs, fix lists, notes and drafts into the main-checkout `SCRATCH:` folder by a Bash `cp`, never leaving the only copy in the reboot-cleared scratchpad. A tool that roots itself at the working directory (`scripts/docs_updater.py`) runs only from a python program that `os.chdir`s into the seat's copy before importing it.
 - `commands/_sources/fabrik-review.md`: a `RECORDED — by design` D-id owner is the row that decides that residual, since the gate checks only that the owner exists. `commands/_fragments/review-probe-catalogue.md`: a tests slice's seats write their own mutants. `commands/_fragments/no-workflow-hub.md`: a dead resumed seat is re-dispatched fresh with its ledger and REFUTED list. Graders in `tests/test_review_queue_pass.py`.
+
+### Fixed — app_role_check's owner-handoff remedy no longer tells a project to make `.env` required (2026-10-21)
+
+W-e80e79f0. `OWNER_HANDOFF_REMEDY`, the text a project agent acts on after the owner split, said
+`env_file [.env, {path: .env.owner, required: false}]`; the short `.env` entry is required, so a fresh
+checkout with no `.env` fails `docker compose config` (the D-931/D-938 class). It now says
+`[{path: .env, required: false}, {path: .env.owner, required: false}]`, and spec_loader's `owner_env`
+description states both renderers truthfully. `tests/test_app_role_check.py` parses the remedy's example and
+requires both entries optional.
 
 ### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
 
@@ -25,6 +40,11 @@ printed JSON (at CRITICAL, so any `LOG_LEVEL` prints it). Existing projects are 
 `tests/test_file_worker_make_test.py` grades it (12 cases, incl. two logger mutants and a `.PHONY` mutant);
 `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` and `templates/scaffold/docker/README.md` name `make setup-dev`
 first and drop the nonexistent `make review`.
+
+### Added — /hibernate: pause every agent, prove the box safe to sleep, resume after the wake (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py` (`targets` · `brief` · `mark` · `lift` · `status` · `woke`) and the `/hibernate` command: the hub coordinator finds every live agent from the session records, sends each repo's coordinator (its ledger's merge owner) one URGENT pause text, collects a PAUSED line per agent, and says "safe to hibernate" only when `status` prints `SAFE TO HIBERNATE`; after the wake `woke` tells an agent the box slept so it resumes its own item. `claude -p` pool workers and review seats are never messaged (D-1079, `docs/reference/hibernate.md`).
+- `tests/test_fabrik_task_source.py`: the size cap and the `<durable>` count take D-1070's nested-review text, which shipped over the cap.
 
 ### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
 
