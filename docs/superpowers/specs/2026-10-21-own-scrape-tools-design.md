@@ -8,21 +8,23 @@ Work item: W-10146d20 · governing decision D-1093
 
 | Persona | Who | What they need from this | Duty this spec gives them |
 |---|---|---|---|
-| **P1 — the operator** (primary) | Özgür, quoted in D-1093 | research that keeps working when a metered vendor runs dry, without paying for a top-up | none (approves the spec gate) |
-| P2 — research seats | `fabrik-researcher` and the research/grounding seats `/fabrik-spec`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-plan-after-chat`, `/fabrik-vision`, `/fabrik-data-contract`, `/fabrik-workflow-review` dispatch | a live, raw page read (the `maxAge:0` "settle a dispute" fetch) and a small docs crawl, as markdown | call the own tool first; call Firecrawl only on a typed `blocked` result or a gap row |
-| P3 — runtime code | `rivals_run.py` (51 project copies), fabrik-lib `web-tools`, the deep-research and competitor-intel packs | a scrape leg that does not spend credits | route `web_scrape` / `web_crawl` / the verify-stage scraper through web-scrape first |
-| P4 — the coordinator | the hub merge owner | merges a synced surface once, with a test that proves the fallback order | merge; force the governance sync |
-| P5 — fabrik-lib's agent | the module owner (a separate repo) | concrete, small enhancement requests with a test each | build the module enhancements in § fabrik-lib asks |
-| P6 — infra | the beat for the MCP roster, `mcp_defs.json`, `emit_mcp_project_config.py`, the box services | one new local MCP server registered beside `fabrik-citation-verifier` | register and supervise the server |
+| **P1 — the operator** (primary) | Özgür, quoted in D-1093 | research that keeps working when a metered vendor runs dry, without paying for a top-up, and no breakage in commands that use it today | clears a named bot-walled source for the Firecrawl fallback when one matters (§ Fallback contract) |
+| P2 — research seats | `fabrik-researcher` and the research seats that `/fabrik-spec`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-plan-after-chat`, `/fabrik-vision`, `/fabrik-data-contract` and `/fabrik-workflow-review` dispatch | a live, raw page read (the `maxAge:0` "settle a dispute" fetch) and a small docs crawl, as markdown | call `fabrik-scrape` first for a raw page; follow § Fallback contract on a `blocked` result |
+| P3 — runtime code | `scripts/rivals_run.py` (the `/fabrik-rivals` engine: the hub plus 49 project copies on one hash, fabrik-lib's own copy on another), fabrik-lib `web-tools`, the deep-research and competitor-intel packs | a scrape leg that does not spend credits | call web-scrape first behind the `FABRIK_SCRAPE_LEG` switch (§ Chosen approach 3) |
+| P4 — intel (this spec's builder) | the hub agent that owns W-10146d20 | a staged, revertible switch | write the per-command ledgers; edit the eight command sources, `fabrik-researcher.md`, the three contract copies, `tests/test_research_tier_order.py` and the hub `rivals_run.py`; mail fabrik-lib the asks |
+| P5 — fabrik-lib's agent | the module owner (a separate repo) | concrete requests, each with a test | build `web-scrape-mcp` and the asks G1-G9 in § fabrik-lib asks; change `web-tools` routing |
+| P6 — infra | the beat for the MCP roster, `mcp_defs.json`, `emit_mcp_project_config.py` and box services | one new local MCP server registered beside `fabrik-citation-verifier` | register, supervise and health-probe the server |
+| P7 — the coordinator | the hub merge owner | one slice per merge, each with its own full review | merge each slice; force the governance sync for synced paths |
 
 The operator, verbatim (D-1093): *"we need to find where we use firecrawl, test it against our modules, if we can
 replace properly, we should, if not we need to enhance our modules if it is not too much for, and restest, then use our
-tools, firecrawl can become a fallback."* And earlier the same day: *"dont we have fabrik-lib modules to do exact same as
-like firecrawl?"*
+tools, firecrawl can become a fallback."* Earlier the same day: *"dont we have fabrik-lib modules to do exact same as like
+firecrawl?"* And, recorded in the work item: *"our commands actively uses it, so we must be very careful."*
 
-**P2's loop, step budget 3:** (1) call `scrape(url)` on the own tool; (2) read the markdown, or on `blocked` call
-`firecrawl_scrape`; (3) cite the URL and the fetch date. Every feature below traces to P2 or P3; the MCP server exists
-because P2's seats have no shell (`fabrik-researcher` carries Read, Grep, Glob, WebFetch, WebSearch, ToolSearch only).
+**P2's loop, step budget 3:** (1) call `scrape(url)` on `fabrik-scrape`; (2) read the markdown, or act on the `blocked`
+reason per § Fallback contract; (3) cite the URL and the fetch date. Every feature below traces to P2 or P3; the MCP
+server exists because P2's seats have no shell (`fabrik-researcher` carries Read, Grep, Glob, WebFetch, WebSearch and
+ToolSearch only, `commands/_agents/fabrik-researcher.md`:8-9).
 
 ## Intake Inventory
 
@@ -31,171 +33,228 @@ because P2's seats have no shell (`fabrik-researcher` carries Read, Grep, Glob, 
 | I1 | "find where we use firecrawl" | IN | § Inventory |
 | I2 | "test it against our modules" | IN | § Test ledger |
 | I3 | "if we can replace properly, we should" | IN | § Chosen approach |
-| I4 | "if not we need to enhance our modules if it is not too much for" | IN | § fabrik-lib asks (small gaps) · § Gaps kept on Firecrawl (large) |
-| I5 | "and restest" | IN | § Lifecycle — the ledger re-runs after each enhancement |
+| I4 | "if not we need to enhance our modules if it is not too much for" | IN | § fabrik-lib asks (small gaps) · § Kept on Firecrawl (large) |
+| I5 | "and restest" | IN | § Lifecycle — each command's ledger re-runs after the asks land |
 | I6 | "then use our tools, firecrawl can become a fallback" | IN | § Chosen approach · § Fallback contract |
-| I7 | "dont we have fabrik-lib modules to do exact same as like firecrawl?" | IN | § fabrik-lib verdict (answer: scrape and crawl yes; search, LLM extraction, screenshots and anti-bot no) |
-| I8 | coordinator's method: "the calls actually made this month by kind" | IN, measured as unavailable | § Inventory — no local call log exists; only the credit balance is readable |
-| I9 | D-1093: "no Firecrawl top-up" | IN | § Constraints |
-| I10 | browserless memory raise 2G→3G (gate W-cbd80821) | OUT-OF-SCOPE | its own operator gate W-cbd80821; § Lifecycle names it as the growth trigger for rendered fetches |
-| I11 | the Brave key is revoked (gate W-12f21514) | OUT-OF-SCOPE | its own operator gate W-12f21514; search is not in this spec |
-| I12 | 40 projects still vendor the retired `libs/subagents/web_tools.py` (D-132) | OUT-OF-SCOPE | a fleet finding mailed at close (named in § Open items) |
-| I13 | the live Firecrawl key sits in `backups/*.env.backup*` | OUT-OF-SCOPE | by design — `backups/` is the gitignored pre-edit copy the contract requires; key rotation is an operator credentials gate, named in § Open items |
+| I7 | "dont we have fabrik-lib modules to do exact same as like firecrawl?" | IN | § fabrik-lib verdict (scrape, render, PDF and crawl yes; search, LLM extraction, screenshots, page actions and bot walls no) |
+| I8 | "the calls actually made this month by kind" | IN | § Inventory — counted from session transcripts |
+| I9 | D-1093: no Firecrawl top-up | IN | § Constraints Digest |
+| I10 | browserless memory raise 2G→3G (gate W-cbd80821) | OUT-OF-SCOPE | its own operator gate W-cbd80821; § Lifecycle names it as the growth trigger |
+| I11 | the Brave key is revoked (gate W-12f21514) | OUT-OF-SCOPE | its own operator gate W-12f21514; search is not changed here |
+| I12 | the vendored `libs/subagents/web_tools.py` calls Firecrawl scrape and crawl | IN (inventoried, not re-routed) | § Inventory; retired by fabrik-lib D-132 — its unfinished removal is reported in § Open items |
+| I13 | the live Firecrawl key sits in `backups/*.env.backup*` | OUT-OF-SCOPE | by design (the gitignored pre-edit copies); key rotation is an operator credentials gate, § Open items |
+| I14 | "we must be very careful": the switch is STAGED, one command at a time, never a cut-over | IN | § Lifecycle — rollout |
+| I15 | a pass/fail ledger per capability AND per command, on the URLs that command hits; a command switches only when its ledger is all-pass, else it keeps Firecrawl | IN | § Test ledger · § Lifecycle |
+| I16 | full `/fabrik-review` on every slice (the command sources are a governance-sync surface) | IN | § Lifecycle — rollout |
 
-Intake: 13 items — 9 IN, 4 OUT-OF-SCOPE (each named), 0 ASK.
+Intake: 16 items — 13 IN, 3 OUT-OF-SCOPE (each named), 0 ASK.
 
 ## Goal
 
 Agents and runtime code read and crawl web pages through Fabrik's own infrastructure — fabrik-lib `web-scrape` (httpx
-plus the vps1 browserless container), `doc-crawl` and `pdf-extract` — and reach Firecrawl only when the own tool reports
-a page it cannot read (a bot wall) or a capability it does not have (LLM schema extraction, screenshots, page actions).
+plus the vps1 browserless container), `doc-crawl` and `pdf-extract` — and reach Firecrawl only for what those modules
+cannot do (LLM schema extraction, screenshots, page actions, an unavailable renderer) or for a bot-walled source the
+operator has cleared by name.
 
 ## Why this exists
 
-Firecrawl is the only scrape leg the research seats and the runtime code use, and it is metered. On 2026-10-21 the
-account read `remaining_credits: -6` of `plan_credits: 5000`, with the period ending 2026-11-12 (executed:
-`GET https://api.firecrawl.dev/v1/team/credit-usage`, `fc_credits.py` in the run folder). The 5 000 credits went in nine
-days, so every seat that names `firecrawl_scrape` — including the researcher's "settle a dispute" live fetch — is dead
-for three weeks, and the runtime scrape legs return errors. The operator ruled no top-up (D-1093). fabrik-lib already
-fetches, renders and crawls; nothing exposes it to the seats.
+Firecrawl is the scrape leg of the research seats and of the runtime code, and it is metered. On 2026-10-21 the account
+read `remaining_credits: -6`, `plan_credits: 5000`, period 2026-10-12 → 2026-11-12 (executed: `GET
+https://api.firecrawl.dev/v1/team/credit-usage`; response kept as `fc_credits.out` in the run folder). The 5 000 credits
+went in nine days. Every seat that names `firecrawl_scrape` — including the researcher's "settle a dispute" live fetch —
+is dead for three weeks (a live call this session returned "Insufficient credits to perform this request."), and the
+runtime scrape legs fail. The operator ruled no top-up (D-1093). fabrik-lib already fetches, renders, extracts PDFs and
+crawls; nothing exposes it to the seats.
 
-## Inventory (I1, I8)
+## Inventory (I1, I8, I12)
 
-Measured by an Explore seat over the hub, fabrik-lib and every `/opt` project, 2026-10-21 (report in the run folder,
-`inventory-seat.jsonl`).
+Measured by an Explore seat over the hub, fabrik-lib and every `/opt` project, 2026-10-21 (`inventory-seat.jsonl` in the
+run folder), and corrected by review.
 
 | Surface | Firecrawl capability used | Kind |
 |---|---|---|
-| `mcp.json`:16-20, `scripts/sysadmin/mcp_defs.json`:32-36, `scripts/sysadmin/emit_mcp_project_config.py`:43 | the MCP server itself | config |
-| `commands/_agents/fabrik-researcher.md` (mcpServers line 4; scrape with `maxAge:0`, `formats:["query"]`) | scrape, "structured extraction" | instruction |
+| `mcp.json`:16-20, `scripts/sysadmin/mcp_defs.json`:32-38, `scripts/sysadmin/emit_mcp_project_config.py`:43 | the MCP server itself | config |
+| `commands/_agents/fabrik-researcher.md` (`mcpServers` line 4; scrape with `maxAge:0`; rules naming a Firecrawl credit error) | scrape, structured extraction | instruction |
 | eight command sources: fabrik-spec, fabrik-spec-review, fabrik-plan-review, fabrik-plan-after-chat, fabrik-data-contract, fabrik-vision, fabrik-workflow-review, fabrik-rivals | search and scrape | instruction |
-| `CLAUDE.md` § External Knowledge, `.windsurf/rules/core/57-external-data-sourcing.md`, `.windsurfrules`:54 | tier-2 engine (D-337/D-338/D-845) | instruction |
+| the three contract copies' § External Knowledge (`CLAUDE.md`, `templates/governance/CLAUDE.md`, `/opt/fabrik-lib/CLAUDE.md`), `.windsurf/rules/core/57-external-data-sourcing.md`, `.windsurfrules`:54, held by `tests/test_research_tier_order.py` | tier-2 engine (D-337/D-338/D-845) | instruction |
 | fabrik-lib `web-tools/web_tools.py`:421 (scrape), :439 (crawl), :772 (async search), :815 (async scrape); hub copy `libs/web_tools.py` | search, scrape, crawl | code |
-| `scripts/rivals_run.py` (hub + 50 project copies, one hash): legs at :1169, verify-stage `scrape=a_firecrawl_scrape` at :1253 | search, scrape | code |
+| `scripts/rivals_run.py` (hub + 49 projects on one hash; fabrik-lib's copy on another): legs at :1169, verify-stage `scrape=a_firecrawl_scrape` at :1253 | search, scrape | code |
+| `libs/subagents/web_tools.py`:227-247 in 39 projects and the hub (the hub copy frozen on purpose, D-547) | scrape, crawl | code, retired (fabrik-lib D-132) |
+| `commands/assemble_commands.py`:467 (`mcp_servers=[…"firecrawl"…]` inside a POOL OFF block) | MCP grant for a pool seat | dormant config |
 | deep-research and competitor-intel packs | search leg | config |
-| `scripts/sysadmin/quota_dashboard.py`:372, `scripts/sysadmin/mcp_health.py`:157 | credit balance read | code |
+| `scripts/sysadmin/quota_dashboard.py`:372, `scripts/sysadmin/mcp_health.py`:157 | credit balance read (v1 endpoint) | code |
 
-No capability beyond search, scrape and crawl is called anywhere (map, agent, parse, research_* are unused). **No local
-log of Firecrawl calls exists**, so I8 is answered by the balance alone.
+**Calls this month, by kind** (I8): session transcripts, `tool_use` blocks named `mcp__firecrawl__*` with an October
+timestamp, de-duplicated by tool-use id (`fc_calls.py`; 2 132 transcript files touched since 2026-10-01 examined):
+**192 calls — `firecrawl_scrape` 187, `firecrawl_search` 3, `firecrawl_map` 2**; 128 of them fall inside the billing
+period (from 2026-10-12). Agent tool calls are therefore scrape almost entirely, which is the capability this spec
+replaces. They are far too few to spend 5 000 credits, so most of the spend came from somewhere the transcripts do not
+show — see § Residual unknowns.
 
-## Test ledger (I2) — fabrik-lib against each use, 2026-10-21
+## Test ledger (I2, I15) — fabrik-lib against each use, 2026-10-21
 
-Firecrawl could not be run side by side (out of credits), so each case is graded on what its use NEEDS: the page's own
-known facts in the extracted markdown. Harness `ledger_run.py` and `ledger_crawl.py`, results `ledger.json` and
-`ledger_crawl.json` in the run folder `/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-spec-2026-10-21T16-07-23-0300/`.
+Firecrawl could not run side by side (out of credits), so each case is graded on what its use needs: page-specific
+facts (exact phrases) in the extracted text, plus a clean-text ratio (letters, digits and spaces over all characters,
+floor 0.6). Pass 2 replaced pass 1, whose facts were common words that markup noise could satisfy. Harness
+`ledger2_run.py`, results `ledger2.json`, failing pages kept under `html/`, follow-up probes `inspect2.py` and
+`inspect3.py` — all in the run folder
+`/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-spec-2026-10-21T16-07-23-0300/`. Escalation in pass 2
+is a plain browserless `/content` render, never stealth.
 
-| # | Use | URL | Path | Facts | Verdict |
-|---|---|---|---|---|---|
-| U1 | researcher re-fetch of static vendor docs | docs.python.org/3/library/bisect.html | static | 3/3 | PASS (0.4 s) |
-| U2 | re-fetch of an API reference | docs.anthropic.com/en/api/messages | static | 3/3 | PASS (4.5 s) |
-| U3 | rivals verify-stage pricing page | linear.app/pricing | static | 3/3 | PASS (0.7 s) |
-| U4 | GitHub README fact check | github.com/browserless/browserless | static | 3/3 | PASS (0.9 s) |
-| U5 | PDF paper | arxiv.org/pdf/1706.03762 | static | binary noise | FAIL — no PDF path (gap G1) |
-| U6 | review site behind Turnstile | g2.com/products/linear/reviews | rendered, stealth | 0/2 | FAIL — bot wall (gap G4) |
-| U7 | blog article | simonwillison.net/2024/Dec/31/llms-in-2024/ | static | 2/2 | PASS (1.4 s) |
-| U8 | docs crawl, depth 2, 8 pages | docs.pydantic.dev/latest/concepts/models/ | static via doc-crawl | 8 pages, 103 KB | PASS, but drifted out of the subtree (gap G2) |
+| # | Use | URL | Path | Facts · clean | Graded | Judgement after inspection |
+|---|---|---|---|---|---|---|
+| U1 | re-fetch of static vendor docs | docs.python.org/3/library/bisect.html | static | 2/3 · 0.83 | PARTIAL | PASS — the missed fact is present as `key = None` (the converter spaces the signature); the fact string was wrong |
+| U2 | re-fetch of an API reference | platform.claude.com/docs/en/api/messages (301 from docs.anthropic.com) | static | 1/3 · 0.89 | PARTIAL | INCONCLUSIVE — after the 301 the URL is an overview page; a plain render returned the same 104 KB of text without the parameter names, so they live on sub-pages; a per-command ledger must use the URLs the command really hits |
+| U3 | rivals verify-stage pricing page | linear.app/pricing | static | 4/4 · 0.92 | PASS | PASS |
+| U4 | GitHub README fact check | github.com/browserless/browserless | static | 1/2 · 0.88 | PARTIAL | PASS — the README text is all there (`docker run`, `ghcr.io/browserless` ×3); "TOKEN" is not in that README |
+| U5 | PDF paper | arxiv.org/pdf/1706.03762 | PDF bytes → pdf-extract | 2/3 · 0.92 | PARTIAL | PARTIAL — 35 525 chars extracted, but some lines lose their word spaces ("AshishVaswani"); gap G8 |
+| U6 | review site with bot protection, vendor unidentified | g2.com/products/linear/reviews | static → plain render | 0/2 · 0.0 | FAIL | FAIL — 2.1 KB response, 0 chars of text, `is_bot_wall` false; the page is unreadable and the detector did not say so (gap in § Chosen approach 1's `blocked` rule) |
+| U7 | blog article | simonwillison.net/2024/Dec/31/llms-in-2024/ | static | 2/2 · 0.95 | PASS | PASS |
+| U8 | docs crawl, depth 2, cap 8 pages | docs.pydantic.dev/latest/concepts/models/ | doc-crawl over static | 1 of 8 pages in the subtree | PARTIAL | PARTIAL — the crawl seeds the whole origin's sitemap and follows nav links first, so 7 of 8 pages left `/latest/concepts/`; gap G2 |
 
-**6 of 8 uses are served today** (5 scrapes and the crawl); the PDF is a composition gap, the Turnstile wall is the one
-case that genuinely needs a hosted service.
+**Served today: U1, U3, U4, U7** (static scrape). PDF and crawl work but need G8 and G2; U2 needs a re-test on the
+command's own URLs; U6 is a page our tools must report, not read. The rendered path executed (U2 rendered DOM 7.45 MB,
+U6 2.1 KB) but has no passing case yet. These cases stand for capabilities; the switch itself is gated per command (§
+Lifecycle).
 
 ## fabrik-lib verdict (I7)
 
 | Capability | Verdict | Module · why |
 |---|---|---|
-| fetch a page (static) | VENDOR | `web-scrape` `WebScraper.fetch_static` — U1-U4, U7 pass |
-| render a JS page | VENDOR | `web-scrape` `fetch_rendered` over vps1 browserless |
-| page → markdown | VENDOR | `doc-crawl` `html_to_markdown` (`strip_chrome` + render) |
-| PDF → text | VENDOR | `pdf-extract` (pdfplumber native text) — G1 is composition, not a build |
-| crawl a docs site | VENDOR + ENHANCE | `doc-crawl` `Crawler`; needs include/exclude path patterns (G2) and fetch-error reporting (G3) |
-| agent-facing tool | BUILD — 🆕 fabrik-lib candidate | none exists (capability seat, part 4); `web-scrape-mcp` · an MCP server composing the three modules · every repo's seats and the hub's · tools `scrape`, `crawl` |
-| bot-wall pages (Turnstile) | KEEP ON FIRECRAWL | defeating a control is the bypass line (Constraints); fallback only |
-| LLM schema extraction, screenshots, page actions | KEEP ON FIRECRAWL | web-scrape's own scope excludes LLM extraction; the calling agent extracts from markdown |
-| search | OUT of this spec | fabrik-lib has no search; the D-337 ladder stands |
+| fetch a page (static) | VENDOR | `web-scrape` `WebScraper.fetch_static` — U1, U3, U4, U7 |
+| render a JS page | VENDOR — no passing case yet | `web-scrape` `fetch_rendered` over vps1 browserless `/content`; the stealth `/function` path is never used |
+| page → markdown | VENDOR | `doc-crawl` `html_to_markdown` |
+| PDF → text | VENDOR + ENHANCE | `pdf-extract`; G1 (bytes reach it) is composition, G8 (word spacing) is an ask; image-only pages go to `ocr` or return `blocked: unsupported` |
+| crawl a docs site | VENDOR + ENHANCE | `doc-crawl` `Crawler`; G2 (scoping), G3 (errors), G9 (title) |
+| agent-facing tool | BUILD — 🆕 fabrik-lib module | none exists; `web-scrape-mcp` · an MCP server composing the three modules · every repo's seats · tools `scrape`, `crawl` |
+| bot-walled pages | NOT SERVED | defeating a control crosses the bypass line; reported, or Firecrawl for a source the operator clears by name |
+| LLM schema extraction, screenshots, page actions | KEEP ON FIRECRAWL | web-scrape's scope excludes LLM extraction (`/opt/fabrik-lib/web-scrape/SPEC.md`:16); the calling agent extracts from markdown |
+| search | UNCHANGED | fabrik-lib has no search; the D-337 ladder's search engines stand |
 
 ## Chosen approach (A + runtime routing)
 
-1. **A new MCP server, `fabrik-scrape`**, built as a fabrik-lib module (`web-scrape-mcp`, the candidate above) and
-   registered on this box like `fabrik-citation-verifier` (FastMCP over streamable HTTP on 127.0.0.1, an `"type": "http"`
-   entry in `scripts/sysadmin/mcp_defs.json`). Two tools:
-   - `scrape(url, render="auto", max_length=20000, start_index=0, max_age_s=0)` → `{status, final_url, content_type,
-     title, markdown, truncated, path: "static"|"rendered"|"pdf"}` — static first; rendered when the static page is a
-     bot wall or its markdown is under a floor; PDF bytes go to pdf-extract. Chunked reading (`start_index`) as the MCP
-     fetch server does. `max_age_s=0` is the live re-fetch the researcher's dispute rule needs.
-   - `crawl(url, max_depth=2, max_pages=20, include_paths=[], exclude_paths=[])` → pages `{url, depth, title,
-     markdown}` plus `errors`.
-   - A page the server cannot read returns a typed result `{blocked: true, reason}`, never empty markdown — the signal
-     the seat's fallback reads.
-2. **Seats and commands** name `fabrik-scrape` first for scrape and crawl, with `firecrawl_scrape` / `firecrawl_crawl`
-   as the fallback leg; search instructions are unchanged.
-3. **Runtime code** (`web-tools` `web_scrape`/`web_crawl` and `a_firecrawl_scrape`'s callers, `rivals_run.py`'s
-   verify-stage `scrape=`) calls web-scrape first and Firecrawl only on `blocked` — a fabrik-lib change, requested by
-   mail, re-vendored into the hub and the projects by the usual sync.
+1. **A new MCP server, `fabrik-scrape`**, built by fabrik-lib as the module `web-scrape-mcp`, vendored into the hub and
+   registered on this box like `fabrik-citation-verifier` (streamable HTTP on 127.0.0.1, a `"type": "http"` entry in
+   `scripts/sysadmin/mcp_defs.json`, a port from `PORTS.md`). It runs on the current SDK line, `mcp>=2.3,<3`, whose
+   server class is `MCPServer` (v2 renamed `FastMCP`), in its own venv. Two tools:
+   - `scrape(url, render="auto"|"always"|"never", max_length=20000, start_index=0, max_age_s=0)` →
+     `{status, final_url, content_type, title, markdown, truncated, path}` with `path` one of static, rendered, pdf.
+     Static first. `auto` renders through plain browserless `/content` when the static text is under 800 characters;
+     `always` lets a seat force a render, because a static page can hold less than its rendered one without falling
+     under the floor. The stealth path is never called. A PDF content type goes to pdf-extract. `start_index` reads a
+     long page in chunks. `max_age_s=0` is the live re-fetch the researcher's dispute rule needs.
+   - `crawl(url, max_depth=2, max_pages=20, include_paths=[], exclude_paths=[], use_sitemap=False)` → pages
+     `{url, depth, title, markdown}` plus `errors`; by default only pages under the start URL's path.
+   - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason}` with `reason` one of:
+     `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
+     retries), `bot-wall` (`is_bot_wall` true), `empty` (text under 800 characters after a render — U6's case),
+     `render-unavailable` (browserless unreachable), `unsupported` (an image-only PDF, a content type it cannot read).
+   - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
+     link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
+     fabrik-lib's `_SsrfSafeTransport` pattern as `WebScraper(transport=…)` (`/opt/fabrik-lib/web-scrape/README.md`,
+     section on the address guard); a render is sent only for a URL that passed that check. A model-driven fetch on
+     this box would otherwise reach the box's own local services, which a hosted Firecrawl never could.
+2. **Seats and commands.** `fabrik-scrape` joins tier 1 of the research ladder as its raw-page fetch, beside `WebFetch`
+   (which summarises); the ladder's ORDER and its search engines are unchanged, and `firecrawl` stays in tier 2 for
+   structured extraction and the fallback rows below. `fabrik-researcher.md` gets `fabrik-scrape` in `mcpServers` and
+   its raw-fetch order becomes `fabrik-scrape` → `exa` `web_fetch_exa` → `firecrawl_scrape`; its rules that turn a
+   Firecrawl credit error into NEEDS-RAW-FETCH are re-pointed at the new order. The three contract copies, the eight
+   command sources and `tests/test_research_tier_order.py` change in the same slices.
+3. **Runtime code.** fabrik-lib `web-tools` (`web_scrape`, `web_crawl`, `a_firecrawl_scrape`'s role) and the hub
+   `rivals_run.py` verify-stage `scrape=` call web-scrape first and Firecrawl only per § Fallback contract, behind an
+   environment switch `FABRIK_SCRAPE_LEG=own|firecrawl` whose default stays `firecrawl` until that caller's ledger is
+   all-pass. The change lands in `web-tools`, not in `web-scrape`, whose scope forbids a managed scraping service
+   (`/opt/fabrik-lib/web-scrape/SPEC.md`:17).
 
 ## Fallback contract
 
 | Own-tool result | Seat / runtime does |
 |---|---|
-| markdown with content | use it; cite URL + fetch date |
-| `blocked: bot-wall` | call Firecrawl once if it has credits; else report the page unreadable — never a bypass tool |
-| `blocked: unsupported` (schema extraction, screenshot, actions) | Firecrawl, or extract from the markdown itself |
-| network or 5xx after retries | report it; Firecrawl only if the page is load-bearing for the claim |
+| markdown with content | use it; cite URL and fetch date |
+| `blocked: robots` | report the page unreadable — never Firecrawl (another vendor's user agent would evade the site's robots group) |
+| `blocked: scope` | report it — never fetched by anyone |
+| `blocked: http-4xx` | report the page unreadable; an error page is never cited as content |
+| `blocked: http-5xx`, `blocked: render-unavailable` | Firecrawl if it has credits; else `exa` `web_fetch_exa`; else report it |
+| `blocked: bot-wall`, `blocked: empty` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
+| `blocked: unsupported` (schema extraction, screenshot, page actions, image-only PDF) | Firecrawl if it has credits, or extract from the markdown, or report it |
+
+This departs from one sentence of the work item ("a failed own-tool call falls through to it, never to a miss") for the
+bot-wall, empty and robots rows: rule packs outrank a ticket for how work is done (CLAUDE.md § Behavior, conflict
+resolution), and the bypass line is a rule pack.
 
 ## Rejected alternatives
 
 | Alternative | Why not |
 |---|---|
-| **The official MCP fetch server** (`mcp-server-fetch`) as the own tool | static only: no browserless render, no crawl, no PDF; U2-style JS pages and U8 need the modules we already run. Its chunking and robots behaviour are copied into `scrape`. Source: `modelcontextprotocol/servers` `src/fetch/README.md`, fetched 2026-10-21 via `gh api` |
-| **Crawl4AI** self-hosted | a new heavy dependency (Playwright/Chromium) that web-scrape's own scope rules out ("NOT `crawl4ai`, NOT `playwright`", `/opt/fabrik-lib/web-scrape/SPEC.md`:193); v0.9.5, Apache-2.0, `gh release list -R unclecode/crawl4ai`, 2026-10-21 |
-| a Bash CLI script instead of an MCP server | `fabrik-researcher` has no Bash tool; the seats that need it most could not call it |
-| Claude's built-in `WebFetch` | it returns a model summary, not the raw page the dispute rule needs (`/fabrik-spec` § 1a: "a `WebFetch` reply summarises") |
+| **The official MCP fetch server** (`mcp-server-fetch`) as the own tool | one `fetch` tool (url, `max_length`, `start_index`, `raw`): no crawl, no PDF, no browserless render. Its chunking, robots and private-address defaults are copied into `scrape`. Source: https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/README.md, 2026-10-21 |
+| **Crawl4AI** self-hosted | a heavy new dependency (Playwright and Chromium) that web-scrape's scope rules out (`/opt/fabrik-lib/web-scrape/SPEC.md`:193: "NOT `crawl4ai`, NOT `playwright`"); v0.9.5, Apache-2.0, `gh release list -R unclecode/crawl4ai`, 2026-10-21 |
+| a Bash CLI script instead of an MCP server | `fabrik-researcher` has no Bash; the seats that need it most could not call it |
+| Claude's built-in `WebFetch` as the raw fetch | it returns a small model's answer about the page, not the page; the dispute rule needs raw text |
+| `exa` `web_fetch_exa` as the only raw fetch | metered like Firecrawl, so the same outage recurs; kept as the second leg |
+| fabrik-lib `adaptive-dispatch` to choose static or render per domain | it learns from history the server does not have yet; the 800-character floor plus `render="always"` is enough to start, and adaptive-dispatch can replace the floor later without changing the tool contract |
+| one cut-over of every command | refused by the operator's caution (I14); each command switches alone |
 | top up Firecrawl | ruled out by the operator (D-1093) |
-| `captcha-solve` / `proxy-pool` to beat U6 | the bypass line (Constraints) — a control is reported, never defeated |
-| put the server in the hub, not fabrik-lib | every repo's seats need it; fabrik-lib is where shared modules live (vendor-don't-import) |
+| stealth rendering, `captcha-solve` or `proxy-pool` to read U6 | the bypass line — a control is reported, never defeated |
+| the server inside the hub instead of fabrik-lib | every repo's seats need it, and shared modules live in fabrik-lib (vendor, don't import) |
 
 ## Constraints Digest
 
+Quotes are verbatim with markdown emphasis removed.
+
 | Quote | Source |
 |---|---|
-| A worker, Beat job or webhook receiver cannot call one. | `.windsurf/rules/core/57-external-data-sourcing.md:56` |
+| A worker, Beat job or webhook receiver cannot call one. | `.windsurf/rules/core/57-external-data-sourcing.md:56-57` |
 | A fabrik-lib module — vendor, don't hand-roll: | `.windsurf/rules/core/57-external-data-sourcing.md:69` |
 | Check the roster before naming one — do not cite from memory | `.windsurf/rules/core/57-external-data-sourcing.md:66` |
 | THE BYPASS LINE IS THE LEGAL LINE, and it runs straight through our own toolbox. | `.windsurf/rules/core/57-external-data-sourcing.md:258` |
 | exa and firecrawl are METERED: | `CLAUDE.md:306` |
 
-Further: D-013 keeps `firecrawl` in every repo's MCP roster (this spec keeps it, as the fallback); D-337/D-338/D-845 keep
-the search ladder unchanged; D-1093 forbids a top-up.
+Further: D-013 keeps `firecrawl` in every repo's MCP roster (kept, as the fallback). D-337/D-338/D-845 fix the research
+ladder's order and engines; this spec keeps both and adds `fabrik-scrape` as tier 1's raw-page fetch, amending the three
+contract copies and `tests/test_research_tier_order.py` in the same slice. D-1093 forbids a top-up.
 
 ## External dependencies
 
 | Dependency | Grounded fact | Source, date |
 |---|---|---|
-| Firecrawl credit API | `remaining_credits: -6`, `plan_credits: 5000`, period end 2026-11-12 | `GET https://api.firecrawl.dev/v1/team/credit-usage`, executed 2026-10-21 |
-| MCP Python SDK | latest release v2.3.0 (2026-10-02); FastMCP is the precedent server's base (`/opt/fabrik-citation-verifier/mcp_server/server.py`) | `gh release list -R modelcontextprotocol/python-sdk`, 2026-10-21 |
-| MCP fetch server | markdown, `max_length` default 5 000, `start_index`, robots obeyed for model requests, private addresses refused | https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/README.md, via `gh api`, 2026-10-21 |
-| browserless v2 on vps1 | `/content` and `/function` used by web-scrape; credentials present (32-char token) | `/opt/fabrik-lib/web-scrape/README.md` and the executed U6 render, 2026-10-21 |
+| Firecrawl credit API | v1 fields `remaining_credits`, `plan_credits`, `billing_period_start`, `billing_period_end`; read: -6, 5000, 2026-10-12 → 2026-11-12. v2 renames them camelCase (`remainingCredits`, …) at `/v2/team/credit-usage`; `fc_credits.py`, `quota_dashboard.py` and `mcp_health.py` call v1 | https://docs.firecrawl.dev/api-reference/v1-endpoint/credit-usage and https://docs.firecrawl.dev/api-reference/endpoint/credit-usage; call executed 2026-10-21 |
+| MCP Python SDK | latest v2.3.0 (2026-10-02); v2 renames `FastMCP` to `MCPServer` and moves transport options off the constructor; the precedent `fabrik-citation-verifier` runs v1.27.0 with `FastMCP` | `gh release list -R modelcontextprotocol/python-sdk`; https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md; 2026-10-21 |
+| MCP fetch server | markdown output, `max_length` default 5 000, `start_index`, robots obeyed for model requests, non-public addresses refused by default | https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/README.md, 2026-10-21 |
+| browserless v2 on vps1 | `POST /content` (token query parameter) renders a page; `/function` runs a script (the stealth path, not used) | https://docs.browserless.io/rest-apis/content; executed renders U2 and U6, 2026-10-21 |
 
 ## fabrik-lib asks (I4 — small gaps, by mail to fabrik-lib)
 
 | Gap | Ask | Test that proves it |
 |---|---|---|
-| G1 | web-scrape returns the content type (and bytes) so a PDF reaches pdf-extract | a PDF URL yields pdf-extract text |
-| G2 | doc-crawl `include_paths` / `exclude_paths` patterns | U8 stays under `/latest/concepts/` |
+| — | build `web-scrape-mcp` to § Chosen approach 1's tool contract, `blocked` reasons and address guard | a contract test per tool and per `blocked` reason |
+| G1 | web-scrape returns the content type and bytes, so a PDF reaches pdf-extract | U5's URL yields pdf-extract text through `scrape` |
+| G2 | doc-crawl include/exclude path patterns applied to sitemap seeds AND links, and `use_sitemap=False` | U8 stays under `/latest/concepts/` |
 | G3 | doc-crawl reports fetch errors instead of `except Exception: continue` | a failing fetcher yields an error row |
-| G5 | web-scrape returns status, final URL and title beside the HTML | U1 reports 200 and the title |
-| G6 | `ScopeError` exported as the README says; README test counts updated | an import test |
+| G5 | web-scrape returns status, final URL and title beside the HTML | a 404 URL reports 404; U1 reports 200 and its title |
+| G6 | `ScopeError` exported from the package `__init__` as the README says | an import test |
+| G7 | web-scrape ships the non-public-address transport (today a pattern in watchdog) for `transport=` | a 127.0.0.1 URL and a redirect to 169.254.169.254 both raise |
+| G8 | pdf-extract keeps word spaces (pdfplumber tolerance) | U5 contains "Ashish Vaswani" |
+| G9 | doc-crawl `DocPage` carries the page title | U8 pages have titles |
+| — | web-tools routes scrape and crawl to web-scrape first behind `FABRIK_SCRAPE_LEG` (§ Chosen approach 3) | a test per fallback row |
 
-**Gaps kept on Firecrawl (large):** G4 Turnstile and similar bot walls; LLM schema extraction; screenshots; page actions.
+**Kept on Firecrawl (large):** bot-walled pages (and only for operator-cleared sources); LLM schema extraction;
+screenshots; page actions.
 
 ## Lifecycle
 
-- **Adoption:** the server ships with the five asks it needs most (G1-G3; G5-G6 can follow); the ledger re-runs (I5)
-  and must hold 6/8 or better before any command text switches.
+- **Rollout (I14-I16):** slice 1 — fabrik-lib ships `web-scrape-mcp` with G1, G2, G3, G5, G6, G7; infra registers it;
+  the capability ledger re-runs and U1, U3-U5, U7 and U8 must pass, U6 must return `blocked`. Then one command per
+  slice: intel builds that command's ledger from the URLs its runs actually fetched (from transcripts), switches the
+  command's text only when that ledger is all-pass, and runs the full `/fabrik-review` on the slice. Command text has no
+  runtime flag, so a slice is one commit and reverting it is the off switch; runtime code uses `FABRIK_SCRAPE_LEG`. A
+  command whose ledger is not all-pass keeps Firecrawl. `/fabrik-rivals` and `fabrik-researcher` go first (they make the
+  scrape calls).
 - **Growth:** rendered fetches load the single vps1 browserless container. Trigger: more than 20 rendered fetches a day,
-  or a 5xx from browserless, raises the memory limit (gate W-cbd80821) before anything else.
-- **Degradation:** browserless down → static fetches still work; the tool returns `blocked: render-unavailable` and the
-  seat falls back. Server down → `mcp_health.py` reports it (FIX-FIRST) and seats use Firecrawl when it has credits.
-- **Retirement:** if Firecrawl's fallback goes unused for a full billing period, the plan is downgraded or dropped (an
-  operator spend decision); the server itself is retired only if a hosted tool replaces fabrik-lib's modules.
+  or any browserless 5xx, raises the memory limit (gate W-cbd80821) before anything else.
+- **Degradation:** browserless down → static fetches still work and renders return `blocked: render-unavailable`.
+  Server down → `mcp_health.py` reports it (FIX-FIRST) and seats use `exa`, then Firecrawl when it has credits.
+- **Retirement:** if the Firecrawl fallback goes unused for a full billing period, the plan is downgraded or dropped (an
+  operator spend decision). The server is retired only if a hosted tool replaces fabrik-lib's modules.
 
 ## Shape / infra implications
 
@@ -204,20 +263,24 @@ Not a scaffold project. One local MCP server process on the WSL box (supervised 
 
 ## Documentation landing sites
 
-`docs/reference/fabrik-scrape-mcp.md` (new, with its `INDEX.md` row) · `docs/workstation/mcp-roster.md` (the new
-server) · `PORTS.md` (its port) · the module's own README in fabrik-lib · `CHANGELOG.md` · `docs/DECISIONS.md`.
+`docs/reference/fabrik-scrape-mcp.md` (new, with its `INDEX.md` row) · `docs/workstation/mcp-roster.md` (the server) ·
+`PORTS.md` (its port) · the three contract copies' § External Knowledge · `.windsurf/rules/core/57-external-data-sourcing.md`
+(the agent-time roster) · the module's README in fabrik-lib · `CHANGELOG.md` · `docs/DECISIONS.md`.
 
 ## Residual unknowns
 
 | Unknown | Why it is open | Resolution step |
 |---|---|---|
-| Firecrawl's output on U1-U8 | out of credits, so no side-by-side run; the ledger grades known facts instead | re-run the ledger with a Firecrawl column once credits return (2026-11-12) or on one paid call per case if the operator allows |
-| browserless capacity under seat load | one 2G container on vps1; today's rendered volume is unmeasured | count rendered calls in the server for two weeks; the Lifecycle growth trigger applies |
-| how often seats hit a bot wall | no call log exists for Firecrawl or the own tool | the server logs `blocked` results by reason; review after two weeks |
+| what spent the 5 000 credits | transcripts show 128 agent calls in the period, far too few; runtime callers (rivals_run, web-tools users, other repos sharing the key) leave no log | read Firecrawl's activity log (operator dashboard) or count runtime calls per caller once `FABRIK_SCRAPE_LEG` logs them; it decides which caller switches first |
+| Firecrawl's output on the same URLs | out of credits, so no side-by-side run | re-run the capability ledger with a Firecrawl column after 2026-11-12 |
+| the bot-wall detector's precision | `is_bot_wall` missed U6; `empty` catches it but cannot tell a wall from a blank page | the server logs `blocked` reasons; review them after two weeks |
+| browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
+| the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | block private ranges in browserless's own request interception, verified by a redirect test against vps1 |
+| image-only PDFs | pdf-extract yields no text for scanned pages | `blocked: unsupported` until an `ocr` route is asked for |
 
 ## Open items
 
-- Placement — a fabrik-lib module (recommended) versus its own repo like citation-verifier: a review question.
-- Mail at close: fleet — 40 projects vendor the retired `libs/subagents/web_tools.py` (D-132); operator gate — rotate
-  the Firecrawl key (it is in several backups, by design).
+- Report to fabrik-lib that its D-132 removal is unfinished: 39 projects still carry `libs/subagents/web_tools.py`
+  past the 2026-09-14 acknowledgement date (the hub copy stays, frozen by D-547).
+- Operator gate, outside this spec: rotate the Firecrawl key (it sits in several backups, by design).
 - Size: not small (a new MCP server, fabrik-lib changes, ten command and contract surfaces) — the full chain.
