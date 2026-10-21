@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T00:39:18.473337Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3c10eef4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: which projects' <db>_app touch jobs today; design the exclusion with fabrik-lib (mail 01M5B5CS5N6AK41XYP4HK6ZHMF item 3)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "payments",
+    "security"
+  ],
+  "title": "Registrar: <db>_app holds cross-tenant SELECT/UPDATE/DELETE on the payments job queue table jobs through the blanket DML grant (drivers/postgres.py ~:1201); exclude jobs or hand it a job-queue-owned grant (fabrik-lib SB-143 / W-93ab373c waits on the hub)"
+}

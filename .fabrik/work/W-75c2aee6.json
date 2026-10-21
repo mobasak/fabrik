@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T00:39:51.908892Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-75c2aee6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "once vps1 is reachable (gate W-ca7e97d0): docker exec postgres-main psql -c the pg_roles/pg_auth_members query; reply to fabrik-lib re mail 01M5B5CS5N6AK41XYP4HK6ZHMF",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "payments"
+  ],
+  "title": "List postgres-main's BYPASSRLS roles and their INHERIT memberships into project roles for fabrik-lib (SB-096 open unknown (c); a BYPASSRLS admin inheriting project roles would make every minted payments worker refuse)"
+}
