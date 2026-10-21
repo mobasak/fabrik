@@ -340,3 +340,121 @@ def test_pyproject_only_not_flagged_when_image_also_installs_pyproject(tmp_path:
     )
     _write(tmp_path, "src/app/main.py", "import yaml\n\nx = yaml\n")
     assert _load().find_undeclared_imports(tmp_path) == []
+
+
+# ── W-c83c550c: a first-party editable package seen from a linked worktree ─────────────────────────────────────
+# Builder worktrees share the main checkout's .venv (D-471), so an editable install resolves to ANOTHER tree of the
+# same repository. These build real git worktrees: the rule is git's answer, so a stubbed resolver would prove
+# nothing about it.
+_GIT = ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+
+
+def _repo_with_worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """A repo tracking libs/twin_pkg, plus two linked worktrees nested the way builders' are."""
+    import subprocess
+
+    main = tmp_path / "main"
+    _write(main, "requirements.txt", "# empty\n")
+    _write(main, "libs/twin_pkg/__init__.py", "value = 1\n")
+    _write(main, "src/app/main.py", "import twin_pkg\n")
+    subprocess.run([*_GIT, "init", "-q", str(main)], check=True)
+    subprocess.run([*_GIT, "-C", str(main), "add", "-A"], check=True)
+    subprocess.run([*_GIT, "-C", str(main), "commit", "-qm", "init"], check=True)
+    trees = []
+    for name in ("wt1", "wt2"):
+        wt = main / ".claude" / "worktrees" / name
+        subprocess.run(
+            [*_GIT, "-C", str(main), "worktree", "add", "-q", "--detach", str(wt)], check=True
+        )
+        trees.append(wt)
+    return main, trees[0], trees[1]
+
+
+def _clear_caches(mod) -> None:
+    for name in ("_work_tree_of", "_tracked_in"):
+        cached = getattr(mod, name, None)
+        if cached is not None:
+            cached.cache_clear()
+
+
+@pytest.mark.parametrize("installed_from", ["main", "sibling"])
+def test_editable_package_from_another_tree_of_the_repo_is_local(
+    tmp_path: Path, monkeypatch, installed_from: str
+):
+    """youtube's yt1/yt2/yt3: `import mt_router` read as an undeclared dependency in every builder worktree
+    because the shared venv's editable install points at the main checkout (or, after a builder re-installs,
+    at a sibling worktree). The tree being checked tracks the same path, so it is first-party."""
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, wt2 = _repo_with_worktrees(tmp_path)
+    monkeypatch.syspath_prepend(str((main if installed_from == "main" else wt2) / "libs"))
+    monkeypatch.setattr(
+        mod.importlib.metadata, "packages_distributions", lambda: {"twin_pkg": ["twin-pkg"]}
+    )
+    assert mod._module_is_local("twin_pkg", wt1) is True
+    assert mod.find_undeclared_imports(wt1) == []
+    assert mod._module_is_local("twin_pkg", wt1 / "src") is True  # a root below the top level
+
+
+def test_path_this_tree_does_not_track_stays_flagged(tmp_path: Path, monkeypatch):
+    """A package only the other tree has (an untracked local install there) is not this branch's code."""
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, _ = _repo_with_worktrees(tmp_path)
+    _write(main, "extras/only_main/__init__.py", "value = 1\n")
+    monkeypatch.syspath_prepend(str(main / "extras"))
+    assert mod._module_is_local("only_main", wt1) is False
+
+
+def test_twin_of_the_other_kind_stays_flagged(tmp_path: Path, monkeypatch):
+    """The other tree's package directory is matched only by a tracked DIRECTORY here, never by a tracked file
+    at the same path."""
+    import subprocess
+
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, _ = _repo_with_worktrees(tmp_path)
+    _write(wt1, "extras/odd_pkg", "a file, not a package\n")
+    subprocess.run([*_GIT, "-C", str(wt1), "add", "extras/odd_pkg"], check=True)
+    _write(main, "extras/odd_pkg/__init__.py", "value = 1\n")
+    monkeypatch.syspath_prepend(str(main / "extras"))
+    assert mod._module_is_local("odd_pkg", wt1) is False
+
+
+def test_twin_test_failure_keeps_the_package_flagged(tmp_path: Path, monkeypatch):
+    """An error inside the twin test answers "not local" — it must never escape to main(), whose blanket except
+    prints "internal error (skipping)" and exits 0, a silent pass for every import."""
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, _ = _repo_with_worktrees(tmp_path)
+    monkeypatch.syspath_prepend(str(main / "libs"))
+
+    def boom(*a, **k):
+        raise RuntimeError("git exploded")
+
+    monkeypatch.setattr(mod, "_tracked_in", boom)
+    assert mod._module_is_local("twin_pkg", wt1) is False
+
+
+def test_twin_test_runs_git_once_per_directory(tmp_path: Path, monkeypatch):
+    import subprocess
+
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, _ = _repo_with_worktrees(tmp_path)
+    monkeypatch.syspath_prepend(str(main / "libs"))
+    calls: list[list[str]] = []
+    real = subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(list(cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    for _ in range(3):
+        assert mod._module_is_local("twin_pkg", wt1) is True
+    rev_parse = [c for c in calls if "rev-parse" in c]
+    ls_files = [c for c in calls if "ls-files" in c]
+    assert len(rev_parse) == 2 and len(ls_files) == 1, (
+        calls
+    )  # their directory, my root; my tree's file list
