@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "persist registrar_warnings beside registrar_failures in .fabrik/state (state.py schema + _persist_state), show them in fabrik status; make reconcile-all read the refresh ctx's failures and warnings; decide whether deploy_router notifications carry warnings",
+  "next": "MEASURED 2026-10-21 (fleet), design next — a /fabrik-task with the full /fabrik-review (>5 files): (1) persist: orchestrator/__init__.py _persist_state saves registrar_failures (split on \": \") but not ctx.registrar_warnings; both warning sources (infrastructure.py ~:711 payments grant pending, ~:1554 prometheus reload unavailable) use the same \"<registrar>: <text>\" shape, so a registrar_warnings list beside it in state.py save()/load() (state.py :145-233, schema docstring :8-47) fits; (2) the pending payments role is added with status pending but payments-*-role is not in _REGISTRAR_ORDER, so the _persist_state filter drops it from registrars_applied; (3) show warnings in fabrik status (cli.py:564; failures shown at :514-542 for apply); (4) reconcile_all (cli.py:1418) calls orch.refresh_infrastructure() and discards the ctx — failures AND warnings lost; (5) deploy_router no longer exists (src/fabrik/orchestrator has deployer_ssh.py only) — re-find the notification path before deciding",
   "note": "",
   "owner": "fleet",
   "priority": 3,
