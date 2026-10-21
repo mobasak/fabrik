@@ -21,7 +21,8 @@
   "status": "open",
   "tags": [
     "mail-01m5ec2s14e7zqvgstn5tpepx2",
-    "security"
+    "security",
+    "waits-2026-10-21"
   ],
   "title": "SECURITY (fabrik-lib-sentinel mail 01M5EC2S14E7ZQVGSTN5TPEPX2, fabrik-lib D-519): scripts/enforcement/check_secrets.py models only 2021-era credential shapes — :16 AKIA only (no ASIA/ABIA/ACCA STS prefixes), :21-22 ghp_/gho_ only (no ghu_/ghs_/ghr_, no github_pat_ fine-grained PATs), :19 sk-[a-zA-Z0-9]{32,} misses OpenAI sk-proj- keys"
 }
