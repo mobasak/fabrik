@@ -1120,11 +1120,48 @@ def _blank_code_fences(content: str) -> str:
 
 
 def _blank_code_spans(content: str) -> str:
+    """Each unescaped opener, outside a link tail, pairs with the next run of its length unless a line break first
+    ends the span (any break on a heading or table line, else one that starts a block); the runs between are consumed.
+    Linear (W-16c00597): every gap between two runs is examined once, each run's line start comes from one forward
+    walk, and an opener finds its closer by bisect in the list of runs of its length — the scan-forward-per-opener
+    original was quadratic on unmatched runs (1.7 s on one 2 MB line) and is kept verbatim in the tests as the oracle."""
     runs = list(_BACKTICK_RUN_RE.finditer(content))
+    n = len(runs)
     tails = [(m.start(1), m.end(1)) for m in _LINK_TAIL_RE.finditer(content)]
     tail_starts = [start for start, _ in tails]
+    # gap g lies between runs[g] and runs[g + 1]: does it hold a newline, and does any line it starts open a block?
+    nl_gap = [False] * n
+    block_gap = [False] * n
+    for g in range(n - 1):
+        end = runs[g + 1].start()
+        p = content.find("\n", runs[g].end(), end)
+        if p < 0:
+            continue
+        nl_gap[g] = True
+        while p >= 0:
+            if _BLOCK_START_RE.match(content, p + 1):
+                block_gap[g] = True
+                break
+            p = content.find("\n", p + 1, end)
+    # the first gap at or after g that holds a newline / opens a block (n: none) — an opener's closer lies before it
+    next_nl = [n] * (n + 1)
+    next_block = [n] * (n + 1)
+    for g in range(n - 1, -1, -1):
+        next_nl[g] = g if nl_gap[g] else next_nl[g + 1]
+        next_block[g] = g if block_gap[g] else next_block[g + 1]
+    by_len: dict[int, list[int]] = {}
+    line_of: list[int] = []  # each run's line start, by one forward walk
+    line_start, prev = 0, 0
+    for j, m in enumerate(runs):
+        by_len.setdefault(len(m.group()), []).append(j)
+        p = content.rfind("\n", prev, m.start())
+        if p >= 0:
+            line_start = p + 1
+        line_of.append(line_start)
+        prev = m.start()
+    one_line_at: dict[int, bool] = {}
     out, kept, i = [], 0, 0
-    while i < len(runs):
+    while i < n:
         opener = runs[i]
         i += 1
         if opener.start() and content[opener.start() - 1] == "\\":
@@ -1132,24 +1169,19 @@ def _blank_code_spans(content: str) -> str:
         t = bisect.bisect_right(tail_starts, opener.start()) - 1
         if t >= 0 and opener.start() < tails[t][1]:
             continue
-        line_start = content.rfind("\n", 0, opener.start()) + 1
-        one_line = _ONE_LINE_BLOCK_RE.match(content, line_start) is not None
-        seen = opener.end()
-        for j in range(i, len(runs)):
-            # only the text since the last run is new; each line it starts is checked whole
-            starts = [m.end() for m in re.finditer("\n", content[seen : runs[j].start()])]
-            if starts and (
-                one_line or any(_BLOCK_START_RE.match(content, seen + s) for s in starts)
-            ):
-                break
-            seen = runs[j].end()
-            if len(runs[j].group()) == len(opener.group()):
-                out += [
-                    content[kept : opener.start()],
-                    _blank(content[opener.start() : runs[j].end()]),
-                ]
-                kept, i = runs[j].end(), j + 1
-                break
+        start = line_of[i - 1]
+        if start not in one_line_at:
+            one_line_at[start] = _ONE_LINE_BLOCK_RE.match(content, start) is not None
+        limit = (next_nl if one_line_at[start] else next_block)[i - 1]
+        same = by_len[len(opener.group())]
+        k = bisect.bisect_right(same, i - 1)
+        if k < len(same) and same[k] <= limit:
+            j = same[k]
+            out += [
+                content[kept : opener.start()],
+                _blank(content[opener.start() : runs[j].end()]),
+            ]
+            kept, i = runs[j].end(), j + 1
     return "".join(out) + content[kept:]
 
 
