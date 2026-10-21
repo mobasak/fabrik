@@ -221,8 +221,11 @@ documented mode, though the page marks the `proxy` parameter deprecated; if the 
 row above shrinks to operator-cleared sources only. A deprecated parameter is more often accepted and ignored than
 refused, so the silent case is guarded too: every Firecrawl fallback response is checked for the proxy mode the vendor
 reports having used, and a response reporting another mode, or none, is discarded and the page reported unreadable. The
-plan names the field the vendor reports it in; until it does, the Firecrawl rows start closed to operator-cleared
-sources only. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
+field is `data.metadata.proxyUsed` (`"basic" | "stealth"`), present in Firecrawl's source
+(`apps/api/src/scraper/scrapeURL/index.ts`, added by PR #1551) but absent from its API reference. It defaults to
+`"basic"` when the engine reports nothing and is backfilled on cached hits, so `"basic"` is necessary, not sufficient.
+The Firecrawl rows therefore stay closed to operator-cleared sources until slice 1a shows the field reaching a seat
+through `firecrawl-mcp` and an `auto`-escalated page reporting `stealth`. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
 documented escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall
 goes to neither. exa answers from its cache by default ("instant results from our cache, with automatic live crawling as
 fallback", https://exa.ai/docs/reference/get-contents, 2026-10-21) and the `web_fetch_exa` tool cannot ask for a live
@@ -357,7 +360,7 @@ rendering stays off.
 | browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
 | the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | rendering stays off until the vps1 change in § Shape is verified by a redirect test (slice 1c) |
 | robots on the rendered path | robots is checked for web-scrape's user agent, but browserless renders with its own Chrome UA (`webscrape.py`:309-310) | slice 1c checks robots for both user agents, or sends browserless an object `userAgent` |
-| where Firecrawl reports the proxy mode it used | the fallback rows depend on it (§ Fallback contract) | the plan reads Firecrawl's response schema and names the field; until then the Firecrawl rows are closed to operator-cleared sources |
+| whether `proxyUsed` reaches the seat through the MCP, and how far a `"basic"` report can be trusted | the field is undocumented, defaults to `"basic"` and is backfilled on cached hits; `firecrawl-mcp` v3.24.0 does not name it | slice 1a test: the field reaches a seat, and an `auto`-escalated page reports `stealth`; until then the Firecrawl rows are closed to operator-cleared sources |
 | image-only PDFs | pdf-extract yields no text for scanned pages | `blocked: unsupported` until an `ocr` route is asked for |
 
 ## Open items
