@@ -814,12 +814,17 @@ _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING
 
 
 def _archived_plan_status(text: str) -> str | None:
-    """An archived plan's own Status value: fences stripped, then inline code spans blanked (multi-line ones included,
-    length-preserving), then the first Status line in the first 4000 characters. Both archived-plan reads go through
-    here (W-a7cff030). They fail CLOSED — a quoted DRAFT would report a false "archived while DRAFT" — so an example
-    inside a code span must never win the first match."""
-    m = _STATUS_LINE.search(_fences.blank_code_spans(FENCE_STRIP.sub("", text))[:4000])
-    return m.group(1).strip() if m else None
+    """An archived plan's own Status value: fences stripped, then the first Status line starting in the first 4000
+    characters whose key no inline code span hides. The match runs on the original text (`_fences.status_candidates`),
+    so a stray backtick cannot erase the real line. Both archived-plan reads go through here (W-a7cff030). They fail
+    CLOSED, so when only spanned candidates exist the strict branch returns a mid-flight value among them."""
+    candidates = _fences.status_candidates(FENCE_STRIP.sub("", text), _STATUS_LINE, endpos=4000)
+    shown = [m for m, hidden in candidates if not hidden]
+    if shown:
+        return shown[0].group(1).strip()
+    # only spanned candidates: this read fails CLOSED, so its strict branch flags a mid-flight value it can see
+    hidden_midflight = [m for m, _ in candidates if m.group(1).strip().upper() in _MIDFLIGHT]
+    return hidden_midflight[0].group(1).strip() if hidden_midflight else None
 
 
 def _archived_midflight(root: Path) -> list[str]:

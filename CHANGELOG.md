@@ -4,15 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — plan Status reads skip a Status line inside a multi-line code span (2026-10-21)
-W-a7cff030. An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and
-first-match read the example. This hit two readers:
-- `check_plan_quality._sibling_spine_is_draft` failed open: a quoted DRAFT downgraded the ticket checks.
-- check_convergence's two archived-plan reads failed closed: a false "archived while DRAFT".
-
-Both now blank inline code spans with the shared `_fences.blank_code_spans` before the first match. check_convergence
-reads through one helper, `_archived_plan_status`. Across the fleet the parsed values are unchanged (216 tickets,
-1 521 plan files). `tests/enforcement/test_status_in_code_span.py` was red first.
+### Fixed — plan Status reads reject a Status line hidden in a code span, and never lose a real one (2026-10-22)
+W-a7cff030 (D-1114). An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and first-match read the example. This hit check_plan_quality's spine read and its two severity reads (fail open: a quoted DRAFT downgraded checks) and check_convergence's two archived-plan reads (fail closed: a false "archived while DRAFT"). The Opus + Fable panel ruled the fix: every read matches the ORIGINAL text through `_fences.status_candidates`, skips a candidate whose key a code span hides, and takes the reader's strict branch when only hidden ones exist. Blanking spans before matching was the rejected draft: it let a stray backtick erase a real Status line. Across the fleet the parsed values are unchanged (216 tickets, 1 522 plan files). `tests/enforcement/test_status_in_code_span.py` has 13 cases; 8 of them fail on that rejected draft.
 
 ### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
 W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and

@@ -342,3 +342,23 @@ def blank_code_spans(content: str) -> str:
             ]
             kept, i = runs[j].end(), j + 1
     return "".join(out) + content[kept:]
+
+
+def status_candidates(
+    text: str, pattern: re.Pattern[str], endpos: int | None = None
+) -> list[tuple[re.Match[str], bool]]:
+    """Every `pattern` match in the ORIGINAL text, paired with whether an inline code span hides its `Status` key.
+
+    W-a7cff030 (panel verdict, both seats): match on the original text, never on a blanked copy. Matching a blanked
+    copy let a stray backtick pair across lines and erase a REAL Status line, let a value's tail cross into the next
+    line, and let a line that only starts with a span count as a Status line. A hidden match is a REJECTED candidate,
+    not an invisible one: each reader takes the first match that is not hidden, and when only hidden ones exist it
+    falls to its own strict branch (its stated fail direction). `endpos` bounds where a match may start, as a slice
+    would."""
+    blanked = blank_code_spans(text)
+    out: list[tuple[re.Match[str], bool]] = []
+    for m in pattern.finditer(text, 0, len(text) if endpos is None else endpos):
+        at = m.group(0).lower().find("status")
+        key = m.start() + (at if at >= 0 else 0)
+        out.append((m, blanked[key] != text[key]))
+    return out
