@@ -178,7 +178,9 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
      answers with (U6 answers the static request with 403, a DataDome page and an `x-datadome` header,
      `inspect6.py`), and one met when browserless is down is not mistaken for a transient error. A 4xx (except 429)
      or 5xx whose body is not a known wall but holds under 50 characters of text, or no HTML, is returned as
-     `blocked: empty`, not `http-<status>` — the seat cannot see the body, so the server classifies it.
+     `blocked: empty`, not `http-<status>` — the seat cannot see the body, so the server classifies it. A 404 or 410
+     is always `http-404` / `http-410` whatever its body (a raw-file 404 is the 14-character "404: Not Found"), and
+     every `blocked` result carries the HTTP `status` it came from, so the researcher's DEAD rule keys on the status.
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
      fabrik-lib's `_SsrfSafeTransport` pattern as `WebScraper(transport=…)` (`/opt/fabrik-lib/web-scrape/README.md`,
@@ -193,7 +195,8 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
    - its raw-fetch order becomes `fabrik-scrape` → `exa` `web_fetch_exa` → `firecrawl_scrape`;
    - its long-page rule (:36-44) reads the page through `scrape(url, start_index=…)` chunk by chunk until the
      locator's heading or symbol is found and compares the span there, naming the chunk offset in its verdict; a
-     Firecrawl `formats: ["query"]` call is kept only for a page too long to page through, and only while credits exist;
+     Firecrawl `formats: ["query"]` call is kept only for a page too long to page through, and only while the Firecrawl
+     rows are open (§ Fallback contract);
    - its DEAD rule (:86) takes `blocked: http-404` from `fabrik-scrape` as the live 404 it needs;
    - its rules that turn a Firecrawl credit error into NEEDS-RAW-FETCH are re-pointed at the new order.
    Every command or seat line that names `firecrawl_scrape` or `firecrawl_crawl` passes `proxy: "basic"` (the
@@ -218,7 +221,7 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
 | `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6), a wall vendor `is_bot_wall` does not know reads as `empty`, and the only thing keeping Firecrawl off its escalating default is a parameter its docs mark deprecated (below) — a probable wall is not trusted to it |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
 | `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits and its rows are open (below), or report it |
-| a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
+| a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly while its rows are open (below) |
 
 **Why Firecrawl and not exa is the line.** Rule 57 names the tooling layer — anti-bot bypass and proxy services — not
 every other fetcher. Firecrawl's default proxy mode is `auto`, which "will automatically retry scraping with enhanced
@@ -231,8 +234,12 @@ reports having used, and a response reporting another mode, or none, is discarde
 field is `data.metadata.proxyUsed` (`"basic" | "stealth"`), present in Firecrawl's source
 (`apps/api/src/scraper/scrapeURL/index.ts`, added by PR #1551) but absent from its API reference. It defaults to
 `"basic"` when the engine reports nothing and is backfilled on cached hits, so `"basic"` is necessary, not sufficient.
-The Firecrawl rows therefore stay closed to operator-cleared sources until slice 1a shows the field reaching a seat
-through `firecrawl-mcp` and an `auto`-escalated page reporting `stealth`. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
+The Firecrawl rows therefore stay closed to operator-cleared sources until a test shows the field reaching a seat
+through `firecrawl-mcp` and reporting `stealth` when `proxy: "stealth"` is set explicitly on a public page that is not
+walled — never by sending a walled page in `auto` mode, which is the act this paragraph forbids. That test needs credits,
+so it runs after 2026-11-12. **"The Firecrawl rows are open"** means exactly that: credits exist and this test has
+passed. It gates every Firecrawl entry point in this design — the fallback rows, the researcher's long-page `query`
+call and a direct Firecrawl call for a need the tool lacks. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
 documented escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall
 goes to neither. exa answers from its cache by default ("instant results from our cache, with automatic live crawling as
 fallback", https://exa.ai/docs/reference/get-contents, 2026-10-21) and the `web_fetch_exa` tool cannot ask for a live
@@ -368,7 +375,7 @@ rendering stays off.
 | browserless capacity under seat load | one 2G container; rendered volume unmeasured | the server counts renders; the Lifecycle trigger applies |
 | the address guard's reach inside browserless | browserless follows redirects on vps1, beyond the box-side check | rendering stays off until the vps1 change in § Shape is verified by a redirect test (slice 1c) |
 | robots on the rendered path | robots is checked for web-scrape's user agent, but browserless renders with its own Chrome UA (`webscrape.py`:309-310) | slice 1c checks robots for both user agents, or sends browserless an object `userAgent` |
-| whether `proxyUsed` reaches the seat through the MCP, and how far a `"basic"` report can be trusted | the field is undocumented, defaults to `"basic"` and is backfilled on cached hits; `firecrawl-mcp` v3.24.0 does not name it | slice 1a test: the field reaches a seat, and an `auto`-escalated page reports `stealth`; until then the Firecrawl rows are closed to operator-cleared sources |
+| whether `proxyUsed` reaches the seat through the MCP, and how far a `"basic"` report can be trusted | the field is undocumented, defaults to `"basic"` and is backfilled on cached hits; `firecrawl-mcp` v3.24.0 does not name it | after 2026-11-12 (it needs credits): the field reaches a seat, and an explicit `proxy: "stealth"` call on a public, unwalled page reports `stealth`; until then the Firecrawl rows are closed to operator-cleared sources (§ Fallback contract) |
 | image-only PDFs | pdf-extract yields no text for scanned pages | `blocked: unsupported` until an `ocr` route is asked for |
 
 ## Open items
