@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "HIGH: an operator ask made today, the operator's own working screen; LOW effort: a one-hour install-and-test plus a launcher and a doc, all box-local",
   "status": "open",
+  "tags": [
+    "waits-operator-brief"
+  ],
   "title": "Browser-based coordinator screen (operator 2026-10-21: 'ok now we need a browser vs code like, which will host several vs code extensions from any repo i want to open its coordinator and any agents.'): code-server in WSL serving VS Code in Brave, one browser window per repo, each hosting the Claude Code extension for that repo's coordinator (and any agent); Claudeck tested beside it as the alternative"
 }
