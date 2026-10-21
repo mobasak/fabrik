@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "DONE — web-tools pins Firecrawl `proxy: \"basic\"` on every payload (fabrik-lib main c7ab67e4)"
 }
