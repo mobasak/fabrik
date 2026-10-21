@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "FOUR fabrik-lib i18n/ consumer notes to relay, all archived under the coordinator's claim in /opt/fabrik-mail/fabrik/archive/: 01M5BKRR080GBV2911N50ZTE48 (SB-140 Level-1 type judging), 01M5BT0TCP7Q9ZR3Z5KJK52S9P (three false passes closed), 01M5CH9GPF1A5AN2R9RYNGHA7V (ERROR lines not tracebacks; translate fails OPEN on absent _context.json), 01M5EBHWZC0R52MFVH66PJ5E96 (translate_i18n credential redaction + lone-surrogate DATA-LOSS fix, D-516/D-518). command grep -rl 'validate_i18n\\|translate_i18n' /opt --include='*.py' (outside /opt/fabrik-lib) names the consumer set; one mail per consumer carrying all four notes verbatim plus the check commands (the 64-test file from fabrik-lib i18n/ at 7e31e604); reply to fabrik-lib-dev2 with the consumer list; then tell the coordinator so it acks the four claimed mails",
+  "next": "DONE 2026-10-21 (fleet): all four notes relayed verbatim to 13 consumers (ai-model-catalog, compliance-ops, exam-coach, obsidian-agents, rnfinal, supplement-tracker-advisor, test-saas-platform, test-saas-scaffold, tojlo-mail, transdoc, tryton-crm, web-ecommerce-factory, youtube; mails 01M5EDNX5Y..01M5EDNYY7); fabrik-test-saas-skeleton skipped (pending deletion, W-636a7709); fabrik-lib-dev2 answered 01M5EDP87G; the coordinator acks the four claimed mails",
   "note": "",
   "owner": "fleet",
   "priority": 1,
