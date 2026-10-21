@@ -82,7 +82,18 @@ def test_an_existing_role_has_its_attributes_reasserted_on_re_apply() -> None:
             "NOREPLICATION INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';"
         ) in alter_sql
         assert f'ALTER ROLE "{role}" RESET ALL;' in alter_sql
-        assert f'ALTER ROLE "{role}" IN DATABASE "ti" RESET ALL;' in alter_sql
+        # settings reset in EVERY database that holds one for this role, not only the project's
+        # (W-3c302832); the EXECUTE's first argument is what keeps the reset on THIS role
+        assert "FROM pg_catalog.pg_db_role_setting s" in alter_sql
+        assert (
+            f"WHERE s.setrole = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = '{role}') LOOP"
+        ) in alter_sql
+        assert f"format('ALTER ROLE %I IN DATABASE %I RESET ALL', '{role}', d)" in alter_sql
+        assert "EXCEPTION WHEN invalid_catalog_name THEN NULL" in alter_sql
+        # the refusal guard and the reset loop are each scoped to this role by name — a deleted
+        # guard filter would refuse every re-apply on any cluster with a superuser
+        assert f"WHERE r.rolname = '{role}'" in alter_sql
+        assert alter_sql.count(f"rolname = '{role}'") == 2
         # a role that is a superuser or owns a database is refused BEFORE the ALTER runs
         refusal = alter_sql.index("RAISE EXCEPTION")
         assert "r.rolsuper OR EXISTS" in alter_sql and "d.datdba = r.oid" in alter_sql

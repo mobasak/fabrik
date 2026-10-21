@@ -1079,7 +1079,7 @@ def mint_payments_role(
     NOREPLICATION`` with a CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
     password before the caller holds it. On re-apply (the returned ``password`` is ``None``):
     ``ALTER ROLE`` re-asserts the same attributes (with INHERIT, no connection limit, no expiry)
-    and resets its role settings (global and in this database), so a role altered out of band (e.g. to BYPASSRLS or
+    and resets its role settings (global and in every database that holds one), so a role altered out of band (e.g. to BYPASSRLS or
     REPLICATION) is narrowed again rather than granted as it stands; the password is never
     reset. A role of that name that is a superuser or owns a database (never left so by this
     registrar) makes re-apply RAISE rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
@@ -1112,7 +1112,7 @@ def mint_payments_role(
         # escalated out of band, and the registrar cannot tell which. Fail closed and say so,
         # never silently strip it; an operator narrows or drops it by hand. Otherwise narrow
         # every attribute back, including the ones that would leave the role unusable
-        # (CONNECTION LIMIT, VALID UNTIL) and its role settings.
+        # (CONNECTION LIMIT, VALID UNTIL) and its role settings in every database.
         _run_sql(
             "\\set ON_ERROR_STOP on\n"
             "DO $$ BEGIN\n"
@@ -1128,7 +1128,20 @@ def mint_payments_role(
             "END $$;\n"
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
             f'ALTER ROLE "{role}" RESET ALL;\n'  # nosec B608 — role is _validate_identifier-gated
-            f'ALTER ROLE "{role}" IN DATABASE "{db_name}" RESET ALL;',  # nosec B608
+            # ...and its settings in EVERY database that holds one, not only this project's
+            # (W-3c302832), read from the catalog. A database dropped between that SELECT and its
+            # ALTER raises invalid_catalog_name; dropping it also removed its settings rows, so
+            # that one database is skipped and the re-apply goes on.
+            "DO $$ DECLARE d text; BEGIN\n"
+            "  FOR d IN SELECT db.datname FROM pg_catalog.pg_db_role_setting s\n"
+            "           JOIN pg_catalog.pg_database db ON db.oid = s.setdatabase\n"
+            f"           WHERE s.setrole = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = '{role}') LOOP\n"  # nosec B608
+            "    BEGIN\n"
+            f"      EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET ALL', '{role}', d);\n"
+            "    EXCEPTION WHEN invalid_catalog_name THEN NULL;\n"
+            "    END;\n"
+            "  END LOOP;\n"
+            "END $$;",
             container=container,
         )
     status = "created" if not exists else "exists"
