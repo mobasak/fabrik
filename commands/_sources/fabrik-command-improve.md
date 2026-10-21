@@ -274,8 +274,9 @@ live, since a rule in one home is not in force in the others: `command grep -rln
 neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today
 `subagents-core.md`, each seat file under `commands/_agents/`, the seat-brief lists in `fabrik-review.md` and
 `design-critique.md`, `convergence-prompts.md`, and intel's `.claude/workflows/fabrik-review-loop.js` constants
-(`SEAT_ISOLATION`, the copy recipe `PIN_IMPORT`
-and its sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited here).
+(`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the import recipe `PIN_IMPORT` that opens
+with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited
+here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
@@ -286,7 +287,7 @@ INCLUDES it, and is read by every command that points at it by path — 5 comman
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys. A target a test caps by size (the
-tests that name it, found as PHASE 5 finds them, read for a cap) is sized to
+tests that name it, found before the draft by PHASE 5's search, read for a cap) is sized to
 that cap before the draft or the cap is raised in that test with its reason, since a note in the commit does not
 raise a cap the test asserts. ⚠️ **And SIZE THE EDIT TO THE
 VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets

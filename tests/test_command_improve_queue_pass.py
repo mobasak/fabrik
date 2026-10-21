@@ -756,8 +756,8 @@ def test_a_size_capped_target_is_sized_before_the_draft() -> None:
     """Row 1792473769 (held size-cap-met-by-recorded-raise): a per-command SIZE_CAP refused an edit drafted unsized."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "say in the commit what the growth buys. A target a test caps by size (the tests that name it, found as PHASE 5"
-        " finds them, read for a cap) is sized to that cap before the draft or the cap is raised in that test with its"
+        "say in the commit what the growth buys. A target a test caps by size (the tests that name it, found before the"
+        " draft by PHASE 5's search, read for a cap) is sized to that cap before the draft or the cap is raised in that test with its"
         " reason, since a note in the commit does not raise a cap the test asserts." in p3
     )
 
@@ -768,8 +768,8 @@ def test_the_copy_recipe_is_named_by_its_constant_and_the_rewrap_is_bounded() ->
     pin."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "and intel's `.claude/workflows/fabrik-review-loop.js` constants (`SEAT_ISOLATION`, the copy recipe `PIN_IMPORT`"
-        " and its sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited"
+        "and intel's `.claude/workflows/fabrik-review-loop.js` constants (`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the"
+        " import recipe `PIN_IMPORT` that opens with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited"
         " here)" in p3
     )
     assert (
@@ -780,7 +780,7 @@ def test_the_copy_recipe_is_named_by_its_constant_and_the_rewrap_is_bounded() ->
 
 def test_the_review_seats_check_each_rows_timing_and_venue() -> None:
     """Row 1792445250: three review rounds each found one of a row's timing and venue missing; folded into the step
-    sentence it qualifies (D-1111), whose span test_..._removed_words pins."""
+    sentence it qualifies (D-1111), whose span test_test_fragment_and_removed_word_rules pins."""
     p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
     assert (
         "and says whether that line also states when the step runs and in which phase or file."

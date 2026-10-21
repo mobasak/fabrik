@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-command-improve queue pass: audit-seat reporting, pinned-span placement, rewrap, size-cap, copy-recipe and row-check rules (2026-10-21)
 
-- `commands/_sources/fabrik-command-improve.md`: the audit seat returns its report as hand-back text and quotes each line it cites verbatim; new text goes where its subject reads and a pinned span is re-anchored to cover it (D-1111, an Opus + Fable panel); a rewrap is bounded to the lengthened lines under a raw-line pin; a size-capped target is sized, or its cap raised, before the draft; the copy recipe names `PIN_IMPORT`; the review seats say whether each answered row's line names its timing and venue. `tests/test_command_improve_queue_pass.py` pins them (W-6aac0ac8).
+- `commands/_sources/fabrik-command-improve.md`: the audit seat returns its report as hand-back text and quotes each line it cites verbatim; new text goes where its subject reads and a pinned span is re-anchored to cover it (D-1111, an Opus + Fable panel); a rewrap is bounded to the lengthened lines under a raw-line pin; a size-capped target is sized, or its cap raised, before the draft; the seat-rule homes name the copy recipe `BASE_PIN` and the import recipe `PIN_IMPORT`; the review seats say whether each answered row's line names its timing and venue. `tests/test_command_improve_queue_pass.py` pins them (W-6aac0ac8).
 
 ### Changed — /fabrik-review queue pass: seven brief and probe rules from the feedback queue (2026-10-21)
 
