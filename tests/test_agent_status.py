@@ -71,6 +71,11 @@ def _setup(tmp: Path, *, present: tuple[str, ...] = ()) -> tuple[dict, Path, dic
     _work(repo, env, "init", "--distributor", "coordinator")
     _git(repo, env, "add", ".fabrik")
     _git(repo, env, "commit", "-q", "-m", "store")
+    # the hub's shape: its builders named in the session registry (W-16d0ef14 — the roster is the repo's own)
+    (repo / ".fabrik" / "session-agents.json").write_text(
+        json.dumps({"s0": "coordinator", "s1": "infra", "s2": "fleet", "s3": "intel", "s4": "kaizen"}),
+        encoding="utf-8",
+    )
     trees = {}
     for name in ("infra", "fleet"):
         wt = repo / ".claude" / "worktrees" / name
