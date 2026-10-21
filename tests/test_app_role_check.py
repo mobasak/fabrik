@@ -1764,3 +1764,20 @@ def test_a_line_break_python_does_not_count_voids_the_exemption(tmp_path):
     _write(repo / "src/drift.py", content)
 
     assert [f.pattern for f in scan_repo(repo).findings] == ["runtime DDL"]
+
+
+def test_owner_handoff_remedy_env_file_example_keeps_both_files_optional():
+    """W-e80e79f0: the env_file the remedy tells a project to write must not make `.env` required.
+    The short form `[.env, ...]` fails `docker compose config` on a fresh checkout with no .env
+    (the D-931/D-938 class); every entry is long form with `required: false`."""
+    import re
+
+    import yaml
+
+    m = re.search(r"env_file (\[.*?\}\])", arc.OWNER_HANDOFF_REMEDY)
+    assert m, arc.OWNER_HANDOFF_REMEDY
+    entries = yaml.safe_load(m.group(1))
+    assert entries == [
+        {"path": ".env", "required": False},
+        {"path": ".env.owner", "required": False},
+    ], entries

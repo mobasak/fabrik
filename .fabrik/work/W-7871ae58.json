@@ -13,7 +13,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
   },
-  "next": "send ai-model-catalog a request mail (mail.py send --to ai-model-catalog --kind finding) naming the route, the spec and the template change; ack when ai-model-catalog replies it is removed",
+  "next": "MEASURED 2026-10-21 (fleet): the route still exists in the repo, but the project is NOT deployed (no target_vps → vps1; 0 of vps1's 33 containers match; HTTPS probe gets no answer) — the exposure is not live. The hub's request mail sits UNREAD in the project's inbox (no agent session open). Waits on the project's own agent: open its session, it reads the mail and removes app/api/chat; ack when it replies",
   "note": "",
   "owner": "fleet",
   "priority": 3,

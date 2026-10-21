@@ -13,7 +13,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
   },
-  "next": "await test-saas-platform's reply removing app/api/chat (it spawns kilo run for anonymous callers = RCE if served). NOT deployed as of 2026-10-19 (fleet: DNS unresolved, 0 of 33 vps1 containers, no Traefik router). It MUST be fixed before any fabrik apply of specs/services/test-saas-platform.yaml; close on the repo's reply naming the commit",
+  "next": "MEASURED 2026-10-21 (fleet): the route still exists in the repo, but the project is NOT deployed (no target_vps → vps1; 0 of vps1's 33 containers match; HTTPS probe gets no answer) — the exposure is not live. The hub's request mail sits UNREAD in the project's inbox (no agent session open). Waits on the project's own agent: open its session, it reads the mail and removes app/api/chat; ack when it replies",
   "note": "",
   "owner": "fleet",
   "priority": 3,
