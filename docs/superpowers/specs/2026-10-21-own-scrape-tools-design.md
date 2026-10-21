@@ -124,7 +124,7 @@ re-check every absence with a second method before recording it.
 
 | Capability | Verdict | Module · why |
 |---|---|---|
-| fetch a page (static) | VENDOR | `web-scrape` `WebScraper.fetch_static` — U1, U3, U4, U7 |
+| fetch a page (static) | VENDOR + ENHANCE | `web-scrape` `WebScraper.fetch_static` — U1, U3, U4, U7; G5 (status, title), G10 (ask for markdown first), G11 (DataDome marker) |
 | render a JS page | VENDOR — no passing case yet | `web-scrape` `fetch_rendered` over vps1 browserless `/content`; the stealth `/function` path is never used |
 | page → markdown | VENDOR | `doc-crawl` `html_to_markdown` |
 | PDF → text | VENDOR + ENHANCE | `pdf-extract`; G1 (bytes reach it) is composition, G8 (word spacing) is an ask; image-only pages go to `ocr` or return `blocked: unsupported` |
@@ -184,13 +184,15 @@ re-check every absence with a second method before recording it.
 | `blocked: scope` | report it — never fetched by anyone |
 | `blocked: http-4xx` (except 429) | report the page unreadable; an error page is never cited as content |
 | `blocked: http-429` (after the server honoured `Retry-After` and its own backoff) | report the page rate-limited — never exa or Firecrawl (rule 57's bypass line names evading a hard rate limit) |
-| `blocked: http-5xx`, `blocked: render-unavailable`, `blocked: empty` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
+| `blocked: http-5xx`, `blocked: render-unavailable` | `exa` `web_fetch_exa`; else Firecrawl if it has credits; else report it |
+| `blocked: empty` | `exa` `web_fetch_exa`; else report it — never Firecrawl, because the one empty page measured was an unrecognised bot wall (U6) and a wall vendor `is_bot_wall` does not know reads as `empty` |
 | `blocked: bot-wall` | report the page unreadable and cite another source. Firecrawl is called on such a page only for a source the operator has cleared by name, recorded in the plan or work item (rule 57's bypass line: a pipeline that defeats a control leaves public-data territory, and handing the page to a vendor that does so is the same act) |
 | `blocked: unsupported` (image-only PDF, unreadable content type) | Firecrawl if it has credits, or report it |
 | a need the tool has no parameter for (LLM schema extraction, screenshot, page actions) | extract from the markdown, or call Firecrawl directly |
 
 **A departure from the work item, surfaced for the spec gate.** The work item says "a failed own-tool call falls
-through to it, never to a miss"; this contract does not fall through on `bot-wall`, `robots` or `scope`. The rule that
+through to it, never to a miss"; this contract does not fall through to Firecrawl on `bot-wall`, `robots`, `scope`,
+`http-429`, a non-429 `http-4xx` or `empty`. The rule that
 governs it, CLAUDE.md § Behavior: "**Conflict resolution:** rule pack > ticket (for HOW to write). … Surface any conflict
 before proceeding." The bypass line is a rule pack, so this spec follows it and surfaces the conflict: P1 approves or
 overrules it at the spec gate, and the closing D-row records which.
@@ -248,7 +250,7 @@ contract copies and `tests/test_research_tier_order.py` in the same slice. D-109
 | G7 | web-scrape ships the non-public-address transport (today a pattern in watchdog) for `transport=` | a 127.0.0.1 URL and a redirect to 169.254.169.254 both raise |
 | G8 | pdf-extract keeps word spaces (pdfplumber tolerance) | U5 contains "Ashish Vaswani" |
 | G9 | doc-crawl `DocPage` carries the page title | U8 pages have titles |
-| G10 | web-scrape sends `Accept: text/markdown, text/html;q=0.9` and returns a `text/markdown` answer as-is | U2 yields `anthropic-version` and `stop_sequences` |
+| G10 | web-scrape gains an OPT-IN `accept_markdown=False` parameter: when True it sends `Accept: text/markdown, text/html;q=0.9`, returns a `text/markdown` answer as-is, and puts the Accept value in the cache key (`_cache_key` hashes only url, method and body today, `webscrape.py`:495). Only `web-scrape-mcp` passes True, so callers that parse HTML (`__NEXT_DATA__`, the module's purpose) are unchanged | U2 yields `anthropic-version` and `stop_sequences` with the flag; the same URL without it still returns HTML from a separate cache entry |
 | G11 | `is_bot_wall` recognises DataDome (`captcha-delivery.com`) beside its Cloudflare markers | U6 returns `blocked: bot-wall` |
 | — | web-tools routes scrape and crawl to web-scrape first behind `FABRIK_SCRAPE_LEG` (§ Chosen approach 3) | a test per fallback row |
 
