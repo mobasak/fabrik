@@ -804,6 +804,8 @@ def test_a_backed_brief_before_a_queued_prompt_passes(tmp_path, panel_mode):
         _queued_with_uuid("also fix the typo", "q-1"),
     )
     assert hook._panel_brief_problem(tr, "") == ""
+    # the hook passes the turn's last text as final_text — here the brief itself (Fable critique)
+    assert hook._panel_brief_problem(tr, _BRIEF.format(panel=_approve_line())) == ""
 
 
 def test_a_brief_after_a_queued_prompt_still_needs_verdicts_given_after_it(tmp_path, panel_mode):
@@ -817,5 +819,24 @@ def test_a_brief_after_a_queued_prompt_still_needs_verdicts_given_after_it(tmp_p
         _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
         _queued_with_uuid("a new question entirely", "q-1"),
         _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_a_stale_earlier_copy_of_the_queued_uuid_never_backs_a_brief(tmp_path, panel_mode):
+    """Design critique (Opus, W-6424f2e8): Claude Code re-writes a queued row with the same uuid across compactions,
+    so the cut-off is the LAST copy — the first copy, in an earlier turn, would let that turn's verdicts back this
+    turn's brief."""
+    tr = _transcript(
+        tmp_path,
+        _user("an earlier question"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("an earlier queued prompt", "q-1"),
+        _user("go"),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("an earlier queued prompt", "q-1"),
     )
     assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
