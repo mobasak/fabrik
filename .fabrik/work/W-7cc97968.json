@@ -17,5 +17,8 @@
   "owner": "kaizen",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-2026-10-21"
+  ],
   "title": "feedback queue /fabrik-plan-after-chat"
 }
