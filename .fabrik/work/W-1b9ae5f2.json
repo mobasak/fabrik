@@ -3,7 +3,7 @@
   "created": "2026-10-20T04:17:14.999559Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a850d49ca8f49ff9b244b7ca5bdb1d52d413a757",
   "id": "W-1b9ae5f2",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: a bug in the Stop hook — on Claude Code 2.1.304 it reads operator prompts only from type user rows, so a prompt queued as an attachment is mis-read (the same hand-back row class as W-bc457e27); LOW effort: three readers in one file. Given to intel under D-983: infra's queue is 90 deep",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

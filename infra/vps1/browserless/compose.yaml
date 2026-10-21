@@ -20,7 +20,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          # 3G, a PROVISIONAL raise from 2G (W-30b7ce3f, 2026-10-21): over 7 days the working set's p99 was
+          # 1805 MiB and it was OOM-killed 5 times at the 2048 MiB limit — the peak is censored by that limit,
+          # so true demand at CONCURRENT 10 is unknown. If OOM kills continue at 3G, lower CONCURRENT rather
+          # than raising this again. vps1 had 6.0 GiB available and its limits summed to ~2x its RAM.
+          memory: 3G
 
 networks:
   fabrik:

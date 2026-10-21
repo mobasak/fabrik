@@ -4,14 +4,17 @@ argument-hint: "[the operator's words, quoted — they ride into every pause]"
 ---
 **The operator runs `/hibernate` in the hub coordinator's window.** The machinery is `scripts/sysadmin/hibernate.py`
 (`docs/reference/hibernate.md`); this command sequences it. `H=/opt/fabrik/scripts/sysadmin/hibernate.py` below.
-The run record below and the Phase sections are the hub coordinator's alone: a repo coordinator or an agent
-receiving the pause text opens none for it.
+The run record below, its Orient step and the Phase sections are the hub coordinator's alone: a repo coordinator
+or an agent receiving the pause text opens no record and runs no Orient for it.
+
+{{include:run-record}}
+{{include:orient}}
 
 ## Phase 1 — the hub coordinator marks the pause and finds every agent
 
 1. **Mark the pause**: `python3 $H mark --words "<the operator's words>"`. It starts a fresh pause, so a wake from an
-   earlier one never counts. Open `/hibernate` with no run of yours running: a run under it would stay `running`
-   across the sleep, and `status` blocks on it.
+   earlier one never counts. Open `/hibernate` with no other run of yours running: a run under this one would stay
+   `running` across the sleep, and `status` blocks on it.
 2. **Find every agent, live**: `python3 $H targets`. One block per repo: its coordinator (the ledger's merge owner)
    and peer name, and every other live agent session. A repo added tomorrow appears the moment its agents run — never
    edit a list. `claude -p` pool and review-seat sessions are counted on the `pool:` line and are NEVER messaged.
@@ -65,7 +68,5 @@ Exit 1 says why to stay put (no wake yet, or you already resumed). The hub coord
 `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none
 either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle
 until prompted.
-
-{{include:run-record}}
 
 {{include:close-chain}}

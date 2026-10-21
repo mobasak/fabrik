@@ -679,8 +679,9 @@ def _seats_in_flight(rec: dict, transcript_path: str) -> bool:
     for that id. Only
     ``user`` lines' structured ``toolUseResult`` counts as a launch — Bash or Read output
     quoting the launch text carries no such field; notifications come from ``queue-operation``
-    enqueue lines, ``attachment`` lines and task-notification ``user`` lines, so an assistant
-    message quoting either never counts. Anything unreadable, absent or malformed returns False — the old block.
+    enqueue lines that START with the notice tag, ``attachment`` lines whose ``commandMode`` or
+    ``origin.kind`` is task-notification, and task-notification ``user`` lines, so an assistant message, a seat's
+    hand-back or a peer message quoting a notice never counts (W-1b9ae5f2). Anything unreadable, absent or malformed returns False — the old block.
 
     Cheapest way past it (D-253): stamp ``dispatch --seats 1`` and launch a real background
     Agent that does not report, again every 25 minutes — each launch is a real seat costing
@@ -750,9 +751,19 @@ def _seats_in_flight(rec: dict, transcript_path: str) -> bool:
                 if text is None:
                     continue
             elif kind == "queue-operation" and obj.get("operation") == "enqueue":
-                text = obj.get("content")
+                # every real notice enqueue starts with the tag; an agent or cross-session message may QUOTE one
+                content = obj.get("content")
+                if isinstance(content, str) and content.lstrip().startswith("<task-notification>"):
+                    text = content
             elif kind == "attachment" and isinstance(obj.get("attachment"), dict):
-                text = obj["attachment"].get("prompt")
+                att = obj["attachment"]
+                origin = att.get("origin")
+                if att.get("commandMode") == "task-notification" or (
+                    isinstance(origin, dict) and origin.get("kind") == "task-notification"
+                ):
+                    text = att.get(
+                        "prompt"
+                    )  # a seat's hand-back (origin peer) quoting a notice never closes one
             elif kind != "user":
                 continue
             if isinstance(text, str):
@@ -3797,17 +3808,18 @@ def _in_operator_entries(quote: str, transcript_path: str) -> bool | None:
     transcript? None when the transcript cannot be read — the caller fails OPEN on None.
 
     The WHOLE file is streamed, not the 2 MB tail: the operator's open question can be hours
-    old. It runs only when a block claims `ground: owned`, so the cost is paid rarely."""
+    old. It runs only when a block claims `ground: owned`, so the cost is paid rarely. A prompt the operator
+    queued while the agent was busy (a `queued_command` attachment) is the operator's word too (W-1b9ae5f2)."""
     if not transcript_path:
         return None
     want = _norm_ws(quote)
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"user"' not in line:
+                if '"user"' not in line and '"queued_command"' not in line:
                     continue
                 try:
-                    said = _operator_text(json.loads(line))
+                    said = _operator_said(json.loads(line))
                 except Exception:
                     continue  # one malformed row never disables the check (review A-O13)
                 if said and want in _norm_ws(said):
@@ -3882,18 +3894,52 @@ def _handback_text(att: dict, origin: dict) -> str:
 def _queued_operator_prompt(att: object) -> bool:
     """A prompt the operator typed while the agent was busy, as a `queued_command` attachment: no
     peer or task-notification origin or mode, no harness wrapper tag. A queued `!` shell command
-    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens."""
-    if not isinstance(att, dict) or att.get("type") != "queued_command":
+    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens. An `isMeta` row is
+    refused, as `_is_operator_row` refuses an `isMeta` user row (W-1b9ae5f2)."""
+    if not isinstance(att, dict) or att.get("type") != "queued_command" or att.get("isMeta"):
         return False
     if att.get("commandMode") == "task-notification":
         return False
     origin = att.get("origin")
     if isinstance(origin, dict) and origin.get("kind") in ("peer", "task-notification"):
         return False
-    text = str(att.get("prompt") or "")
-    return bool(text.strip()) and not any(
+    prompt = att.get("prompt")
+    if not (prompt.strip() if isinstance(prompt, str) else prompt):
+        return False
+    text = _prompt_text(prompt)
+    return not any(
         m in text for m in ("<agent-message", "<cross-session-message", "<task-notification")
     )
+
+
+def _prompt_text(prompt: object) -> str:
+    """A queued prompt's words: the string, or the text blocks of a list (2.1.304 writes both)."""
+    if isinstance(prompt, list):
+        return "\n".join(
+            str(b.get("text") or "")
+            for b in prompt
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    return str(prompt or "")
+
+
+def _operator_said(entry: object) -> str | None:
+    """The operator's own words from a `user` row (`_operator_text`) or from a prompt queued while the agent was
+    busy (a `queued_command` attachment `_queued_operator_prompt` accepts), filtered alike: system reminders
+    stripped, a harness prefix refused (W-1b9ae5f2). A quote-lookup reader only — a queued prompt lands MID-turn
+    with no Stop before it, so the turn-boundary readers (`_this_turn_text`, `_panel_brief_problem`, `_final_turn`)
+    keep `user` rows: stopping at a queued prompt would leave a block written before it judged by no Stop."""
+    if not isinstance(entry, dict):
+        return None
+    if entry.get("type") != "attachment":
+        return _operator_text(entry)
+    att = entry.get("attachment")
+    if not _queued_operator_prompt(att):
+        return None
+    text = _SYSTEM_REMINDER_RE.sub("", _prompt_text(att.get("prompt"))).strip()
+    if not text or text.startswith(_NOT_OPERATOR_PREFIXES):
+        return None
+    return text
 
 
 def _panel_problem(

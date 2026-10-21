@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:37:51.782662Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-170540af",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Bring the browserless spec to the deployer's contract (memory limit matching the compose mirror; make the compose validator pass) so fabrik apply and the mirror agree; no deploy in this item",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: a spec that would mis-size a live shared service if anyone ran fabrik apply on it; real value, nobody blocked today because the mirror is used; LOW effort: one spec and a validator pass",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "specs/infrastructure/browserless.yaml declares no memory limit and fails the compose validator, so 'fabrik apply' would default browserless to 256M — the live service is deployed from the repo's compose mirror instead (fleet, while raising the limit under W-30b7ce3f, 2026-10-21)"
+}

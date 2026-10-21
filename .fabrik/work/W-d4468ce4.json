@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T05:19:22.554371Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-d4468ce4",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "next /fabrik-command-improve fabrik-review-scoped pass: tighten test_the_input_class_names_every_reader_of_a_printed_command",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "LOW: a contrived grader decoy in the review-scoped queue-pass test (a repeated bullet still passes); a rare edge, nobody blocked; LOW effort: one slice bound in one test",
   "status": "open",
   "tags": [
     "kaizen"
