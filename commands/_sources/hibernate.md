@@ -10,7 +10,8 @@ receiving the pause text opens none for it.
 ## Phase 1 — the hub coordinator marks the pause and finds every agent
 
 1. **Mark the pause**: `python3 $H mark --words "<the operator's words>"`. It starts a fresh pause, so a wake from an
-   earlier one never counts.
+   earlier one never counts. Open `/hibernate` with no run of yours running: a run under it would stay `running`
+   across the sleep, and `status` blocks on it.
 2. **Find every agent, live**: `python3 $H targets`. One block per repo: its coordinator (the ledger's merge owner)
    and peer name, and every other live agent session. A repo added tomorrow appears the moment its agents run — never
    edit a list. `claude -p` pool and review-seat sessions are counted on the `pool:` line and are NEVER messaged.
@@ -29,8 +30,8 @@ receiving the pause text opens none for it.
 ## Phase 3 — the hub coordinator collects and proves
 
 4. **Collect** one `PAUSED — …` line per agent (a coordinator relays its agents' lines).
-5. **Prove it**: `python3 $H status` — one row per live agent, yours included (marked `(you)`; your own run is the one
-   not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed
+5. **Prove it**: `python3 $H status` — one row per live agent, yours included (marked `(you)`; this `/hibernate` run
+   is the one run not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed
    commits, a branch on no remote, no usable cwd). Re-run it every 2 minutes for at most 15 minutes, nudging the agent
    each `BLOCKS` row names; untracked files are counted in the row but never block.
 

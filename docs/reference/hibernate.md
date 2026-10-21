@@ -8,8 +8,8 @@ decides.
 
 `hibernate.py targets` reads every session record in `~/.claude*/sessions/<pid>.json` and
 `~/.claude-fleet/*/sessions/<pid>.json` (de-duplicated by real path). A record is a live session when its pid's start
-time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. An `entrypoint` of `sdk-cli`
-or `sdk-ts` is a cron-pool worker or a review seat (`claude -p`): counted, never messaged, never a coordinator and
+time in `/proc/<pid>/stat` equals the record's `procStart` and the process is `claude`. An `entrypoint` of `sdk-*`
+(`sdk-cli`, `sdk-ts`, `sdk-py`) is a cron-pool worker or a review seat (`claude -p`): counted, never messaged, never a coordinator and
 never a `status` row. Every other entrypoint, an unknown or missing one included, is an agent, so a new client fails
 toward being checked. Every record says `kind: interactive`, so `kind` cannot tell them apart.
 
@@ -26,7 +26,8 @@ session is never a target.
 agent's cwd, the caller's own included (its row says `(you)`):
 
 - a run record (`~/.claude/state/command-runs/<sid>.json`, named as `command_run.py` names it) still `running` blocks,
-  and so does one that is not readable JSON — except the caller's own, whose `/hibernate` run is running by design;
+  and so does a running parent frame under it (`stack`), a record that is not readable JSON, and a session record
+  with no session id — only the caller's own top-frame `/hibernate` run is running by design;
 - uncommitted tracked changes block; untracked files are listed, never blocking;
 - a branch with commits ahead of its upstream blocks; a branch with no upstream blocks unless its HEAD is on some
   remote branch; a detached HEAD, a missing folder, a cwd that is empty or relative, or a git error or timeout blocks.
@@ -40,7 +41,8 @@ them, is exit 2 — never safe: an empty table is not a safe one.
 hub, once awake — always, since a sleep during a fleet-quota hold writes no `resume-wake` row) adds `lifted_at` to it.
 `hibernate.py woke` never writes: it answers 0 when, after the current mark, the rotation tick wrote a `resume-wake`
 row to `~/.claude/state/rotate-ledger.jsonl` (the tick writes one only for a gap past its own `CLAUDE_RESUME_GAP_MIN`
-threshold, D-1058) or the hub ran `lift` — and this session's own run is not running again since that wake. The kernel's boot time is no signal on WSL (it
+threshold, D-1058) or the hub ran `lift` — and this session's own run is not running again since the EARLIEST of
+those wakes, so the hub's later `lift` never tells an agent that already resumed to resume again. The kernel's boot time is no signal on WSL (it
 moves forward by every sleep), and the self-watch still words a resume-wake as "the fleet-quota hold LIFTED"
 (W-b01aa1ec), which is why agents ask `woke` instead of reading the wake line.
 

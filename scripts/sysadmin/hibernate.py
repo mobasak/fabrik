@@ -15,7 +15,7 @@ text, prove the box is safe to sleep, and tell a woken agent that the box slept.
 
 A session is LIVE when its record (`~/.claude*/sessions/<pid>.json`, `~/.claude-fleet/*/sessions/<pid>.json`) names a
 pid whose /proc stat start time equals the record's `procStart` and whose comm is `claude`. An `entrypoint` of
-`sdk-cli`/`sdk-ts` is a pool worker or review seat (`claude -p`): listed, never messaged, never a coordinator, never a
+`sdk-*` (`sdk-cli`, `sdk-ts`, `sdk-py`) is a pool worker or review seat (`claude -p`): listed, never messaged, never a coordinator, never a
 `status` row; every other entrypoint, an unknown or missing one included, is an agent (every record carries kind
 "interactive", so `kind` cannot tell).
 The agent's name comes from CLAUDE_AGENT in its environ, else its newest identity-store binding. Each repo's
@@ -33,6 +33,7 @@ import argparse
 import glob
 import hashlib
 import json
+import math
 import os
 import shlex
 import subprocess
@@ -41,10 +42,9 @@ import tempfile
 import time
 from pathlib import Path
 
-POOL_ENTRYPOINTS = {
-    "sdk-cli",
-    "sdk-ts",
-}  # a denylist: an entrypoint nobody listed is an agent (fail closed)
+# The pool is every Agent SDK entrypoint (`sdk-cli`, `sdk-ts`, `sdk-py`, ...); any other entrypoint, an unknown or a
+# missing one included, is an agent (fail closed).
+POOL_PREFIX = "sdk-"
 DECISIONS = Path(__file__).resolve().parent.parent / "decisions.py"
 NO_OWNER = {"no ledger", "the ledger declares no merge owner"}  # a FAILED lookup is not "no owner"
 
@@ -137,8 +137,8 @@ def live_sessions(home: Path, proc: Path, opt: str = "/opt") -> list[dict]:
                 continue
         except OSError:
             continue
-        sid = d.get("sessionId") or ""
-        cwd = d.get("cwd") or ""
+        sid = d["sessionId"] if isinstance(d.get("sessionId"), str) else ""
+        cwd = d["cwd"] if isinstance(d.get("cwd"), str) else ""
         out.append(
             {
                 "pid": pid,
@@ -146,7 +146,7 @@ def live_sessions(home: Path, proc: Path, opt: str = "/opt") -> list[dict]:
                 "sid": sid,
                 "cwd": cwd,
                 "peer": d.get("name") or "",
-                "entrypoint": d.get("entrypoint") or "",
+                "entrypoint": str(d.get("entrypoint") or ""),
                 "agent": _environ_agent(proc, pid) or names.get(sid) or "",
                 "repo": _repo_of(cwd, opt),
             }
@@ -174,14 +174,17 @@ def merge_owner(repo: str) -> tuple[str, str]:
     return "", f"lookup failed (exit {out.returncode})"
 
 
+def _is_pool(s: dict) -> bool:
+    return s["entrypoint"].startswith(POOL_PREFIX)
+
+
 def targets(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> dict:
     sessions = live_sessions(home, proc, opt)
-    agents = [s for s in sessions if s["entrypoint"] not in POOL_ENTRYPOINTS]
-    pool = [s for s in sessions if s["entrypoint"] in POOL_ENTRYPOINTS]
+    agents = [s for s in sessions if not _is_pool(s)]
+    pool = [s for s in sessions if _is_pool(s)]
     agent_pids = {s["pid"] for s in agents}
-    for (
-        p
-    ) in pool:  # a seat whose parent chain reaches a live agent is that agent's own subagent work
+    # a seat whose parent chain reaches a live agent is that agent's own subagent work
+    for p in pool:
         p["parent_agent"] = ""
         pid, hops = p.get("ppid"), 0
         while pid and hops < 8:
@@ -234,7 +237,7 @@ def targets(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> dict:
 # ── the pause text ───────────────────────────────────────────────────────────────────────────────────────────────
 
 
-FEEDBACK = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: <your command>, paused for a hibernate"
+FEEDBACK = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: paused for a hibernate"
 
 
 def brief(role: str, words: str) -> str:
@@ -309,7 +312,8 @@ def _safe_sid(sid: str) -> str:
 
 
 def _run_record(home: Path, sid: str) -> dict | None:
-    """The session's run record: {} when it has none, None when one exists but is not a readable JSON object."""
+    """The session's run record: {} when it has none, None when one exists but is not a readable JSON object. Callers
+    never pass an empty id: its file is the shared `nosession` one, nobody's own."""
     path = home / ".claude" / "state" / "command-runs" / f"{_safe_sid(sid)}.json"
     try:
         rec = json.loads(path.read_text("utf-8"))
@@ -321,10 +325,12 @@ def _run_record(home: Path, sid: str) -> dict | None:
 
 
 def _epoch(value: object) -> float:
+    """A start time as a finite float; anything else (a string, Infinity, NaN) is 0 — it never blocks a resume."""
     try:
-        return float(value)  # type: ignore[arg-type]
+        v = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
+    return v if math.isfinite(v) else 0.0
 
 
 def woke(home: Path, self_sid: str) -> tuple[int, str]:
@@ -349,13 +355,14 @@ def woke(home: Path, self_sid: str) -> tuple[int, str]:
                 continue
             if not isinstance(r, dict) or r.get("event") != "resume-wake":
                 continue
-            # the tick writes resume-wake only past its own gap threshold (CLAUDE_RESUME_GAP_MIN), so no floor here
+            # the tick writes resume-wake only past its own gap threshold (CLAUDE_RESUME_GAP_MIN), so no floor here;
+            # the EARLIEST wake after the mark is the one a resumed run started after (a later lift is no new wake)
             ts, gap = r.get("ts"), r.get("gap_s")
             if (
                 isinstance(ts, (int, float))
                 and isinstance(gap, (int, float))
                 and ts > paused_at
-                and (wake is None or ts > wake[1])
+                and (wake is None or ts < wake[1])
             ):
                 wake = (f"the box slept {int(gap)} s (resume-wake)", ts)
     except OSError:
@@ -384,8 +391,10 @@ def _git(path: str, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["git", "-C", path, *args], capture_output=True, text=True, timeout=60, env=env
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(args, 124, "", str(exc))
+    except OSError as exc:
+        return subprocess.CompletedProcess(args, 127, "", str(exc))
 
 
 def worktree_state(path: str) -> tuple[bool, str]:
@@ -396,7 +405,8 @@ def worktree_state(path: str) -> tuple[bool, str]:
         return True, "missing"
     st = _git(path, "status", "--porcelain")
     if st.returncode != 0:
-        return True, "not a git checkout" + (" (git timed out)" if st.returncode == 124 else "")
+        why = {124: "git timed out", 127: "git could not start"}.get(st.returncode)
+        return True, f"not a git checkout ({why})" if why else "not a git checkout"
     lines = [ln for ln in st.stdout.splitlines() if ln]
     tracked = [ln for ln in lines if not ln.startswith("??")]
     untracked = len(lines) - len(tracked)
@@ -420,9 +430,7 @@ def worktree_state(path: str) -> tuple[bool, str]:
 def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[int, list[dict]]:
     if not self_sid:
         return 2, [{"error": "no session id — pass --self (CLAUDE_CODE_SESSION_ID is unset)"}]
-    sessions = [
-        s for s in live_sessions(home, proc, opt) if s["entrypoint"] not in POOL_ENTRYPOINTS
-    ]
+    sessions = [s for s in live_sessions(home, proc, opt) if not _is_pool(s)]
     if not sessions:
         return 2, [
             {
@@ -439,13 +447,23 @@ def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[in
     for s in sessions:
         blocks, why = worktree_state(s["cwd"])
         rec = _run_record(home, s["sid"])
-        # the caller's own /hibernate run is running by design; its tree is not exempt
-        if s["sid"] == self_sid:
+        mine = s["sid"] == self_sid
+        if mine:
             why += " (you)"
+        if not s["sid"]:
+            blocks, why = True, "no session id in its record; " + why
         elif rec is None:
             blocks, why = True, "run record unreadable; " + why
-        elif rec.get("state") == "running":
-            blocks, why = True, f"run /{rec.get('command', '?')} still running; " + why
+        else:
+            # the caller's own /hibernate run is running by design (only the top frame, never a parent under it);
+            # every other running frame blocks, the caller's included
+            frames = [rec, *(f for f in (rec.get("stack") or []) if isinstance(f, dict))]
+            for i, fr in enumerate(frames):
+                if fr.get("state") == "running" and not (
+                    mine and i == 0 and fr.get("command") == "hibernate"
+                ):
+                    blocks, why = True, f"run /{fr.get('command', '?')} still running; " + why
+                    break
         rows.append(
             {
                 "repo": s["repo"] or "outside /opt",

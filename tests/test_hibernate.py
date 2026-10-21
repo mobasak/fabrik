@@ -163,7 +163,7 @@ def test_targets_groups_live_agents_by_repo_with_the_ledgers_coordinator(tmp_pat
 def test_targets_never_messages_pool_sessions_drops_stale_records_and_keeps_unknown_clients(
     tmp_path: Path,
 ) -> None:
-    """`claude -p` pool workers and review seats (entrypoint sdk-cli/sdk-ts) are counted, never grouped as agents; a
+    """`claude -p` pool workers and review seats (every `sdk-*` entrypoint) are counted, never grouped as agents; a
     seat under a live agent is that agent's own work. Any other entrypoint — a missing or new one — is an agent (fail
     closed). A record whose start time does not match /proc (a reused pid) or whose process is not claude is not
     live."""
@@ -176,10 +176,15 @@ def test_targets_never_messages_pool_sessions_drops_stale_records_and_keeps_unkn
     box.session(205, "s-node", hub, "fabrik-12", comm="node")
     box.session(206, "s-new", hub + "/w/new", "fabrik-13", entrypoint="desktop-2027")
     box.session(207, "s-bare", hub + "/w/bare", "fabrik-14", entrypoint=None)
+    box.session(208, "s-py", hub, "fabrik-15", entrypoint="sdk-py", ppid=1)
     t = box.targets()
     agents = sorted(s["sid"] for r in t["repos"] for s in r["sessions"])
     assert agents == ["s-bare", "s-infra", "s-new"], t
-    assert {p["sid"]: p["parent_agent"] for p in t["pool"]} == {"s-seat": "infra", "s-pool": ""}
+    assert {p["sid"]: p["parent_agent"] for p in t["pool"]} == {
+        "s-seat": "infra",
+        "s-pool": "",
+        "s-py": "",
+    }
 
 
 def test_targets_flags_duplicate_missing_failed_self_and_outside(tmp_path: Path) -> None:
@@ -282,6 +287,8 @@ def test_brief_carries_the_drill_and_close_forms_the_real_command_run_accepts(
         )
         assert argv[:2] == ["python3", "scripts/command_run.py"], argv
         assert any(a.endswith(words) for a in argv), argv  # the words arrive as one whole argument
+        feedback = argv[argv.index("--feedback") + 1]
+        assert "<" not in feedback, feedback  # a pasted line records no placeholder
         done = subprocess.run(
             [sys.executable, str(COMMAND_RUN), *argv[2:]],
             env=env,
@@ -381,6 +388,8 @@ def test_status_says_safe_only_when_every_agent_worktree_is_clean_pushed_and_idl
         ("not-git", "not a git checkout"),
         ("detached", "detached HEAD"),
         ("corrupt-record", "run record unreadable"),
+        ("no-sid", "no session id in its record"),
+        ("int-cwd", "no absolute cwd recorded"),
     ],
 )
 def test_status_blocks_every_unprovable_row(tmp_path: Path, case: str, why: str) -> None:
@@ -405,7 +414,12 @@ def test_status_blocks_every_unprovable_row(tmp_path: Path, case: str, why: str)
         cwd = str(target)
         if case == "detached":
             subprocess.run(["git", "checkout", "-q", "--detach"], cwd=target, check=True)
-    box.session(602, "s-t", cwd, "t", env_agent="t")
+    box.session(602, "" if case == "no-sid" else "s-t", cwd, "t", env_agent="t")
+    if case == "int-cwd":  # a record whose cwd is no string is read as having none, never a crash
+        rec_path = box.home / ".claude" / "sessions" / "602.json"
+        rec_path.write_text(
+            json.dumps({**json.loads(rec_path.read_text()), "cwd": 5}), encoding="utf-8"
+        )
     if case == "corrupt-record":
         (box.home / ".claude" / "state" / "command-runs" / "s-t.json").write_text(
             "[]", encoding="utf-8"
@@ -439,6 +453,28 @@ def test_status_checks_the_callers_own_tree_but_not_its_own_run_and_skips_pool_s
     assert "1 uncommitted change(s) (you)" in out.stdout, out.stdout
 
 
+def test_status_exempts_only_the_callers_own_top_frame_hibernate_run(tmp_path: Path) -> None:
+    """Only the caller's own TOP-frame /hibernate run is exempt: any other run of the caller, or a running parent
+    frame under its /hibernate run, would stay running across the sleep and blocks."""
+    box = Box(tmp_path)
+    me = tmp_path / "me"
+    _git_repo(me, tmp_path / "me.git")
+    box.session(751, "s-me", str(me), "me", env_agent="me")
+    box.run_record("s-me", "running", command="fabrik-task")
+    out = _status(box)
+    assert out.returncode == 1 and "run /fabrik-task still running" in out.stdout, out.stdout
+    record = box.home / ".claude" / "state" / "command-runs" / "s-me.json"
+    parent = {"state": "running", "command": "fabrik-review"}
+    record.write_text(
+        json.dumps({"state": "running", "command": "hibernate", "stack": [parent]}),
+        encoding="utf-8",
+    )
+    out = _status(box)
+    assert out.returncode == 1 and "run /fabrik-review still running" in out.stdout, out.stdout
+    record.write_text(json.dumps({"state": "running", "command": "hibernate", "stack": []}))
+    assert _status(box).returncode == 0
+
+
 def test_status_is_never_safe_on_an_empty_foreign_or_anonymous_view(tmp_path: Path) -> None:
     """No session id, no live session found, or the caller not among them, is exit 2 — an empty table is not a safe
     one."""
@@ -466,7 +502,8 @@ def test_status_blocks_when_git_cannot_run(tmp_path: Path) -> None:
         timeout=120,
         env={"PATH": str(tmp_path / "no-bin"), "HOME": str(box.home)},
     )
-    assert out.returncode == 1 and "not a git checkout" in out.stdout, (out.stdout, out.stderr)
+    assert out.returncode == 1, (out.stdout, out.stderr)
+    assert "not a git checkout (git could not start)" in out.stdout, (out.stdout, out.stderr)
 
 
 def _ledger(box: Box, *rows: dict) -> None:
@@ -501,6 +538,10 @@ def test_woke_answers_only_for_a_wake_after_the_current_mark(tmp_path: Path) -> 
     assert box.run("woke", "--self", "s1").returncode == 0
     box.run_record("s1", "running", started="x")
     assert box.run("woke", "--self", "s1").returncode == 0
+    box.run_record(
+        "s1", "running", started=float("inf")
+    )  # json writes Infinity; it never blocks a resume
+    assert box.run("woke", "--self", "s1").returncode == 0
     box.run_record("s1", "running", started=paused + 120)
     out = box.run("woke", "--self", "s1")
     assert out.returncode == 1 and "already resumed" in out.stdout, out.stdout
@@ -519,6 +560,23 @@ def test_lift_ends_a_pause_with_no_resume_wake_row(tmp_path: Path) -> None:
     assert box.run("lift").returncode == 0
     out = box.run("woke", "--self", "s1")
     assert out.returncode == 0 and "lifted by the hub" in out.stdout, out.stdout
+
+
+def test_a_lift_after_the_real_wake_never_re_resumes_a_resumed_agent(tmp_path: Path) -> None:
+    """The hub always lifts once awake, AFTER the resume-wake row: an agent whose run started between the two has
+    resumed, and the later lift does not tell it to resume again."""
+    box = Box(tmp_path)
+    box.run("mark", "--words", "w")
+    paused = json.loads((box.home / ".claude" / "state" / "hibernate.json").read_text())[
+        "paused_at"
+    ]
+    _ledger(box, {"event": "resume-wake", "ts": paused + 0.001, "gap_s": 3600})
+    box.run_record("s1", "running", started=paused + 0.002)
+    assert box.run("woke", "--self", "s1").returncode == 1
+    time.sleep(0.05)
+    assert box.run("lift").returncode == 0
+    out = box.run("woke", "--self", "s1")
+    assert out.returncode == 1 and "already resumed" in out.stdout, out.stdout
 
 
 def test_the_run_record_filename_is_command_runs_own() -> None:
