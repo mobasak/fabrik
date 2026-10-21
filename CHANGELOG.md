@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a markdown file full of unmatched backticks can no longer stall the link check (2026-10-21)
+W-16c00597; D-1086. `docs_updater` blanks inline code spans before the link check and the plan Status and Owner scans read a file, and for every backtick run with no matching closer it scanned to the end of the paragraph: 2 000 such runs on one 2 MB line took 1.75 s per call, and dense backtick pairs on one long line 26 s at 4 MB. The blanker now examines each stretch of text once and finds each closer by lookup — 0.003 s on the same line — and returns exactly what it returned before: the old function stays in the tests as the reference, matched on fuzz input and on all 14 673 readable markdown files in the fleet.
+
 ### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
 W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
 
