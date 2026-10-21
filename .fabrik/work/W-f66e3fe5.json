@@ -17,10 +17,10 @@
     "337006c8ed737d654b74f0dc6d1c963e5e366584585d69f298e033f73cf34f25"
   ],
   "next": "",
-  "note": "",
+  "note": "we need to find where we use firecrawl, test it against our modules, if we can replace properly, we should, if not we need to enhance our modules if it is not too much for, and restest, then use our tools, firecrawl can become a fallback.",
   "owner": "",
   "priority": 2,
   "question": "Should Firecrawl, the paid web-extraction research tool, be topped up with credits, now that research seats hit \"Insufficient credits to perform this request\" twice today?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should Firecrawl, the paid web-extraction research tool, be topped up with credits, now that research seats hit \"Insufficient credits to perform this request\" twice today?"
 }

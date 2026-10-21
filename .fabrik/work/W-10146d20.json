@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-10146d20",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,11 +13,11 @@
     "plan": "",
     "spec": ""
   },
-  "next": "Measure which Firecrawl calls seats made this month (scrape/crawl/map vs extract/search); wrap web-scrape + doc-crawl as a local MCP server registered in the hub .mcp.json (emit_mcp_project_config.py); update the tier-2 ladder text in CLAUDE.md § External Knowledge only through its owner; browserless on vps1 must hold the extra load (W-cbd80821 raises it to 3G)",
+  "next": "Method ruled by the operator (D-1093): (1) INVENTORY — every Firecrawl use: the hub .mcp.json MCP server the research seats call; fabrik-lib web-tools (wraps Firecrawl) and its vendored copies libs/subagents/web_tools.py + scripts/rivals_run.py in every /opt project; the eight command sources naming it (fabrik-rivals, -spec, -spec-review, -vision, -plan-after-chat, -plan-review, -data-contract, -workflow-review); deep-research and competitor-intel in fabrik-lib. Record the Firecrawl calls actually made this month by kind (scrape/crawl/map vs extract/search). (2) TEST each use against fabrik-lib web-scrape (httpx + vps1 browserless) and doc-crawl on the same URLs, with a ledger of pass/fail per capability. (3) ENHANCE the modules where a gap is small (a mail to fabrik-lib for module changes, D-137 style); skip a gap that is large and say so. (4) RE-TEST. (5) SWITCH the seats and commands to the own tools, Firecrawl as the fallback leg only (no top-up). Browserless capacity: W-cbd80821 raises it to 3G.",
   "note": "",
   "owner": "intel",
-  "priority": 3,
-  "score_reason": "MEDIUM: removes a metered dependency the fleet already duplicates in-house; nobody blocked (exa and web search still serve tier 1 and 2); LOW-ish effort: one MCP wrapper over two vendored modules plus the roster row",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask (D-1093) and a reliability fix for every research run; effort: several sessions likely — intel sizes it at start and upgrades to the spec chain if the module test trips",
   "status": "open",
   "tags": [
     "medium"
