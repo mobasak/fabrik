@@ -1,6 +1,6 @@
 # Plan 3 — own scrape tool, slice 1a (hub side)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** intel
 Spec: `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md` (CONVERGED, approved D-1100) · Work item: W-10146d20
@@ -97,6 +97,8 @@ PORTS.md is edited only in its curated "Development Services (WSL Only)" table, 
 authoritative registry; the generated block is left alone.
 
 ## Phase A — `proxy: "basic"` on every Firecrawl line (no dependency; runs now)
+
+✅ EXECUTED 2026-10-21 (7b5ea84f3, a2c0564f5, 662ed84dd, 0f798a0f4, 9d13191e1; review receipt docs/development/reviews/2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md CONVERGED, e1b9b6d6b)
 
 Appetite: 60
 
