@@ -204,7 +204,7 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   seats never read one file's logic and no candidate is claimed twice. (The Coverage Checklist is the
   ADJUDICATION ledger — one row per changed FILE plus the standing recurrence rows — and its axes
   overlap by construction: it is never a seat list.)
-- **Leak check — the lead, before EVERY dispatch and after the pass returns:** a tree baseline (`git diff HEAD | md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`, each one plain command, each output written to a file under your scratchpad so the comparison is a diff of two files, never your memory; re-take the baseline after your own fix edits. A difference you did not make is a seat leak: restore only a hunk a seat's transcript shows it wrote, name the seat in the receipt, and mail an unattributed change to its likely author — never revert a hunk you cannot attribute, it may be a sibling's. A killed process is invisible to this check; when the surface is a daemon or watcher, add `pgrep -af <its script name>` to the baseline, so a live process that vanished shows in the same diff.
+- **Leak check — the lead, before EVERY dispatch and after the pass returns:** a tree baseline (`git diff HEAD | md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`, each one plain command, each output written to a file under your scratchpad so the comparison is a diff of two files, never your memory; re-take the baseline after your own fix edits. A difference you did not make is a seat leak: restore only a hunk a seat's transcript shows it wrote, name the seat in the receipt, and mail an unattributed change to its likely author — never revert a hunk you cannot attribute, it may be a sibling's. A killed process is invisible to this check; when the surface is a daemon or watcher, add `pgrep -af <its script name>` to the baseline, so a live process that vanished shows in the same diff. The baseline also holds the `md5sum` of the `config` file in the directory `git rev-parse --path-format=absolute --git-common-dir` prints, since a remote or `core.hooksPath` a seat writes there shows in no status; a hook file under that directory's `hooks/` is in neither, so the baseline lists it too.
 - **Every finder brief carries these lessons VERBATIM (D8 — each one cost a round of the D-191
   review):** pin dirs are created ONCE before the first dispatch and never touched while seats run ·
   `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
@@ -588,12 +588,12 @@ value.) Write the rows bare, under the `## Pass Ledger` heading.
 Write the closing row's method cell as `method: re-derivation` — `check_review_coverage.py`'s `_REDERIVATION_ROW` passes when a `Pass`/`Round` row has `method` followed by `re-deriv` with at most punctuation (a colon, `**`) between them, so `method: remainder pass — re-derivation` fails the gate.
 
 ```text
-| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |
-| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — delta over pass 1's fix diff + one hop |
-| Pass 3 | sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
+| Pass 1 | sonnet×3 + haiku×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |
+| Pass 2 | sonnet×1 + haiku×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — delta over pass 1's fix diff + one hop |
+| Pass 3 | sonnet×3 + haiku×3 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
-Note pass 3: the finder raised one FRESH candidate, which you executed and refuted — a raw candidate,
+Note pass 3: the finders raised one FRESH candidate, which you executed and refuted — a raw candidate,
 so it shows in `found:` (a re-raise of an already-adjudicated standing row would instead be CITED and
 not counted, per the term-coverage contract above). It closes the loop anyway, because **`found:` is RAW RECALL — the
 seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
