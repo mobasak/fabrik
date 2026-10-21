@@ -8,10 +8,10 @@ Work item: W-10146d20 · governing decision D-1093
 
 | Persona | Who | What they need from this | Duty this spec gives them |
 |---|---|---|---|
-| **P1 — the operator** (primary) | Özgür, quoted in D-1093 | research that keeps working when a metered vendor runs dry, without paying for a top-up, and no breakage in commands that use it today | approves the spec gate, including the one departure from the work item (§ Fallback contract); clears a named bot-walled source for the Firecrawl fallback when one matters |
+| **P1 — the operator** (primary) | Özgür, quoted in D-1093 | research that keeps working when a metered vendor runs dry, without paying for a top-up, and no breakage in commands that use it today | approves the spec gate, including the one departure from the work item (§ Fallback contract); clears a named bot-walled source for the Firecrawl fallback when one matters; approves the one `proxyUsed` test call and its page (slice 1d) |
 | P2 — research seats | `fabrik-researcher` and the research seats that `/fabrik-spec`, `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-plan-after-chat`, `/fabrik-vision`, `/fabrik-data-contract` and `/fabrik-workflow-review` dispatch | a live, raw page read (the `maxAge:0` "settle a dispute" fetch) and a small docs crawl, as markdown | call `fabrik-scrape` first for a raw page; follow § Fallback contract on a `blocked` result |
 | P3 — runtime code | `scripts/rivals_run.py` (the `/fabrik-rivals` engine: the hub plus 49 project copies on one hash, fabrik-lib's own copy on another), fabrik-lib `web-tools`, the deep-research and competitor-intel packs | a scrape leg that does not spend credits | call web-scrape first behind the `FABRIK_SCRAPE_LEG` switch (§ Chosen approach 3) |
-| P4 — intel (this spec's builder) | the hub agent that owns W-10146d20 | a staged, revertible switch | write the per-command ledgers; edit the eight command sources, `fabrik-researcher.md`, the three contract copies' fetch sentence and the hub `rivals_run.py` (`tests/test_research_tier_order.py` is left unchanged); mail fabrik-lib the asks |
+| P4 — intel (this spec's builder) | the hub agent that owns W-10146d20 | a staged, revertible switch | write the per-command ledgers; edit the eight command sources, `fabrik-researcher.md`, the three contract copies' fetch sentence and the hub `rivals_run.py` (`tests/test_research_tier_order.py` is left unchanged); mail fabrik-lib the asks; run the slice-1d `proxyUsed` test once P1 approves it |
 | P5 — fabrik-lib's agent | the module owner (a separate repo) | concrete requests, each with a test | build `web-scrape-mcp` and the asks G1-G12 in § fabrik-lib asks; change `web-tools` routing |
 | P6 — infra | the beat for the MCP roster, `mcp_defs.json`, `emit_mcp_project_config.py` and box services | one new local MCP server registered beside `fabrik-citation-verifier` | register, supervise and health-probe the server |
 | P7 — the coordinator | the hub merge owner | one slice per merge, each with its own full review | merge each slice; force the governance sync for synced paths |
@@ -168,7 +168,8 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
      redirect (apex to www, or `docs.anthropic.com` to `platform.claude.com`, U2) is not.
    - `crawl(url, max_depth=2, max_pages=20, include_paths=[], exclude_paths=[], use_sitemap=False)` → pages
      `{url, depth, title, markdown}` plus `errors`; by default only pages under the start URL's path.
-   - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason}` with `reason` one of:
+   - **Never empty markdown.** A page the server cannot read returns `{blocked: true, reason, status}` — `status` the
+     HTTP status it came from, null for a reason with none (`robots`, `scope`, `render-unavailable`) — with `reason` one of:
      `robots` (refused by robots.txt), `scope` (a non-public address — below), `http-<status>` (any 4xx or 5xx after
      retries; a 429 is retried after its `Retry-After` when that is at most 30 s, else reported at once as `http-429` — G12), `bot-wall` (`is_bot_wall` true — with G11 that covers DataDome, U6's case),
      `empty` (under 50 characters of text after every attempt), `render-unavailable` (browserless unreachable),
@@ -179,7 +180,8 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
      `inspect6.py`), and one met when browserless is down is not mistaken for a transient error. A 4xx (except 429)
      or 5xx whose body is not a known wall but holds under 50 characters of text, or no HTML, is returned as
      `blocked: empty`, not `http-<status>` — the seat cannot see the body, so the server classifies it. A 404 or 410
-     is always `http-404` / `http-410` whatever its body (a raw-file 404 is the 14-character "404: Not Found"), and
+     is always `http-404` / `http-410` whatever its body — unless the body is a known wall, which stays `bot-wall` (a
+     raw-file 404 is the 14-byte "404: Not Found", measured with `curl` on raw.githubusercontent.com), and
      every `blocked` result carries the HTTP `status` it came from, so the researcher's DEAD rule keys on the status.
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
@@ -236,8 +238,9 @@ field is `data.metadata.proxyUsed` (`"basic" | "stealth"`), present in Firecrawl
 `"basic"` when the engine reports nothing and is backfilled on cached hits, so `"basic"` is necessary, not sufficient.
 The Firecrawl rows therefore stay closed to operator-cleared sources until a test shows the field reaching a seat
 through `firecrawl-mcp` and reporting `stealth` when `proxy: "stealth"` is set explicitly on a public page that is not
-walled — never by sending a walled page in `auto` mode, which is the act this paragraph forbids. That test needs credits,
-so it runs after 2026-11-12. **"The Firecrawl rows are open"** means exactly that: credits exist and this test has
+walled — never by sending a walled page in `auto` mode, which is the act this paragraph forbids. A stealth call is the
+tooling layer rule 57 reserves for an operator's decision, so P1 approves that one call and its page by name first. The
+test needs credits, so it runs after 2026-11-12 (§ Lifecycle, slice 1d). **"The Firecrawl rows are open"** means exactly that: credits exist and this test has
 passed. It gates every Firecrawl entry point in this design — the fallback rows, the researcher's long-page `query`
 call and a direct Firecrawl call for a need the tool lacks. exa's `web_fetch_exa` and `WebFetch` are ordinary fetches with no
 documented escalation, so they may read an `empty` page or stand in while the server is down; a page known to be a wall
@@ -335,6 +338,9 @@ Bot-walled pages (and only for operator-cleared sources); LLM schema extraction;
     every page under its start path. Nothing in 1b blocks a seat switch.
   - **Slice 1c** — rendering turns on only after a redirect from a public URL to a private or cloud-metadata address,
     sent through vps1 browserless, is shown refused, and one rendered case grades PASS (§ Shape names the vps1 change).
+  - **Slice 1d** — after the 2026-11-12 reset, P4 runs the one `proxyUsed` test P1 approved (§ Fallback contract);
+    only its pass opens the Firecrawl rows. Until then every Firecrawl entry point stays closed to operator-cleared
+    sources.
   Then one command per slice: intel builds that command's ledger from the URLs its runs actually fetched (from transcripts), switches the
   command's text only when that ledger is all-pass, and runs the full `/fabrik-review` on the slice. Command text has no
   runtime flag, so a slice is one commit and reverting it is the off switch; runtime code uses `FABRIK_SCRAPE_LEG`. A
