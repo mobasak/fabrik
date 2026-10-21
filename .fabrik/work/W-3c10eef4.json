@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure: which projects' <db>_app touch jobs today; design the exclusion with fabrik-lib (mail 01M5B5CS5N6AK41XYP4HK6ZHMF item 3)",
+  "next": "SIZED 2026-10-21 (fleet): spec-chain, not /fabrik-task — the saas-skeleton worker claims jobs cross-org as <db>_app (scaffold.py:3280-3520, DSN = DATABASE_URL), so revoking app's jobs DML breaks every saas worker on next apply; 9 /opt projects create a jobs table. Needs /fabrik-spec: a dedicated job-queue worker login (own DSN, scaffold worker change, existing-project migration), designed with fabrik-lib SB-143",
   "note": "",
   "owner": "fleet",
   "priority": 1,
