@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
+W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and
+check_phase_tests also did it once per `## Behavior Contract` heading. 8 000 labels took ~5 s, and 4x the input took
+12-22x the time. They now read forward from each match: a lazy `_lines_from` keeps `str.splitlines`' boundaries, and
+the next heading is searched in place. A bold label is checked against the sorted heading spans with one bisect,
+instead of against every span (labels x headings). On 8 000 labels: 0.06 s and 0.04 s on this box. A mixed document
+of 4 000 headings and 4 000 labels went from 1.44 s to 0.03 s. Output is identical on all 488 plan files
+in the hub. `tests/enforcement/test_contract_regions_linear.py` counts copied characters, so no timing is read; its
+copy-count tests fail on the old code.
+
 ### Fixed — payments pack: the fulfilment grant refuses a fingerprinted role since fabrik-lib SB-096 (2026-10-21)
 
 - `.windsurf/rules/core/85-payments-billing.md`: line 45 said the fulfilment grant does not refuse a tenant-facing role. Since fabrik-lib SB-096 it refuses PUBLIC, a SUPERUSER or BYPASSRLS role and a role holding a privilege on a payments table the lane does not grant; a tenant-facing role without one still passes and gets `purchases` INSERT and cross-org `jobs` SELECT, UPDATE, so the dedicated-login rule stands (fleet mail 01M5DYBVJT; review `docs/development/reviews/2026-10-21-payments-fulfilment-grant-wording-review.md`).
