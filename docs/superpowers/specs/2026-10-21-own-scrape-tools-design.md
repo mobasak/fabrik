@@ -181,7 +181,7 @@ shows on the page is a FAIL of the tool, one it shows absent is struck with that
      or 5xx whose body is not a known wall but holds under 50 characters of text, or no HTML, is returned as
      `blocked: empty`, not `http-<status>` — the seat cannot see the body, so the server classifies it. A 404 or 410
      is always `http-404` / `http-410` whatever its body — unless the body is a known wall, which stays `bot-wall` (a
-     raw-file 404 is the 14-byte "404: Not Found", measured with `curl` on raw.githubusercontent.com), and
+     raw-file 404 is the 14-byte "404: Not Found", measured on raw.githubusercontent.com, `raw404.py` → `probes.out`), and
      every `blocked` result carries the HTTP `status` it came from, so the researcher's DEAD rule keys on the status.
    - **Address guard on every hop.** Before each request and each redirect hop the server refuses loopback, private,
      link-local and cloud-metadata addresses (`blocked: scope`), as the MCP fetch server does by default. It passes
