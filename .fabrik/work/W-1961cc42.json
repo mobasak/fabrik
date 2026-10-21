@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-6e656dac"
+  ],
+  "created": "2026-10-21T16:51:26.906200Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1961cc42",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce with 'bash scripts/sysadmin/agents_up.sh /opt/fabrik </dev/null' once the grid is killed; record the root before any attach and skip the attach when stdout is not a terminal; regression test in tests/test_agents_up.py",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a bug in the boot sweep's launcher (HIGH: bug + every repo); one script, one session",
+  "status": "open",
+  "title": "agents_up.sh run from a non-TTY shell (the coordinator's Bash tool) creates the grid but prints 'no such session: =<repo>', 'could not record the root … a relaunch will refuse this grid until it is killed' and 'open terminal failed: not a terminal' — the root option is never recorded (observed 2026-10-21 19:49 relaunching fabrik, fabrik-lib and youtube after a WSL restart)"
+}
