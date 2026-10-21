@@ -1,6 +1,6 @@
 # Plan — /hibernate pauses fully and the box resumes itself (W-6e656dac)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** infra
 
 Spec (CONVERGED, D-1095): `docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md`. Review receipt with
