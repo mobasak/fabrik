@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T00:46:26.131912Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-90163522",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1079",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "guard rec['stack'] with isinstance(list), map _git 124/127 in the symbolic-ref branch like the status branch, decide the mcp entrypoint against a live record, and order mark after start in the command text — each with a test seen red",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "hibernate"
+  ],
+  "title": "hibernate.py follow-ons recorded by the W-1e9ae1e5 review's scope-growth stop: a non-list run-record stack crashes status (fails closed, rc 1); symbolic-ref reads a missing or timed-out git as 'detached HEAD'; an mcp-hosted claude counts as an agent and would be messaged; /hibernate Phase 1 does not say whether mark comes before or after the run-record start"
+}

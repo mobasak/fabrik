@@ -29,6 +29,11 @@ printed JSON (at CRITICAL, so any `LOG_LEVEL` prints it). Existing projects are 
 `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` and `templates/scaffold/docker/README.md` name `make setup-dev`
 first and drop the nonexistent `make review`.
 
+### Added — /hibernate: pause every agent, prove the box safe to sleep, resume after the wake (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py` (`targets` · `brief` · `mark` · `lift` · `status` · `woke`) and the `/hibernate` command: the hub coordinator finds every live agent from the session records, sends each repo's coordinator (its ledger's merge owner) one URGENT pause text, collects a PAUSED line per agent, and says "safe to hibernate" only when `status` prints `SAFE TO HIBERNATE`; after the wake `woke` tells an agent the box slept so it resumes its own item. `claude -p` pool workers and review seats are never messaged (D-1079, `docs/reference/hibernate.md`).
+- `tests/test_fabrik_task_source.py`: the size cap and the `<durable>` count take D-1070's nested-review text, which shipped over the cap.
+
 ### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
 
 - `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
