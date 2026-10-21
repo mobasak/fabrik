@@ -3,7 +3,7 @@
   "created": "2026-10-21T05:19:22.554371Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "01c1edeaf3e4dd64fea242f76c4f3caa3e551fb6",
   "id": "W-d4468ce4",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "LOW: a contrived grader decoy in the review-scoped queue-pass test (a repeated bullet still passes); a rare edge, nobody blocked; LOW effort: one slice bound in one test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen"
   ],

@@ -318,7 +318,10 @@ it, or name in the brief why the shape does not have it.
   found mid-fix is named in the next brief, and a guard a fix adds goes into every brief from that next one on, by name,
   with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary; stale pre-existing
   text in an edited file is RECORDED with a destination (term-coverage D4), or fixed in the same hunk and named — never
-  counted; the slice ledger is round 1's claim count even at zero confirmed.
+  counted; the slice ledger is round 1's claim count even at zero confirmed. A measurement or proof a brief hands a
+  seat names, up front, the bound that limits it (a peak capped by the very limit being sized, a re-vendor's byte
+  identity read at HEAD because neither the copy's header nor its vendoring commit's trailer records a SHA), so the seat
+  attacks it as bounded, never as unbounded.
 - Lint or format findings are compared against HEAD — and against the committed diff, under every claimed toolchain
   version — before they are reported or refuted; tests re-run after the last lint fix; a refutation that a later
   commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a

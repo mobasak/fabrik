@@ -17,10 +17,10 @@
     "475317901f89a78b6942f4668ec5d85f459dac95216f9da0b098210a3a8d3674"
   ],
   "next": "",
-  "note": "",
+  "note": "panel unanimous (Opus+Fable, operator-delegated 2026-10-21): approved. .env backed up to backups/.env.backup.20261021-215817, the one line added, jump route proven",
   "owner": "",
   "priority": 2,
   "question": "May I add the line `FABRIK_SSH_JUMP_VPS=vps2` to `/opt/fabrik/.env`, after backing the file up to `backups/.env.backup.<timestamp>`, so the drift check and deploys reach vps1 through vps2?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May I add the line `FABRIK_SSH_JUMP_VPS=vps2` to `/opt/fabrik/.env`, after backing the file up to `backups/.env.backup.<timestamp>`, so the drift check and deploys reach vps1 through vps2?"
 }

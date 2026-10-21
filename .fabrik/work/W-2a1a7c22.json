@@ -3,7 +3,7 @@
   "created": "2026-10-20T11:18:08.428659Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b5fbcdb2f6d5aeda89585f40fb1c4e02b99cb403",
   "id": "W-2a1a7c22",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "LOW: wording — fabrik-execute-plan.md:461 overstates the plan-stem prefix for 2 of 26 plans; a rare edge, nobody blocked",
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen"
   ],

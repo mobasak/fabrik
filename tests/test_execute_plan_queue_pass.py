@@ -290,10 +290,25 @@ def test_the_loop_step_names_the_phase_review_artifact() -> None:
     assert (
         "THEN next phase → before the phase's closing commit (the one that stages the plan file), write its receipt to"
         " docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole"
-        " stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file,"
+        " stem (when it starts with a `<date>-plan-<n>-` prefix, that prefix keeps it findable after a resume; without"
+        " one, a resumed run finds the earlier receipts only when it was started with `command_run.py start"
+        " --resume-from <seed>`, which keeps the original start time, and a seed exists only after a `blocked` close"
+        " at the quota wall (`--wall`, or a reason naming the wall) or an operator's pause (`--paused`); after a crash"
+        " or a `handoff`, waive each earlier phase whose receipt the gate cannot see,"
+        " naming that receipt in the reason); under `Profile: small` there is no file,"
         " so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without"
         " one (item 3b's artifact rule) fix CONFIRMED findings"
     ) in loop
     item_3b = _section("3b. **GUI phases", "4. **All HARD STOPS")
+    assert "(only a `<date>-plan-<n>` stem has the escape)" in item_3b, (
+        "item 3b lost the unprefixed-stem limit"
+    )
+    assert "or starting with the plan's `<date>-plan-<n>-` prefix)" in item_3b, (
+        "item 3b lost the prefix escape"
+    )
+    assert (
+        "the waiver is for a phase that has none, or for an unprefixed plan's earlier receipt that a resume without a"
+        " seed cannot see (named in the reason)."
+    ) in item_3b
     assert 'goes through `--review-waived "<reason>"`' in item_3b
     assert '`--review-waived "Profile: small' in item_3b

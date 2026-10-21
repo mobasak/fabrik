@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — payments pack: the fulfilment grant refuses a fingerprinted role since fabrik-lib SB-096 (2026-10-21)
+
+- `.windsurf/rules/core/85-payments-billing.md`: line 45 said the fulfilment grant does not refuse a tenant-facing role. Since fabrik-lib SB-096 it refuses PUBLIC, a SUPERUSER or BYPASSRLS role and a role holding a privilege on a payments table the lane does not grant; a tenant-facing role without one still passes and gets `purchases` INSERT and cross-org `jobs` SELECT, UPDATE, so the dedicated-login rule stands (fleet mail 01M5DYBVJT; review `docs/development/reviews/2026-10-21-payments-fulfilment-grant-wording-review.md`).
+
+### Changed — /fabrik-task: the inputs table records each input's live counts from an executed read (2026-10-21)
+
+- `commands/_sources/fabrik-task.md`: beside each input, phase 2's table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows; phase 2 tables each tag a parser the change adds or extends reads, quoted inside its own content too; the vendored-copy census counts `.claude/worktrees/` apart. SIZE_CAP 26238 -> 26506 (D-1103), 53 bytes cut from the `--design` once-only sentence. `tests/test_fabrik_task_queue_pass.py` pins the three rules and the cut sentence. The rest of the 41-row queue was rejected with reasons (W-be343c22).
+
+### Changed — /fabrik-review-scoped: a brief names the bound on the evidence it hands a seat (2026-10-21)
+
+- `commands/_fragments/review-probe-catalogue.md`: a measurement or proof a brief hands a seat names, up front, the bound that limits it, so the seat attacks it as bounded. `tests/test_review_scoped_queue_pass.py` pins it, and the input-class grader now compares its whole bullet by equality, so a decoy bullet carrying the anchor fails (W-d4468ce4).
+
+### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
+
+- `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
+
 ### Changed — the vendored web-tools pins Firecrawl to the basic proxy (2026-10-21)
 W-10146d20, plan 3 Phase B step 2. `libs/web_tools.py` is re-vendored from fabrik-lib main c7ab67e4 (their D-539/D-540).
 Every Firecrawl payload (sync and async scrape, crawl, search) now sends `proxy: "basic"` unless code passes another
