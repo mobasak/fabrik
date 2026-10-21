@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the plan checks' last slow fence strips are linear (2026-10-21)
+W-d2eef742; D-1080. Three more fence-stripping regexes backtracked badly: `plan_appetite` took 15.8 s on a 40 KB backtick run followed by text, `check_phase_tests` about 15 s on 20 000 unclosed fence openers, and `check_plan_lock_release` about 13 s on one 200 KB backtick run with no newline. Each is now a line walk that returns exactly what its regex returned (the regexes stay in `tests/enforcement/test_fences.py` as the oracle): two new functions in `scripts/enforcement/_fences.py` for the first two, and a local copy in `check_plan_lock_release`, whose tests allow it standard-library imports only. `check_phase_tests` imports the shared scanner inside the function that strips, so its advisory gate row still exits 0 in a project whose sync left `_fences.py` out.
+
 ### Fixed — a Status or Owner line quoted in a code span no longer passes for a plan's header (2026-10-20)
 W-8f9a7d2c; D-1078. `docs_updater` read the first `Status:` and `Owner:` line of a plan after removing fenced blocks and block quotes, but not inline code spans, so a code span running across a line break with `Status: DRAFT` at the start of its second line beat the plan's real `**Status:** COMPLETE` (and an `Owner:` line the real owner). The PLANS table, the plan checks, `--adopt` and `work.py` all read those values. Each scan now skips a header line whose key sits inside a code span and still reads a value written in code font, such as `**Owner:** `[infra]``. No plan in the fleet reads differently (0 of 1492).
 
