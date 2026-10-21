@@ -181,6 +181,7 @@ own repo. So steps 1-8 are worktree work merged by the coordinator; steps 9-12 r
 - scripts/scrape_ledger.py — NEW, the MCP probe, transcript harvest and ledger runner (used by this phase's gate and by Phase C)
 - tests/test_scrape_ledger.py — NEW, its tests with a mocked MCP client
 - scripts/sysadmin/emit_mcp_project_config.py — `fabrik-scrape` joins the universal set
+- tests/test_emit_mcp_project_config.py — its pinned universal set (`:42`) gains `fabrik-scrape`
 - scripts/sysadmin/mcp_defs.json — the `fabrik-scrape` http entry
 - scripts/sysadmin/systemd/fabrik-scrape-mcp.service — NEW, the unit's source of truth in the repo
 - docs/reference/fabrik-scrape-mcp.md — NEW, the subsystem doc
@@ -232,7 +233,8 @@ Pre-merge, in the worktree:
    `scripts/sysadmin/emit_mcp_project_config.py:39-46` — the researcher renders to every repo, so every repo's
    `.mcp.json` must carry the server. That widens the D-013 universal set: mint its row (`python3 scripts/decisions.py
    --reserve-id .`, supersedes nothing, extends D-013) and edit `docs/workstation/mcp-roster.md` in the same commit
-   (`scripts/enforcement/check_mcp_scope.py:20-22`); run `tests/test_emit_mcp_project_config.py` and
+   (`scripts/enforcement/check_mcp_scope.py:20-22`); add `fabrik-scrape` to the test's pinned set
+   (`tests/test_emit_mcp_project_config.py:42`), watch it fail before the emitter edit; run that test and
    `python3 scripts/enforcement/check_mcp_scope.py` → exit 0.
 6. Docs: write `docs/reference/fabrik-scrape-mcp.md` (what it is, tools, `blocked` reasons, unit, port, venv rebuild,
    re-vendor steps) + its `INDEX.md` row; a `docs/workstation/mcp-roster.md` row beside the precedent (`:75`); a
@@ -250,7 +252,7 @@ Post-merge, on the main checkout, as a gate:
    libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt`, then `sudo install -m 644
    scripts/sysadmin/systemd/fabrik-scrape-mcp.service /etc/systemd/system/`, `sudo systemctl daemon-reload`, `sudo
    systemctl enable --now fabrik-scrape-mcp`.
-10. Infra runs `python3 scripts/sysadmin/emit_mcp_project_config.py` (dry-run flag from its header first) so every
+10. Infra runs `python3 scripts/sysadmin/emit_mcp_project_config.py` (first with `--check`, which reports and never writes, `:334`) so every
     repo's generated `.mcp.json` gains `fabrik-scrape`; `python3 scripts/sysadmin/mcp_health.py` → `fabrik-scrape` live.
 11. Run the phase gate; then the capability ledger U1-U7 through `scrape` (the spec's URLs and the pass table above,
     fact strings re-fixed before the run from an independent read) and the scope call; results in the run folder. A
@@ -689,6 +691,7 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 - scripts/scrape_ledger.py
 - tests/test_scrape_ledger.py
 - scripts/sysadmin/emit_mcp_project_config.py
+- tests/test_emit_mcp_project_config.py
 - tests/test_researcher_fallback_contract.py
 - .windsurf/rules/core/57-external-data-sourcing.md
 - CLAUDE.md
