@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: a brief names the bound on the evidence it hands a seat (2026-10-21)
+
+- `commands/_fragments/review-probe-catalogue.md`: a measurement or proof a brief hands a seat names, up front, the bound that limits it, so the seat attacks it as bounded. `tests/test_review_scoped_queue_pass.py` pins it, and the input-class grader now compares its whole bullet by equality, so a decoy bullet carrying the anchor fails (W-d4468ce4).
+
 ### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
 
 - `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
