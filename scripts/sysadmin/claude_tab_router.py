@@ -290,7 +290,10 @@ def rewrite_args(argv: list[str], pick: dict, new_cwd: str) -> list[str]:
             i += 1 if eq else 2
             continue
         if name == "--add-dir":  # every one: a routed agent gets none of the window's folders
-            i += 1 if eq or not takes_next else 2
+            i += 1
+            if not eq:  # `--add-dir <directories...>` (claude --help): every value up to the next flag is its own
+                while i < len(argv) and not argv[i].startswith("-"):
+                    i += 1
             continue
         out.append(a)
         i += 1

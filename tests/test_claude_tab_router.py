@@ -446,3 +446,10 @@ def test_wrapper_drops_an_inherited_agent_on_a_roleless_pick(tmp_path):
     assert got["agent"] == "", (
         "an inherited CLAUDE_AGENT would bind the new session to the window's agent"
     )
+
+
+def test_rewrite_drops_every_value_of_a_variadic_add_dir(r):
+    """R4: `claude --help` lists `--add-dir <directories...>`; every value after it belongs to it."""
+    argv = ["/bin/claude", "--add-dir", "/opt/a", "/opt/b", "--x", "--add-dir=/opt/c"]
+    out = r.rewrite_args(argv, {"kind": r.RESUME, "sid": SID_YT}, "/opt/yt")
+    assert out == ["/bin/claude", "--x", f"--resume={SID_YT}"]
