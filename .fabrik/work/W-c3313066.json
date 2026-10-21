@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T12:48:10.892187Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c3313066",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "BRIEF (records, not memory). Settled: D-1072 NAT — Windows reaches WSL only at the WSL address (192.168.100.17 today), never localhost; D-1092 operator layout (coordinator in a GUI, builders in tmux, no fixed count); W-ea993618 measured — one VS Code window cannot host several repos' coordinators, the wrapper fixes identity only. What exists: ~/.claude/bin/claude-agent-wrapper.sh (stage-1 log-only wrapper) and ~/.vscode-server/data/Machine/settings.json carrying claudeCode.claudeProcessWrapper; the Claude extension is on Open VSX (code-server's marketplace); scripts/sysadmin/agents_bat.py writes Desktop .bat launchers; docs/workstation/ holds box-local docs. Steps: (1) install code-server into user space (standalone tarball under ~/.local, no sudo), bind it to the WSL address with password auth from ~/.config/code-server/config.yaml, confirm Brave on Windows reaches it; (2) install anthropic.claude-code from Open VSX; set claudeCode.claudeProcessWrapper in code-server's User settings.json; (3) open two browser windows, ?folder=/opt/fabrik and ?folder=/opt/youtube, sign the extension in, check each window's history shows ITS repo's conversations and resume youtube's 6645fc02-0e2e-4b40-9ffc-18fc8858939e; (4) measure memory per window (code-server + extension host + claude); (5) run npx claudeck on the WSL address, port 9009, check its 2x2 grid and whether it can resume a session by id; (6) a Desktop .bat 'Coordinators (browser).bat' that starts code-server (if not running) and opens the repo windows in Brave, written via agents_bat.py's conventions; (7) docs/workstation/browser-coordinator-screen.md with URLs, launch, rollback (remove ~/.local/code-server and the config dir). Lane: /fabrik-task (reversible, box-local, no sync path); heavy=yes (operator-named) so the full /fabrik-review. Gates: none further — the operator's words above are the install approval; nothing is written on the Windows side except the .bat. Done when the operator sees fabrik's and youtube's coordinators side by side in Brave and can type to both.",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask made today, the operator's own working screen; LOW effort: a one-hour install-and-test plus a launcher and a doc, all box-local",
+  "status": "open",
+  "title": "Browser-based coordinator screen (operator 2026-10-21: 'ok now we need a browser vs code like, which will host several vs code extensions from any repo i want to open its coordinator and any agents.'): code-server in WSL serving VS Code in Brave, one browser window per repo, each hosting the Claude Code extension for that repo's coordinator (and any agent); Claudeck tested beside it as the alternative"
+}
