@@ -8,7 +8,7 @@ its tests unchanged); `.claude/hooks/seat_guard.py` (651 lines), `tests/test_sea
 
 Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (DRAFT, `Size: small`, `Profile: delta`;
 refined in this run by D-914). `/fabrik-plan-review` grades its sections together with this plan and flips both. Source:
-mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's rounds 1-2): ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
+mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's rounds 1-3): ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
 (redirect capture with the empty-list case and the stream-offset fd test in `_simple_commands` ≈45, the destination
 rule `_write_reason` with its per-verb option tables, glob prefix and `/dev` exemption ≈130, its call before
 `if not words` and every `continue` in `_scan` ≈10, the `env -C` scoping ≈10, the `_HEREDOC` fix ≈1, the unparseable
@@ -140,7 +140,9 @@ delta 2, 3 and 5, cited rather than restated):
    outcomes in Evidence (the second must be refused) and `git status --short` after the seat (no new file). The hook is
    read from `${CLAUDE_PROJECT_DIR}` at every call (`.claude/settings.json:150`), so the edited file is live in this
    worktree without a reload.
-8. `/fabrik-review-scoped` on Phase A's surface; fix what it finds.
+8. `/fabrik-review-scoped` on Phase A's surface; fix what it finds. A shell-grammar edge case found here, or in
+   the Finish review, gets its row in the Behaviour Contract and is decided by the running hook (spec § The delta,
+   "Where the grammar is decided").
 
 **Behavior Contract (Phase A):**
 
@@ -150,7 +152,7 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, `rm -f <scratch>/*.tmp`, `dd if=f of=/dev/null`, `ls | tee /dev/stderr`, `cmd > /dev/stdout`, `curl -s -o /dev/null URL`, `gzip -c f > <scratch>/f.gz`, `echo "2>x"`, **Then** allowed (A4)
 - **Given** the same seat, **When** `cp <live file> <scratch>/`, `cp -r src <scratch>/s`, `cat Makefile`, `perl -Mstrict -ne print Makefile`, **Then** allowed (A5)
 - **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed -Ei s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
-- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, `rm -rf /tmp/cl*`, `rm -rf /tmp/claude-<uid>/<slug-prefix>*`, `cp /tmp/s/a "2">/dev/null`, **Then** denied (unknown, home, brace, glob-directory or ancestor-of-scratch destination; a quoted digit is a word) (A7)
+- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, `rm <scratch>/*/../../opt/f`, `rm -rf /tmp/cl*`, `rm -rf /tmp/claude-<uid>/<slug-prefix>*`, `cp /tmp/s/a "2">/dev/null`, **Then** denied (unknown, home, brace, glob-directory or ancestor-of-scratch destination; a quoted digit is a word) (A7)
 - **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` and `echo "unterminated 2>/dev/null` stay allowed (A8)
 - **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) (A9)
 - **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
@@ -195,7 +197,7 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A11 map spec § Validation 1-7 (Self-audit); A1's red is proven on revert |
 | RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny | FIXED r1 — A7, A9 (A9 re-stated: a crash leaves the seat's `updatedInput` envelope, never a deny) |
 | RECURRENCE cost/quota/limit accounting | none | CLEAN — no new hook invocation, no seat or quota change |
-| RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by `realpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
+| RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by the lexical `normpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row; every row green today has a named red | FIXED r1 — Self-audit mapping; Phase A step 1 names each neuter |
 
 Rubric invocation (verbatim output; the File Scope is the changed-path set):

@@ -103,7 +103,8 @@ working directory, their briefs, or the lead session.
    drops an fd number from the words only when it is glued to the operator (`2>`; `2 >` is a word `2` and a
    redirect), decided on the tokeniser's own stream: a digit token is an fd only when
    `tell(operator) - tell(digit) == len(operator)` (no gap, whatever the operator's length — `>`, `>>`, `>&`) and
-   the source character before the digit is not a quote (`"2">x` is the word `2`, as in bash). Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. Any
+   the digit token's last source character, at `tell(digit) - 2` (shlex's `tell` reads one character ahead), is not a
+   quote (`"2">x` is the word `2`, as in bash). Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. Any
    destination whose LEXICAL path — `os.path.normpath` of it joined to the cwd, no symlink resolved — lies under
    `/dev/` (`realpath` would send `/dev/stderr` to the hook's own stdio, never `/dev/`) (`> /dev/null`, `dd of=/dev/null`, `tee /dev/stderr`), a `-`
    value of `-o`/`-O` (stdout) and input redirects are never destinations. `_scan()` gains a
@@ -119,8 +120,10 @@ working directory, their briefs, or the lead session.
    is not `-M`/`-m`/`-I` (its file operands after the code from `-e` or a cluster ending in `e`); `dd of=`. Each
    joins the tracked `cwd`, a leading `~` is outside scratch, and a path naming `/tmp`, `/tmp/claude-<uid>` or
    `/tmp/claude-<uid>/<slug>` itself is outside scratch (an ancestor of other sessions' scratch is never this seat's).
-   A path holding a brace (`{`) is outside scratch, like a `$` (its expansions can leave the directory it starts in:
-   `touch <scratch>/{x,/../../opt/f}`). A path holding a glob character (`*?[`) is judged by the DIRECTORY before it —
+   A path holding a brace (`{`), or a `..` segment after a glob character, is outside scratch, like a `$` (its
+   expansions can leave the directory it starts in: `touch <scratch>/{x,/../../opt/f}`,
+   `<scratch>/*/../../opt/f`); the cost, accepted, is that `mkdir -p <scratch>/{a,b}` is refused and a seat writes
+   `mkdir -p <scratch>/a <scratch>/b`. A path holding a glob character (`*?[`) is judged by the DIRECTORY before it —
    the path cut back to the last `/` before the first such character — which must be inside scratch and not one of
    those ancestors, compared after `realpath` (`rm -f <scratch>/*.tmp` stays allowed; `rm -rf /tmp/*` and
    `rm -rf /tmp/cl*` do not). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
@@ -135,6 +138,10 @@ working directory, their briefs, or the lead session.
    `env -C <scratch> true; git reset --hard` passes the git rule), and redirects on that command resolve against
    the cwd from before it. `_HEREDOC` no longer matches a here-string: `<<<` opened a phantom heredoc that hid every
    following line up to one equal to its word, `git reset` included.
+
+**Where the grammar is decided.** This section states the rule's principle and the cases the plan review settled;
+a further shell-grammar edge case is decided by Phase A's tests and its reviews, against the running hook, never
+by another round of prose here (the plan review's scope-growth stop, 2026-10-22).
 
 **The blind spot, stated (COBRA, D-253):** the cheapest way past the rule is a write the Bash string does not show — an
 interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a write whose destinations come from stdin or a
