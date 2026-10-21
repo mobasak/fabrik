@@ -34,10 +34,10 @@ registered on this box; and `fabrik-researcher` switches its raw-page fetch to i
 | I2 | spec § Lifecycle 1a: "every command or seat line naming a Firecrawl tool gains `proxy: "basic"`" | IN | Phase A |
 | I3 | spec § Lifecycle 1a: "infra registers it" | IN | Phase B (infra executes the unit install under a gate) |
 | I4 | spec § Lifecycle 1a: "Then `fabrik-researcher` switches (its own ledger first)" | IN | Phase C |
-| I5 | spec § Chosen approach 2: the three contract copies gain `fabrik-scrape` in the fetch sentence | IN for the hub's two copies (Phase C); OUT-OF-SCOPE for `/opt/fabrik-lib/CLAUDE.md` — a cross-repo file, requested from fabrik-lib by mail in Phase C |
+| I5 | spec § Chosen approach 2: the three contract copies gain `fabrik-scrape` in the fetch sentence | IN for the hub's two copies (Phase C); OUT-OF-SCOPE for `/opt/fabrik-lib/CLAUDE.md` — a cross-repo file, requested from fabrik-lib by mail in Phase C | Phase C |
 | I6 | spec § Lifecycle 1b, 1c, 1d (crawl, rendering, the proxyUsed test) | OUT-OF-SCOPE | later plans, one per slice; 1d is gated on the operator's approval (spec § Fallback contract) |
 | I7 | the seven other commands' switches (spec § Lifecycle: "one command per slice") | OUT-OF-SCOPE | later plans after this one; `fabrik-researcher` goes first |
-| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B step 2, checked for the call log AND the `proxy: "basic"` payload), built by fabrik-lib as W-eadc4d0a |
+| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B step 2, checked for the call log AND the `proxy: "basic"` payload), built by fabrik-lib as W-eadc4d0a | Phase B step 2 |
 | I9 | spec § Lifecycle 1a: "the capability ledger re-runs THROUGH `scrape` … must grade PASS on U1, U2, U3, U4 and U7" | IN | Phase B step 11 |
 | I10 | spec § Documentation landing sites: `.windsurf/rules/core/57-external-data-sourcing.md` (the agent-time roster) | IN | Phase C step 6 |
 | I11 | spec § Documentation landing sites: the precedent's PORTS row lists 8032 while its endpoint is `:8033/mcp` | OUT-OF-SCOPE | infra's row, mailed to infra at this plan's close |
@@ -267,7 +267,9 @@ Post-merge, on the main checkout, as a gate:
 
 9. Gate (deploy): building the venv and installing the unit write outside this worktree (`/opt/fabrik/libs/
    web_scrape_mcp/.venv`, `/etc/systemd/system/`) — the operator approves through the coordinator; on approval infra
-   runs, from `/opt/fabrik`: `uv venv libs/web_scrape_mcp/.venv`, `uv pip install --python
+   runs, from `/opt/fabrik`: `uv venv --python /usr/bin/python3 libs/web_scrape_mcp/.venv` (amended in execution:
+   the Phase B review sandboxed the unit with `ProtectHome=true`, so the interpreter must live outside `/home`),
+   `uv pip install --python
    libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt`, then `sudo install -m 644
    scripts/sysadmin/systemd/fabrik-scrape-mcp.service /etc/systemd/system/`, `sudo systemctl daemon-reload`, `sudo
    systemctl enable --now fabrik-scrape-mcp`.

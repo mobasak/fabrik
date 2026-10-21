@@ -38,9 +38,10 @@ ALL_SERVERS = [
     "media-engine",
     "fabrik-citation-verifier",
     "grafana",
+    "fabrik-scrape",
 ]
-UNIVERSAL6 = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena"}
-U5_NO_DB = UNIVERSAL6 - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
+UNIVERSAL = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena", "fabrik-scrape"}
+U5_NO_DB = UNIVERSAL - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
 
 
 @pytest.fixture()
@@ -50,6 +51,7 @@ def defs_file(tmp_path: Path) -> Path:
         for name in ALL_SERVERS
     }
     defs["fabrik-citation-verifier"] = {"type": "http", "url": "http://127.0.0.1:8033/mcp"}
+    defs["fabrik-scrape"] = {"type": "http", "url": "http://127.0.0.1:8034/mcp"}
     p = tmp_path / "defs.json"
     p.write_text(json.dumps({"mcpServers": defs}))
     return p
@@ -76,13 +78,13 @@ def servers_of(repo: Path) -> set[str]:
     return set(json.loads((repo / ".mcp.json").read_text())["mcpServers"])
 
 
-def test_headless_gets_exactly_universal_6(tmp_path, defs_file, monkeypatch):
+def test_headless_gets_exactly_the_universal_set(tmp_path, defs_file, monkeypatch):
     monkeypatch.setattr(emitter, "_uri_connects", lambda uri: True)
     r = make_repo(
         tmp_path, "some-api", "python-api", env="DATABASE_URL=postgresql://u:p@localhost:5432/x\n"
     )
     run(tmp_path, defs_file)
-    assert servers_of(r) == UNIVERSAL6
+    assert servers_of(r) == UNIVERSAL
 
 
 def test_saas_adds_the_web_gui_four(tmp_path, defs_file):
