@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
+W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
+converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
+an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (out of credits until 2026-11-12) stays a
+fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
+slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
+receives the slice-1a requests next.
+
 ### Fixed — a panel-approved brief is no longer refused because the operator queued a prompt after it (2026-10-21)
 W-6424f2e8; D-1098. The Stop hook checks that a `PANEL APPROVED` brief quotes the two review seats' own verdicts. A prompt the operator types while the agent is busy reset those verdicts, and because such a prompt arrives in the middle of a turn, a properly backed brief written just before it was refused when the turn ended. Each brief is now checked against the verdicts that stood until the queued prompt that actually follows it — found by position, because the same prompt can be recorded more than once — so a stale copy from an earlier turn, or verdicts from before the operator's new word, can never vouch for it. A forged brief, or one relying on verdicts from before the operator's new word, is refused as before.
 

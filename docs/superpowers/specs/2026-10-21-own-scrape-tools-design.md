@@ -1,6 +1,7 @@
 # Own scrape and crawl tools for agents and runtime, Firecrawl as fallback — design
 
-Status: DRAFT
+Status: CONVERGED
+Approved: D-1100 (design-approval panel, both-approve)
 Owner: intel
 Work item: W-10146d20 · governing decision D-1093
 

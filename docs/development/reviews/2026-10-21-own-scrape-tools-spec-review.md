@@ -4,7 +4,7 @@
 **Spec:** `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md` (DRAFT at 1f51cf960)
 **Evidence folder:** `/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-spec-2026-10-21T16-07-23-0300/`
 **Shape:** agent-tool (D-961: the Workflow tool is never called)
-**Status:** IN PROGRESS
+**Status:** CONVERGED (D-1100)
 
 ## Pass Ledger
 
@@ -23,6 +23,8 @@
 | Pass 11 | the round-1 seats, own slices · delta over the panel fold (80f5b58a8..30edd79fe, 221 lines) + one hop | found: 10, new: 10, confirmed: 9, fixed: 9, unexecuted: 0, edits: 12 | method: re-derivation — Firecrawl source `proxyUsed: "basic" \| "stealth"` (`gh api`, scrapeURL/index.ts); example.com 131 chars (rendering-off refused short pages); markdown-it table render | 094e51a1 → a251ac8b |
 | Pass 12 | the round-1 seats, own slices · delta over 30edd79fe..15600128b + one hop | found: 4, new: 4, confirmed: 3, fixed: 3, unexecuted: 0, edits: 5 | method: re-derivation — nginx 404 converts to 22 chars and a raw-file 404 to 14 (the near-empty rule hid real 404s); the proxyUsed test would have sent a walled page in auto mode | a251ac8b → 54184e0d |
 | Pass 13 | the round-1 seats, own slices · delta over 15600128b..63cc9a72d + one hop | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 6 | method: re-derivation — `curl … \| od -c` on a raw.githubusercontent.com 404 = "404: Not Found", 14 bytes; rule 57 :261-262 (stealth is the tooling layer, operator-approved) | 54184e0d → 2cc5a162 |
+| Pass 14 | the round-1 seats, own slices · delta over 63cc9a72d..1fd39b065 + one hop | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — opus and researcher slices zero; sonnet: the raw-404 measurement had no saved artifact → `raw404.py` line in `probes.out` (status 404, 14 bytes) | 2cc5a162 → 993cd73c |
+| Pass 15 | the round-1 seats, own slices · delta over 1fd39b065..6b5e8e917 (one line) + one hop; every slice's ledger re-executed | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — opus 26/26 ledger strings present in the pin, markdown-it `tables: 1 tr: 11`; sonnet and researcher confirmed `probes.out`:6 (`raw404.py`: status 404, 14 bytes). The quiet closing round after the panel delta | 993cd73c → 993cd73c (unchanged) |
 
 ## Findings
 
@@ -77,4 +79,9 @@
 | S-sonnet-1102..1104 · S-opus-1103, 1104 | 11 | P4 test edit; vps1 holder; step budget; spender attribution; rows vs closed rule | FIXED r11 (P8 fleet; dashboard is the only past record) |
 | S-sonnet-1201 · S-opus-1201 | 12 | near-empty rule hid real 404s | FIXED r12 (404/410 always reported; status carried) |
 | S-sonnet-1202, 1203 | 12 | proxyUsed test sent a walled page; un-gated Firecrawl entry points | FIXED r12 (explicit stealth on an unwalled page; one "rows are open" definition) |
+| S-sonnet-1401 | 14 | raw-404 "measured with curl" had no saved artifact | FIXED r14 (`raw404.py` → `probes.out`) |
 | S-sonnet-1301..1303 · researcher note | 13 | stealth call needs operator approval; test unscheduled; blocked shape; wall vs 404 precedence | FIXED r13 (P1 approves; slice 1d run by P4; `status` null; wall wins) |
+
+## Approval
+
+Panel (D-613): opus="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md" fable="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md" → both-approve. All 15 concerns ACCEPTED and folded; the delta rounds (passes 11-15) closed at confirmed 0 with the spec md5 993cd73c8f408d93e1e43a76b284c07f. Approval row: D-1100.
