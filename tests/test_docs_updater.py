@@ -998,10 +998,12 @@ import bisect  # noqa: E402
 
 import docs_updater as du  # noqa: E402
 
+_FX = du._fences_module()  # the regexes moved to _fences with the function (W-b9af1d47)
+
 
 def _old_blank_code_spans(content: str) -> str:
-    runs = list(du._BACKTICK_RUN_RE.finditer(content))
-    tails = [(m.start(1), m.end(1)) for m in du._LINK_TAIL_RE.finditer(content)]
+    runs = list(_FX._BACKTICK_RUN_RE.finditer(content))
+    tails = [(m.start(1), m.end(1)) for m in _FX._LINK_TAIL_RE.finditer(content)]
     tail_starts = [start for start, _ in tails]
     out, kept, i = [], 0, 0
     while i < len(runs):
@@ -1013,13 +1015,13 @@ def _old_blank_code_spans(content: str) -> str:
         if t >= 0 and opener.start() < tails[t][1]:
             continue
         line_start = content.rfind("\n", 0, opener.start()) + 1
-        one_line = du._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
+        one_line = _FX._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
         seen = opener.end()
         for j in range(i, len(runs)):
             # only the text since the last run is new; each line it starts is checked whole
             starts = [m.end() for m in re.finditer("\n", content[seen : runs[j].start()])]
             if starts and (
-                one_line or any(du._BLOCK_START_RE.match(content, seen + s) for s in starts)
+                one_line or any(_FX._BLOCK_START_RE.match(content, seen + s) for s in starts)
             ):
                 break
             seen = runs[j].end()

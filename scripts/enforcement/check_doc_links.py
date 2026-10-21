@@ -198,7 +198,7 @@ def link_targets(text: str):
     regex truncated `docs/a(b).md` to `docs/a(b`, missed a titled link entirely and kept the
     brackets of an angle one (`<docs/x.md>`); none of those ends in a checked suffix, so a link of
     any of the three shapes to a MISSING file was never examined. check_doc_index
-    carries the same function (no enforcement check imports a sibling); a test in
+    carries the same function (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
     opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
@@ -278,6 +278,29 @@ def link_targets(text: str):
 _INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
 
 
+_SPAN_BLANKER: object = (
+    None  # unloaded; then _fences.blank_code_spans, or False where it is missing
+)
+
+
+def _blank_spans(text: str) -> str:
+    """Inline code spans blanked, length-preserving, by `_fences.blank_code_spans` (W-b9af1d47) — the copy
+    docs_updater blanks with. Imported on first use by the sibling directory; in a project whose `_fences.py`
+    lags the sync it is absent, and the text comes back unblanked: today's reading, never a crash."""
+    global _SPAN_BLANKER
+    if _SPAN_BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _SPAN_BLANKER = False
+        else:
+            _SPAN_BLANKER = getattr(_fences, "blank_code_spans", False)
+    return _SPAN_BLANKER(text) if _SPAN_BLANKER else text  # type: ignore[operator]
+
+
 def _iter_refs(text: str):
     """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
 
@@ -289,9 +312,33 @@ def _iter_refs(text: str):
     template (W-f11e740e review residue). One exception: a line-leading inline span that closes on its
     own line (```` ```x``` ````) is inline code, never a fence — it would hide every link below it.
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
-    file."""
+    file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
+    line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
+    raw, and fence lines and bodies are blanked before the span pass (a closing fence's ``` would pair with
+    an inline ``` below it). The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
+    second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
+    spaces."""
+    rows = []  # (line, its offset in text, a fence line or fence body)
+    in_fence, pos = False, 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.splitlines()[0]
+        stripped = line.lstrip()
+        toggle = stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+        rows.append((line, pos, toggle or in_fence))
+        in_fence ^= toggle
+        pos += len(raw)
+    # Fence lines and bodies are blanked before the span pass, so a fence's ``` never pairs with an inline ```
+    # run in the paragraph after it, and a body's backticks never pair with an opener above the fence — a
+    # blanked fence line alone does not stop that when the fence opens after a \f, \v or U+2028, which this
+    # toggle splits on and the span blanker does not (review pass 2).
+    masked = list(text)
+    for line, start, fenced in rows:
+        if fenced:
+            masked[start : start + len(line)] = " " * len(line)
+    blanked = _blank_spans("".join(masked))
     in_fence = False
-    for line in text.splitlines():
+    for line, start, _fenced in rows:
+        span_free = blanked[start : start + len(line)]
         stripped = line.lstrip()
         if stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped):
             in_fence = not in_fence
@@ -309,7 +356,7 @@ def _iter_refs(text: str):
         ):
             continue
         if not in_fence:
-            for target in link_targets(line):
+            for target in link_targets(span_free):
                 yield target, "link"
             for m in _BARE_RE.finditer(line):
                 yield m.group(1), "bare"
@@ -359,7 +406,7 @@ def pct_decode(text: str) -> str:
     same string the filesystem walk yields. `%2F` stays as written because a renderer resolves an
     escaped slash as part of ONE path segment, never as a separator: decoding it made
     `docs%2Fsub%2Fx.md` index and resolve `docs/sub/x.md`, a link that does not reach that file.
-    check_doc_index carries the same one-liner (no enforcement check imports a sibling); a test in
+    check_doc_index carries the same one-liner (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
 

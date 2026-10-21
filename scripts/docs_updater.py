@@ -44,7 +44,6 @@ Workflow Doc: docs/archive/DOCUMENTATOR_WORKFLOW.md (archived — Kilo-era frami
 from __future__ import annotations
 
 import argparse
-import bisect
 import json
 import os
 import re
@@ -1046,7 +1045,7 @@ def _strip_quoted(content: str) -> str:
 
 
 def _fences_module() -> Any:
-    """The shared fence scanner, imported when `_strip_quoted` first runs (W-276255e7): in a project whose
+    """The shared fence scanner, imported when `_strip_quoted` or `_blank_code_spans` first runs (W-276255e7, W-b9af1d47): in a project whose
     `scripts/enforcement/` lags a sync, a call that never strips quoted text still runs, and one that does
     raises an ImportError naming the file. Imported by the sibling directory, the way every check imports it,
     so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run` promises to write
@@ -1074,22 +1073,6 @@ def _fences_module() -> Any:
 # rule: a ``` opener's info string holds no backtick; a closer is a run of the same character at
 # least as long with only whitespace after it; an unclosed fence is restored (its links stay graded).
 _FENCE_OPEN_RE = re.compile(r"[ \t]*(`{3,}|~{3,})([^\r\n]*)")
-# A span opener is a whole backtick run (finditer's greedy `+` never starts mid-run), not escaped;
-# it closes on the next run of the same length.
-_BACKTICK_RUN_RE = re.compile(r"`+")
-# A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
-# one opened before the link's `[`, as CommonMark reads it). Only a tail after `[text]` counts, so a
-# stray `](` cannot shield a real code span from blanking.
-_LINK_TAIL_RE = re.compile(r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\((?:[^()\n]|\([^()\n]*\))*\))")
-# A line a span never crosses into: blank, or one that starts another block (a setext underline
-# and a thematic break end the paragraph too).
-_BLOCK_START_RE = re.compile(
-    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~"
-    r"|(?:=+|-+)[ \t]*\r?$|(?:[*_][ \t]*){3,}\r?$)",
-    re.M,
-)
-# A line a span never leaves: an ATX heading or a table row.
-_ONE_LINE_BLOCK_RE = re.compile(r"[ \t]*(?:#{1,6}(?:[ \t]|\r?$)|\|)", re.M)
 
 
 def _blank(text: str) -> str:
@@ -1120,69 +1103,14 @@ def _blank_code_fences(content: str) -> str:
 
 
 def _blank_code_spans(content: str) -> str:
-    """Each unescaped opener, outside a link tail, pairs with the next run of its length unless a line break first
-    ends the span (any break on a heading or table line, else one that starts a block); the runs between are consumed.
-    Linear (W-16c00597): every gap between two runs is examined once, each run's line start comes from one forward
-    walk, and an opener finds its closer by bisect in the list of runs of its length — the scan-forward-per-opener
-    original was quadratic on unmatched runs (1.7 s on one 2 MB line) and is kept verbatim in the tests as the oracle."""
-    runs = list(_BACKTICK_RUN_RE.finditer(content))
-    n = len(runs)
-    tails = [(m.start(1), m.end(1)) for m in _LINK_TAIL_RE.finditer(content)]
-    tail_starts = [start for start, _ in tails]
-    # gap g lies between runs[g] and runs[g + 1]: does it hold a newline, and does any line it starts open a block?
-    nl_gap = [False] * n
-    block_gap = [False] * n
-    for g in range(n - 1):
-        end = runs[g + 1].start()
-        p = content.find("\n", runs[g].end(), end)
-        if p < 0:
-            continue
-        nl_gap[g] = True
-        while p >= 0:
-            if _BLOCK_START_RE.match(content, p + 1):
-                block_gap[g] = True
-                break
-            p = content.find("\n", p + 1, end)
-    # the first gap at or after g that holds a newline / opens a block (n: none) — an opener's closer lies before it
-    next_nl = [n] * (n + 1)
-    next_block = [n] * (n + 1)
-    for g in range(n - 1, -1, -1):
-        next_nl[g] = g if nl_gap[g] else next_nl[g + 1]
-        next_block[g] = g if block_gap[g] else next_block[g + 1]
-    by_len: dict[int, list[int]] = {}
-    line_of: list[int] = []  # each run's line start, by one forward walk
-    line_start, prev = 0, 0
-    for j, m in enumerate(runs):
-        by_len.setdefault(len(m.group()), []).append(j)
-        p = content.rfind("\n", prev, m.start())
-        if p >= 0:
-            line_start = p + 1
-        line_of.append(line_start)
-        prev = m.start()
-    one_line_at: dict[int, bool] = {}
-    out, kept, i = [], 0, 0
-    while i < n:
-        opener = runs[i]
-        i += 1
-        if opener.start() and content[opener.start() - 1] == "\\":
-            continue
-        t = bisect.bisect_right(tail_starts, opener.start()) - 1
-        if t >= 0 and opener.start() < tails[t][1]:
-            continue
-        start = line_of[i - 1]
-        if start not in one_line_at:
-            one_line_at[start] = _ONE_LINE_BLOCK_RE.match(content, start) is not None
-        limit = (next_nl if one_line_at[start] else next_block)[i - 1]
-        same = by_len[len(opener.group())]
-        k = bisect.bisect_right(same, i - 1)
-        if k < len(same) and same[k] <= limit:
-            j = same[k]
-            out += [
-                content[kept : opener.start()],
-                _blank(content[opener.start() : runs[j].end()]),
-            ]
-            kept, i = runs[j].end(), j + 1
-    return "".join(out) + content[kept:]
+    """Inline code spans blanked, length-preserving: `_fences.blank_code_spans`, the one copy check_doc_links
+    shares (W-b9af1d47; linear since W-16c00597)."""
+    blank = getattr(_fences_module(), "blank_code_spans", None)
+    if blank is None:  # a _fences.py older than W-b9af1d47: named, like a missing file
+        raise ImportError(
+            "docs_updater: scripts/enforcement/_fences.py has no blank_code_spans (it lags the sync)"
+        )
+    return blank(content)
 
 
 def _link_scan_text(content: str) -> str:
