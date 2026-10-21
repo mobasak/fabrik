@@ -246,8 +246,13 @@ def _roster(work: ModuleType, main: Path, distributor: str) -> list[str]:
         for row in who._rows(who.store_path()):
             top = str(row.get("toplevel") or "").rstrip("/")
             top = top[: -len("/.git")] if top.endswith("/.git") else top
-            # this repository by PATH — a same-named clone elsewhere on the box binds nothing here
-            if top and Path(top).resolve() == main and isinstance(row.get("name"), str):
+            # this repository by PATH — a same-named clone elsewhere on the box binds nothing here; a row whose
+            # path cannot resolve (a NUL, a symlink loop) is skipped alone, never the whole roster
+            try:
+                here = bool(top) and Path(top).resolve() == main
+            except (OSError, ValueError, RuntimeError):
+                continue
+            if here and isinstance(row.get("name"), str):
                 bound.add(row["name"])
     except Exception:  # noqa: BLE001 — no identity store: no bound builders
         return []

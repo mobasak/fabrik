@@ -778,7 +778,9 @@ def test_roster_is_the_registry_minus_the_coordinators(tmp_path: Path) -> None:
     assert sorted(_rows(repo, env)) == ["fleet", "infra"]
 
 
-@pytest.mark.parametrize("body", ["{not json", '["infra"]', '{"s": "coordinator"}', "{}"])
+@pytest.mark.parametrize(
+    "body", ["{not json", '["infra"]', '{"s": "coordinator"}', "{}", "[" * 100_000]
+)
 def test_a_builderless_or_damaged_registry_falls_back(tmp_path: Path, body: str) -> None:
     env, repo, _ = _setup(tmp_path)
     (repo / ".fabrik" / "session-agents.json").write_text(body, encoding="utf-8")
@@ -826,5 +828,18 @@ def test_a_registry_that_is_not_a_regular_file_falls_back_without_hanging(tmp_pa
     reg = repo / ".fabrik" / "session-agents.json"
     reg.unlink()
     os.mkfifo(reg)
+    _bind(env, repo, "fleet")
+    assert sorted(_rows(repo, env)) == ["fleet"]
+
+
+def test_one_unresolvable_binding_row_does_not_empty_the_roster(tmp_path: Path) -> None:
+    """A row whose top level cannot resolve (a NUL byte) is skipped; the repo's other bound builders stay."""
+    env, repo, _ = _setup(tmp_path)
+    (repo / ".fabrik" / "session-agents.json").unlink()
+    with open(env["AGENT_IDENTITY_FILE"], "a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps({"session_id": "bad", "name": "infra", "toplevel": "/bad\u0000path/.git"})
+            + "\n"
+        )
     _bind(env, repo, "fleet")
     assert sorted(_rows(repo, env)) == ["fleet"]
