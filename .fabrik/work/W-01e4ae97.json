@@ -17,10 +17,10 @@
     "d6b2b287efcde14d38c343b1b465f3a284d44a8f8d7cd89a724b50a2f1ec7030"
   ],
   "next": "",
-  "note": "",
+  "note": "3 is not a limit. my way of working is a coordinator is in claude extension as i like its gui, i dont like the ui of claude code terminals. the coordinator of the repo manages 3 or more claude code sessions which i always want to reach at the single window via tmux to see what they are doing. for example in fabrik you have 4. if we have enough quota and memory, it can be 10 or more per repo.",
   "owner": "",
   "priority": 2,
   "question": "Should the post-reboot sweep's limit of 3 count only the sessions it resumes itself, or top up to 3 by counting the marked autonomous sessions it already sees alive?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should the post-reboot sweep's limit of 3 count only the sessions it resumes itself, or top up to 3 by counting the marked autonomous sessions it already sees alive?"
 }

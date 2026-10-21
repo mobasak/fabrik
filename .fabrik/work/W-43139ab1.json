@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T11:20:45.986373Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-43139ab1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Extend the Windows-side compact-wsl.bat (it already runs wsl --shutdown, docs/workstation/cleanup-automation.md table) to delete swap.vhdx when its size exceeds the configured swap, with a log line; document it in cleanup-automation.md; never delete it while WSL runs",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "MEDIUM: 47 GB of disk back on a 92%-full C:, real value, nobody blocked; LOW effort: one .bat step and a doc row",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Automate removing the oversized WSL swap file and document it (operator 2026-10-21: 'Delete C:\\wsl\\swap.vhdx after the restart … this must be automated and documented, we have active scripts for clearing wsl and window side?'): C:\\wsl\\swap.vhdx is 63 GB on disk while .wslconfig now asks for swap=16GB; WSL recreates the file at start, and it can only be removed while WSL is shut down"
+}
