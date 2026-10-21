@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — plan approved: own scrape tool, slice 1a, hub side (2026-10-21)
+W-10146d20; D-1101. `docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md` converged over eight review passes (receipt `docs/development/reviews/2026-10-21-own-scrape-slice-1a-plan-review.md`). Phase A, pinning the basic proxy on every Firecrawl line in the command corpus, can start now; Phases B and C wait for fabrik-lib's merge of the scrape server and the web-tools call log. Nothing is built yet.
 ### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
 W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
 converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
