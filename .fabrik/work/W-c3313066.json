@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T12:48:10.892187Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c3313066",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "OPERATOR ADDED 2026-10-21: 'i want exact look and feel with vs code.' So code-server is the primary and the acceptance bar: the real VS Code web build with the real Claude extension, nothing re-skinned. Claudeck is dropped from this item (its own look fails the bar); it is NOT installed. BRIEF (records, not memory). Settled: D-1072 NAT — Windows reaches WSL only at the WSL address (192.168.100.17 today), never localhost; D-1092 operator layout; W-ea993618 measured — one VS Code window cannot host several repos' coordinators, the wrapper fixes identity only. What exists: ~/.claude/bin/claude-agent-wrapper.sh (stage-1 wrapper) and ~/.vscode-server/data/Machine/settings.json carrying claudeCode.claudeProcessWrapper; the Claude extension is on Open VSX (code-server's marketplace); scripts/sysadmin/agents_bat.py writes Desktop .bat launchers. Steps: (1) install code-server into user space (standalone tarball under ~/.local, no sudo), bind to the WSL address with password auth (~/.config/code-server/config.yaml), confirm Brave on Windows reaches it; (2) install anthropic.claude-code from Open VSX; set claudeCode.claudeProcessWrapper in code-server's User settings.json; copy the operator's VS Code theme/font settings so the look matches; (3) open two browser windows, ?folder=/opt/fabrik and ?folder=/opt/youtube, sign the extension in, check each window's history shows ITS repo's conversations and resume youtube's 6645fc02-0e2e-4b40-9ffc-18fc8858939e; verify the git branch view works; (4) measure memory per window; (5) a Desktop .bat 'Coordinators (browser).bat' that starts code-server if needed and opens the repo windows in Brave (agents_bat.py conventions); (6) docs/workstation/browser-coordinator-screen.md with URLs, launch, rollback. Lane: /fabrik-task, heavy=yes (operator-named) so the full /fabrik-review. Gates: none further — the operator's words are the install approval; nothing on Windows but the .bat. Done when the operator sees fabrik's and youtube's coordinators side by side in Brave, in VS Code's own look, and can type to both.",
+  "note": "superseded: operator 2026-10-21 'i dont want one brave window per repo … i want single vs code looking window for any repos to open any agents in it opened via claude vs code extension' — the goal returns to ONE VS Code window, which is W-ea993618 (Option C stage 2)",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask made today, the operator's own working screen; LOW effort: a one-hour install-and-test plus a launcher and a doc, all box-local",
+  "status": "dropped",
+  "tags": [
+    "waits-operator-brief"
+  ],
+  "title": "Browser-based coordinator screen (operator 2026-10-21: 'ok now we need a browser vs code like, which will host several vs code extensions from any repo i want to open its coordinator and any agents.'): code-server in WSL serving VS Code in Brave, one browser window per repo, each hosting the Claude Code extension for that repo's coordinator (and any agent); Claudeck tested beside it as the alternative"
+}
