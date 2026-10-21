@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T11:18:08.428659Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-2a1a7c22",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "/fabrik-command-improve fabrik-execute-plan, next pass: 'when it starts with a <date>-plan-<n>- prefix, that prefix keeps it findable after a resume (item 3b)'",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "LOW: wording — fabrik-execute-plan.md:461 overstates the plan-stem prefix for 2 of 26 plans; a rare edge, nobody blocked",
   "status": "open",
   "tags": [
     "kaizen"

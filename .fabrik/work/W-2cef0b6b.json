@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T09:49:38.963710Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-2cef0b6b",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "/fabrik-command-improve fabrik-plan-after-chat carrying these three rows",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956) — three /fabrik-execute-plan feedback rows ask /fabrik-plan-after-chat and /fabrik-plan-review to name the tests a MIRROR refuses; LOW effort: command text only",
   "status": "open",
   "tags": [
     "kaizen"

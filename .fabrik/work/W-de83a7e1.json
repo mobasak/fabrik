@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T04:11:43.931608Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-de83a7e1",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,12 @@
   },
   "next": "add a known-good upstream call per research arm at session start (exa and firecrawl fetch example.com, brave one query), reported per arm with its error code, so a geo-blocked egress or a dead key shows before a seat hits it mid-grounding",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "MEDIUM: a health probe that reads green while three research engines are dead is a real defect, but the failures were diagnosed by hand and nobody is blocked (intel probe W-7646cd93, 2026-10-21); LOW effort: one script, a real call per research server",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "mcp_health.py proves the MCP research servers are UP, not that their upstream calls work — exa 403, firecrawl connect timeout and a revoked brave key all passed 'all 14 probed servers live' (fabrik-lib mail 01M5AGYPD6, 2026-10-19)"
 }

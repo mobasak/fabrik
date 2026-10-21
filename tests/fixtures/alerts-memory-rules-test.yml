@@ -1,0 +1,94 @@
+# promtool rule unit tests for the container memory alerts in configs/prometheus/rules/alerts.yml
+# (W-4801e4c3). Run with the Prometheus image vps1 runs — services.prometheus.image in
+# infra/vps1/monitoring/compose.yaml (tests/test_alert_memory_rules.py reads it from there):
+#   docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v "$PWD/tests/fixtures:/t:ro" \
+#     --entrypoint promtool <that image> test rules /t/alerts-memory-rules-test.yml
+rule_files:
+  - /r/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ContainerHighMemory judges the WORKING SET against the limit: page cache that lifts usage
+  # above 85% is reclaimable and stays quiet; a working set above 85% fires after 15m.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_usage_bytes{name="cachey", instance="cadvisor:8080"}'
+        values: "90x30"
+      - series: 'container_memory_working_set_bytes{name="cachey", instance="cadvisor:8080"}'
+        values: "50x30"
+      - series: 'container_spec_memory_limit_bytes{name="cachey", instance="cadvisor:8080"}'
+        values: "100x30"
+      - series: 'container_memory_usage_bytes{name="tight", instance="cadvisor:8080"}'
+        values: "95x30"
+      - series: 'container_memory_working_set_bytes{name="tight", instance="cadvisor:8080"}'
+        values: "90x30"
+      - series: 'container_spec_memory_limit_bytes{name="tight", instance="cadvisor:8080"}'
+        values: "100x30"
+      - series: 'machine_memory_bytes{instance="cadvisor:8080"}'
+        values: "100000x30"
+    alert_rule_test:
+      # still pending at 14m: the `for: 15m` window has not elapsed
+      - eval_time: 14m
+        alertname: ContainerHighMemory
+        exp_alerts: []
+      # firing exactly at the 15m edge: with 14m quiet above, the window is pinned from both sides
+      - eval_time: 15m
+        alertname: ContainerHighMemory
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: tight
+              instance: cadvisor:8080
+            exp_annotations:
+              summary: "Container tight high memory (90.0%)"
+              description: "Container tight working set above 85% of its configured limit for 15 minutes."
+              value: "90"
+
+  # ContainerMemoryHighOfHost: each container against ITS OWN host (the machine_memory_bytes of its
+  # cAdvisor instance), and only containers WITHOUT a limit. Several cAdvisor instances (hub and
+  # spokes) must evaluate without a duplicate-match error.
+  - interval: 1m
+    input_series:
+      - series: 'machine_memory_bytes{instance="cadvisor:8080", host="vps1"}'
+        values: "1000x30"
+      - series: 'machine_memory_bytes{instance="10.99.0.2:8080", host="vps2"}'
+        values: "10000x30"
+      - series: 'machine_memory_bytes{instance="10.99.0.3:8080", host="vps3"}'
+        values: "10000x30"
+      # unlimited, 20% of the hub: fires
+      - series: 'container_memory_working_set_bytes{name="unlimited", instance="cadvisor:8080", host="vps1"}'
+        values: "200x30"
+      - series: 'container_spec_memory_limit_bytes{name="unlimited", instance="cadvisor:8080", host="vps1"}'
+        values: "0x30"
+      # limited, 30% of the hub: ContainerHighMemory's business, quiet here
+      - series: 'container_memory_working_set_bytes{name="limited", instance="cadvisor:8080", host="vps1"}'
+        values: "300x30"
+      - series: 'container_spec_memory_limit_bytes{name="limited", instance="cadvisor:8080", host="vps1"}'
+        values: "1000x30"
+      # unlimited on a spoke: 2% of its own host (20% only if wrongly divided by the hub): quiet
+      - series: 'container_memory_working_set_bytes{name="spoked", instance="10.99.0.2:8080", host="vps2"}'
+        values: "200x30"
+      - series: 'container_spec_memory_limit_bytes{name="spoked", instance="10.99.0.2:8080", host="vps2"}'
+        values: "0x30"
+      # unlimited, its cAdvisor reports no machine memory: dropped (fails open; ServiceUnhealthy covers a down scrape)
+      - series: 'container_memory_working_set_bytes{name="orphan", instance="10.99.0.9:8080", host="vps9"}'
+        values: "900x30"
+    alert_rule_test:
+      # still pending at 9m: the `for: 10m` window has not elapsed
+      - eval_time: 9m
+        alertname: ContainerMemoryHighOfHost
+        exp_alerts: []
+      # firing exactly at the 10m edge: with 9m quiet above, the window is pinned from both sides
+      - eval_time: 10m
+        alertname: ContainerMemoryHighOfHost
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: unlimited
+              instance: cadvisor:8080
+              host: vps1
+            exp_annotations:
+              summary: "Container unlimited using 20.0% of host memory"
+              description: "Container unlimited (no memory limit) is using above 15% of its host's total memory for 10 minutes."
+              value: "20"

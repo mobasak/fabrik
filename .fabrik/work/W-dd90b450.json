@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:03.473931Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-dd90b450",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DWGWXCN50AE8EJMSSZH8NG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE — youtube's RAG claim pool is non-autonomous, bounded and in a capped user scope (W-d066a55c, D-068; merged on spec/video-classification-pipeline as 33d1c42 + 1a59165 + be0db2e)."
+}

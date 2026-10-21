@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: scripts/enforcement/check_undeclared_imports.py false-fires in every builder WORKTREE for a first-party editable package: `import mt_router -> package 'mt-router' (e.g. dashboard/app.py) is in no manifest`."
 }
