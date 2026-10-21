@@ -315,7 +315,17 @@ def test_a_role_altered_out_of_band_is_narrowed_again_on_re_mint() -> None:
             f'ALTER ROLE "{FULFIL}" SET row_security = off;\n'
             f'ALTER ROLE "{FULFIL}" IN DATABASE {DB} SET row_security = off;\n'
             # a setting in ANOTHER database (a no-connection template) is reset too (W-3c302832)
-            f'ALTER ROLE "{FULFIL}" IN DATABASE template0 SET row_security = off;'
+            f'ALTER ROLE "{FULFIL}" IN DATABASE template0 SET row_security = off;\n'
+            # a bystander role's setting in the same database must survive: the reset is this role's only
+            "CREATE ROLE fabrik_bystander;\n"
+            "ALTER ROLE fabrik_bystander IN DATABASE template0 SET row_security = off;"
+        )
+        # the three planted rows exist, so a reset to 0 below cannot pass on a setup that silently failed
+        assert (
+            s.run_sql(
+                f"SELECT count(*) FROM pg_db_role_setting WHERE setrole = '{FULFIL}'::regrole;"
+            )
+            == "3"
         )
         again = _mint(s, "fulfilment")
         assert again["status"] == "exists" and again["password"] is None
@@ -329,6 +339,12 @@ def test_a_role_altered_out_of_band_is_narrowed_again_on_re_mint() -> None:
                 f"SELECT count(*) FROM pg_db_role_setting WHERE setrole = '{FULFIL}'::regrole;"
             )
             == "0"
+        )
+        assert (
+            s.run_sql(
+                "SELECT count(*) FROM pg_db_role_setting WHERE setrole = 'fabrik_bystander'::regrole;"
+            )
+            == "1"
         )
         # and the login the caller holds works again
         assert s.login_sql(FULFIL, minted["password"], "SELECT 1;") == "1"

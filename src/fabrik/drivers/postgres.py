@@ -1129,8 +1129,9 @@ def mint_payments_role(
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
             f'ALTER ROLE "{role}" RESET ALL;\n'  # nosec B608 — role is _validate_identifier-gated
             # ...and its settings in EVERY database that holds one, not only this project's
-            # (W-3c302832): read from the catalog; a database dropped since the SELECT already
-            # took its rows with it, so its "does not exist" is skipped, never a failed re-apply.
+            # (W-3c302832), read from the catalog. A database dropped between that SELECT and its
+            # ALTER raises invalid_catalog_name; dropping it also removed its settings rows, so
+            # that one database is skipped and the re-apply goes on.
             "DO $$ DECLARE d text; BEGIN\n"
             "  FOR d IN SELECT db.datname FROM pg_catalog.pg_db_role_setting s\n"
             "           JOIN pg_catalog.pg_database db ON db.oid = s.setdatabase\n"
