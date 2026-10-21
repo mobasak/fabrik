@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T09:12:01.086678Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-9fcb6ce4",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure live locks whose owned_paths are globs against check_phase_tests windows, then read entries through check_plan_tickets._glob_covers (case-folded) in _owned, red-first per shape",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
+  "score_reason": "LOW: check_phase_tests' owned-path matching ignores glob entries (384 of 5641 live entries) — latent hardening, advisory output only, nobody blocked; LOW effort: reuse the glob matcher W-b2bbc1f1 just added",
   "status": "open",
   "title": "check_phase_tests _owned compares lock owned_paths as literal prefixes: a glob entry (src/app/**, 384 of 5 641 live entries are globs) owns nothing, so the window's Behavior-Contract scope silently widens or misattributes — check_plan_tickets' discovery reads them with _norm_glob + _glob_covers since W-b2bbc1f1"
 }
