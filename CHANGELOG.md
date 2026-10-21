@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the plan-ticket check now finds a paused plan's lock and reads globbed lock paths (2026-10-21)
 W-b2bbc1f1; D-1094. When `check_plan_tickets` runs at the gate it looks for plans whose lock owns a changed file, so their findings show as warnings. It only counted locks marked `active`, so a plan paused at a quota wall dropped out of view, and it compared lock paths literally, so `src/app/**`, `./src/x.py` or a re-cased path owned nothing. It now counts every lock whose plan is still in flight (active, paused or blocked) and reads lock paths the way the epic check already does. These findings stay warnings, never a failure.
+
 ### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: the diff a seat reads is the pin's own `change.diff`, and a committed fix is pinned with `--from <its last commit>` (plus `--base` when it spans several), since a working-tree pin of a committed surface prints `UNCHANGED` and `--base` alone pins the working tree. The prose rule executes each stream and input channel a sentence names; the input class names every reader of a printed command; the whole-paragraph rewrap waits for the tests that cap line length or pin raw lines, found by basename and re-run after it. Graders in `tests/test_review_scoped_queue_pass.py`.
