@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T09:56:41.590083Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9b7478ad",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Decide the shape: a --reason kind on mark (sleep | network) with woke checking reachability for network, or a documented rule that only the hub's lift ends a no-sleep pause; update docs/reference/hibernate.md and the brief text",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "MEDIUM: a no-sleep pause can only end by the hub's lift, which is safe (fails closed) but undocumented; nobody blocked; LOW effort: one script verb and its brief text",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "hibernate.py has no resume signal for a pause with no sleep (fabrik-lib-5d, 2026-10-21 internet-outage pause): 'woke' returns rc=1 'no wake since the pause' when the box never slept, so an agent under the pause order stays paused until the hub runs 'lift'; the pause text could name a network-outage pause that resumes when the network answers"
+}
