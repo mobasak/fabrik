@@ -3,7 +3,7 @@
   "created": "2026-10-20T12:01:39.500537Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "67c9dc13ef01452c375139348a6d30aac99c27a2",
   "id": "W-a7cff030",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "same defect in two more readers, no fleet plan misparsed today (0 of 1,492)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader"
   ],
