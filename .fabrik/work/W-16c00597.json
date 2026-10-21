@@ -3,7 +3,7 @@
   "created": "2026-10-20T12:01:40.171615Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fe83ab7af1ae90502339ba84625cfb11ca9b07cb",
   "id": "W-16c00597",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "a quadratic span blanker about to be wired into a gate check that runs in every repo; move it to _fences.py and make it linear (intel measured 3 s on 2 MB); one module",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader",
     "queued"

@@ -3,7 +3,7 @@
   "created": "2026-10-01T22:29:09.921563Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "704f0051bda68a873e092a9242960cf68cc86a92",
   "id": "W-4801e4c3",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — ContainerHighMemory false alert, advisory",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "monitoring"

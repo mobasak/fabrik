@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T04:44:31.744407Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6d50f25f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BKRR080GBV2911N50ZTE48",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate: this mail's relay work is fleet's task W-c4f60000, which carries all four i18n consumer-note mail ids; the mail itself is acked when fleet reports the relay done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "dropped",
+  "title": "fabrik-lib i18n validator (SB-140, fabrik-lib D-491/D-492) — behaviour change for every project vendoring i18n/"
+}

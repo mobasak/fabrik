@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:06:11.429790Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e962daa4",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Correct the line to the live rule (15m, working set; the host rule covers unlimited containers only); synced path, so one commit after /fabrik-review-scoped",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a stale doc line, advisory; it ships to ~46 repos on the next sync, so it is fixed at the source; LOW effort: one line",
+  "status": "open",
+  "title": "agents-fabrik.md:255 (governance-synced) still says ContainerHighMemory fires after 'for 5m'; the rule has been 15m since July and now judges the working set, not usage (fleet W-4801e4c3, D-1087, 2026-10-21)"
+}

@@ -161,8 +161,8 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 |---|---|---|
 | ContainerDown | Container disappeared | cAdvisor |
 | ContainerHighCPU | CPU >80% sustained | cAdvisor |
-| ContainerHighMemory | Memory >80% of limit | cAdvisor |
-| ContainerMemoryHighOfHost | Container using too much host RAM | cAdvisor + node-exporter |
+| ContainerHighMemory | Working set >85% of limit | cAdvisor |
+| ContainerMemoryHighOfHost | Container without a limit using >15% of its host's RAM | cAdvisor |
 | ContainerOOMKilled | OOM kill event | cAdvisor |
 | ContainerRestarting | >3 restarts in 15min | cAdvisor |
 | HostHighCPU | Host CPU >80% | node-exporter |

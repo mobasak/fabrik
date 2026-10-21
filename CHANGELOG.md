@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: the diff a seat reads is the pin's own `change.diff`, and a committed fix is pinned with `--from <its last commit>` (plus `--base` when it spans several), since a working-tree pin of a committed surface prints `UNCHANGED` and `--base` alone pins the working tree. The prose rule executes each stream and input channel a sentence names; the input class names every reader of a printed command; the whole-paragraph rewrap waits for the tests that cap line length or pin raw lines, found by basename and re-run after it. Graders in `tests/test_review_scoped_queue_pass.py`.
 
+### Fixed — the link check no longer reports a link written as a code example inside backticks (2026-10-21)
+W-b9af1d47; D-1088. `check_doc_links` skipped links in fenced code blocks but graded one inside an inline code span, so a doc showing `` `[a](x.md)` `` as an example would fail the gate for a missing x.md. The link reader now reads each line with inline code spans blanked, using the same blanker `docs_updater` uses — moved into `scripts/enforcement/_fences.py` so both share one copy. Bare paths are still checked as before, and a project whose `_fences.py` is older keeps today's behaviour. Across 44 repos the change leaves every current finding as it was (306 before and after).
+
+### Fixed — a markdown file full of unmatched backticks can no longer stall the link check (2026-10-21)
+W-16c00597; D-1086. `docs_updater` blanks inline code spans before the link check and the plan Status and Owner scans read a file, and for every backtick run with no matching closer it scanned to the end of the paragraph: 2 000 such runs on one 2 MB line took 1.75 s per call, and dense backtick pairs on one long line 26 s at 4 MB. The blanker now examines each stretch of text once and finds each closer by lookup — 0.003 s on the same line — and returns exactly what it returned before: the old function stays in the tests as the reference, matched on fuzz input and on all 14 673 readable markdown files in the fleet.
+
+### Fixed — The container memory alerts judge the working set, and the host-memory alert evaluates again (2026-10-21)
+
+W-4801e4c3. `ContainerHighMemory` divided `container_memory_usage_bytes` (page cache included) by the limit: in one
+week it held above 85% for ~54 h on Prometheus while its working set never passed 85%. It now judges
+`container_memory_working_set_bytes`, as the Grafana dashboards already do. `ContainerMemoryHighOfHost` divided by
+`on() group_left() node_memory_MemTotal_bytes`, which errors on every evaluation since the spokes' node exporters
+joined, so it never fired; it now divides each container by its own cAdvisor's `machine_memory_bytes` and covers only
+containers without a limit, as its comment says. `tests/fixtures/alerts-memory-rules-test.yml` (promtool, run by
+`tests/test_alert_memory_rules.py` under the image vps1 runs) pins both rules, their `for:` windows from both sides
+included. The rules reach vps1 only through the operator-gated monitoring sync.
+
 ### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
 W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
 

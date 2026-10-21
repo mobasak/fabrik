@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate: this mail's relay work is fleet's task W-c4f60000, which carries all four i18n consumer-note mail ids; the mail itself is acked when fleet reports the relay done",
   "owner": "coordinator",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "WHAT: fabrik-lib `i18n/` validator closes three false passes (fabrik-lib D-497 approval, D-499 executed; W-0c6910d5, SB-152/157/158). A consumer note: projects that vendor `i18n/` see new failures and warnings on re-vendor."
 }

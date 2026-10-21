@@ -44,7 +44,7 @@ def project(tmp_path: Path) -> Path:
     (tmp_path / "scripts").mkdir()
     (tmp_path / "docs" / "development" / "plans").mkdir(parents=True)
     (tmp_path / "scripts" / "docs_updater.py").write_bytes(UPDATER.read_bytes())
-    # the synced fence scanner the Owner/Status parse imports (W-276255e7)
+    # the synced fence scanner the Owner/Status parse imports (W-276255e7), and its span blanker (W-b9af1d47)
     (tmp_path / "scripts" / "enforcement").mkdir()
     (tmp_path / "scripts" / "enforcement" / "_fences.py").write_bytes(
         (UPDATER.parent / "enforcement" / "_fences.py").read_bytes()
