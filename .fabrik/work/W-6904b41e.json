@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:50:09.370488Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "cec30dbc0d2dc2b3268130fede25b09609f2013c",
   "id": "W-6904b41e",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "advisory: quadratic only past thousands of labels (1.8 s at 8,000); same recipe as D-1077",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader"
   ],
