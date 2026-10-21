@@ -1557,8 +1557,10 @@ def reconcile_all(yes: bool, filters: tuple):
 
     if spec_warnings:
         click.echo()
-        for sid, warning in spec_warnings:
-            click.echo(f"⚠ {sid}: {warning}")
+        from fabrik.state import _sanitize_failure
+
+        for sid, warning in spec_warnings:  # sanitised like the persisted copy
+            click.echo(f"⚠ {sid}: {_sanitize_failure(warning)}")
 
     # Phase 7 (deploy-readiness-gaps): GlitchTip has no webhook-registration API,
     # so surface the one-time operator-manual step for every error_webhook spec.

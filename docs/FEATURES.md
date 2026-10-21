@@ -359,7 +359,7 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 - **Orchestrator:** `src/fabrik/orchestrator/` — `deployer_ssh.py` (SSH + Docker Compose deploys), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
 - **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.); the legacy `coolify` driver was removed with the Coolify-verb retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T09) — `fabrik status` and `reconcile-all` read the VPS over SSH + Compose
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
-- **State:** `src/fabrik/state.py` — 10-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures`
+- **State:** `src/fabrik/state.py` — 11-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures` and `registrar_warnings`
 
 ---
 
@@ -668,7 +668,7 @@ and a project's `scripts/kilo_47_agents_final.json`; it leaves an existing `.dro
 
 ### What It Does
 
-Every completed `fabrik apply` / `redeploy --refresh-infra` writes a 10-field JSON manifest to `.fabrik/state/<id>.json` (a dry run writes nothing). This is the backbone of the deploy/destroy/audit pipeline:
+Every completed `fabrik apply` / `redeploy --refresh-infra` writes an 11-field JSON manifest to `.fabrik/state/<id>.json` (a dry run writes nothing). This is the backbone of the deploy/destroy/audit pipeline:
 
 ```json
 {
@@ -701,9 +701,9 @@ these files.
 | Command | How it uses state |
 |---------|------------------|
 | `fabrik apply` | Writes state after successful deploy |
-| `fabrik status` | Prints a **Last apply** section from the state record (`applied_at`, `git_sha`, `target_vps`, `registrars_applied`, `registrar_failures`) beside a **Live containers** probe over SSH (`deployer_ssh.probe_app`) |
+| `fabrik status` | Prints a **Last apply** section from the state record (`applied_at`, `git_sha`, `target_vps`, `registrars_applied`, `registrar_failures`, `registrar_warnings`) beside a **Live containers** probe over SSH (`deployer_ssh.probe_app`) |
 | `fabrik destroy --use-state` | Reads state to replay exact teardown (see [State-Driven Destroy](#state-driven-destroy)) |
-| `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
+| `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) and recorded `registrar_warnings` (never counted) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
 | `fabrik verify --spec registrars` | Reads state for postcondition gate |
 | `fabrik export` | Bundles state files into portability tarball (UUIDs stripped) |
 | `fabrik projects --sync` | Runs `scripts/sync_projects.py`, which rescans `/opt/*` and merges each state file's deploy block into `data/projects.yaml` before the list prints |

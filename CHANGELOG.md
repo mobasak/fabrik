@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — registrar warnings persist into `.fabrik/state` and reach `status`, `audit-registrars` and `reconcile-all` (2026-10-21)
+
+W-0c60d86e. A registrar warning (a payments grant left `pending`, a Prometheus target not loaded) reached only the
+summary of the run that produced it. The state record now carries `registrar_warnings` beside `registrar_failures`
+(sanitised the same way), `fabrik status` prints them, and `fabrik audit-registrars` names a spec whose last apply
+recorded any (warnings never count toward its exit). `fabrik reconcile-all` no longer discards the refresh's result:
+a refresh that recorded registrar failures is a `registrar-failed` row (exit 1 under `--yes`), and its warnings
+print under the table.
+
 ### Changed — browserless's vps1 memory limit raised to 3G in the compose mirror, provisionally (2026-10-21)
 
 W-30b7ce3f. Over 7 days browserless was OOM-killed 5 times at its 2G limit (working-set p99 1805 MiB, peak at the

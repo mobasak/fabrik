@@ -188,7 +188,7 @@ src/fabrik/
 ├── compose_linter.py          # Compose lint: no public ports, amd64, fabrik network
 ├── config.py                  # FABRIK_ROOT, ensure_directories
 ├── registry.py                # ProjectRegistry → data/projects.yaml
-├── state.py                   # .fabrik/state/<id>.json — 10-field deploy manifest
+├── state.py                   # .fabrik/state/<id>.json — 11-field deploy manifest
 ├── locks_local.py             # File-based lock preventing concurrent applies
 ├── verify.py                  # PostconditionChecker framework
 ├── audit.py                   # Registrar drift detection (one auditor per registrar)
@@ -242,7 +242,7 @@ src/fabrik/
 
 | Directory | Purpose | Persistent? | Git-tracked? |
 |-----------|---------|-------------|-------------|
-| `.fabrik/state/` | Deploy state store — 10-field JSON manifest per completed `fabrik apply` (incl. `registrar_failures`). Feeds destroy, audit, export, verify. `_destroyed/` subdir archives teardown state. | Yes | No (gitignored) |
+| `.fabrik/state/` | Deploy state store — 11-field JSON manifest per completed `fabrik apply` (incl. `registrar_failures` and `registrar_warnings`). Feeds destroy, audit, export, verify. `_destroyed/` subdir archives teardown state. | Yes | No (gitignored) |
 | `.fabrik/review/` | Review bundles from `fabrik review` — diff + spec + registrars | No (ephemeral) | No |
 | `.droid/review-context/` | Task/plan `.md` files passed to Kilo `--plan` flag | Yes | **Yes** (git-tracked) |
 | `.droid/traycer-reports/` | Traycer analysis reports after dispatched sessions | Yes | **Yes** (git-tracked) |
