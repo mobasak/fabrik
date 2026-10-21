@@ -905,3 +905,24 @@ def test_a_copy_of_the_queued_prompt_before_the_brief_still_resets(tmp_path, pan
         _queued_with_uuid("a new question", "q-1"),
     )
     assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_fresh_verdicts_between_two_copies_back_a_brief_after_them(tmp_path, panel_mode):
+    """Review pass 2 (Haiku, W-6424f2e8): verdicts returned after a queued prompt's first copy back a brief written
+    after them, when the prompt's re-written copy follows the brief — the cut is that later copy."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", "VERDICT: unsound — an older question"),
+        _result("t-fable", "VERDICT: unsound — an older question"),
+        _queued_with_uuid("re-review the spec", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("re-review the spec", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
