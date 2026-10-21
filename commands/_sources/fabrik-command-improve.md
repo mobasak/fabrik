@@ -273,8 +273,8 @@ the split leaves beside it or the placed text puts nearer. An edit to what a SEA
 live, since a rule in one home is not in force in the others: `command grep -rln -E '<two or more phrases of the
 neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today
 `subagents-core.md`, each seat file under `commands/_agents/`, the seat-brief lists in `fabrik-review.md` and
-`design-critique.md`, `convergence-prompts.md`, and intel's `.claude/workflows/fabrik-review-loop.js` constants
-(`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the import recipe `PIN_IMPORT` that opens
+`design-critique.md`, `convergence-prompts.md`, and intel's review-loop workflow constants (`SEAT_ISOLATION`, the copy
+recipe `BASE_PIN`, the import recipe `PIN_IMPORT` that opens
 with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited
 here).
 

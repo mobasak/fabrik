@@ -768,7 +768,7 @@ def test_the_copy_recipe_is_named_by_its_constant_and_the_rewrap_is_bounded() ->
     pin."""
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
-        "and intel's `.claude/workflows/fabrik-review-loop.js` constants (`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the"
+        "and intel's review-loop workflow constants (`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the"
         " import recipe `PIN_IMPORT` that opens with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited"
         " here)" in p3
     )
