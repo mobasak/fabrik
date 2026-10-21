@@ -67,8 +67,8 @@ Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `c
 | --- | --- | --- | --- | --- | --- |
 | 1 | ContainerDown | container_health | critical | not seen >2min | 2m |
 | 2 | ContainerHighCPU | container_health | warning | >80% | 5m |
-| 3 | ContainerHighMemory | container_health | warning | >85% limit | 5m |
-| 4 | ContainerMemoryHighOfHost | container_health | warning | high % of host RAM | 10m |
+| 3 | ContainerHighMemory | container_health | warning | working set >85% of limit | 15m |
+| 4 | ContainerMemoryHighOfHost | container_health | warning | working set >15% of its own host's RAM (containers without a limit) | 10m |
 | 5 | ContainerOOMKilled | container_health | critical | any OOM in 5m | 0m |
 | 6 | ContainerRestarting | container_health | critical | >3 in 15m | 0m |
 | 7 | HostHighCPU | host_health | warning | >85% | 10m |

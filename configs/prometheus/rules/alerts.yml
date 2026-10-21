@@ -35,31 +35,43 @@ groups:
       # 85% threshold + `> 0` guard are unchanged. (If a specific container sits >85% steadily
       # because its limit is genuinely too low, raise that limit in scripts/vps_apply_limits.sh
       # rather than desensitising the alert.)
+      # The WORKING SET, not `container_memory_usage_bytes` (W-4801e4c3): usage includes page
+      # cache, which the kernel reclaims before the limit bites, so on Prometheus (a cache-heavy
+      # TSDB) usage read 66% of the limit while the working set read 47%, and usage crossed 85%
+      # for ~54 h in one week with the working set never above it. The limit acts on the working
+      # set, and the Grafana dashboards already graph it.
       - alert: ContainerHighMemory
         expr: |
-          100 * container_memory_usage_bytes{name!=""}
+          100 * container_memory_working_set_bytes{name!=""}
           / (container_spec_memory_limit_bytes{name!=""} > 0) > 85
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} high memory ({{ printf \"%.1f\" $value }}%)"
-          description: "Container {{ $labels.name }} memory usage above 85% of its configured limit for 15 minutes."
+          description: "Container {{ $labels.name }} working set above 85% of its configured limit for 15 minutes."
           value: "{{ $value }}"
 
       # Catches memory pressure from containers WITHOUT an explicit limit. Without this
-      # rule they'd be invisible to ContainerHighMemory (the `> 0` guard above skips them).
-      # Threshold is % of HOST memory, not of container limit.
+      # rule they'd be invisible to ContainerHighMemory (the `> 0` guard above skips them);
+      # a limited container is ContainerHighMemory's alone (the `unless`).
+      # Threshold is % of the container's OWN host memory: `machine_memory_bytes` of the same
+      # cAdvisor instance (hub and spokes each report their own). The old `on() group_left()
+      # node_memory_MemTotal_bytes` errored on every evaluation once the spokes' node exporters
+      # joined (three MemTotal series in one match group), so this rule never fired (W-4801e4c3).
+      # A cAdvisor whose machine_memory_bytes is missing drops its containers here (fails open;
+      # ServiceUnhealthy covers a down scrape).
       - alert: ContainerMemoryHighOfHost
         expr: |
-          100 * container_memory_usage_bytes{name!=""}
-          / on() group_left() node_memory_MemTotal_bytes > 15
+          100 * container_memory_working_set_bytes{name!=""}
+          / on(instance) group_left() machine_memory_bytes > 15
+          unless on(instance, name) (container_spec_memory_limit_bytes{name!=""} > 0)
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} using {{ printf \"%.1f\" $value }}% of host memory"
-          description: "Container {{ $labels.name }} (no memory limit) is using above 15% of VPS total memory for 10 minutes."
+          description: "Container {{ $labels.name }} (no memory limit) is using above 15% of its host's total memory for 10 minutes."
           value: "{{ $value }}"
 
       - alert: ContainerOOMKilled
