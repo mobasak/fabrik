@@ -7,6 +7,71 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a repo's own editable package no longer reads as an undeclared dependency from a builder worktree (2026-10-21)
 W-c83c550c; D-1083. Builder worktrees share the main checkout's `.venv`, so an editable first-party package (youtube's `mt_router`) resolved to the main checkout's copy, and `check_undeclared_imports` reported it as missing from `requirements.txt` in every worktree while the main checkout passed. A path outside the worktree now counts as the repo's own code when git places it in another working tree of the same repository and this worktree tracks the same path; anything else, and any git failure, is still flagged. Across 299 trees on the box the verdict changes only in youtube's three builder worktrees.
 
+### Changed — /fabrik-review: a worktree lead copies its scratch files into SCRATCH:, cwd-rooted tools run after an os.chdir, and three other queued verdicts answered (2026-10-21)
+
+- `commands/_fragments/subagents-core.md`: a lead in a linked worktree writes its briefs, fix lists, notes and drafts into the main-checkout `SCRATCH:` folder by a Bash `cp`, never leaving the only copy in the reboot-cleared scratchpad. A tool that roots itself at the working directory (`scripts/docs_updater.py`) runs only from a python program that `os.chdir`s into the seat's copy before importing it.
+- `commands/_sources/fabrik-review.md`: a `RECORDED — by design` D-id owner is the row that decides that residual, since the gate checks only that the owner exists. `commands/_fragments/review-probe-catalogue.md`: a tests slice's seats write their own mutants. `commands/_fragments/no-workflow-hub.md`: a dead resumed seat is re-dispatched fresh with its ledger and REFUTED list. Graders in `tests/test_review_queue_pass.py`.
+
+### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
+
+- `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
+
+### Fixed — A fresh Python scaffold's `make test` runs a real test with the project's own tools (2026-10-21)
+
+W-ad15212d. A scaffolded file-worker shipped an empty `tests/`, so `make test` exited 5 ("collected 0
+items"), and the shared `templates/scaffold/docker/Makefile.python` ran `test`/`lint`/`format` with bare
+PATH `pytest`/`ruff`/`mypy` (a fresh python-api's PATH pytest could not even collect its own tests). Now
+those three targets run `.venv/bin` tools for file-worker, python-api and python-api-gpu, each listing its
+tools as prerequisites, and a missing tool stops with `<path> is missing: run 'make setup-dev' first`. A
+file-worker ships `tests/test_logger.py`: the redactor's key and value passes, and the configured logger's
+printed JSON (at CRITICAL, so any `LOG_LEVEL` prints it). Existing projects are not rewritten.
+`tests/test_file_worker_make_test.py` grades it (12 cases, incl. two logger mutants and a `.PHONY` mutant);
+`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` and `templates/scaffold/docker/README.md` name `make setup-dev`
+first and drop the nonexistent `make review`.
+
+### Changed — /fabrik-execute-plan: the phase loop names the review receipt, or the Profile: small waiver, that the next `step` needs (2026-10-20)
+
+- `commands/_sources/fabrik-execute-plan.md`'s phase loop now says, right after the review converges, to write the receipt as `<plan-stem>-phase-<N>-review.md` (the plan file's whole stem) before the phase's closing commit, or under `Profile: small` to pass item 3b's `--review-waived` on the next `step` call, because `step --phase N+1` refuses without one. Until now that rule was stated only in item 3b. Grader in `tests/test_execute_plan_queue_pass.py`.
+
+### Changed — /fabrik-plan-review: a changed predicate runs against its pinning tests, and five other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-plan-review.md` runs a predicate, matcher or filter the plan changes on a scratch copy against the tests that assert its current behaviour and every input shape its grammar admits, before the first pin. `commands/_sources/fabrik-plan-after-chat.md`'s reader census counts the copies that run, classed by lineage and delivery channel, not the paths its grep returned. `commands/_fragments/design-critique.md` has a concern give the exact text when its change is a wording. `commands/_fragments/term-edit.md` and `term-coverage.md` round zero have a behavioural claim a fix writes cite the line that implements it. Graders in `tests/test_plan_review_queue_pass.py`.
+
+### Fixed — a long-named server backend passes its own ruff format (2026-10-20)
+
+- `src/fabrik/scaffold.py`: at the 50-character project-name cap, the saas chat's `from <pkg>.chat import build_chat_router, load_chat_settings` (main.py) and `importlib.reload(importlib.import_module("<pkg>.main"))` (tests/test_chat.py) ran past line length 100, so a saas-skeleton, static-site or office-extension scaffolded with a long name failed its own `ruff format` and import-order check. Both are now emitted expanded with a trailing comma, which ruff keeps at every name length (W-d5089619).
+
+### Fixed — a scaffolded file-worker's `make install` installs its dependencies (2026-10-20)
+
+- `src/fabrik/scaffold.py` (`_scaffold_file_worker`): the shared Makefile template's `install: uv sync` needs a `[project]` table, and a file-worker's pyproject is tool-only, so `make install` made an empty `.venv` on uv's default Python and exited 0 with none of `requirements.txt` installed. The file-worker's `install` now fills `.venv` from `requirements.txt` with pip and never deletes a venv: no `.venv` → `python -m venv` (the interpreter `make setup-dev` uses); a runnable python without pip (what the old `uv sync` left) → `ensurepip`, its packages kept; a python that cannot run → refuse, naming what to remove. `make dev` runs `.venv/bin/python -m worker.main`. A template whose `install` rule drifted from a single `uv sync` is refused at scaffold time (W-0259f23b).
+
+### Changed — /fabrik-task: MEASURE replays an item's proposed fix, and six other queued verdicts answered (2026-10-20)
+
+- `commands/_sources/fabrik-task.md` phase 1 replays the fix a work item proposes on a copy before the design adopts it, reads an unreachable tool's server source, where one exists, before recording a claim unverified (the read never upgrades it), searches the prior record by the item's id (plans and specs included) and runs a surfaced outcome twice to the line the operator reads. Phase 2 tables a marker-block or append-only file's malformed shapes, has the lead fetch provider-docs facts into the brief, and runs `--design-amend` only while the `fabrik-task` record is the top one. SIZE_CAP 25020 -> 25756 (D-1068, after an Opus + Fable panel cut the draft from +1139 B). Graders in `tests/test_fabrik_task_queue_pass.py`.
+
+### Changed — every agent repo gets its desktop launcher, and every launched pane runs capped (2026-10-20)
+
+- `scripts/sysadmin/agents_up.sh`: a repo with no `.fabrik/session-agents.json` now takes its builders from the names
+  bound in its git scope (`whoami_agent.py --as`), so the 7 agent repos that never wrote a registry get a grid. The
+  repo's merge owner (`decisions.py --merge-owner`) gets no pane. A builder with no linked worktree gets no pane and is
+  never started in the main checkout. Every pane runs whole in `systemd-run --user --scope` in `fabrik-agents.slice`
+  with MemoryMax 3G, MemorySwapMax=0 and TasksMax 1024; the slice's ceiling is 16G. With no user manager the panes run
+  uncapped and say so (D-1075, W-89474fc1, W-56b3f90d).
+- `scripts/sysadmin/agents_bat.py` writes a .bat for every repo `agents_up.sh --print` accepts and reports a stale one.
+- `scripts/whoami_agent.py`'s 30-day trim keeps each repo's newest binding per name, so a quiet repo keeps its builders.
+
+### Changed — a review whose fixes are committed during it makes its receipt once, at the close (2026-10-20)
+
+- A full `/fabrik-review` over committed work used to create its receipt before Pass 1 and, because every fix commit moves the range tip, re-make it after the last fix under a new `--scope`, rows carried and the old receipt deleted. That form now keeps a generated draft in the run's `SCRATCH:` folder during the passes and writes the receipt once, after the last fix commit (`term-coverage.md` obligation 3, `fabrik-review.md` § Reporting, `fabrik-task.md` phase 4 and 5). Working-tree, mixed and whole-plan reviews keep the receipt-before-Pass-1 rule, and `task_lane.py` check (d) is unchanged (W-60629ce4, D-1070).
+
+### Fixed — `--merge-shared` checks an unlistable fleet root before a leftover swap link (2026-10-20)
+
+- `_merge_shared_pending` answered "pending" for a canonical left as a swap's link before it listed the fleet root, so a root that could be searched but not listed (with its lock file present) still took the lock, finished the swap and reported nothing to merge while accounts held real lists. The root check now runs first and the run is refused with "nothing moved". The `_write_tick_last_end` docstring now says the staging name is cleared of anything but a directory, which is left in place (W-973887d5).
+
+### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
+
+- On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
+
 ### Fixed — the plan checks' last slow fence strips are linear (2026-10-21)
 W-d2eef742; D-1080. Three more fence-stripping regexes backtracked badly: `plan_appetite` took 15.8 s on a 40 KB backtick run followed by text, `check_phase_tests` about 15 s on 20 000 unclosed fence openers, and `check_plan_lock_release` about 13 s on one 200 KB backtick run with no newline. Each is now a line walk that returns exactly what its regex returned (the regexes stay in `tests/enforcement/test_fences.py` as the oracle): two new functions in `scripts/enforcement/_fences.py` for the first two, and a local copy in `check_plan_lock_release`, whose tests allow it standard-library imports only. `check_phase_tests` imports the shared scanner inside the function that strips, so its advisory gate row still exits 0 in a project whose sync left `_fences.py` out.
 
@@ -65,6 +130,15 @@ W-69f51003; D-1066. `docs_updater`'s link-integrity check reported a link writte
 
 ### Fixed — the link readers accept a line break inside a link's whitespace (2026-10-20)
 W-55905ee1. CommonMark lets a link's destination, title and closing parenthesis be separated by spaces plus one line break. The shared link reader in `check_doc_links.py` and `check_doc_index.py` allowed spaces and tabs only, so `docs_updater`, which reads whole documents, skipped such a link. Both copies now accept one line break there; a blank line still ends the link. No finding changed across 44 project repos.
+
+### Fixed — a spec's Prometheus monitoring block is validated and kept current on vps1 (2026-10-20)
+
+- `src/fabrik/drivers/prometheus.py`: `add_scrape_target` refuses a `monitoring.scheme` other than `http`/`https` and a `monitoring.target` that is not `<host>:<port>` (labels may carry `_`, port 1-65535 with no leading zero; IPv6 refused on purpose) before reading prometheus.yml, dry run included — a bad value used to reach the file and make promtool refuse all of it. An existing `fabrik-<name>` job whose scheme, metrics_path, target or (when the spec has a `bearer_token`) authorization differs is now updated in place and returns `status: updated`; every other key stays, a `credentials_file` secret is never replaced with an inline token, and a job fabrik cannot update unambiguously (several static entries or targets, service discovery, another auth form beside a token) is refused before anything is written. `interval` still applies on create only.
+- `src/fabrik/orchestrator/rollback.py` + `infrastructure.py`: rollback removes a Prometheus job only when this run created it (the driver's verdict rides the resource row as `job=`); an `exists` or `updated` job is kept, and an update is not reverted (W-01815aee).
+
+### Fixed — a registrar role name never captures another project's role (2026-10-20)
+
+- `src/fabrik/drivers/postgres.py`: every per-project role is `<db>_<suffix>` and every database's owner role carries the database's name, so names collide across projects. One fail-closed guard, `_foreign_role_reasons`, marks an existing role as someone else's when it owns a database or objects outside its own database. `create_database` refuses, before the database exists, to adopt an existing role that holds any grant, policy row or membership (it would have reset that role's password and made another project's credential the new database's owner); a leftover owner of a dropped database is still adopted. The watchdog roles (both checked before either is created), the subagent-ins role and the payments mint refuse such a role and touch nothing; the message names the fix — rename one project's database with `depends.postgres` (W-f599a88c).
 
 ### Fixed — a Prometheus config written but never loaded reaches the operator: refused fails the apply, unavailable warns (2026-10-20)
 

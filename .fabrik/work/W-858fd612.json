@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:19.202815Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-858fd612",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5B996F3BH319ZMZ77P7X0CC, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "kaizen work: two review-scoped feedback rows need code (work.py sync class-8 message; Stop hook misreads a numbered findings list as a menu)",
+  "status": "open",
+  "tags": [
+    "mail-01m5b996f3bh319zmz77p7x0cc"
+  ],
+  "title": "two /fabrik-review-scoped feedback rows ask for code: work.py sync's class-8 message, and the Stop hook reading a numbered findings list as an operator menu (mail 01M5B996F3BH319ZMZ77P7X0CC, from kaizen)"
+}

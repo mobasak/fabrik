@@ -20,16 +20,62 @@ SENT = "67ccc993-3fda-4dcd-a392-4531f01c6e5d"
 COORD = "0f0e0d0c-0b0a-4908-8706-050403020100"
 
 
-def _repo(tmp: Path, registry: object, name: str = "fabrik-lib") -> Path:
+_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
+
+
+def _repo(tmp: Path, registry: object, name: str = "fabrik-lib", worktrees: bool = True) -> Path:
+    """A registry repo. A builder gets a pane only in its own linked worktree (W-89474fc1), so by default every builder
+    name the registry gives — a valid name, not a coordinator — gets one (`_worktree`)."""
     repo = tmp / name
     (repo / ".fabrik").mkdir(parents=True)
     text = registry if isinstance(registry, str) else json.dumps(registry)
     (repo / ".fabrik" / "session-agents.json").write_text(text, encoding="utf-8")
-    return repo.resolve()
+    repo = repo.resolve()
+    if worktrees and isinstance(registry, str):
+        try:
+            registry = json.loads(registry)
+        except ValueError:
+            registry = None
+    if worktrees and isinstance(registry, dict):
+        for agent in sorted({v for v in registry.values() if isinstance(v, str)}):
+            if (
+                _NAME.fullmatch(agent)
+                and agent != "coordinator"
+                and not agent.endswith("-coordinator")
+            ):
+                _worktree(repo, agent)
+    return repo
 
 
-def _home(tmp: Path, ps_lines: str = "", transcripts: tuple[tuple[Path, str], ...] = ()) -> Path:
-    """A HOME with a fake `ps` printing `ps_lines`, and a transcript per (repo root, session id)."""
+def _wt(repo: Path, name: str) -> Path:
+    return repo / ".claude" / "worktrees" / name
+
+
+# A user manager the test controls: `manager-down` makes every call fail (no bus), `slice-refused` refuses the slice
+# ceiling; each call is logged. systemd-run logs its argv and runs the command after `--`, so a pane line is EXECUTED
+# with the cap it really carries.
+FAKE_SYSTEMCTL = """#!/bin/sh
+echo "$*" >> "$HOME/systemctl.log"
+[ -f "$HOME/manager-down" ] && exit 1
+case "$*" in *set-property*) [ -f "$HOME/slice-refused" ] && exit 1 ;; esac
+exit 0
+"""
+FAKE_SYSTEMD_RUN = """#!/bin/sh
+echo "$*" >> "$HOME/systemd-run.log"
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done
+shift
+exec "$@"
+"""
+
+
+def _home(
+    tmp: Path,
+    ps_lines: str = "",
+    transcripts: tuple[tuple[Path, str], ...] = (),
+    root_only: bool = False,
+) -> Path:
+    """A HOME with a fake `ps` printing `ps_lines`, a fake user manager, and a transcript per (folder, session id). A
+    repo root's transcript is also put under each of its linked worktrees, where the pane starts, unless `root_only`."""
     home = tmp / "home"
     (home / ".local" / "bin").mkdir(parents=True, exist_ok=True)
     ps = home / ".local" / "bin" / "ps"
@@ -40,13 +86,31 @@ def _home(tmp: Path, ps_lines: str = "", transcripts: tuple[tuple[Path, str], ..
         encoding="utf-8",
     )
     ps.chmod(0o755)
+    for tool, text in (("systemctl", FAKE_SYSTEMCTL), ("systemd-run", FAKE_SYSTEMD_RUN)):
+        (home / ".local" / "bin" / tool).write_text(text, encoding="utf-8")
+        (home / ".local" / "bin" / tool).chmod(0o755)
     for root, sid in transcripts:
-        folder = (
-            home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(root))
-        )
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / f"{sid}.jsonl").write_text("{}\n", encoding="utf-8")
+        for folder in _copies(root, root_only):
+            proj = (
+                home
+                / ".claude-fleet"
+                / "active"
+                / "projects"
+                / re.sub(r"[^A-Za-z0-9]", "-", str(folder))
+            )
+            proj.mkdir(parents=True, exist_ok=True)
+            (proj / f"{sid}.jsonl").write_text("{}\n", encoding="utf-8")
     return home
+
+
+def _copies(root: Path, root_only: bool) -> list[Path]:
+    wts = root / ".claude" / "worktrees"
+    if root_only or not wts.is_dir():
+        return [root]
+    return [
+        root,
+        *sorted(p for p in wts.iterdir() if (p / ".git").is_file() and not p.is_symlink()),
+    ]
 
 
 def _run(*args: str, home: Path, **env: str) -> subprocess.CompletedProcess[str]:
@@ -81,9 +145,9 @@ def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path
     assert out.returncode == 0, out.stderr
     assert out.stdout.splitlines()[0] == "session fabrik-lib", out.stdout
     assert _panes(out.stdout) == [
-        f"pane fabrik-lib-dev1 {DEV1} {repo} ok",
-        f"pane fabrik-lib-dev2 {DEV2} {repo} ok",
-        f"pane fabrik-lib-sentinel {SENT} {repo} ok",
+        f"pane fabrik-lib-dev1 {DEV1} {_wt(repo, 'fabrik-lib-dev1')} ok",
+        f"pane fabrik-lib-dev2 {DEV2} {_wt(repo, 'fabrik-lib-dev2')} ok",
+        f"pane fabrik-lib-sentinel {SENT} {_wt(repo, 'fabrik-lib-sentinel')} ok",
     ], out.stdout
     run = [ln for ln in out.stdout.splitlines() if ln.startswith("run fabrik-lib-dev1 ")]
     assert len(run) == 1 and f"claude -n fabrik-lib-dev1 --resume {DEV1};" in run[0], out.stdout
@@ -109,18 +173,20 @@ def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
-        f"pane dev1 {DEV1} {repo} running",
-        f"pane dev2 {DEV2} {repo} running",
-        f"pane sentinel {SENT} {repo} ok",
-        f"pane tester {third} {repo} running",
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} running",
+        f"pane dev2 {DEV2} {_wt(repo, 'dev2')} running",
+        f"pane sentinel {SENT} {_wt(repo, 'sentinel')} ok",
+        f"pane tester {third} {_wt(repo, 'tester')} running",
     ], out.stdout
     run = {ln.split()[1]: ln for ln in out.stdout.splitlines() if ln.startswith("run ")}
     # a running session's pane only prints a message; it never starts claude
-    assert run["dev1"].startswith('run dev1 echo "[dev1 is already running elsewhere'), run["dev1"]
-    assert run["dev2"].startswith('run dev2 echo "[dev2 is already running elsewhere'), run["dev2"]
-    assert run["sentinel"].startswith("run sentinel env -i "), run["sentinel"]
+    assert _inner(run["dev1"]).startswith('echo "[dev1 is already running elsewhere'), run["dev1"]
+    assert _inner(run["dev2"]).startswith('echo "[dev2 is already running elsewhere'), run["dev2"]
+    assert _inner(run["sentinel"]).startswith("env -i "), run["sentinel"]
     # the shell a running session's pane keeps is clean too, never the tmux server's environment
-    assert run["dev1"].rstrip().endswith("bash -l") and "; exec env -i " in run["dev1"], run["dev1"]
+    assert _inner(run["dev1"]).rstrip().endswith("bash -l") and "; exec env -i " in _inner(
+        run["dev1"]
+    ), run["dev1"]
 
 
 def test_a_session_with_no_transcript_under_the_root_is_flagged(tmp_path: Path) -> None:
@@ -130,8 +196,8 @@ def test_a_session_with_no_transcript_under_the_root_is_flagged(tmp_path: Path) 
     home = _home(tmp_path, transcripts=((repo, DEV1), (repo / "elsewhere", DEV2)))
     out = _run("--print", str(repo), home=home)
     assert _panes(out.stdout) == [
-        f"pane dev1 {DEV1} {repo} ok",
-        f"pane dev2 {DEV2} {repo} no-transcript",
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok",
+        f"pane dev2 {DEV2} {_wt(repo, 'dev2')} no-transcript",
     ], out.stdout
 
 
@@ -147,7 +213,9 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
     fake.chmod(0o755)
     out = _run("--print", str(repo), home=home)
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
-    launch = run[len("run dev1 ") :].split(";")[0]
+    launch = run[
+        len("run dev1 ") :
+    ]  # the WHOLE pane: the scope, claude, its hint and the shell it keeps
     polluted = {
         "HOME": str(home),
         "USER": "u",
@@ -164,7 +232,12 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
         "CLAUDE_CONFIG_DIR": "/wrong",
     }
     got = subprocess.run(
-        ["/bin/sh", "-c", launch], capture_output=True, text=True, timeout=30, env=polluted
+        ["/bin/sh", "-c", launch],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=polluted,
+        stdin=subprocess.DEVNULL,  # the kept login shell reads EOF and exits
     )
     seen = dict(ln.split("=", 1) for ln in got.stdout.splitlines() if "=" in ln)
     for leaked in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_TOKEN"):
@@ -182,8 +255,20 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
         got.stdout
     )
     assert seen["LANG"] == "C.UTF-8", got.stdout
-    # the shell a pane keeps after claude exits starts from the same allow-list
-    assert run.rstrip().endswith("bash -l") and run.count("env -i ") == 2, run
+    # the scope runs from the allow-list too, and so does the shell a pane keeps after claude exits (inside it); the
+    # branch after a scope that ended badly opens no shell at all (review round 2). PATH is fixed ONCE — three fixed
+    # copies of a 4 KB WSL PATH brought a pane command near the size tmux takes in one message (review round 1)
+    assert run.count("env -i ") == 3 and _inner(run).rstrip().endswith("bash -l"), run
+    assert run.count(f"PATH={home}/.local/bin:") == 1, run
+    # one scope per pane (its argv logged on one line; the pane command it carries holds a newline of its own)
+    scoped = [
+        ln
+        for ln in (home / "systemd-run.log").read_text(encoding="utf-8").splitlines()
+        if ln.startswith("--user ")
+    ]
+    assert len(scoped) == 1 and scoped[0].startswith(
+        "--user --scope --quiet --slice=fabrik-agents.slice -p MemoryMax=3G -p MemorySwapMax=0 -p TasksMax=1024 -- bash -c "
+    ), scoped
 
 
 def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
@@ -222,13 +307,13 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
 
 
 def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:
-    """A repo with no `.fabrik/session-agents.json` says where the builders are named and stops; so does a path that
-    is no directory, and a call with no repo at all."""
+    """A repo with no `.fabrik/session-agents.json` and no scope to read its whoami bindings from has nowhere to find
+    its builders, says so and stops; so does a path that is no directory, and a call with no repo at all."""
     home = _home(tmp_path)
     bare = tmp_path / "bare"
     bare.mkdir()
     cases = (
-        (("--print", str(bare)), "does not exist"),
+        (("--print", str(bare)), "has no registry"),
         (("--print", str(tmp_path / "missing")), "is not a directory"),
         (("--print",), "usage:"),
         ((), "usage:"),
@@ -240,7 +325,7 @@ def test_a_repo_without_a_registry_refuses(tmp_path: Path) -> None:
         assert "pane " not in out.stdout, args
         assert reason in out.stderr, (args, out.stderr)
     out = _run("--print", str(bare), home=home)
-    assert "session-agents.json" in out.stderr and "whoami binding" in out.stderr, out.stderr
+    assert "session-agents.json" in out.stderr and "whoami bindings" in out.stderr, out.stderr
 
 
 def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
@@ -251,7 +336,7 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
     out = _run("--print", f"{repo}/", home=home)
     assert out.returncode == 0, out.stderr
     assert out.stdout.splitlines()[0] == "session web-shop-v2-x--", out.stdout
-    assert _panes(out.stdout)[0].startswith(f"pane dev1 {DEV1} {repo} "), out.stdout
+    assert _panes(out.stdout)[0].startswith(f"pane dev1 {DEV1} {_wt(repo, 'dev1')} "), out.stdout
     rel = subprocess.run(
         ["bash", str(UP), "--print", repo.name],
         capture_output=True,
@@ -260,7 +345,7 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
         cwd=repo.parent,
         env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
     )
-    assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {repo} "), rel.stdout
+    assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {_wt(repo, 'dev1')} "), rel.stdout
     # a relative path that starts with `-` is a folder, never an option to `cd`
     dashed = _repo(tmp_path, {DEV1: "dev1"}, name="-lib")
     rel = subprocess.run(
@@ -272,7 +357,7 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
         env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
     )
     assert rel.returncode == 0, rel.stderr
-    assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {dashed} "), rel.stdout
+    assert _panes(rel.stdout)[0].startswith(f"pane dev1 {DEV1} {_wt(dashed, 'dev1')} "), rel.stdout
 
 
 FAKE_TMUX = """#!/bin/sh
@@ -311,9 +396,11 @@ esac
 """
 
 
-def _tmux_home(tmp: Path, repo: Path, has: bool, owner: str | None) -> Path:
+def _tmux_home(
+    tmp: Path, repo: Path, has: bool, owner: str | None, root_only: bool = False
+) -> Path:
     """A HOME whose fake `tmux` logs every call and plays a session that exists (`has`) with an `@agents_up_root`."""
-    home = _home(tmp, transcripts=((repo, DEV1), (repo, DEV2)))
+    home = _home(tmp, transcripts=((repo, DEV1), (repo, DEV2)), root_only=root_only)
     tmux = home / ".local" / "bin" / "tmux"
     tmux.write_text(FAKE_TMUX, encoding="utf-8")
     tmux.chmod(0o755)
@@ -472,15 +559,13 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     assert not any(ln.startswith("attach") for ln in _log(inside)), _log(inside)
 
 
-def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
-    """W-6c7c3292 (fabrik-lib mail 01M59SWZGB): a builder works in `<repo>/.claude/worktrees/<name>`, and the main
-    checkout is the coordinator's, so a builder resumed at the root would edit main's tree and read main's CLAUDE.md.
-    A pane starts in the builder's worktree when it is a linked git worktree in place and at the root otherwise, and
-    its transcript is looked for under the folder it starts in, since claude resumes by that folder. A file, a folder
-    with no `.git` (left behind by `git worktree remove`), a nested clone (a `.git` FOLDER) and a symlink — which could
-    take the pane out of the repo, and names a project folder claude never writes to — all start at the root, and each
-    says so on stderr, because that builder then works in the main checkout; a builder with nothing by its name is
-    silent."""
+def test_a_builder_without_a_worktree_gets_no_pane(tmp_path: Path) -> None:
+    """W-6c7c3292, W-89474fc1: a builder works in `<repo>/.claude/worktrees/<name>`, and the main checkout is the
+    coordinator's, so a builder resumed at the root would edit main's tree and read main's CLAUDE.md. A pane starts
+    ONLY in the builder's worktree when it is a linked git worktree in place, and its transcript is looked for under
+    that folder, since claude resumes by it. A file, a folder with no `.git` (left behind by `git worktree remove`), a
+    nested clone (a `.git` FOLDER), a symlink — which could take the pane out of the repo — and nothing at all by that
+    name give NO pane, each said on stderr; never a pane at the root."""
     third, fourth, fifth, sixth, seventh = (
         f"{c * 8}-{c * 4}-4{c * 3}-8{c * 3}-{c * 12}" for c in "abcde"
     )
@@ -496,6 +581,7 @@ def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
             sixth: "clone",
             seventh: "gone",
         },
+        worktrees=False,
     )
     wts = repo / ".claude" / "worktrees"
     wt1, sent_wt = _worktree(repo, "dev1"), _worktree(repo, "sentinel")
@@ -508,41 +594,30 @@ def test_a_builder_with_a_worktree_starts_in_it(tmp_path: Path) -> None:
     # sentinel's worktree exists but its transcript sits only under the root: flagged, never silently the root
     home = _home(
         tmp_path,
-        transcripts=(
-            (wt1, DEV1),
-            (repo, DEV2),
-            (repo, SENT),
-            (repo, third),
-            (repo, fourth),
-            (repo, fifth),
-            (repo, sixth),
-            (repo, seventh),
-        ),
+        transcripts=((wt1, DEV1), (repo, DEV2), (repo, SENT), (repo, third), (repo, fifth)),
+        root_only=True,
     )
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
-        f"pane clone {sixth} {repo} ok",
         f"pane dev1 {DEV1} {wt1} ok",
-        f"pane dev2 {DEV2} {repo} ok",
-        f"pane gone {seventh} {repo} ok",
-        f"pane linked {fourth} {repo} ok",
-        f"pane plain {fifth} {repo} ok",
         f"pane sentinel {SENT} {sent_wt} no-transcript",
-        f"pane stale {third} {repo} ok",
     ], out.stdout
+    assert f" {repo} " not in out.stdout, (
+        out.stdout
+    )  # no pane, and no run line, ever names the main checkout
     warned = sorted(
         ln.split(":")[1].strip()
         for ln in out.stderr.splitlines()
-        if "is not a linked git worktree in place" in ln
+        if "no pane; it works in the main checkout" in ln
     )
-    assert warned == ["clone", "dev2", "gone", "linked", "stale"], out.stderr
+    assert warned == ["clone", "dev2", "gone", "linked", "plain", "stale"], out.stderr
 
 
 def _worktree(repo: Path, name: str) -> Path:
     """A git worktree's folder as the launcher sees it: `.claude/worktrees/<name>` holding a `.git` file."""
     wt = repo / ".claude" / "worktrees" / name
-    wt.mkdir(parents=True)
+    wt.mkdir(parents=True, exist_ok=True)
     (wt / ".git").write_text(f"gitdir: {repo}/.git/worktrees/{name}\n", encoding="utf-8")
     return wt.resolve()
 
@@ -552,10 +627,10 @@ def test_the_launch_starts_each_pane_in_its_folder(tmp_path: Path) -> None:
     and reads each transcript under that folder, naming it when it is missing."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     wt1, wt2 = _worktree(repo, "dev1"), _worktree(repo, "dev2")
-    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    home = _tmux_home(tmp_path, repo, has=False, owner=None, root_only=True)
     # dev1's transcript sits under its worktree; dev2's only under the root, where its pane does not start
     (home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt1))).mkdir(
-        parents=True
+        parents=True, exist_ok=True
     )
     (
         home
@@ -609,16 +684,18 @@ def _aged(home: Path, repo: Path, sid: str, age_s: float) -> None:
     import os
     import time
 
-    f = (
-        home
-        / ".claude-fleet"
-        / "active"
-        / "projects"
-        / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
-        / f"{sid}.jsonl"
-    )
     t = time.time() - age_s
-    os.utime(f, (t, t))
+    for folder in _copies(repo, False):  # every copy _home wrote: the root's and its worktrees'
+        f = (
+            home
+            / ".claude-fleet"
+            / "active"
+            / "projects"
+            / re.sub(r"[^A-Za-z0-9]", "-", str(folder))
+            / f"{sid}.jsonl"
+        )
+        if f.exists():
+            os.utime(f, (t, t))
 
 
 NOW = 2_000_000_000  # a binding time after every fixture transcript's mtime
@@ -641,7 +718,10 @@ def test_the_newest_binding_beats_a_stale_registry_row(tmp_path: Path) -> None:
     _aged(home, repo, DEV1, 3600)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok", f"pane dev2 {NEW2} {repo} ok"]
+    assert _panes(out.stdout) == [
+        f"pane dev1 {NEW1} {_wt(repo, 'dev1')} ok",
+        f"pane dev2 {NEW2} {_wt(repo, 'dev2')} ok",
+    ]
     assert (
         f"dev1: resuming {NEW1}, its newest whoami binding, not the registry's {DEV1}" in out.stderr
     )
@@ -658,7 +738,7 @@ def test_a_registry_session_active_after_the_binding_stands(tmp_path: Path) -> N
     home = _home(tmp_path, transcripts=((repo, NEW2),))
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW2} {repo} ok"]
+    assert _panes(out.stdout) == [f"pane dev1 {NEW2} {_wt(repo, 'dev1')} ok"]
     assert (
         f"dev1: the registry's {NEW2} was active after its binding {DEV1} — resuming {NEW2}"
         in out.stderr
@@ -683,7 +763,10 @@ def test_a_session_belongs_to_the_name_on_its_last_row_anywhere(tmp_path: Path) 
     _aged(home, repo, DEV1, 3600)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok", f"pane dev2 {NEW2} {repo} ok"]
+    assert _panes(out.stdout) == [
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok",
+        f"pane dev2 {NEW2} {_wt(repo, 'dev2')} ok",
+    ]
     assert f"resuming {NEW1}" not in out.stderr, out.stderr
     # the last line naming dev1 wins over a larger `at` on an earlier line (a clock that stepped back)
     store = _store(
@@ -693,7 +776,9 @@ def test_a_session_belongs_to_the_name_on_its_last_row_anywhere(tmp_path: Path) 
     )
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout)[0] == f"pane dev1 {NEW1} {repo} no-transcript", out.stdout
+    assert _panes(out.stdout)[0] == f"pane dev1 {NEW1} {_wt(repo, 'dev1')} no-transcript", (
+        out.stdout
+    )
     # a registry that gives dev2 the session dev1 now owns: one session, two panes — refused
     two = tmp_path / "two"
     two.mkdir()
@@ -718,7 +803,7 @@ def test_a_builder_never_takes_the_coordinators_session(tmp_path: Path) -> None:
     store = _store(tmp_path, [_bind(NEW2, "coordinator", scope, NOW)], "s2.jsonl")
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"]
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok"]
 
 
 def test_a_broken_store_or_scope_falls_back_to_the_registry(tmp_path: Path) -> None:
@@ -747,18 +832,23 @@ def test_a_broken_store_or_scope_falls_back_to_the_registry(tmp_path: Path) -> N
         store = _store(tmp_path, [good, bad], f"bad{i}.jsonl")
         out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
         assert out.returncode == 0, (bad, out.stderr)
-        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], (bad, out.stdout)
+        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok"], (bad, out.stdout)
     # a time no int() takes reads as 0, as whoami's own `_at` does: the row still counts, the store is not lost
     store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "²"), good], "sup.jsonl")
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
-    assert out.returncode == 0 and _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], out.stderr
+    assert out.returncode == 0 and _panes(out.stdout) == [
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok"
+    ], out.stderr
     assert "could not be read" not in out.stderr, out.stderr
     fifo = tmp_path / "fifo.jsonl"
     os.mkfifo(fifo)
     for store in (tmp_path / "missing.jsonl", tmp_path, fifo):
         out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
         assert out.returncode == 0, (store, out.stderr)
-        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], (store, out.stdout)
+        assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok"], (
+            store,
+            out.stdout,
+        )
         if store != tmp_path / "missing.jsonl":
             assert "is not a regular file" in out.stderr, (store, out.stderr)
     # an inherited GIT_DIR names another repo: the scope is still this repo's, so this repo's binding counts
@@ -769,14 +859,16 @@ def test_a_broken_store_or_scope_falls_back_to_the_registry(tmp_path: Path) -> N
         "--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store), GIT_DIR=str(other / ".git")
     )
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} no-transcript"], out.stdout
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {_wt(repo, 'dev1')} no-transcript"], out.stdout
     # no git scope at all: the store is never read, even when it holds a binding of an empty scope
     (tmp_path / "plain").mkdir()
     plain = _repo(tmp_path / "plain", {DEV1: "dev1"})
     store = _store(tmp_path, [_bind(NEW1, "dev1", "", NOW)], "empty.jsonl")
     out = _run("--print", str(plain), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {plain} no-transcript"], out.stdout
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(plain, 'dev1')} no-transcript"], (
+        out.stdout
+    )
     assert "no git scope" in out.stderr, out.stderr
 
 
@@ -788,7 +880,7 @@ def test_a_duplicate_name_resolves_through_the_store_or_refuses(tmp_path: Path) 
     store = _store(tmp_path, [_bind(NEW1, "dev1", scope, NOW)])
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"]
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {_wt(repo, 'dev1')} ok"]
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(tmp_path / "none.jsonl"))
     assert out.returncode == 2, out.stdout
     assert "more than one session id" in out.stderr, out.stderr
@@ -832,11 +924,14 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
 
     repo, scope = _git_repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     store = _store(tmp_path, [_bind(DEV2, "dev2", scope, 100)])
-    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, DEV2), (repo, NEW2)))
-    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+    wt1, wt2 = _wt(repo, "dev1"), _wt(repo, "dev2")
+    home = _home(tmp_path, transcripts=((wt1, DEV1), (wt2, DEV2), (wt1, NEW2)))
+    projects = home / ".claude-fleet" / "active" / "projects"
+    proj = projects / re.sub(r"[^A-Za-z0-9]", "-", str(wt1))
     old = time.time() - 3600
-    for sid in (DEV1, DEV2):
-        os.utime(proj / f"{sid}.jsonl", (old, old))
+    for folder, sid in ((wt1, DEV1), (wt2, DEV2)):
+        f = projects / re.sub(r"[^A-Za-z0-9]", "-", str(folder)) / f"{sid}.jsonl"
+        os.utime(f, (old, old))
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
     assert f"dev1: no whoami binding in {scope} — resuming the registry's {DEV1}" in out.stderr, (
@@ -851,11 +946,22 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
     assert "a newer session" not in out.stderr, out.stderr
 
 
+def _inner(run_line: str) -> str:
+    """The pane command a `run` line carries: inside the scope's `bash -c '<it>'` when capped, else the line itself."""
+    import shlex
+
+    cmd = run_line.split(" ", 2)[2]
+    if " -- bash -c " in cmd:
+        return shlex.split(cmd.split(" -- bash -c ", 1)[1])[0]
+    return cmd
+
+
 def _hint(run_line: str, cwd: Path) -> str:
     """What a pane prints when claude exits: the hint command from its `run` line, executed by bash — and identically
     by a POSIX `sh` in the C locale, since tmux runs a pane's command with the user's own shell."""
-    cmd = re.search(r"; echo; (printf '%s\\n' .*?); exec env ", run_line)
-    assert cmd, run_line
+    pane = _inner(run_line)
+    cmd = re.search(r"; (printf '%s\\n' .*?); exec env ", pane)
+    assert cmd, pane
     said = [
         subprocess.run(
             [shell, "-c", cmd.group(1)],
@@ -902,20 +1008,21 @@ def test_an_undated_binding_is_not_older_than_every_transcript(tmp_path: Path) -
     is newer than the binding session's own transcript, and with neither dated the binding stands."""
     repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
     store = _store(tmp_path, [_bind(NEW1, "dev1", scope, "not a time")])
-    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, NEW1)))
-    _aged(home, repo, DEV1, 60)
-    _aged(home, repo, NEW1, 30)  # both transcripts dated; the binding's own is the newer
+    wt1 = _wt(repo, "dev1")
+    home = _home(tmp_path, transcripts=((wt1, DEV1), (wt1, NEW1)))
+    _aged(home, wt1, DEV1, 60)
+    _aged(home, wt1, NEW1, 30)  # both transcripts dated; the binding's own is the newer
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} ok"], out.stderr
-    _aged(home, repo, NEW1, 3600)  # ...and once the registry's is the newer, it stands
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {_wt(repo, 'dev1')} ok"], out.stderr
+    _aged(home, wt1, NEW1, 3600)  # ...and once the registry's is the newer, it stands
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
-    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {repo} ok"], out.stderr
-    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo))
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok"], out.stderr
+    proj = home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt1))
     (proj / f"{NEW1}.jsonl").unlink()
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {repo} no-transcript"], out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {NEW1} {_wt(repo, 'dev1')} no-transcript"], out.stderr
 
 
 def test_a_session_the_store_gives_the_coordinator_is_never_a_builders(tmp_path: Path) -> None:
@@ -929,3 +1036,309 @@ def test_a_session_the_store_gives_the_coordinator_is_never_a_builders(tmp_path:
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 2, out.stdout
     assert f"session {DEV1} would serve coordinator and dev1" in out.stderr, out.stderr
+
+
+# --- W-89474fc1: repos with no registry, the coordinator from the ledger, and every pane capped -------------------
+
+B1 = "4d4d4d4d-4d4d-4d4d-8d4d-4d4d4d4d4d4d"
+B2 = "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e"
+B3 = "6f6f6f6f-6f6f-4f6f-8f6f-6f6f6f6f6f6f"
+
+
+def _bound_repo(tmp: Path, worktrees: tuple[str, ...] = ("b2", "b3")) -> tuple[Path, Path]:
+    """A git repo with NO registry, as 7 of the 9 agent repos are: b1 works in the main checkout, b2 and b3 in their
+    worktrees; the store binds all three here, and one name in another repo. Returns (root, store)."""
+    repo = (tmp / "shop").resolve()
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    for name in worktrees:
+        _worktree(repo, name)
+    scope = str(repo / ".git")
+    store = _store(
+        tmp,
+        [
+            _bind(B1, "b1", scope, NOW),
+            _bind(B2, "b2", scope, NOW),
+            _bind(B3, "b3", scope, NOW),
+            _bind(NEW1, "b9", "/opt/elsewhere/.git", NOW),
+        ],
+    )
+    return repo, store
+
+
+def _ledger(repo: Path, owner: str) -> None:
+    (repo / "docs").mkdir(exist_ok=True)
+    (repo / "docs" / "DECISIONS.md").write_text(
+        "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        f"| D-001 | 2026-10-20 | operator | MERGE OWNER: {owner} | the coordinator | here |\n",
+        encoding="utf-8",
+    )
+
+
+def test_no_registry_takes_builders_from_the_identity_store(tmp_path: Path) -> None:
+    """A repo with no `.fabrik/session-agents.json` gets its builders from the names bound in its own scope, each
+    resuming its binding; a bound name with no worktree gets no pane and, with no merge owner declared, is said to be
+    taken as the coordinator; another repo's binding never appears."""
+    repo, store = _bound_repo(tmp_path)
+    home = _home(tmp_path, transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b3"), B3)))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines()[0] == "session shop", out.stdout
+    assert _panes(out.stdout) == [
+        f"pane b2 {B2} {_wt(repo, 'b2')} ok",
+        f"pane b3 {B3} {_wt(repo, 'b3')} ok",
+    ], out.stdout
+    assert (
+        "b1: .claude/worktrees/b1 is not a linked git worktree in place — no pane" in out.stderr
+    ), out.stderr
+    assert "taken as the coordinator" in out.stderr and "b9" not in out.stdout, out.stderr
+    assert "not the registry's" not in out.stderr, out.stderr  # there is no registry to name
+    # a ledger that declares NO merge owner (decisions.py exit 3) launches the same way
+    (repo / "docs").mkdir()
+    (repo / "docs" / "DECISIONS.md").write_text(
+        "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-10-20 | operator | adopt the work store | why | here |\n",
+        encoding="utf-8",
+    )
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0 and [p.split()[1] for p in _panes(out.stdout)] == ["b2", "b3"], (
+        out.stderr
+    )
+    assert "taken as the coordinator" in out.stderr, out.stderr
+
+
+def test_the_merge_owner_gets_no_pane(tmp_path: Path) -> None:
+    """The repo's coordinator is its ledger's declared merge owner, never a position: here b2, which even has a
+    worktree, gets no pane, and b1 (no worktree) is no longer said to be the coordinator."""
+    repo, store = _bound_repo(tmp_path)
+    _ledger(repo, "b2")
+    home = _home(tmp_path, transcripts=((_wt(repo, "b3"), B3),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane b3 {B3} {_wt(repo, 'b3')} ok"], out.stdout
+    assert "b2: the repo's merge owner (its coordinator) — no pane" in out.stderr, out.stderr
+    assert "taken as the coordinator" not in out.stderr, out.stderr
+    # a registry repo's merge owner is dropped the same way, whatever its name
+    reg = _repo(tmp_path / "reg", {DEV1: "dev1", DEV2: "lead"})
+    _ledger(reg, "lead")
+    out = _run("--print", str(reg), home=_home(tmp_path / "reg"))
+    assert [p.split()[1] for p in _panes(out.stdout)] == ["dev1"], (out.stdout, out.stderr)
+
+
+def test_no_worktree_builder_refuses(tmp_path: Path) -> None:
+    """Bindings but no worktree: nothing to launch, exit 2 — the main checkout is never a builder's pane."""
+    repo, store = _bound_repo(tmp_path, worktrees=())
+    out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2 and "pane " not in out.stdout, out.stdout
+    assert "has no builder with its own worktree" in out.stderr, out.stderr
+
+
+def test_a_failed_merge_owner_lookup_refuses(tmp_path: Path) -> None:
+    """A ledger that is there but cannot be read refuses the launch: a coordinator mistaken for a builder would get a
+    pane. A repo with no ledger at all declares nobody and launches."""
+    import os
+
+    repo, store = _bound_repo(tmp_path)
+    _ledger(repo, "b2")
+    ledger = repo / "docs" / "DECISIONS.md"
+    os.chmod(ledger, 0)
+    try:
+        out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
+    finally:
+        os.chmod(ledger, 0o644)
+    assert out.returncode == 2 and "pane " not in out.stdout, out.stdout
+    assert "could not read the merge owner" in out.stderr, out.stderr
+
+
+def test_panes_run_capped_in_the_agents_slice(tmp_path: Path) -> None:
+    """Every pane — claude, its hint and the shell it keeps — runs inside one `systemd-run --user --scope` in
+    fabrik-agents.slice with MemoryMax, MemorySwapMax=0 (else a cap only pushes into swap) and TasksMax; --print
+    reports each cap and never touches the slice, and a launch sets the slice's own ceiling first."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(
+        "--print", str(repo), home=home, FABRIK_AGENT_MEM_MAX="2G", FABRIK_AGENT_TASKS_MAX="512"
+    )
+    assert out.returncode == 0, out.stderr
+    assert [ln for ln in out.stdout.splitlines() if ln.startswith("cap ")] == [
+        "cap dev1 2G 512",
+        "cap dev2 2G 512",
+    ]
+    for ln in out.stdout.splitlines():
+        if ln.startswith("run "):
+            assert (
+                " systemd-run --user --scope --quiet --slice=fabrik-agents.slice -p MemoryMax=2G -p MemorySwapMax=0"
+                " -p TasksMax=512 -- bash -c '" in ln
+            ), ln
+            assert "claude -n" in _inner(ln) or "already running" in _inner(ln), ln
+    assert "set-property" not in (home / "systemctl.log").read_text(encoding="utf-8")
+    out = _run(str(repo), home=home, FABRIK_AGENT_SLICE_MAX="12G")
+    assert out.returncode == 0, out.stderr
+    calls = (home / "systemctl.log").read_text(encoding="utf-8").splitlines()
+    assert (
+        "--user set-property --runtime fabrik-agents.slice MemoryMax=12G MemorySwapMax=0" in calls
+    ), calls
+    created = [ln for ln in _log(home) if ln.startswith(("new-session", "split-window"))]
+    assert len(created) == 2 and all("systemd-run --user --scope" in ln for ln in created), created
+
+
+def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
+    """A pane whose claude the memory ceiling killed (exit 137) says so before the resume hint."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text("#!/bin/sh\nexit 137\n", encoding="utf-8")
+    fake.chmod(0o755)
+    out = _run("--print", str(repo), home=home)
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    got = subprocess.run(
+        ["/bin/sh", "-c", run[len("run dev1 ") :]],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    assert (
+        "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at its memory ceiling, MemoryMax=3G]"
+        in got.stdout
+    ), got.stdout + got.stderr
+    assert "[dev1 exited — run: claude -n dev1 --resume" in got.stdout, got.stdout
+    # an uncapped pane names the kill and never claims a ceiling it does not have
+    (home / "manager-down").write_text("", encoding="utf-8")
+    out = _run("--print", str(repo), home=home)
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    got = subprocess.run(
+        ["/bin/sh", "-c", run[len("run dev1 ") :]],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    assert (
+        "[dev1 was killed (exit 137, SIGKILL)]" in got.stdout and "MemoryMax" not in got.stdout
+    ), got.stdout
+
+
+def test_a_scope_that_ends_badly_says_so_and_opens_no_uncapped_shell(tmp_path: Path) -> None:
+    """A capped pane whose systemd-run fails says so, never a pane that just closes. The same branch runs when the kept
+    shell inside the scope exits non-zero (review round 2), so it opens NO shell of its own — a shell there would be
+    outside the cap — and only waits for Enter."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake.chmod(0o755)
+
+    def pane(stdin: str) -> str:
+        out = _run("--print", str(repo), home=home)
+        run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+        got = subprocess.run(
+            ["/bin/sh", "-c", run[len("run dev1 ") :]],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+            input=stdin,
+        )
+        return got.stdout + got.stderr
+
+    # the kept shell exits non-zero; a line typed after it must reach no second (uncapped) shell
+    said = pane("false\nexit\necho ESCAPED\n")
+    assert (
+        "the capped scope ended with exit 1" in said and "press Enter to close this pane" in said
+    ), said
+    assert "ESCAPED" not in said, said
+    # systemd-run itself cannot start the scope
+    (home / ".local" / "bin" / "systemd-run").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    said = pane("echo ESCAPED\n")
+    assert (
+        "[dev1: the capped scope ended with exit 1 — if nothing ran above, systemd-run could not start it"
+        in said
+    )
+    assert "ESCAPED" not in said, said
+
+
+def test_no_user_manager_runs_uncapped_with_a_warning(tmp_path: Path) -> None:
+    """No systemd user manager answers: the panes still open, uncapped, and that is said on stderr AND inside every
+    pane (the launcher's stderr is repainted by the attach)."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    (home / "manager-down").write_text("", encoding="utf-8")
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert "WARNING — no systemd-run on PATH, or no systemd user manager answers" in out.stderr, (
+        out.stderr
+    )
+    assert "cap dev1 uncapped" in out.stdout, out.stdout
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    assert run.startswith("run dev1 echo '[UNCAPPED:") and "systemd-run" not in run, run
+
+
+def test_a_malformed_cap_refuses(tmp_path: Path) -> None:
+    """A cap is <digits><K|M|G> from 1M (a task count 1 to 999999); 0, a bare number, an unknown unit or a size under
+    1M would be a cap that kills everything or that systemd misreads, so each refuses the launch. An empty value is
+    the default, as in capped_run.sh."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    for var, value in (
+        ("FABRIK_AGENT_MEM_MAX", "0G"),
+        ("FABRIK_AGENT_MEM_MAX", "3"),
+        ("FABRIK_AGENT_MEM_MAX", "3X"),
+        ("FABRIK_AGENT_MEM_MAX", "512K"),
+        ("FABRIK_AGENT_SLICE_MAX", "16"),
+        ("FABRIK_AGENT_SLICE_MAX", "1T"),
+        ("FABRIK_AGENT_TASKS_MAX", "0"),
+        ("FABRIK_AGENT_TASKS_MAX", "1e3"),
+        ("FABRIK_AGENT_TASKS_MAX", "1000000"),
+    ):
+        out = _run("--print", str(repo), home=home, **{var: value})
+        assert out.returncode == 2 and "pane " not in out.stdout, (var, value, out.stdout)
+        assert f"bad {var} '{value}'" in out.stderr, (var, value, out.stderr)
+    ok = _run(
+        "--print",
+        str(repo),
+        home=home,
+        FABRIK_AGENT_MEM_MAX="1024K",
+        FABRIK_AGENT_TASKS_MAX="999999",
+    )
+    assert ok.returncode == 0 and "cap dev1 1024K 999999" in ok.stdout, ok.stderr
+
+
+def test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses(tmp_path: Path) -> None:
+    """A launch from a `.bat` (`wsl.exe --exec bash -l`) has no XDG_RUNTIME_DIR, so the launcher sets it when the user
+    bus is there, before it asks the manager anything; and a manager that answers but refuses the slice ceiling
+    refuses the launch rather than open panes with no total bound (capped_run.sh's rule)."""
+    import os
+
+    bus = Path(f"/run/user/{os.getuid()}/bus")
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    strict = home / ".local" / "bin" / "systemctl"
+    strict.write_text(
+        '#!/bin/sh\n[ -n "$XDG_RUNTIME_DIR" ] || exit 1\n' + FAKE_SYSTEMCTL.split("\n", 1)[1],
+        encoding="utf-8",
+    )
+    out = _run("--print", str(repo), home=home)  # _run passes no XDG_RUNTIME_DIR
+    if bus.is_socket():
+        assert "cap dev1 3G 1024" in out.stdout, (out.stdout, out.stderr)
+        assert f"XDG_RUNTIME_DIR=/run/user/{os.getuid()}" in out.stdout, out.stdout
+    else:
+        assert "cap dev1 uncapped" in out.stdout, out.stdout
+    (home / "slice-refused").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=home, XDG_RUNTIME_DIR=str(tmp_path))
+    assert out.returncode == 2, out.stderr
+    assert (
+        "refused the fabrik-agents.slice ceiling (MemoryMax=16G) — not launching" in out.stderr
+    ), out.stderr
+    log = _log(home) if (home / "tmux.log").exists() else []
+    assert not any(ln.startswith(("new-session", "attach")) for ln in log), log
+    # reattaching to this repo's running grid starts nothing, so a refused ceiling never blocks it
+    (home / "tmux-has").write_text("", encoding="utf-8")
+    (home / "tmux-owner").write_text(f"{repo}\n", encoding="utf-8")
+    out = _run(str(repo), home=home, XDG_RUNTIME_DIR=str(tmp_path))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", (
+        out.stderr,
+        _log(home),
+    )

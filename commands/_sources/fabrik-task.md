@@ -71,7 +71,10 @@ and a work item's cited `path:line` is grepped here, in the cited file, for the 
 error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code); a
 miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the
 item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR
-greps every name the design uses again). Then, before phase 2 and any edit, each command and its output goes to
+greps every name the design uses again). A fix the item proposes is replayed the same way, on a copy, before the
+design adopts it; a replay that overturns it is stated in PROBLEM. An unreachable tool's server source, where one
+exists, is read before a claim is recorded unverified, and the read never upgrades it. Then, before phase 2 and any
+edit, each command and its output goes to
 `<durable>/measure.md`, beside phase 2's `design.md`, never in it (a pasted line opening with a field word or a `#`
 moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file's
 name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that
@@ -79,7 +82,8 @@ slice and never the whole suite (a red now is pre-existing); `git fetch` and the
 remote branch the work merges into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no
 remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack the rule already
-lives in; the population the change writes or thresholds measured (its readers are MIRROR's) — every writer, every
+lives in — each searched by the item's id too, plans and specs included; the population the change writes or
+thresholds measured (its readers are MIRROR's) — every writer, every
 occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in
 (grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`,
 `env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its
@@ -87,7 +91,8 @@ keys recorded, never its values), and the n behind any rate, bound or zero the d
 contract probed live once, a list read whole, never a sample — each by EXECUTING the real path on real data (the
 producer's code, the tool's run output per mode, the design's own classifier, the writer of each state value it
 trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate's own
-command, a recipe's real target layout, the reported incident replayed on a copy one step past its symptom (what the
+command, a surfaced outcome run twice and traced to the line the operator reads, a recipe's real target layout, the
+reported incident replayed on a copy one step past its symptom (what the
 reporter did next), a tool that scopes by a commit or diff range run where the branch's merge-base is its merge
 target's tip and where the target has moved past it, each spelling of a parsed input that the commands and docs
 feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it
@@ -110,7 +115,9 @@ applies is tried as a read of its output (stdout, a record, an exported function
 why the read cannot serve. Each input the design branches on is tabulated whole in a `design.md` table, outside the
 Behaviours list: every value a state it reads can hold, the unit another tool's rule is evaluated per (window, agent,
 repo), every path through a guard (a forced refresh after a write as well as the periodic one); a parser it adds
-takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded.
+takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded. A
+marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and
+duplicate.
 
 {{include:design-critique}}
 
@@ -121,7 +128,9 @@ also has each seat EXECUTE: replay the reported incident and the real corpus thr
 semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep
 sibling write paths and the tests pinning a moved value; name each new guard's fail direction and any second approach
 the build cannot settle; run a mechanism the design copies read-only against the live state of each host it will run
-on (a side-effecting step on a copy); execute one claim about every external dependency. It pins the tree (a commit
+on (a side-effecting step on a copy); execute one claim about every external dependency (both seats are
+`fabrik-reviewer`, with no web tool: the lead fetches a provider-docs fact into the brief). It pins the tree (a
+commit
 or `git archive` copy) and any live state file the design reads, names the unmerged branch owning a mirrored file,
 bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs. Wait for both
 in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is
@@ -157,7 +166,8 @@ nothing; a `.md` under `docs/development/reviews/` but `archived/` is exempt): *
 path missing from both
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
-and counted on the close as `design_amends`.
+and counted on the close as `design_amends`. The amend runs while the `fabrik-task` record is the top one, never
+under a nested run.
 MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers,
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
@@ -198,7 +208,7 @@ Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped
 surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
 the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
-not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none. Give its seat briefs
+not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
@@ -239,11 +249,11 @@ rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, nev
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and
 in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line
-so its sha lands in `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a
+so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (a
 sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the
 `--restamp` form below):
-after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
---range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
+run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
+--range <base>..<that sha>` — the Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that lands first — carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed), run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` on or before the `--design` call.
 

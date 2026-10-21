@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:16.511577Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-12ddec1f",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5C99YXSW5M0HCCSK6K2398Y, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "advisory: one new failure-class row in the self-healing pack from the 2026-10-20 incident",
+  "status": "open",
+  "tags": [
+    "mail-01m5c99yxsw5m0hccsk6k2398y"
+  ],
+  "title": "self-healing pack — add a failure-class row for \"D-state worker child under a kernel netlink wedge\" (youtube incident 2026-10-20) (mail 01M5C99YXSW5M0HCCSK6K2398Y, from youtube)"
+}

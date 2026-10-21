@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-20T12:01:39.500537Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-a7cff030",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "give check_plan_quality and check_convergence the W-8f9a7d2c key-in-span test (a shared helper in scripts/enforcement/_fences.py, with each reader's fail direction stated per Lesson 103), measured on the fleet plans by parsed value",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "same defect in two more readers, no fleet plan misparsed today (0 of 1,492)",
   "status": "open",
   "tags": [
     "link-reader"

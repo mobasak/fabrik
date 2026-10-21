@@ -1041,6 +1041,44 @@ FILE_WORKER_HEARTBEAT_CHECK = (
     "sys.exit(0 if os.path.exists(p) and 0 <= time.time() - os.path.getmtime(p) < 120 else 1)"
 )
 
+# A file-worker's starter test (tests/test_logger.py), so `make test` runs a real test from day one
+# (W-ad15212d). It covers worker/logger.py only: worker/main.py builds its Supabase and R2 clients at
+# import and needs credentials. The third test reads the CONFIGURED logger's output, so a chain that
+# drops `_redact_sensitive` goes red too. Already in ruff-format form at the project's line length.
+_FILE_WORKER_STARTER_TEST = '''"""Starter tests for worker/logger.py: secrets never reach the log output.
+
+The logger redacts in two passes (see `_redact_sensitive`): a sensitive key is replaced whole, and a
+credential embedded in a string value is replaced in place. These tests import nothing that needs
+credentials, so they run on a fresh checkout before any .env exists.
+"""
+
+import json
+
+import pytest
+
+from worker.logger import _redact_sensitive, get_logger
+
+
+def test_a_sensitive_key_is_redacted_whole() -> None:
+    event = _redact_sensitive(None, "info", {"event": "login", "password": "not-a-real-password"})
+    assert event == {"event": "login", "password": "[REDACTED]"}
+
+
+def test_a_credential_inside_a_message_is_redacted() -> None:
+    event = _redact_sensitive(
+        None, "info", {"event": "GET /callback?api_key=abc123def456 HTTP/1.1"}
+    )
+    assert event["event"] == "GET /callback?api_key=[REDACTED] HTTP/1.1"
+
+
+def test_the_configured_logger_prints_redacted_json(capsys: pytest.CaptureFixture[str]) -> None:
+    # CRITICAL passes every LOG_LEVEL filter, so the line prints whatever the environment sets
+    get_logger("starter").critical("login", api_key="not-a-real-key")
+    line = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert line["event"] == "login"
+    assert line["api_key"] == "[REDACTED]"
+'''
+
 
 def _write_canonical_compose(
     project_dir: Path,
@@ -3595,7 +3633,10 @@ from __PKG__.auth import (
     redis_client,
     require_user,
 )
-from __PKG__.chat import build_chat_router, load_chat_settings
+from __PKG__.chat import (
+    build_chat_router,
+    load_chat_settings,
+)
 from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 from __PKG__.metrics import metrics_app
@@ -4116,7 +4157,9 @@ def app(monkeypatch):
 
     sync = redis.Redis.from_url(_TEST_REDIS_URL)
     sync.flushdb()
-    main = importlib.reload(importlib.import_module("__PKG__.main"))
+    main = importlib.reload(
+        importlib.import_module("__PKG__.main"),
+    )
     sent: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -5705,6 +5748,8 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # b) Write worker/logger.py — structured logging with PII redaction. The module's import path
     # is `worker.logger` (the shipped worker/main.py imports it that way), not the project package.
     (project_dir / "worker" / "logger.py").write_text(_logger_py_content(name, "worker"))
+    (project_dir / "tests").mkdir(parents=True, exist_ok=True)
+    (project_dir / "tests" / "test_logger.py").write_text(_FILE_WORKER_STARTER_TEST)
 
     # c) Copy main.py verbatim from file-worker template
     src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"
@@ -5830,6 +5875,42 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
             )
         if has_smoke:
             content = content.replace("smoke-test", "$(PROJECT_NAME)-smoke")
+        # install: the template's `uv sync` needs a [project] table, and this pyproject is tool-only, so it made an
+        # EMPTY .venv and exited 0 (W-0259f23b). Fill .venv from requirements.txt instead, and never delete a venv:
+        # none → create it with setup-dev's `python`; a runnable python without pip (what that `uv sync`, or any uv
+        # venv, leaves) → ensurepip, keeping its packages; a .venv that is not a usable venv (no runnable
+        # bin/python, no pyvenv.cfg — so pip would land in the system interpreter — or a dangling .venv symlink) →
+        # refuse and say what to remove. A template with no install rule and no `uv sync` is left alone.
+        install_old = "install:\n\tuv sync\n"
+        # every rule header naming `install` as a target, multi-target ones included (`setup install:`); a
+        # prerequisite (`.PHONY: install`) or an assignment (`install := x`) is not one. A target built from a
+        # variable (`$(T):`) is beyond this read.
+        install_rules = re.findall(
+            r"(?m)^(?!\t)[^#\n=:]*?(?<![\w.$(-])install(?![\w.-])[^#\n=:]*::?(?![:=])", content
+        )
+        if install_rules or "uv sync" in content:
+            # exactly one rule, its whole recipe `uv sync`: make continues a recipe past blank and comment-only
+            # lines, so every line up to the next non-recipe line is read
+            at = content.find(install_old)
+            rest = content[at + len(install_old) :].split("\n") if at != -1 else []
+            more = next((ln for ln in rest if ln.strip() and not ln.lstrip().startswith("#")), "")
+            exact = at != -1 and (at == 0 or content[at - 1] == "\n") and not more.startswith("\t")
+            if len(install_rules) != 1 or not exact or content.count("uv sync") != 1:
+                raise ValueError(
+                    f"{makefile_src}: expected one `install:` rule whose whole recipe is `uv sync`, and no other "
+                    f"`uv sync`; found {len(install_rules)} install rule(s) and {content.count('uv sync')} "
+                    "`uv sync` mention(s)"
+                )
+            content = content.replace(
+                install_old,
+                "install:\n"
+                "\t@if [ ! -e .venv ] && [ ! -L .venv ]; then python -m venv .venv; "
+                "elif [ ! -x .venv/bin/python ] || [ ! -f .venv/pyvenv.cfg ]; then echo '.venv is not a usable "
+                "virtualenv (no runnable bin/python or no pyvenv.cfg): remove .venv and run make install again' "
+                ">&2; exit 1; fi\n"
+                "\t@.venv/bin/python -m pip --version >/dev/null 2>&1 || .venv/bin/python -m ensurepip\n"
+                "\t.venv/bin/python -m pip install -r requirements.txt\n",
+            )
         # the name goes in last: a project named e.g. `x9-smoke-test` must not meet the rename above, which would
         # turn `PROJECT_NAME ?= x9-smoke-test` into a self-reference make refuses to load
         content = content.replace("myproject", name)
@@ -5846,8 +5927,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 new_lines.append(line)
             elif in_dev_target and line.startswith("\t") and "uvicorn" in line:
                 # module form: `python worker/main.py` puts worker/ on sys.path, so main.py's own
-                # `from worker.logger import …` would fail (Docker is spared only by PYTHONPATH=/app)
-                new_lines.append("\tpython -m worker.main\n")
+                # `from worker.logger import …` would fail (Docker is spared only by PYTHONPATH=/app); the venv's
+                # python, where `make install` put the worker's deps (W-0259f23b)
+                new_lines.append("\t.venv/bin/python -m worker.main\n")
                 in_dev_target = False
             else:
                 in_dev_target = False

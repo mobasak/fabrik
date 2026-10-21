@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:14.246801Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1905d02c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5AKSQQ342SRWWT8D1R2QVGY, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "fabrik-lib notice with six hub follow-ons on the watchdog allow-list; read and split",
+  "status": "open",
+  "tags": [
+    "mail-01m5aksqq342srwwt8d1r2qvgy"
+  ],
+  "title": "fabrik-lib SB-103 — watchdog DB-write actions are now allow-listed (fabrik-lib D-470/D-471/D-475): six hub follow-ons + a consumer note (mail 01M5AKSQQ342SRWWT8D1R2QVGY, from fabrik-lib-dev1)"
+}

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:22.002580Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c83c550c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5CG40NVB92QRVQXYT96WXQ6, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "bug blocking builders in every linked worktree: check_undeclared_imports false-fires on a first-party editable package (youtube mt_router; two youtube mails)",
+  "status": "open",
+  "tags": [
+    "mail-01m5cg2qc2thz6rdvcnqtrhny5",
+    "mail-01m5cg40nvb92qrvqxyt96wxq6"
+  ],
+  "title": "check_undeclared_imports false-positives every editable in-repo package from a linked worktree (mt_router in youtube) (mail 01M5CG40NVB92QRVQXYT96WXQ6, from yt1)"
+}

@@ -675,10 +675,10 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause."""
     src = _norm(SRC)
     assert (
-        "a fix committed after that `--init` moves the tip, so at the close the receipt is re-made after the last fix"
-        " commit (`--init --range <base>..<that commit>` under a new `--scope`, or a new `--out` for a plan's receipt,"
-        " its rows carried over and the superseded receipt deleted — `--init` never overwrites, and `--restamp`"
-        " re-anchors only a working-tree receipt)"
+        "a fix committed after the draft's `--init` moves the tip, which is why that form writes the receipt itself"
+        " only at the close (`--init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>`,"
+        " its rows carried from the draft — `--init`"
+        " never overwrites, and `--restamp` re-anchors only a working-tree receipt)"
     ) in _section(src, "## Reporting", "{{include:close-chain}}")
     # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
     # negation-safe-assertions)
@@ -1058,3 +1058,133 @@ def test_a_shifted_anchor_is_remapped_after_each_round_fix() -> None:
         "never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a"
         " brief or mutant list carries."
     ) in _norm(CAT)
+
+
+def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
+    """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
+    once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
+    lives — the fragment's obligation 3 (included by five command sources) and the later-pass high-water mark."""
+    frag = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    for clause in (
+        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review",
+        "--out <SCRATCH>/<scope>-receipt-draft.md",
+        "`review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last"
+        " fix commit>` writes the receipt under `docs/development/reviews/` once",
+        "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
+        "the receipt becomes the draft again: move it back over the draft (`mv`, since it is not yet committed and `--init` never overwrites)",
+        "and every other command this fragment renders into — creates it NOW",
+        "at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none —",
+        "then the close ORDER of `/fabrik-review` § Reporting runs on it",
+        "A fix that ORDER still forces is a closing-pass fix: commit it",
+    ):
+        assert clause in frag, clause
+    assert (
+        "the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5)"
+    ) in _norm(SRC)
+    task = _norm(ROOT / "commands" / "_sources" / "fabrik-task.md")
+    assert (
+        "run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that"
+        " lands first"
+    ) in task
+    assert (
+        "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
+        in task
+    )
+    assert (
+        "carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed)"
+        in task
+    )
+
+
+CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
+
+
+def _clause(text: str, after: str, end: str = ";") -> str:
+    """The clause that immediately follows `after`, up to and including its first `end`."""
+    assert after in text, f"anchor moved: {after!r}"
+    i = text.index(after) + len(after)
+    return text[i : text.index(end, i) + len(end)]
+
+
+def test_a_worktree_lead_writes_scratch_files_by_cp() -> None:
+    """Rows 1792495473, 1792488144, 1792486681: briefs and notes left in the /tmp scratchpad died on a reboot."""
+    clause = _clause(_norm(CORE), "do so an interrupted pass keeps its pins; ")
+    assert clause == (
+        "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail"
+        " 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its"
+        " scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
+    )
+    core = _norm(CORE)
+    assert core[core.index(clause) + len(clause) :].startswith(" and a tree"), (
+        "a clause was added after the rule"
+    )
+
+
+def test_a_cwd_rooted_tool_runs_after_an_os_chdir(tmp_path: Path) -> None:
+    """Row 1792495913: docs_updater roots at the cwd, so a seat's absolute argument rewrote the live INDEX.md."""
+    clause = _clause(
+        _norm(CORE),
+        "absolute paths for anything written or run (the shell returns to the live checkout before every call); ",
+    )
+    assert clause == (
+        "a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT ="
+        " Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or"
+        " runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not"
+        " persist;"
+    )
+    core = _norm(CORE)
+    assert core[core.index(clause) + len(clause) :].startswith(" never `pkill`"), (
+        "a clause was added after the rule"
+    )
+    import subprocess
+    import sys
+
+    program = (
+        "import os, sys; os.chdir(sys.argv[1]); sys.path.insert(0, sys.argv[2]); import docs_updater;"
+        " print(docs_updater.PROJECT_ROOT)"
+    )
+    out = subprocess.run(
+        [sys.executable, "-B", "-c", program, str(tmp_path), str(ROOT / "scripts")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout.strip()
+    assert Path(out).resolve() == tmp_path.resolve()
+
+
+def test_a_by_design_owner_row_decides_its_residual() -> None:
+    """Row 1792467497: any existing D-id passed the gate as a by-design owner, a wrong one included."""
+    sentence = _clause(_norm(SRC), "which takes no round token. ", ". ")
+    assert sentence == (
+        "That row is the one that decides THIS residual (its text names the subject's file or mechanism), since"
+        " the gate checks only that the owner exists (a D-id in this checkout's `docs/DECISIONS.md`, a receipt"
+        " row on another line with an earlier round), so any existing id passes it. "
+    )
+    src = _norm(SRC)
+    assert src[src.index(sentence) + len(sentence) :].startswith("The parentheses hold the owner")
+
+
+def test_a_tests_slice_writes_its_own_mutants() -> None:
+    """Row 1792471443: seat-written mutants found 11 survivors the plan's own 24 mutants missed."""
+    clause = _clause(_norm(CAT), "one reader mutates the guarded behaviour; ")
+    assert clause == (
+        "a tests slice's seats also write and run mutants of their own against each behaviour its tests claim,"
+        " beside the lead's, and report each survivor that changes observable behaviour, as above;"
+    )
+    cat = _norm(CAT)
+    after = cat[cat.index(clause) + len(clause) :]
+    assert after.startswith(" graders are written, and named, before the next round goes out. - ")
+
+
+def test_a_dead_resumed_seat_is_re_dispatched_fresh() -> None:
+    """Row 1792488923: a SendMessage-resumed seat died on an API 403 after an account switch."""
+    clause = _clause(_norm(_BANNER), "and the pass's pin ", ")")
+    assert clause == (
+        "(a later pass may resume a round-1 seat with `SendMessage`, and one that comes back dead, as after an"
+        " account switch's API 403, is re-dispatched fresh with its slice's or unit's ledger and the previous"
+        " seat's REFUTED list)"
+    )
+    banner = _norm(_BANNER)
+    after = banner[banner.index(clause) + len(clause) :]
+    assert after.startswith(", and the close or the Pass row records `shape: agent-tool`.")

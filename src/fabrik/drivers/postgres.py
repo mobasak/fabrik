@@ -348,6 +348,17 @@ def create_database(
             result["user"] = db_user
         return result
 
+    # An existing role named like the new database is adopted below (password reset, made owner). That
+    # is right for a leftover owner of a dropped database, which holds nothing; a role holding grants,
+    # policies or memberships is a live role of another project (e.g. `foo_wd_ro` for a database named
+    # `foo_wd_ro`) and must not be captured — refused before the database exists (W-f599a88c).
+    if db_user and db_user != "postgres" and _role_exists(db_user, container):
+        _refuse_foreign_role(
+            db_user,
+            _foreign_role_reasons(db_user, own_db=None, any_dependency=True, container=container),
+            f"owner role for database {db_name}",
+        )
+
     # Create database. Identifier safety is enforced by _validate_identifier.
     _run_sql(f'CREATE DATABASE "{db_name}";', container=container)
     logger.info("Created PostgreSQL database: %s", db_name)
@@ -569,6 +580,69 @@ def _role_exists(role: str, container: str) -> bool:
     )
 
 
+_GUARD_END = "__end__"
+
+
+def _foreign_role_reasons(
+    role: str,
+    *,
+    own_db: str | None,
+    any_dependency: bool = False,
+    container: str = POSTGRES_CONTAINER,
+) -> list[str]:
+    """Why an EXISTING role named like a registrar role is not this registrar's (W-f599a88c).
+
+    Every per-project role is ``<db>_<suffix>`` and every database's owner role carries the database's own
+    name, so a database named ``<x>_wd_rw`` has an owner role with exactly project ``<x>``'s watchdog name.
+    The registrar never makes its own roles own anything, so a role that owns a database, or owns objects
+    in any database other than ``own_db`` (its own database may hold a live session's temp tables), belongs
+    to someone else. ``any_dependency`` (the ``create_database`` form, where the role should be a leftover
+    owner of a dropped database holding nothing at all) also counts every grant, policy row and membership.
+
+    Fails CLOSED: the query runs under ``ON_ERROR_STOP`` and must end with its marker row, so an error or a
+    truncated answer raises instead of reading as "no reasons". Empty means the role is ours.
+    """
+    # role / own_db are _validate_identifier-gated by every caller (registrar-built names).
+    rid = f"(SELECT oid FROM pg_roles WHERE rolname = '{role}')"  # nosec B608
+    own = f"'{own_db}'" if own_db else "NULL"
+    parts = [
+        f"SELECT 'owns database ' || d.datname FROM pg_database d WHERE d.datdba = {rid}",  # nosec B608
+        "SELECT 'owns ' || count(*) || ' object(s) in database ' || db.datname "  # nosec B608
+        "FROM pg_shdepend s JOIN pg_database db ON db.oid = s.dbid "
+        f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype = 'o' "
+        f"AND db.datname IS DISTINCT FROM {own} GROUP BY db.datname",
+    ]
+    if any_dependency:
+        parts += [
+            "SELECT 'holds ' || count(*) || ' grant(s) or policy row(s) in ' "  # nosec B608
+            "|| coalesce(db.datname, 'the cluster') "
+            "FROM pg_shdepend s LEFT JOIN pg_database db ON db.oid = s.dbid "
+            f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype <> 'o' "
+            "GROUP BY db.datname",
+            "SELECT 'is a member of ' || g.rolname FROM pg_auth_members m "  # nosec B608
+            f"JOIN pg_roles g ON g.oid = m.roleid WHERE m.member = {rid}",
+        ]
+    out = _run_sql(
+        "\\set ON_ERROR_STOP on\n" + "\nUNION ALL\n".join(parts) + f";\nSELECT '{_GUARD_END}';",
+        container=container,
+    )
+    lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+    if not lines or lines[-1] != _GUARD_END:
+        raise RuntimeError(f"foreign-role guard for {role}: unreadable answer, refusing to proceed")
+    return lines[:-1]
+
+
+def _refuse_foreign_role(role: str, reasons: list[str], purpose: str) -> None:
+    """Raise when ``reasons`` is non-empty: the role is someone else's, so the registrar touches nothing."""
+    if reasons:
+        raise RuntimeError(
+            f"role {role} exists but is not this registrar's {purpose}: {'; '.join(reasons)}. "
+            "Another project's database (whose owner role carries the same name) or a hand-made role "
+            "shares the name; rename one project's database with `depends.postgres` and re-apply — "
+            "the other role is left as it is"
+        )
+
+
 def _db_owner(db_name: str, container: str) -> str | None:
     """Return the role that OWNS ``db_name`` (validated), or ``None`` if unknown.
 
@@ -675,6 +749,14 @@ def create_watchdog_roles(
 
     ro_exists = _role_exists(ro, container)
     rw_exists = _role_exists(rw, container)
+    # Both checked before either is created, so a foreign sibling never orphans a fresh one's password.
+    for role, exists in ((ro, ro_exists), (rw, rw_exists)):
+        if exists:
+            _refuse_foreign_role(
+                role,
+                _foreign_role_reasons(role, own_db=db_name, container=container),
+                f"watchdog role for {db_name}",
+            )
     pw_ro = None if ro_exists else _generate_password()
     pw_rw = None if rw_exists else _generate_password()
     owner = _db_owner(db_name, container)
@@ -1020,6 +1102,11 @@ def mint_payments_role(
             container=container,
         )
     else:
+        _refuse_foreign_role(
+            role,
+            _foreign_role_reasons(role, own_db=db_name, container=container),
+            f"payments-{lane} role for {db_name}",
+        )
         # A role of this name that is a superuser or owns a database was never left that way by
         # this registrar (it grants neither): it may be an unrelated admin or owner role, or one
         # escalated out of band, and the registrar cannot tell which. Fail closed and say so,
@@ -1763,6 +1850,12 @@ def create_subagent_ins_role(
         return {"ins": {"user": role, "password": None, "status": "dry_run"}}
 
     role_exists = _role_exists(role, container)
+    if role_exists:
+        _refuse_foreign_role(
+            role,
+            _foreign_role_reasons(role, own_db=FABRIK_ANALYTICS_DB, container=container),
+            f"subagent-ins role for {project_id}",
+        )
     pw = None if role_exists else _generate_password()
 
     # Split into TWO psql invocations to avoid the wedge state the convergence

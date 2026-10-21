@@ -164,7 +164,7 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     )
     close = _section("## Phase 5", "## UPGRADE")
     assert (
-        "run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`"
+        "run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft"
         in close
     )
     assert (
@@ -192,9 +192,10 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
         text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")
     ]
     assert (
-        "A full `/fabrik-review` over committed work runs after phase 5 step 5, its receipt's `--range` tip the last"
-        " `--commit` (the ledger commit or a later fix), committed alone; a receipt the D-row cites is made before that"
-        " commit instead (`--restamp`, phase 5); a scoped one needs none."
+        "A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt"
+        " made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and"
+        " committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a"
+        " scoped one needs none."
     ) in review
     # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
     # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
@@ -323,9 +324,9 @@ def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole
     assert (
         "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form"
         " each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in"
-        " `commit.sha`, and re-make the receipt after the last one as `/fabrik-review`'s exit proofs say (a sync-path"
-        " run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — the"
-        " `--restamp` form below): after the last sha in"
+        " `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (a"
+        " sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead —"
+        " the `--restamp` form below):"
     ) in _section("## Phase 5", "## UPGRADE")
     assert (
         "every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a"
@@ -365,7 +366,9 @@ def test_build_re_runs_the_population_measurement_for_a_changed_check_or_guard()
     ) in _norm(SRC)
 
 
-def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spellings_and_a_copied_mechanism() -> None:
+def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spellings_and_a_copied_mechanism() -> (
+    None
+):
     """Rows 1792361074, 1792363058, 1792365690, 1792401257: each design was sent back by its critiques for a case
     MEASURE never executed — what the reporter did next, a merge target that moved past the merge-base, a spelling
     another command prescribes, a copied guard on the live host — so MEASURE executes each before design.md is
@@ -378,8 +381,69 @@ def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spelli
         " it will run on (a side-effecting step on a copy),"
     ) in _section("## Phase 1", "## Phase 2")
     phase2 = _section("## Phase 2", "## Phase 3")
-    assert "a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded." in phase2
+    assert (
+        "a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded."
+        in phase2
+    )
     assert (
         "run a mechanism the design copies read-only against the live state of each host it will run on (a side-effecting"
         " step on a copy);"
     ) in phase2
+
+
+def test_measure_replays_the_items_proposed_fix_and_reads_an_unreachable_source() -> None:
+    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise) and 1792452880: a fix the item
+    proposed was adopted unreplayed, and an unreachable tool's claim was recorded unverified with its source unread;
+    the read never upgrades the claim, since phase 1 counts a source read as no measurement."""
+    phase1 = _section("## Phase 1", "## Phase 2")
+    assert (
+        "A fix the item proposes is replayed the same way, on a copy, before the design adopts it; a replay that"
+        " overturns it is stated in PROBLEM."
+    ) in phase1
+    assert (
+        "An unreachable tool's server source, where one exists, is read before a claim is recorded unverified, and"
+        " the read never upgrades it."
+    ) in phase1
+
+
+def test_measure_greps_the_prior_record_by_the_items_id() -> None:
+    """Row 1792445219 (a finer cut of held read-sibling-row-ruling-first): the grep ran on subject words only; the
+    id clause follows the whole list, so it binds every source the list names."""
+    assert (
+        "the fragment or pack the rule already lives in — each searched by the item's id too, plans and specs included;"
+    ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_measure_runs_a_surfaced_outcome_twice() -> None:
+    """Row 1792459184 (a recurrence of held replay-seat-recipe-twice): an outcome seen once was not traced to the
+    line the operator reads."""
+    assert "a surfaced outcome run twice and traced to the line the operator reads," in _section(
+        "## Phase 1", "## Phase 2"
+    )
+
+
+def test_design_tables_a_written_files_malformed_shapes() -> None:
+    """Row 1792451004 (a recurrence of held design-list-input-grammar): a marker-block file's broken shapes were
+    found by the critiques, not the design's table."""
+    assert (
+        "A marker-block or append-only file the change writes is tabled absent, begin without end, end without begin,"
+        " nested and duplicate."
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_the_brief_fetches_provider_docs_for_seats_without_web() -> None:
+    """Row 1792412516: a fabrik-reviewer seat was asked to execute a provider-docs claim it cannot reach."""
+    assert (
+        "execute one claim about every external dependency (both seats are `fabrik-reviewer`, with no web tool: the"
+        " lead fetches a provider-docs fact into the brief)"
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_design_amend_runs_while_the_task_record_is_on_top() -> None:
+    """Row 1792418646 (a recurrence of held design-amend-needs-top-record): the amend was tried under a nested
+    review: the step landed on the nested record, the active one, and command_run.py refused it (--design-amend
+    belongs to --command fabrik-task)."""
+    assert (
+        "and counted on the close as `design_amends`. The amend runs while the `fabrik-task` record is the top one,"
+        " never under a nested run."
+    ) in _section("## Phase 2", "## Phase 3")

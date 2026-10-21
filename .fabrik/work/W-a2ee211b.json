@@ -1,0 +1,26 @@
+{
+  "block_digest": "a6734614a65b1fdde93db76bd360f666753836d4aaff74725aa983688f832c08",
+  "blocked_by": [],
+  "created": "2026-10-20T07:07:04.442273Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-a2ee211b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "2f8e3adc7762b748e4b7cc45b1dc6b3ced48c392aa77cca96c02721e743630bb"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet replace GlitchTip's and the database-monitoring exporter's use of the main database admin login on vps1 with their own limited logins, then change the admin password?",
+  "status": "awaiting-operator",
+  "title": "May fleet replace GlitchTip's and the database-monitoring exporter's use of the main database admin login on vps1 with their own limited logins, then change the admin password?"
+}

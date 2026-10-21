@@ -13,14 +13,15 @@
     "plan": "",
     "spec": ""
   },
-  "next": "fleet: read mail 01M4Z7Y23QDN1K1HM7C0BTR3P7, claim it, act on it",
+  "next": "operator 2026-10-20 on W-8739f2f4: \"i have removed it before, i will not do it now\" — tapwlvpn already removed and the name-keyed drop persists, so it is ruled out; no driver removal or reboot today; port bridges 15051->5051 and 18765->8765 stay as the workaround; ovpn-dco needs a new, separately boarded gate only with no-reboot evidence that it is the cause",
   "note": "",
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-run deciding test result to act on",
   "status": "open",
   "tags": [
-    "mail-01m4z7y23qdn1k1hm7c0btr3p7"
+    "mail-01m4z7y23qdn1k1hm7c0btr3p7",
+    "waits-operator-reboot"
   ],
   "title": "Deciding test run (operator ~10:30): a process-name-keyed network drop is CONFIRMED (curl renamed chrome.exe times out) — act on the result (mail 01M4Z7Y23QDN1K1HM7C0BTR3P7)"
 }

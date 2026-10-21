@@ -3,7 +3,7 @@
   "created": "2026-10-20T03:49:45.053419Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "48548810594680a2bd826adc37cf0ef4f10de995",
   "id": "W-bc457e27",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "blocking bug on a hook: every agent's panel-backed DECISION block is refused box-wide since 2.1.304; one function plus a test",
-  "status": "open",
+  "status": "done",
   "title": "Stop hook panel check misses every seat verdict on Claude Code 2.1.304: a foreground Agent seat's report now arrives as a type:attachment row (attachment.type queued_command, attachment.origin kind peer from=<agentId>, no handback key), but _panel_problem (.claude/hooks/final_gate_stop.py:3940-3972) reads only type:user rows with entry.origin.handback true — so no DECISION block with a Panel line can board (fleet W-98debf05 refused 3/3; coordinator refused on transcript 39bff247 row 41364)"
 }

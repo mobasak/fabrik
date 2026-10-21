@@ -20,7 +20,8 @@
   "score_reason": "rare edge: a backticked Status: example winning first-match; one scan",
   "status": "done",
   "tags": [
-    "link-reader"
+    "link-reader",
+    "queued"
   ],
   "title": "docs_updater's Status:/Owner: scans read a header line inside an inline code span (a backticked Status: example can win first-match) — the twin of W-69f51003 for _strip_quoted's other callers"
 }

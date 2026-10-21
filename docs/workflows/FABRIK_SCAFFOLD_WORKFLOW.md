@@ -429,7 +429,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | **Enforcement Scripts (35)** | | |
 | `scripts/enforcement/*.py` | Copied from Fabrik | Individual quality gate checks (full dir copy from `/opt/fabrik/scripts/enforcement/`) |
 | **Dev Tooling** | | |
-| `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make dev`, `make test`, `make review`) |
+| `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make setup-dev`, `make dev`, `make test`, `make lint`) |
 | `compose.dev.yaml` | `docker/compose.dev.yaml.template` | Dev overlay with bind-mount hot reload |
 | `.dockerignore` | `docker/dockerignore.template` | Excludes `.venv`, `.git`, `__pycache__` from Docker context |
 | `scripts/runc` | `scripts/runc` | Check detached job status |
@@ -591,12 +591,14 @@ writer, `docs_updater.py`, creates `.droid/docs_queue/` and `.droid/docs_log/` i
 `.droid/traycer-reports/.gitignore` — and each directory when nothing else is in it, keeping and reporting any
 directory that still holds files.
 
-**Developer shortcuts (all available immediately after scaffold):**
+**Developer shortcuts** (Python types; run `make setup-dev` once first — `test`, `lint` and `format` run the
+project's own `.venv/bin` tools and say so when one is missing):
 
 ```bash
-make dev          # Start dev server with hot reload
-make test         # Run pytest
-make review       # Run Kilo code review
+make setup-dev    # Create .venv and install requirements-dev.txt (pytest, ruff, mypy)
+make dev          # Run locally (python-api: uvicorn with reload; file-worker: the worker loop)
+make test         # Run pytest (a file-worker ships tests/test_logger.py)
+make lint         # ruff check + mypy
 ./scripts/rund    # Docker hot-reload container
 ./scripts/runc    # Docker production container
 ./scripts/rundsh  # Shell into running container

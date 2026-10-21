@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T12:26:05.710393Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-45fef7e2",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: after W-ea993618 and W-a26733b9",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "agents' request (kaizen rows wait on it); one option in one script",
+  "status": "open",
+  "title": "review_receipt.py --command lacks /fabrik-plan-review (kaizen mail 01M4Y582BH point 1), so a plan-review run cannot write its receipt through the standard tool; add the command (infra code, asked by infra at the 2026-10-20 pause)"
+}

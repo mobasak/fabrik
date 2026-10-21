@@ -3865,6 +3865,37 @@ def _row_text(content: object) -> str:
     return "\n".join(out)
 
 
+_HANDBACK_WRAPPER_RE = re.compile(r"\A\s*<agent-message\b[^>]*>\s*|\s*</agent-message>\s*\Z")
+
+
+def _handback_text(att: dict, origin: dict) -> str:
+    """A seat's own report from a 2.1.304 hand-back attachment: `handbackReportText`, else the
+    `prompt` with the harness's `<agent-message>` wrapper stripped — so a quote of the wrapper
+    alone is never a seat's verdict. (The origin `body` is not used: it opens with the harness's
+    own hand-back preamble.)"""
+    report = origin.get("handbackReportText")
+    if isinstance(report, str) and report.strip():
+        return report
+    return _HANDBACK_WRAPPER_RE.sub("", str(att.get("prompt") or ""))
+
+
+def _queued_operator_prompt(att: object) -> bool:
+    """A prompt the operator typed while the agent was busy, as a `queued_command` attachment: no
+    peer or task-notification origin or mode, no harness wrapper tag. A queued `!` shell command
+    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens."""
+    if not isinstance(att, dict) or att.get("type") != "queued_command":
+        return False
+    if att.get("commandMode") == "task-notification":
+        return False
+    origin = att.get("origin")
+    if isinstance(origin, dict) and origin.get("kind") in ("peer", "task-notification"):
+        return False
+    text = str(att.get("prompt") or "")
+    return bool(text.strip()) and not any(
+        m in text for m in ("<agent-message", "<cross-session-message", "<task-notification")
+    )
+
+
 def _panel_problem(
     panel: str,
     transcript_path: str,
@@ -3930,11 +3961,38 @@ def _panel_problem(
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"user"' not in line:
+                if '"user"' not in line and '"attachment"' not in line:
                     continue
                 try:
                     entry = json.loads(line)
                 except Exception:
+                    continue
+                if entry.get("type") == "attachment":
+                    # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
+                    # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
+                    # kind peer, from = its agentId; `handback` is not always set (W-bc457e27).
+                    # Only the harness writes these rows, and `from` must be a seat this transcript
+                    # dispatched, so a peer that is not a seat, or a Bash echo, never counts.
+                    att = entry.get("attachment")
+                    origin = att.get("origin") if isinstance(att, dict) else None
+                    if _queued_operator_prompt(att):
+                        # an operator prompt queued while the agent was busy is the operator's
+                        # word too: verdicts before it never back a panel written after it
+                        said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
+                        said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
+                        continue
+                    src = str(origin.get("from") or "") if isinstance(origin, dict) else ""
+                    if (
+                        isinstance(origin, dict)
+                        and origin.get("kind") == "peer"
+                        and origin.get("handback") is not False
+                        and src in seats
+                    ):
+                        text = _handback_text(att, origin)
+                        said[seats[src]].append(_norm_ws(text))
+                        by_seat.setdefault(src, []).append(_norm_ws(text))
+                        said_lines[seats[src]].extend(_lines(text))
+                        by_seat_lines.setdefault(src, []).extend(_lines(text))
                     continue
                 if entry.get("type") != "user":
                     continue

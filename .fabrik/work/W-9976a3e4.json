@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:07:53.196272Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9976a3e4",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: find why a subagent's token fails when the parent's works (token refresh race across the shared fleet dir? the 'backups' dir?), fix the class, report",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a bug that breaks every agent's review seats at random; intermittent, after re-dispatch work continues",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Agent-tool review seats die with 'API Error: 403 Request not allowed (authentication_failed) · Please run /login' on the active account ozgurbasak while the parent session keeps working (intel 2026-10-20: one Sonnet and one Haiku seat of session 5ce9d888; kaizen 14:38: seat C of its remainder round); claude_rotate --status shows a 'backups' dir pending-login, identity unverified"
+}

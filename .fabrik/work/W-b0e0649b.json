@@ -1,0 +1,26 @@
+{
+  "block_digest": "0296fd87e5dad57aab8c8d5056f18408dba082400933e49f23c3b4df30bbf7ef",
+  "blocked_by": [],
+  "created": "2026-10-20T11:30:13.592981Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-b0e0649b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "980173cf48dd7d6d7b9afb880091798216d26afdde4fa1c2a7a8b161ef40a708"
+  ],
+  "next": "",
+  "note": "how can we try this fastest? (Option C — the extension process wrapper)",
+  "owner": "",
+  "priority": 2,
+  "question": "Which layout do you want for the coordinators in one VS Code window: terminal tabs you open yourself today (A), or a capped tmux coordinators grid that infra builds (B)?",
+  "status": "done",
+  "title": "Which layout do you want for the coordinators in one VS Code window: terminal tabs you open yourself today (A), or a capped tmux coordinators grid that infra builds (B)?"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:14.870267Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "178f123a6cbba14c063d924d5681432b500cbf72",
+  "id": "W-9241a5b1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: claim mail 01M5B5CS5N6AK41XYP4HK6ZHMF, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "fabrik-lib notice: payments_grant_fulfilment refuses a tenant role; consumer note for the payments registrar",
+  "status": "done",
+  "tags": [
+    "mail-01m5b5cs5n6ak41xyp4hk6zhmf"
+  ],
+  "title": "fabrik-lib SB-096 (W-dc3d7d0e, fabrik-lib D-478 design, D-487 EXECUTED): `payments_grant_fulfilment` now REFUSES a tenant-facing role. Merged to fabrik-lib main at f1a1159a. (mail 01M5B5CS5N6AK41XYP4HK6ZHMF, from fabrik-lib-dev1)"
+}
