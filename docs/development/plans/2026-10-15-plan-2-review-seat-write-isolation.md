@@ -103,8 +103,8 @@ Appetite: 120
 delta 2, 3 and 5, cited rather than restated):
 - `_simple_commands()` (`:214-234`) returns a list of `_Cmd(list)` — the words as today, plus a `.redirs` attribute
   holding `(op, target)` for every OUTPUT redirect of spec § The delta 2, kept also for an empty or keyword-only word
-  list; an fd number leaves the words only when glued to its operator in the raw text (an offset check on the raw
-  string, since shlex drops the whitespace). The `["("]`/`[")"]` scope markers (`:227`) stay plain
+  list; an fd number leaves the words only by spec § The delta 2's stream test (`tell(op) - tell(digit) ==
+  len(op)`, no quote before the digit). The `["("]`/`[")"]` scope markers (`:227`) stay plain
   equality-comparable lists. `_scan` reads `raw.redirs` BEFORE `_strip` (`:533`), which returns a plain slice.
 - `_write_reason(words, redirs, ctx, cwd_before) -> str` — "" or the reason `a review seat writes only under its
   scratch dir — <dest> is outside it`; the destinations are spec § The delta 2's, redirects judged against
@@ -127,7 +127,8 @@ delta 2, 3 and 5, cited rather than restated):
    red and restored: A1 — add `Write` to the `tools:` line; A2 — drop `decide()`'s early return (`:566-567`); A4 —
    drop the `/dev/` and fd exemptions; A5 — judge `cp` sources as destinations, and drop the `-M`/`-m`/`-I` exclusion
    for the `perl -Mstrict` case; A10's allow half — judge the `env -C` command's operands against the cwd from before
-   it; A8's allow half — match every `>`
+   it; A4's new cases — judge a glob by its whole path (`rm -f <scratch>/*.tmp`), drop the `gzip -c` exemption
+   (`gzip -c f > <scratch>/f.gz`), and drop the quote check from the fd test (`echo "2>x"`); A8's allow half — match every `>`
    in the fallback; A9 — let the new path's exception escape `main()`.
 2. The tool-list pin (A1): a test reading `commands/_agents/fabrik-reviewer.md`'s frontmatter `tools:` line.
 3. `_Cmd` with `.redirs` and the fd-number drop in `_simple_commands`.
@@ -146,10 +147,10 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** `commands/_agents/fabrik-reviewer.md`, **When** its frontmatter `tools:` line is read, **Then** it names none of `Write`, `Edit`, `NotebookEdit`, `MultiEdit` (A1)
 - **Given** the lead (no `agent_id`) and a `general-purpose` agent, cwd = the repo, **When** `echo x > Makefile` or `rm -rf src`, **Then** allowed (A2)
 - **Given** a seat with cwd = the repo, **When** `echo x > Makefile`, `echo x >> docs/a.md`, `ls | tee Makefile`, `cmd &> out.log`, `cmd >& out.log`, `cmd &>2`, `cmd <> Makefile`, `> Makefile`, `{ echo x; } > Makefile`, `(true) > Makefile`, `for i in a; do echo; done > Makefile`, `exec 3> Makefile`, `cp <scratch>/a 2 >/dev/null`, **Then** denied, the reason naming the destination (A3)
-- **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, `rm -f <scratch>/*.tmp`, `dd if=f of=/dev/null`, `ls | tee /dev/stderr`, `curl -s -o /dev/null URL`, `gzip -c f > <scratch>/f.gz`, `echo "2>x"`, **Then** allowed (A4)
+- **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, `rm -f <scratch>/*.tmp`, `dd if=f of=/dev/null`, `ls | tee /dev/stderr`, `cmd > /dev/stdout`, `curl -s -o /dev/null URL`, `gzip -c f > <scratch>/f.gz`, `echo "2>x"`, **Then** allowed (A4)
 - **Given** the same seat, **When** `cp <live file> <scratch>/`, `cp -r src <scratch>/s`, `cat Makefile`, `perl -Mstrict -ne print Makefile`, **Then** allowed (A5)
 - **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed -Ei s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
-- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, **Then** denied (unknown, home, glob-prefix or ancestor-of-scratch destination) (A7)
+- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, `touch <scratch>/{x,/../../opt/f}`, `rm -rf /tmp/cl*`, `rm -rf /tmp/claude-<uid>/<slug-prefix>*`, `cp /tmp/s/a "2">/dev/null`, **Then** denied (unknown, home, brace, glob-directory or ancestor-of-scratch destination; a quoted digit is a word) (A7)
 - **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` and `echo "unterminated 2>/dev/null` stay allowed (A8)
 - **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) (A9)
 - **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
@@ -347,7 +348,8 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 
 - The glued-fd test on the tokeniser's own stream (spec § The delta 2), run 2026-10-22 with `shlex.shlex(io.StringIO(s),
   posix=True, punctuation_chars=True)`, `whitespace_split=True`, recording `instream.tell()` after each token: the gap
-  before `>` differs by one, so `2 >` and `2>` are told apart without re-reading the raw text:
+  before the operator is zero exactly when `tell(op) - tell(digit) == len(op)` (round 3 also ran `>&`, `>>` and
+  quoted `"2">x`, which is why the rule carries the operator length and the quote check):
 
 ```text
 'cp /tmp/a 2 >/dev/null' -> [('cp', 3), ('/tmp/a', 10), ('2', 12), ('>', 14), ('/dev/null', 22)]
@@ -362,7 +364,7 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 - Every behaviour in `spec § Validation` maps to a row: spec 1 → A1, 2 → A2, 3 → A3/A4, 4 → A5/A6/A7, 5 → A8, 6 → A9,
   7 → A10/A11.
 - Every item in What we already agreed maps to Phase A (delta 1-5) or Phase B (review, CHANGELOG, merge request).
-- Diff estimate ≈250 code lines in 1 code file (tests excluded) after round 1: inside `Profile: small` (≤ ~400, ≤ 5).
+- Diff estimate ≈250 code lines in 1 code file (tests excluded) after rounds 1-3: inside `Profile: small` (≤ ~400, ≤ 5).
 - Cross-phase names: `_Cmd`, `.redirs` and `_write_reason` are produced and consumed in Phase A only.
 - Every touchpoint is a `path:line` in today's hook, re-read by the Opus grounding seat (its drift corrections are
   applied: `decide` `:564-582`, `_scan` `:504-561`, `main` `:611-647`).

@@ -101,9 +101,11 @@ working directory, their briefs, or the lead session.
    `>|`, `<>`, `&>`, `&>>`, and `>& <file>`) with its command instead of dropping it — also when the command's word list
    is empty or ends on a keyword or closer (`> f`, `{ …; } > f`, `( … ) > f`, `done > f`, `exec 3> f`, `X=1 > f`) — and
    drops an fd number from the words only when it is glued to the operator (`2>`; `2 >` is a word `2` and a
-   redirect), decided on the tokeniser's own stream — the source offsets between shlex tokens — so a quoted `2>` is
-   text, never an fd. Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. Any
-   destination whose `realpath` lies under `/dev/` (`> /dev/null`, `dd of=/dev/null`, `tee /dev/stderr`), a `-`
+   redirect), decided on the tokeniser's own stream: a digit token is an fd only when
+   `tell(operator) - tell(digit) == len(operator)` (no gap, whatever the operator's length — `>`, `>>`, `>&`) and
+   the source character before the digit is not a quote (`"2">x` is the word `2`, as in bash). Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. Any
+   destination whose LEXICAL path — `os.path.normpath` of it joined to the cwd, no symlink resolved — lies under
+   `/dev/` (`realpath` would send `/dev/stderr` to the hook's own stdio, never `/dev/`) (`> /dev/null`, `dd of=/dev/null`, `tee /dev/stderr`), a `-`
    value of `-o`/`-O` (stdout) and input redirects are never destinations. `_scan()` gains a
    write rule, judged on every simple command BEFORE its `if not words` and every `continue`, so a redirect on a `cd`,
    `bash -c` or keyword line is seen. Destinations: every redirect target; `tee` operands; `cp`/`install`/`ln` — the
@@ -117,9 +119,11 @@ working directory, their briefs, or the lead session.
    is not `-M`/`-m`/`-I` (its file operands after the code from `-e` or a cluster ending in `e`); `dd of=`. Each
    joins the tracked `cwd`, a leading `~` is outside scratch, and a path naming `/tmp`, `/tmp/claude-<uid>` or
    `/tmp/claude-<uid>/<slug>` itself is outside scratch (an ancestor of other sessions' scratch is never this seat's).
-   A path holding a glob or brace character (`*?[{`) is judged by its fixed prefix — the path up to the first such
-   character — which must be inside scratch and not one of those ancestors (`rm -f <scratch>/*.tmp` stays allowed;
-   `rm -rf /tmp/*` and `touch <scratch>/{x,/../../opt/f}` do not). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
+   A path holding a brace (`{`) is outside scratch, like a `$` (its expansions can leave the directory it starts in:
+   `touch <scratch>/{x,/../../opt/f}`). A path holding a glob character (`*?[`) is judged by the DIRECTORY before it —
+   the path cut back to the last `/` before the first such character — which must be inside scratch and not one of
+   those ancestors, compared after `realpath` (`rm -f <scratch>/*.tmp` stays allowed; `rm -rf /tmp/*` and
+   `rm -rf /tmp/cl*` do not). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
    stays allowed — `cp` and `install` sources are reads.
 3. **Unparseable.** The existing fallback (`:510-517`) also denies an untokenisable command that names one of those write
    verbs as a word not preceded by `/`, `-` or `.`, or an output redirect to something other than `/dev/…` or an fd —
