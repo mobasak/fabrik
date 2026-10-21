@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ca7e97d0"
+  ],
   "created": "2026-10-21T00:39:51.908892Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-75c2aee6",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "once vps1 is reachable (gate W-ca7e97d0): docker exec postgres-main psql -c the pg_roles/pg_auth_members query; reply to fabrik-lib re mail 01M5B5CS5N6AK41XYP4HK6ZHMF",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "a read-only listing for fabrik-lib; needs vps1",
   "status": "open",
   "tags": [
     "payments"
