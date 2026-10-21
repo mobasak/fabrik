@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — VS Code chat-tab router: any repo's agent in one window (2026-10-21)
+
+`scripts/sysadmin/claude_tab_router.py` and the wrapper source `scripts/sysadmin/claude-agent-wrapper.sh` (the `claudeCode.claudeProcessWrapper`): a new Claude chat tab offers a picker of every repo's agents and opens the pick in that repo as that agent; a restored tab from another repo is re-rooted; anything else launches as before. Reviewed in full (/fabrik-review, 9 → 4 → 0 confirmed): a session live elsewhere is never re-rooted, live roles are matched per repo, a role-less pick drops the window's agent, `--add-dir` drops all its values, only UUID session ids reach the transcript lookup, the picker's 30 s counts from the router's start. Not installed yet — `docs/workstation/claude-tab-router.md` § Install runs after the merge (W-ea993618, D-1112).
+
 ### Added — The Fabrik Deck's code-server runs as a systemd user service (2026-10-21)
 
 A WSL restart on 2026-10-21 killed the hand-started code-server and the operator could not reach the repos from Vivaldi. `scripts/sysadmin/fabrik_deck.py install` now writes `~/.config/fabrik-deck/env` (appending only missing keys, read the way systemd reads it) and `fabrik-deck-code.service` (linger, `Restart=always`, `RestartSec=10`, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=2`), verifies it, reloads and enables it; `--start` also starts it when the port is free. Every check runs before the first write. `fabrik_deck.py code-server` is the unit's start: a keep-list environment and `--bind-addr 127.0.0.1:<port>`. Box doc `docs/workstation/fabrik-deck.md`; tests `tests/test_fabrik_deck.py` (W-e89a9b5b, D-1106).
