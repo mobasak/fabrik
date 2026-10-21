@@ -419,7 +419,10 @@ def _work_tree_of(directory: str) -> tuple[Path, Path] | None:
 def _tracked_in(top: Path) -> tuple[frozenset[Path], frozenset[Path]]:
     """The tracked files of the working tree at ``top``, and every directory holding one."""
     files = _git_tracked(top) or set()
-    return frozenset(files), frozenset(d for f in files for d in f.parents if d.is_relative_to(top))
+    # The top itself is no twin: a directory candidate equal to another tree's top would match it.
+    return frozenset(files), frozenset(
+        d for f in files for d in f.parents if d != top and d.is_relative_to(top)
+    )
 
 
 def _tracked_twin_in(resolved: Path, root: Path) -> bool:

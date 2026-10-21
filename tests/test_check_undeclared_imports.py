@@ -346,7 +346,17 @@ def test_pyproject_only_not_flagged_when_image_also_installs_pyproject(tmp_path:
 # Builder worktrees share the main checkout's .venv (D-471), so an editable install resolves to ANOTHER tree of the
 # same repository. These build real git worktrees: the rule is git's answer, so a stubbed resolver would prove
 # nothing about it.
-_GIT = ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+_GIT = [
+    "git",
+    "-c",
+    "user.email=t@t",
+    "-c",
+    "user.name=t",
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "core.hooksPath=/dev/null",  # a box-wide hook must not run inside the fixture repos
+]
 
 
 def _repo_with_worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -458,3 +468,50 @@ def test_twin_test_runs_git_once_per_directory(tmp_path: Path, monkeypatch):
     assert len(rev_parse) == 2 and len(ls_files) == 1, (
         calls
     )  # their directory, my root; my tree's file list
+
+
+def test_a_separate_clone_tracking_the_same_path_stays_flagged(tmp_path: Path, monkeypatch):
+    """Only a working tree of the SAME repository (one git common dir) is a twin: an unrelated clone that happens to
+    track libs/twin_pkg is someone else's code."""
+    import subprocess
+
+    mod = _load()
+    _clear_caches(mod)
+    _, wt1, _ = _repo_with_worktrees(tmp_path)
+    other = tmp_path / "other"
+    _write(other, "libs/twin_pkg/__init__.py", "value = 2\n")
+    subprocess.run([*_GIT, "init", "-q", str(other)], check=True)
+    subprocess.run([*_GIT, "-C", str(other), "add", "-A"], check=True)
+    subprocess.run([*_GIT, "-C", str(other), "commit", "-qm", "init"], check=True)
+    monkeypatch.syspath_prepend(str(other / "libs"))
+    assert mod._module_is_local("twin_pkg", wt1) is False
+
+
+def test_a_package_of_the_same_tree_outside_the_root_stays_flagged(tmp_path: Path, monkeypatch):
+    """The twin rule is for ANOTHER tree: a root below the top does not adopt its own tree's other directories."""
+    mod = _load()
+    _clear_caches(mod)
+    _, wt1, _ = _repo_with_worktrees(tmp_path)
+    monkeypatch.syspath_prepend(str(wt1 / "libs"))
+    assert mod._module_is_local("twin_pkg", wt1 / "src") is False
+
+
+def test_a_namespace_package_twin_is_local_but_another_trees_top_is_not(
+    tmp_path: Path, monkeypatch
+):
+    """A namespace package (a directory with no __init__.py) is matched by a tracked directory here; the other tree's
+    TOP is never a twin, even with the repo's parent on sys.path."""
+    import subprocess
+
+    mod = _load()
+    _clear_caches(mod)
+    main, wt1, _ = _repo_with_worktrees(tmp_path)
+    for tree in (main, wt1):
+        _write(tree, "libs/ns_pkg/mod.py", "value = 1\n")
+    subprocess.run([*_GIT, "-C", str(wt1), "add", "libs/ns_pkg/mod.py"], check=True)
+    monkeypatch.syspath_prepend(str(main / "libs"))
+    assert mod._module_is_local("ns_pkg", wt1) is True
+    monkeypatch.syspath_prepend(
+        str(tmp_path)
+    )  # `main` now resolves as a namespace package: the other tree's top
+    assert mod._module_is_local("main", wt1) is False
