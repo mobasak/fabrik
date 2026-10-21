@@ -198,7 +198,7 @@ def link_targets(text: str):
     regex truncated `docs/a(b).md` to `docs/a(b`, missed a titled link entirely and kept the
     brackets of an angle one (`<docs/x.md>`); none of those ends in a checked suffix, so a link of
     any of the three shapes to a MISSING file was never examined. check_doc_index
-    carries the same function (no enforcement check imports a sibling); a test in
+    carries the same function (no enforcement check imports a sibling CHECK — `_fences` is the one shared helper); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     n = len(text)
     opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
@@ -404,7 +404,7 @@ def pct_decode(text: str) -> str:
     same string the filesystem walk yields. `%2F` stays as written because a renderer resolves an
     escaped slash as part of ONE path segment, never as a separator: decoding it made
     `docs%2Fsub%2Fx.md` index and resolve `docs/sub/x.md`, a link that does not reach that file.
-    check_doc_index carries the same one-liner (no enforcement check imports a sibling); a test in
+    check_doc_index carries the same one-liner (no enforcement check imports a sibling CHECK — `_fences` is the one shared helper); a test in
     tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
     return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
 
