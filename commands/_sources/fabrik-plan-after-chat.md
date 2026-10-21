@@ -193,8 +193,13 @@ Treat every intended step as unproven until verified against the real code/schem
   its file's basename and its path for the path-injected and string readers, with the count, each marked when its
   file is fleet-synced (the hub's `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its
   command and output cited in the plan's Evidence; its readers and the tests that pin the old behaviour in File Scope
-  or named as untouched. A build script's census follows each caller transitively (an alias script, a Makefile
-  target, a Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a
+  or named as untouched. When the plan adds a mechanism, its census also covers the WRITERS of each state the mechanism
+  reads (every file, row, key or env value, and each script, hook or job that writes it), counted and cited the same
+  way. Each existing test that pins the old behaviour, every test asserting a shape the change now refuses (its MIRROR,
+  CLAUDE.md § Behavior) among them, lands in File Scope with its planned edit (re-expect, rewrite or delete) stated in
+  the step that makes it, or is named as untouched with the reason. A build script's census follows each caller
+  transitively (an alias script, a Makefile target, a Dockerfile, a generator that writes one, and a gate that builds or
+  runs the image, each counted as a
   reader) and runs before the Phase 2 shape decision. Its count is of the copies that run, each classed by its
   lineage (imported, hand-vendored, built into an image) and by the channel that delivers it, never of the paths the
   grep returned.
@@ -223,7 +228,11 @@ Treat every intended step as unproven until verified against the real code/schem
   external tool a phase will shell out to (`docker`, `pytest`, `alembic`, `playwright`, `eas`, `npx expo
   run:android`, `gradle`, `size-limit`, a compiler/SDK, a linter), verify **the tool actually exists in the
   environment that phase runs in** — WSL dev, CI, or the VPS — with a concrete probe (`which <tool>` / a
-  `--version` / an SDK-root check), and write that probe into the phase as its first step. **Packages** live in
+  `--version` / an SDK-root check), and write that probe into the phase as its first step. When the plan builds in a
+  vendored or fabrik-lib module, that first step also reads the module's own test recipe (its env, fixtures and hermetic
+  flags), from the vendored copy's `README.md`, else `/opt/fabrik-lib/<module>/README.md` (never the fabrik-lib module
+  table), before the first suite run, and says so when neither has one, so the first suite count is the module's own.
+  **Packages** live in
   a manifest (`requirements.txt`/`package.json` — editing it needs authorization per CLAUDE.md); a **system
   toolchain** (JDK + Android SDK, an Expo login/`EXPO_TOKEN`, a macOS host for iOS, a headless-Chromium image)
   is declared by **no manifest** and is the class that stops execution mid-plan. If a required tool is absent,
@@ -263,7 +272,11 @@ pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the
 the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authoritative seat + one Sonnet AND one Haiku mechanical seat per independent failure-class group — `dispatch_headroom.py --units <groups>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — D-191 — never a fixed three), ONE receipt — runs over the whole-plan diff at Finish.
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
-The profile's floor is about an hour of execution; larger than that ⇒ the shape decision.
+The profile's floor is about an hour of execution; larger than that ⇒ the shape decision. The default way to draft a
+small plan's code steps is a prototype: apply each edit by a script keyed on unique anchors in a throwaway worktree of
+the base, then apply the resulting diff to a second fresh worktree of the base and run the touched tests there; the
+plan's steps cite that diff as a file rather than carrying it (so it never counts toward the shape decision's line
+trigger), its Evidence cites that run, and its code-file list is read from the diff's own headers.
 
 **Every phase or ticket declares `Appetite: <minutes>` (spec § The delta D11) — every profile, both
 shapes.** Write `Appetite: <minutes>` on its own line for every ticket (spine+ticket set), before its first
@@ -731,7 +744,12 @@ Append, so the downstream converge/execute commands have what they need:
   path), while `src/a/b/deep.py` is NOT inside `src/a/*`; a `dir/` entry is inside a glob when the
   directory's whole SUBTREE is (`docs/x/` lies inside `docs/**`, not inside `docs/*`).
 - **`## Evidence`** — per phase, ≥1 real `path:line` you read AND ≥1 fenced command-output block you
-  captured in Phase 1, pasted from that run's captured output, never typed (including the **external-research URLs** that grounded any 3rd-party dependency).
+  captured in Phase 1, pasted from that run's captured output, never typed (including the **external-research URLs**
+  that grounded any 3rd-party dependency). Every measured count the plan states (a census total, a test count, a byte
+  size, a row count) names beside it the command that printed it, and an estimate is marked as one; each fenced output
+  block is written by redirecting that command's own output into a file the draft takes its text from, never retyped;
+  and each `## Constraints Digest` quote is copied from a read of its cited `file:line` (`sed -n '<N>p' <file>`) when
+  the row is written.
   This grounded design rationale is what makes the plan self-contained, so `/fabrik-execute-plan`'s
   "design spec" need is met by the plan itself.
 - **`## Self-audit`** — the grounding passes you ran and what each found, PLUS two completeness checks run

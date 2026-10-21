@@ -3,7 +3,7 @@
   "created": "2026-10-20T02:57:43.758771Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "e871a4314d3820368766e2d52180ad8b5c82c321",
   "id": "W-b2bbc1f1",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: a bug — check_plan_tickets.py lock discovery compares owned_paths without the normalisation check_phase_tests applies, so './s/x.py' silently misses and _path_covers is symmetric; LOW effort: one script plus tests. Given to intel under D-983: infra's queue is 90 deep",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

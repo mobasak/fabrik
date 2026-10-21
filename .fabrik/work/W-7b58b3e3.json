@@ -17,10 +17,10 @@
     "56b6ea9a3ba6cf45487291810d3ea4f7f4d61a525b43d098dad58e1baa9d052e"
   ],
   "next": "",
-  "note": "",
+  "note": "ok now we need a browser vs code like, which will host several vs code extensions from any repo i want to open its coordinator and any agents.",
   "owner": "",
   "priority": 2,
   "question": "May infra install code-server inside WSL and run `npx claudeck`, for a one-hour test of both as your browser-based coordinator screen in Brave?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May infra install code-server inside WSL and run `npx claudeck`, for a one-hour test of both as your browser-based coordinator screen in Brave?"
 }

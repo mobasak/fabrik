@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat: the census covers state writers and each refused test's planned edit, and every count names its command (2026-10-21)
+
+- `commands/_sources/fabrik-plan-after-chat.md`: a new mechanism's census also covers the writers of each state it reads, and each existing test a change's MIRROR refuses is listed with its planned edit. Every measured count names the command that printed it, fenced blocks are redirected from that output, and Constraints Digest quotes are read from their `file:line` at write time. A small plan's code steps are prototyped by default in throwaway worktrees of the base, and a module plan reads the module README's test recipe first. Graders in `tests/test_plan_after_chat_queue_pass.py`.
+
 ### Fixed — a fresh python-api passes its own starter health tests (2026-10-21)
 
 W-7cf353e1. The emitted `tests/test_health.py` asserted `database == "configured"`, a value the emitted `/health` no
@@ -14,6 +18,9 @@ tests now swap the database driver module and pin all three outcomes (ping ok �
 ### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: the diff a seat reads is the pin's own `change.diff`, and a committed fix is pinned with `--from <its last commit>` (plus `--base` when it spans several), since a working-tree pin of a committed surface prints `UNCHANGED` and `--base` alone pins the working tree. The prose rule executes each stream and input channel a sentence names; the input class names every reader of a printed command; the whole-paragraph rewrap waits for the tests that cap line length or pin raw lines, found by basename and re-run after it. Graders in `tests/test_review_scoped_queue_pass.py`.
+
+### Fixed — the plan-ticket check now finds a paused plan's lock and reads globbed lock paths (2026-10-21)
+W-b2bbc1f1; D-1094. When `check_plan_tickets` runs at the gate it looks for plans whose lock owns a changed file, so their findings show as warnings. It only counted locks marked `active`, so a plan paused at a quota wall dropped out of view, and it compared lock paths literally, so `src/app/**`, `./src/x.py` or a re-cased path owned nothing. It now counts every lock whose plan is still in flight (active, paused or blocked) and reads lock paths the way the epic check already does. These findings stay warnings, never a failure.
 
 ### Fixed — the Stop hook reads prompts and notices that Claude Code now delivers as attachments (2026-10-21)
 W-1b9ae5f2; D-1090. Claude Code 2.1.304 delivers a prompt typed while the agent is busy, and a subagent's report, as attachment rows rather than user messages. The Stop hook missed the operator's queued prompt when a decision block quoted it, and it treated a subagent's report that quoted another subagent's completion notice as that notice — ending the wait for a subagent still running. It now finds the operator's queued words, and counts a completion only from a real notice. Readers that mark where a turn ends are unchanged on purpose: a queued prompt arrives mid-turn, so ending the turn there would let a block written before it go unchecked.

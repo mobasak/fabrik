@@ -2667,9 +2667,15 @@ def check_file(file_path: Path) -> list[CheckResult]:
     ]
 
 
+# A plan lock whose plan is still MID-FLIGHT — the writer's contract (`/fabrik-execute-plan`: `active`, a quota
+# `paused`, a halt `blocked`), kept equal to check_plan_lock_release.NON_TERMINAL by a test; no check imports a
+# sibling check. A paused plan still owns its scope, so its findings are selected (advisory) like an active one's.
+_LOCK_MID_FLIGHT = frozenset({"active", "paused", "blocked"})
+
+
 def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
     """No-arg CLI discovery. Returns (dirs, advisory) where dirs = dated plan dirs containing any
-    changed file PLUS plan dirs whose ACTIVE lock's owned paths intersect the changed set.
+    changed file PLUS plan dirs whose MID-FLIGHT lock (`_LOCK_MID_FLIGHT`) owns a changed file.
 
     `advisory` maps each dir NOT selected by this session's own working-tree/staged plan edits to
     WHY — `"lock"` (a lock's owned_paths intersected the change set) or `"upstream"` (a plan file
@@ -2741,7 +2747,10 @@ def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
             if not isinstance(data, dict):
                 _note(f"NOTE: plan_tickets discovery: {lf.name} is not a JSON object — skipped")
                 continue
-            if data.get("status") != "active":
+            status = data.get("status")
+            # a non-string status (hand-edited `["active"]`) is unhashable in the frozenset test: skip the lock, as
+            # the old `!= "active"` did, never abort discovery (review pass 1, W-b2bbc1f1)
+            if not isinstance(status, str) or status not in _LOCK_MID_FLIGHT:
                 continue
             owned = data.get("owned_paths", [])
             # a STRING iterates its characters, so `_path_covers` would match single letters
@@ -2761,7 +2770,11 @@ def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
                     f"NOTE: plan_tickets discovery: {lf.name} owned_paths has a non-string entry — dropped"
                 )
                 owned = [o for o in owned if isinstance(o, str)]
-            if any(any(_path_covers(o, c) for o in owned) for c in changed):
+            # read each entry as the epic reader does (W-b2bbc1f1): `_norm_glob` (edge backticks and quotes, `./`,
+            # `/./`) and the DIRECTIONAL, glob-aware `_glob_covers` — `src/app/**` covers a changed file under it,
+            # an entry below a changed file never selects; case-folded both sides as check_phase_tests' `_owned` is
+            owned = [n.lower() for n in (_norm_glob(o) for o in owned) if n]
+            if any(any(_glob_covers(o, c.lower()) for o in owned) for c in changed):
                 cand = root / "docs" / "development" / "plans" / lf.stem
                 if cand.is_dir():
                     lock_dirs.add(cand)
@@ -2849,7 +2862,7 @@ def main() -> int:
         return 0
     # Explicit --plan-dir = the author's own emit gate → full severity ("cli").
     # No-arg discovery = the shared Tier-2 gate path → "gate" (DRAFT downgrade
-    # applies). A dir selected ONLY via a sibling's active lock is that sibling's
+    # applies). A dir selected ONLY via a sibling's mid-flight lock (active, paused or blocked) is that sibling's
     # plan — ALL its findings become advisory WARNs (this session cannot fix them).
     run_context = "cli" if args.plan_dir else "gate"
     all_results: list[CheckResult] = []
@@ -2879,7 +2892,7 @@ def main() -> int:
                     f"NOTE: plan_tickets — {demoted} ERROR(s) for {d.name} demoted to advisory "
                     f"[sibling plan]: "
                     + (
-                        "this dir was selected via an active LOCK, and discovery cannot tell your "
+                        "this dir was selected via a mid-flight LOCK (active, paused or blocked), and discovery cannot tell your "
                         "own lock from a sibling's. "
                         if lock_only.get(d) == "lock"
                         else "this dir was selected via a plan file changed in an unpushed commit "
