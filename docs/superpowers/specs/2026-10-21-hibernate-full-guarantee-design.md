@@ -1,6 +1,6 @@
 # /hibernate pauses FULLY and the box resumes itself — design
 
-Status: DRAFT
+Status: CONVERGED
 
 Work item W-6e656dac (folds W-9b7478ad, W-89474fc1 slice 2 and W-b01aa1ec). Owner: infra. Built on D-1079
 (`/hibernate`), D-898 (the battery hold), W-75cafe7a (the resume wake), D-1075 (capped panes), D-1092 (the boot sweep

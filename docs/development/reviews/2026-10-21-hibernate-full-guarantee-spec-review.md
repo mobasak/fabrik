@@ -16,6 +16,7 @@ External dependencies and the ledger rows the spec uses. `dispatch_headroom.py -
 | Pass 2 | opus×1 + sonnet×1 + sonnet×1 researcher (the round-1 slice owners) · delta over the pass-1 hunks + one hop | found: 11, new: 11, confirmed: 10, fixed: 10, unexecuted: 0, edits: 10 | method: re-derivation — delta over the pass-1 hunks (349-line diff); S3 all three pass-1 candidates FIXED, no in-hunk defect; S1 N1-N5 and S2 NEW-1/NEW-3 confirmed by reading the cited code (`quota_stop.py:717-722`, `selfwatch_check.py:165-200`, `hibernate.py:345-367`, `claude_rotate.py:8803-8821`); three one-hop reader breaks the pass-1 hunks created (Shape, `agents_up.sh:479` `exec tmux attach`, in-process seats) confirmed; S2 NEW-2 RECORDED — by design (I9 discloses its one change; the approval panel weighs it); own-fix: 10 of 10 (round 1's hunks) | 75cc4ae1… → 870b4553… |
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners; S3 had no open claim, restated 19/19) · delta over the pass-2 hunks (127-line diff) + one hop | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — delta over the pass-2 hunks; S1 P3-1 confirmed by EXECUTION (`quota_stop._bash_allowed` on a copy: `hibernate.py lift/status/woke` → False, `command_run.py line` → True), S2 NEW-A is the same defect; S1 P3-2 confirmed by reading `hibernate.py:345-367` against the new L3; own-fix: 2 of 2 (round 2's hunks) — SCOPE GROWTH stop fired (2 of the last 3 rounds); class rewrite — L2 T-3 hold-escape sentence (rounds 2, 3) | 870b4553… → 3310927d… |
 | Pass 4 | opus×1 (round-1 owner of S1, the section holding both fixes; S2 4/4 and S3 19/19 restated, no open claim) · remainder round after the scope-growth stop: the fixed set P3-1, P3-2 alone | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the fixed set only (the 2-hunk pass-3 diff, `quota_stop.py:100-115` re-read against the allow-list sentence); P3-1 and P3-2 FIXED; P4-1 and P4-2 RECORDED — measured (own-fix raised after the stop, routed below, D-355); standing clean since pass 1: intake, vendor; every class clean at pass 2 | 3310927d… → 3310927d… ✓ |
+| Pass 5 | opus×1 + sonnet×1 (the round-1 owners of S1, S2; S3 19/19 restated) · the ONE delta round after the design-approval panel, over the panel-fold hunks (169-line diff) | found: 7, new: 7, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the panel-fold hunks only; every accepted panel change verified in place (S2: the three dispatchers exist and launch `claude -p`, step budget still 3); S1 N1, N2, N5, N-W1 real and S1 N3, N4, S2 NEW-P5-1 plausible — all own-fix in the panel hunks raised after the scope-growth stop, so RECORDED — measured onto the routed list below (term-edit's stop: they do not hold the flip) | 11e3a381… → 11e3a381… ✓ → **CONVERGED** |
 
 ## Routed to the plan (the scope-growth stop's destination)
 
@@ -43,6 +44,23 @@ a ticket's acceptance criteria:
   check its caller (for example the session that ran `mark`) now that the hold lets every held session run it (S1, pass 4).
 - L3 bullet 1 reads "lifts the `hibernate` tier"; the plan's wording is "lifts the pause" (the mark), as the every-lift
   bullet states (S1, pass 4).
+
+- N1 (pass 5): the minute cron writes nothing on a healthy run (`scripts/sysadmin/claude_rotate.py:7251-7254`), so `status`'s
+  "log has not moved for 3 minutes" test blocks forever — the minute cron writes a heartbeat file and the check reads it.
+- N2 (pass 5): a 7-minute gap is under one ordinary slip (10-11 minutes, `claude_rotate.py:7262-7263`) and below the
+  12-minute floor — a missed tick during the drain would lift the pause; the short-close test keeps the floor and needs
+  the gap to start after the mark and span T-3, applied the same way by the minute cron.
+- N3 (pass 5): the self-watch reads the lift kind before its network gate (`~/.claude/bin/claude-selfwatch.sh:51-59`) — it
+  re-reads field 2 after the gate so a replaced `hibernate` file keeps its wording.
+- N4 (pass 5): the dead-cron escape needs a live hub session; the operator's plain-shell `lift` is the last resort, and
+  the merge-owner lookup inside the hook is a subprocess on the held path.
+- N5 (pass 5): `agents_up.sh` is every repo's launcher (`scripts/sysadmin/agents_up.sh:3`), so the watchdog set there
+  reaches every repo's builders, and the VS Code coordinators get it from no launcher — the plan names where each
+  session class gets it.
+- N-W1 (pass 5): `:1089` returns 0 only for a `walled` read (`scripts/sysadmin/quota_posture_hook.py:267-272`); a
+  `hibernate` tier added to the known tiers changes the order rationale.
+- NEW-P5-1 (pass 5): "the review loops" names no file — the plan names the seat dispatchers by path (and `scripts/claude_p_cost.py`),
+  or states the posture hook already covers them.
 
 ## Ask ↔ spec comparison (built for the approval panel; recomputed on the closing-round text)
 
@@ -72,3 +90,18 @@ a ticket's acceptance criteria:
 | "autoMemoryReclaim ... swap size ... the operator's call" | a `.wslconfig` gate | U5 | OUT-OF-SCOPE (operator gate) |
 | (not asked) Personas, Lifecycle, Constraints Digest, fabrik-lib verdict, Documentation landing sites | the spec contract's mandatory sections | § each | ADDED — `/fabrik-spec` mandates them |
 | (not asked) U7, U8 build-step measurements | the uncapped-launch cause and the bus wait are measured before L4/L5 change | § Open unknowns | ADDED — an existing code path is unexplained |
+
+## Design-approval panel (D-613)
+
+Both seats read the pin cold (md5 3310927d…, commit 2fa22fbc6).
+- Opus: `VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md` — 9 concerns,
+  all ACCEPTED and applied in ebf0970a8 (`woke` no-pending-resume; only the hub's `lift` passes the hold; (b) after T and
+  two slots; short-close lift; boot launches never refuse; watchdog per launcher; foreground subagent return; reboot and
+  network-off drills; L6's operator API step).
+- Fable: `VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md` — 10
+  concerns, all ACCEPTED and applied in ebf0970a8 (the minute cron absent, installed and checked; `start` held past T-3;
+  short-close lift; `woke` once-only; abandoned-seat states; `done` row; battery-low lift; boot uncapped launch; seat
+  dispatchers check `paused`; the cron-order note).
+- Executed before folding: `crontab -l | grep -c -- --battery-tick` → 0; `quota_stop.py:107` admits `command_run.py`
+  with any subcommand; `quota_posture_hook.py:1089` returns 0 when a stamp stands.
+- Panel: opus="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md" fable="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md" → both-approve
