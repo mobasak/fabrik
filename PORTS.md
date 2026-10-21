@@ -24,15 +24,17 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 
 | Port | Service | Project | URL |
 |------|---------|---------|-----|
-| ~~8000~~ | ~~Coolify~~ | — | **retired 2026-05-30 — not deployed** (decommissioned; port 8000 now free. `coolify` survives only as a Docker-network name — see Notes) |
+| ~~8000~~ | ~~Coolify~~ | — | **retired 2026-05-30 — not deployed** (decommissioned; port 8000 is now bound only on the mesh IP, by glitchtip-web below. `coolify` survives only as a Docker-network name — see Notes) |
 | 3001 | Gatus | gatus | https://status.vps1.ocoron.com |
 | 9898 | Backrest | backrest | https://backup.vps1.ocoron.com (Duplicati on 8200 retired 2026-04-17) |
 | ~~19999~~ | ~~Netdata~~ | — | **retired 2026-05-30 — not deployed** (removed; port 19999 now free) |
-| 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
-| 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
-| 9000/9001 | minio | specs/infrastructure/minio.yaml | [reserved — not yet deployed] |
-| — | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com (Traefik over the fabrik network; internal 8000, no host port) |
-| 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
+| — | browserless | infra/vps1/browserless/compose.yaml | https://browser.vps1.ocoron.com (Traefik → internal 3000; no host port) |
+| — | gotenberg | infra/vps1/gotenberg/compose.yaml | https://pdf.vps1.ocoron.com (Traefik → internal 3000; no host port) |
+| ~~9000/9001~~ | ~~minio~~ | — | **never deployed** (its spec was retired 2026-06-17 to `specs/.archive/`; ports 9000/9001 free) |
+| — | apprise | infra/vps1/apprise/compose.yaml | https://notify.vps1.ocoron.com (Traefik over the fabrik network; internal 8000, no host port) |
+| — | meilisearch | infra/vps1/meilisearch/compose.yaml | https://search.vps1.ocoron.com (Traefik → internal 7700; no host port) |
+| 9091 | authelia | infra/vps1/authelia/compose.yaml | https://auth.vps1.ocoron.com; mesh only: `10.99.0.1:9091` (pushgateway holds 9091 on `127.0.0.1` — different addresses) |
+| 8000 | glitchtip-web | infra/vps1/glitchtip/compose.yaml | https://errors.vps1.ocoron.com; mesh only: `10.99.0.1:8000` |
 | 3100 | loki | infra/vps1/monitoring/compose.yaml | mesh only: `10.99.0.1:3100` (spoke log push) |
 | 9090 | prometheus | infra/vps1/monitoring/compose.yaml | internal only |
 | 9093 | alertmanager | infra/vps1/monitoring/compose.yaml | internal only |
@@ -43,7 +45,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 9187 | postgres-exporter | infra/vps1/monitoring/compose.yaml | internal only |
 | 9121 | redis-exporter | infra/vps1/monitoring/compose.yaml | internal only |
 | — | grafana | infra/vps1/monitoring/compose.yaml | https://monitor.vps1.ocoron.com (Traefik → internal 3000; no host port) |
-| 5678 | n8n | specs/infrastructure/n8n.yaml | https://auto.vps1.ocoron.com |
+| — | n8n | infra/vps1/n8n/compose.yaml | https://auto.vps1.ocoron.com (Traefik → internal 5678; no host port) |
 
 ### Control Plane Services (VPS)
 

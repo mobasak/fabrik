@@ -1,3 +1,5 @@
+# Meilisearch — the live stack is /opt/meilisearch/compose.yaml on vps1; this is its mirror.
+# ARM64: supported (linux/arm64, linux/amd64).
 services:
   meilisearch:
     image: getmeili/meilisearch:v1.13

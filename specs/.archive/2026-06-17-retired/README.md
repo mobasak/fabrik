@@ -4,7 +4,7 @@ Verified unreferenced (no code/test/doc/Makefile refs; not auto-discovered — i
 specs are applied by explicit path), then archived (not deleted):
 
 - **`authelia-coolify.yaml`** — the old Coolify-era *compose-format* file (starts with
-  `services:`), superseded by the current fabrik-spec `specs/infrastructure/authelia.yaml`
+  `services:`), superseded by the fabrik-spec `specs/infrastructure/authelia.yaml` (itself retired, D-1097; the mirror is `infra/vps1/authelia/compose.yaml`)
   (`name:`/`type:`/`shape:`). Coolify decommissioned 2026-05-30.
 - **`minio.yaml`** — MinIO is retired / not deployed on the fleet (object storage uses
   Backblaze B2 + Cloudflare R2 directly). No `minio` container on any of the 3 VPS.

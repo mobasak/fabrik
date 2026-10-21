@@ -1,3 +1,5 @@
+# Gotenberg (HTML/Office -> PDF) — the live stack is /opt/gotenberg/compose.yaml on vps1; this is its mirror.
+# ARM64: supported (linux/amd64, linux/386, linux/ppc64le, linux/arm64, linux/arm/v7).
 services:
   gotenberg:
     image: gotenberg/gotenberg:8.32.0
