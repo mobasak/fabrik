@@ -3,11 +3,12 @@
 Status: DRAFT
 Profile: small
 **Owner:** intel
-**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; `.claude/hooks/seat_guard.py` (651 lines), `tests/test_seat_guard.py` (33 tests), `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
+**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring, re-grounded at 21744dd43 (2026-10-22; seat_guard.py and
+its tests unchanged); `.claude/hooks/seat_guard.py` (651 lines), `tests/test_seat_guard.py` (33 tests), `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
 
 Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (DRAFT, `Size: small`, `Profile: delta`;
 refined in this run by D-914). `/fabrik-plan-review` grades its sections together with this plan and flips both. Source:
-mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff: ≈130 code lines in ONE code file,
+mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's round 1): ≈250 code lines in ONE code file,
 `.claude/hooks/seat_guard.py` (redirect capture and fd-number drop in `_simple_commands` ≈20, the destination rule
 `_write_reason` with its per-verb option tables ≈75, its call before every `continue` in `_scan` ≈8, the unparseable
 fallback ≈5, docstring ≈20); tests ≈160 lines in `tests/test_seat_guard.py`; one row in `docs/workstation/hooks-index.md`.
@@ -28,7 +29,7 @@ Phase A ends with `/fabrik-review-scoped` on its surface; the Finish runs the ON
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
-| I1 | spec § Intake Inventory I1–I3 (2 IN, 1 OUT-OF-SCOPE → W-f7bf9a54) | IN as dispositioned there | Phase A, per the spec rows |
+| I1 | spec § Intake Inventory I1–I3 (2 IN delivered differently, 1 OUT-OF-SCOPE → W-f7bf9a54) | IN as dispositioned there | Phase A, per the spec rows |
 | I2 | *"Plan as Profile: small"* (this run's brief) | IN | this header |
 | I3 | *"the matcher in .claude/settings.json:146 → Bash\|Write\|Edit\|NotebookEdit (reviewed commit only — the main checkout's settings are live)"* | OUT-OF-SCOPE — superseded by D-914: the seat holds no write tool (`commands/_agents/fabrik-reviewer.md:4`), so the matcher stays `Bash`; the destination is the tool-list pin, behaviour A1 | Phase A step 2 |
 | I4 | *"_in_scratch :283-293 gains the session's own <main>/.tmp/runs/<sid>/"* | OUT-OF-SCOPE — D-914: no seat brief writes there (census in Evidence) and the payload names no main checkout to derive it from; the destination is spec § Contract deltas, which records the census | Evidence |
@@ -57,9 +58,10 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
   `:284-285`), and neither is one starting with `~`.
 - **Destinations only.** A read of the live tree (`cat`, `cp <live> <scratch>/`, `git -C <live> show`) stays allowed.
 - **Relative destinations join the tracked cwd** (`os.path.join(ctx["cwd"], p)`) before `_in_scratch`, whose
-  `realpath` (`:286`) would otherwise resolve against the hook process's own cwd.
+  `realpath` (`:286`) would otherwise resolve against the hook process's own cwd. The tracked cwd is the shell's:
+  `env -C` moves it for its own command only, and a command's redirects resolve against the cwd before it.
 - **No settings change.** `.claude/settings.json` is untouched (D-914).
-- **No new dependency**; `shlex`, `os.path` and `re` only (`core/10-python.md:30`).
+- **No new dependency**; `shlex`, `os.path` and `re` only (`core/10-python.md:38`).
 - Tests: one per behaviour, watched-fail-first (`core/45-testing-strategy.md:22`), through the existing subprocess
   harness `_run()` (`tests/test_seat_guard.py:24-50`) and its `_denied()` (`:53`); red-on-revert runs in a throwaway
   worktree (`git worktree add --detach <scratch>/probe HEAD`), never the shared checkout.
@@ -74,7 +76,7 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 | Source | What binds | Grounded ref |
 |---|---|---|
-| `.windsurf/rules/core/10-python.md` (FLOOR — TOOLING surface; MATCHED — seat_guard.py, test_seat_guard.py) | no deps-file edit | `core/10-python.md:30` |
+| `.windsurf/rules/core/10-python.md` (FLOOR — TOOLING surface; MATCHED — seat_guard.py, test_seat_guard.py) | no deps-file edit | `core/10-python.md:38` |
 | `.windsurf/rules/core/45-testing-strategy.md` (MATCHED — test_seat_guard.py) | one test per behaviour; watched-fail-first; no cosmetic assertions | `core/45-testing-strategy.md:20`, `:21`, `:22` |
 | `.windsurf/rules/core/40-documentation.md` (MATCHED — CHANGELOG.md, DECISIONS.md, this plan) | one CHANGELOG entry | `core/40-documentation.md:134` |
 | `docs/workstation/hooks-index.md` (the hooks authority) | the `seat_guard.py` row names what the hook refuses | `docs/workstation/hooks-index.md:104` |
@@ -86,7 +88,7 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 | Quote | Source |
 |---|---|
-| Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:30` |
+| Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:38` |
 | a non-trivial behavior's test proves something only if it has been SEEN RED | `.windsurf/rules/core/45-testing-strategy.md:22` |
 | No cosmetic assertions | `.windsurf/rules/core/45-testing-strategy.md:21` |
 | Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry. | `.windsurf/rules/core/40-documentation.md:134` |
@@ -95,32 +97,34 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 Appetite: 120
 
-**Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`, consumed only inside it):
+**Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`, consumed only inside it; the grammar is spec § The
+delta 2, 3 and 5, cited rather than restated):
 - `_simple_commands()` (`:214-234`) returns a list of `_Cmd(list)` — the words as today, plus a `.redirs` attribute
-  holding `(op, target)` for every OUTPUT redirect (`>`, `>>`, `>|`, `&>`, `&>>`, and `>&`/`&>` whose target is not
-  all digits or `-`). An all-digit token immediately before a redirect operator is an fd number and leaves the words.
-  The `["("]`/`[")"]` scope markers (`:227`) stay plain equality-comparable lists. `_scan` reads `raw.redirs` BEFORE
-  `_strip` (`:533`), which returns a plain slice.
-- `_write_reason(words, redirs, ctx) -> str` — "" or the reason `a review seat writes only under its scratch dir —
-  <dest> is outside it`. Destinations: every redirect target except `/dev/*`; `tee` operands; the last operand of
-  `cp`/`mv`/`install`/`rsync`/`ln` (or the `-t <dir>` / `--target-directory=<dir>` value); every operand of
-  `rm`/`rmdir`/`touch`/`mkdir`/`truncate`, skipping the values of `truncate -s/-r`, `mkdir -m`, `touch -r/-d/-t`,
-  `install -m/-o/-g`; the file operands of `sed` (after its script, unless `-e`/`-f` gives it) and `perl` (after `-e
-  <code>`) when a flag cluster contains `i` or `--in-place` is given; `dd of=<path>`. Each joins `ctx["cwd"]`, a leading
-  `~` is outside scratch, and `_in_scratch` decides.
-- `_scan()` (`:504-561`) — calls `_write_reason` for every simple command right after `_strip`, BEFORE the `cd`/`pushd`
-  (`:537-547`) and `bash -c` (`:548-557`) `continue`s, so a redirect on those lines is judged; then `_kill_reason` and
-  `_git_reason` as today (`:558`).
-- the `_UnparseableError` fallback (`:510-517`) — its regex also matches a write verb as a whole word
-  (`\b(tee|cp|mv|install|rsync|ln|rm|rmdir|touch|mkdir|truncate|dd)\b`, `sed -i`, `perl -…i`) or an output `>`; a bare
-  unterminated `echo "x` stays allowed (`tests/test_seat_guard.py:231`).
+  holding `(op, target)` for every OUTPUT redirect of spec § The delta 2, kept also for an empty or keyword-only word
+  list; an fd number leaves the words only when glued to its operator in the raw text (an offset check on the raw
+  string, since shlex drops the whitespace). The `["("]`/`[")"]` scope markers (`:227`) stay plain
+  equality-comparable lists. `_scan` reads `raw.redirs` BEFORE `_strip` (`:533`), which returns a plain slice.
+- `_write_reason(words, redirs, ctx, cwd_before) -> str` — "" or the reason `a review seat writes only under its
+  scratch dir — <dest> is outside it`; the destinations are spec § The delta 2's, redirects judged against
+  `cwd_before`.
+- `_scan()` (`:504-561`) — calls `_write_reason` for every simple command right after `_strip` and BEFORE the
+  `if not words: continue` (`:534-535`), the `cd`/`pushd` (`:537-547`) and `bash -c` (`:548-557`) `continue`s; then
+  `_kill_reason` and `_git_reason` as today (`:558`).
+- `_strip()` (`:255-260`) — an `env -C <dir>` changes `ctx["cwd"]` for the stripped command only; the scan restores
+  it after the command is judged (spec § The delta 5).
+- `_HEREDOC` (`:116`) — `(?<!<)<<(?!<)`, so `<<<` is a here-string, not a heredoc opener (spec § The delta 5).
+- the `_UnparseableError` fallback (`:510-517`) — spec § The delta 3; a bare unterminated `echo "x` stays allowed
+  (`tests/test_seat_guard.py:231`).
 - The module docstring and the reason text name the rule, the blind spots (spec § The delta) and the COBRA line.
 - `docs/workstation/hooks-index.md:104` — the `seat_guard.py` row names the write rule and its blind spots.
 
 **Steps** (sequential):
-1. Write the Phase A graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run them and see each red against
-   today's hook (`.venv/bin/python -m pytest tests/test_seat_guard.py -q`). A1 is a read of the agent definition and is
-   green today: its red is proven on revert — add `Write` to the `tools:` line in a throwaway worktree, watch A1 fail.
+1. Write the Phase A graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run them and see each DENY row
+   red against today's hook (`.venv/bin/python -m pytest tests/test_seat_guard.py -q`). The rows green today are
+   proven by a named neuter in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), each watched
+   red and restored: A1 — add `Write` to the `tools:` line; A2 — drop `decide()`'s early return (`:566-567`); A4 —
+   drop the `/dev/` and fd exemptions; A5 — judge `cp` sources as destinations; A8's allow half — match every `>`
+   in the fallback; A9 — let the new path's exception escape `main()`.
 2. The tool-list pin (A1): a test reading `commands/_agents/fabrik-reviewer.md`'s frontmatter `tools:` line.
 3. `_Cmd` with `.redirs` and the fd-number drop in `_simple_commands`.
 4. `_write_reason` and its call in `_scan`; the unparseable fallback.
@@ -137,23 +141,26 @@ Appetite: 120
 
 - **Given** `commands/_agents/fabrik-reviewer.md`, **When** its frontmatter `tools:` line is read, **Then** it names none of `Write`, `Edit`, `NotebookEdit`, `MultiEdit` (A1)
 - **Given** the lead (no `agent_id`) and a `general-purpose` agent, cwd = the repo, **When** `echo x > Makefile` or `rm -rf src`, **Then** allowed (A2)
-- **Given** a seat with cwd = the repo, **When** `echo x > Makefile`, `echo x >> docs/a.md`, `ls | tee Makefile`, `cmd &> out.log`, `cmd >& out.log`, **Then** denied, the reason naming the destination (A3)
+- **Given** a seat with cwd = the repo, **When** `echo x > Makefile`, `echo x >> docs/a.md`, `ls | tee Makefile`, `cmd &> out.log`, `cmd >& out.log`, `cmd &>2`, `cmd <> Makefile`, `> Makefile`, `{ echo x; } > Makefile`, `(true) > Makefile`, `for i in a; do echo; done > Makefile`, `exec 3> Makefile`, `cp <scratch>/a 2 >/dev/null`, **Then** denied, the reason naming the destination (A3)
 - **Given** the same seat, **When** `cmd > /dev/null 2>&1`, `cmd 2>&1 | head`, `cmd >&2`, `echo x > <scratch>/a`, `cd <scratch> && echo x > a`, `mkdir -p <scratch>/d 2>/dev/null`, `truncate -s 0 <scratch>/f`, **Then** allowed (A4)
-- **Given** the same seat, **When** `cp <live file> <scratch>/`, `cp -r src <scratch>/s`, `cat Makefile`, **Then** allowed (A5)
-- **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `rm -rf src`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `perl -pi -e 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `bash -c 'rm -rf src'`, `cd src > log`, **Then** denied (A6)
-- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, **Then** denied (unknown or home destination) (A7)
-- **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` stays allowed (A8)
-- **Given** raw non-JSON stdin, and a payload whose scan raises, **When** the hook runs, **Then** exit 0 with no output (fail open) (A9)
-- **Mocked:** nothing — each grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
+- **Given** the same seat, **When** `cp <live file> <scratch>/`, `cp -r src <scratch>/s`, `cat Makefile`, `perl -Mstrict -ne print Makefile`, **Then** allowed (A5)
+- **Given** the same seat, **When** `cp <scratch>/x Makefile`, `mv a b`, `mv Makefile <scratch>/`, `rsync --remove-source-files Makefile <scratch>/`, `rm -rf src`, `unlink f`, `gzip Makefile`, `touch x`, `mkdir d`, `truncate -s 0 f`, `sed -i s/a/b/ f`, `sed --in-place=.bak s/a/b/ f`, `perl -pi -e 1 f`, `perl -i -pe 1 f`, `dd if=/dev/zero of=f`, `install -t bin x`, `cp -rt src <scratch>/x`, `install -d live`, `ln -s <scratch>/x`, `sort -o f in`, `bash -c 'rm -rf src'`, `cd src > log`, `echo x > /dev/../opt/fabrik/Makefile`, **Then** denied (A6)
+- **Given** the same seat, **When** `rm -rf "$D"`, `echo x > $(pwd)/x`, `touch ~/x`, `cd <scratch> && touch ~/x`, `rm -rf /tmp/*`, `rm -rf /tmp/claude-<uid>`, `rm -rf /tmp/claude-<uid>/<slug>`, **Then** denied (unknown, home, glob or ancestor-of-scratch destination) (A7)
+- **Given** the same seat, **When** an untokenisable command naming a write (`echo "x > Makefile`), **Then** denied; `echo "unterminated` and `echo "unterminated 2>/dev/null` stay allowed (A8)
+- **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) (A9)
+- **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
+- **Given** the same seat, **When** `cat <<< hi` followed on later lines by `git reset --hard` and `hi`, **Then** denied (a here-string hides nothing) (A11)
+- **Mocked:** only A9's crash injection (`monkeypatch` on the new write path, in-process); every other grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
 
 ## Phase B — Finish
 
 Appetite: 60
 
 **Steps** (sequential):
-1. The whole-plan `/fabrik-review` (D7 floor: the whole-plan diff by file, a Sonnet and a Haiku finder per slice, the
-   orchestrator executing every candidate), one receipt under `docs/development/reviews/`.
-2. `CHANGELOG.md` entry (`### Changed — review seats cannot write outside their scratch (2026-10-15)`); a
+1. The whole-plan `/fabrik-review` (D7 floor: the whole-plan diff by file, a Sonnet and a Haiku finder per slice as
+   Agent-tool seats (D-961), the orchestrator executing every candidate), its receipt
+   `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`.
+2. `CHANGELOG.md` entry (`### Changed — review seats cannot write outside their scratch (<the commit date>)`); a
    `docs/DECISIONS.md` row only if the build takes a decision the spec did not (D-913, D-914 are the design rows; the
    approval row is `/fabrik-plan-review`'s).
 3. `python scripts/final_gate.py --check --json` green; commit by pathspec with trailers; push; `merge_request.py
@@ -167,7 +174,9 @@ Appetite: 60
 - `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md`
 - `docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md`
 - `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`
-- `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-plan-review.md`
+- `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-plan-review.md` (this plan review's own
+  receipt, when one is written)
+- `CHANGELOG.md` (one entry)
 
 ## Coverage Checklist
 
@@ -179,10 +188,10 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | FLOOR 12-FACTOR | no config, no env added | CLEAN — no new env var or file sink; hunted: Phase A Interfaces |
 | MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; D-914 in the same change as the spec refinement | CLEAN — Phase B step 2, Phase A step 6, this plan's commit |
 | MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A9 map spec § Validation 1-6 (Self-audit); A1's red is proven on revert |
-| RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny | CLEAN — A7, A9; hunted: Global Constraints |
+| RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny | FIXED r1 — A7, A9 (A9 re-stated: a crash leaves the seat's `updatedInput` envelope, never a deny) |
 | RECURRENCE cost/quota/limit accounting | none | CLEAN — no new hook invocation, no seat or quota change |
-| RECURRENCE boundary/sentinel/prefix collisions | `/tmp` vs another session's `/tmp/claude-<uid>/<slug>/<sid>`; `/dev/*`; fd numbers; `>&` dup vs file; option values read as operands | CLEAN — Phase A Interfaces names each; A3, A4 grade them; `_in_scratch` compares `realpath` + `/` (`:288`) |
-| RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row | CLEAN — Self-audit mapping |
+| RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by `realpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
+| RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row; every row green today has a named red | FIXED r1 — Self-audit mapping; Phase A step 1 names each neuter |
 
 Rubric invocation (verbatim output; the File Scope is the changed-path set):
 
@@ -313,19 +322,34 @@ $ python3 -B probe_tokens.py
 relative/x False
 ```
 
-- The brief census (spec § Contract deltas): 32 files searched; every seat write the briefs prescribe lands under
-  `RUN-SCRATCH` (`.claude/workflows/fabrik-review-loop.js:252`, `:266`, `:229-234`; `commands/_fragments/subagents-core.md:5`);
-  no brief names `.tmp/runs` for a seat. An adopted run folder is renamed INTO the adopting session's pad
+- The brief census (spec § Contract deltas): 32 files searched at authoring; every seat write the briefs prescribe
+  lands under `RUN-SCRATCH` (`.claude/workflows/fabrik-review-loop.js:258`, `:272`, `:230`;
+  `commands/_fragments/subagents-core.md:5`); no brief names `.tmp/runs` for a seat. Re-checked 2026-10-22 for the
+  Agent-tool path D-961 made the hub's only one: `commands/_fragments/no-workflow-hub.md` gives each seat its
+  absolute scratch folder too. An adopted run folder is renamed INTO the adopting session's pad
   (`scripts/command_run.py::_adopt_run_scratch`, "move the wall seed's `resumable` folder into THIS session"), so it
   never sits under another session's `/tmp` dir.
+- The `_HEREDOC` change (spec § The delta 5), run 2026-10-22 on a throwaway worktree of 21744dd43 with line 116
+  patched to `r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1"`: the 33 existing tests stay green, a
+  here-string hides nothing, and both heredoc forms still strip:
+
+```text
+$ pytest <probe>/tests/test_seat_guard.py -q
+33 passed in 9.71s
+$ _strip_heredocs('cat <<< hi\nrm -rf src\nhi\necho done') -> 'cat <<< hi\nrm -rf src\nhi\necho done'   (was 'cat <<< hi\necho done')
+$ _strip_heredocs('cat <<EOF\nbody\nEOF\nls')               -> 'cat <<EOF\nls'
+$ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
+```
+
 - External: https://code.claude.com/docs/en/hooks (subagent `agent_id`/`agent_type`; exact-string matchers) and
   https://code.claude.com/docs/en/tools-reference (no MultiEdit row), fetched 2026-10-15 (exa, WebFetch).
 
 ## Self-audit
 
-- Every behaviour in `spec § Validation` maps to a row: spec 1 → A1, 2 → A2, 3 → A3/A4, 4 → A5/A6/A7, 5 → A8, 6 → A9.
+- Every behaviour in `spec § Validation` maps to a row: spec 1 → A1, 2 → A2, 3 → A3/A4, 4 → A5/A6/A7, 5 → A8, 6 → A9,
+  7 → A10/A11.
 - Every item in What we already agreed maps to Phase A (delta 1-4) or Phase B (review, CHANGELOG, merge request).
-- Diff estimate ≈130 code lines in 1 code file (tests excluded): inside `Profile: small` (≤ ~400, ≤ 5).
+- Diff estimate ≈250 code lines in 1 code file (tests excluded) after round 1: inside `Profile: small` (≤ ~400, ≤ 5).
 - Cross-phase names: `_Cmd`, `.redirs` and `_write_reason` are produced and consumed in Phase A only.
 - Every touchpoint is a `path:line` in today's hook, re-read by the Opus grounding seat (its drift corrections are
   applied: `decide` `:564-582`, `_scan` `:504-561`, `main` `:611-647`).

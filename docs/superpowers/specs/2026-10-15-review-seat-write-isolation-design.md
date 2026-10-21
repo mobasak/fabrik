@@ -25,8 +25,8 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
-| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN | § The delta — the guard refuses a seat's write outside its scratch, both tool and shell writes |
-| I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead |
+| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered differently | § The delta — no write tool (pinned, delta 1) and a shell-write rule (delta 2); defence-in-depth against accidental writes, not a mounted read-only tree (§ The blind spots) |
+| I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 
 ## Goal
@@ -89,7 +89,7 @@ working directory, their briefs, or the lead session.
 |---|---|
 | a non-trivial behavior's test proves something only if it has been SEEN RED | `.windsurf/rules/core/45-testing-strategy.md:22` |
 | No cosmetic assertions | `.windsurf/rules/core/45-testing-strategy.md:21` |
-| silent defaults are the #1 source of | `.windsurf/rules/core/12-node.md:60` |
+| Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:38` |
 
 ## The delta — B: widen the seat guard (judge panel 3/3)
 
@@ -98,25 +98,43 @@ working directory, their briefs, or the lead session.
    so a future edit that grants a write tool fails the suite and has to bring its own guard. The hook's matcher stays
    `Bash` and `.claude/settings.json` is not touched.
 2. **Shell writes with a literal destination.** `_simple_commands()` keeps each OUTPUT redirect's target (`>`, `>>`,
-   `>|`, `&>`, `&>>`, and `>& <file>`) with its command instead of dropping it, and drops an fd number written before a
-   redirect (`2>`) from the words; `/dev/*` targets, fd duplications (`>&2`, `2>&1`, `>&-`) and input redirects are never
-   destinations. `_scan()` gains a write rule, run before every `continue` so a redirect on a `cd` or `bash -c` line is
-   seen: the destinations of `tee`, `cp`/`mv`/`install`/`rsync`/`ln` (the last operand, or `-t <dir>` /
-   `--target-directory=`), `rm`/`rmdir`/`touch`/`mkdir`/`truncate` (every operand, each verb's value-taking options
-   skipped), `sed` and `perl` with `i` in a flag cluster or `--in-place` (the file operands), `dd of=` and every redirect
-   target are joined to the tracked `cwd` and must lie in `_in_scratch()`. A destination starting with `~` is outside
-   scratch. A copy FROM the live tree INTO scratch stays allowed — only destinations are checked.
+   `>|`, `<>`, `&>`, `&>>`, and `>& <file>`) with its command instead of dropping it — also when the command's word list
+   is empty or ends on a keyword or closer (`> f`, `{ …; } > f`, `( … ) > f`, `done > f`, `exec 3> f`, `X=1 > f`) — and
+   drops an fd number from the words only when it is glued to the operator in the raw text (`2>`; `2 >` is a word `2`
+   and a redirect). Only `>&` takes an all-digit or `-` target as an fd duplication; `&>` always writes a file. A
+   redirect target whose `realpath` lies under `/dev/` and input redirects are never destinations. `_scan()` gains a
+   write rule, judged on every simple command BEFORE its `if not words` and every `continue`, so a redirect on a `cd`,
+   `bash -c` or keyword line is seen. Destinations: every redirect target; `tee` operands; `cp`/`install`/`ln` — the
+   last operand, or the `-t` value (alone, in a flag cluster `-rt <dir>`, glued `-t<dir>`, or
+   `--target-directory[= ]<dir>`), every operand of `install -d`, and the cwd for a one-operand `ln`; EVERY operand of
+   `mv` and of `rsync --remove-source-files` (both delete their source), else `rsync`'s last operand;
+   `rm`/`rmdir`/`unlink`/`shred`/`touch`/`mkdir`/`truncate`/`gzip`/`gunzip` (every operand, each verb's value-taking
+   options skipped); `sort -o`, `curl -o`/`--output`, `wget -O`; `sed` with `-i[SUF]` or `--in-place[=SUF]` (its file
+   operands, after the script, unless `-e`/`--expression`/`-f` gives it) and `perl` with `i` in a short cluster that
+   is not `-M`/`-m`/`-I` (its file operands after the code from `-e` or a cluster ending in `e`); `dd of=`. Each
+   joins the tracked `cwd`, a leading `~` is outside scratch, and a path holding a glob character (`*?[`) or naming
+   `/tmp`, `/tmp/claude-<uid>` or `/tmp/claude-<uid>/<slug>` itself is outside scratch (an ancestor of other
+   sessions' scratch is never this seat's). `_in_scratch()` decides the rest. A copy FROM the live tree INTO scratch
+   stays allowed — `cp` and `install` sources are reads.
 3. **Unparseable.** The existing fallback (`:510-517`) also denies an untokenisable command that names one of those write
-   verbs as a word or an output redirect — never on a bare `echo` (an unterminated quote with no write stays allowed).
+   verbs as a word not preceded by `/`, `-` or `.`, or an output redirect to something other than `/dev/…` or an fd —
+   never on a bare `echo` (an unterminated quote with no write stays allowed, `2>/dev/null` included).
 4. **Docs.** The `docs/workstation/hooks-index.md` row for `seat_guard.py` names the write rule and states the blind
    spot.
+5. **Two scanner defects the write rule rides on (pre-existing, found by the plan review).** `env -C <dir> cmd` moves
+   the tracked cwd for that one command only (today `_strip` rewrites it for the rest of the line, so
+   `env -C <scratch> true; git reset --hard` passes the git rule), and redirects on that command resolve against
+   the cwd from before it. `_HEREDOC` no longer matches a here-string: `<<<` opened a phantom heredoc that hid every
+   following line up to one equal to its word, `git reset` included.
 
 **The blind spot, stated (COBRA, D-253):** the cheapest way past the rule is a write the Bash string does not show — an
 interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a write whose destinations come from stdin or a
 search (`xargs rm`, `find -delete`, `find -exec`), a write nested deeper than the scanner's three levels of `bash -c`/`$(…)`,
 a side-effect write by a tool run in the live tree (`pytest`'s `.pytest_cache`), and a variable holding the path
 (fail-closed only when the variable is the destination itself). The guard is defence-in-depth against ACCIDENTAL writes, not a boundary against an
-adversarial seat; the brief's prose stays as the second layer. **Tripwire:** a confirmed seat write to a live tree through
+adversarial seat; the brief's prose stays as the second layer. Write verbs outside the list are blind spots too: `chmod`/`chown`,
+`patch`, `split`, `tar -x`/`-C`, `unzip -d`, `bzip2`/`xz`, and any other verb until a refused-or-missed seat write
+names it (§ Lifecycle, growth). **Tripwire:** a confirmed seat write to a live tree through
 an interpreter re-opens this design with approach D (below) or a filesystem-level fence.
 
 ## Contract deltas
@@ -127,7 +145,10 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
   `scratchpad_dir` — such as the D-836 SCRATCH root `<main>/.tmp/runs/<sid>/`. A census of every seat brief on the hub
   (32 files: `commands/_sources/`, `commands/_fragments/`, the review-loop script, the agent definition, the two reference
   docs) found none: every brief names `RUN-SCRATCH` (`docs/reference/command-run-protocol.md:620`, under the session
-  scratchpad), and SCRATCH is named for the orchestrator's own writes only. So no scratch root is added.
+  scratchpad), and SCRATCH is named for the orchestrator's own writes only. Re-checked 2026-10-22 after D-961 moved
+  hub seats to the Agent tool: the Agent-tool briefs (`commands/_fragments/subagents-core.md`,
+  `commands/_fragments/no-workflow-hub.md`, each review command's seat brief) name a `seat-` folder under
+  `RUN-SCRATCH` too. So no scratch root is added.
 - The tool list of `fabrik-reviewer` becomes a tested contract: granting it Write/Edit/NotebookEdit fails a test.
 - Non-seat agents and the lead: no change.
 
@@ -157,7 +178,9 @@ Each behaviour gets a test in `tests/test_seat_guard.py`, seen red first:
    `perl -pi … <live file>`, `tee <live file>`, `dd of=<live file>`, `touch ~/x` and a write on a `cd`/`bash -c` line are
    denied; `cd <scratch> && touch x`, `mkdir -p <scratch>/d 2>/dev/null` and `truncate -s 0 <scratch>/f` are allowed.
 5. An untokenisable command naming a write verb is denied.
-6. `main()` with the new tool names emits the deny envelope; a crash inside the new path still fails open.
+6. A crash inside the new path still fails open: no deny, only the existing `updatedInput` envelope for a seat
+   (the crash is injected in-process, the one grader that cannot run through the subprocess harness).
+7. The scanner fixes of delta 5: `env -C` scoped to its command; a here-string hides nothing.
 
 ## Decisions taken
 
