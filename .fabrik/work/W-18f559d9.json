@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T23:01:21.656597Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-18f559d9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "mechanism in claude_rotate.py (a LANE tier at >=90% session, no successor), quota_posture_hook.py (QUOTA line names it: band LANE on 5h), .claude/hooks/quota_stop.py (per-session decision from records: role via whoami/CLAUDE_AGENT, claim priority via the work store by session id — coordinator never held, P0 builder not held, other builders held for world-changing tools with a park message); CLAUDE.md § Pointers quota-bands paragraph + templates twin; tests for the three hold cases and the weekly window unchanged; /fabrik-task row 1b/1 with the full /fabrik-review, or fold into W-6e656dac T05 — infra's call",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "operator ask tonight (HIGH): every builder lost its last item to the wall; hooks + rotation + one paragraph, one or two sessions",
+  "status": "open",
+  "title": "Operator 2026-10-22: the 90% PRIORITY LANE on the 5-hour window — past 90% of the fleet's session window with no successor, builders checkpoint and start nothing new unless their claimed item is URGENT/P0 or a merge one step from landing; coordinators (merge owners) keep working through the last 10%; the true-wall hold stays; the weekly window keeps its bands. Supersedes the same-night 'work to 99%' relay"
+}
