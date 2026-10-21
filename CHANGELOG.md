@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a panel-approved brief is no longer refused because the operator queued a prompt after it (2026-10-21)
+W-6424f2e8; D-1098. The Stop hook checks that a `PANEL APPROVED` brief quotes the two review seats' own verdicts. A prompt the operator types while the agent is busy reset those verdicts, and because such a prompt arrives in the middle of a turn, a properly backed brief written just before it was refused when the turn ended. Each brief is now checked against the verdicts that stood until the queued prompt that actually follows it — found by position, because the same prompt can be recorded more than once — so a stale copy from an earlier turn, or verdicts from before the operator's new word, can never vouch for it. A forged brief, or one relying on verdicts from before the operator's new word, is refused as before.
+
 ### Changed — /fabrik-plan-after-chat: the census covers state writers and each refused test's planned edit, and every count names its command (2026-10-21)
 
 - `commands/_sources/fabrik-plan-after-chat.md`: a new mechanism's census also covers the writers of each state it reads, and each existing test a change's MIRROR refuses is listed with its planned edit. Every measured count names the command that printed it, fenced blocks are redirected from that output, and Constraints Digest quotes are read from their `file:line` at write time. A small plan's code steps are prototyped by default in throwaway worktrees of the base, and a module plan reads the module README's test recipe first. Graders in `tests/test_plan_after_chat_queue_pass.py`.
