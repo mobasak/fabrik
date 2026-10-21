@@ -28,6 +28,7 @@ static gate. See docs/development/plans/2026-07-01-plan-fabrik-ci-parity.md.
 from __future__ import annotations
 
 import ast
+import functools
 import importlib.metadata
 import importlib.util
 import sys
@@ -373,11 +374,65 @@ def _module_is_local(mod: str, project_root: Path) -> bool:
             resolved = Path(path).resolve()
             if any(part in _env_markers for part in resolved.parts):
                 continue
-            if resolved.is_relative_to(root):
+            if resolved.is_relative_to(root) or _tracked_twin_in(resolved, root):
                 return True
         except (ValueError, OSError):
             continue
     return False
+
+
+# A linked worktree shares the main checkout's `.venv` (D-471's builder layout), so a first-party package
+# installed editable resolves to ANOTHER worktree's copy of this repo — the main checkout, or a sibling
+# builder's — never under `project_root` (W-c83c550c: youtube's mt_router flagged in every builder worktree).
+# It is still this repo's code when git puts that file in a working tree of the SAME repository (one
+# common dir) and this tree TRACKS the same repo-relative path. Any failure answers False: the package
+# stays flagged, as before this rule existed.
+@functools.cache
+def _work_tree_of(directory: str) -> tuple[Path, Path] | None:
+    """(top level, git common dir) of the working tree holding ``directory``, or None."""
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            [
+                "git",
+                "-C",
+                directory,
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--git-common-dir",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        lines = r.stdout.splitlines()
+        if r.returncode != 0 or len(lines) != 2:
+            return None
+        return Path(lines[0]).resolve(), Path(lines[1]).resolve()
+    except Exception:  # noqa: BLE001 — no git, a timeout, an odd path: not this repo's code
+        return None
+
+
+@functools.cache
+def _tracked_in(top: Path) -> tuple[frozenset[Path], frozenset[Path]]:
+    """The tracked files of the working tree at ``top``, and every directory holding one."""
+    files = _git_tracked(top) or set()
+    return frozenset(files), frozenset(d for f in files for d in f.parents if d.is_relative_to(top))
+
+
+def _tracked_twin_in(resolved: Path, root: Path) -> bool:
+    try:
+        is_dir = resolved.is_dir()
+        theirs = _work_tree_of(str(resolved if is_dir else resolved.parent))
+        mine = _work_tree_of(str(root))
+        if not theirs or not mine or theirs[1] != mine[1] or theirs[0] == mine[0]:
+            return False
+        files, dirs = _tracked_in(mine[0])
+        return mine[0] / resolved.relative_to(theirs[0]) in (dirs if is_dir else files)
+    except Exception:  # noqa: BLE001 — a twin test must never turn into a crash (main() skips on one)
+        return False
 
 
 def _own_dist_name(project_root: Path) -> str | None:
