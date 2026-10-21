@@ -1,4 +1,4 @@
-# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | commands/_sources/fabrik-plan-after-chat.md
+# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py, tests/enforcement/test_status_in_code_span.py | commands/_sources/fabrik-plan-after-chat.md
 """Check plan document quality — shape-classified required sections.
 
 Classification precedence (ordered — a file matching an earlier shape is never
@@ -168,6 +168,9 @@ def _sibling_spine_is_draft(file_path: Path) -> bool:
     except OSError:
         return True
     scan = _BLOCKQUOTE_RE.sub("", scan)  # quoted Status examples never downgrade
+    # nor does one inside an inline code span, a multi-line one included (W-a7cff030). This read fails OPEN — a quoted
+    # DRAFT would downgrade the ticket checks — so the span is blanked, length-preserving, before the first match.
+    scan = _fences.blank_code_spans(scan)
     m = MODERN_STATUS_RE.search(scan)
     if m:
         return m.group(1).upper() in ("DRAFT", "PLANNED")

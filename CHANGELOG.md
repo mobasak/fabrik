@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — plan Status reads skip a Status line inside a multi-line code span (2026-10-21)
+W-a7cff030. An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and
+first-match read the example. This hit two readers:
+- `check_plan_quality._sibling_spine_is_draft` failed open: a quoted DRAFT downgraded the ticket checks.
+- check_convergence's two archived-plan reads failed closed: a false "archived while DRAFT".
+
+Both now blank inline code spans with the shared `_fences.blank_code_spans` before the first match. check_convergence
+reads through one helper, `_archived_plan_status`. Across the fleet the parsed values are unchanged (216 tickets,
+1 521 plan files). `tests/enforcement/test_status_in_code_span.py` was red first.
+
 ### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
 W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and
 check_phase_tests also did it once per `## Behavior Contract` heading. 8 000 labels took ~5 s, and 4x the input took
