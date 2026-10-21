@@ -5,7 +5,7 @@
   "created": "2026-10-20T02:54:14.791720Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "9b9cccbf73dc2d1a4cfe22f4f0ccd1ed251921a1",
   "id": "W-b9af1d47",
   "impact": "low",
   "kind": "backlog",
@@ -20,7 +20,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "latent advisory: no live false positive today; one reader",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader"
   ],
