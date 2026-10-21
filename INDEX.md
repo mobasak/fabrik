@@ -1672,6 +1672,7 @@ docs/
 │       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-18-external-services-page-design.md
 │       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
+│       ├── 2026-10-21-own-scrape-tools-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
