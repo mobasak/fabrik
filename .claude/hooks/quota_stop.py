@@ -36,7 +36,8 @@ Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, br
 Agent/Workflow dispatch, and any Bash that is not ONE simple checkpoint or read command — with one instruction — commit + push your own work with
 explicit pathspecs, close your run record, stop. Reads, git checkpointing, `command_run.py`, `mail.py`,
 `thread_anchor.py`, `Monitor`, the exact self-watch arm (`bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <sid>`,
-D-356) and `TaskStop` stay allowed, so a session can finish
+D-356), the pause's exact verbs (`python3 /opt/fabrik/scripts/sysadmin/hibernate.py status|woke|paused|lift`) and
+`TaskStop` stay allowed, so a session can finish
 cleanly and the Stop hook's commit-and-push law can be met. The block lifts when the tick clears the
 stamp; the lift WAKES every ARMED self-watch (D-178) — an unarmed ended session waits for the operator.
 
@@ -44,6 +45,13 @@ FAIL-OPEN, deliberately: no stamp → allow; unreadable state → allow; a stamp
 could have refreshed (the tick log has not moved for QUOTA_STOP_TICK_STALE_S, default 900s) →
 allow with a one-line warning, because a dead cron must never freeze the fleet behind a stale
 flag. ROTATE_STATE_DIR is honored (the tick's own override) so tests never touch the real stamp.
+
+THE ONE EXCEPTION TO THAT FAIL-OPEN — the `hibernate` tier (W-6e656dac, spec L2): a stamp whose raw line 2 reads
+`hibernate` while the pause marker (`hibernate.json`, read INLINE — this file imports no hub module) is marked and not
+lifted holds however old the tick log is, or with none at all, because a box that slept for days wakes with exactly
+that log and the minutes before its first tick must stay held. The cheapest way past it (D-253) is a marker that
+reads as lifted or unreadable: an unreadable marker reads as UNMARKED here (this hook fails open), so the dead-cron
+fail-open returns — that cost is named, and the tick's own lift or the hub's `hibernate.py lift` is the real exit.
 """
 
 from __future__ import annotations
@@ -52,6 +60,7 @@ import json
 import math
 import os
 import posixpath
+import pwd
 import re
 import shlex
 import sys
@@ -109,6 +118,16 @@ _ALLOWED_BASH = re.compile(
     # one must be able to arm while held; the wrapper only reads marker files and prints one line
     # — the sid class is `_reason`'s own (1–80, alnum and `._-`): every order the hold prints must be one it allows
     r"|bash\s+/opt/fabrik/scripts/sysadmin/selfwatch_arm\.sh\s+[A-Za-z0-9._-]{1,80}\s*$"
+    # the pause's own verbs (W-6e656dac, spec L2), EXACT forms beside the arm's: `status`, `woke` and `paused` only
+    # read, each with exactly the arguments its argparse takes — `status` [--json] [--self <sid>] in either order,
+    # `woke` [--self <sid>], `paused` bare — never `--home`/`--proc`, the test seams; a sid never starts with `-`
+    # (argparse would read it as a flag). `lift` takes no argument at all; who may lift is `hibernate.py`'s own
+    # caller check, never this hook's
+    r"|python3\s+/opt/fabrik/scripts/sysadmin/hibernate\.py\s+(?:"
+    r"status(?:\s+--json(?:\s+--self\s+[A-Za-z0-9._][A-Za-z0-9._-]{0,79})?"
+    r"|\s+--self\s+[A-Za-z0-9._][A-Za-z0-9._-]{0,79}(?:\s+--json)?)?"
+    r"|woke(?:\s+--self\s+[A-Za-z0-9._][A-Za-z0-9._-]{0,79})?"
+    r"|paused|lift)\s*$"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
@@ -679,6 +698,65 @@ def _stamp_is_battery(stamp: Path) -> bool:
     return len(lines) > 1 and lines[1].strip() == "battery"
 
 
+def _stamp_is_hibernate(stamp: Path) -> bool:
+    """The hibernate tier's stamp (W-6e656dac, Interface S): line 2 is `hibernate`. Like `battery` it is NEVER added
+    to `_STAMP_TIERS` — `_stamp_tier` folds it into `walled`, so it holds — and this raw read only picks the message
+    and whether a stale tick may open it. The same raw read as `_stamp_tier` (`is_file()` first, `newline=""`)."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == "hibernate"
+
+
+def _marker_path() -> Path:
+    """The pause marker, resolved as `hibernate.py` resolves it (Interface M): `$ROTATE_STATE_DIR/hibernate.json` when
+    set, else `<passwd home>/.claude/state/hibernate.json` — the passwd home, never `$HOME`."""
+    raw = os.environ.get("ROTATE_STATE_DIR")
+    if raw:
+        return Path(raw) / "hibernate.json"
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / ".claude" / "state" / "hibernate.json"
+
+
+def _finite(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    v = float(value)
+    return v if math.isfinite(v) else None
+
+
+def _pause_marked() -> bool:
+    """True exactly when `hibernate.py paused` would exit 0: a readable JSON object whose `paused_at` is a finite
+    number, whose `lifted_at`/`deadline_at` are absent, null or finite numbers, and which is not lifted
+    (`lifted_at >= paused_at`). Every other shape — no file, a corrupt one, a FIFO — is UNMARKED: this hook fails
+    open. COPIED (not imported) into `quota_posture_hook.py`; `tests/test_hibernate_hooks.py` grades both copies
+    against `paused` on the same bytes.
+
+    The WHOLE body is inside `except Exception`: a 400-digit int overflows `float()` and deep nesting raises
+    RecursionError in `json.loads`, and a hook that crashes exits 1, which the harness reads as non-blocking, so the
+    hold itself opened (review J1, executed). A marker this reader cannot judge is UNMARKED — never a crash."""
+    try:
+        p = _marker_path()
+        if not p.is_file():  # before the read: a FIFO blocks forever, and a hang is not an OSError
+            return False
+        m = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(m, dict):
+            return False
+        at = _finite(m.get("paused_at"))
+        if at is None:
+            return False
+        for key in ("lifted_at", "deadline_at"):
+            if m.get(key) is not None and _finite(m[key]) is None:
+                return False
+        lifted = _finite(m.get("lifted_at"))
+        return lifted is None or lifted < at
+    except Exception:
+        return False
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -708,14 +786,18 @@ def decide(
     sid: str | None = None,
     tier: str = _STAMP_TIER_WALLED,
     battery: bool = False,
+    hibernate: bool = False,
+    pause_marked: bool = False,
     cwd: str | None = None,
 ) -> tuple[str, str]:
     """Decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}. Pure but
-    for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root."""
+    for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root.
+    `hibernate` (the stamp's raw line 2) with `pause_marked` (the marker unlifted) skips the stale-tick fail-open."""
     if not stamp_exists:
         return "allow", ""
     stale_after = _stale_after_s()
-    if tick_age_s is None or tick_age_s > stale_after:
+    held_pause = hibernate and pause_marked
+    if not held_pause and (tick_age_s is None or tick_age_s > stale_after):
         return "allow_warn", (
             "quota-stop: the fleet-exhausted stamp exists but the rotation tick has not run for "
             f"{'unknown' if tick_age_s is None else f'{tick_age_s / 60:.0f}m'} — a stale flag never "
@@ -734,10 +816,10 @@ def decide(
         # `_resolve` first strips the one `cd`/`-C` and splits the one pipe the hold admits.
         if command is not None and _bash_allowed(command, cwd):
             return "allow", ""
-        return "deny", _reason("Bash", sid, battery)
+        return "deny", _reason("Bash", sid, battery, hibernate)
     if tool in _READ_TOOLS or _READ_MCP.match(tool):
         return "allow", ""
-    return "deny", _reason(tool or "tool", sid, battery)
+    return "deny", _reason(tool or "tool", sid, battery, hibernate)
 
 
 def _nudge() -> str:
@@ -759,7 +841,9 @@ def _nudge() -> str:
     )
 
 
-def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
+def _reason(
+    tool: str, sid: str | None = None, battery: bool = False, hibernate: bool = False
+) -> str:
     """The one message every held session reads. It carries the LITERAL session id in the arm
     order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
     exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
@@ -770,17 +854,27 @@ def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
         and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid)
         else "<your sid>"
     )
-    head = (
-        "BATTERY HOLD — the laptop is on battery at or below the hold line, and your context may "
-        "be lost when it dies."
-        if battery
-        else "FLEET QUOTA EXHAUSTED — no account left to rotate to."
-    )
-    lift = (
-        "The hold lifts when mains power is back"
-        if battery
-        else "The hold lifts when the tick sees relief"
-    )
+    if hibernate:
+        head = (
+            "HIBERNATE HOLD — the box is about to hibernate (the operator's /hibernate pause, T-3 has "
+            "passed). A subagent returns NOW with its partial result."
+        )
+        lift = (
+            "The hold lifts when the pause is lifted after the wake (the tick, or the hub's "
+            "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py lift`); "
+            "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py status`, "
+            "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke` and "
+            "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py paused` stay allowed too"
+        )
+    elif battery:
+        head = (
+            "BATTERY HOLD — the laptop is on battery at or below the hold line, and your context may "
+            "be lost when it dies."
+        )
+        lift = "The hold lifts when mains power is back"
+    else:
+        head = "FLEET QUOTA EXHAUSTED — no account left to rotate to."
+        lift = "The hold lifts when the tick sees relief"
     return (
         f"{head} {tool} is held. STOP GRACEFULLY NOW: "
         "commit your own work with explicit pathspecs "
@@ -812,6 +906,7 @@ def main() -> int:
     except OSError:
         exists = False
     tier = _stamp_tier(_stamp()) if exists else _STAMP_TIER_WALLED
+    hib = exists and _stamp_is_hibernate(_stamp())
     age: float | None
     try:
         age = time.time() - _tick_log().stat().st_mtime
@@ -825,6 +920,8 @@ def main() -> int:
         sid=(payload.get("session_id") if isinstance(payload, dict) else None),
         tier=tier,
         battery=exists and _stamp_is_battery(_stamp()),
+        hibernate=hib,
+        pause_marked=hib and _pause_marked(),
         cwd=payload.get("cwd") if isinstance(payload.get("cwd"), str) else None,
     )
     if action == "deny":

@@ -13,7 +13,11 @@ Reads the posture file the rotation tick writes (`_quota_posture` in
   review family. Everything a checkpoint needs — edits, tests, git, ``done``,
   ``round``, mail, Monitor, TaskStop — stays allowed, so RED is finish-and-checkpoint,
   never freeze. At AMBER it says so ONCE per (session, band) through
-  ``additionalContext``, carrying no permission decision at all.
+  ``additionalContext``, carrying no permission decision at all. While a ``/hibernate``
+  pause is marked and not lifted (``hibernate.json``, read inline — W-6e656dac, spec L2)
+  it holds ``Agent`` and EVERY ``command_run.py start``, the review family included, for
+  every session, live run or not, ahead of the stamp and posture checks — so neither the
+  ``hibernate`` tier nor a missing posture reopens intake.
 
 ⚠️ **BOX-LOCAL, NOT FLEET-SYNCED.** `--install` wires this into the user-level
 ``settings.json`` files — one per fleet account dir plus the top-level one, enumerated at
@@ -80,6 +84,7 @@ import hashlib
 import json
 import math
 import os
+import pwd
 import re
 import shlex
 import shutil
@@ -269,6 +274,72 @@ def _wall_stamp_stands() -> bool:
     ALLOWS, so this hook must keep doing its own job there or a genuine fleet RED passes both
     hooks unheld."""
     return _live_tier() == _STAMP_TIER_WALLED
+
+
+# ── the hibernate pause (W-6e656dac, spec L2) ──────────────────────────────────────
+
+
+def _marker_path() -> Path:
+    """The pause marker, resolved as `hibernate.py` resolves it (Interface M): `$ROTATE_STATE_DIR/hibernate.json` when
+    set, else `<passwd home>/.claude/state/hibernate.json` — the passwd home, never `$HOME`."""
+    raw = os.environ.get("ROTATE_STATE_DIR")
+    if raw:
+        return Path(raw) / "hibernate.json"
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / ".claude" / "state" / "hibernate.json"
+
+
+def _marker_num(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    v = float(value)
+    return v if math.isfinite(v) else None
+
+
+def _pause_marked() -> bool:
+    """True exactly when `hibernate.py paused` would exit 0 — a COPY of `.claude/hooks/quota_stop.py::_pause_marked`
+    (read inline, never an import of `hibernate.py`), graded against `paused` in `tests/test_hibernate_hooks.py`.
+    Every unreadable or corrupt shape is UNMARKED: this hook fails open, always. The WHOLE body is inside
+    `except Exception` — this runs on EVERY tool call, so a crash here (a 400-digit int overflowing `float()`, deep
+    nesting raising RecursionError) exited 1 and opened the RED `Agent` hold too (review J1, executed)."""
+    try:
+        p = _marker_path()
+        if not p.is_file():  # before the read: a FIFO blocks forever, and a hang is not an OSError
+            return False
+        m = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(m, dict):
+            return False
+        at = _marker_num(m.get("paused_at"))
+        if at is None:
+            return False
+        for key in ("lifted_at", "deadline_at"):
+            if m.get(key) is not None and _marker_num(m[key]) is None:
+                return False
+        lifted = _marker_num(m.get("lifted_at"))
+        return lifted is None or lifted < at
+    except Exception:
+        return False
+
+
+def _pause_intake(tool: str, command: object) -> str | None:
+    """What a marked pause holds — the two dispatch tools (`Agent`, `Workflow`) and every `command_run.py start` (the
+    review family INCLUDED) — or None. From the mark nothing new is dispatched on any session, live run or not."""
+    if tool in ("Agent", "Workflow"):
+        return f"The {tool} tool"
+    is_start, name = _is_new_run_start(command)
+    if is_start:
+        return f"Starting /{name or '<unnamed>'}"
+    return None
+
+
+def _pause_reason(what: str) -> str:
+    return (
+        f"HIBERNATE PAUSE — a /hibernate pause is marked and not lifted. {what} is held for every session: "
+        "from the mark nothing new is dispatched (a seat already running finishes; a subagent returns now with "
+        "its partial result). Finish your step, commit and push with explicit pathspecs, and close your run "
+        "record with a seed (`command_run.py blocked --paused` or `handoff`), naming every seat still running. "
+        "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py paused` exits 1 once the pause is lifted; after the "
+        "wake run `python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke`."
+    )
 
 
 # ── the line ───────────────────────────────────────────────────────────────────────
@@ -1084,14 +1155,32 @@ def main(argv: list[str] | None = None) -> int:
     if event != "PreToolUse":
         return 0
 
+    # ⚠️ the pause is read BEFORE the stamp and the posture (W-6e656dac, spec L2): the early return
+    # below fires for a walled stamp — which the `hibernate` tier reads as — and for a missing
+    # posture, and neither may reopen intake while a pause is marked. `quota_stop.py` admits every
+    # `command_run.py` subcommand, `start` included, so this is the only hook that holds a start.
+    ti = payload.get("tool_input")
+    tool = str(payload.get("tool_name") or "")
+    command = ti.get("command") if isinstance(ti, dict) else None
+    if _pause_marked() and (what := _pause_intake(tool, command)) is not None:
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": _pause_reason(what),
+                    }
+                }
+            )
+        )
+        return 0
+
     # ⚠️ the stamp is read BEFORE the band, so a lagging RED posture can never produce a
     # second deny for a call `quota_stop.py` is already denying
     if _wall_stamp_stands() or posture is None:
         return 0
     band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
-    tool = str(payload.get("tool_name") or "")
-    ti = payload.get("tool_input")
-    command = ti.get("command") if isinstance(ti, dict) else None
     sid = payload.get("session_id")
     action, what = decide(band, tool, command, sid=sid, stamp=False)
     # ⚠️ Any band that is NOT amber clears this session's amber marker, which does two jobs with one

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The hooks hold the /hibernate pause (2026-10-21)
+
+- `.claude/hooks/quota_stop.py` (fleet-synced) keeps a `hibernate`-tier stamp holding through a stale or missing tick log while the pause is marked, and admits only the exact `hibernate.py status|woke|paused|lift` forms its argparse accepts; `scripts/sysadmin/quota_posture_hook.py` denies `Agent`, `Workflow` and every `command_run.py start` for every session while the pause is marked, before its early return. A corrupt marker of any shape reads as unmarked in both hooks and never crashes them (W-6e656dac T02).
+
 ### Added — /hibernate T01b: `status` checks every agent's seats, records, self-watch and the minute cron before it says SAFE (2026-10-21)
 
 - `scripts/sysadmin/hibernate.py status`: a headless `sdk-*` session and an agent's live seats block before T-3; from T-3 a seat counts only when this pause's closed record names it abandoned; an unarmed self-watch, a stale or missing minute-cron heartbeat, and a run closed blocked without a seed after the mark all block; the uncommitted row names five paths then `+N more`; the header names the pause, T-3, T and the time left; SAFE prints only after two reads. Every read of a path from a record or lock dir is non-blocking and regular-file-only; marker text is escaped before it prints; a home that cannot be resolved fails closed with exit 2 (W-6e656dac T01b).
