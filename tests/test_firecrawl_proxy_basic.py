@@ -18,8 +18,8 @@ green ships an unpinned call.
 
 Cobra note: this guards PRESENCE against regression. Natural-language negation is unbounded, so the cheapest way to
 satisfy the test without the outcome is a negation spelled outside `NEG` ("is optional"). The counter-measure is a
-named check, not a longer list: every review of a change to a pinned clause in commands/_sources/ or commands/_agents/
-reads that clause and states that it instructs the basic proxy. The failure message (`REMEDY`) and this docstring
+named check, not a longer list: every review of a change to a pinned clause in the scanned corpus (`CORPUS`) reads
+that clause and states that it instructs the basic proxy. The failure message (`REMEDY`) and this docstring
 both say so.
 """
 
@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = [p for d in ("_sources", "_agents", "_fragments") for p in sorted((ROOT / "commands" / d).glob("*.md"))]
 
 # a fetch verb in any inflection, never a lookalike ("ready", "scrapbook")
-_VERB = r"(?:scrap(?:e|es|ed|ing|er)|crawl(?:s|ed|ing|er)?|read(?:s|ing)?|fetch(?:es|ed|ing)?|re-fetch)\b"
+_VERB = r"(?:scrap(?:e|es|ed|ing|ers?)|crawl(?:s|ed|ing|ers?)?|read(?:s|ing)?|fetch(?:es|ed|ing)?|re-fetch)\b"
 MENTION = re.compile(
     r"firecrawl_(?:\w*scrape|crawl)\b|mcp__firecrawl__\*"
     r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:" + _VERB + r")"
@@ -153,6 +153,8 @@ FIXTURES = {
     # lookalike words are no fetch verb
     "Firecrawl is ready for the call.": 0,
     "the Firecrawl scrapbook of notes.": 0,
+    "Run Firecrawl crawlers over the site.": 1,
+    "Point Firecrawl scrapers at the docs.": 1,
 }
 
 
