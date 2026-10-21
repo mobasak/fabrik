@@ -3,7 +3,7 @@
   "created": "2026-10-20T11:32:12.748790Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d90c57b010db1a5663166e89db54ca78438487cb",
   "id": "W-d2eef742",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "advisory: three more slow fence regexes, no live hang reported; same recipe as D-1077",
-  "status": "open",
+  "status": "done",
   "tags": [
     "link-reader"
   ],

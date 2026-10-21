@@ -1,0 +1,26 @@
+{
+  "block_digest": "4a5b00bfe403873154a10f54779162d78c8d1577894d7f1e88142303f8d4b316",
+  "blocked_by": [],
+  "created": "2026-10-21T04:14:20.389091Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-12f21514",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6d9862e82d88fb41083345cf937acc14519e5790d20aecd16834ac9e8c8aba2b"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May the operator replace the Brave Search API key (BRAVE_API_KEY) with a new one from the Brave dashboard, in ~/.config/fabrik/subagents.env and its four copies (~/.claude.json, /opt/fabrik/.mcp.json, /opt/fabrik-lib/.mcp.json, /opt/fabrik/.env), with backups first?",
+  "status": "awaiting-operator",
+  "title": "May the operator replace the Brave Search API key (BRAVE_API_KEY) with a new one from the Brave dashboard, in ~/.config/fabrik/subagents.env and its four copies (~/.claude.json, /opt/fabrik/.mcp.json, /opt/fabrik-lib/.mcp.json, /opt/fabrik/.env), with backups first?"
+}

@@ -149,7 +149,9 @@ it, or name in the brief why the shape does not have it.
   written state diffed against the unmutated copy), and an equivalent mutant is struck with that diff quoted, never
   a test gap; a counter or guard is gutted in the same round
   to show it can fail; a regression test fails when the caller is reverted; one reader mutates the guarded
-  behaviour; graders are written, and named, before the next round goes out.
+  behaviour; a tests slice's seats also write and run mutants of their own against each behaviour its tests
+  claim, beside the lead's, and report each survivor that changes observable behaviour, as above; graders
+  are written, and named, before the next round goes out.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned

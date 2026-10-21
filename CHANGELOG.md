@@ -8,6 +8,43 @@ All notable changes to this project will be documented in this file.
 
 - `templates/governance/CLAUDE.md`: one AUTONOMY paragraph after the coordinator paragraph carries hub D-1034, D-943, D-558 and D-961 for every agent that is not the repo's coordinator — no operator asks, no `AskUserQuestion`, no own `DECISION NEEDED` block, the coordinator reached by `SendMessage` or fabrik-mail, the Opus + Fable panel, no `Workflow` tool — and is inert in a single-window repo. An unnamed window, which reads no charter, now loads them too (D-1085; youtube mail 01M5CCR5VG). `docs/reference/repo-coordinator-rollout.md` step 8 says so; `tests/test_governance_template_split.py` pins the paragraph and its placement.
 
+### Fixed — `agent_status.py` shows each repo's own builders, not the hub's agents (2026-10-21)
+W-16d0ef14; D-1084. The coordinator's agent table took its rows from the hub's five roles in every repo, so youtube, fabrik-lib and trade-intelligence were shown the hub's infra, fleet, intel and kaizen, and the rollout runbook told repos not to vendor the script. The rows now come from the repo's `.fabrik/session-agents.json` when it names a builder, otherwise from the names bound to that repository that have a worktree, never the coordinator. Across the 43 repos with a work store on the box no roster is wrong; the runbook's step 2 now says to vendor the script.
+
+### Fixed — a repo's own editable package no longer reads as an undeclared dependency from a builder worktree (2026-10-21)
+W-c83c550c; D-1083. Builder worktrees share the main checkout's `.venv`, so an editable first-party package (youtube's `mt_router`) resolved to the main checkout's copy, and `check_undeclared_imports` reported it as missing from `requirements.txt` in every worktree while the main checkout passed. A path outside the worktree now counts as the repo's own code when git places it in another working tree of the same repository and this worktree tracks the same path; anything else, and any git failure, is still flagged. Across 299 trees on the box the verdict changes only in youtube's three builder worktrees.
+
+### Changed — /fabrik-review: a worktree lead copies its scratch files into SCRATCH:, cwd-rooted tools run after an os.chdir, and three other queued verdicts answered (2026-10-21)
+
+- `commands/_fragments/subagents-core.md`: a lead in a linked worktree writes its briefs, fix lists, notes and drafts into the main-checkout `SCRATCH:` folder by a Bash `cp`, never leaving the only copy in the reboot-cleared scratchpad. A tool that roots itself at the working directory (`scripts/docs_updater.py`) runs only from a python program that `os.chdir`s into the seat's copy before importing it.
+- `commands/_sources/fabrik-review.md`: a `RECORDED — by design` D-id owner is the row that decides that residual, since the gate checks only that the owner exists. `commands/_fragments/review-probe-catalogue.md`: a tests slice's seats write their own mutants. `commands/_fragments/no-workflow-hub.md`: a dead resumed seat is re-dispatched fresh with its ledger and REFUTED list. Graders in `tests/test_review_queue_pass.py`.
+
+### Fixed — app_role_check's owner-handoff remedy no longer tells a project to make `.env` required (2026-10-21)
+
+W-e80e79f0. `OWNER_HANDOFF_REMEDY`, the text a project agent acts on after the owner split, said
+`env_file [.env, {path: .env.owner, required: false}]`; the short `.env` entry is required, so a fresh
+checkout with no `.env` fails `docker compose config` (the D-931/D-938 class). It now says
+`[{path: .env, required: false}, {path: .env.owner, required: false}]`, and spec_loader's `owner_env`
+description states both renderers truthfully. `tests/test_app_role_check.py` parses the remedy's example and
+requires both entries optional.
+
+### Changed — /fabrik-spec: research briefs carry each search arm's verdict, and the draft and the judge brief run the citation checker (2026-10-21)
+
+- `commands/_sources/fabrik-spec.md`: each research seat's brief now names every search and fetch arm with this session's `mcp_health.py` verdict, and says which are down, reachable with an unknown key, or unknown. A seat stops calling an arm only when the arm itself fails, never on one page's 404. Phase 5 and the judge brief run `check_citations_resolve.py --root <repo> --doc <file>`, confirming it examined the file and stating what it does not grade. The DOWNGRADE check names the lane-refusal ledger's path. Graders in `tests/test_spec_queue_pass.py` run `mcp_health.main`, `check_citations_resolve.check_text_full` and `command_run._lane_ledger`.
+
+### Fixed — A fresh Python scaffold's `make test` runs a real test with the project's own tools (2026-10-21)
+
+W-ad15212d. A scaffolded file-worker shipped an empty `tests/`, so `make test` exited 5 ("collected 0
+items"), and the shared `templates/scaffold/docker/Makefile.python` ran `test`/`lint`/`format` with bare
+PATH `pytest`/`ruff`/`mypy` (a fresh python-api's PATH pytest could not even collect its own tests). Now
+those three targets run `.venv/bin` tools for file-worker, python-api and python-api-gpu, each listing its
+tools as prerequisites, and a missing tool stops with `<path> is missing: run 'make setup-dev' first`. A
+file-worker ships `tests/test_logger.py`: the redactor's key and value passes, and the configured logger's
+printed JSON (at CRITICAL, so any `LOG_LEVEL` prints it). Existing projects are not rewritten.
+`tests/test_file_worker_make_test.py` grades it (12 cases, incl. two logger mutants and a `.PHONY` mutant);
+`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` and `templates/scaffold/docker/README.md` name `make setup-dev`
+first and drop the nonexistent `make review`.
+
 ### Added — /hibernate: pause every agent, prove the box safe to sleep, resume after the wake (2026-10-21)
 
 - `scripts/sysadmin/hibernate.py` (`targets` · `brief` · `mark` · `lift` · `status` · `woke`) and the `/hibernate` command: the hub coordinator finds every live agent from the session records, sends each repo's coordinator (its ledger's merge owner) one URGENT pause text, collects a PAUSED line per agent, and says "safe to hibernate" only when `status` prints `SAFE TO HIBERNATE`; after the wake `woke` tells an agent the box slept so it resumes its own item. `claude -p` pool workers and review seats are never messaged (D-1079, `docs/reference/hibernate.md`).
@@ -55,6 +92,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the Stop hook's panel check reads Claude Code 2.1.304's attachment-row hand-backs (2026-10-20)
 
 - On 2.1.304 a seat's hand-back reaches the transcript as a `type: "attachment"` row (`attachment.type` queued_command, `attachment.origin` kind peer, `from` = the seat's agentId), not a `type: "user"` row, so `_panel_problem` in `.claude/hooks/final_gate_stop.py` never found either seat's verdict and refused every `Panel:` line (fleet 3 of 3, the coordinator's transcript). It now also reads attachment rows whose origin names a seat the transcript dispatched, with or without a `handback` key, taking `handbackReportText` (else the prompt); the `user`-row shape still works, a peer that is not a seat or a row marked `handback: false` never counts, an operator prompt queued as an attachment resets the panel like a typed one, and the harness's `<agent-message>` wrapper is stripped before quotes are matched (W-bc457e27).
+
+### Fixed — the plan checks' last slow fence strips are linear (2026-10-21)
+W-d2eef742; D-1080. Three more fence-stripping regexes backtracked badly: `plan_appetite` took 15.8 s on a 40 KB backtick run followed by text, `check_phase_tests` about 15 s on 20 000 unclosed fence openers, and `check_plan_lock_release` about 13 s on one 200 KB backtick run with no newline. Each is now a line walk that returns exactly what its regex returned (the regexes stay in `tests/enforcement/test_fences.py` as the oracle): two new functions in `scripts/enforcement/_fences.py` for the first two, and a local copy in `check_plan_lock_release`, whose tests allow it standard-library imports only. `check_phase_tests` imports the shared scanner inside the function that strips, so its advisory gate row still exits 0 in a project whose sync left `_fences.py` out.
 
 ### Fixed — a Status or Owner line quoted in a code span no longer passes for a plan's header (2026-10-20)
 W-8f9a7d2c; D-1078. `docs_updater` read the first `Status:` and `Owner:` line of a plan after removing fenced blocks and block quotes, but not inline code spans, so a code span running across a line break with `Status: DRAFT` at the start of its second line beat the plan's real `**Status:** COMPLETE` (and an `Owner:` line the real owner). The PLANS table, the plan checks, `--adopt` and `work.py` all read those values. Each scan now skips a header line whose key sits inside a code span and still reads a value written in code font, such as `**Owner:** `[infra]``. No plan in the fleet reads differently (0 of 1492).

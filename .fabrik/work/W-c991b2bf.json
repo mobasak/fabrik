@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:02.106300Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c991b2bf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CJ7C71F1708829YDVDZ3J4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "LEDGER — frost-nightshade holds no development: branch is an ancestor of the trunk, its tree is 2,718 deletions of tracked files and nothing else; removal boarded to the operator as a destructive gate"
+}

@@ -367,7 +367,10 @@ Every candidate lands on ONE of these, and only the first counts toward `confirm
 - **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** —
   reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N
   (never the round being closed — otherwise the closing round mints its own licence) or a row of this
-  checkout's `docs/DECISIONS.md`, which takes no round token. The parentheses hold the owner and nothing else — with its
+  checkout's `docs/DECISIONS.md`, which takes no round token. That row is the one that decides THIS residual
+  (its text names the subject's file or mechanism), since the gate checks only that the owner exists (a D-id in
+  this checkout's `docs/DECISIONS.md`, a receipt row on another line with an earlier round), so any existing id
+  passes it. The parentheses hold the owner and nothing else — with its
   `, round N` for a receipt row, several owners `;`-joined — and the reason follows them:
   `RECORDED — by design (D-432) — <why>`; a reason inside them, `(D-432: <why>)`, is refused as an
   absent owner.

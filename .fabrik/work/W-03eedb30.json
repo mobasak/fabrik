@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:00.327092Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-03eedb30",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CJ7AJTPRBJS1P5N3K1Q860",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "ROUTED — payments re-vendor (D-337 scoped roles + the 2026-09-29 security fix) is youtube work item W-70d7451f, owner yt2, the repo's one in-flight major"
+}

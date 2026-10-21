@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:14.870267Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "178f123a6cbba14c063d924d5681432b500cbf72",
   "id": "W-9241a5b1",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "fabrik-lib notice: payments_grant_fulfilment refuses a tenant role; consumer note for the payments registrar",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5b5cs5n6ak41xyp4hk6zhmf"
   ],

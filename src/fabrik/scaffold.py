@@ -1041,6 +1041,44 @@ FILE_WORKER_HEARTBEAT_CHECK = (
     "sys.exit(0 if os.path.exists(p) and 0 <= time.time() - os.path.getmtime(p) < 120 else 1)"
 )
 
+# A file-worker's starter test (tests/test_logger.py), so `make test` runs a real test from day one
+# (W-ad15212d). It covers worker/logger.py only: worker/main.py builds its Supabase and R2 clients at
+# import and needs credentials. The third test reads the CONFIGURED logger's output, so a chain that
+# drops `_redact_sensitive` goes red too. Already in ruff-format form at the project's line length.
+_FILE_WORKER_STARTER_TEST = '''"""Starter tests for worker/logger.py: secrets never reach the log output.
+
+The logger redacts in two passes (see `_redact_sensitive`): a sensitive key is replaced whole, and a
+credential embedded in a string value is replaced in place. These tests import nothing that needs
+credentials, so they run on a fresh checkout before any .env exists.
+"""
+
+import json
+
+import pytest
+
+from worker.logger import _redact_sensitive, get_logger
+
+
+def test_a_sensitive_key_is_redacted_whole() -> None:
+    event = _redact_sensitive(None, "info", {"event": "login", "password": "not-a-real-password"})
+    assert event == {"event": "login", "password": "[REDACTED]"}
+
+
+def test_a_credential_inside_a_message_is_redacted() -> None:
+    event = _redact_sensitive(
+        None, "info", {"event": "GET /callback?api_key=abc123def456 HTTP/1.1"}
+    )
+    assert event["event"] == "GET /callback?api_key=[REDACTED] HTTP/1.1"
+
+
+def test_the_configured_logger_prints_redacted_json(capsys: pytest.CaptureFixture[str]) -> None:
+    # CRITICAL passes every LOG_LEVEL filter, so the line prints whatever the environment sets
+    get_logger("starter").critical("login", api_key="not-a-real-key")
+    line = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert line["event"] == "login"
+    assert line["api_key"] == "[REDACTED]"
+'''
+
 
 def _write_canonical_compose(
     project_dir: Path,
@@ -5710,6 +5748,8 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # b) Write worker/logger.py — structured logging with PII redaction. The module's import path
     # is `worker.logger` (the shipped worker/main.py imports it that way), not the project package.
     (project_dir / "worker" / "logger.py").write_text(_logger_py_content(name, "worker"))
+    (project_dir / "tests").mkdir(parents=True, exist_ok=True)
+    (project_dir / "tests" / "test_logger.py").write_text(_FILE_WORKER_STARTER_TEST)
 
     # c) Copy main.py verbatim from file-worker template
     src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"

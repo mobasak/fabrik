@@ -3,7 +3,7 @@
   "created": "2026-10-18T14:19:06.940928Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a093d2871659cd8a3f8c4b06b1c5190b34b748a5",
   "id": "W-42e79070",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH, security class (slice 2 of W-719b2678): monitoring drivers stage configs under guessable fixed /tmp names on the VPS; integrity only, no secrets; reuses drivers.ssh.remote_mktemp",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "security"

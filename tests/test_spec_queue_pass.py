@@ -141,3 +141,96 @@ def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> N
     )
     review = _flat(ROOT / "commands" / "_sources" / "fabrik-spec-review.md")
     assert rule + " the quote rule above says — " + tail in review
+
+
+def _load(name: str, rel: str):
+    import importlib.util
+
+    spec_obj = importlib.util.spec_from_file_location(name, ROOT / rel)
+    mod = importlib.util.module_from_spec(spec_obj)
+    spec_obj.loader.exec_module(mod)
+    return mod
+
+
+def test_a_research_brief_names_each_arms_verdict(tmp_path: Path, capsys) -> None:
+    """Rows 1792472452, 1792465862, 1792412700: seats spent calls on dead arms the lead already knew about."""
+    para = _section("**Parallelism — UNCONDITIONAL", "**Never solo")
+    assert (
+        "the seats of one wave go in one message. Each research seat's brief names the search and fetch arms with"
+        " this session's verdict on each — every `<server>: <verdict>` line and every `MCP-HEALTH:` line the"
+        " ORIENT `mcp_health.py` run printed, and every arm a seat of an earlier wave reported failing: a `DEAD`,"
+        " `TIMEOUT` or `UNAUTHORIZED` server is down; a `CONNECTED` one with no `key check` line, or one whose key"
+        " check reads `unverified`, is reachable but its key is unknown; and an arm with no verdict (a `SKIPPED`"
+        " entry, the built-in `WebSearch` and `WebFetch`, and every server when the repo has no `.mcp.json`) is"
+        " unknown. A seat whose arm fails as an arm (auth, credit, quota, transport — never one page's 404 or host"
+        " block) says so in a line after its verdicts, which the brief asks for, and stops calling that arm. "
+    ) in para
+    # the two line shapes the sentence tells the lead to carry, from the probe's own main()
+    health = _load("mcp_health_for_spec", "scripts/sysadmin/mcp_health.py")
+    (tmp_path / ".mcp.json").write_text("{}")
+
+    def fake_check(repo, timeout, notes):
+        notes["exa"] = "unverified (HTTP 403)"
+        return {"exa": "CONNECTED", "brave-search": "TIMEOUT"}
+
+    health.check = fake_check
+    health.main(["--repo", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "brave-search: TIMEOUT" in out
+    assert "MCP-HEALTH: exa key check — unverified (HTTP 403)" in out
+    source = (ROOT / "scripts" / "sysadmin" / "mcp_health.py").read_text()
+    for verdict in ('"DEAD"', '"TIMEOUT"', '"CONNECTED"', '"SKIPPED (', '"UNAUTHORIZED ('):
+        assert verdict in source, verdict
+
+
+def test_the_draft_and_the_judge_brief_run_the_citation_checker(tmp_path: Path) -> None:
+    """Rows 1792447087, 1792346710, 1792450363: the self-review's grep left drifted cites for the grader to miss."""
+    review = _section("**Spec self-review", "Fix all before proceeding.")
+    assert (
+        "does every backticked `path:line` resolve (grep it)? Run `python3"
+        " /opt/fabrik/scripts/enforcement/check_citations_resolve.py --root <repo> --doc <the spec>` too (its"
+        " `--changed` reads `git diff`, so it never sees an untracked draft), confirm it printed `--doc examined 1"
+        " file(s)` (a path it cannot open prints a clean zero), and fix every cite it reports. It grades only a"
+        " line past the end of its file or a blank target, and never an absolute path as itself: the plain"
+        " `/opt/fabrik/…` form is skipped, and one with a `.` or `-` in a segment is cut there and its tail graded"
+        " against `<repo>`. So write a cite into `<repo>` repo-relative, open a cite into another repo, which stays"
+        " absolute, by hand (a finding on it is the cut tail, not the cite), and still open each cite a design"
+        " step rests on. Then grade"
+    ) in review
+    judge = _section("{{include:judge-panel}}", "If the research direction")
+    assert judge == (
+        "{{include:judge-panel}} Before the judge brief goes out, write it to a file in the run's `RUN-SCRATCH:`"
+        " folder and run `python3 /opt/fabrik/scripts/enforcement/check_citations_resolve.py --root <repo> --doc"
+        " <that file>` over it; a cite it reports is corrected first. "
+    )
+    # the checker's own behaviour, which the sentences state
+    import check_citations_resolve as ccr
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "a.py").write_text("x = 1\n")
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "README.md").write_text("a\nb\n")
+    seen, _bare, _amb, _outside, findings = ccr.check_text_full(
+        "`sub/a.py:9` and `/opt/fabrik/scripts/command_run.py:9`", tmp_path
+    )
+    assert seen == 1 and len(findings) == 1 and "BEYOND-EOF sub/a.py:9" in findings[0]
+    seen, _bare, _amb, _outside, findings = ccr.check_text_full(
+        "`/opt/fabrik-lib/README.md:40`", tmp_path
+    )
+    assert seen == 1 and "BEYOND-EOF lib/README.md:40" in findings[0]
+
+
+def test_the_downgrade_check_names_the_lane_ledger_path(monkeypatch, tmp_path: Path) -> None:
+    """Row 1792496306: 'beside the run-record state dir' sent a reader into command_run.py for the path."""
+    bullet = _section("**DOWNGRADE check", "**WRITE the seed file")
+    assert (
+        "lane-refusal ledger (`lane-refusals.jsonl`, beside the run-record state dir:"
+        " `~/.claude/state/lane-refusals.jsonl`, or `lane-refusals.jsonl` in the parent of `$COMMAND_RUN_DIR`"
+        " when that is set — `command_run.py::_lane_ledger`) whose declared `--file` list" in bullet
+    )
+    cr = _load("cr_lane_ledger", "scripts/command_run.py")
+    monkeypatch.delenv("COMMAND_RUN_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert cr._lane_ledger() == tmp_path / ".claude" / "state" / "lane-refusals.jsonl"
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "x" / "runs"))
+    assert cr._lane_ledger() == tmp_path / "x" / "lane-refusals.jsonl"

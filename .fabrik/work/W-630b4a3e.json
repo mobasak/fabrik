@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-630b4a3e",
-  "impact": "high",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,15 +13,16 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
   },
-  "next": "send exam-coach a request mail (mail.py send --to exam-coach --kind finding) naming the route, the spec and the template change; ack when exam-coach replies it is removed",
+  "next": "MEASURED 2026-10-21 (fleet): the route still exists in the repo, but the project is NOT deployed (no target_vps → vps1; 0 of vps1's 33 containers match; HTTPS probe gets no answer) — the exposure is not live. The hub's request mail sits UNREAD in the project's inbox (no agent session open). Waits on the project's own agent: open its session, it reads the mail and removes app/api/chat; ack when it replies",
   "note": "",
   "owner": "fleet",
-  "priority": 1,
-  "score_reason": "security: an unauthenticated route spends the repo's model key; one cross-repo request mail",
+  "priority": 3,
+  "score_reason": "not live: none of the five is deployed (0 of vps1's 33 containers; no HTTPS answer); the fix is each project's own agent's; a deploy with the route present is refused",
   "status": "open",
   "tags": [
     "security",
-    "waits-adoption-reply"
+    "waits-adoption-reply",
+    "waits-project-session"
   ],
   "title": "adopt W-ab242b11 in exam-coach: /opt/exam-coach/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail exam-coach to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
 }
