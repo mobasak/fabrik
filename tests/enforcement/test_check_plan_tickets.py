@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 from scripts.enforcement import check_plan_tickets as cpt
 
 DIRNAME = "2026-01-02-plan-1-widget"
@@ -3244,3 +3245,50 @@ def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
     for spelling in ("./", "./.", ".//.", ".//", ".//.//."):
         assert cpt._norm_path(spelling) == ".", spelling
     assert cpt._list_paths("- .//.\n") == ["."]
+
+
+@pytest.mark.parametrize(
+    ("entry", "selects"),
+    [
+        ("src/app/schema.py", True),
+        ("./src/app/schema.py", True),
+        ("`src/app/**`", True),
+        ("src/app/**", True),
+        ("src/*/schema.py", True),
+        ("src/app/", True),
+        ("src/app/schema.py/inner", False),
+        ("src/other/**", False),
+    ],
+    ids=[
+        "literal",
+        "dot-slash",
+        "backticked-glob",
+        "glob",
+        "star-segment",
+        "dir",
+        "below-the-file",
+        "other-glob",
+    ],
+)
+def test_a_lock_entry_selects_its_plan_in_every_written_shape(
+    tmp_path, entry: str, selects: bool
+) -> None:
+    """W-b2bbc1f1: lock discovery normalises each owned_paths entry like the epic reader does (`_norm_glob`) and
+    tests it DIRECTIONALLY and glob-aware (`_glob_covers`): a `./`-prefixed, backticked or globbed entry selects its
+    plan (live active locks own `apps/web/scripts/phase0/**`), and an entry BELOW a changed file never does."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": [entry]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, entry
