@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
 
+### Added — plan approved: own scrape tool, slice 1a, hub side (2026-10-21)
+W-10146d20; D-1101. `docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md` converged over eight review passes (receipt `docs/development/reviews/2026-10-21-own-scrape-slice-1a-plan-review.md`). Phase A, pinning the basic proxy on every Firecrawl line in the command corpus, can start now; Phases B and C wait for fabrik-lib's merge of the scrape server and the web-tools call log. Nothing is built yet.
 ### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
 W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
 converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
