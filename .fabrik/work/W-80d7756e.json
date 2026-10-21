@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:37:20.497667Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-80d7756e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: build scripts/plan_prototype.py; the recipe is named in fabrik-plan-after-chat.md (the small-plan prototype sentence)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "A reusable small-plan prototype kit: one script that copies the touched files to scratch, applies anchor-keyed edits, writes the appendix diff, round-trips it (file list from the diff headers) and prints the Evidence md5s and counts, so plans stop hand-copying it (fabrik-plan-after-chat rows 1792557858, 1792473057, 1792454719, 1792450380)"
+}
