@@ -1,0 +1,26 @@
+{
+  "block_digest": "64232a4607bd4e7b84c26bfd99b84c05e9fb92a9ff41b1c0c7be3543951f8daa",
+  "blocked_by": [],
+  "created": "2026-10-21T11:34:32.813837Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-f66e3fe5",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "337006c8ed737d654b74f0dc6d1c963e5e366584585d69f298e033f73cf34f25"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Should Firecrawl, the paid web-extraction research tool, be topped up with credits, now that research seats hit \"Insufficient credits to perform this request\" twice today?",
+  "status": "awaiting-operator",
+  "title": "Should Firecrawl, the paid web-extraction research tool, be topped up with credits, now that research seats hit \"Insufficient credits to perform this request\" twice today?"
+}
