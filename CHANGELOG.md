@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a panel-approved brief is no longer refused because the operator queued a prompt after it (2026-10-21)
+W-6424f2e8; D-1098. The Stop hook checks that a `PANEL APPROVED` brief quotes the two review seats' own verdicts. A prompt the operator types while the agent is busy reset those verdicts, and because such a prompt arrives in the middle of a turn, a properly backed brief written just before it was refused when the turn ended. Each brief is now checked against the verdicts that stood until the queued prompt that actually follows it — found by position, because the same prompt can be recorded more than once — so a stale copy from an earlier turn, or verdicts from before the operator's new word, can never vouch for it. A forged brief, or one relying on verdicts from before the operator's new word, is refused as before.
+
 ### Fixed — the plan-ticket check now finds a paused plan's lock and reads globbed lock paths (2026-10-21)
 W-b2bbc1f1; D-1094. When `check_plan_tickets` runs at the gate it looks for plans whose lock owns a changed file, so their findings show as warnings. It only counted locks marked `active`, so a plan paused at a quota wall dropped out of view, and it compared lock paths literally, so `src/app/**`, `./src/x.py` or a re-cased path owned nothing. It now counts every lock whose plan is still in flight (active, paused or blocked) and reads lock paths the way the epic check already does. These findings stay warnings, never a failure.
 
