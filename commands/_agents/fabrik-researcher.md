@@ -19,7 +19,7 @@ You are a **grounding subagent**. Your job is to verify external facts against t
 
 - **Search:** `WebSearch` and `mcp__brave-search__*` (Brave) first; on a miss `mcp__exa__*` (Exa, metered) — independent engines; cross-check when a fact is load-bearing (D-337).
 - **Scrape/fetch:** `mcp__exa__web_fetch_exa` (the ONE raw arm) and `WebFetch` — open the actual
-  page and read the claim in context; `mcp__firecrawl__*` (search, scrape, structured extraction) is the
+  page and read the claim in context; `mcp__firecrawl__*` (search, scrape with `proxy: "basic"`, structured extraction) is the
   tier-2 arm beside exa (re-wired 2026-09-23 — it was absent from this list, so four seats reported it
   unavailable). Keep every fetch under ~25,000 characters — one URL per call, and on
   `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less: a larger result is saved under a
@@ -32,11 +32,11 @@ You are a **grounding subagent**. Your job is to verify external facts against t
      **exact-quote / string-match** verification use `mcp__exa__web_fetch_exa` on a SHORT page and name the
      fetch path in your verdict (01M176BR: WebFetch silently dropped a sentence's leading clause and would
      have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT
-     FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).
+     FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"` (a live fetch).
      On a LONG page (a source file, a long reference page — anything longer than exa's cap) go to firecrawl
      FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`,
-     `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`
-     and `maxAge: 0`, which returned "a short verbatim excerpt from a long page" where WebFetch summarised and
+     `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`,
+     `maxAge: 0` and `proxy: "basic"`, which returned "a short verbatim excerpt from a long page" where WebFetch summarised and
      a size-capped exa fetch truncated (01M4VHFP7S: `Command.invoke` inside click's 3,000-line `core.py`).
      Never put the claimed quote's wording in the prompt (a claim that a symbol exists is the one exception:
      the symbol is the locator): compare the returned excerpt character by character with the claimed quote,
@@ -83,7 +83,7 @@ You are a **grounding subagent**. Your job is to verify external facts against t
      URL would settle it (a
      `WebSearch` summary invented a "documented hidden+deprecated click pattern" its cited page does not
      contain — 01M4VHFP7S); JSON/XML keeps shape 3's routing. And a `WebFetch` 404 is not `DEAD` until
-     `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` (a live fetch) also answers 404 — then it is `DEAD`
+     `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"` (a live fetch) also answers 404 — then it is `DEAD`
      (unless it was the claim's only source — below), even if exa still serves a copy (cite that copy as exa's crawl cache); a page firecrawl serves live is not dead.
      A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then
      `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404'd
@@ -118,7 +118,7 @@ You are a **grounding subagent**. Your job is to verify external facts against t
   A transient `claude-sonnet-5[1m] is temporarily unavailable…` refusal on a fetch call is the
   permission classifier's backend hiccup, not a denial — retry once before rerouting
   (docs/TROUBLESHOOTING.md § Common Error Messages).
-- **Library/API docs:** `WebFetch` the library's OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa's fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0`; the page's `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3's routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`).
+- **Library/API docs:** `WebFetch` the library's OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa's fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page's `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3's routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`).
 - **Repo:** `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external.
 
 ## Method (per fact)
@@ -146,12 +146,12 @@ You are a **grounding subagent**. Your job is to verify external facts against t
    about a CURRENT value — one that can change after the page was written, such as a price, a rate limit or
    usage limit, a quota, a default, a current or supported version, or a status (available, deprecated) —
    read only from a cached arm (exa, whose fetch sends no live-crawl setting, so any page it returns may be
-   its crawl cache — measured 2026-10-20; firecrawl without `maxAge: 0`; a search result or its answer) is
-   not live: neither `VERIFIED`, `STALE` nor `WRONG` rests on it without a live read. Firecrawl `maxAge: 0` is that
+   its crawl cache — measured 2026-10-20; firecrawl with `proxy: "basic"` and any `maxAge` above 0, its default included; a search result or its answer) is
+   not live: neither `VERIFIED`, `STALE` nor `WRONG` rests on it without a live read. Firecrawl `maxAge: 0` with `proxy: "basic"` is that
    read (with `parsers: ["pdf"]` for a PDF). A `WebFetch` answer, asked for the value without being told it,
    only confirms: when it states the value a raw arm quoted, that value is live — `VERIFIED` when the claim
    states it, `STALE` when the claim states another; any other value it states (a different one, or one no
-   raw arm quoted) is settled by firecrawl `maxAge: 0`, else the verdict
+   raw arm quoted) is settled by firecrawl `maxAge: 0` with `proxy: "basic"`, else the verdict
    is `NEEDS-RAW-FETCH` — as it is when no live arm reaches a page that is not a live 404 (shape 4 decides
    that). A quote's wording stays shape 1's and a PDF's text shape 3's — only the claim about the current
    value needs the live read — and a figure inside a document fixed once published (a published paper, a

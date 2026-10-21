@@ -383,10 +383,12 @@ def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeyp
     assert "surface those and stop" not in text
     assert ("A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that "
             "many, name the dependencies no seat grounded, and dispatch them when headroom returns.") in text
-    assert ("`firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to "
+    assert ("`firecrawl_scrape` (scrape with `proxy: \"basic\"`) on the library's OFFICIAL docs site for "
+            "framework/API detail (`WebFetch` only to "
             "locate the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw' "
             "repos/<o>/<r>/contents/<path>`") in text
-    assert ("from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a "
+    assert ("from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0` and `proxy: \"basic\"`, the raw `gh api` "
+            "call above, the raw file — a "
             "`WebFetch` reply summarises, below)") in text
 
 
@@ -404,10 +406,12 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
     src = (REPO / "commands" / "_sources" / "fabrik-spec-review.md").read_text(encoding="utf-8")
     text = norm(src)
     assert "→ `WebFetch` on the official library docs →" not in text
-    assert ("`mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (on the official library docs; `WebFetch` only to "
+    assert ("`mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: \"basic\"`, on the official "
+            "library docs; `WebFetch` only to "
             "locate a page) → the `gh` CLI") in text
-    assert ("`firecrawl_scrape` with `maxAge: 0` — firecrawl reuses recently indexed content unless `maxAge: 0` forces a "
-            "live fetch (its tool schema) and `mcp__exa__web_fetch_exa` serves a crawl cache (below), so a quote — yours or "
+    assert ("`firecrawl_scrape` with `maxAge: 0` and `proxy: \"basic\"` — a live fetch needs that `maxAge: 0`, since "
+            "Firecrawl serves recently indexed content by default (its tool schema), and `mcp__exa__web_fetch_exa` serves "
+            "a crawl cache (below), so a quote — yours or "
             "a grounder's — is called NOT FOUND only after that live re-fetch)") in text
     a = norm(_section(src, r"^\*\*A\) External facts", r"^\*\*B\) fabrik-lib"))
     assert "A cached/mirroring fetch tool is NOT a liveness oracle" in a and "`mcp__exa__web_fetch_exa` serves crawl cache" in a
@@ -426,12 +430,13 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
     te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
     assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
-    assert "`firecrawl_scrape` with `maxAge: 0`, a live fetch) and match" in spec
+    assert '`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`, a live fetch) and match' in spec
     assert "data flow (as invariants + touchpoints — the step sequence is the plan's)" in spec
     agent = norm((REPO / "commands" / "_agents" / "fabrik-researcher.md").read_text(encoding="utf-8"))
     assert ("have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT "
-            "FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).") in agent
-    assert "from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`," in spec
+            "FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and "
+            '`proxy: "basic"` (a live fetch).') in agent
+    assert 'from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0` and `proxy: "basic"`,' in spec
 
 
 def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
