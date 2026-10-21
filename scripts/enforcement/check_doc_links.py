@@ -278,6 +278,29 @@ def link_targets(text: str):
 _INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
 
 
+_SPAN_BLANKER: object = (
+    None  # unloaded; then _fences.blank_code_spans, or False where it is missing
+)
+
+
+def _blank_spans(text: str) -> str:
+    """Inline code spans blanked, length-preserving, by `_fences.blank_code_spans` (W-b9af1d47) — the copy
+    docs_updater blanks with. Imported on first use by the sibling directory; in a project whose `_fences.py`
+    lags the sync it is absent, and the text comes back unblanked: today's reading, never a crash."""
+    global _SPAN_BLANKER
+    if _SPAN_BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _SPAN_BLANKER = False
+        else:
+            _SPAN_BLANKER = getattr(_fences, "blank_code_spans", False)
+    return _SPAN_BLANKER(text) if _SPAN_BLANKER else text  # type: ignore[operator]
+
+
 def _iter_refs(text: str):
     """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
 
@@ -289,9 +312,18 @@ def _iter_refs(text: str):
     template (W-f11e740e review residue). One exception: a line-leading inline span that closes on its
     own line (```` ```x``` ````) is inline code, never a fence — it would hide every link below it.
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
-    file."""
+    file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
+    line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
+    raw. The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
+    second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
+    spaces."""
     in_fence = False
-    for line in text.splitlines():
+    blanked = _blank_spans(text)
+    pos = 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.splitlines()[0]
+        span_free = blanked[pos : pos + len(line)]
+        pos += len(raw)
         stripped = line.lstrip()
         if stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped):
             in_fence = not in_fence
@@ -309,7 +341,7 @@ def _iter_refs(text: str):
         ):
             continue
         if not in_fence:
-            for target in link_targets(line):
+            for target in link_targets(span_free):
                 yield target, "link"
             for m in _BARE_RE.finditer(line):
                 yield m.group(1), "bare"
