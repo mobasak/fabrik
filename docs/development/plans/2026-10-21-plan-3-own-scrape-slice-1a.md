@@ -37,9 +37,12 @@ registered on this box; and `fabrik-researcher` switches its raw-page fetch to i
 | I5 | spec § Chosen approach 2: the three contract copies gain `fabrik-scrape` in the fetch sentence | IN for the hub's two copies (Phase C); OUT-OF-SCOPE for `/opt/fabrik-lib/CLAUDE.md` — a cross-repo file, requested from fabrik-lib by mail in Phase C |
 | I6 | spec § Lifecycle 1b, 1c, 1d (crawl, rendering, the proxyUsed test) | OUT-OF-SCOPE | later plans, one per slice; 1d is gated on the operator's approval (spec § Fallback contract) |
 | I7 | the seven other commands' switches (spec § Lifecycle: "one command per slice") | OUT-OF-SCOPE | later plans after this one; `fabrik-researcher` goes first |
-| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B), built by fabrik-lib as W-eadc4d0a |
+| I8 | the web-tools caller-and-URL log (spec § Lifecycle 1a) | IN as a re-vendor of the hub's `libs/web_tools.py` (Phase B step 2, checked for the call log AND the `proxy: "basic"` payload), built by fabrik-lib as W-eadc4d0a |
+| I9 | spec § Lifecycle 1a: "the capability ledger re-runs THROUGH `scrape` … must grade PASS on U1, U2, U3, U4 and U7" | IN | Phase B step 11 |
+| I10 | spec § Documentation landing sites: `.windsurf/rules/core/57-external-data-sourcing.md` (the agent-time roster) | IN | Phase C step 6 |
+| I11 | spec § Documentation landing sites: the precedent's PORTS row lists 8032 while its endpoint is `:8033/mcp` | OUT-OF-SCOPE | infra's row, mailed to infra at this plan's close |
 
-Intake: 8 items — 6 IN (one partly), 2 OUT-OF-SCOPE (each named), 0 ASK.
+Intake: 11 items — 8 IN (one partly), 3 OUT-OF-SCOPE (each named), 0 ASK.
 
 ## Global Constraints
 
@@ -140,22 +143,27 @@ Produces: the grader `tests/test_firecrawl_proxy_basic.py`, which Phase C's edit
 
 ## Phase B — vendor, run and register `fabrik-scrape` (after fabrik-lib W-89c8b88f and W-eadc4d0a merge)
 
-Appetite: 90
+Appetite: 120
 
-Implements spec § Chosen approach 1 (the server) and § Lifecycle 1a ("infra registers it"), plus § Shape (one local
-MCP server process, one `mcp_defs.json` entry, one port). DO-NOT: enable rendering, edit the vendored code, or touch
-`libs/web_scrape/` (the older kilo-db copy).
+Implements spec § Chosen approach 1 (the server), § Lifecycle 1a ("infra registers it"; "the capability ledger
+re-runs THROUGH `scrape` … must grade PASS on U1, U2, U3, U4 and U7, with U6 returning `blocked: bot-wall` and U5
+returning `blocked: unsupported`"), and § Shape (one local MCP server process, one `mcp_defs.json` entry, one port).
+DO-NOT: enable rendering, edit the vendored code, or touch `libs/web_scrape/` (the older kilo-db copy).
 
 Complexity: inline
-Gate: curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8034/mcp
+Gate: /opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py --probe http://127.0.0.1:8034/mcp — Expected: `initialize` answers with `serverInfo` and `tools/list` contains `scrape` (a bare GET on a streamable-HTTP MCP endpoint answers 406, as the precedent does on :8033, so it is never the gate)
 
 Start condition, self-service: fabrik-lib's reply mail names the merge SHAs of W-89c8b88f and W-eadc4d0a
 (`python3 scripts/mail.py list` shows it). Until then the phase does not start; this is an event wait, not a question.
+
+Where things run: the unit and its venv target the MAIN checkout (`/opt/fabrik`), like the precedent unit targets its
+own repo. So steps 1-8 are worktree work merged by the coordinator; steps 9-12 run only after that merge.
 
 ### Touches
 
 - libs/web_scrape_mcp/ — NEW, the vendored module (copied whole from `/opt/fabrik-lib/web-scrape-mcp/` at the merged SHA)
 - libs/web_tools.py — re-vendored from `/opt/fabrik-lib/web-tools/web_tools.py` at W-eadc4d0a's SHA
+- scripts/scrape_ledger.py — NEW, the MCP probe and ledger runner (used by this phase's gate and by Phase C)
 - scripts/sysadmin/mcp_defs.json — the `fabrik-scrape` http entry
 - scripts/sysadmin/systemd/fabrik-scrape-mcp.service — NEW, the unit's source of truth in the repo
 - docs/reference/fabrik-scrape-mcp.md — NEW, the subsystem doc
@@ -164,67 +172,97 @@ Start condition, self-service: fabrik-lib's reply mail names the merge SHAs of W
 
 ### Behavior Contract
 
-- **Given** the server is started by its unit, **When** a client posts an MCP `initialize` to `http://127.0.0.1:8034/mcp`, **Then** it answers 200 and lists the `scrape` tool (spec § Chosen approach 1)
-- **Given** `scrape(url)` on docs.python.org/3/library/bisect.html, **When** called through the server, **Then** it returns markdown with `path` static or markdown and a `fetched_at` (spec § Chosen approach 1)
-- **Given** `scrape` on the saved g2.com URL, **When** called, **Then** it returns `blocked: bot-wall` with `status` 403 and no render (spec § fabrik-lib asks G11)
+- **Given** the server is started by its unit, **When** `scripts/scrape_ledger.py --probe` posts an MCP `initialize` to `http://127.0.0.1:8034/mcp`, **Then** it gets `serverInfo` back and `tools/list` contains `scrape` (spec § Chosen approach 1)
+- **Given** the spec's capability ledger U1-U7 with fact strings fixed before the run, **When** each URL goes through `scrape`, **Then** U1, U2, U3, U4 and U7 grade PASS, U6 returns `blocked: bot-wall` with `status` 403 and no render, and U5 returns `blocked: unsupported` (spec § Lifecycle 1a)
 - **Given** `scrape` on `http://127.0.0.1:8033/`, **When** called, **Then** it returns `blocked: scope` (spec § fabrik-lib asks G7)
+- **Given** the re-vendored `libs/web_tools.py`, **When** its Firecrawl payloads are built, **Then** each carries `proxy: "basic"` and each call logs its caller and URL (spec § fabrik-lib asks, the web-tools row)
 
 ### Steps
 
+Pre-merge, in the worktree:
+
 1. Read fabrik-lib's merged `web-scrape-mcp/README.md` and follow its vendor instructions; copy the module into
    `libs/web_scrape_mcp/` at the merged SHA, recording the SHA in a `VENDORED_FROM` line of its README.
-2. Create its own venv with `uv venv libs/web_scrape_mcp/.venv` and `uv pip install --python
-   libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt` (ignored by `.gitignore:48`).
-3. Re-vendor `libs/web_tools.py` from fabrik-lib at W-eadc4d0a's SHA; run the hub's tests that import it
-   (`rg -l "libs.web_tools|from libs import web_tools" tests`) under `capped_run.sh`.
-4. Write `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` modelled on the precedent unit (Evidence B): `User=ozgur`,
-   `WorkingDirectory=/opt/fabrik`, `EnvironmentFile=/opt/fabrik/.env` (browserless URL and token),
-   `Environment=FABRIK_SCRAPE_HOST=127.0.0.1`, `Environment=FABRIK_SCRAPE_PORT=8034`, the server's own venv python as
-   `ExecStart`, `Restart=always`, `MemoryMax=512M`, `NoNewPrivileges=true`. Port 8034 is free (Evidence B).
-5. Gate: installing the unit writes `/etc/systemd/system/` (outside the repo) — the operator approves it through the
-   coordinator; on approval infra runs `sudo install -m 644 scripts/sysadmin/systemd/fabrik-scrape-mcp.service
-   /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now fabrik-scrape-mcp`.
-6. Add `"fabrik-scrape": {"type": "http", "url": "http://127.0.0.1:8034/mcp"}` to `scripts/sysadmin/mcp_defs.json`
-   beside the precedent entry (`:28-31`); run `python3 scripts/sysadmin/mcp_health.py` → `fabrik-scrape` live.
-7. Run the phase gate → `200`; then the four Behavior Contract calls through the server with a small MCP client run
-   from the server's venv; record outputs in the run folder.
-8. Docs: write `docs/reference/fabrik-scrape-mcp.md` (what it is, tools, `blocked` reasons, unit, port, re-vendor
-   steps) + its `INDEX.md` row; a `docs/workstation/mcp-roster.md` row beside the precedent (`:75`); a `PORTS.md`
-   row in "Development Services (WSL Only)"; CHANGELOG entry; `check_doc_sync.py` → no ERROR.
-9. **`/fabrik-review` on this phase's changed surface — BLOCKING, run to its coverage-adjudicated exit** (a new
-   mechanism and a box service: full review), the vendored module excluded from finding scope but its
-   integration (unit, entry, docs) in it.
-10. Commit with explicit pathspecs and trailers; push.
+2. Re-vendor `libs/web_tools.py` from fabrik-lib at W-eadc4d0a's SHA. Check the spec's web-tools row landed:
+   `rg -n '"proxy": "basic"' libs/web_tools.py` finds the scrape and crawl payloads (today `:424` builds
+   `{"url", "formats"}` with none), and the per-call caller-and-URL log is present; a missing part is mailed to
+   fabrik-lib and the re-vendor waits. Run its importers — `rg -l "libs\.web_tools|from libs import
+   web_tools|from web_tools import|import web_tools" tests scripts` lists `tests/test_rivals_run.py` and
+   `scripts/rivals_run.py` — with `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest
+   tests/test_rivals_run.py -q`.
+3. Write `scripts/scrape_ledger.py` (typed, results to stdout and a JSON file in the run folder, `# AFTER-EDIT:`
+   header naming `docs/reference/fabrik-scrape-mcp.md`): `--probe <url>` runs `initialize` + `tools/list`; `<input
+   json>` runs each URL through the `scrape` tool, grades the input's fixed fact strings and the clean-text ratio, and
+   never edits a fact string. It runs under the server's venv (it needs the MCP client), so the hub's dependencies are
+   unchanged.
+4. Write `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` modelled on the precedent unit (Evidence B):
+   `User=ozgur`, `WorkingDirectory=/opt/fabrik`, NO `EnvironmentFile=` — the hub's secrets never enter a
+   network-facing fetcher's environment (the same rule as `scripts/sysadmin/systemd/session-archive.service:3-4`), and
+   slice 1a needs no browserless credential because rendering is off — then only non-secret `Environment=` lines for
+   the host (`127.0.0.1`) and port (`8034`), using the module's own variable names from its README;
+   `ExecStart=/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python <the module's entry point>`; and the precedent's
+   hardening — `Restart=always`, `RestartSec=3`, `StartLimitIntervalSec=60`, `StartLimitBurst=5`, `MemoryMax=512M`,
+   `MemorySwapMax=0`, `OOMPolicy=stop`, `NoNewPrivileges=true`. Port 8034 is free (Evidence B).
+5. Add `"fabrik-scrape": {"type": "http", "url": "http://127.0.0.1:8034/mcp"}` to `scripts/sysadmin/mcp_defs.json`
+   beside the precedent entry (`:28-31`).
+6. Docs: write `docs/reference/fabrik-scrape-mcp.md` (what it is, tools, `blocked` reasons, unit, port, venv rebuild,
+   re-vendor steps) + its `INDEX.md` row; a `docs/workstation/mcp-roster.md` row beside the precedent (`:75`); a
+   `PORTS.md` row in "Development Services (WSL Only)"; CHANGELOG entry; `check_doc_sync.py` → no ERROR.
+7. **`/fabrik-review` on the pre-merge surface — BLOCKING, run to its coverage-adjudicated exit** (a new mechanism and
+   a box service: full review); the vendored module is out of finding scope, its integration (unit, entry, script,
+   docs) in it.
+8. Commit with explicit pathspecs and trailers; push; raise the merge request; the coordinator merges.
+
+Post-merge, on the main checkout, as a gate:
+
+9. Gate (deploy): building the venv and installing the unit write outside this worktree (`/opt/fabrik/libs/
+   web_scrape_mcp/.venv`, `/etc/systemd/system/`) — the operator approves through the coordinator; on approval infra
+   runs, from `/opt/fabrik`: `uv venv libs/web_scrape_mcp/.venv`, `uv pip install --python
+   libs/web_scrape_mcp/.venv/bin/python -r libs/web_scrape_mcp/requirements.txt`, then `sudo install -m 644
+   scripts/sysadmin/systemd/fabrik-scrape-mcp.service /etc/systemd/system/`, `sudo systemctl daemon-reload`, `sudo
+   systemctl enable --now fabrik-scrape-mcp`.
+10. Infra runs `python3 scripts/sysadmin/emit_mcp_project_config.py` (dry-run flag from its header first) so the hub's
+    generated `.mcp.json` gains `fabrik-scrape`; `python3 scripts/sysadmin/mcp_health.py` → `fabrik-scrape` live.
+11. Run the phase gate; then the capability ledger U1-U7 through `scrape` (the spec's URLs and the pass table above,
+    fact strings re-fixed before the run from an independent read) and the scope call; results in the run folder. A
+    FAIL is mailed to fabrik-lib and stops Phase C.
+12. Record the gate and ledger outputs in the review receipt; commit and push.
 
 ### Interfaces
 
-Consumes: fabrik-lib `web-scrape-mcp` at its merged SHA (tool `scrape`, spec § Chosen approach 1's return shape).
-Produces: the live MCP endpoint `http://127.0.0.1:8034/mcp` named `fabrik-scrape`, which Phase C's ledger and the
-researcher's `mcpServers` line consume.
+Consumes: fabrik-lib `web-scrape-mcp` at its merged SHA (tool `scrape`, spec § Chosen approach 1's return shape);
+fabrik-lib `web-tools` at W-eadc4d0a.
+Produces: the live MCP endpoint `http://127.0.0.1:8034/mcp` named `fabrik-scrape`, present in the hub `.mcp.json`;
+`scripts/scrape_ledger.py` (`--probe <url>`, `<input json>` → result JSON); both consumed by Phase C.
 
 ## Phase C — the researcher's ledger, then its switch
 
 Appetite: 120
 
 Implements spec § Lifecycle 1a ("Then `fabrik-researcher` switches (its own ledger first, as for every command)"),
-spec § Test ledger (fact strings fixed before the run) and spec § Chosen approach 2 (the researcher's order,
-long-page rule, DEAD rule, credit-error rules; the contract copies' fetch sentence). DO-NOT: switch any other command;
-widen `_TIER1`; edit `/opt/fabrik-lib/CLAUDE.md` (mailed instead).
+spec § Test ledger (fact strings fixed before the run), spec § Chosen approach 2 (the researcher's order, long-page
+rule, DEAD rule, credit-error rules; the contract copies' fetch sentence) and spec § Fallback contract (what a seat does
+per `blocked` reason). DO-NOT: switch any other command; widen `_TIER1`; edit `/opt/fabrik-lib/CLAUDE.md` (mailed).
 
 Complexity: inline
-Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_research_tier_order.py -q
+Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_research_tier_order.py tests/test_researcher_fallback_contract.py -q
+
+Start condition: Phase B's post-merge steps done — `fabrik-scrape` is live and in the hub `.mcp.json` — and the
+session is a NEW one started after that, so a `fabrik-researcher` seat it dispatches can reach the server.
 
 ### Touches
 
-- scripts/scrape_ledger.py — NEW, the per-command ledger runner
 - commands/_agents/fabrik-researcher.md
+- tests/test_researcher_fallback_contract.py — NEW, the grader for the switched agent text
+- .windsurf/rules/core/57-external-data-sourcing.md — the agent-time roster line (`:64`)
 - CLAUDE.md
 - templates/governance/CLAUDE.md
 
 ### Behavior Contract
 
-- **Given** a ledger input of URLs with fact strings fixed beforehand, **When** `scripts/scrape_ledger.py` runs them through `fabrik-scrape`, **Then** it writes one row per URL with facts found, clean ratio, path and `blocked` reason, and never edits a fact string (spec § Test ledger)
-- **Given** the researcher's ledger is all-pass, **When** its agent file switches, **Then** `mcpServers` lists `fabrik-scrape` and its raw-fetch order is `fabrik-scrape` → exa → Firecrawl (spec § Chosen approach 2)
+- **Given** the researcher's ledger input of URLs with fact strings fixed beforehand, **When** `scripts/scrape_ledger.py` runs them through `fabrik-scrape`, **Then** every URL grades PASS or returns the `blocked` reason the spec expects, and no fact string is edited after the run (spec § Test ledger)
+- **Given** the ledger is all-pass, **When** the agent file switches, **Then** `mcpServers` lists `fabrik-scrape` and the raw-fetch order is `fabrik-scrape` → exa → Firecrawl (spec § Chosen approach 2)
+- **Given** the switched agent file, **When** the grader reads it, **Then** it states the Fallback-contract rules: `robots`, `scope` and `http-429` never go to exa or Firecrawl, `bot-wall` and `empty` never go to Firecrawl, an exa read is cited as exa's cached copy, and every Firecrawl entry point is closed until the slice-1d test (spec § Fallback contract)
 - **Given** the two hub contract copies, **When** the fetch sentence gains `fabrik-scrape`, **Then** `tests/test_research_tier_order.py` stays green and `_TIER1` is unchanged (spec § Chosen approach 2)
 
 ### Steps
@@ -234,31 +272,32 @@ Gate: .venv/bin/python -m pytest tests/test_firecrawl_proxy_basic.py tests/test_
    URLs across kinds (docs page, API reference, GitHub raw file, PDF, a long page).
 2. For each URL fix its fact strings BEFORE any run: one independent read (`WebFetch`), the strings quoted from it,
    that read recorded beside them in the ledger input (spec § Test ledger).
-3. Write `scripts/scrape_ledger.py` (typed, stdout output, `# AFTER-EDIT:` header naming
-   `docs/reference/fabrik-scrape-mcp.md`): reads the input JSON, calls the server's `scrape` tool for each URL with an
-   MCP client, grades facts and clean ratio, writes the result JSON to the run folder. Run it with the server's venv
-   (`libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py <input>`), so the hub's dependencies stay unchanged.
-4. All-pass means every URL either grades PASS or returns the `blocked` reason the spec expects for it (a PDF is
-   `unsupported` until slice 1b). A FAIL stops the phase: the researcher keeps Firecrawl, and the failing kind goes to
-   fabrik-lib as a new ask.
+3. Run `/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python scripts/scrape_ledger.py <input>`. All-pass means every URL
+   grades PASS or returns the `blocked` reason the spec expects (a PDF is `unsupported` until slice 1b). A FAIL stops
+   the phase: the researcher keeps Firecrawl, and the failing kind goes to fabrik-lib as a new ask.
+4. Write `tests/test_researcher_fallback_contract.py` first and watch it fail on today's agent file: it asserts
+   `mcpServers` names `fabrik-scrape`, the raw-fetch order, and that the text carries each Fallback-contract rule
+   named in the Behavior Contract above.
 5. On all-pass, edit `commands/_agents/fabrik-researcher.md`: `mcpServers` (line 4, Evidence C) gains `fabrik-scrape`;
-   the raw-fetch order, long-page rule (`:36-44`), DEAD rule (`:86`) and credit-error rules follow spec § Chosen
-   approach 2. Keep Phase A's grader green.
+   the raw-fetch order, the long-page rule (`:36-44`), the DEAD rule (`:86`, keyed on the `status` of a `blocked`
+   result) and the credit-error rules follow spec § Chosen approach 2; the Fallback-contract rules are stated in
+   substance. Both graders go green.
 6. Edit the fetch sentence in `CLAUDE.md` § External Knowledge (`:302`) and `templates/governance/CLAUDE.md` (`:276`)
    to name `fabrik-scrape` as the raw-page fetch beside `WebFetch`, outside the search chain; mail fabrik-lib the same
-   sentence for `/opt/fabrik-lib/CLAUDE.md`.
-7. Run the phase gate → all passed; `check_doc_sync.py` → no ERROR; CHANGELOG entry; `INDEX.md` row for the script.
+   sentence for `/opt/fabrik-lib/CLAUDE.md`. Add `fabrik-scrape` to rule 57's agent-time roster line
+   (`.windsurf/rules/core/57-external-data-sourcing.md:64`, beside `firecrawl`).
+7. Run the phase gate → all passed; `check_doc_sync.py` → no ERROR; CHANGELOG entry; `INDEX.md` row for the test.
 8. **`/fabrik-review` on this phase's changed surface — BLOCKING, run to its coverage-adjudicated exit** (synced
    contract and agent files: full review).
 9. Run `/fabrik-docs-review` over the plan's doc changes; then the plan's final gate:
    `python scripts/final_gate.py --check --json` → `"status":"success"` and
    `python scripts/enforcement/check_convergence.py --project-root .` → exit 0. A green gate is necessary, not
-   sufficient: the proof is the ledger and the review receipts.
+   sufficient: the proof is the ledgers and the review receipts.
 10. Commit with explicit pathspecs and trailers; push; raise the merge request.
 
 ### Interfaces
 
-Consumes: `fabrik-scrape` at `http://127.0.0.1:8034/mcp` (Phase B); Phase A's grader.
+Consumes: `fabrik-scrape` at `http://127.0.0.1:8034/mcp` and `scripts/scrape_ledger.py` (Phase B); Phase A's grader.
 Produces: the switched researcher; the ledger result JSON the merge request cites.
 
 ## Coverage Checklist
@@ -597,5 +636,7 @@ templates/governance/CLAUDE.md:276:2026-09-22, D-337 as refined by D-338): tier 
 - docs/workstation/mcp-roster.md
 - PORTS.md
 - scripts/scrape_ledger.py
+- tests/test_researcher_fallback_contract.py
+- .windsurf/rules/core/57-external-data-sourcing.md
 - CLAUDE.md
 - templates/governance/CLAUDE.md
