@@ -185,7 +185,7 @@ which repo waits (I7); the browser restores its tabs (I8); the list comes from t
 - **Supervision:** `fabrik_deck.py install` writes two systemd user services, `fabrik-deck-code.service`
   (`fabrik_deck.py code-server`) and `fabrik-deck.service` (`fabrik_deck.py serve`), each `Restart=always`, `RestartSec=10`,
   `StartLimitIntervalSec=0` (so a repeated failure never parks a unit in `failed`) and `WantedBy=default.target`,
-  with `EnvironmentFile=~/.config/fabrik-deck/env` — the one file that holds `FABRIK_DECK_PORT`,
+  with `EnvironmentFile=%h/.config/fabrik-deck/env` (`%h` is systemd's home specifier; a `~` path is ignored as not absolute — `systemd-analyze --user verify`, executed) — the one file that holds `FABRIK_DECK_PORT`,
   `FABRIK_DECK_CODE_PORT` and `FABRIK_DECK_STATE`, which the hook and the launcher read too — and enables them — the shape of the box's existing `code-tunnel.service`
   (`~/.config/systemd/user/code-tunnel.service`). With linger on for the operator's user (`loginctl show-user`:
   `Linger=yes`, executed 2026-10-21) they start when WSL boots, before any window opens, and restart after a crash;
