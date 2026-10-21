@@ -1709,7 +1709,7 @@ def test_a_notification_in_any_real_shape_ends_the_stand_down(
 ) -> None:
     note = "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n<status>completed</status>\n"
     if shape == "attachment":
-        # 2.1.304's notice attachment carries commandMode task-notification (all 15 073 seen); W-1b9ae5f2 reads a
+        # 2.1.304's notice attachment carries commandMode task-notification (every one seen); W-1b9ae5f2 reads a
         # notice only from a notice-shaped row, so a hand-back quoting one no longer closes a seat
         done = {
             "type": "attachment",
@@ -2194,4 +2194,21 @@ def test_a_task_notice_attachment_still_closes_its_seat(fake_project: Path, tmp_
     }
     lines = [_launch_line("a1b2c3d4e5f60718"), notice]
     out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_attnotice", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_an_origin_only_notice_attachment_closes_its_seat(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    """Review pass 1 (W-1b9ae5f2): an attachment whose origin alone names a task notification is a notice too."""
+    notice = {
+        "type": "attachment",
+        "attachment": {
+            "type": "queued_command",
+            "origin": {"kind": "task-notification"},
+            "prompt": _quoting("a1b2c3d4e5f60718"),
+        },
+    }
+    lines = [_launch_line("a1b2c3d4e5f60718"), notice]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_originnotice", _stamped(), lines)
     assert _blocks_on_run_record(out), out

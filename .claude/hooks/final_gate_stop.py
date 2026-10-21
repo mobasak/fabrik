@@ -3894,7 +3894,8 @@ def _handback_text(att: dict, origin: dict) -> str:
 def _queued_operator_prompt(att: object) -> bool:
     """A prompt the operator typed while the agent was busy, as a `queued_command` attachment: no
     peer or task-notification origin or mode, no harness wrapper tag. A queued `!` shell command
-    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens."""
+    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens. An `isMeta` row is
+    refused, as `_is_operator_row` refuses an `isMeta` user row (W-1b9ae5f2)."""
     if not isinstance(att, dict) or att.get("type") != "queued_command" or att.get("isMeta"):
         return False
     if att.get("commandMode") == "task-notification":

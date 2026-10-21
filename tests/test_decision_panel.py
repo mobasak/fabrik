@@ -771,3 +771,13 @@ def test_a_queued_notice_is_not_an_operator_boundary(tmp_path):
         assert (
             hook._in_operator_entries(_QUESTION, _transcript(tmp_path, json.dumps(row))) is False
         ), key
+
+
+def test_a_queued_prompt_is_filtered_like_a_user_row(tmp_path):
+    """Review pass 1 (W-1b9ae5f2): `_operator_said` strips system reminders from a queued prompt and refuses a harness
+    prefix, exactly as `_operator_text` does for a `user` row."""
+    reminded = _queued_prompt(f"<system-reminder>harness text</system-reminder>{_QUESTION}")
+    assert hook._operator_said(json.loads(reminded)) == _QUESTION
+    assert hook._in_operator_entries("harness text", _transcript(tmp_path, reminded)) is False
+    for prefixed in (f"Stop hook feedback: {_QUESTION}", f"[SCHEDULED TASK] {_QUESTION}"):
+        assert hook._operator_said(json.loads(_queued_prompt(prefixed))) is None, prefixed
