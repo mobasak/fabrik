@@ -24,7 +24,19 @@ STILL OPEN (confirmed, not yet fixed — do these first):
   MENTION to `firecrawl` followed within a clause by read|fetch|scrap|crawl, or record by design (presence scope,
   docstring cobra) — decide with a fire-rate probe on the corpus.
 
-Next steps: fix the three above (round-zero probe first), re-run the 97-file corpus-test sweep
+UPDATE 20:10: the three above are FIXED (a2c0564f5; fire rate 0 on the 72-file corpus; 6 of 7 mutants killed, the
+equivalent fence-mask alternative deleted). Receipt rows, pass-1 ledger and residuals filed (23e88e0d3); the review
+run record is at phase 4 (converge), pass 2 owed after the 21:00 quota reset.
+
+Corpus-test sweep (97 files, 20:10): 4118 passed, 2 skipped, 1 FAILED —
+tests/test_vision_reads_work_stores.py::test_assemble_commands_check_reports_no_render_error_and_only_expected_drift.
+Cause: its `allowed = ("fabrik-vision", "fabrik-epics-review")` is a hard-coded list from another ticket, so any worktree
+that edits another command source reds it until the merge-time render (here: fabrik-spec, fabrik-spec-review,
+fabrik-plan-after-chat, the researcher agent). Confirmed candidate for pass 2 — fix at the root: derive the allowed set
+from the sources this tree changed against the installed corpus's base (or against `git merge-base HEAD origin/master`),
+red-prove on a copy, and add the file to the review surface (`command_run.py surface --add`).
+
+Next steps: fix the sweep failure above (round-zero probe first), re-run the 97-file corpus-test sweep
 (scratchpad rv/run_corpus_tests.sh; rebuild it if /tmp was wiped), fill the receipt rows, then pass 2: the round-1
 seats re-verify their own slices on a new pin (pins-2). Close the review, then the Phase A commit with the plan marker;
 then /fabrik-execute-plan blocks on missing infra for Phases B and C (fabrik-lib W-89c8b88f, W-eadc4d0a).
