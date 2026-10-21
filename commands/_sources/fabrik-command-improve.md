@@ -198,8 +198,10 @@ reject reason here cites a line the queue's command reaches — rendered into it
 rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus (PHASE
 1's answered-row reject already cites the command's current text). That rendered-copy grep is the lead's: the audit
 seat reads the command source and the fragments it includes, pinned in its scratch, never the rendered `~/.claude`
-copy, which no seat opens, and checks any wording it proposes against the phases that rely on the sentence it would
-change.
+copy, which no seat opens, and checks any wording it proposes against the whole paragraph it joins and the phases that
+rely on the sentence
+it would change. Its brief has it return the report as its hand-back text, never a report file, and quote each line
+it cites verbatim from its pinned copy, so a reject finds that line by search once this pass's edit moves it.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -249,13 +251,16 @@ where that reader looks, never contradicting who drives), every branch the sente
 "the review" binds each review the step can pick), and the --help and argument handling of any script the sentence
 works around (a mode may already cover the blind spot). Before the first draft, the files the target points at by
 path for the same subject are read too (a review command's probe catalogue), and so are the row's own words, the rule
-the edit extends, and the paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a
-place the pins sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside
+the edit extends, and the paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read
+whole — each one's lead-in and the items beside
 the new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision sentence
 below says. The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn
-'<a phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two
-sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is extended. A
-wrapped paragraph or bullet the edit lengthens is rewrapped whole, at its width and never past the next list marker,
+'<a phrase of each neighbour>' tests/`), and the new text goes where its subject reads, a pinned span it lands inside or
+beside re-anchored in the same edit
+to cover, as one span, the new text and every word it covered, the test edited with the sentence; a pin that ends at a
+sentence's period also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is
+rewrapped whole, or only the lines the edit lengthened when a test pins the file's raw lines (the probe
+catalogue's `After the edit:` bullet), at its width and never past the next list marker,
 blank line or fence, by a script that asserts its words unchanged, before PHASE 4's first pin. A row that prescribes
 how the command works — a step, an order, a commit or a hand-off, not a wording — and contradicts a line that reading
 finds is a decision (a NEW mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md §
@@ -268,8 +273,10 @@ the split leaves beside it or the placed text puts nearer. An edit to what a SEA
 live, since a rule in one home is not in force in the others: `command grep -rln -E '<two or more phrases of the
 neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today
 `subagents-core.md`, each seat file under `commands/_agents/`, the seat-brief lists in `fabrik-review.md` and
-`design-critique.md`, `convergence-prompts.md`, and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never
-edited here).
+`design-critique.md`, `convergence-prompts.md`, and intel's `.claude/workflows/fabrik-review-loop.js` constants
+(`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the import recipe `PIN_IMPORT` that opens
+with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited
+here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
@@ -279,7 +286,10 @@ DELETE what it replaces. The history lives in git.
 INCLUDES it, and is read by every command that points at it by path — 5 commands or 34, so count before you assume — so an edit that adds a
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
-not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
+not its exit code, and if the surface grew say in the commit what the growth buys. A target a test caps by size (the
+tests that name it, found before the draft by PHASE 5's search, read for a cap) is sized to
+that cap before the draft or the cap is raised in that test with its reason, since a note in the commit does not
+raise a cap the test asserts. ⚠️ **And SIZE THE EDIT TO THE
 VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets
 one sentence. An edit that must describe what a script does states only the fact its reader acts on and points
 for the rest at the `docs/` file the script's `# AFTER-EDIT:` header names for that behaviour, else at the
@@ -334,9 +344,11 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 against the verdicts it claims to answer, not merely for style. For a `_fragments/` edit the brief names the
 consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no
 seat hunts for homes the fragment does not have. A seat that cannot find the verdict
-in the new text is the finding; for each row it finds answered, it returns the line that states the row's step. A sentence a round rewords has its removed words grepped across
+in the new text is the finding; for each row it finds answered, it returns the line that states the row's step, and says
+whether that line also states when the step runs and
+in which phase or file. A sentence a round rewords has its removed words grepped across
 `tests/`, test names and docstrings included, and the commit subject drafted for PHASE 5 (drafted now if not yet written), before that round's pin,
-and each hit is reworded with the sentence.
+and each hit is reworded with the sentence. 
 
 ## PHASE 5 — Commit, naming what you answered
 

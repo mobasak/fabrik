@@ -447,14 +447,18 @@ def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() ->
     assert (
         "That rendered-copy grep is the lead's: the audit seat reads the command source and the fragments it includes,"
         " pinned in its scratch, never the rendered `~/.claude` copy, which no seat opens, and checks any wording it"
-        " proposes against the phases that rely on the sentence it would change." in p2
+        " proposes against the whole paragraph it joins and the phases that rely on the sentence it would change. Its"
+        " brief has it return the report as its hand-back text, never a report file, and quote each line it cites"
+        " verbatim from its pinned copy, so a reject finds that line by search once this pass's edit moves it."
+        in p2
     )
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
         "The tests that pin a paragraph's sentences are read before a sentence is placed in it (`command grep -rn '<a"
-        " phrase of each neighbour>' tests/`), and the new text goes where no pinned span runs, the gap between two"
-        " sentences one pin joins included; a pin that ends at a sentence's period also fails when that sentence is"
-        " extended." in p3
+        " phrase of each neighbour>' tests/`), and the new text goes where its subject reads, a pinned span it lands inside"
+        " or beside re-anchored in the same edit to cover, as one span, the new text and every word it covered, the test"
+        " edited with the sentence; a pin that ends at a sentence's period also fails when that sentence is extended."
+        in p3
     )
     p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
     assert (
@@ -494,7 +498,10 @@ def test_test_fragment_and_removed_word_rules() -> None:
     )
     assert "A reworded sentence's removed words" not in p3
     p4 = _phase("## PHASE 4", "## PHASE 5")
-    assert "it returns the line that states the row's step. " + REMOVED_WORDS_RULE in p4
+    assert (
+        "it returns the line that states the row's step, and says whether that line also states when the step runs"
+        " and in which phase or file. " + REMOVED_WORDS_RULE in re.sub(r"\s+", " ", p4)
+    )
 
 
 SCRIPT_POINTER_RULE = (
@@ -517,7 +524,8 @@ def test_a_lengthened_paragraph_is_rewrapped_whole_by_a_word_checking_script() -
     p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
     assert (
         "also fails when that sentence is extended. A wrapped paragraph or bullet the edit lengthens is rewrapped whole,"
-        " at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
+        " or only the lines the edit lengthened when a test pins the file's raw lines (the probe catalogue's `After the"
+        " edit:` bullet), at its width and never past the next list marker, blank line or fence, by a script that asserts its words"
         " unchanged, before PHASE 4's first pin. A row that prescribes" in p3
     )
     # round-1 review: a paragraph-joining script with a words-only check merged six § Drive bullets, and a ```bash
@@ -582,8 +590,8 @@ def test_phase_three_reads_the_path_pointed_files_and_the_neighbouring_items() -
     assert span == (
         "Before the first draft, the files the target points at by path for the same subject are read too (a"
         " review command's probe catalogue), and so are the row's own words, the rule the edit extends, and the"
-        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it; for a place the pins"
-        " sentence below moves the text to, that place's), read whole — each one's lead-in and the items beside the"
+        " paragraph or list the new text joins (for a new paragraph, the paragraphs beside it), read whole — each"
+        " one's lead-in and the items beside the"
         " new text — for the bounds each sets and the acts its sentences govern, which the new text leaves standing unless the row is a decision settled as the decision"
         " sentence below says. "
     ), span
@@ -729,3 +737,52 @@ def test_the_lock_check_set_of_scripts_that_mention_owned_paths_is_pinned() -> N
         if b"owned_paths" in path.read_bytes():
             found.add(path.relative_to(ROOT).as_posix())
     assert found == set(known), sorted(found ^ set(known))
+
+
+def test_the_audit_seat_returns_text_and_quotes_what_it_cites() -> None:
+    """Rows 1792610014 and 1792454557 (held cite-by-quoted-phrase-not-coined-label), 1792562581 (held
+    multi-span-coherence) and 1792560167, 1792544842: an audit seat cited drifting line numbers, was told to write a
+    report file its harness forbids, and proposed sentences unread against their paragraph. The span is the pinned
+    sentence's own, re-anchored (D-1111) — test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "against the whole paragraph it joins and the phases that rely on the sentence it would change."
+        in p2
+    )
+    assert "return the report as its hand-back text, never a report file" in p2
+
+
+def test_a_size_capped_target_is_sized_before_the_draft() -> None:
+    """Row 1792473769 (held size-cap-met-by-recorded-raise): a per-command SIZE_CAP refused an edit drafted unsized."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "say in the commit what the growth buys. A target a test caps by size (the tests that name it, found before the"
+        " draft by PHASE 5's search, read for a cap) is sized to that cap before the draft or the cap is raised in that test with its"
+        " reason, since a note in the commit does not raise a cap the test asserts." in p3
+    )
+
+
+def test_the_copy_recipe_is_named_by_its_constant_and_the_rewrap_is_bounded() -> None:
+    """Rows 1792467367 and 1792452242 (held copy-recipe-on-each-mechanism) and 1792488990 (held
+    rewrap-pinned-bullet-by-script, third sighting): the copy recipe went unnamed, and a whole rewrap broke a raw-line
+    pin."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "and intel's `.claude/workflows/fabrik-review-loop.js` constants (`SEAT_ISOLATION`, the copy recipe `BASE_PIN`, the"
+        " import recipe `PIN_IMPORT` that opens with it and their sibling recipe constants, each read before one is named) and `seat_guard.py` (mailed, never edited"
+        " here)" in p3
+    )
+    assert (
+        "or only the lines the edit lengthened when a test pins the file's raw lines (the probe"
+        in p3
+    )
+
+
+def test_the_review_seats_check_each_rows_timing_and_venue() -> None:
+    """Row 1792445250: three review rounds each found one of a row's timing and venue missing; folded into the step
+    sentence it qualifies (D-1111), whose span test_test_fragment_and_removed_word_rules pins."""
+    p4 = re.sub(r"\s+", " ", _phase("## PHASE 4", "## PHASE 5"))
+    assert (
+        "and says whether that line also states when the step runs and in which phase or file."
+        in p4
+    )
