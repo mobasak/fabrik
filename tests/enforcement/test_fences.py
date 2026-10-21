@@ -298,14 +298,17 @@ def test_plan_strip_consumers_dropped_the_old_regexes() -> None:
 
 def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
     """check_phase_tests is a warn_only gate row, and a warn_only row that exits non-zero is a blocking red
-    (final_gate.py's run_optional_check). In a project whose scripts/enforcement/ lags a sync — every sibling
-    present but _fences.py — it must still exit 0: the module never imports the scanner at load, so the import
-    fails inside the per-lock guard, and that failure (naming _fences) is what the live lock below reaches."""
+    (final_gate.py's run_optional_check). Where _fences.py is missing it must still exit 0: the module never imports
+    the scanner at load, and the import inside _contract_regions fails under the per-lock guard. check_plan_tickets
+    is a stub here — the real one imports _fences at load, and its failure would reach the guard first — so the
+    `_fences` error on stderr is _contract_regions' own, reached by the live lock below."""
     enf = tmp_path / "scripts" / "enforcement"
     enf.mkdir(parents=True)
-    for src in ENF.glob("*.py"):
-        if src.name != "_fences.py":
-            shutil.copy(src, enf / src.name)
+    shutil.copy(ENF / "check_phase_tests.py", enf / "check_phase_tests.py")
+    (enf / "check_plan_tickets.py").write_text(
+        'import re\nGIVEN_ROW_RE = re.compile(r"^\\s*[-*]\\s+(.*Given.*)$", re.M)\n',
+        encoding="utf-8",
+    )
     locks = tmp_path / ".fabrik" / "plan-locks"
     locks.mkdir(parents=True)
     plan = tmp_path / "docs" / "plan.md"
