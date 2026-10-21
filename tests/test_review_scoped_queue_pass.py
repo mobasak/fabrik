@@ -1040,3 +1040,19 @@ def test_a_brief_names_the_bound_on_the_evidence_it_hands_a_seat() -> None:
     assert rest.startswith("- Lint or format findings"), (
         "a sentence was inserted after the bound rule"
     )
+
+
+def test_a_redactor_and_url_parser_name_their_differential_and_input_classes() -> None:
+    """Rows 1792613497 (held guard-cut-fuzz-differential, edited before only for a swapped call), 1792596820 (the third
+    verdict on the redactor line) and 1792596053 (held check-whatwg-uts-46-rules-on): a redactor change met its
+    defects only in a base differential, and a URL parser's differential classes were found one round at a time."""
+    hunt = _own_section(CAT, "## The brief's hunt lines (name the ones the shape has)")
+    assert (
+        "a regex redactor is also timed on a 100k-character input and probed at its truncation edges, and run beside"
+        " the parent commit's redactor over one generated input corpus, its generator and size named in the brief, each"
+        " output that differs classed intended or a defect in the seat's report), the request-target grammar for URLs"
+        " with its parser-differential classes named in the round-1 brief (a backslash, a percent-encoded host, an IDNA"
+        " host under its UTS-46 mapping, a numeric or shortened IPv4 host, whitespace and control characters, `@` in"
+        " userinfo, a `#` or `?` before the `@`, a malformed port, an unclosed `[`, no scheme), comment and brace shapes"
+        " for config, the real interpreter (dash) and the parent commit as oracles;" in hunt
+    )
