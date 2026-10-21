@@ -17,8 +17,9 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
          the queue's size and the role's parked items in the MAIN store (``work.py queue`` counts parked
          in the worker's own tree, so a park not yet merged shows there first).
 
-(W-cfff98dd e, D-880.) The rows are the WORKERS: ``mail.py`` HUB_BEATS minus the store's distributor
-(the reader itself). ``--json`` prints the full data. ``--json --all`` is the BOX view instead
+(W-cfff98dd e, D-880.) The rows are the repo's own BUILDERS (``_roster``, W-16d0ef14): the names in
+``.fabrik/session-agents.json`` when it names one, else the names bound to the repo that have a worktree, minus the
+distributor (the reader itself), the merge owner and coordinator names. ``--json`` prints the full data. ``--json --all`` is the BOX view instead
 (``collect_box``, W-7159f8e2 — the dashboard's Agents block): every repo under ``--opt`` (default
 FABRIK_OPT_DIR, else /opt) with a work store or an agent, its agents being the open windows (/proc),
 the run records of that repo in the last 7 days and the claim holders, plus each agent's pause
