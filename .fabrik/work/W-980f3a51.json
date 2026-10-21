@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "UNBLOCKED 2026-10-21: fabrik-lib W-4ab9622f merged on fabrik-lib main as 80f2a64e (D-526/D-527) — validate_i18n.py runs Levels 0-2 without httpx. Re-vendor templates/i18n-kit's validator byte-identical from fabrik-lib i18n/ at 80f2a64e or later (this also drops the kit's Kilo back-translator, retired by D-529); verify on a JavaScript scaffold under the system python3 that Levels 1-2 run with no venv; normal review size (templates/i18n-kit is not on the governance-sync filter, measured by fleet).",
+  "next": "waits on fabrik-lib's reply to mail 01M5GCNCVS (a missing locale dir passes, *.example.json validated as targets); then re-vendor byte-identical, retire tests/test_i18n_kit_validate_json.py (Kilo-only), kit docs pass --dir, verify on a JS scaffold — measure: /opt/fabrik/.tmp/runs/f57f3e25-3c69-4aee-b93b-cb9754686abf/fabrik-task-2026-10-22T02-25-30-0300/measure.md",
   "note": "",
   "owner": "fleet",
   "priority": 3,
