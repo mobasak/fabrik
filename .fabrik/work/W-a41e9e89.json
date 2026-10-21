@@ -20,7 +20,8 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-run deciding test result to act on",
   "status": "open",
   "tags": [
-    "mail-01m4z7y23qdn1k1hm7c0btr3p7"
+    "mail-01m4z7y23qdn1k1hm7c0btr3p7",
+    "waits-operator-reboot"
   ],
   "title": "Deciding test run (operator ~10:30): a process-name-keyed network drop is CONFIRMED (curl renamed chrome.exe times out) — act on the result (mail 01M4Z7Y23QDN1K1HM7C0BTR3P7)"
 }

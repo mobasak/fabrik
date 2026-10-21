@@ -3,7 +3,7 @@
   "created": "2026-10-20T09:25:30.186898Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7bba31f83ba3445777ce584102947a2d01aa6f70",
   "id": "W-ad15212d",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "bug: a fresh file-worker scaffold's make test fails out of the box",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],

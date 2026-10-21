@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T00:30:54.866744Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d637ca4b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5C8PZSVFJQMJZC33GJQKMDW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "box-wide — 48 hung python3 -c \"xmlrpc.client … localhost:8000/rpc\" (Tryton) one-liners during the 2026-10-20 incident belong to no /opt repo"
+}
