@@ -3,7 +3,7 @@
   "created": "2026-10-19T11:21:50.879316Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2d7394169ee08f85874b01bfae5708fa1b9f0e7e",
   "id": "W-3d834ded",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: security issue (predictable /tmp staging names in authelia.py and locks.py, the class W-42e79070 fixed); LOW effort: two drivers, the helper already exists",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],
