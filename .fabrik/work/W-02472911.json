@@ -19,8 +19,5 @@
   "priority": 0,
   "score_reason": "operator ask tonight (HIGH): the fleet is quota-bound and the operator cannot add accounts; one measurement from existing ledgers, one session; intel's benchmark beat",
   "status": "open",
-  "tags": [
-    "waits-hibernate"
-  ],
   "title": "Measured 2026-10-22 over 417 closed runs in 48h: 14,217M input-side tokens, 99% of them CACHE READS of the per-turn prefix (fresh input 0.15M, output 21M); review seats are 20% of input. The fleet's quota burn is prefix size x turn count, not code search. Operator ruling: no new accounts ('i cant afford more account yet'), so cut burn structurally: measure the per-turn prefix by component (CLAUDE.md ~121 KB + agents-fabrik-core, hook injections, the transcript's live context) across the four hub builders, and propose the cut list ranked by tokens saved per turn (prefix slimming under D-331, /clear rotation discipline, seat and round floors for small diffs)"
 }

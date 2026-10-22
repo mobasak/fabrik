@@ -19,8 +19,5 @@
   "priority": 1,
   "score_reason": "re-scored on intel's measure: still a fail-open class in enforcement (HIGH), one panel question plus a build on an existing branch with graders written; not merge-ready until the panel decides",
   "status": "open",
-  "tags": [
-    "waits-hibernate"
-  ],
   "title": "Other enforcement Status readers ignore inline code spans: check_convergence _mask_spans masks single-line spans only (the ticket-Status ban at :464 fails closed on a wrapped span; the ledger/board/<!-- rules at :449/:1059/:1310/:1322 fail open), and check_rule_grounding:51 / check_spec_convergence:53 CONVERGED_RE count a quoted CONVERGED (fail open)"
 }
