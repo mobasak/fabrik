@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T23:20:38.470873Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-92a9538e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task on scripts/command_run.py: one seed format both verbs share, red-proved by a handoff → start --resume-from round trip",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a parked run that cannot resume is lost work every pause and every URGENT interrupt (D-958); one seed format in one script",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "command_run.py handoff keeps a .md seed that start --resume-from does not accept: write a JSON seed on handoff or accept the .md on resume (feedback rows 1791998552 and kaizen's mail 01M5HP8FQQ ask 4; the same row sits in umbrella W-87af6d36 — close it there when this lands)"
+}
