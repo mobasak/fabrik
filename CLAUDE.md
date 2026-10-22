@@ -477,24 +477,26 @@ session-recall — structured rows beat lexical transcripts.
   that table.
 - **Session history (D-736):** every MAIN transcript ships to B2 nightly (`scripts/sysadmin/archive_transcripts.py`)
   and its local copy is pruned after 3 days by the guarded pruner `scripts/sysadmin/prune_transcripts.py` — never an
-  open session, never a project's or an agent's newest, never a file the archive, the bucket and session-recall's index
-  cannot vouch for byte-for-byte. Subagent transcripts, `~/.claude/tasks` and shell snapshots are pruned after 3 days
-  too and are NEVER archived. Old history is searched through session-recall (§ Past sessions are searchable) or put
-  back with `.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]`
-  (`--status` and `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, D-1119)
-  happens at an item boundary, never mid-item — the item (a work-store item, or the task you were given) closed,
-  committed and pushed, no run record `running` — when the next work is unrelated to the last, and must happen at the
-  latest at the first boundary after the transcript-size `ROTATE:` line. That line is advice the hook prints once per
-  100 MB step from `ROTATE_ADVISE_MB` (200 MB by default), never a command typed for you, whatever its own "run … now"
-  says: once it has appeared, start no new item, and if a second `ROTATE:` line arrives inside the same item, its next
-  stopping point is the boundary — close the run `handoff --command <run> --reason '<why>' --resume <artifact>` (the
-  item stays open and the RESUME block seeds the successor; never `blocked --wall`, the quota wall). No agent can type
-  a slash command into its own prompt: at the boundary a builder messages its coordinator `rotate <name>` and waits
-  for the keys; the coordinator — for whom the ask is not a work item — sends `/clear <agent>-<date>` to the pane
-  tagged `@agent <name>` with `tmux send-keys` (D-1034, until `agents_up.sh` gains a rotate verb, W-f975fee0), then a
-  resume prompt telling the builder to re-bind (below) and to read only the memory notes, `work.py next` and the run's
-  seed, never the old transcript; a coordinator, a builder with no pane, or a single-window repo's one agent tells the
-  operator once and keeps working until the operator types it. A named hub window then re-binds with
+  open session, never a project's or an agent's newest, never a file the archive, the bucket and session-recall's
+  index cannot vouch for byte-for-byte. Subagent transcripts, `~/.claude/tasks` and shell snapshots are pruned after 3
+  days too and are NEVER archived. Old history is searched through session-recall (§ Past sessions are searchable) or
+  put back with `.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]`
+  (`--status` and `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, D-1119,
+  D-1123) happens at an item boundary, never mid-item — the item (a work-store item, or the task you were given)
+  closed, committed and pushed, no run record `running`, no seat in flight — and is due there once the context reaches
+  40% of the window (input + cache_creation + cache_read of the last usage row) or the transcript reaches the
+  transcript-size `ROTATE:` line; it may also happen there when the next work is unrelated to the last, and no age or
+  item-count trigger exists. The `ROTATE:` line is advice the hook prints once per 100 MB step from `ROTATE_ADVISE_MB`
+  (200 MB by default), never a command typed for you, whatever its own "run … now" says: once a rotation is due, start
+  no new item, so the item in hand closing is the boundary; mid-item at 85% of the window the coordinator sends a
+  focused `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
+  messages its coordinator `rotate <name>` and waits for the keys; the coordinator — for whom the ask is not a work
+  item — rotates that pane (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 lands; until then
+  `/clear <agent>-<date>` to the pane tagged `@agent <name>` with `tmux send-keys`, D-1034), then sends a resume
+  prompt telling the builder to re-bind (below) and to read only the memory notes, `work.py next` and the run's seed,
+  never the old transcript; a builder with no pane asks its coordinator the same way, and the coordinator tells the
+  operator; a coordinator, or a single-window repo's one agent, tells the operator once and waits the same way; a
+  waiting turn ends on `NEXT: awaiting the rotation`. A named hub window then re-binds with
   `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force` (whoami's flag, not git's: the holder the line
   names is this window's own claude process). The pruner's current mode and every rule:
   `docs/workstation/session-history-retention.md`.
