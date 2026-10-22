@@ -3,7 +3,7 @@
   "created": "2026-10-21T18:15:44.028459Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "eda6886bc418a5b073d10c6c3f29cf2ff6aeaf07",
   "id": "W-ddb716ca",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: three missing spellings in a grader's word list; one test file",
-  "status": "open",
+  "status": "done",
   "title": "Firecrawl proxy grader spellings: tests/test_firecrawl_proxy_basic.py misses \"recrawls\", \"retrieves\" and \"Point the scrapers at Firecrawl via its API\", and false-reds \"Firecrawl docs are easy to read\""
 }
