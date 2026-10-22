@@ -160,7 +160,9 @@ never take it.
 5. **D3** — `commands/_fragments/design-gate-panel.md:1-3`: "(operator ruling 2026-10-06, D-613 — for design approval
    only, it supersedes D-558's "a panel never approves a gate class" and D-153's printed presentation)" becomes
    "(operator ruling 2026-10-06, D-613, widened to every gate class a coordinator can validate by D-1110 — CLAUDE.md §
-   FINAL OUTPUT's gate ground holds the list; it supersedes D-153's printed presentation)".
+   FINAL OUTPUT's gate ground holds the list; it supersedes D-153's printed presentation)"; and `:32-33` "Other gate
+   classes (deploy, destructive, spend, credentials, publish) stay the operator's." becomes "Every other gate class
+   follows CLAUDE.md § FINAL OUTPUT's gate ground: the panel's, or the operator's when kept (D-1110)."
 6. **D4 — the deploy chain.** Gate 2 is the panel's go for a deploy to our own VPS whose runbook has a backup and a
    rollback and whose target is not customer-facing; the operator's for a customer-facing production deploy, a store
    submit, and a split. Each edit below says that once, or points at D1:
@@ -168,6 +170,13 @@ never take it.
      **Gate 2** | the Opus + Fable panel (own VPS, backup + rollback, not customer-facing) · the operator
      (customer-facing, stores, a split) | a go — nothing auto-chains across it |"; `:14` "operator-dispatched only" →
      "dispatched only on a Gate 2 go".
+   - `commands/_sources/fabrik-deploy.md:2`, the description: "OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the
+     operator's explicit invocation THIS turn — never self-triggered or auto-chained)" → "GATE-2 DISPATCHED ONLY (the
+     operator's explicit invocation, or the panel's agreeing go for our own VPS, D-1110 — THIS turn, never
+     self-triggered or auto-chained)", and "an explicit operator dispatch, never an inferred one" → "an explicit Gate 2
+     go, never an inferred one"; the composed description stays under the 1024 cap (the step-7 render checks it).
+     `:311` (the store path's "the one action only the human takes") is a store publish, `operator-kept: public`, and
+     is kept.
    - `commands/_sources/fabrik-deploy.md:59-65`, the hard gate: "This command runs ONLY when the operator explicitly
      dispatched it THIS turn." → "This command runs ONLY on a Gate 2 go THIS turn — the operator's explicit dispatch,
      or, for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not
@@ -222,8 +231,8 @@ never take it.
 - **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it cites D-1110 and the clarifying-question and classifier sentences, and no longer holds "`gate` and `owned` stay the operator's" (A3)
 - **Given** both contracts, **When** the grader compares their gate paragraphs, **Then** they are identical apart from "hub D-054" (A4)
 - **Given** the template's hub-request bullet, **When** the grader reads it, **Then** it sends a gate to the panel or, when kept, to the operator through the coordinator, and no longer says the closed list "still goes to the operator" alone (A5)
-- **Given** `fabrik-deploy.md`, `fabrik-deploy-plan-review.md`, `fabrik-release.md`, `deploy-chain.md` and the NEXT map, **When** the grader reads them, **Then** none holds "the operator's explicit go", "Gate 2 — human approval", "operator-dispatched only" or "only the human takes", each names the panel's go and the customer-facing case, and no Why-line variant written for the panel's split carries `operator-kept:` (A6)
-- **Given** `design-gate-panel.md`, **When** the grader reads it, **Then** it cites D-1110 and no longer says "for design approval only" (A7)
+- **Given** `fabrik-deploy.md`, `fabrik-deploy-plan-review.md`, `fabrik-release.md`, `deploy-chain.md` and the NEXT map, **When** the grader reads them, **Then** none holds "the operator's explicit go", "Gate 2 — human approval", "operator-dispatched only" (any case) or "the operator explicitly dispatched", `fabrik-release.md` no longer holds "only the human takes", each names the panel's go and the customer-facing case, and no Why-line variant written for the panel's split carries `operator-kept:` (A6)
+- **Given** `design-gate-panel.md`, **When** the grader reads it, **Then** it cites D-1110 and no longer says "for design approval only" or that the other gate classes "stay the operator's" (A7)
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
 
 ## Phase B — the hook (infra)
@@ -462,9 +471,14 @@ Grounded at authoring (2026-10-22), executed.
   `.claude/hooks/final_gate_stop.py` (D5) and `templates/governance/CLAUDE.md` (D1).
 - The old model in the command corpus (`grep -n -i "gate and owned stay\|panel never approves\|operator's explicit
   go\|human approval"` over `commands/_sources/*.md commands/_fragments/*.md`, 9 lines in 6 files): the 5 in
-  `fabrik-deploy-plan-review.md` (:29, :253, :258), `fabrik-release.md` (:2, :212) and `design-gate-panel.md` (:2) are
+  `fabrik-deploy-plan-review.md` (:29, :253, :258), `fabrik-release.md` (:2, :212) and `design-gate-panel.md` (:2) — six lines — are
   Phase A's; `fabrik-decommission.md:21`, `fabrik-workflow-review.md:66`, `fabrik-vision.md:531` and
   `cert-execution.md:31` use "human approval" or "explicit go" for other things and are kept (R3 for decommission).
+  That grep missed the other spellings pass 1 found; the widened census (`grep -n -i "operator explicitly
+  dispatched\|operator-dispatched only\|one operator gate\|only the human takes\|human deploy approval\|the operator
+  dispatches\|the operator's .fabrik apply\|at the human gate\|the human Gate 2\|still goes to the operator"` over
+  the same sources plus `templates/governance/CLAUDE.md`) prints 13 lines in 6 files, every one in Phase A step 4, 5
+  or 6 — `fabrik-deploy.md:311` read and kept as a store publish.
 - The hook's gate branch today (`.claude/hooks/final_gate_stop.py:4239-4256`): the panel check runs only when
   `design_gate` matches; `_DECISION_GATE_RE` (`:3067-3073`) is the closed list; the refusal text (`:4258-4262`).
 - Phase B's FIRST diff (v1, prose phrases — superseded at pass 1, kept because its probe found the classless
