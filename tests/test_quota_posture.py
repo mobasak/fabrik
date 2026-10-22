@@ -1382,6 +1382,27 @@ def test_the_prompt_line_nudges_a_checkpoint_at_the_warning_tier(tmp_path):
     assert "checkpoint" not in clear.lower(), clear
 
 
+def test_the_quota_line_names_the_lane_at_the_urgent_tier(tmp_path):
+    """W-18f559d9 (D-1113): at `urgent-90` quota_stop.py parks every session but the merge owner
+    and the owners of open P0 items, so the prompt line names the LANE — and only at that tier:
+    not at the wall (quota_stop's own message speaks) and not without a stamp."""
+    state = tmp_path / "state"
+    _posture(state, band="RED", successor=None)
+    lane = "band LANE on 5h — builders park, coordinators continue"
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    line = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state).stdout
+    assert lane in line, line
+    assert "nothing you have in flight is being cut short" not in line, (
+        f"a builder IS cut short at the lane — the line must not say otherwise: {line}"
+    )
+    (state / "fleet-exhausted").write_text("0\nwalled\n")
+    walled = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"}, state=state).stdout
+    assert "LANE" not in walled, walled
+    (state / "fleet-exhausted").unlink()
+    clear = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s3"}, state=state).stdout
+    assert "LANE" not in clear, clear
+
+
 def test_the_pretooluse_leg_defers_only_to_a_real_wall(tmp_path):
     """The leg goes silent while the stamp stands because `quota_stop.py` is denying. At the
     warning tier it is NOT denying — so a genuine fleet RED would otherwise pass BOTH hooks

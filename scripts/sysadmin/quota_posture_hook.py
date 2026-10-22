@@ -33,10 +33,12 @@ carries a TIER on its second line. At ``walled`` ``quota_stop.py`` owns the deny
 hook is SILENT on ``PreToolUse``; the tier is read BEFORE the band, so a lagging RED
 posture cannot produce a second, differently worded deny for the same call. At
 ``urgent-90`` — the session window at the urgent-drain line with no successor, EIGHT points
-before the wall on the default ``ROTATE_THRESHOLD`` of 98 — ``quota_stop.py`` ALLOWS, so this hook keeps holding on its own
-band, or a genuine fleet RED would pass both hooks unheld. That tier also puts the
-CHECKPOINT clause on the prompt line: the turn boundary is the last moment an agent can
-checkpoint by choice rather than be denied mid-edit.
+before the wall on the default ``ROTATE_THRESHOLD`` of 98 — ``quota_stop.py`` runs the LANE
+(W-18f559d9, D-1113): it ALLOWS only the bound merge owner of a coordinator_mode repo and the
+bound owner of an open P0 item and parks everyone else, so this hook keeps holding on its own
+band — an exempt session's new fan-out included — or a genuine fleet RED would pass both hooks
+unheld. That tier also puts the ``band LANE`` CHECKPOINT clause on the prompt line: the turn
+boundary is the last moment an agent can checkpoint by choice rather than be denied mid-edit.
 
 FIRE RATE (FIX DIRECTIVE 5), measured over 2,361 rotation-tick rows on 2026-09-16:
 AMBER (>=85) 6.0%, RED (>=90) 4.7%, the 98 flip line 0. Signal, not wallpaper.
@@ -396,15 +398,20 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     return out
 
 
-# ⚠️ The TURN-BOUNDARY nudge (D-306). A tool call is too late to checkpoint gracefully — by then
-# the agent is mid-edit — so the warning tier is announced HERE, where the next thing that happens
-# is the agent choosing what to do. It asks for a checkpoint, never a stop: at `urgent-90` real
-# runway remains and stopping early is the waste the operator's directive forbids (D-299).
+# ⚠️ The TURN-BOUNDARY nudge (D-306), now the LANE's (W-18f559d9, D-1113). A tool call is too late
+# to checkpoint gracefully — by then the agent is mid-edit — so the tier is announced HERE, where the
+# next thing that happens is the agent choosing what to do. At `urgent-90` quota_stop.py parks every
+# session but the bound merge owner of a coordinator_mode repo and the bound owner of an open P0
+# item, so the line names the lane and the checkpoint: the runway is real, and it is kept for the
+# sessions that merge and keep the records (the exemption is quota_stop.py's to judge, not this
+# line's — the line tells both kinds of reader what their side does).
 _CHECKPOINT = (
-    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to. "
-    "The fleet-wide hold has NOT armed, so nothing you have in flight is being cut short; a new "
-    "fan-out or a new run may still be held by the band above. Commit, push and keep your run "
-    "record current while you still can"
+    " · band LANE on 5h — builders park, coordinators continue · ⚠️ CHECKPOINT NOW — the fleet "
+    "is at the urgent-drain line with no account to rotate to. A builder's next world-changing "
+    "tool is held: commit, push, close your run record (`command_run.py blocked --wall`) and end "
+    "the turn. The merge owner of a coordinator_mode repo and the owner of an open P0 item "
+    "continue, though a new fan-out or a new run may still be held by the band above. Commit, "
+    "push and keep your run record current while you still can"
 )
 
 
