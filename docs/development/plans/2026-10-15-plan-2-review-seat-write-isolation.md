@@ -97,6 +97,10 @@ Intake: 6 items — 4 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## Phase A — the guard
 
+**EXECUTED 2026-10-22** — commits af89164a5, 097ed32f0, fd6dc8083, dc904d604 on `worktree-intel`;
+`/fabrik-review-scoped` closed at round 5 with confirmed 0 (series 11 → 10 → 9 → 1 → 0; the Evidence section
+holds every round), residue W-9013addb.
+
 Appetite: 120
 
 **Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`, consumed only inside it; the grammar is spec § The

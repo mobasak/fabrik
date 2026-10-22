@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T01:01:52.410718Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9013addb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md",
+    "spec": ""
+  },
+  "next": "make _line_syntax skip a $(…)/backtick body as a balanced quote-aware unit, or open no further heredoc once any line ends inside a carried quote; grader + red-on-revert; review seat transcript seat-opus/semantics5.sh shows the bash effect",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "seat-guard"
+  ],
+  "title": "seat guard: a heredoc misread through a \"$(…)\" inside double quotes still hides later lines (x=\"$(echo \"'\")\"; cat <<EOF / \\' / echo <<B / EOF / git reset --hard / B) — pre-existing heredoc-stripping class, found by W-72dfd448 review round 5"
+}
