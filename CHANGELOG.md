@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Token-waste series in the kaizen instrument, with control charts in the daily digest (2026-10-22)
+`scripts/sysadmin/kaizen_waste.py` (W-02472911, D-1118, D-1120, D-1127) publishes six daily waste series from the existing ledgers: context and output per API call, review-seat share, quota-wall rate, context rebuilt per session rotation, and red-master fix commits. Each series has a per-agent and per-command breakdown, `--backfill` and `--rebaseline`. `kaizen_collect_v2.daily()` publishes the series lazily and fail-open. `kaizen_digest.py` reads points in day order and opens with a CONTROL section that applies frozen XmR / c-chart limits, 8-in-a-row and a 20-close floor. An upward signal prints `OUT OF CONTROL ↑`; a downward one prints `IMPROVED ↓`, to be re-baselined. A day a source cannot vouch for publishes nothing and is retried for three days; such a day is a ref not refreshed since the day ended, or a rotation transcript not yet flushed. Categories and rules are in `docs/reference/kaizen-waste-define.md`.
+
+### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
+`tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
+
+### Changed — The session-rotation rule: rotate at an item boundary, the coordinator sends the keys (2026-10-22)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet: D-1119 and D-1123 replace "run `/clear` now" with the item-boundary rule — due at 40% of the context window or the `ROTATE:` line's size, a focused `/compact` at 85% mid-item, a builder asking its coordinator, the waiting turn's `NEXT:` the Stop hook accepts. `tests/test_session_rotation_rule.py` pins every clause in both contracts (D-1124, W-4c894cef).
+
+### Changed — The 90% lane: builders park, coordinators continue (2026-10-22)
+
+- At the fleet-exhausted stamp's `urgent-90` tier (the 5-hour window at 90% with no account to rotate to — never the weekly), `.claude/hooks/quota_stop.py` no longer lets every session spend the last points (D-306's allow-all): it runs the D-1113 lane. Only two kinds of session continue, each bound by session id in the identity store and scoped to the repo's git common dir (`CLAUDE_AGENT` is never read): the merge owner of a `coordinator_mode` repo and the owner of an open P0 item. Every other session is parked with the wall's allow-list plus the finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, SubagentHandback, SendMessage) and a park message naming its items and the lift time. Every lane error parks the session; the lift line can never crash the hook. `final_gate_stop.py`'s urgent branch exempts the same sessions; the QUOTA line says `band LANE on 5h — builders park, coordinators continue` while the tick is fresh; the urgent-drain mail and `claude_rotate.py --status` say the lane; the contracts and workstation docs describe it, and the urgent-90 runway is nine points on the default threshold of 99 (W-18f559d9, D-1125).
+
+### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
+
+- `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).
+
+### Changed — /fabrik-command-improve queue pass: audit-seat reporting, pinned-span placement, rewrap, size-cap, copy-recipe and row-check rules (2026-10-21)
+
+- `commands/_sources/fabrik-command-improve.md`: the audit seat returns its report as hand-back text and quotes each line it cites verbatim; new text goes where its subject reads and a pinned span is re-anchored to cover it (D-1111, an Opus + Fable panel); a rewrap is bounded to the lengthened lines under a raw-line pin; a size-capped target is sized, or its cap raised, before the draft; the seat-rule homes name the copy recipe `BASE_PIN` and the import recipe `PIN_IMPORT`; the review seats say whether each answered row's line names its timing and venue. `tests/test_command_improve_queue_pass.py` pins them (W-6aac0ac8).
+
+### Changed — /fabrik-review queue pass: seven brief and probe rules from the feedback queue (2026-10-21)
+
+- `commands/_sources/fabrik-review.md`: the example Pass ledger names the file loop's Sonnet + Haiku seats; the leak baseline also hashes the shared repository `config` and lists its hooks. `commands/_fragments/subagents-core.md`: a fix made between round-1 waves is in the next wave's pin. `commands/_fragments/review-probe-catalogue.md`: the input class takes every arrival order of duplicate records; a seat's scratch repository is checked before its first write and runs hermetic; a measured count names what it leaves out; each slice runs a mutant per added guard. `tests/test_review_queue_pass.py` pins the six rules (W-ac1b7d77).
+
 ### Fixed — plan Status reads reject a Status line hidden in a code span, and never lose a real one (2026-10-22)
 W-a7cff030 (D-1114). An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and first-match read the example. This hit check_plan_quality's spine read and its two severity reads (fail open: a quoted DRAFT downgraded checks) and check_convergence's two archived-plan reads (fail closed: a false "archived while DRAFT"). The Opus + Fable panel ruled the fix: every read matches the ORIGINAL text through `_fences.status_candidates`, skips a candidate whose key a code span hides, and takes the reader's strict branch when only hidden ones exist. Blanking spans before matching was the rejected draft: it let a stray backtick erase a real Status line. Across the fleet the parsed values are unchanged (216 tickets, 1 522 plan files). `tests/enforcement/test_status_in_code_span.py` has 13 cases; 8 of them fail on that rejected draft.
 
@@ -54,6 +80,22 @@ an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (
 fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
 slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
 receives the slice-1a requests next.
+### Changed — The seven specs/infrastructure files are retired; the infra/vps1 mirrors are the only repo copy (2026-10-22)
+
+`specs/infrastructure/{apprise,authelia,browserless,glitchtip,gotenberg,meilisearch,n8n}.yaml` failed `load_spec`, no code read them, and each had drifted from the `infra/vps1/<svc>/compose.yaml` mirror of the live stack. They are deleted; their load-bearing comments (ARM64 support, the browserless v2 TOKEN and env names, the GlitchTip secret-key warning, the n8n auth note, the Authelia config pointer) now head the mirrors, with no setting changed. `docs/DEPLOYMENT_ARCHITECTURE.md` § 3.1, `PORTS.md`, `docs/CONFIGURATION.md`, `.env.example`, `infra/README.md` and six other docs name the mirrors; the unused `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` lines leave `.env.example`. `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable. Spec-only settings the mirrors lack are item W-24025e50 (W-b64d9cd7, D-1097, D-1117).
+
+### Fixed — A re-applied payments role loses its settings in every database, not only its own (2026-10-22)
+
+`mint_payments_role` reset a re-applied payments role's per-database settings only in the project's database, so a setting attached out of band in any other database (for example `row_security = off`) survived every re-apply. It now walks `pg_db_role_setting` for that role and resets it in each database that holds one, skipping a database dropped in between. The unit test pins the refusal guard's and the loop's role filters; the real-Postgres test plants three settings (counted before the re-mint) and a bystander role's setting that must survive (W-3c302832, D-1115).
+
+### Added — VS Code chat-tab router: any repo's agent in one window (2026-10-21)
+
+`scripts/sysadmin/claude_tab_router.py` and the wrapper source `scripts/sysadmin/claude-agent-wrapper.sh` (the `claudeCode.claudeProcessWrapper`): a new Claude chat tab offers a picker of every repo's agents and opens the pick in that repo as that agent; a restored tab from another repo is re-rooted; anything else launches as before. Reviewed in full (/fabrik-review, 9 → 4 → 0 confirmed): a session live elsewhere is never re-rooted, live roles are matched per repo, a role-less pick drops the window's agent, `--add-dir` drops all its values, only UUID session ids reach the transcript lookup, the picker's 30 s counts from the router's start. Not installed yet — `docs/workstation/claude-tab-router.md` § Install runs after the merge (W-ea993618, D-1112).
+
+### Added — The Fabrik Deck's code-server runs as a systemd user service (2026-10-21)
+
+A WSL restart on 2026-10-21 killed the hand-started code-server and the operator could not reach the repos from Vivaldi. `scripts/sysadmin/fabrik_deck.py install` now writes `~/.config/fabrik-deck/env` (appending only missing keys, read the way systemd reads it) and `fabrik-deck-code.service` (linger, `Restart=always`, `RestartSec=10`, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=2`), verifies it, reloads and enables it; `--start` also starts it when the port is free. Every check runs before the first write. `fabrik_deck.py code-server` is the unit's start: a keep-list environment and `--bind-addr 127.0.0.1:<port>`. Box doc `docs/workstation/fabrik-deck.md`; tests `tests/test_fabrik_deck.py` (W-e89a9b5b, D-1106).
+
 ### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
 
 - `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.

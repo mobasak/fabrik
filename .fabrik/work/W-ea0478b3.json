@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "## [infra] `fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module\n\nSurfaced reviewing Phase D's correction of `core/58-resilience.md`. Beyond the four properties the\npack now names, two more the rule does not carry: `_last_sent` has no eviction, so a title carrying a\nvarying token (an id, a timestamp) both defeats dedup entirely AND grows the dict for the process's\nlifetime; and the module exposes no reset — its own tests clear it by touching\n`alerting._last_sent.clear()` directly (`test_alerting.py:73`), which is the tell that the public\nsurface is missing one. Cross-repo, so it is fabrik-lib's to fix.\n\n**Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a\ntitle must be a STABLE key, not a formatted string.",
-  "note": "migrated-digest:56859b0a6d88",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — unbounded dict, rare",
-  "status": "open",
+  "status": "dropped",
   "title": "`fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module"
 }

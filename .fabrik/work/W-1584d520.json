@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "claude_rotate._cmd_tick returns at 'no quota reading, no flip decision possible' before any cap check, so an active account parked while every probe fails stays active; decide whether parking should force a flip-away with no reading (park review 2026-09-29, pass 2, seat A-sonnet)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — rare parked-account edge",
-  "status": "open",
+  "status": "dropped",
   "title": "Parked ACTIVE account with no quota reading at all is not flipped away"
 }

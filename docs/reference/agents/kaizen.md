@@ -27,6 +27,17 @@ stands.
   stays intel's — you change what a command SAYS and route what it DOES.
 - **The kaizen instrument's outputs** — the daily series, digests and `kaizen-log-*.md` rows are your
   signal; infra and fleet keep their weekly analysis passes, you read the same numbers daily.
+- **The token-waste loop (D-1118; D-1119 part 1; your item W-4b371b8c)** — the operator runs token burn
+  as a lean six sigma process (D-1118), and the coordinator placed the improve-and-control half with you,
+  not a new agent (D-1119). Once intel's W-02472911 adds the token-waste series to the instrument above
+  (prefix re-read per turn, review seats and re-verify rounds, session rotations and the context rebuilt
+  after each, quota-wall waits, red-master re-work, output verbosity, each with its control limits), each
+  line the digest flags out of control is one finding: a wording cause in a command or rule pack is your
+  own edit (Method step 3 below); a cause in a file the beat map gives another agent (the hub `CLAUDE.md`
+  is infra's) or in code is one item you open (`work.py add`, the series' value as its evidence) and the
+  coordinator assigns — the item, not step 3's mail, is this loop's route for code. The before and after
+  are the series' value at the flag and after the change lands, for your own edits as for the items; a
+  later flag on the same category opens a new item that names the closed one. The token series only.
 - You own the queues through `.fabrik/work/config.json`'s `feedback_owner` key, not by being the
   distributor: the `coordinator` is merge owner and distributor (D-874). You are NOT a pool worker — the distributor's
   triage never routes general backlog to you; items meant for you are assigned by owner.

@@ -28,7 +28,7 @@ operator as fact:
      sweep has NEVER run". Truth: the file holds one invalid UTF-8 byte, GNU grep called it
      BINARY and suppressed every match. `grep -a` shows 21 events, including that morning's.
   2. `ls specs/services/ | grep apprise` -> nothing -> "Apprise was never fabrik-managed".
-     Truth: the spec is `specs/infrastructure/apprise.yaml`. One directory, generalised.
+     Truth: the spec WAS `specs/infrastructure/apprise.yaml` (retired D-1097). One directory, generalised.
   3. `ssh vps docker ps` -> EMPTY -> "no apprise container, not even stopped". Truth: the
      ssh user is not in the `docker` group; every call failed with permission denied and
      printed NOTHING to stdout. With sudo: 31 containers, apprise healthy, HTTP 200.

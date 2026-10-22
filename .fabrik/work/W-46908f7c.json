@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "## [infra] `command_run.py`'s `start` silently discards every parked frame on a non-running record, and its own readers still die on a corrupt field\n\nTwo findings from Phase C's review, both one hop out of its hunks. (1) `scripts/command_run.py:2124`\nreads `list(rec.get(\"stack\") or []) if parent else []`, so a `start` over a record the coroner reaped\ndrops the whole ancestry without a word. (2) The same file's `covered`/`stack` readers raise on a\nscalar: a `start` over a record with `stack: 7` prints `error, continuing` and exits 0 with NO record\nwritten — the agent believes a run opened and none did. The Stop hook's side of this pair was closed\nin Phase C (`_seq`, `_tok`); the writer's was not. **Do:** vendor `_seq`/`_tok` into the writer and\nmake that failure non-zero.",
-  "note": "migrated-digest:1a173e48d285",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — robustness on corrupt record fields",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

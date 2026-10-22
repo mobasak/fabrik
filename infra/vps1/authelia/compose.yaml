@@ -1,3 +1,8 @@
+# Authelia SSO/2FA forward-auth — the live stack is /opt/authelia/compose.yaml on vps1; this is its mirror.
+# ARM64: supported (linux/amd64, linux/arm64).
+# Secrets, access control and sessions live in /opt/authelia/config/configuration.yml on vps1 (not env
+# vars); that file is the truth. Its access-control rules are summarised in
+# docs/infrastructure/vps-complete-inventory.md. Services opt in with the authelia-forward@docker label.
 services:
   authelia:
     image: authelia/authelia:4.39.19

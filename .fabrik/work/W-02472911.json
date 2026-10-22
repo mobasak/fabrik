@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T06:58:53.377553Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "d56de5dfd7ef19bc33b97e9d737eae1daca6183e",
+  "id": "W-02472911",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1118",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "RE-SHAPED by D-1118 (operator: measure it like lean six sigma): not a one-off page but a STANDING daily series inside the kaizen instrument (kaizen_collect.py / kaizen_digest.py) — token waste by category per day, per agent and per command: (1) prefix re-read per turn (tok_cache_read / turns), (2) review seats and re-verify rounds (tok_seat_*, rounds), (3) session rotations per agent (new bindings in agent-identity.jsonl) and the context rebuilt after each, (4) waiting at quota walls (blocked --wall closes, hold minutes), (5) re-work after a red master, (6) output verbosity (tok_out per run); each series with a baseline and control limits (mean plus/minus 3 sigma over the trailing 14 days, out-of-control flagged in the daily digest). Measurement code is intel's; kaizen reads the digest and opens the items (W-4b371b8c). First deliverable: the series backfilled over the ledgers' history, the digest line, a one-page DEFINE of the categories; no contract or command edits inside this item",
+  "note": "",
+  "owner": "intel",
+  "priority": 0,
+  "score_reason": "operator ask tonight (HIGH): the fleet is quota-bound and the operator cannot add accounts; one measurement from existing ledgers, one session; intel's benchmark beat",
+  "status": "done",
+  "title": "Measured 2026-10-22 over 417 closed runs in 48h: 14,217M input-side tokens, 99% of them CACHE READS of the per-turn prefix (fresh input 0.15M, output 21M); review seats are 20% of input. The fleet's quota burn is prefix size x turn count, not code search. Operator ruling: no new accounts ('i cant afford more account yet'), so cut burn structurally: measure the per-turn prefix by component (CLAUDE.md ~121 KB + agents-fabrik-core, hook injections, the transcript's live context) across the four hub builders, and propose the cut list ranked by tokens saved per turn (prefix slimming under D-331, /clear rotation discipline, seat and round floors for small diffs)"
+}

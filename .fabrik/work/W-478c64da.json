@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[fleet]** **Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sysadmin-cron.template`](../scripts/bootstrap/templates/sysadmin-cron.template) for future spokes. There's no `fabrik`-level redeploy step that re-renders the cron template on existing hosts after a template change. Blocked by: another cron template change that needs to propagate.",
-  "note": "migrated-digest:306fa0f2fa6b",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — live cron deploy path pending, hosts patched by hand",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "waits-cron-template-change"

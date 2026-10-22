@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "Restored from HEAD (blob 79d4187e) by infra the same minute. Searched: every session transcript active 16:38:40-16:39:05Z (no tool call writes it; site-provisioner sp2 ran mail.py send --to fabrik 16:38:55-16:39:03, the only mail.py call in the window), both critique seats (read-only git show), tests/ (only test_check_vendored_drift writes a tmp mail.py). Next: check what a hub-bound send triggers hub-side (mail_notify hook, dispatcher, inotify units) and whether any of it opens scripts/ for write; if it recurs, run an inotifywait/auditctl watch on scripts/mail.py.",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — mail.py truncated 2026-10-06; historical incident, likely already restored",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail",
     "medium"

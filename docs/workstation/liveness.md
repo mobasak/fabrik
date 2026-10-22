@@ -39,7 +39,7 @@ On 2026-08-16, three of the orchestrator's OWN probes lied, and each lie reached
    plain `grep` answered 21 — **the suppression is intermittent**, which is worse than a stable bug.
 2. **`ls specs/services/ | grep apprise`** → nothing.
    Conclusion drawn: *"Apprise was never a fabrik-managed service."*
-   **Truth:** the spec is at `specs/infrastructure/apprise.yaml`. One directory searched, generalised to
+   **Truth:** the spec WAS at `specs/infrastructure/apprise.yaml` (retired D-1097, since removed). One directory searched, generalised to
    "does not exist".
 3. **`ssh vps docker ps`** → EMPTY output.
    Conclusion drawn: *"no apprise container, not even stopped."*

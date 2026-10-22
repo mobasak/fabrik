@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T18:15:44.028459Z",
   "creator": "intel",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "eda6886bc418a5b073d10c6c3f29cf2ff6aeaf07",
   "id": "W-ddb716ca",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "Widen MENTION for retrieve/recrawl and the noun-then-preposition order, tighten \"read\" to fetch senses, one fixture each, mutant each; none of the four appears in the 72-file corpus today",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
-  "status": "open",
+  "score_reason": "LOW: three missing spellings in a grader's word list; one test file",
+  "status": "done",
   "title": "Firecrawl proxy grader spellings: tests/test_firecrawl_proxy_basic.py misses \"recrawls\", \"retrieves\" and \"Point the scrapers at Firecrawl via its API\", and false-reds \"Firecrawl docs are easy to read\""
 }

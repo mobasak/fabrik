@@ -258,13 +258,11 @@ Used by `/opt/ai-model-catalog/engine/microbench_specialty.py` (ai-model-catalog
 
 ### GlitchTip (error tracking)
 
-GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/infrastructure/glitchtip.yaml` and is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It reuses `postgres-main` (DB `glitchtip`) + `redis-main`. Env vars:
+GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It runs from the hand-maintained `/opt/glitchtip/compose.yaml` on vps1, mirrored at `infra/vps1/glitchtip/compose.yaml`, and never through `fabrik apply`. It reuses `postgres-main` (DB `glitchtip`) + `redis-main` (db 4); both `DATABASE_URL` and `REDIS_URL` are literal in that compose. Its one interpolated secret:
 
-- `GLITCHTIP_SECRET_KEY` — Django secret key. **Use the existing live value** (`/opt/glitchtip/compose.yaml`); changing it invalidates all sessions.
-- `GLITCHTIP_REDIS_URL` — e.g. `redis://redis-main:6379/<db>` (existing live value).
-- `POSTGRES_PASSWORD` — shared `postgres-main` superuser password (already provisioned).
+- `GLITCHTIP_SECRET_KEY` — Django secret key, set on vps1 beside the live compose (a host fact; the hub `.env` does not carry it). **Never regenerate it** — a changed key invalidates every session.
 
-⚠️ Do not `fabrik apply specs/infrastructure/glitchtip.yaml` until these match the live deployment, or the live tracker + its session keys break. The spec declares the existing hand-deployed stack; `fabrik apply` is targeted, so adding it does not auto-redeploy.
+The hub `.env` carries none of the stack's settings — only the API settings the GlitchTip registrar reads (`GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`; `src/fabrik/drivers/glitchtip.py`).
 
 ### Watchdog DB access — `WATCHDOG_DB_URL_RO` / `WATCHDOG_DB_URL_RW` (auto-injected, do NOT set by hand)
 

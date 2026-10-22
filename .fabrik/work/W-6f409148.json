@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[infra]** **The record protocol's spontaneous-edit coverage gap (pass 3 spec D6, 2026-09-12, owner: infra)** — a review-family `done` covers the code edited since the previous AGENT-closed record, so an edit made BETWEEN a `blocked`/`handoff` close and the next `start` is covered by nothing; the corpus now routes up before any record exists and escalates in one shell line (`docs/reference/command-run-protocol.md` § The covered window), but no gate proves the window is closed — measure how often a spontaneous edit falls into it before adding a check.",
-  "note": "migrated-digest:26ade5bddbc9",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "Spontaneous-edit coverage gap in the record protocol",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

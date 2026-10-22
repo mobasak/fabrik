@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "make merge_request.py's _main_checkout follow mail.py's resolution (core.worktree from the common dir, the separate-git-dir refusal) or import it, and extend test_main_checkout_is_derived_exactly_as_mail_py_does to a core.worktree world (Opus critique C8 on W-7317befc); no /opt repo uses the layout today",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — path derivation mismatch in core.worktree repos; rare",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "medium"

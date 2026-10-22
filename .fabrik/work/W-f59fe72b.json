@@ -17,10 +17,10 @@
     "f9c60fa98b73304c83392af68069539822eccadae77a1bcacd8a6a7fe63ef6a3"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-21: 'yes it can install and test' — infra may build the scrape server's environment on the system Python, install and start fabrik-scrape-mcp.service, check it lists its scrape tool, and run the emitter that rewrites every repo's .mcp.json; intel's per-command test ledger still gates the research-seat switch",
   "owner": "",
   "priority": 2,
   "question": "After the merge, may infra install our own scrape server on this machine and add it to every repo's MCP config? That means building its Python environment on the system Python, installing and starting `fabrik-scrape-mcp.service`, checking it lists its `scrape` tool, and then rewriting every repo's generated `.mcp.json`.",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "After the merge, may infra install our own scrape server on this machine and add it to every repo's MCP config? That means building its Python environment on the system Python, installing and starting `fabrik-scrape-mcp.service`, checking it lists its `scrape` tool, and then rewriting every repo's generated `.mcp.json`."
 }

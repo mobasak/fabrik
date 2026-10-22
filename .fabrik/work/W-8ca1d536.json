@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "Do the remaining work: The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open.",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing class-8 check in deploy-plan review; only watch dropped",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

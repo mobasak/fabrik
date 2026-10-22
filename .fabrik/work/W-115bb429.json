@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T18:43:36.765827Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-115bb429",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "another repo's request (HIGH, youtube D-069): the mypy ratchet leg in the synced final_gate.py; one leg plus its test, one session — supersedes W-c7335a25 (same mail, created before infra claimed it)",
   "status": "open",
   "title": "WHAT: request — a mypy ratchet leg in final_gate.py, so a project can carry a frozen mypy debt block without the gate's mypy row becoming the only place debt can grow unseen."
 }

@@ -4,7 +4,8 @@ Reference copies of the Docker Compose files deployed on each fleet host, organi
 by VPS. **Pulled from the live `/opt/<svc>/compose.yaml` on each host on 2026-06-17.**
 
 - **Source of truth is the live host** (`/opt/<svc>/compose.yaml`), deployed/managed
-  by `fabrik apply` (hub services) and `bootstrap-vps.sh` (spoke agents). Nothing
+  by `fabrik apply` (apps with a `specs/services/` spec), by hand (shared infrastructure
+  services — `docs/DEPLOYMENT_ARCHITECTURE.md` § 3.1) and `bootstrap-vps.sh` (spoke agents). Nothing
   deploys *from* `infra/` — it's a source-controlled mirror for review/DR reference.
 - **No secrets here.** Every service externalises credentials via `env_file: .env` (or a
   box-side env file such as traefik's `./cf.env`), `${VAR}` references, or mounted secret

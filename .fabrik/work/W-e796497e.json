@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "edit docs/reference/ai-media-generation-provider-map.md:92 (via Higgsfield app/agent only; not in the REST API; no Hunyuan3D) and :94 (drop CSM, API shut down); re-check Luma Genie (sunset 2026-01-01) if listed; mark Rodin (:93) reachable via fal and WaveSpeed, generate call only",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — reach map wrong, misleads agent",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "rules"

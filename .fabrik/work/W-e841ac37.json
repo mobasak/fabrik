@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-6e656dac"
+  ],
+  "created": "2026-10-21T19:57:30.498055Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e841ac37",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fold into W-6e656dac T05 with W-1961cc42: agents_bat.py emits an attach-or-launch commandline; agents_up.sh gains an attach path that does not depend on the ownership read; update the rollout doc; regression tests in tests/test_agents_up.py and the agents_bat tests. 2026-10-22 12:00: the coordinator hand-wrote the tabbed launcher the operator asked for — 'All Agents (tabbed).bat' in the desktop 'terminal agents' folder: one maximised wt window, one new-tab per repo (fabrik, fabrik-lib, youtube) each running agents_up.sh /opt/<repo> (attach when the grid is up, launch when not), fragments rewritten first; proven live (3 tmux clients attached). agents_bat.py should GENERATE that file (marker line 2) and derive its tab list from the repos whose grid it accepts, so it stops being hand-kept.",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ask tonight (HIGH): the launcher the operator clicks must show the agents; one script pair and a doc, one session, folded into T05",
+  "status": "open",
+  "title": "The '<Repo> Agents.bat' launchers and docs/reference/repo-coordinator-rollout.md must match D-1108: attach to the EXISTING tmux grid when one is up (tabbed, one tab per repo, small-font profile), launch only when none exists; today the .bat refuses a grid it did not create (W-1961cc42) and the coordinator opens the windows by hand after every relaunch"
+}

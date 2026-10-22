@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "verify both dates on the EUR-Lex text of the Digital Omnibus, then add the transparency duty to the pack that owns user-facing AI (ai/00 or a governance pack) with a pinned test",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — missing rule pack for EU AI Act; rules currency, nothing broken",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "rules-currency"
   ],

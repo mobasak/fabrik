@@ -24,7 +24,8 @@ it, or name in the brief why the shape does not have it.
 - Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or
   dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, every
   reader of a shell recipe or printed command (its own shell, a paste, another shell or locale; IFS, noglob, PATH), the
-  real committed files' shapes counted by an independent parser) and probe it again before each delta; keep an
+  real committed files' shapes counted by an independent parser, and every order its duplicate records can arrive in
+  when the fix keeps one of them) and probe it again before each delta; keep an
   adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions — false
   green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
@@ -70,17 +71,21 @@ it, or name in the brief why the shape does not have it.
   RLS table; placeholder resolution per consumer; repo-wide service lists and absence statements; every reader of a
   changed predicate's verdict (a notice, message or wall line that reads the same hold), and of each field a fix
   writes, named before the closing round.
-- Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
-  keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
-  at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
-  interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's format, and a
-  skip check reuses the consumer's own parser; a hand-written reader whose input is source in a language other than
-  its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand, starts from a
-  strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal executed before
-  every pin on a line of that language's own syntax that no named form admits, and run by the lead over the live
-  files the reader will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats
-  attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line
-  form can hold.
+- Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate keys,
+  ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed at its
+  truncation edges, and run beside the parent commit's redactor over one generated input corpus, its generator and size
+  named in the brief, each output that differs classed intended or a defect in the seat's report), the request-target
+  grammar for URLs with its parser-differential classes named in the round-1 brief (a backslash, a percent-encoded host,
+  an IDNA host under its UTS-46 mapping, a numeric or shortened IPv4 host, whitespace and control characters, `@` in
+  userinfo, a `#` or `?` before the `@`, a malformed port, an unclosed `[`, no scheme), comment and brace shapes for
+  config, the real interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's
+  format, and a skip check reuses the consumer's own parser; a hand-written reader whose input is source in a language
+  other than its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand,
+  starts from a strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal
+  executed before every pin on a line of that language's own syntax that no named form admits, and run by the lead over
+  the live files the reader will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats
+  attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form
+  can hold.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every
@@ -149,7 +154,11 @@ it, or name in the brief why the shape does not have it.
   reported only once shown to change observable behaviour (an output, return value, exit code, raised exception or
   written state diffed against the unmutated copy), and an equivalent mutant is struck with that diff quoted, never
   a test gap; a counter or guard is gutted in the same round
-  to show it can fail; a regression test fails when the caller is reverted; one reader mutates the guarded
+  to show it can fail; a regression test fails when the caller is reverted; each slice's seats write and run one mutant
+  of their own per guard the change adds in their slice, written
+  afresh rather than re-run from the lead's pre-pin list, on a copy made from the pin, under the explicit `timeout` its
+  brief names (`/fabrik-review`'s D8 mutation-seat lesson); one reader
+  mutates the guarded
   behaviour; a tests slice's seats also write and run mutants of their own against each behaviour its tests
   claim, beside the lead's, and report each survivor that changes observable behaviour, as above; graders
   are written, and named, before the next round goes out.
@@ -196,7 +205,8 @@ it, or name in the brief why the shape does not have it.
   matcher, regex or guard written from its input space executed on both sides (punctuation, underscore, empty, the
   lead's escape variants and every one the seats returned) before the pin, never from its subject's own docstring; a
   count cites the command (with its range — the brief hands the seat that exact command) and the line that holds it, a
-  measured count names its population, a closing brief names each figure's source and the record's own round trend, a
+  measured count names its population and each file or site it leaves out (a guard file, a file holding several sites),
+  a closing brief names each figure's source and the record's own round trend, a
   live value is a timestamped snapshot; a code snippet in prose is a checkable claim; an evidence block in a report or
   receipt pastes the artifact's section whole and names the file it was copied from, by path and md5 (one that elides is
   a claim, not evidence); an unverified hand-derived enumeration is deleted.
@@ -280,7 +290,14 @@ it, or name in the brief why the shape does not have it.
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
   `git` inside a `-c` program or heredoc as a git call, so the seat writes such a probe to a file) and hands readers a
   ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home
-  directory can settle is recorded up front for the lead.
+  directory can settle is recorded up front for the lead. A scratch repo a seat makes (the `git init` in a pin, the
+  clone above) is checked before its first git write: `git -C <it> rev-parse --show-toplevel` prints its own path, since
+  an init that failed under the hub's `.tmp/` leaves every later git call on the live repo. A test or probe that runs
+  git runs with `GIT_CONFIG_GLOBAL` at an empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at empty
+  folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`,
+  `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` set when it commits, since the empty config holds no identity (an older
+  git ignores `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and a test that a
+  hook stays silent first shows that hook fire on a positive control.
 - Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers" claim
   is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database variable: no
   `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads

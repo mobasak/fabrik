@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "**[infra]** **The fleet sync's SAFETY FLOOR summary line names `.env` whatever pattern failed** — the per-project line was fixed under 01M1H1V2; the `SAFETY FLOOR FAILED in N project(s)` summary still hardcodes `.env` (seen live 2026-09-06 on proxy, where `.venv/` was the committed path). Fix: carry the failing pattern(s) per project into the summary + a grader. (plan 2026-09-03-plan-1-multi-agent-per-repo close, T16)",
-  "note": "migrated-digest:51d5175098d6",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — summary line wording names .env",
-  "status": "open",
+  "status": "dropped",
   "title": "**The fleet sync's SAFETY FLOOR summary line names `.env` whatever pattern failed** — the per-project line was fixed under 01M1H1V2; the `SAFETY FLOOR FAILED in N project(s)` summary still hardcode..."
 }

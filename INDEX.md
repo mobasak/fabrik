@@ -279,10 +279,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
 │   └── utils/                       # Shared script utilities
 ├── specs/                           # YAML specs and planning documents
-│   ├── infrastructure/              # Infrastructure service YAML specs
-│   │   ├── apprise.yaml             # Apprise notification service — Docker Compose + Traefik config
-│   │   ├── glitchtip.yaml           # GlitchTip error tracking (errors.vps1) — declares the existing deployment
-│   │   └── n8n.yaml                 # n8n workflow automation — Docker Compose + Traefik config
 │   └── n8n-workflows/               # Importable n8n workflow JSON files
 │       ├── 01-deploy-notify.json    # Webhook → Code → Apprise on deploy.success / deploy.failure
 │       ├── 02-content-notify.json   # Webhook → Code → Apprise on content.published
@@ -372,7 +368,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-22T13:08 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -461,6 +457,8 @@ docs/
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   ├── 2026-10-21-plan-3-own-scrape-slice-1a.md
+│   │   ├── 2026-10-22-plan-1-fabrik-deck.md
+│   │   ├── 2026-10-22-plan-1-least-operator-approval.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1308,14 +1306,56 @@ docs/
 │       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-master-red-gate-cites-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-276255e7-linear-fences-r3-review.md
 │       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-2fd7cfd1-node-pack-paytr-line-review.md
+│       ├── 2026-10-20-w-34fce72d-plan-review-queue-review.md
 │       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
 │       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-47d91afa-enforcement-orphan-prune-review.md
+│       ├── 2026-10-20-w-55905ee1-link-whitespace-line-ending-review.md
+│       ├── 2026-10-20-w-60629ce4-review.md
+│       ├── 2026-10-20-w-69f51003-link-check-code-examples-review.md
 │       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-78e51f33-seat-copy-links-r2-review.md
+│       ├── 2026-10-20-w-7caa8a90-lock-owned-paths-review.md
+│       ├── 2026-10-20-w-89474fc1-review.md
+│       ├── 2026-10-20-w-8f9a7d2c-code-span-headers-r2-review.md
+│       ├── 2026-10-20-w-bb97199e-sync-file-set-from-head-review.md
+│       ├── 2026-10-20-w-bc457e27-panel-attachment-handbacks-review.md
 │       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
+│       ├── 2026-10-20-w-c6d19bda-preplan-registry-review.md
+│       ├── 2026-10-20-w-cc9b0532-prometheus-reload-outcome-review.md
+│       ├── 2026-10-20-w-d0e5a017-pause-worker-pack-line-review.md
+│       ├── 2026-10-20-w-d537275a-refuse-symlinked-sync-sources-review.md
+│       ├── 2026-10-20-w-f599a88c-registrar-role-collision-review.md
+│       ├── 2026-10-20-w693ee1ca-payments-fulfilment-packs-r2-review.md
+│       ├── 2026-10-21-claude-tab-router-review.md
+│       ├── 2026-10-21-fabrik-deck-spec-review.md
 │       ├── 2026-10-21-own-scrape-slice-1a-plan-review.md
+│       ├── 2026-10-21-own-scrape-tools-spec-review.md
+│       ├── 2026-10-21-payments-fulfilment-grant-wording-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-2-review.md
+│       ├── 2026-10-21-w-16c00597-linear-code-span-blanker-review.md
+│       ├── 2026-10-21-w-1b9ae5f2-stop-hook-attachment-rows-review.md
+│       ├── 2026-10-21-w-1e9ae1e5-review.md
+│       ├── 2026-10-21-w-6424f2e8-panel-brief-queued-prompt-review.md
+│       ├── 2026-10-21-w-6904b41e-contract-regions-linear-review.md
+│       ├── 2026-10-21-w-a7cff030-status-in-code-span-review.md
+│       ├── 2026-10-21-w-b2bbc1f1-plan-lock-discovery-review.md
+│       ├── 2026-10-21-w-b9af1d47-code-span-links-review.md
+│       ├── 2026-10-21-w-c638bb08-review.md
+│       ├── 2026-10-21-w-c83c550c-worktree-editable-imports-review.md
+│       ├── 2026-10-21-w-d2eef742-plan-fence-strips-review.md
+│       ├── 2026-10-21-w4801e4c3-container-memory-alerts-review.md
+│       ├── 2026-10-22-payments-role-reapply-review.md
+│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
+│       ├── 2026-10-22-retire-specs-infrastructure-review.md
+│       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1350,6 +1390,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-30.md
 │   │   ├── fleet-doc-audit-2026-10-07.md
 │   │   ├── fleet-doc-audit-2026-10-14.md
+│   │   ├── fleet-doc-audit-2026-10-21.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -1459,12 +1500,14 @@ docs/
 │   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-mail.md
+│   ├── fabrik-scrape-mcp.md
 │   ├── fabrik-task-lane.md
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
 │   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
+│   ├── hibernate.md
 │   ├── jev-decision-model-map.md
 │   ├── kilo
 │   │   ├── AGGREGATOR_ROADMAP.md
@@ -1682,7 +1725,9 @@ docs/
 │       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-18-external-services-page-design.md
 │       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
+│       ├── 2026-10-21-fabrik-deck-design.md
 │       ├── 2026-10-21-own-scrape-tools-design.md
+│       ├── 2026-10-22-least-operator-approval-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1711,9 +1756,11 @@ docs/
 │   ├── claude-account-rotation.md
 │   ├── claude-config-backup-restore.md
 │   ├── claude-configuration-inventory.md
+│   ├── claude-tab-router.md        # VS Code chat-tab router: any repo's agent in one window (W-ea993618)
 │   ├── cleanup-automation.md
 │   ├── cleanup-maintenance-backlog.md
 │   ├── cloud-dispatch.md
+│   ├── fabrik-deck.md              # The Fabrik Deck: every repo's code-server tab in one browser window; code-server as a systemd user service (W-e89a9b5b, D-1106)
 │   ├── fabrik-mail.md
 │   ├── hooks-index.md
 │   ├── kaizen-event-stream.md
@@ -1787,6 +1834,7 @@ docs/
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
 | [templates.md](docs/reference/modules/templates.md) | Available deployment templates |
+| [kaizen-waste-define.md](docs/reference/kaizen-waste-define.md) | Token waste DEFINE (D-1118, W-02472911): the six daily waste series `kaizen_waste.py` publishes (context and output per call, rotation rebuild, seat share, red-master rework, quota-wall rate) — formula, unit, source, first day, counter pair, cheapest gaming, blind spot — and the digest's control rules (XmR / c-chart, frozen 14-point baseline, 20-close floor, 8-in-a-row, `--rebaseline`). |
 | [hibernate.md](docs/reference/hibernate.md) | /hibernate — who gets the pause (live session records, each repo's merge owner), when the box is safe to sleep, and how a woken agent knows it slept (`scripts/sysadmin/hibernate.py`) |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
 | [ai-media-generation-provider-map.md](docs/reference/ai-media-generation-provider-map.md) | Every generative-media provider (video/image/audio/3D/editing/assembly) + whether we can automate it (API/SDK/CLI/MCP) without a GUI; per-provider reach verdict, how-to-reach, AND real-world monetization use cases; ranked gaps (Photoroom, Runway, HeyGen/Tavus…) + highest-ROI business plays; compiled 2026-07-25, monetization pass 2026-07-26 |
@@ -2101,6 +2149,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [selfwatch_check.py](scripts/sysadmin/selfwatch_check.py) | User-level UserPromptSubmit hook (every window): is this session's self-watch ARMED? Reads a HELD per-sid `selfwatch.lock` flock as armed; unarmed → the arm order with the literal sid on every prompt; compact-resume not exempt. Fail-open. |
 | [feedback_watch_arm.sh](scripts/sysadmin/feedback_watch_arm.sh) | The kaizen window's ONE-WAKE feedback watch (the selfwatch_arm shape): holds `<sid>.feedbackwatch.lock`, wakes only when a command-feedback queue's depth rises, kaizen-addressed `ack: required` mail lands or a kaizen series file changes; the wake line names the `/fabrik-command-improve <cmd>` or the mail id |
 | [selfwatch_arm.sh](scripts/sysadmin/selfwatch_arm.sh) | Arms the resume-mesh self-watch as ONE background Bash task: runs `~/.claude/bin/claude-selfwatch.sh` unchanged, exits on its first line after stopping the watcher and its children (the lock is free for the re-arm), cuts the watcher's STAYS-ARMED clause and prints the re-arm order; `setpriv --pdeathsig` where present; D-356 |
+| [claude_tab_router.py](scripts/sysadmin/claude_tab_router.py) | The VS Code chat-tab router behind `claude-agent-wrapper.sh`: on a new Claude chat tab it lists every repo's agents (session-agents, the identity store, its own map, the merge owner) in a Tk picker and returns the cwd, agent and argv the tab must run with; a restored foreign tab is re-rooted without a picker; fails open to a plain launch (W-ea993618, D-1112) |
+| [claude-agent-wrapper.sh](scripts/sysadmin/claude-agent-wrapper.sh) | Source of `~/.claude/bin/claude-agent-wrapper.sh`, the `claudeCode.claudeProcessWrapper`: asks the router (stdin withheld, `timeout 35`), applies its cwd/agent/argv, else launches exactly as the extension would (W-ea993618) |
+| [fabrik_deck.py](scripts/sysadmin/fabrik_deck.py) | The Fabrik Deck's code-server as the systemd user service `fabrik-deck-code.service`: `code-server` execs it on 127.0.0.1 with a keep-list environment, `install` writes `~/.config/fabrik-deck/env` (appending only missing keys) and the unit, verifies, reloads and enables, starting only with `--start` and a free port (W-e89a9b5b, D-1106) |
 | [agents_bat.py](scripts/sysadmin/agents_bat.py) | Writes one self-contained `<Repo> Agents.bat` per `/opt` repo with a `.fabrik/session-agents.json`, the desktop launcher that opens its `agents_up.sh` grid: print-only by default, writes only under `--desktop`, carries its Windows Terminal profile (font 9) as a JSON fragment, never edits `settings.json`, refuses a foreign desktop file unless `--replace` names it (W-bb6c9d9a, D-1042) |
 | [agents_up.sh](scripts/sysadmin/agents_up.sh) | Opens a repo's builder agents side by side in one tmux window, one pane per builder resuming its own session id, read from `<repo>/.fabrik/session-agents.json` (the coordinator gets no pane); validates every row before it reaches a shell, `--print` shows the grid and launches nothing; the per-repo form of `~/bin/hub-up` (D-1031) |
 | [doc-script-baseline.json](.fabrik/doc-script-baseline.json) | The doc↔script coverage ratchet's tracked floor (headerless-script count; may only go DOWN; 0 locks) — written by `render_doc_script_links.py --coverage`, read by the blocking gate row. |
@@ -2296,6 +2347,8 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_claude_stop_decider_selfwatch.py](tests/test_claude_stop_decider_selfwatch.py) | Graders for the Stop decider's self-watch arm exclusion (D-359): every real arm shape left out of the pending wakers, commands that only read the script kept, row order and a missing tool_use id |
 | [test_kaizen_agent_wiring.py](tests/test_kaizen_agent_wiring.py) | Graders for the fourth hub agent's wiring: `--to-agent kaizen`, the Stop ladder's feedback rung following `feedback_owner`, `--reject`, the relay's recipient, the one-wake feedback watch, its per-prompt check, the charter injection (count them with pytest --collect-only) |
 | [test_selfwatch_arm.py](tests/test_selfwatch_arm.py) | Graders for the self-watch arm wrapper over a stub watcher: wake, duplicate, missing watcher, TERM and SIGKILL of the task, no setpriv, silent watcher, a line without a newline |
+| [test_claude_tab_router.py](tests/test_claude_tab_router.py) | Graders for the chat-tab router and its wrapper against a fixture HOME + /proc + /opt: entries, live-role refusal per repo, re-root of a restored tab (never a live session's), argv rewriting (variadic `--add-dir`), UUID-only resume ids, the picker deadline, and the wrapper's plain-launch fallbacks, stdin hand-through and role-less pick |
+| [test_fabrik_deck.py](tests/test_fabrik_deck.py) | Graders for `fabrik_deck.py` against a temp HOME with fake `systemctl`/`loginctl`/`code-server`: the keep-list environment, the bind address and bad ports, the unit passing real `systemd-analyze --user verify` with empty stderr, append-only env keys, the hard stops (linger, missing hub script or binary, foreign unit, failing systemctl) and start-only-when-asked-and-free |
 | [test_agents_bat.py](tests/test_agents_bat.py) | Graders for `agents_bat.py` against a tmp /opt and desktop: one .bat per registry repo, nothing written without `--desktop`, the cmd.exe traps in the .bat text (CRLF, handle redirects, `)` in the echo block, space-free wt arguments), the fragment parsing as JSON, foreign/marked/identical files, unsafe names and case collisions |
 | [test_agents_up.py](tests/test_agents_up.py) | Graders for `agents_up.sh` through `--print`: one pane per builder in name order without the coordinator, a malformed registry refusing the launch, a repo with no registry refusing, the tmux-safe session name |
 | [test_user_hook_gate.py](tests/test_user_hook_gate.py) | Graders (count them with pytest --collect-only, a number here rots — closing review E7): defers only on a same-event registration at the resolved project root (substring in a comment/other event does not), a subdirectory cwd resolves the root, the REAL `quota_stop.py` deny passes through byte for byte (stdout JSON + exit code), a hang is fail-open with a stderr line, a missing hook is fail-open with a stderr line, the helper payload shapes. |
@@ -2401,6 +2454,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
 | [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag |
 | [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
+| [test_specs_all_load.py](tests/test_specs_all_load.py) | every YAML under `specs/` loads through `load_spec`, except the three other-schema directories (`.archive/`, `verification/`, `sites/`); the exemptions exist and never cover `specs/services/` (D-1097 retired `specs/infrastructure/`) |
 | **src/fabrik/locks_local.py** | T2-01 G-F2 — project-scoped fcntl-based `file_lock()` context manager for WSL-side Python orchestration concurrency (NOT [reusable]; project-internal, imports fabrik.config) |
 | **src/fabrik/state.py** | T2-01 G-F3 — per-deploy state file persistence under `.fabrik/state/<id>.json`; `save()`, `load()`, `archive_destroyed()`, `find_by_spec_id()`, `DATA_BEARING_REGISTRARS` constant. Project-scoped. |
 | **src/fabrik/audit.py** | T2-02 G-G2 — per-registrar drift audit module; 9 `audit_<name>` functions mirroring each driver's transport (SSH for 7, HTTP/requests for glitchtip, n/a for grafana); `audit_all(spec)` aggregator never raises; `AuditResult` dataclass with `status ∈ {present, missing, drift, n/a, override, unknown}`. Project-scoped. |

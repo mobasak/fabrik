@@ -8,7 +8,7 @@
 
 n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.com`.
 
-> **Authentication:** n8n v1.0+ removed basic auth (there are no `N8N_USER` / `N8N_PASSWORD` env vars in `specs/infrastructure/n8n.yaml`). The instance is fronted by **Authelia SSO** — unauthenticated requests to `https://auto.vps1.ocoron.com/` return `302 → auth.vps1.ocoron.com` (verified live). After Authelia, you log in to n8n with the **owner account** created via the first-run setup wizard.
+> **Authentication:** n8n v1.0+ removed basic auth (the live compose, mirrored at `infra/vps1/n8n/compose.yaml`, sets no `N8N_USER` / `N8N_PASSWORD`). The instance is fronted by **Authelia SSO** — unauthenticated requests to `https://auto.vps1.ocoron.com/` return `302 → auth.vps1.ocoron.com` (verified live). After Authelia, you log in to n8n with the **owner account** created via the first-run setup wizard.
 
 | Setting | Value |
 |---------|-------|
@@ -17,13 +17,13 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 | **Internal port** | 5678 |
 | **Apprise internal** | `http://apprise:8000/notify` (Docker network) |
 | **Apprise external** | `https://notify.vps1.ocoron.com` (Traefik → internal 8000; no host port) |
-| **Spec** | `specs/infrastructure/n8n.yaml` |
+| **Compose** | `/opt/n8n/compose.yaml` on vps1, mirrored at `infra/vps1/n8n/compose.yaml` |
 
 > **Port Mapping:** Apprise publishes **no host port** — Traefik routes `notify.vps1.ocoron.com` to the container's internal `8000` over the `fabrik` network.
 > - **n8n → Apprise** (inside Docker): `http://apprise:8000/notify`
 > - **External access**: `https://notify.vps1.ocoron.com` (Traefik reaches Apprise over the `fabrik` Docker network on internal port 8000 — the deployed compose publishes no host port)
 >
-> See `specs/infrastructure/apprise.yaml` and `PORTS.md` for details.
+> See `infra/vps1/apprise/compose.yaml` and `PORTS.md` for details.
 
 ---
 
@@ -280,4 +280,4 @@ wget -qO- http://localhost:5678/healthz
 docker logs n8n --tail 50
 ```
 
-The n8n container uses `wget -qO- http://localhost:5678/healthz` for its healthcheck (defined in `specs/infrastructure/n8n.yaml`) — the n8n image ships without `curl`. The `/healthz` endpoint is available by default in n8n without additional configuration and returns `{"status":"ok"}`.
+The compose defines no healthcheck (`infra/vps1/n8n/compose.yaml`); probe by hand with `docker exec n8n wget -qO- http://localhost:5678/healthz` — the n8n image ships without `curl`. The `/healthz` endpoint is available by default in n8n without additional configuration and returns `{"status":"ok"}`.
