@@ -368,7 +368,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-22T13:08 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -457,6 +457,7 @@ docs/
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   ├── 2026-10-21-plan-3-own-scrape-slice-1a.md
+│   │   ├── 2026-10-22-plan-1-fabrik-deck.md
 │   │   ├── 2026-10-22-plan-1-least-operator-approval.md
 │   │   └── archived
 │   └── reviews
@@ -1233,7 +1234,6 @@ docs/
 │       ├── 2026-10-17-plan-1-command-centre-dashboard-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
-│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
 │       ├── 2026-10-17-stop-hook-uncommitted-vs-running-review-review.md
 │       ├── 2026-10-17-test-caps-w162398ef-review.md
 │       ├── 2026-10-17-w-177082fc-review-loop-candidate-file-review.md
@@ -1306,14 +1306,55 @@ docs/
 │       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-master-red-gate-cites-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-276255e7-linear-fences-r3-review.md
 │       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-2fd7cfd1-node-pack-paytr-line-review.md
+│       ├── 2026-10-20-w-34fce72d-plan-review-queue-review.md
 │       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
 │       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-47d91afa-enforcement-orphan-prune-review.md
+│       ├── 2026-10-20-w-55905ee1-link-whitespace-line-ending-review.md
+│       ├── 2026-10-20-w-60629ce4-review.md
+│       ├── 2026-10-20-w-69f51003-link-check-code-examples-review.md
 │       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-78e51f33-seat-copy-links-r2-review.md
+│       ├── 2026-10-20-w-7caa8a90-lock-owned-paths-review.md
+│       ├── 2026-10-20-w-89474fc1-review.md
+│       ├── 2026-10-20-w-8f9a7d2c-code-span-headers-r2-review.md
+│       ├── 2026-10-20-w-bb97199e-sync-file-set-from-head-review.md
+│       ├── 2026-10-20-w-bc457e27-panel-attachment-handbacks-review.md
 │       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
+│       ├── 2026-10-20-w-c6d19bda-preplan-registry-review.md
+│       ├── 2026-10-20-w-cc9b0532-prometheus-reload-outcome-review.md
+│       ├── 2026-10-20-w-d0e5a017-pause-worker-pack-line-review.md
+│       ├── 2026-10-20-w-d537275a-refuse-symlinked-sync-sources-review.md
+│       ├── 2026-10-20-w-f599a88c-registrar-role-collision-review.md
+│       ├── 2026-10-20-w693ee1ca-payments-fulfilment-packs-r2-review.md
+│       ├── 2026-10-21-claude-tab-router-review.md
+│       ├── 2026-10-21-fabrik-deck-spec-review.md
 │       ├── 2026-10-21-own-scrape-slice-1a-plan-review.md
+│       ├── 2026-10-21-own-scrape-tools-spec-review.md
+│       ├── 2026-10-21-payments-fulfilment-grant-wording-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-2-review.md
+│       ├── 2026-10-21-w-16c00597-linear-code-span-blanker-review.md
+│       ├── 2026-10-21-w-1b9ae5f2-stop-hook-attachment-rows-review.md
+│       ├── 2026-10-21-w-1e9ae1e5-review.md
+│       ├── 2026-10-21-w-6424f2e8-panel-brief-queued-prompt-review.md
+│       ├── 2026-10-21-w-6904b41e-contract-regions-linear-review.md
+│       ├── 2026-10-21-w-a7cff030-status-in-code-span-review.md
+│       ├── 2026-10-21-w-b2bbc1f1-plan-lock-discovery-review.md
+│       ├── 2026-10-21-w-b9af1d47-code-span-links-review.md
+│       ├── 2026-10-21-w-c638bb08-review.md
+│       ├── 2026-10-21-w-c83c550c-worktree-editable-imports-review.md
+│       ├── 2026-10-21-w-d2eef742-plan-fence-strips-review.md
+│       ├── 2026-10-21-w4801e4c3-container-memory-alerts-review.md
+│       ├── 2026-10-22-payments-role-reapply-review.md
+│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
+│       ├── 2026-10-22-retire-specs-infrastructure-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1348,6 +1389,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-30.md
 │   │   ├── fleet-doc-audit-2026-10-07.md
 │   │   ├── fleet-doc-audit-2026-10-14.md
+│   │   ├── fleet-doc-audit-2026-10-21.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -1457,12 +1499,14 @@ docs/
 │   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-mail.md
+│   ├── fabrik-scrape-mcp.md
 │   ├── fabrik-task-lane.md
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
 │   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
+│   ├── hibernate.md
 │   ├── jev-decision-model-map.md
 │   ├── kilo
 │   │   ├── AGGREGATOR_ROADMAP.md
@@ -1680,6 +1724,7 @@ docs/
 │       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-18-external-services-page-design.md
 │       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
+│       ├── 2026-10-21-fabrik-deck-design.md
 │       ├── 2026-10-21-own-scrape-tools-design.md
 │       ├── 2026-10-22-least-operator-approval-design.md
 │       └── archived
