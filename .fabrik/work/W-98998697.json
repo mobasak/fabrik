@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-22T22:30:59.783150Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-98998697",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,12 @@
   },
   "next": "owner of the orchestrator registrar path: read D-1105, then make the payments refusal fatal or record why non-fatal holds",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-1105 (panel ruling) says the deploy STOPS on an escalated payments login; infrastructure.py:684 records the registrar refusal via _nonfatal, so a deploy ships past a fail-closed security rule — one code change plus its test; orchestrator deploy path is fleet's beat",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "D-1105 says a payments login escalated out of band STOPS the deploy, but _provision_payments_role treats the registrar's refusal as non-fatal (src/fabrik/orchestrator/infrastructure.py:684, recorded via _nonfatal; the CLI prints 'Deployment finished but N registrar(s) FAILED', cli.py:564) — decide whether a payments-role refusal must fail the deploy; routed from W-98debf05's design critique (Opus seat, 2026-10-23)"
 }
