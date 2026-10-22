@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,11 @@ def test_per_call_metrics_use_top_level_closes_only(env):
     by_agent = {r["key"]: r for r in ctx_rows if r["by"] == "agent"}
     assert by_agent["kaizen"]["numerator"] == 3000 and by_agent["intel"]["numerator"] == 1000
     assert "1 nested" in ctx.detail
+    closes = [r for r in ctx_rows if r["by"] == "total" and r["key"] == "closes"]
+    assert closes[0]["value"] == 3  # top-level closes, the 20-close floor's count
+    # a torn ledger value (a string, NaN) is absent for its row, never a crash of the day
+    _feedback(env, [_close(tok_msgs="7"), _close(tok_msgs=float("nan"), gap_s="1h")])
+    assert kw.compute_day(DAY)["waste_context_per_call"][0].value == pytest.approx(200.0)
 
 
 def test_seat_share_counts_four_fields_and_refuses_days_before_the_field(env):
@@ -123,6 +129,8 @@ def test_seat_share_counts_four_fields_and_refuses_days_before_the_field(env):
     assert seat.value == pytest.approx(40.0)  # 400 seat of 1000 total
     before, _ = kw.compute_day(early)["waste_seat_share"]
     assert not before.measurable and "not yet recorded" in before.detail
+    ctx, _ = kw.compute_day("2026-09-01")["waste_context_per_call"]
+    assert not ctx.measurable and "not yet recorded" in ctx.detail
 
 
 def _identity(env: Path, rows: list[tuple[str, str, str]]) -> None:
@@ -161,23 +169,34 @@ def test_rotation_counts_rebinds_not_births_and_names_unfound_transcripts(env):
             ("intel", "s2", DAY),  # rotation
             ("intel", "s2", DAY),  # a --force rebind of the same session — not a new one
             ("kaizen", "k1", DAY),  # birth
-            ("kaizen", "k2", DAY),  # rotation, transcript missing
         ],
     )
     _transcript(env, "s2", cc=90_000, cr=20_000, inp=2)
     rot, rows = kw.compute_day(DAY)["waste_rotation_rebuild"]
     assert rot.measurable and rot.value == 110_002
     assert (rot.numerator, rot.denominator) == (110_002, 1)
-    assert "1 unfound" in rot.cell
     assert {r["key"] for r in rows if r["by"] == "agent"} == {"intel"}
     quiet, _ = kw.compute_day("2026-10-11")["waste_rotation_rebuild"]
     assert quiet.measurable and quiet.value == 0  # the store was read and holds none
-    _identity(env, [("fleet", "f1", "2026-10-12"), ("fleet", "f2", "2026-10-12")])
+    # one found and one unfound: unmeasured (a partial total would be frozen low for good)
+    _identity(
+        env,
+        [
+            ("fleet", "f1", "2026-10-11"),
+            ("fleet", "f2", "2026-10-12"),
+            ("kaizen", "k1", "2026-10-11"),
+        ],
+    )
+    _identity(env, [("kaizen", "k2", "2026-10-12")])
+    _transcript(env, "f2", cc=1, cr=1, inp=1)
     lost, _ = kw.compute_day("2026-10-12")["waste_rotation_rebuild"]
-    assert not lost.measurable and "unfound" in lost.detail
+    assert not lost.measurable and "1 of 2" in lost.detail
+    # a transcript whose message is not an object is unfound, never a crash
+    (env / "projects" / "-opt-x" / "k2.jsonl").write_text('{"type":"assistant","message":[1]}\n')
+    assert not kw.compute_day("2026-10-12")["waste_rotation_rebuild"][0].measurable
 
 
-def test_wall_rate_counts_quota_closes_and_quota_pauses(env):
+def test_wall_rate_counts_quota_closes_not_operator_pauses(env):
     _feedback(
         env,
         [
@@ -237,6 +256,18 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
     _git(repo, "commit", "-q", "--allow-empty", "-m", "fix: tidy hooks registered on master")
     # the real phrase in a non-fix subject: the fix-shape alone excludes it
     _git(repo, "commit", "-q", "--allow-empty", "-m", "docs: note the red master episode")
+    # the trailing boundaries: a longer word, and a subject that only starts like `fix`
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "fix: red mastery of the queue")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "fixture: red master sample")
+    # a bare Agent-Name key never takes the next trailer line as the agent
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fix(x): red master again\n\nAgent-Name:\nCo-Authored-By: t",
+    )
     _git(repo, "checkout", "-q", "master")
     _git(
         repo,
@@ -258,16 +289,59 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         "fix: allowlist x (red on master since W-1)",
         date=f"{DAY}T15:00:00",
     )
+    # exactly at the next midnight: the next day's, never both (git's --until is inclusive)
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fix: red master at midnight",
+        date="2026-10-11T00:00:00",
+    )
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(repo))
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REF", "master")
     rm, rows = kw.compute_day(DAY)["waste_red_master_rework"]
-    assert rm.measurable and rm.value == 2, rm
+    assert rm.measurable and rm.value == 3, rm
     assert {r["key"]: r["value"] for r in rows if r["by"] == "agent"} == {
         "kaizen": 1,
-        "unattributed": 1,
+        "unattributed": 2,
     }
+    # the ref has nothing after 10-11: that day is unknown (a stale ref), never a quiet 0
+    stale, _ = kw.compute_day("2026-10-11")["waste_red_master_rework"]
+    assert not stale.measurable and "stale" in stale.detail
     before, _ = kw.compute_day("2026-10-09")["waste_red_master_rework"]
     assert before.measurable and before.value == 0  # not yet on master that day
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
+    time.tzset()
+    try:
+        _git(
+            repo,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "fix: red master in the 25th hour",
+            date="2026-11-01T23:30:00-05:00",
+        )
+        _git(
+            repo,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "chore: tip",
+            date="2026-11-03T12:00:00-05:00",
+        )
+        assert kw.compute_day("2026-11-01")["waste_red_master_rework"][0].value == 1
+        assert kw.compute_day("2026-11-02")["waste_red_master_rework"][0].value == 0
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(env / "missing"))
     broken, _ = kw.compute_day(DAY)["waste_red_master_rework"]
     assert not broken.measurable and broken.detail
@@ -300,11 +374,19 @@ def test_backfill_is_idempotent_bounded_and_writes_breakdown(env):
     assert (DAY, "waste_context_per_call", "agent", "intel") in keys
     assert (DAY, "waste_context_per_call", "command", "fabrik-task") in keys
     assert len(bd) == len(keys)  # one row per (day, metric, by, key) after two runs
-    # a racing second writer of the same (day, metric) adds nothing
+    # a second write of the same (day, metric) adds nothing
     kw._write_breakdown(DAY, {"waste_context_per_call": [{"by": "agent", "key": "x"}]}, None)
     assert len((env / "kaizen" / "waste-breakdown@v1.jsonl").read_text().splitlines()) == len(bd)
     with pytest.raises(ValueError):
         kw.publish_day("2026-10-20", today="2026-10-20")  # never today
+    # past the collector's newest day: the daily hook's direct call waits, writing nothing
+    assert kw.publish_day("2026-10-11", today="2026-10-20") == []
+    assert kw.breakdown_path(env / "kaizen").name == kd.BREAKDOWN_FILE
+    with pytest.raises(SystemExit):
+        kw.main(["--day", "20261010"])  # one spelling of a day, or the series key forks
+    with pytest.raises(SystemExit):
+        kw.main(["--rebaseline", "waste_seat_share"])  # a rebaseline names its day
+    assert kw.main(["--publish", "--day", "2026-10-11"]) == 2  # past the bound
 
 
 def _points(
@@ -337,7 +419,7 @@ def _points(
     return days
 
 
-def test_digest_control_section_frozen_limits_and_rules(env):
+def test_digest_control_section_frozen_limits_and_rules(env, monkeypatch):
     base = [100, 102, 98, 101, 99, 100, 103, 97, 100, 101, 99, 102, 98, 100]
     days = _points(env, "waste_context_per_call", [*base, 100, 160])
     out = kd.compose(env / "kaizen")
@@ -364,6 +446,27 @@ def test_digest_control_section_frozen_limits_and_rules(env):
         start="2026-05-01",
     )
     assert "OUT OF CONTROL ↑ waste_red_master_rework" in kd.compose(env / "kaizen")
+    # the c-chart, not XmR: a 1 after a sparse baseline is inside Poisson limits (XmR flags it)
+    sparse = [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    (env / "kaizen" / "series" / "waste_red_master_rework@v1.jsonl").unlink()
+    _points(env, "waste_red_master_rework", [*sparse, 1], start="2026-04-01")
+    assert "OUT OF CONTROL ↑ waste_red_master_rework" not in kd.compose(env / "kaizen")
+    # quiet days below a rare count's centre are the process, not a shift
+    (env / "kaizen" / "series" / "waste_red_master_rework@v1.jsonl").unlink()
+    _points(env, "waste_red_master_rework", [*sparse, *([0] * 8)], start="2026-04-01")
+    assert "waste_red_master_rework" not in kd.compose(env / "kaizen").split("CONTROL:")[0]
+    (env / "kaizen" / "series" / "waste_red_master_rework@v1.jsonl").unlink()
+    # a flat ratio baseline has no width: any departure is a shift, never 'no limits'
+    _points(env, "waste_wall_rate", [*([0.0] * 14), 25.0], start="2026-03-01")
+    assert "OUT OF CONTROL ↑ waste_wall_rate" in kd.compose(env / "kaizen")
+    (env / "kaizen" / "series" / "waste_wall_rate@v1.jsonl").unlink()
+    # lower is better: a downward shift is an improvement to re-baseline, not an item
+    _points(env, "waste_output_per_call", [*base, *([101.5] * 8), 60], start="2026-07-01")
+    out = kd.compose(env / "kaizen")
+    assert (
+        "IMPROVED ↓ waste_output_per_call" in out
+        and "OUT OF CONTROL ↑ waste_output_per_call" not in out
+    )
     # a short baseline says so instead of judging
     _points(env, "waste_wall_rate", [1, 2, 3], start="2026-06-01")
     assert "waste_wall_rate: baseline 2/14 — no limits yet" in kd.compose(env / "kaizen")
@@ -372,3 +475,15 @@ def test_digest_control_section_frozen_limits_and_rules(env):
     lines = kd.compose(env / "kaizen").splitlines()
     assert "waste_context_per_call: 2026-09-17 under 20 closes — plotted, not judged" in lines
     assert not any(ln.startswith("OUT OF CONTROL ↑ waste_context_per_call") for ln in lines)
+    # no close count at all is said as such, never as a small one
+    _points(env, "waste_seat_share", [9], start="2026-10-30")
+    bd = env / "kaizen" / "waste-breakdown@v1.jsonl"
+    bd.write_text("".join(x + "\n" for x in bd.read_text().splitlines() if "2026-10-30" not in x))
+    assert (
+        "waste_seat_share: 2026-10-30 no close count in the breakdown — plotted, not judged"
+        in kd.compose(env / "kaizen")
+    )
+    # the control section never costs the digest its other lines
+    monkeypatch.setattr(kd, "_control", lambda *_: 1 / 0)
+    broken = kd.compose(env / "kaizen")
+    assert "CONTROL unavailable" in broken and "waste_seat_share: 9" in broken

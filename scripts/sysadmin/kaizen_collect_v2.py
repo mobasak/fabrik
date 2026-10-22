@@ -2785,13 +2785,14 @@ def _publish_outcome_series(day_stamp: str, st: Path) -> list[Path]:
 
 def _publish_waste_series(day_stamp: str, st: Path) -> list[Path]:
     """The token-waste tier (W-02472911, D-1118): six waste categories per day from the
-    feedback ledger, the identity store, transcripts and one bounded read-only ``git log``
-    (``kaizen_waste.py``). Same guard shape as the outcome tier: lazy, fail-open — a waste
+    feedback ledger, the identity store, transcripts and bounded read-only ``git log`` reads
+    (``kaizen_waste.py``), for the day and the two before it (a day unmeasured once is retried;
+    the publish is idempotent). Same guard shape as the outcome tier: lazy, fail-open — a waste
     failure costs the waste series only, never the T06 publish."""
     try:
         import kaizen_waste  # noqa: PLC0415 - lazy; it imports this module
 
-        return kaizen_waste.publish_day(day_stamp, state=st)
+        return kaizen_waste.publish_recent(day_stamp, state=st)
     except Exception as exc:
         _warn(f"waste-tier series publish failed open: {exc!r}")
         return []

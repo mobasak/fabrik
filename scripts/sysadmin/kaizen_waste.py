@@ -41,6 +41,7 @@ import collections
 import datetime as dt
 import glob
 import json
+import math
 import os
 import re
 import subprocess
@@ -60,8 +61,11 @@ _RED = re.compile(
     r"\b(?:red master|master (?:is |went |turned )?red|red on master|master red)\b", re.I
 )
 _FIX_SUBJECT = re.compile(r"^(?:fix|test|revert)\b", re.I)
-_AGENT_NAME = re.compile(r"^Agent-Name:\s*(\S+)", re.M)
+_AGENT_NAME = re.compile(
+    r"^Agent-Name:[ \t]*(\S+)", re.M
+)  # [ \t]: a bare key never takes the next line
 _QUOTA = re.compile(r"quota", re.I)
+_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 WASTE_METRIC_DEFS: tuple[dict, ...] = (
     {
@@ -106,9 +110,6 @@ WASTE_METRIC_DEFS: tuple[dict, ...] = (
         "counter_metric": "waste_wall_rate",
         "formula": "sum tok_out / sum tok_msgs over the day's top-level closes with tok_msgs > 0",
     },
-)
-RATIO_METRICS = frozenset(
-    {"waste_context_per_call", "waste_seat_share", "waste_wall_rate", "waste_output_per_call"}
 )
 _SEAT_FIELDS = ("tok_seat_in", "tok_seat_out", "tok_seat_cache_read", "tok_seat_cache_create")
 _LEAD_FIELDS = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
@@ -167,9 +168,20 @@ def local_day(ts: object) -> str | None:
         return None
 
 
+def _num(v: object) -> float | None:
+    """A finite number, else None — a torn or hand-edited ledger value (a string, NaN, a bool)
+    is absent, never a crash that costs the whole day's publish."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
+
+
 def _int(row: dict, key: str) -> int:
-    v = row.get(key)
-    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+    """A token count. None means the writer summed nothing — measured on the live ledger, every
+    `tok_seat_in: None` row has no seat seen or skipped and every `tok_cache_read: None` row has
+    no turns — so 0 is that row's true value, not an unknown."""
+    v = _num(row.get(key))
+    return int(v) if v is not None else 0
 
 
 def _first_day(rows: list[dict], field: str) -> str | None:
@@ -194,11 +206,13 @@ def _ratio(
     num_of,
     den_of,
     *,
+    closes: int,
     scale: float = 1.0,
     unit: str,
     detail: str,
 ) -> tuple[MetricResult, list[dict]]:
-    """One ratio metric over the day's rows, with its per-agent and per-command cut."""
+    """One ratio metric over the day's rows, with its per-agent and per-command cut. ``closes``
+    is the day's TOP-LEVEL close count — the digest's 20-close judging floor reads it."""
     num = sum(num_of(r) for r in rows)
     den = sum(den_of(r) for r in rows)
     if den <= 0:
@@ -206,7 +220,7 @@ def _ratio(
             mid, f"no top-level close with a denominator ({detail})"
         ), []
     value = scale * num / den
-    cut: list[dict] = [_bd("total", "closes", len(rows), len(rows), len(rows))]
+    cut: list[dict] = [_bd("total", "closes", closes, closes, closes)]
     for by, key_of in (("agent", _agent), ("command", lambda r: str(r.get("command") or "?"))):
         groups: dict[str, list[dict]] = collections.defaultdict(list)
         for r in rows:
@@ -244,6 +258,7 @@ def _ledger_metrics(day: str) -> dict[str, tuple[MetricResult, list[dict]]]:
             with_msgs,
             lambda r: _int(r, "tok_cache_read"),
             lambda r: _int(r, "tok_msgs"),
+            closes=len(top),
             unit=" tok/call",
             detail=note,
         ),
@@ -256,6 +271,7 @@ def _ledger_metrics(day: str) -> dict[str, tuple[MetricResult, list[dict]]]:
             with_msgs,
             lambda r: _int(r, "tok_out"),
             lambda r: _int(r, "tok_msgs"),
+            closes=len(top),
             unit=" tok/call",
             detail=note,
         ),
@@ -270,13 +286,14 @@ def _ledger_metrics(day: str) -> dict[str, tuple[MetricResult, list[dict]]]:
             [r for r in top if "tok_seat_in" in r],
             lambda r: sum(_int(r, f) for f in _SEAT_FIELDS),
             lambda r: sum(_int(r, f) for f in (*_SEAT_FIELDS, *_LEAD_FIELDS)),
+            closes=len(top),
             scale=100.0,
             unit="%",
             detail=f"{rounds_note} · {note}",
         ),
     )
     waited = sum(
-        float(r.get("gap_s") or 0.0)
+        _num(r.get("gap_s")) or 0.0
         for r in top
         if isinstance(r.get("resumed_from"), dict)
         and _QUOTA.search(str(r["resumed_from"].get("reason") or ""))
@@ -289,6 +306,7 @@ def _ledger_metrics(day: str) -> dict[str, tuple[MetricResult, list[dict]]]:
             top,
             lambda r: 1 if r.get("state") == "blocked" and r.get("wall") == "quota" else 0,
             lambda r: 1,
+            closes=len(top),
             scale=100.0,
             unit="%",
             detail=f"{waited / 3600:.1f} h waited after quota walls (resumed closes) · {note}",
@@ -316,9 +334,10 @@ def _birth_context(path: Path) -> int | None:
                     row = json.loads(line)
                 except ValueError:
                     continue
+                msg = row.get("message") if isinstance(row, dict) else None
                 usage = (
-                    (row.get("message") or {}).get("usage")
-                    if row.get("type") == "assistant"
+                    msg.get("usage")
+                    if isinstance(msg, dict) and row.get("type") == "assistant"
                     else None
                 )
                 if isinstance(usage, dict):
@@ -337,7 +356,7 @@ def _birth_context(path: Path) -> int | None:
 
 def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
     mid = "waste_rotation_rebuild"
-    rows = sorted(_jsonl(identity_path()), key=lambda r: float(r.get("at") or 0))
+    rows = sorted(_jsonl(identity_path()), key=lambda r: _num(r.get("at")) or 0.0)
     if not rows:
         return MetricResult.unavailable(mid, "agent-identity store empty or absent"), []
     first = local_day(rows[0].get("at"))
@@ -370,12 +389,17 @@ def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
         found += 1
         total += size
         per_agent[name] += size
-    if not found:
-        return MetricResult.unavailable(mid, f"all {unfound} rotation transcript(s) unfound"), []
+    if unfound:
+        # a partial total published as the day's value would be frozen low for good (the
+        # publish is idempotent per day): the day stays unmeasured until every transcript reads
+        return MetricResult.unavailable(
+            mid, f"{unfound} of {len(rotations)} rotation transcript(s) unfound or without usage"
+        ), []
     cut = [_bd("total", "rotations", found, found, found)]
     cut += [_bd("agent", k, v, 1, v) for k, v in sorted(per_agent.items())]
-    cell = f"{total:,} tok (n={found} rotations" + (f", {unfound} unfound)" if unfound else ")")
-    return MetricResult(mid, cell, "", True, total, total, found), cut
+    return MetricResult(
+        mid, f"{total:,} tok (n={found} rotations)", "", True, total, total, found
+    ), cut
 
 
 def _git(args: list[str]) -> str:
@@ -391,28 +415,38 @@ def _git(args: list[str]) -> str:
 def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     mid = "waste_red_master_rework"
     ref = os.environ.get("KAIZEN_WASTE_GIT_REF") or "origin/master"
-    start = dt.datetime.combine(dt.date.fromisoformat(day), dt.time()).astimezone()
-    end = start + dt.timedelta(days=1)
+    d = dt.date.fromisoformat(day)
+    # each bound is its own local midnight (a DST day is 23 or 25 hours), and the window is
+    # half-open in Python: git's --since/--until are both inclusive, so a commit stamped exactly
+    # at midnight would count on two days
+    start = dt.datetime.combine(d, dt.time()).astimezone().timestamp()
+    end = dt.datetime.combine(d + dt.timedelta(days=1), dt.time()).astimezone().timestamp()
     try:
+        tip = float(_git(["log", "-1", "--format=%ct", ref]).strip() or 0)
+        if tip < end:
+            # a ref not fetched past the day reads as a quiet day — an unknown, never a 0
+            return MetricResult.unavailable(mid, f"{ref} has nothing after {day} (stale ref?)"), []
         arrivals = _git(
             [
                 "log",
                 ref,
                 "--first-parent",
-                f"--since={start.isoformat()}",
-                f"--until={end.isoformat()}",
-                "--format=%H %P",
+                f"--since=@{int(start) - 1}",
+                f"--until=@{int(end) + 1}",
+                "--format=%H %ct %P",
             ]
         )
         shas: list[str] = []
         for line in arrivals.splitlines():
-            sha, *parents = line.split()
+            sha, ct, *parents = line.split()
+            if not start <= float(ct) < end:
+                continue
             if len(parents) > 1:
                 shas += _git(["log", "--no-merges", "--format=%H", f"{parents[0]}..{sha}"]).split()
             else:
                 shas.append(sha)
         messages = _git(["show", "-s", "--format=%x1e%B", *shas]).split("\x1e") if shas else []
-    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
         return MetricResult.unavailable(mid, f"git read failed: {exc}"), []
     per_agent: dict[str, int] = collections.Counter()
     for msg in messages:
@@ -480,15 +514,33 @@ def publish_day(day: str, today: str | None = None, state: Path | None = None) -
         raise ValueError(
             f"refusing to publish {day}: only days before today ({today}) are complete"
         )
+    if day > publish_bound(today, state):
+        # the daily hook calls this directly: a waste-only day would move the collector's
+        # newest-day guard and refuse its own catch-up, so it waits for the collector's day
+        kc._warn(
+            f"waste tier: {day} is past the publish bound — the collector has not published it"
+        )
+        return []
     computed = compute_day(day)
+    # breakdown FIRST (idempotent per day and metric): a crash between the two writes then
+    # leaves a breakdown whose series the next run appends, never a series whose breakdown
+    # no run will ever write (publish_series skips a day it already holds)
+    _write_breakdown(day, {mid: cut for mid, (m, cut) in computed.items() if m.measurable}, state)
     results = {mid: m for mid, (m, _) in computed.items()}
-    written = kc.publish_series(day, results, registry(), state)
-    published = {p.name.split("@", 1)[0] for p in written}
-    _write_breakdown(
-        day,
-        {mid: cut for mid, (m, cut) in computed.items() if m.measurable and mid in published},
-        state,
-    )
+    return kc.publish_series(day, results, registry(), state)
+
+
+RETRY_DAYS = 3  # a day unmeasured at its first publish (a ref not yet past it, a transcript
+# not yet flushed) is retried on the next two daily runs; publishing is idempotent per day
+
+
+def publish_recent(day: str, today: str | None = None, state: Path | None = None) -> list[Path]:
+    """The daily hook's entry: publish ``day`` and the RETRY_DAYS - 1 days before it, oldest
+    first, so a day that was unmeasurable once fills when its source catches up."""
+    d = dt.date.fromisoformat(day)
+    written: list[Path] = []
+    for back in range(RETRY_DAYS - 1, -1, -1):
+        written += publish_day((d - dt.timedelta(days=back)).isoformat(), today, state)
     return written
 
 
@@ -511,7 +563,7 @@ def backfill(
 def rebaseline(metric: str, from_day: str, reason: str, state: Path | None = None) -> Path:
     if metric not in registry():
         raise ValueError(f"unknown waste metric {metric!r}")
-    dt.date.fromisoformat(from_day)
+    _day_arg(from_day)
     if not reason.strip():
         raise ValueError("a rebaseline names its reason (the improvement it follows)")
     path = baselines_path(state)
@@ -530,14 +582,23 @@ def rebaseline(metric: str, from_day: str, reason: str, state: Path | None = Non
 # ── cli ──────────────────────────────────────────────────────────────────────────────
 
 
+def _day_arg(value: str) -> str:
+    """YYYY-MM-DD only: ``fromisoformat`` also takes "20261010", which would key a series day in
+    a second spelling the string-ordered readers sort apart."""
+    if not _DAY.fullmatch(value):
+        raise ValueError(f"{value!r} is not YYYY-MM-DD")
+    dt.date.fromisoformat(value)
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--day")
+    ap.add_argument("--day", type=_day_arg)
     ap.add_argument("--publish", action="store_true")
     ap.add_argument("--backfill", action="store_true")
-    ap.add_argument("--since")
+    ap.add_argument("--since", type=_day_arg)
     ap.add_argument("--rebaseline", metavar="METRIC")
-    ap.add_argument("--from", dest="from_day")
+    ap.add_argument("--from", dest="from_day", type=_day_arg)
     ap.add_argument("--reason", default="")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)

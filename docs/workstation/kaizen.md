@@ -285,8 +285,10 @@ to the operator's Telegram via `send-telegram.sh`. Built on the operator's chall
 collector had published real series for days into a log nobody is shown; measurement without a
 reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip. Points are read in DAY
 order (a backfill appends older days after a daily publish). The message opens with the waste series'
-CONTROL section (D-1118): an `OUT OF CONTROL` line per series beyond its frozen 3-sigma limits or 8 in a
-row on one side, then the baselines still short of 14 points — rules in `docs/reference/kaizen-waste-define.md`.
+CONTROL section (D-1118): an `OUT OF CONTROL ↑` line per series above its frozen 3-sigma limits or 8 in a
+row above its centre, an `IMPROVED ↓` line for a downward shift to re-baseline, then the baselines still short
+of 14 points; a failure inside the section prints `CONTROL unavailable` and leaves the rest of the digest
+intact — rules in `docs/reference/kaizen-waste-define.md`.
 
 Cron (⚠️ operator-installed — agent crontab writes are classifier-blocked on this box):
 
