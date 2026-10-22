@@ -21,6 +21,7 @@
   "status": "open",
   "tags": [
     "review-loop",
+    "waits-hibernate",
     "waits-quota"
   ],
   "title": "review-loop seats: cwd and write isolation by construction (mail 01M4PHYNXJ rows 1791209046, 1791049341, 1791225410)"
