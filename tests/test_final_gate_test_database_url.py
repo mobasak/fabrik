@@ -139,6 +139,14 @@ def test_the_sentinel_makes_a_missing_key_red(project):
 def test_the_skip_advisory_names_the_missing_key_only_for_db_gated_suites(project):
     _, ok, text = _row()
     assert ok and KEY in text and str(project / ".env") in text, text
+    # The exact sentence, graded: the exit-4 branch shares it through `_tdb_missing_hint`, and a
+    # reword there must not drift this one (critique seats O5/F6c, W-f46bca45)
+    where = f"{project / '.env.local'}, {project / '.env'}"
+    assert (
+        f"\u26a0 {KEY} is set in neither the environment nor {where}, and tests/ reads it \u2014 "
+        "the skips above likely include the DB-backed suite. Add a disposable database URL (name "
+        "ending `_test`, `throwaway` or `scratch`) to .env.local to run it here."
+    ) in text, text
 
     (project / "tests" / "test_db.py").write_text(
         'import pytest\n\n@pytest.mark.skip(reason="unrelated")\ndef test_x():\n    pass\n'
@@ -285,3 +293,65 @@ def test_two_keys_sharing_a_password_or_a_prefix_each_keep_their_label(rls_proje
     assert not ok, (name, text)
     assert "A=<TEST_DATABASE_URL> B=<TEST_APP_DATABASE_URL>" in text, text
     assert "localhost/test" not in text, text
+
+
+# A suite that REFUSES to run without the key — transdoc's conftest shape (01M171R8, W-f46bca45):
+# pytest exit 4 at collection, its own remedy an `export` into a shell and a database name the
+# gate's disposable bar refuses. The row must put the gate's OWN channel (.env.local, D-597) first.
+REFUSING_CONFTEST = f'''
+import os, pytest
+
+def pytest_collection_modifyitems(config, items):
+    if not os.getenv("{KEY}", ""):
+        raise pytest.UsageError(
+            "{KEY} is not set; refusing. Remedy: createdb shop_test_$USER; export {KEY}=..."
+        )
+'''
+
+# The same refusal, worded without the key: the gate cannot read cause from it
+SILENT_CONFTEST = """
+import os, pytest
+
+def pytest_collection_modifyitems(config, items):
+    if not os.getenv("TEST_DB_READY", ""):
+        raise pytest.UsageError("the database fixture is not configured; refusing")
+"""
+
+
+@pytest.fixture
+def refusing_project(project):
+    (project / "tests" / "conftest.py").write_text(REFUSING_CONFTEST, encoding="utf-8")
+    return project
+
+
+def test_a_refusing_db_suite_is_told_the_gates_own_env_file_remedy(refusing_project):
+    name, ok, text = _row()
+    assert not ok and name == "pytest (SUITE REFUSED \u2014 usage error)", (name, text)
+    assert "Remedy: createdb" in text, text  # the suite's own remedy is still quoted
+    assert "its message names the key" in text and "does not persist into the gate" in text, text
+    assert ".env.local" in text and "<project>_<you>_test" in text, text
+    assert text.index(".env.local") < text.index("Remedy: createdb"), text  # the gate's line first
+    assert "The suite's own message follows" in text, text
+    assert ".env.local" in fg.clip_output(text)["output"], text  # survives the display clip
+
+    (refusing_project / ".env.local").write_text(f"{KEY}={GOOD}\n", encoding="utf-8")
+    name, ok, text = _row()
+    assert name == "pytest" and "from .env.local" in text, (name, text)  # the refusal is gone
+
+
+def test_a_refusal_silent_about_the_key_gets_the_hedged_hint(refusing_project):
+    (refusing_project / "tests" / "conftest.py").write_text(SILENT_CONFTEST, encoding="utf-8")
+    name, ok, text = _row()  # tests/test_db.py still READS the key
+    assert not ok and "SUITE REFUSED" in name, (name, text)
+    assert "a suite that refuses without it" in text and ".env.local" in text, text
+    assert "its message names the key" not in text, text
+
+
+def test_a_refusal_unrelated_to_the_key_gets_no_env_file_hint(refusing_project):
+    (refusing_project / "tests" / "conftest.py").write_text(SILENT_CONFTEST, encoding="utf-8")
+    (refusing_project / "tests" / "test_db.py").write_text(
+        "def test_x():\n    pass\n", encoding="utf-8"
+    )  # nothing under tests/ reads the key and the refusal does not name it
+    name, ok, text = _row()
+    assert not ok and "SUITE REFUSED" in name, (name, text)
+    assert ".env.local" not in text and "The refusal message names the remedy:" in text, text
