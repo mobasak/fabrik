@@ -537,7 +537,7 @@ def test_hook_reads_an_env_file_holding_a_non_utf8_byte(box, tmp_path):
     assert _att(state).exists()
 
 
-@pytest.mark.parametrize("value", ["relstate", "~/tilde-state"])
+@pytest.mark.parametrize("value", ["relstate", "~/tilde-state", "~no-such-user-zz9/x"])
 def test_hook_never_writes_a_relative_state_dir_into_the_session_cwd(box, tmp_path, value):
     box.env_file.parent.mkdir(parents=True)
     box.env_file.write_text(f"FABRIK_DECK_STATE={value}\n")
@@ -555,7 +555,7 @@ def test_hook_never_writes_a_relative_state_dir_into_the_session_cwd(box, tmp_pa
     )
     assert r.returncode == 0 and r.stdout == ""
     assert not any(cwd.iterdir()), "nothing may land in the session's working directory"
-    if value.startswith("~"):
+    if value == "~/tilde-state":
         expected = box.home / "tilde-state"
     else:
         expected = box.home / ".local" / "state" / "fabrik-deck"

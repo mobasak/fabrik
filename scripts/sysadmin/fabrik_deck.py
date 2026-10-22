@@ -175,7 +175,10 @@ def _state_dir(home: Path, environ: dict[str, str] | os._Environ[str]) -> Path:
     if value:
         # `~` is expanded; a value that is still relative would land in whatever repo the session runs in, so it
         # falls back to the default instead.
-        path = Path(value).expanduser()
+        try:
+            path = Path(value).expanduser()
+        except RuntimeError:  # `~someuser` for a user that does not exist
+            path = Path(value)
         if path.is_absolute():
             return path
     return home / ".local" / "state" / "fabrik-deck"
