@@ -125,7 +125,7 @@ write): the operator-kept class phrases on a block's "Why it is yours" line — 
    > disposition included), a production-data window that dumps first and keeps the old volume, credentials the
    > fleet mints itself, publishing to our own surfaces, and spend inside the operator's ceiling (0 until the operator
    > sets one) — and only a split panel reaches the operator, its block carrying the `Panel:` line; the operator alone
-   > decides, and the block's Why line names which, spend above the ceiling or a recurring contract, credentials only
+   > decides, and the block's Why line names the class token and which of these it is, spend above the ceiling or a recurring contract, credentials only
    > the operator can mint, publishing to customers or the public (a customer-facing production deploy included), and
    > deleting data with no backup; a builder's block reaches the operator only through its coordinator.
 
@@ -193,8 +193,13 @@ only by `parse_decision_block`'s gate branch (`:4239`).
 
 1. Kaizen mails infra (`mail.py send --to fabrik --to-agent infra --kind request`, the D-035 contract) the diff below
    and the Behaviour Contract B1–B5, and pings it live.
-2. Infra writes B1–B5 in `tests/test_decision_panel.py` (B1 replaces `test_deploy_gate_needs_no_panel` at `:440-446`)
-   and sees B1 and B3 red on today's hook; applies the diff; runs `tests/test_decision_panel.py`,
+2. Infra writes B1–B5 in `tests/test_decision_panel.py` and sees B1 red on today's hook (B3–B5 pass today and are
+   proven red on a mutant that drops the `not _OPERATOR_GATE_RE.search(why)` guard, run in a throwaway worktree). Two
+   existing tests change by substitution, each naming the guard it keeps: `test_deploy_gate_needs_no_panel`
+   (`:440-446`) becomes B1 — its Why "Gate 2, deploy to production" now needs the split panel, the guard B1 keeps;
+   and `test_owned_and_gate_stay_the_operators` (`:388-393`) keeps its `owned` half and its gate half's Why becomes
+   "deploy — Gate 2, a customer-facing production deploy", so it still exercises the operator-kept pass that B3 also
+   covers. Then it applies the diff; runs `tests/test_decision_panel.py`,
    `tests/test_gate_decision_blocks.py` and `tests/test_final_gate_stop_hook.py` green; commits on `worktree-infra`
    with its trailers; pushes; sends kaizen the SHA.
 3. Kaizen `git cherry-pick <sha>` onto `worktree-kaizen`, re-runs the three files there, and
@@ -242,7 +247,7 @@ recurring · only the operator can mint · customer-facing · public · no backu
 
 - **Given** autonomy mode and a `ground: gate` block "Gate 2, deploy to our own VPS" with no `Panel:` line, **When** the hook parses it, **Then** it is refused naming D-1110 (B1)
 - **Given** autonomy mode and that block with a verified split `Panel:` line, **When** the hook parses it, **Then** it passes as `gate` (B2)
-- **Given** autonomy mode and an unpaneled gate block whose Why line names an operator-kept class — written five ways: "publishing to the public", "a customer-facing production deploy", "spend above the ceiling", "a recurring contract", "deleting data with no backup" — **When** the hook parses each, **Then** each passes as `gate` (B3)
+- **Given** autonomy mode and an unpaneled gate block whose Why line names an operator-kept class beside its class token — written five ways: "publish — publishing to the public", "deploy — Gate 2, a customer-facing production deploy", "spend — above the ceiling", "spend — a recurring contract", "destructive — deleting data with no backup" — **When** the hook parses each, **Then** each passes as `gate` (B3)
 - **Given** autonomy mode and an unpaneled block "credentials only the operator can mint", **When** the hook parses it, **Then** it passes (B4)
 - **Given** autonomy mode OFF (a project repo), **When** the hook parses the B1 block, **Then** it passes as today (B5)
 - **Mocked:** nothing — the tests drive the real `parse_decision_block` over synthetic transcripts in `tmp_path`, as the file's existing cases do.
@@ -396,6 +401,41 @@ Grounded at authoring (2026-10-22), executed.
   `cert-execution.md:31` use "human approval" or "explicit go" for other things and are kept (R3 for decommission).
 - The hook's gate branch today (`.claude/hooks/final_gate_stop.py:4239-4256`): the panel check runs only when
   `design_gate` matches; `_DECISION_GATE_RE` (`:3067-3073`) is the closed list; the refusal text (`:4258-4262`).
+- Phase B's diff, prototyped before any seat saw it: applied by an anchor-keyed script
+  (`apply_hook_diff.py`, the session scratchpad) to a throwaway worktree of 87cfa3895 under this run's `SCRATCH:`
+  folder, then the hook suites and a probe over the Behaviour Contract inputs run there. The suites: exactly the two
+  tests Phase B step 2 names go red, every other case passes —
+
+```text
+$ pytest tests/test_decision_panel.py tests/test_gate_decision_blocks.py tests/test_final_gate_stop_hook.py tests/test_final_gate_stop_deferral.py -q
+FAILED tests/test_decision_panel.py::test_owned_and_gate_stay_the_operators
+FAILED tests/test_decision_panel.py::test_deploy_gate_needs_no_panel - Assert...
+2 failed, 414 passed, 2 skipped in 21.07s
+```
+
+  The probe (`test_zz_probe_b.py`, autonomy mode, each Why line parsed unpaneled and, for the panel-decided ones,
+  with a verified split): it found that "a recurring contract" and "deleting data with no backup" alone name no token
+  of the closed list and are refused as classless, so D1 tells the block to write the class token beside the
+  operator-kept phrase and B3's spellings carry one; "unpublished" stays panel-decided (word boundary on `public`):
+
+```text
+KEPT     'gate — publishing to the public'                              unpaneled -> True 'gate'
+KEPT     'gate — Gate 2, a customer-facing production deploy'           unpaneled -> True 'gate'
+KEPT     'gate — spend above the ceiling'                               unpaneled -> True 'gate'
+KEPT     'gate — a recurring contract'                                  unpaneled -> False '`ground: gate` names no gate class on its "Why it is yours" '
+KEPT     'gate — deleting data with no backup'                          unpaneled -> False '`ground: gate` names no gate class on its "Why it is yours" '
+KEPT     'gate — credentials only the operator can mint'                unpaneled -> True 'gate'
+KEPT     'gate — Gate 2, a customer facing deploy'                      unpaneled -> True 'gate'
+PANELLED 'gate — Gate 2, deploy to our own VPS'                         unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — destructive, with a verified backup'                   unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — credentials the fleet mints itself'                    unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — publish to our own surfaces'                           unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — production data window, dump first'                    unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — unpublished draft, publish later'                      unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+PANELLED 'gate — design approval of docs/superpowers/specs/x-design.md' unpaneled -> False 'autonomy mode: a panel-decided gate (D-1110: only a split pa' | split -> (True, 'gate')
+14 passed in 0.52s
+```
+
 - Baseline of the four suites the phases touch:
 
 ```text
