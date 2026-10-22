@@ -20,10 +20,22 @@ iuh = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(iuh)
 
 
+# A box-local entry the installer does not own (the live settings carry one): it must survive every install.
+FOREIGN_NOTIFICATION = {
+    "matcher": "permission_prompt",
+    "hooks": [{"type": "command", "command": "bash ~/.claude/bin/claude-sound.sh attention"}],
+}
+
+
 def _home(tmp_path: Path, dirs=("ob", "can")) -> Path:
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "settings.json").write_text(
-        json.dumps({"hooks": {"Notification": []}, "permissions": {"defaultMode": "auto"}})
+        json.dumps(
+            {
+                "hooks": {"Notification": [FOREIGN_NOTIFICATION]},
+                "permissions": {"defaultMode": "auto"},
+            }
+        )
     )
     for d in dirs:
         (tmp_path / ".claude-fleet" / d).mkdir(parents=True)
@@ -71,9 +83,35 @@ def test_install_is_idempotent_and_preserves_other_hooks(tmp_path, monkeypatch):
     after = (home / ".claude" / "settings.json").read_text()
     assert before == after, "a second run must change nothing"
     d = json.loads(after)
-    assert d["hooks"]["Notification"] == [] and d["permissions"]["defaultMode"] == "auto", (
-        "other keys untouched"
-    )
+    assert d["hooks"]["Notification"][0] == FOREIGN_NOTIFICATION, "a foreign entry survives"
+    assert d["permissions"]["defaultMode"] == "auto", "other keys untouched"
+
+
+def test_the_deck_attention_hook_is_registered_once_on_each_of_its_five_events(
+    tmp_path, monkeypatch
+):
+    """Plan 2026-10-22-plan-1-fabrik-deck Phase A: `fabrik_deck.py hook` on Notification, UserPromptSubmit, Stop,
+    PostToolUse and SessionEnd — one registration per event, no matcher, the foreign Notification entry kept."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    cmd = f"python3 {iuh.HUB}/scripts/sysadmin/fabrik_deck.py hook"
+    for f in (
+        home / ".claude" / "settings.json",
+        home / ".claude-fleet" / "ob" / "settings.json",
+        home / ".claude-fleet" / "can" / "settings.json",
+    ):
+        got = _has(f)
+        for ev in ("Notification", "UserPromptSubmit", "Stop", "PostToolUse", "SessionEnd"):
+            assert got.get(ev, []).count(cmd) == 1, (f, ev)
+    d = json.loads((home / ".claude" / "settings.json").read_text())
+    assert FOREIGN_NOTIFICATION in d["hooks"]["Notification"]
+    assert all("matcher" not in e for e in d["hooks"]["PostToolUse"])
+    # Removing one registration is drift --check reports.
+    for e in d["hooks"]["Stop"]:
+        e["hooks"] = [h for h in e["hooks"] if "fabrik_deck.py" not in h["command"]]
+    (home / ".claude" / "settings.json").write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1
 
 
 def test_registration_timeout_exceeds_the_gates_inner_timeout(tmp_path, monkeypatch):
