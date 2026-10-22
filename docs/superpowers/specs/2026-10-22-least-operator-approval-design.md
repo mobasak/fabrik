@@ -1,7 +1,7 @@
 # Least operator approval — the gate model rewritten to D-1110 — design
 
 Status: DRAFT
-Size: small (≈30 code lines, 2 code files — `commands/assemble_commands.py` and `.claude/hooks/final_gate_stop.py`; the rest is contract and command text)
+Size: small (≈40 code lines, 2 code files — `commands/assemble_commands.py` and `.claude/hooks/final_gate_stop.py`; the rest is contract and command text)
 Profile: delta
 Owner: kaizen · Work item: W-4a03df79 · governing decision D-1110 (operator, 2026-10-22)
 
@@ -30,7 +30,7 @@ routes; the hook enforces; infra changes the hook.
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
 | I1 | "the Opus + Fable panel decides every gate class a coordinator can validate" (D-1110) | IN | § The delta D1 |
-| I2 | the panel-decided classes: design, plan, Gate 1, Gate 2 to our own VPS with backup+rollback, destructive with a verified backup, production data with a dump and the old volume kept, credentials we mint ourselves, publishing to our own surfaces, spend inside the ceiling (D-1110) | IN | § The delta D1 |
+| I2 | the panel-decided classes: design, plan, Gate 1, Gate 2 to our own VPS when the runbook has a backup and a rollback, destructive acts on branches/worktrees/scratch/test repos/old volumes with a verified backup first, production data with a dump and the old volume kept, credentials the fleet mints itself (database roles, tokens, service accounts) with backup and rollback, publishing to our own surfaces, spend inside the ceiling (D-1110) | IN | § The delta D1 |
 | I3 | the operator keeps: money above the ceiling or recurring contracts, credentials only the operator can mint, publishing to customers or the public, deletion with no backup, split panels (D-1110) | IN | § The delta D1 |
 | I4 | "always through a coordinator, never from a builder window" (W-4a03df79 title) | IN | § The delta D1, D2 |
 | I5 | spend ceiling 0 until the operator sets it; a customer-facing production deploy counts as public (D-1110) | IN | § The delta D1, D4 |
@@ -39,7 +39,7 @@ routes; the hook enforces; infra changes the hook.
 | I8 | a panel-decided gate is named `gate` + the `Panel:` line; D-054's three grounds stay (coordinator routing, 2026-10-22) | IN | § The delta D1, § Rejected alternatives |
 | I9 | the deploy triad's "operator's explicit go" becomes "panel go; operator for public or customer-facing deploys" (coordinator routing) | IN | § The delta D4 |
 | I10 | the hook regex and its printed list as an infra ticket inside the plan, mailed with the exact diff (coordinator routing) | IN | § The delta D5 |
-| I11 | the build waits on the plan-3 lock over both CLAUDE.md files (coordinator; intel's release 40a2ac5d7 awaits its merge) | IN | § Lifecycle |
+| I11 | the build waits on the plan-3 lock over both CLAUDE.md files (coordinator; intel's release 40a2ac5d7 is on master via 16b8494b8 — resolved) | IN | § Lifecycle |
 | I12 | fabrik-lib's own sync-excluded CLAUDE.md | OUT-OF-SCOPE | fabrik-lib's coordinator decides; the plan's last ticket mails it the rewritten paragraph (named in § Documentation landing sites) |
 
 Intake: 12 items — 11 IN, 1 OUT-OF-SCOPE (named above), 0 ASK.
@@ -82,32 +82,45 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
 
 - **D1 — the gate ground (both contracts, byte-identical).** The closed token list stays verbatim: the tokens still name the gate
   CLASSES, the hook's regex reads them, and the twin test pins them. The clause after it changes from "design approval is first
-  answered by the Opus + Fable panel …" to: each class a coordinator can validate is first answered by the Opus + Fable panel in
-  the operator's place — design and plan approval (the design-gate review commands' panel for design), Gate 1, Gate 2 to our own
-  VPS when the runbook has a backup and a rollback, a destructive act with a verified backup first (the § EXIT ad-hoc-branch
-  disposition included), a production-data window that dumps first and keeps the old volume, credentials the fleet mints itself,
-  publishing to our own surfaces, and spend inside the operator's ceiling (0 until set) — and only a split panel reaches the
-  operator, its block carrying the `Panel:` line; the operator alone decides spend above that ceiling or any recurring contract,
-  credentials only the operator can mint, publishing to customers or the public (a customer-facing production deploy included),
-  and deleting data with no backup; and a builder's block reaches the operator only through its coordinator. No D-id is written
-  into this paragraph (the twin test allows only the D-054 rewrite); the hub § Autonomy carries D-1110.
+  answered by the Opus + Fable panel …" to D-1110's split: each class a coordinator can validate is first answered by the panel
+  in the operator's place — design and plan approval, Gate 1, Gate 2 to our own VPS when the runbook has a backup and a rollback
+  and the target is not customer-facing, a destructive act on a branch, worktree, scratch area, test repo or old volume with a
+  verified backup first, a production-data window that dumps first and keeps the old volume, credentials the fleet mints itself
+  (database roles, tokens, service accounts) with a backup and a rollback, and publishing to our own surfaces — and only a split
+  panel reaches the operator, its block carrying the `Panel:` line. The operator alone decides the rest, and such a block's Why
+  line carries its class token and the explicit label `operator-kept:` with one of five tokens: `public` (publishing to
+  customers or the public, a customer-facing production deploy included), `above-ceiling`, `recurring`, `operator-minted`,
+  `unbacked`. Every spend and every irreversible act stays the operator's while the ceiling is 0, label or not (an
+  irreversible act has no rollback, which every panel-decided class needs). A builder's block reaches the operator only through
+  its coordinator. A label, not prose, because the reader is a hook: prose matching read "not customer-facing", a `public-api`
+  path and a template Why line as operator-kept (the plan's pass-1 probe). The exact clause is the plan's Phase A step 2. No
+  D-id is written into this paragraph (the twin test allows only the D-054 rewrite); the hub § Autonomy carries D-1110. The
+  template's hub-request bullet (`templates/governance/CLAUDE.md:415-416`), which sends the whole closed list to the operator,
+  follows the same split.
 - **D2 — hub § Autonomy (`CLAUDE.md:639`).** "`gate` and `owned` stay the operator's — a panel never approves a gate class (…)"
   becomes: `owned` stays the operator's, and so do the gate classes § FINAL OUTPUT keeps for the operator (D-1110); the panel
   decides every other gate class, and a coordinator validates its two reports against the repo and the box before acting on
   them. Two sentences join it: a coordinator asks the operator a clarifying question only when the answer materially changes the
-  work and the repo is silent, batched as one short list per session; an act Claude Code's auto-mode classifier still refuses
+  work and the repo is silent, batched as at most one short list per session; an act Claude Code's auto-mode classifier still refuses
   after a panel approves it is put to the operator once per class, as a settings permission rule (D-1110).
 - **D3 — `commands/_fragments/design-gate-panel.md`.** Its line 2 ("for design approval only, it supersedes D-558's …") points at
   D-1110 for the wider rule instead of restating it.
-- **D4 — the deploy triad and release.** `fabrik-deploy-plan-review.md` (:29, :251-258), `fabrik-release.md` (:205-212) and
-  `fabrik-deploy.md` (:240, :359): Gate 2 is the panel's go for a deploy to our own VPS whose plan carries a backup and a
-  rollback and whose target is not customer-facing; a customer-facing production deploy is the operator's (public). The NEXT-map
-  strings at `commands/assemble_commands.py:71` and `:73` say the same in one clause each. The other five command sources'
-  single mentions are read and changed only where they state the old model.
-- **D5 — the Stop hook (infra ticket, mailed with the exact diff).** `_DECISION_GATE_RE` keeps its tokens; the hook requires a
-  split `Panel:` line for a `ground: gate` block whose class is panel-decided (as it does for design approval today), and does
-  not for the operator-only classes; the `:3104` comment and the `:4261` printed list follow D1. `tests/test_decision_panel.py:441`
-  flips to the panel case, and one case per operator-only class passes unpaneled.
+- **D4 — the deploy chain.** Gate 2 is the panel's go for a deploy to our own VPS whose runbook has a backup and a rollback and
+  whose target is not customer-facing; a customer-facing production deploy and a store submit are the operator's
+  (`operator-kept: public`), and so is a split. It lands where the chain states who answers Gate 2:
+  `commands/_fragments/deploy-chain.md` (:3, :13-14, included by five deploy commands), `fabrik-deploy.md`'s hard gate
+  (:59-65 — today it runs only on the operator's dispatch, which would refuse a panel go), `fabrik-deploy-plan-review.md` (:29,
+  :251-258, its block written only for a customer-facing deploy or a split, with one Why-line variant per case),
+  `fabrik-release.md` (:2, :6, :188, :198, :205-212 — the VPS path hands to the deploy triad with no approval of its own, the
+  store path keeps the operator's block) and the NEXT-map strings at `commands/assemble_commands.py:71`, `:73`.
+  `fabrik-deploy.md:240` (an operator act, not an approval) and `:359` (publishing to users) are read and kept. The other five
+  command sources' single mentions are read and changed only where they state the old model.
+- **D5 — the Stop hook (infra ticket, mailed with the exact diff).** `_DECISION_GATE_RE` keeps its tokens and is checked first;
+  in autonomy mode the hook then requires a split `Panel:` line for every `ground: gate` block that is not operator-kept, as it
+  does for design approval today. Operator-kept means the Why line carries the label `operator-kept:` with one of D1's five
+  tokens, or names spend or an irreversible act; a design or plan approval is never operator-kept. The `:3104` and `:3115`
+  comments follow D1. `tests/test_decision_panel.py:440-446` flips to the panel case and `:388-393`'s gate half takes the
+  label; the new cases cover each token, five spellings of the label, prose without it, and the design-approval guard.
 
 Invariants: D-054's three grounds stand (`gate`, `underivable`, `owned`); the closed token list is unchanged; a panel never
 answers the operator's own question; text and hook land in ONE merge (§ Chosen approach).
@@ -187,12 +200,13 @@ list kept, the panel/operator split written as a separate clause; `gate` + `Pane
 
 - **Adoption:** the merge lands both contracts; the governance sync carries the template to ~46 repos on the next sync; each repo's
   coordinator then boards only the operator-kept classes.
-- **Growth:** the operator sets a spend ceiling above 0 → D1's spend clause covers it with no text change; a new gate class → it
+- **Growth:** the operator sets a spend ceiling above 0 → spend leaves the hook's always-operator list and D1 gains the ceiling's
+  value, so a spend inside it is the panel's; a new gate class → it
   joins the token list and is named panel-decided or operator-kept in D1, with its hook case.
 - **Degradation:** the panel unavailable (RED/WALL band, `Agent` held) → the gate waits for the band or goes to the coordinator,
   as `Panel: unavailable (band RED)` does today; the classifier refusing a panel-approved act → D2's once-per-class route.
-- **Ordering constraint:** the build writes both CLAUDE.md files only after intel's lock release (40a2ac5d7) is on master; the
-  coordinator confirms it.
+- **Ordering constraint:** the build writes both CLAUDE.md files only after intel's lock release (40a2ac5d7) is on master — it is,
+  via 16b8494b8 (coordinator, 2026-10-22); the build merges master first.
 - **Retired by:** an operator ruling superseding D-1110.
 
 ## Shape / infra implications
@@ -207,5 +221,5 @@ sync-excluded contract (I12).
 
 ## Open / blocking unknowns
 
-- **The plan-3 lock** — resolved when intel's release (40a2ac5d7) merges; the coordinator confirms. Build only.
-- **The exact hook diff** — infra writes it inside the plan's hook ticket; the spec fixes its behaviour (D5), not its code.
+- **The plan-3 lock** — resolved: intel's release (40a2ac5d7) is on master via 16b8494b8.
+- **The exact hook diff** — the plan's Phase B carries a prototyped diff; infra may reshape it, the spec fixes its behaviour (D5).
