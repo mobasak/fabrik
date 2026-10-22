@@ -478,6 +478,19 @@ Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment;
 
 - `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
 
+### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
+
+Read by `scripts/sysadmin/fabrik_deck.py` from `~/.config/fabrik-deck/env` (the two systemd units load it as their
+`EnvironmentFile=`; the hook and `up` read it themselves) or from the process environment; none of them goes in a
+project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
+works: `docs/workstation/fabrik-deck.md`.
+
+- `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
+- `FABRIK_DECK_CODE_PORT` — code-server's port on 127.0.0.1 (default `8443`); the board's repo links point at it.
+- `FABRIK_DECK_STATE` — the folder holding `attention/`, one file per session waiting on the operator (default
+  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; a relative value falls back
+  to the default).
+
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
 The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory** — but through the gate it **never actually mutates**: `final_gate.py` deliberately strips `FABRIK_MUTMUT` before invoking this one child (a set flag would start a session-detached mutmut that the gate's 120s outer timeout then orphans on the shared box) and restores it after, so a gate run always prints the pointer and exits 0 regardless of the flag. A REAL run happens only by **direct invocation** (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the **Sunday 05:00 cron** (diff-scoped + weekly, never a per-PR blocking gate per `45-testing-strategy.md`); it mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.

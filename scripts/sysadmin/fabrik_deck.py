@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/workstation/fabrik-deck.md | tests/test_fabrik_deck.py | docs/workstation/hooks-index.md | scripts/sysadmin/install_user_hooks.py
-"""fabrik_deck.py code-server | serve | hook | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
+"""fabrik_deck.py code-server | serve | hook | install | profile | launcher | up — the Fabrik Deck on this box.
 
 The Deck (docs/superpowers/specs/2026-10-21-fabrik-deck-design.md, D-1106) shows every repo as a code-server workbench
-in a Vivaldi tab. A hand-started code-server died with the 2026-10-21 WSL restart and nothing restarted it
-(W-e89a9b5b), so it now runs as `fabrik-deck-code.service`, a user unit that starts at boot (linger on) and restarts on
-a crash. The board, the attention hook, the profile and the launcher are the Deck plan's; this script grows with it.
+in a Vivaldi tab, with a board that says which repo's agent waits on the operator. Two systemd user units run it,
+`fabrik-deck-code.service` (code-server) and `fabrik-deck.service` (the board); they start at boot (linger on) and
+restart on a crash, because a hand-started code-server died with the 2026-10-21 WSL restart (W-e89a9b5b).
 
 code-server — exec `~/.local/bin/code-server --bind-addr 127.0.0.1:<FABRIK_DECK_CODE_PORT, default 8443>` with ONLY
 the keep-list below in its environment, so the starting session's variables (`CLAUDE_AGENT`, the session id, the
@@ -22,25 +22,40 @@ read. A bad port, a bound port or an unreadable registry at startup exits 2.
 
 hook — see hook() below; registered by scripts/sysadmin/install_user_hooks.py.
 
-install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh). Every check runs
-before the first write, so a refusal (exit 1) leaves both files as they were: linger must be on; `--hub` holds no
-space, %, $, backslash or quote (the unit's ExecStart would split or expand it); the unit's ExecStart target and the
+profile — merge PROFILE into code-server's settings.json after copying it to …/User/backups/; a file that is not a
+plain JSON object (code-server also accepts comments) is left alone, exit 1.
+
+launcher --desktop DIR — write "Fabrik Deck.bat" there: it runs `up` in WSL, waits up to 30 s for the board to answer
+from Windows, then opens the browser only when it is not running (on the board the first time, recorded by a marker
+file beside the .bat; with no URL afterwards, so the browser's session restore brings the tabs back). A .bat whose
+second line is not our marker is never overwritten (exit 2), and a distro or browser value cmd would split is refused.
+
+up — the .bat's WSL leg: export XDG_RUNTIME_DIR when the user bus is there (a .bat carries none), start each unit that
+is not active and whose port is free (a held port is named on stderr and that unit left stopped), print the board port.
+
+install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh), for both units.
+Every check runs before the first write, so a refusal (exit 1) leaves every file as it was: linger must be on; `--hub`
+holds no space, %, $, backslash or quote (ExecStart would split or expand it); the ExecStart target and the
 code-server binary must exist (`systemd-analyze verify` cannot see either); a unit file without our marker is never
-overwritten; the rendered unit must pass `systemd-analyze --user verify` printing nothing (a misplaced key is only a
-warning at rc 0); the env file's port must parse; with `--start`, nothing may listen on the port (the unit would fail
-to bind). Then the env file ~/.config/fabrik-deck/env is created, or on a present one every line is kept and only
-missing keys are appended (named on stderr), so an operator's override wins; files are written temp-then-rename,
-keeping an existing file's mode; then daemon-reload, enable, and with `--start` start — a failing `systemctl` exits 1
-with the files already written. The default only enables: the cutover from a hand start kills the claude processes in
-the open Deck tabs, so it is run deliberately. The unit restarts a crashed code-server every 10 s with no limit
-(StartLimitIntervalSec=0), but a startup failure exits 2 and RestartPreventExitStatus=2 stops it there.
+overwritten; each rendered unit must pass `systemd-analyze --user verify` printing nothing (a misplaced key is only a
+warning at rc 0); both ports in the env file must parse; settings.json must be plain JSON; with `--desktop`, the .bat
+must be ours or absent; with `--start`, nothing may listen on the port of a unit that is not active (that unit would
+fail to bind; an active unit holds its own port). Then the env file ~/.config/fabrik-deck/env is created, or on a
+present one every line is kept and only missing keys are appended (named on stderr), so an operator's override wins;
+config.yaml is backed up and its bind-addr, auth and cert lines set (others, such as a password line, kept; mode 0600
+for a new file); the profile is applied; the units are written; files go temp-then-rename, keeping an existing file's
+mode; then daemon-reload, enable, and with `--start` start — a failing `systemctl` exits 1 with the files already
+written; then, with `--desktop`, the .bat. The default only enables: the cutover from a hand start kills the claude
+processes in the open Deck tabs, so it is run deliberately. A unit restarts its crashed process every 10 s with no
+limit (StartLimitIntervalSec=0), but a startup failure exits 2 and RestartPreventExitStatus=2 stops it there.
 
-`--hub` (default /opt/fabrik, the main checkout) is where the unit runs this script from; after changing it, run
-`systemctl --user restart fabrik-deck-code` — a running unit keeps the old path until it restarts.
+`--hub` (default /opt/fabrik, the main checkout) is where the units run this script from; after changing it, run
+`systemctl --user restart fabrik-deck-code fabrik-deck` — a running unit keeps the old path until it restarts.
 
-COBRA (D-253): the cheapest way to pass the tests is a unit that verifies and enables and never serves — no test
-starts systemd. The counter is the live proof the coordinator asked for: after `wsl --shutdown`, Windows reaches
-the Deck's port without anyone starting anything (the check is docs/workstation/fabrik-deck.md § Proof).
+COBRA (D-253): the cheapest way to pass the tests is a unit that verifies and enables and never serves, and a .bat
+that no Windows shell ever ran — no test starts systemd or cmd. The counter is the live proof: after `wsl --shutdown`,
+Windows reaches the Deck's port without anyone starting anything (docs/workstation/fabrik-deck.md § Proof), and the
+operator's § Acceptance run double-clicks the .bat itself.
 """
 
 from __future__ import annotations
@@ -63,6 +78,7 @@ from pathlib import Path
 from typing import NoReturn
 
 UNIT_NAME = "fabrik-deck-code.service"
+DECK_UNIT_NAME = "fabrik-deck.service"
 MARKER = "# Written by scripts/sysadmin/fabrik_deck.py install (W-e89a9b5b) — re-run it rather than editing this file."
 KEEP = (
     "HOME",
@@ -118,6 +134,9 @@ def _env_defaults(home: Path) -> list[tuple[str, str]]:
     active = f"{home}/.claude-fleet/active"
     return [
         ("FABRIK_DECK_CODE_PORT", str(DEFAULT_PORT)),
+        ("FABRIK_DECK_PORT", str(DECK_PORT)),
+        # absolute: systemd's EnvironmentFile= does not expand `~`, and the hook resolves this same value
+        ("FABRIK_DECK_STATE", f"{home}/.local/state/fabrik-deck"),
         ("CLAUDE_CONFIG_DIR", active),
         ("CLAUDE_QUOTA_HOME", active),
         ("PATH", f"{home}/.local/bin:/usr/local/bin:/usr/bin:/bin"),
@@ -153,10 +172,11 @@ def _read_env(text: str, warn: bool = False) -> dict[str, str]:
     return out
 
 
-def _atomic_write(path: Path, text: str) -> None:
-    """Write via a temp file and rename; an existing file keeps its permission bits (the env file may be 0600)."""
+def _atomic_write(path: Path, text: str, new_mode: int = 0o644) -> None:
+    """Write via a temp file and rename; an existing file keeps its permission bits (the env file may be 0600), a new
+    one gets `new_mode`."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
+    mode = path.stat().st_mode & 0o777 if path.exists() else new_mode
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
         with os.fdopen(fd, "w") as f:
@@ -639,18 +659,18 @@ def serve(registry: Path, opt_root: Path) -> None:
         pass
 
 
-def _render_unit(hub: Path, env_file: Path) -> str:
+def _render_unit(hub: Path, env_file: Path, subcommand: str, description: str) -> str:
     return (
         f"{MARKER}\n"
-        "# The Fabrik Deck's code-server (docs/workstation/fabrik-deck.md, D-1106).\n"
+        "# The Fabrik Deck (docs/workstation/fabrik-deck.md, D-1106).\n"
         "[Unit]\n"
-        "Description=Fabrik Deck code-server (127.0.0.1, auth none)\n"
+        f"Description={description}\n"
         "StartLimitIntervalSec=0\n"
         "\n"
         "[Service]\n"
         "Type=simple\n"
         f"EnvironmentFile={env_file}\n"
-        f"ExecStart=/usr/bin/python3 {hub}/scripts/sysadmin/fabrik_deck.py code-server\n"
+        f"ExecStart=/usr/bin/python3 {hub}/scripts/sysadmin/fabrik_deck.py {subcommand}\n"
         "Restart=always\n"
         "RestartSec=10\n"
         "RestartPreventExitStatus=2\n"
@@ -660,10 +680,32 @@ def _render_unit(hub: Path, env_file: Path) -> str:
     )
 
 
+# (unit, its subcommand, its description, the env key of its port, that port's default)
+UNITS = (
+    (
+        UNIT_NAME,
+        "code-server",
+        "Fabrik Deck code-server (127.0.0.1, auth none)",
+        "FABRIK_DECK_CODE_PORT",
+        DEFAULT_PORT,
+    ),
+    (DECK_UNIT_NAME, "serve", "Fabrik Deck board (127.0.0.1)", "FABRIK_DECK_PORT", DECK_PORT),
+)
+
+
 def _systemctl(*args: str) -> None:
     r = subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True)
     if r.returncode != 0:
         _die(1, f"systemctl --user {' '.join(args)} failed (rc {r.returncode}): {r.stderr.strip()}")
+
+
+def _active(unit: str) -> bool:
+    return (
+        subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", unit], capture_output=True
+        ).returncode
+        == 0
+    )
 
 
 def _listening(port: int) -> bool:
@@ -672,9 +714,206 @@ def _listening(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def install(hub: Path, start: bool) -> None:
+def _ports(env: dict[str, str], where: str, code: int) -> dict[str, int]:
+    """Each unit's port from the env file's text, parsed before anything is written."""
+    out = {}
+    for unit, _, _, key, default in UNITS:
+        port = _parse_port(env.get(key), default)
+        if port is None:
+            _die(code, f"{where}: {key}={env.get(key)!r} is not a port (1-65535)")
+        out[unit] = port
+    return out
+
+
+def _settings_path(home: Path) -> Path:
+    return home / ".local" / "share" / "code-server" / "User" / "settings.json"
+
+
+def _backups(home: Path) -> Path:
+    return home / ".local" / "share" / "code-server" / "User" / "backups"
+
+
+def _config_yaml_path(home: Path) -> Path:
+    return home / ".config" / "code-server" / "config.yaml"
+
+
+PROFILE = {
+    "workbench.colorTheme": "Dark 2026",
+    "window.autoDetectColorScheme": False,
+    "claudeCode.preferredLocation": "panel",
+    "editor.minimap.enabled": False,
+    "breadcrumbs.enabled": False,
+    "workbench.startupEditor": "none",
+    "workbench.activityBar.location": "top",
+    "workbench.statusBar.visible": True,
+    "workbench.editor.showTabs": "single",
+}
+
+
+def _read_settings(path: Path) -> dict | None:
+    """The settings as a dict, None when the file is absent; exit 1 when it is not a JSON object (code-server accepts
+    JSONC — comments, trailing commas — which json cannot round-trip, so such a file is left for the operator)."""
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        _die(1, f"{path} is not plain JSON ({type(exc).__name__}: {exc}); left untouched")
+    if not isinstance(data, dict):
+        _die(1, f"{path} is not a JSON object; left untouched")
+    return data
+
+
+def _backup(path: Path, backups: Path) -> None:
+    """Copy `path` to <backups>/<name>.<timestamp>[-n], keeping its mode; nothing when it does not exist."""
+    if not path.exists():
+        return
+    backups.mkdir(parents=True, exist_ok=True)
+    stem = f"{path.name}.{time.strftime('%Y%m%d-%H%M%S')}"
+    dest, n = backups / stem, 1
+    while dest.exists():
+        dest, n = backups / f"{stem}-{n}", n + 1
+    shutil.copy2(path, dest)
+
+
+def _write_profile(home: Path, current: dict | None) -> None:
+    path = _settings_path(home)
+    _backup(path, _backups(home))
+    _atomic_write(path, json.dumps({**(current or {}), **PROFILE}, indent=4) + "\n")
+
+
+def profile() -> None:
+    home = _home()
+    path = _settings_path(home)
+    _write_profile(home, _read_settings(path))
+    print(f"fabrik_deck: {path}: the Deck profile is applied")
+
+
+def _config_yaml_text(old: str, code_port: int) -> str:
+    """config.yaml as `key: value` lines (code-server writes three): ours replaced in place, missing ones appended,
+    every other line — a `password:` line, a comment — kept as it is."""
+    want = {"bind-addr": f"127.0.0.1:{code_port}", "auth": "none", "cert": "false"}
+    lines, seen = [], set()
+    for line in old.splitlines():
+        key = (
+            line.split(":", 1)[0].strip()
+            if ":" in line and not line.lstrip().startswith("#")
+            else ""
+        )
+        if key in want:
+            if key not in seen:
+                lines.append(f"{key}: {want[key]}")
+                seen.add(key)
+            continue
+        lines.append(line)
+    lines += [f"{k}: {v}" for k, v in want.items() if k not in seen]
+    return "\n".join(lines) + "\n"
+
+
+BAT_MARKER = "rem generated by /opt/fabrik/scripts/sysadmin/fabrik_deck.py launcher"
+BAT_NAME = "Fabrik Deck.bat"
+FIRST_RUN = "Fabrik Deck.first-run"
+VIVALDI = r"C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe"
+
+
+def _bat_text(hub: Path, distro: str, browser: str) -> str:
+    image = browser.replace("/", "\\").rsplit("\\", 1)[-1]
+    up = f"wsl.exe --distribution {distro} --exec /usr/bin/python3 {hub}/scripts/sysadmin/fabrik_deck.py up"
+    lines = [
+        "@echo off",
+        BAT_MARKER,
+        "setlocal",
+        "set PORT=",
+        f"for /f %%p in ('{up}') do set PORT=%%p",
+        'if "%PORT%"=="" (echo Fabrik Deck: WSL did not answer with the board port. & pause & exit /b 1)',
+        "set TRIES=0",
+        ":wait",
+        'curl.exe -s -o NUL -w "%%{http_code}" http://localhost:%PORT%/ | findstr 200 >NUL && goto ready',
+        "set /a TRIES+=1",
+        "if %TRIES% GEQ 30 (echo Fabrik Deck: http://localhost:%PORT%/ did not answer within 30 s. & pause & exit /b 1)",
+        "timeout /t 1 /nobreak >NUL",
+        "goto wait",
+        ":ready",
+        f'tasklist /FI "IMAGENAME eq {image}" /NH | find /I "{image}" >NUL && exit /b 0',
+        f'if exist "%~dp0{FIRST_RUN}" (',
+        f'  start "" "{browser}"',
+        ") else (",
+        f'  start "" "{browser}" http://localhost:%PORT%/',
+        f'  echo opened> "%~dp0{FIRST_RUN}"',
+        ")",
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def _bat_check(desktop: Path, distro: str, browser: str, code: int) -> Path:
+    """Refuse (exit `code`) a value cmd would split or expand, or a .bat this script did not write; the target."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distro or ""):
+        _die(code, f"--distro {distro!r} is not a WSL distro name ([A-Za-z0-9][A-Za-z0-9._-]*)")
+    if not browser.isascii() or any(c in browser for c in '"%&|<>^\r\n'):
+        _die(code, f"--browser {browser!r} holds a character cmd would split or expand")
+    if not desktop.is_dir():
+        _die(code, f"--desktop {desktop} is not a directory")
+    target = desktop / BAT_NAME
+    if target.exists() or target.is_symlink():
+        lines = target.read_bytes().split(b"\r\n")
+        if not (len(lines) > 1 and lines[1] == BAT_MARKER.encode("ascii")):
+            _die(code, f"{target} exists and was not written by this script; left untouched")
+    return target
+
+
+def _write_bat(target: Path, text: str) -> None:
+    data = text.encode("ascii")
+    tmp = target.with_name(target.name + ".tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)  # a locked target never leaves a stray .tmp on the desktop
+        raise
+    print(f"fabrik_deck: wrote {target}")
+
+
+def launcher(desktop: Path, distro: str, browser: str, hub: Path) -> None:
+    target = _bat_check(desktop, distro, browser, 2)
+    _write_bat(target, _bat_text(hub, distro, browser))
+
+
+def up(runtime_dir: Path) -> None:
+    """The .bat's WSL leg: start each unit that is not active and whose port is free, then print the board's port."""
+    bus_dir = runtime_dir / str(os.getuid())
+    if not os.environ.get("XDG_RUNTIME_DIR") and (bus_dir / "bus").is_socket():
+        # a launch from a .bat carries none, and systemctl --user then finds no bus (agents_up.sh:289-293)
+        os.environ["XDG_RUNTIME_DIR"] = str(bus_dir)
+    env_file = _env_path(_home())
+    try:
+        env = _read_env(env_file.read_text(errors="replace"))
+    except OSError:
+        env = {}
+    ports = _ports(env, str(env_file), 1)
+    rc = 0
+    for unit, *_ in UNITS:
+        if _active(unit):
+            continue
+        if _listening(ports[unit]):
+            print(
+                f"fabrik_deck: {unit} left stopped: 127.0.0.1:{ports[unit]} is held by another process",
+                file=sys.stderr,
+            )
+            continue
+        r = subprocess.run(["systemctl", "--user", "start", unit], capture_output=True, text=True)
+        if r.returncode != 0:
+            print(
+                f"fabrik_deck: systemctl --user start {unit} failed: {r.stderr.strip()}",
+                file=sys.stderr,
+            )
+            rc = 1
+    print(ports[DECK_UNIT_NAME])
+    sys.exit(rc)
+
+
+def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: str) -> None:
     user = pwd.getpwuid(os.getuid()).pw_name
-    home = Path(os.environ.get("HOME") or pwd.getpwuid(os.getuid()).pw_dir)
+    home = _home()
 
     linger = subprocess.run(
         ["loginctl", "show-user", user, "-p", "Linger"], capture_output=True, text=True
@@ -697,37 +936,46 @@ def install(hub: Path, start: bool) -> None:
             _die(1, f"{path} does not exist — the unit would fail at every start")
 
     env_file = _env_path(home)
-    unit_path = home / ".config" / "systemd" / "user" / UNIT_NAME
-    if unit_path.exists() and not unit_path.read_text().startswith(MARKER):
-        _die(1, f"{unit_path} exists and was not written by this script — move it aside first")
+    unit_dir = home / ".config" / "systemd" / "user"
+    texts = {}
+    for unit, sub, description, _, _ in UNITS:
+        unit_path = unit_dir / unit
+        if unit_path.exists() and not unit_path.read_text().startswith(MARKER):
+            _die(1, f"{unit_path} exists and was not written by this script — move it aside first")
+        texts[unit] = _render_unit(hub, env_file, sub, description)
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / unit
+            probe.write_text(texts[unit])
+            v = subprocess.run(
+                ["systemd-analyze", "--user", "verify", str(probe)], capture_output=True, text=True
+            )
+        if v.returncode != 0 or v.stderr.strip() or v.stdout.strip():
+            _die(
+                1,
+                f"systemd-analyze --user verify rejected {unit}: {(v.stderr or v.stdout).strip()}",
+            )
 
-    unit_text = _render_unit(hub, env_file)
-    with tempfile.TemporaryDirectory() as tmp:
-        probe = Path(tmp) / UNIT_NAME
-        probe.write_text(unit_text)
-        v = subprocess.run(
-            ["systemd-analyze", "--user", "verify", str(probe)], capture_output=True, text=True
-        )
-    if v.returncode != 0 or v.stderr.strip() or v.stdout.strip():
-        _die(
-            1, f"systemd-analyze --user verify rejected the unit: {(v.stderr or v.stdout).strip()}"
-        )
-
-    # Every check above and here runs before the first write, so a refusal leaves both files as they were.
+    # Every check above and here runs before the first write, so a refusal leaves every file as it was.
     existing = env_file.read_text() if env_file.exists() else ""
     present = _read_env(existing, warn=True)
     missing = [(k, v_) for k, v_ in _env_defaults(home) if k not in present]
     sep = "" if not existing or existing.endswith("\n") else "\n"
     merged = existing + (sep + "".join(f"{k}={v_}\n" for k, v_ in missing) if missing else "")
-    raw = _read_env(merged).get("FABRIK_DECK_CODE_PORT")
-    port = _parse_port(raw)
-    if port is None:
-        _die(1, f"{env_file}: FABRIK_DECK_CODE_PORT={raw!r} is not a port (1-65535)")
-    if start and _listening(port):
-        _die(
-            1,
-            f"127.0.0.1:{port} is already in use — stop the process holding it, then re-run with --start",
-        )
+    ports = _ports(_read_env(merged), str(env_file), 1)
+    settings = _read_settings(_settings_path(home))
+    config_yaml = _config_yaml_path(home)
+    try:
+        old_config = config_yaml.read_text() if config_yaml.exists() else ""
+    except (OSError, ValueError) as exc:
+        _die(1, f"cannot read {config_yaml}: {exc}")
+    bat = _bat_check(desktop, distro, browser, 1) if desktop is not None else None
+    if start:
+        for unit, *_ in UNITS:
+            if not _active(unit) and _listening(ports[unit]):
+                _die(
+                    1,
+                    f"127.0.0.1:{ports[unit]} is already in use — stop the process holding it, then re-run with --start",
+                )
 
     if missing:
         if existing:
@@ -736,15 +984,24 @@ def install(hub: Path, start: bool) -> None:
                 file=sys.stderr,
             )
         _atomic_write(env_file, merged)
-    _atomic_write(unit_path, unit_text)
+    new_config = _config_yaml_text(old_config, ports[UNIT_NAME])
+    if new_config != old_config:
+        _backup(config_yaml, _backups(home))
+        _atomic_write(config_yaml, new_config, new_mode=0o600)
+    _write_profile(home, settings)
+    for unit, *_ in UNITS:
+        _atomic_write(unit_dir / unit, texts[unit])
     _systemctl("daemon-reload")
-    _systemctl("enable", UNIT_NAME)
+    _systemctl("enable", *(u for u, *_ in UNITS))
     if start:
-        _systemctl("start", UNIT_NAME)
-    r = subprocess.run(
-        ["systemctl", "--user", "is-enabled", UNIT_NAME], capture_output=True, text=True
-    )
-    print(f"{UNIT_NAME}: {r.stdout.strip() or r.stderr.strip()}")
+        _systemctl("start", *(u for u, *_ in UNITS))
+    if bat is not None:
+        _write_bat(bat, _bat_text(hub, distro, browser))
+    for unit, *_ in UNITS:
+        r = subprocess.run(
+            ["systemctl", "--user", "is-enabled", unit], capture_output=True, text=True
+        )
+        print(f"{unit}: {r.stdout.strip() or r.stderr.strip()}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -767,16 +1024,31 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser(
         "code-server", help="exec code-server with the clean environment (the unit's ExecStart)"
     )
-    ins = sub.add_parser("install", help="install and enable fabrik-deck-code.service")
+
+    def bat_flags(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--distro",
+            default=os.environ.get("WSL_DISTRO_NAME", ""),
+            help="the WSL distro the .bat starts",
+        )
+        p.add_argument("--browser", default=VIVALDI, help="the Windows browser the .bat opens")
+
+    ins = sub.add_parser(
+        "install", help="install and enable fabrik-deck-code.service and fabrik-deck.service"
+    )
     ins.add_argument(
         "--hub",
         type=Path,
         default=Path("/opt/fabrik"),
-        help="checkout the unit runs this script from",
+        help="checkout the units run this script from",
     )
     ins.add_argument(
-        "--start", action="store_true", help="also start it (refused while the port is in use)"
+        "--start",
+        action="store_true",
+        help="also start them (refused while a stopped unit's port is in use)",
     )
+    ins.add_argument("--desktop", type=Path, help="also write the launcher .bat there")
+    bat_flags(ins)
     sub.add_parser("hook", help="the attention hook (stdin: the hook event JSON); always exits 0")
     srv = sub.add_parser("serve", help="the board on 127.0.0.1:<FABRIK_DECK_PORT, default 8445>")
     srv.add_argument(
@@ -785,15 +1057,41 @@ def main(argv: list[str] | None = None) -> None:
     srv.add_argument(
         "--opt-root", type=Path, default=Path("/opt"), help="the directory scanned for repositories"
     )
+    sub.add_parser(
+        "profile", help="merge the Deck's settings into code-server's settings.json, after a backup"
+    )
+    lau = sub.add_parser("launcher", help=f"write {BAT_NAME!r} on the Windows desktop")
+    lau.add_argument(
+        "--desktop", type=Path, required=True, help="the Windows desktop, as a WSL path"
+    )
+    lau.add_argument(
+        "--hub",
+        type=Path,
+        default=Path("/opt/fabrik"),
+        help="checkout the .bat runs this script from",
+    )
+    bat_flags(lau)
+    upp = sub.add_parser(
+        "up", help="start the stopped units whose port is free; print the board's port"
+    )
+    upp.add_argument(
+        "--runtime-dir", type=Path, default=Path("/run/user"), help="where the user bus lives"
+    )
     args = ap.parse_args(argv)
     if args.cmd == "code-server":
         code_server()
     elif args.cmd == "serve":
         serve(args.registry, args.opt_root)
+    elif args.cmd == "profile":
+        profile()
+    elif args.cmd == "launcher":
+        launcher(args.desktop, args.distro, args.browser, args.hub)
+    elif args.cmd == "up":
+        up(args.runtime_dir)
     else:
         if shutil.which("systemd-analyze") is None:
             _die(1, "systemd-analyze is not installed")
-        install(args.hub.resolve(), args.start)
+        install(args.hub.resolve(), args.start, args.desktop, args.distro, args.browser)
 
 
 if __name__ == "__main__":

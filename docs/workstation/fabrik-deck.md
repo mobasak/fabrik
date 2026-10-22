@@ -5,18 +5,21 @@ ask: *"i want single vs code looking window for any repos to open any agents in 
 extension"*. Each repo is a code-server (VS Code web) workbench in its own Vivaldi tab, tiled side by side or kept as
 tabs, reached at `http://localhost:8443/?folder=/opt/<repo>` with no password.
 
-This page grows with the Deck plan (the board, the attention hook, the profile, the launcher). Today it covers
-**code-server as a systemd user service** (W-e89a9b5b), built first because a hand-started code-server died with the
-2026-10-21 WSL restart and the operator lost every repo tab, then the **attention hook** and the **board** (W-42d1ccb5).
+The pieces, each below: two systemd user services — **code-server** (`fabrik-deck-code.service`, W-e89a9b5b, built
+first because a hand-started code-server died with the 2026-10-21 WSL restart and the operator lost every repo tab)
+and the **board** (`fabrik-deck.service`) — the **attention hook** that feeds the board, the non-coding **profile**,
+and the Desktop **launcher** (W-42d1ccb5).
 
-## code-server as a service
+## The two services
 
-`fabrik-deck-code.service` is a systemd user unit. Linger is on for the operator's user (`loginctl show-user ozgur`
-→ `Linger=yes`), so it starts when WSL boots, before any window opens, and systemd restarts it 10 s after a crash,
-with no limit on restarts. Its log is the journal: `journalctl --user -u fabrik-deck-code`.
+`fabrik-deck-code.service` runs code-server and `fabrik-deck.service` runs the board (`fabrik_deck.py serve`, § Board).
+Both are systemd user units. Linger is on for the operator's user (`loginctl show-user ozgur` → `Linger=yes`), so they
+start when WSL boots, before any window opens, and systemd restarts each 10 s after a crash, with no limit on
+restarts. Their logs are the journal: `journalctl --user -u fabrik-deck-code` and `-u fabrik-deck`.
 
-- **Unit:** `~/.config/systemd/user/fabrik-deck-code.service`, written by `scripts/sysadmin/fabrik_deck.py install`
-  (its first line is a marker; the installer never overwrites a unit file without it).
+- **Units:** `~/.config/systemd/user/fabrik-deck-code.service` and `fabrik-deck.service`, written by
+  `scripts/sysadmin/fabrik_deck.py install` (each first line is a marker; the installer never overwrites a unit file
+  without it).
 - **Start:** `ExecStart=/usr/bin/python3 <hub>/scripts/sysadmin/fabrik_deck.py code-server`, which execs
   `~/.local/bin/code-server --bind-addr 127.0.0.1:<FABRIK_DECK_CODE_PORT>` with only these variables:
   `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `LANG`, `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`,
@@ -24,15 +27,17 @@ with no limit on restarts. Its log is the journal: `journalctl --user -u fabrik-
   (`CLAUDE_AGENT`, its session id, its messaging token) out of every tab. code-server's extension host then loads the
   login shell's environment for its children, so node, nvm and anything `~/.profile` exports still reach the claude
   processes in the tabs. There is no ssh agent in Deck terminals (`SSH_AUTH_SOCK` is not kept).
-- **Env file:** `~/.config/fabrik-deck/env` (named by its absolute path in the unit). `install` creates it; on a later
-  run it keeps every line you wrote and only appends keys that are missing, naming them on stderr. To change the
-  port, edit `FABRIK_DECK_CODE_PORT` there and restart the unit. The file is read the way systemd reads it: `#` and
+- **Env file:** `~/.config/fabrik-deck/env` (named by its absolute path in both units). `install` creates it; on a
+  later run it keeps every line you wrote and only appends keys that are missing, naming them on stderr. To change a
+  port, edit it there and restart that unit. The hook and the launcher's `up` read the same file. The file is read the way systemd reads it: `#` and
 `;` lines are comments, `KEY="value"` loses its quotes, and a line that is not plain `KEY=value` — `export KEY=…`
 included — is ignored by systemd, so `install` ignores it too and says so.
 
 | Key | Default |
 |---|---|
-| `FABRIK_DECK_CODE_PORT` | `8443` |
+| `FABRIK_DECK_CODE_PORT` | `8443` — code-server |
+| `FABRIK_DECK_PORT` | `8445` — the board |
+| `FABRIK_DECK_STATE` | `<home>/.local/state/fabrik-deck` — absolute, as systemd does not expand `~`; the attention files live in `attention/` under it |
 | `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME` | `~/.claude-fleet/active` — every tab follows the box's account rotation |
 | `PATH` | `~/.local/bin:/usr/local/bin:/usr/bin:/bin` |
 | `FABRIK_DECK` | `1` — marks a session as a Deck tab |
@@ -44,23 +49,32 @@ A bare `http://localhost:8443/` opens code-server's last folder; the hand start 
 ## Install
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install           # write env file + unit, reload, enable
-python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --start   # also start it now
+DESK="/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"
+python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --desktop "$DESK"   # env file, config.yaml, profile, both units, the .bat; enable
+python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --start             # also start the units now
 ```
 
+`install` writes, in order: the env file (missing keys only); `~/.config/code-server/config.yaml` after a copy to
+`~/.local/share/code-server/User/backups/config.yaml.<timestamp>` — `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`,
+`auth: none`, `cert: false`, every other line (a `password:` line included) kept, a new file mode 0600 and an existing
+one's mode kept; the profile (§ Profile); both units; then `daemon-reload` and `enable`, `start` with `--start`, and
+with `--desktop` the launcher (§ Launcher).
+
 Every check runs before the first write, so a refusal (exit 1) changes nothing: linger off; a `--hub` path holding a
-space, `%`, `$`, `\` or a quote; the hub script or `~/.local/bin/code-server` missing; a foreign unit file in the way;
-`systemd-analyze --user verify` printing anything; a port in the env file that does not parse; and with `--start`,
-something already listening on the port. A failing `systemctl` after the files are written exits 1 and leaves them
-in place. It ends by printing `systemctl --user is-enabled`.
+space, `%`, `$`, `\` or a quote; the hub script or `~/.local/bin/code-server` missing; a foreign unit file at either
+path; `systemd-analyze --user verify` printing anything for either unit; a port in the env file that does not parse;
+a settings.json that is not a plain JSON object; with `--desktop`, a `Fabrik Deck.bat` this script did not write, or a
+distro or browser value `cmd` would split; and with `--start`, something listening on the port of a unit that is not
+active (an active unit holds its own port, so it is not refused). A failing `systemctl` after the files are written
+exits 1 and leaves them in place. It ends by printing `systemctl --user is-enabled` for each unit.
 
-`--hub DIR` (default `/opt/fabrik`) is the checkout the unit runs the script from. A plain re-run only reloads and
+`--hub DIR` (default `/opt/fabrik`) is the checkout the units run the script from. A plain re-run only reloads and
 enables; a running unit keeps its old path until it restarts, so after changing `--hub` run
-`systemctl --user restart fabrik-deck-code` (costing the open tabs' claude processes, as the cutover does).
+`systemctl --user restart fabrik-deck-code fabrik-deck` (costing the open tabs' claude processes, as the cutover does).
 
-The unit restarts a crashed code-server 10 s later, without limit. A failure at start — a port that does not parse, a
-missing `code-server` binary — exits 2, and `RestartPreventExitStatus=2` stops the unit there instead of retrying
-forever; fix the cause and `systemctl --user restart fabrik-deck-code`.
+A unit restarts its crashed process 10 s later, without limit. A failure at start — a port that does not parse, a
+missing `code-server` binary, an unreadable registry — exits 2, and `RestartPreventExitStatus=2` stops the unit there
+instead of retrying forever; fix the cause and restart it.
 
 ## Cutover from a hand start
 
@@ -79,8 +93,8 @@ The untracked `~/.local/bin/fabrik-deck-server` (the step-1 hand start, logging 
 ## Proof
 
 After a WSL restart (`wsl --shutdown`, or the next one the operator runs), with nobody starting anything by hand:
-`systemctl --user is-active fabrik-deck-code` reads `active`, and from Windows `curl.exe -s -o NUL -w "%{http_code}"
-http://localhost:8443/` prints `302`.
+`systemctl --user is-active fabrik-deck-code fabrik-deck` reads `active` twice, and from Windows
+`curl.exe -s -o NUL -w "%{http_code}" http://localhost:8443/` prints `302` and the same for `:8445/` prints `200`.
 
 ## Attention hook
 
@@ -133,13 +147,66 @@ unknown verbs included, gets 405 with `Allow: GET` — and refuses any Host othe
 `127.0.0.1:<port>` with 421, because a page reached by DNS rebinding would otherwise read the catalog. Every response,
 the server's own error pages included, carries `Content-Security-Policy: frame-ancestors 'none'` and `Cache-Control:
 no-store`, and closes its connection; an idle connection is dropped after 30 s. A bad port, a bound port or
-an unreadable registry at startup exits 2. Until the Deck plan's Phase C installs it as a second unit, start it by
-hand: `python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py serve`.
+an unreadable registry at startup exits 2. It runs as `fabrik-deck.service`; by hand it is
+`python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py serve`.
+
+## Profile
+
+`fabrik_deck.py profile` (and `install`) copies `~/.local/share/code-server/User/settings.json` to
+`…/User/backups/settings.json.<timestamp>` and merges these keys into it; for these keys the Deck's value wins and every
+other key stays as it is: `workbench.colorTheme: "Dark 2026"` (the desktop VS Code theme), `window.autoDetectColorScheme:
+false`, `claudeCode.preferredLocation: "panel"`, `editor.minimap.enabled: false`, `breadcrumbs.enabled: false`,
+`workbench.startupEditor: "none"`, `workbench.activityBar.location: "top"` (Source Control stays one click away),
+`workbench.statusBar.visible: true`, `workbench.editor.showTabs: "single"`. A settings.json that is not a plain JSON
+object — code-server also accepts comments and trailing commas, which a rewrite would lose — is left untouched and the
+run exits 1 naming it; remove the comments, or set the keys by hand.
+
+## Launcher
+
+`fabrik_deck.py launcher --desktop DIR [--distro D] [--browser PATH]` (and `install --desktop`) writes
+`DIR/Fabrik Deck.bat` — the operator's desktop is `/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop`
+(`docs/reference/repo-coordinator-rollout.md`). `--distro` defaults to `$WSL_DISTRO_NAME`, `--browser` to
+`C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe`. A double-click:
+
+1. runs `wsl.exe --distribution <D> --exec /usr/bin/python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py up`, which
+   exports `XDG_RUNTIME_DIR` when the user bus is there (a `.bat` carries none), starts each unit that is not active
+   and whose port is free — a port held by another process (a hand-started code-server) is named and that unit left
+   stopped — and prints the board port;
+2. waits up to 30 s for `http://localhost:<port>/` to answer `200` from Windows (`curl.exe`), else says so and pauses;
+3. when the browser is already running, stops there (a second launch opens no window); otherwise starts it — on the
+   board the first time, then writes `Fabrik Deck.first-run` beside the `.bat`; after that with no URL, so Vivaldi's
+   session restore brings back the board and the repo tabs.
+
+The file is ASCII with CRLF line ends and its second line is a marker; a `Fabrik Deck.bat` without the marker is never
+overwritten (exit 2). One-time clicks in Vivaldi (Settings → Startup): start with the last session, and set the home
+page to `http://localhost:8445/`, so a closed board tab is one Home click away.
+
+## Accepted exposure: auth none
+
+`auth: none` is the operator's ruling ("no it should not bound password", D-1106): any local process — any Windows
+process through localhost forwarding, and any page open in the browser that links to it — can drive a full VS Code with
+a terminal as the operator's user. Both servers bind `127.0.0.1` only; the board is read-only (GET only, a Host check,
+`frame-ancestors 'none'`). Nothing in this setup listens on another address.
+
+## Acceptance
+
+The spec's open unknowns need the operator's hands and a reboot. Each row is a step and what to record here after it;
+the coordinator boards it as a gate, because `wsl --shutdown` and a Windows reboot end every session.
+
+| # | Step | Record |
+|---|---|---|
+| 1 | Open 3 repo tabs from the board, tile 2 of them, close Vivaldi, reopen it | whether the board, the 3 tabs and the tiling all return |
+| 2 | Tile and untile a repo tab mid-chat; leave one tab and the board in the background past Vivaldi's hibernation delay; make a session wait | whether a chat view reloads, and whether the browser notification fires |
+| 3 | `wsl --shutdown`, then a Windows reboot; after each, from Windows `curl.exe -s -o NUL -w "%{http_code}" http://localhost:8443/` and `:8445/` | the codes; if forwarding fails, which fallback worked (restart WSL; reaching the NAT address would need the servers bound there, an exposure change put to the operator first) |
+| 4 | Double-click the `.bat` with Vivaldi open; close the board tab and press Home | whether a new window opened (expected: none) and whether Home brings the board back |
+| 5 | Open 6 repo tabs | code-server's RSS (`ps -o rss= -C node` summed) and Vivaldi's memory (Task Manager), per tab |
 
 ## Rollback
 
-`systemctl --user disable --now fabrik-deck-code`, delete `~/.config/systemd/user/fabrik-deck-code.service`,
-`systemctl --user daemon-reload`; delete `~/.config/fabrik-deck/` if nothing else of the Deck uses it. For the attention
+`systemctl --user disable --now fabrik-deck-code fabrik-deck`, delete both unit files from
+`~/.config/systemd/user/`, `systemctl --user daemon-reload`; delete `Fabrik Deck.bat` and `Fabrik Deck.first-run` from
+the desktop; restore `config.yaml` and `settings.json` from `~/.local/share/code-server/User/backups/` (or delete
+`~/.local/share/code-server`); delete `~/.config/fabrik-deck/` and `~/.local/state/fabrik-deck/`. For the attention
 hook, in this order: remove its `DECK_HOOK` rows from `install_user_hooks.py` `ENTRIES` (else the next install or
 `--sync-shared` puts them back), then its registrations from every account dir's `settings.json` (after a backup), and
 only then revert or delete `fabrik_deck.py` — a registered `hook` call reaching an older or missing script would exit 2
