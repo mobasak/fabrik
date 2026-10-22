@@ -499,10 +499,10 @@ session-recall — structured rows beat lexical transcripts.
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a
   single-window repo's one agent, tells the operator once and starts no new item of its own until the operator types
   it (a coordinator keeps doing its standing jobs); a waiting turn's `STATE:` footer names the rotation and its
-  `NEXT:` names who sends the keys. A named hub window then re-binds with
-  `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force` (whoami's flag, not git's: the holder the line
-  names is this window's own claude process). The pruner's current mode and every rule:
-  `docs/workstation/session-history-retention.md`.
+  `NEXT:` reads `none — terminal; awaiting the rotation` (a `NEXT: operator — …` reads to the Stop hook as a
+  deferral). A named hub window then re-binds with `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`
+  (whoami's flag, not git's: the holder the line names is this window's own claude process). The pruner's current mode
+  and every rule: `docs/workstation/session-history-retention.md`.
 - **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **⚠️ THE OPENROUTER POOL IS OFF —
   D-181/D-182 — OFF BY POLICY:** the provider credentials stay provisioned, so a `fanout` would still dispatch and
   spend; this text and the gate are the control. Every fan-out a command names runs **NATIVE** — Claude Task

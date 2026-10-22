@@ -64,7 +64,7 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
             "`agents_up.sh rotate-session <name>` once infra's W-f975fee0 lands",
             "messages its coordinator `rotate <name>` and waits for the keys",
             "a builder with no pane asks its coordinator the same way",
-            "`STATE:` footer names the rotation and its `NEXT:` names who sends the keys",
+            "`STATE:` footer names the rotation and its `NEXT:` reads `none — terminal; awaiting the rotation`",
             "only when it is at its prompt with an empty input line, else aborts, never queues",
             "a ROTATE-DUE line will say so once W-f975fee0 lands",
             "`tmux send-keys`",

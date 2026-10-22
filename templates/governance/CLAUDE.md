@@ -517,7 +517,8 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a
   single-window repo's one agent, tells the operator once and starts no new item of its own until the operator types
   it (a coordinator keeps doing its standing jobs); a waiting turn's `STATE:` footer names the rotation and its
-  `NEXT:` names who sends the keys. A window bound to an agent name then re-binds with
+  `NEXT:` reads `none — terminal; awaiting the rotation` (a `NEXT: operator — …` reads to the Stop hook as a
+  deferral). A window bound to an agent name then re-binds with
   `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force` (whoami's flag, not git's: the holder the line
   names is this window's own claude process). The pruner's current mode and every rule:
   `/opt/fabrik/docs/workstation/session-history-retention.md`.
