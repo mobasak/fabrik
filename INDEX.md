@@ -1359,6 +1359,7 @@ docs/
 │       ├── 2026-10-22-w-02472911-kaizen-waste-series-review.md
 │       ├── 2026-10-22-w18f559d9-ninety-lane-review.md
 │       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
+│       ├── 2026-10-22-wa784a444-quota-lane-sample-review.md
 │       ├── 2026-10-22-wfa004224-hub-agent-names-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
