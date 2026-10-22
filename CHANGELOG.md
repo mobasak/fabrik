@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review-probe-catalogue: a copy of the base pin tree is made writable before the pins are laid over it, and again after (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: `review_loop_ledger.py pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories. A seat that copies the base tree therefore runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after it, because a pin file the base lacks lands read-only. Before this, five of fourteen seats in one review hit Permission denied (mail 01M5HTCCA9 from infra-2). `tests/test_review_queue_pass.py` pins the clause.
+
 ### Changed — /fabrik-task queue pass: a terminal that rests on another party's act names the hand-off (2026-10-22)
 
 - `commands/_fragments/run-record.md`, rendered into every command that includes it (36 of the 39 that open a run record): where a run's outcome rests on an act it does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close. `tests/test_fabrik_task_queue_pass.py` pins it. The other 10 queue rows were rejected with reasons, and the two code rows were mailed to infra (W-82a196a7).
