@@ -91,12 +91,13 @@ def box(tmp_path: Path):
     if os.environ.get("XDG_RUNTIME_DIR"):
         b.env["XDG_RUNTIME_DIR"] = os.environ["XDG_RUNTIME_DIR"]
 
-    def run(*args: str, **extra: str) -> subprocess.CompletedProcess:
+    def run(*args: str, input: str | None = None, **extra: str) -> subprocess.CompletedProcess:
         env = dict(b.env)
         env.update(extra)
         return subprocess.run(
             [sys.executable, str(SCRIPT), *args],
             env=env,
+            input=input,
             capture_output=True,
             text=True,
             timeout=60,
@@ -409,3 +410,100 @@ def test_install_accepts_a_single_quoted_port(box):
     box.env_file.write_text(f"FABRIK_DECK_CODE_PORT='{port}'\n")
     r = box.run("install", "--hub", str(box.hub), "--start")
     assert r.returncode == 0, r.stderr
+
+
+# --- the attention hook (plan 2026-10-22-plan-1-fabrik-deck, Phase A; spec § Tests 1-2) ---------------------------
+SID = "0f1e2d3c-aaaa-bbbb-cccc-123456789abc"
+
+
+def _hook(box, event: str, state: Path, sid: str = SID, cwd: str = "/opt/youtube", **extra):
+    payload = {"hook_event_name": event, "session_id": sid, "cwd": cwd}
+    payload.update(extra.pop("payload", {}))
+    env = {"FABRIK_DECK_STATE": str(state)}
+    env.update(extra)
+    return box.run("hook", input=json.dumps(payload), **env)
+
+
+def _att(state: Path, sid: str = SID) -> Path:
+    return state / "attention" / f"{sid}.json"
+
+
+@pytest.mark.parametrize("ntype", ["permission_prompt", "idle_prompt", "elicitation_dialog"])
+def test_hook_notification_waiting_types_write_the_file(box, tmp_path, ntype):
+    state = tmp_path / "state"
+    r = _hook(box, "Notification", state, payload={"notification_type": ntype})
+    assert r.returncode == 0 and r.stdout == ""
+    data = json.loads(_att(state).read_text())
+    assert data["type"] == ntype and data["cwd"] == "/opt/youtube" and isinstance(data["at"], float)
+
+
+def test_hook_ignores_other_notification_types(box, tmp_path):
+    state = tmp_path / "state"
+    for ntype in ("auth_success", "elicitation_url_dialog", "", None):
+        r = _hook(box, "Notification", state, payload={"notification_type": ntype})
+        assert r.returncode == 0 and r.stdout == ""
+    assert not _att(state).exists()
+
+
+@pytest.mark.parametrize("clearer", ["UserPromptSubmit", "SessionEnd"])
+def test_hook_stop_marks_turn_ended_and_prompt_or_end_clears(box, tmp_path, clearer):
+    state = tmp_path / "state"
+    _hook(box, "Stop", state)
+    assert json.loads(_att(state).read_text())["type"] == "turn_ended"
+    r = _hook(box, clearer, state)
+    assert r.returncode == 0 and r.stdout == ""
+    assert not _att(state).exists()
+
+
+def test_hook_post_tool_use_clears_only_a_permission_prompt(box, tmp_path):
+    state = tmp_path / "state"
+    _hook(box, "Notification", state, payload={"notification_type": "idle_prompt"})
+    _hook(box, "PostToolUse", state)
+    assert json.loads(_att(state).read_text())["type"] == "idle_prompt"
+    _hook(box, "Notification", state, payload={"notification_type": "permission_prompt"})
+    _hook(box, "PostToolUse", state)
+    assert not _att(state).exists()
+
+
+def test_hook_origin_tmux_wins_then_deck_then_other(box, tmp_path):
+    state = tmp_path / "state"
+    _hook(box, "Stop", state, TMUX="/tmp/tmux-1000/default,1,0", FABRIK_DECK="1")
+    assert json.loads(_att(state).read_text())["origin"] == "tmux"
+    _hook(box, "Stop", state, FABRIK_DECK="1")
+    assert json.loads(_att(state).read_text())["origin"] == "deck"
+    _hook(box, "Stop", state)
+    assert json.loads(_att(state).read_text())["origin"] == "other"
+
+
+def test_hook_bad_input_exits_zero_with_empty_stdout(box, tmp_path):
+    state = tmp_path / "state"
+    for raw in ("not json", "[1, 2]", ""):
+        r = box.run("hook", input=raw, FABRIK_DECK_STATE=str(state))
+        assert r.returncode == 0 and r.stdout == ""
+    r = _hook(box, "Stop", state, sid="../escape")
+    assert r.returncode == 0 and r.stdout == ""
+    assert not (tmp_path / "escape.json").exists() and not (state / "escape.json").exists()
+    blocked = tmp_path / "file-not-dir"
+    blocked.write_text("x")
+    r = _hook(box, "Stop", blocked / "state")
+    assert r.returncode == 0 and r.stdout == ""
+
+
+def test_hook_reads_state_dir_from_the_env_file(box, tmp_path):
+    state = tmp_path / "from-file"
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text(f"FABRIK_DECK_STATE={state}\n")
+    payload = {"hook_event_name": "Stop", "session_id": SID, "cwd": "/opt/youtube"}
+    r = box.run("hook", input=json.dumps(payload))
+    assert r.returncode == 0 and r.stdout == ""
+    assert _att(state).exists()
+
+
+def test_hook_runs_without_pyyaml(box, tmp_path):
+    shadow = tmp_path / "noyaml"
+    shadow.mkdir()
+    (shadow / "yaml.py").write_text("raise ImportError('no yaml here')\n")
+    state = tmp_path / "state"
+    r = _hook(box, "Stop", state, PYTHONPATH=str(shadow))
+    assert r.returncode == 0 and r.stdout == ""
+    assert _att(state).exists()

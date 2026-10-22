@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/workstation/fabrik-deck.md | tests/test_fabrik_deck.py
+# AFTER-EDIT: docs/workstation/fabrik-deck.md | tests/test_fabrik_deck.py | docs/workstation/hooks-index.md | scripts/sysadmin/install_user_hooks.py
 """fabrik_deck.py code-server | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
 
 The Deck (docs/superpowers/specs/2026-10-21-fabrik-deck-design.md, D-1106) shows every repo as a code-server workbench
@@ -37,6 +37,7 @@ the Deck's port without anyone starting anything (the check is docs/workstation/
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import pwd
 import re
@@ -45,6 +46,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 UNIT_NAME = "fabrik-deck-code.service"
@@ -151,6 +153,79 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
+def _home() -> Path:
+    return Path(os.environ.get("HOME") or pwd.getpwuid(os.getuid()).pw_dir)
+
+
+def _env_path(home: Path) -> Path:
+    return home / ".config" / "fabrik-deck" / "env"
+
+
+def _state_dir(home: Path, environ: dict[str, str] | os._Environ[str]) -> Path:
+    """FABRIK_DECK_STATE from the environment, else from the env file, else ~/.local/state/fabrik-deck. The hook runs
+    in sessions that never load the env file (R-P10), so it reads the file itself; warn=False keeps every session's
+    stderr clean."""
+    value = environ.get("FABRIK_DECK_STATE")
+    if not value:
+        try:
+            value = _read_env(_env_path(home).read_text()).get("FABRIK_DECK_STATE")
+        except OSError:
+            value = None
+    return Path(value) if value else home / ".local" / "state" / "fabrik-deck"
+
+
+WAITING = ("permission_prompt", "idle_prompt", "elicitation_dialog")
+
+
+def hook() -> None:
+    """One attention file per waiting session: <state>/attention/<session_id>.json = {cwd, type, origin, at}.
+
+    Registered for Notification, UserPromptSubmit, Stop, PostToolUse and SessionEnd in every session on the box, so it
+    prints nothing on stdout and main() turns every failure into exit 0. A denied permission fires PostToolUseFailure,
+    not PostToolUse, so that dot clears at the next Stop or prompt.
+    """
+    if sys.stdin.isatty():
+        return
+    try:
+        payload = json.loads(sys.stdin.read())
+    except ValueError:
+        return
+    if not isinstance(payload, dict):
+        return
+    sid = payload.get("session_id")
+    if not isinstance(sid, str) or not sid or "/" in sid or sid in (".", ".."):
+        return
+    event = payload.get("hook_event_name")
+    path = _state_dir(_home(), os.environ) / "attention" / f"{sid}.json"
+
+    def write(kind: str) -> None:
+        if os.environ.get("TMUX"):
+            origin = "tmux"
+        elif os.environ.get("FABRIK_DECK") == "1":
+            origin = "deck"
+        else:
+            origin = "other"
+        record = {"cwd": str(payload.get("cwd") or ""), "type": kind, "origin": origin, "at": time.time()}
+        _atomic_write(path, json.dumps(record))
+
+    if event == "Notification":
+        if payload.get("notification_type") in WAITING:
+            write(payload["notification_type"])
+    elif event == "Stop":
+        write("turn_ended")
+    elif event == "PostToolUse":
+        # Every tool call of every session lands here: stat first, read only when a file exists.
+        if path.exists():
+            try:
+                kind = json.loads(path.read_text()).get("type")
+            except (OSError, ValueError, AttributeError):
+                return
+            if kind == "permission_prompt":
+                path.unlink(missing_ok=True)
+    elif event in ("UserPromptSubmit", "SessionEnd"):
+        path.unlink(missing_ok=True)
+
+
 def _render_unit(hub: Path, env_file: Path) -> str:
     return (
         f"{MARKER}\n"
@@ -208,7 +283,7 @@ def install(hub: Path, start: bool) -> None:
         if not path.is_file():
             _die(1, f"{path} does not exist — the unit would fail at every start")
 
-    env_file = home / ".config" / "fabrik-deck" / "env"
+    env_file = _env_path(home)
     unit_path = home / ".config" / "systemd" / "user" / UNIT_NAME
     if unit_path.exists() and not unit_path.read_text().startswith(MARKER):
         _die(1, f"{unit_path} exists and was not written by this script — move it aside first")
@@ -260,6 +335,14 @@ def install(hub: Path, start: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["hook"]:
+        # Before argparse: a usage error or any exception must never block the session that fired the hook.
+        try:
+            hook()
+        except BaseException as exc:  # noqa: BLE001 — the hook's contract is exit 0, always
+            print(f"fabrik_deck hook: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(0)
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser(
@@ -275,6 +358,7 @@ def main(argv: list[str] | None = None) -> None:
     ins.add_argument(
         "--start", action="store_true", help="also start it (refused while the port is in use)"
     )
+    sub.add_parser("hook", help="the attention hook (stdin: the hook event JSON); always exits 0")
     args = ap.parse_args(argv)
     if args.cmd == "code-server":
         code_server()

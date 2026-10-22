@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fabrik Deck attention hook: one file per session waiting on the operator (2026-10-22)
+
+`scripts/sysadmin/fabrik_deck.py hook` writes `<state>/attention/<session_id>.json` (`{cwd, type, origin, at}`) on a waiting `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) and on `Stop`, and clears it on `UserPromptSubmit`, `SessionEnd` and a `PostToolUse` after a permission prompt; the state dir comes from `FABRIK_DECK_STATE` or the Deck env file. It prints nothing on stdout and exits 0 on every path (dispatched before argparse). `install_user_hooks.py` `ENTRIES` registers it on those five events (applied only after merge); `docs/workstation/hooks-index.md` and `docs/workstation/fabrik-deck.md` document it, with a measured 47 ms per call (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase A, D-1121).
+
 ### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
 
 - `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).
