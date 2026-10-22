@@ -1237,6 +1237,7 @@ docs/
 │       ├── 2026-10-17-plan-1-command-centre-dashboard-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
+│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
 │       ├── 2026-10-17-stop-hook-uncommitted-vs-running-review-review.md
 │       ├── 2026-10-17-test-caps-w162398ef-review.md
 │       ├── 2026-10-17-w-177082fc-review-loop-candidate-file-review.md
