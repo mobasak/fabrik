@@ -7195,8 +7195,8 @@ def _stamp_raw_tier(stamp: Path) -> str | None:
 
 
 def _battery_arm(now: float) -> None:
-    """Low battery and no hold (no stamp, or the quota's softer `urgent-90`, which holds nothing)
-    → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    """Low battery and no full hold (no stamp, or the quota's softer `urgent-90`, the D-1113 lane, which
+    parks builders only) → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
     if not _battery_low():
         return
     stamp = _fleet_exhaustion_stamp()
@@ -8237,8 +8237,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
         # fired first, and `urgent` fires up to eight points before `walled` — so without this
-        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` holds nothing once
-        # the account actually walls. One-way: never the reverse.
+        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` keeps only the lane
+        # (D-1113: coordinators and P0 owners continue) once the account actually walls. One-way: never the reverse.
         if walled:
             _upgrade_stamp_tier_to_walled(stamp)
         return  # already advised for this wall episode — one fact, one message
@@ -8268,7 +8268,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
                 # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
-                # `urgent-90` (which holds nothing), and only mains power may lift it (W-83a8ee68)
+                # `urgent-90` (the D-1113 lane, which lets coordinators and P0 owners through), and
+                # only mains power may lift it (W-83a8ee68)
                 _STAMP_TIER_BATTERY
                 if _battery_low()
                 else _STAMP_TIER_WALLED
