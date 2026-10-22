@@ -57,14 +57,17 @@ python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --start             
 `install` writes, in order: the env file (missing keys only); `~/.config/code-server/config.yaml` after a copy to
 `~/.local/share/code-server/User/backups/config.yaml.<timestamp>` — `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`,
 `auth: none`, `cert: false`, every other line (a `password:` line included) kept, a new file mode 0600 and an existing
-one's mode kept; the profile (§ Profile); both units; then `daemon-reload` and `enable`, `start` with `--start`, and
+one's mode kept; the profile (§ Profile; a file that already holds the Deck's values is left as it is, with no new
+backup); both units; then `daemon-reload` and `enable`, `start` with `--start`, and
 with `--desktop` the launcher (§ Launcher).
 
-Every check runs before the first write, so a refusal (exit 1) changes nothing: linger off; a `--hub` path holding a
-space, `%`, `$`, `\` or a quote; the hub script or `~/.local/bin/code-server` missing; a foreign unit file at either
-path; `systemd-analyze --user verify` printing anything for either unit; a port in the env file that does not parse;
-a settings.json that is not a plain JSON object; with `--desktop`, a `Fabrik Deck.bat` this script did not write, or a
-distro or browser value `cmd` would split; and with `--start`, something listening on the port of a unit that is not
+Every check runs before the first write, so a refusal (exit 1) changes nothing: linger off; a `--hub` path that is
+not absolute or holds anything but letters, digits and `/ . _ -` (the units and the `.bat` carry it unquoted); the
+hub script or `~/.local/bin/code-server` missing; a foreign unit file at either path; `systemd-analyze --user verify`
+printing anything for either unit; a port in the env file that does not parse, or the two ports equal; an env file
+that is not UTF-8; a settings.json that is not a plain JSON object (an empty one counts as no settings); a backup that
+cannot be written; with `--desktop`, a `Fabrik Deck.bat` this script did not write, or a distro or browser value
+`cmd` would split; and with `--start`, something listening on the port of a unit that is not
 active (an active unit holds its own port, so it is not refused). A failing `systemctl` after the files are written
 exits 1 and leaves them in place. It ends by printing `systemctl --user is-enabled` for each unit.
 
@@ -166,16 +169,20 @@ run exits 1 naming it; remove the comments, or set the keys by hand.
 `fabrik_deck.py launcher --desktop DIR [--distro D] [--browser PATH]` (and `install --desktop`) writes
 `DIR/Fabrik Deck.bat` — the operator's desktop is `/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop`
 (`docs/reference/repo-coordinator-rollout.md`). `--distro` defaults to `$WSL_DISTRO_NAME`, `--browser` to
-`C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe`. A double-click:
+`C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe` (it must be a Windows path to an `.exe`), `--hub` to
+`/opt/fabrik` (letters, digits and `/ . _ -` only). A double-click:
 
 1. runs `wsl.exe --distribution <D> --exec /usr/bin/python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py up`, which
    exports `XDG_RUNTIME_DIR` when the user bus is there (a `.bat` carries none), starts each unit that is not active
    and whose port is free — a port held by another process (a hand-started code-server) is named and that unit left
-   stopped — and prints the board port;
-2. waits up to 30 s for `http://localhost:<port>/` to answer `200` from Windows (`curl.exe`), else says so and pauses;
-3. when the browser is already running, stops there (a second launch opens no window); otherwise starts it — on the
-   board the first time, then writes `Fabrik Deck.first-run` beside the `.bat`; after that with no URL, so Vivaldi's
-   session restore brings back the board and the repo tabs.
+   stopped — and prints the board port; it prints none when another process holds the board's own port, and with no
+   user bus it starts nothing and says so;
+2. waits up to 30 s for `http://localhost:<port>/` to answer `200` from Windows (`curl.exe`, 2 s per try), else says
+   so and pauses;
+3. the first time, opens the board (in a new tab when the browser is already running) and writes
+   `Fabrik Deck.first-run` beside the `.bat`; after that, when the browser is already running it stops there (a second
+   launch opens no window), and otherwise starts it with no URL, so Vivaldi's session restore brings back the board
+   and the repo tabs.
 
 The file is ASCII with CRLF line ends and its second line is a marker; a `Fabrik Deck.bat` without the marker is never
 overwritten (exit 2). One-time clicks in Vivaldi (Settings → Startup): start with the last session, and set the home

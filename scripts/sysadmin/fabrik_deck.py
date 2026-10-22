@@ -26,20 +26,25 @@ profile — merge PROFILE into code-server's settings.json after copying it to �
 plain JSON object (code-server also accepts comments) is left alone, exit 1.
 
 launcher --desktop DIR — write "Fabrik Deck.bat" there: it runs `up` in WSL, waits up to 30 s for the board to answer
-from Windows, then opens the browser only when it is not running (on the board the first time, recorded by a marker
-file beside the .bat; with no URL afterwards, so the browser's session restore brings the tabs back). A .bat whose
-second line is not our marker is never overwritten (exit 2), and a distro or browser value cmd would split is refused.
+from Windows, then the first time opens the board (and records that in a marker file beside the .bat); afterwards it
+starts the browser only when it is not running, with no URL, so the browser's session restore brings the tabs back. A
+.bat whose second line is not our marker is never overwritten (exit 2); a hub, distro or browser value cmd would split
+is refused (the browser must be a Windows path to an .exe).
 
-up — the .bat's WSL leg: export XDG_RUNTIME_DIR when the user bus is there (a .bat carries none), start each unit that
-is not active and whose port is free (a held port is named on stderr and that unit left stopped), print the board port.
+up — the .bat's WSL leg: export XDG_RUNTIME_DIR when the user bus is there (a .bat carries none; with no bus it says
+so, starts nothing and exits 1), start each unit that is not active and whose port is free (a held port is named on
+stderr and that unit left stopped), print the board port — none when another process holds it, so the .bat never
+opens a foreign page.
 
 install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh), for both units.
 Every check runs before the first write, so a refusal (exit 1) leaves every file as it was: linger must be on; `--hub`
-holds no space, %, $, backslash or quote (ExecStart would split or expand it); the ExecStart target and the
+is an absolute path of letters, digits and / . _ - (ExecStart and the .bat would split or expand anything else); the
+ExecStart target and the
 code-server binary must exist (`systemd-analyze verify` cannot see either); a unit file without our marker is never
 overwritten; each rendered unit must pass `systemd-analyze --user verify` printing nothing (a misplaced key is only a
-warning at rc 0); both ports in the env file must parse; settings.json must be plain JSON; with `--desktop`, the .bat
-must be ours or absent; with `--start`, nothing may listen on the port of a unit that is not active (that unit would
+warning at rc 0); both ports in the env file must parse and differ; the env file and settings.json must read (an
+empty settings.json is no settings); the backups of config.yaml and settings.json are taken (a file that already
+holds the Deck's values is neither backed up nor rewritten); with `--desktop`, the .bat must be ours or absent; with `--start`, nothing may listen on the port of a unit that is not active (that unit would
 fail to bind; an active unit holds its own port). Then the env file ~/.config/fabrik-deck/env is created, or on a
 present one every line is kept and only missing keys are appended (named on stderr), so an operator's override wins;
 config.yaml is backed up and its bind-addr, auth and cert lines set (others, such as a password line, kept; mode 0600
@@ -722,7 +727,21 @@ def _ports(env: dict[str, str], where: str, code: int) -> dict[str, int]:
         if port is None:
             _die(code, f"{where}: {key}={env.get(key)!r} is not a port (1-65535)")
         out[unit] = port
+    if len(set(out.values())) < len(out):
+        _die(
+            code,
+            f"{where}: FABRIK_DECK_PORT and FABRIK_DECK_CODE_PORT are both {port}; the second unit could not bind",
+        )
     return out
+
+
+def _hub_check(hub: Path, code: int) -> None:
+    """The hub path reaches a unit's ExecStart (systemd splits on spaces, expands % and $) and the .bat's `for /f`
+    line (cmd splits on & | < > ^ ( ) and expands %), unquoted in both; only plain path characters pass."""
+    if not re.fullmatch(r"/[A-Za-z0-9/._-]*", str(hub)):
+        _die(
+            code, f"--hub {str(hub)!r} must be an absolute path of letters, digits and / . _ - only"
+        )
 
 
 def _settings_path(home: Path) -> Path:
@@ -756,7 +775,10 @@ def _read_settings(path: Path) -> dict | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text())
+        text = path.read_text()
+        data = (
+            json.loads(text) if text.strip() else {}
+        )  # code-server treats an empty file as no settings
     except (OSError, ValueError) as exc:
         _die(1, f"{path} is not plain JSON ({type(exc).__name__}: {exc}); left untouched")
     if not isinstance(data, dict):
@@ -776,16 +798,27 @@ def _backup(path: Path, backups: Path) -> None:
     shutil.copy2(path, dest)
 
 
-def _write_profile(home: Path, current: dict | None) -> None:
-    path = _settings_path(home)
-    _backup(path, _backups(home))
-    _atomic_write(path, json.dumps({**(current or {}), **PROFILE}, indent=4) + "\n")
+def _profile_text(current: dict | None) -> str | None:
+    """The new settings.json text, or None when the file already holds every Deck value (no backup, no rewrite)."""
+    if current is not None and all(k in current and current[k] == v for k, v in PROFILE.items()):
+        return None
+    return json.dumps({**(current or {}), **PROFILE}, indent=4, ensure_ascii=False) + "\n"
+
+
+def _backup_or_die(path: Path, backups: Path) -> None:
+    try:
+        _backup(path, backups)
+    except OSError as exc:
+        _die(1, f"cannot back up {path} to {backups}: {exc}")
 
 
 def profile() -> None:
     home = _home()
     path = _settings_path(home)
-    _write_profile(home, _read_settings(path))
+    text = _profile_text(_read_settings(path))
+    if text is not None:
+        _backup_or_die(path, _backups(home))
+        _atomic_write(path, text)
     print(f"fabrik_deck: {path}: the Deck profile is applied")
 
 
@@ -795,9 +828,10 @@ def _config_yaml_text(old: str, code_port: int) -> str:
     want = {"bind-addr": f"127.0.0.1:{code_port}", "auth": "none", "cert": "false"}
     lines, seen = [], set()
     for line in old.splitlines():
+        # a top-level key only: an indented `auth:` belongs to some other map and stays where it is
         key = (
-            line.split(":", 1)[0].strip()
-            if ":" in line and not line.lstrip().startswith("#")
+            line.split(":", 1)[0].rstrip().strip("\"'")
+            if ":" in line and line[:1] not in ("", " ", "\t", "#")
             else ""
         )
         if key in want:
@@ -828,19 +862,19 @@ def _bat_text(hub: Path, distro: str, browser: str) -> str:
         'if "%PORT%"=="" (echo Fabrik Deck: WSL did not answer with the board port. & pause & exit /b 1)',
         "set TRIES=0",
         ":wait",
-        'curl.exe -s -o NUL -w "%%{http_code}" http://localhost:%PORT%/ | findstr 200 >NUL && goto ready',
+        'curl.exe -s -m 2 -o NUL -w "%%{http_code}" http://localhost:%PORT%/ | findstr 200 >NUL && goto ready',
         "set /a TRIES+=1",
         "if %TRIES% GEQ 30 (echo Fabrik Deck: http://localhost:%PORT%/ did not answer within 30 s. & pause & exit /b 1)",
         "timeout /t 1 /nobreak >NUL",
         "goto wait",
         ":ready",
-        f'tasklist /FI "IMAGENAME eq {image}" /NH | find /I "{image}" >NUL && exit /b 0',
-        f'if exist "%~dp0{FIRST_RUN}" (',
-        f'  start "" "{browser}"',
-        ") else (",
+        f'if not exist "%~dp0{FIRST_RUN}" (',
         f'  start "" "{browser}" http://localhost:%PORT%/',
         f'  echo opened> "%~dp0{FIRST_RUN}"',
+        "  exit /b 0",
         ")",
+        f'tasklist /FI "IMAGENAME eq {image}" /NH | find /I "{image}" >NUL && exit /b 0',
+        f'start "" "{browser}"',
     ]
     return "\r\n".join(lines) + "\r\n"
 
@@ -849,13 +883,21 @@ def _bat_check(desktop: Path, distro: str, browser: str, code: int) -> Path:
     """Refuse (exit `code`) a value cmd would split or expand, or a .bat this script did not write; the target."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distro or ""):
         _die(code, f"--distro {distro!r} is not a WSL distro name ([A-Za-z0-9][A-Za-z0-9._-]*)")
-    if not browser.isascii() or any(c in browser for c in '"%&|<>^\r\n'):
-        _die(code, f"--browser {browser!r} holds a character cmd would split or expand")
+    if not (
+        browser.isascii() and re.fullmatch(r"[A-Za-z]:\\[^\"%&|<>^\r\n/]*\.[Ee][Xx][Ee]", browser)
+    ):
+        _die(
+            code,
+            f"--browser {browser!r} must be a Windows path to an .exe with no character cmd would split",
+        )
     if not desktop.is_dir():
         _die(code, f"--desktop {desktop} is not a directory")
     target = desktop / BAT_NAME
     if target.exists() or target.is_symlink():
-        lines = target.read_bytes().split(b"\r\n")
+        try:
+            lines = target.read_bytes().split(b"\r\n")
+        except OSError as exc:
+            _die(code, f"{target} cannot be read ({exc}); left untouched")
         if not (len(lines) > 1 and lines[1] == BAT_MARKER.encode("ascii")):
             _die(code, f"{target} exists and was not written by this script; left untouched")
     return target
@@ -874,6 +916,7 @@ def _write_bat(target: Path, text: str) -> None:
 
 
 def launcher(desktop: Path, distro: str, browser: str, hub: Path) -> None:
+    _hub_check(hub, 2)
     target = _bat_check(desktop, distro, browser, 2)
     _write_bat(target, _bat_text(hub, distro, browser))
 
@@ -890,15 +933,31 @@ def up(runtime_dir: Path) -> None:
     except OSError:
         env = {}
     ports = _ports(env, str(env_file), 1)
+    if not os.environ.get("XDG_RUNTIME_DIR"):
+        # without a bus every systemctl call fails, and a running unit would read as stopped with its port "held"
+        print(f"fabrik_deck: no user bus at {bus_dir}/bus; started nothing", file=sys.stderr)
+        print(ports[DECK_UNIT_NAME])
+        sys.exit(1)
     rc = 0
     for unit, *_ in UNITS:
-        if _active(unit):
+        try:
+            active = _active(unit)
+        except (
+            OSError
+        ) as exc:  # no systemctl at all: say so, and still print the port the .bat waits on
+            print(f"fabrik_deck: cannot run systemctl: {exc}", file=sys.stderr)
+            rc = 1
+            break
+        if active:
             continue
         if _listening(ports[unit]):
             print(
                 f"fabrik_deck: {unit} left stopped: 127.0.0.1:{ports[unit]} is held by another process",
                 file=sys.stderr,
             )
+            if unit == DECK_UNIT_NAME:
+                # no port on stdout: the .bat would otherwise open whatever page holds the board's port
+                sys.exit(1)
             continue
         r = subprocess.run(["systemctl", "--user", "start", unit], capture_output=True, text=True)
         if r.returncode != 0:
@@ -924,11 +983,7 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
             f"linger is off for {user} ({linger.stdout.strip() or 'no answer'}); enable it once with: "
             f"loginctl enable-linger {user}",
         )
-    if any(c in str(hub) for c in " \t\n%$\\\"'"):
-        _die(
-            1,
-            f"--hub {str(hub)!r} holds a space, %, $, \\ or a quote, which the unit's ExecStart would split or expand",
-        )
+    _hub_check(hub, 1)
     target = hub / "scripts" / "sysadmin" / "fabrik_deck.py"
     binary = home / ".local" / "bin" / "code-server"
     for path in (target, binary):
@@ -940,7 +995,7 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
     texts = {}
     for unit, sub, description, _, _ in UNITS:
         unit_path = unit_dir / unit
-        if unit_path.exists() and not unit_path.read_text().startswith(MARKER):
+        if unit_path.exists() and not unit_path.read_text(errors="replace").startswith(MARKER):
             _die(1, f"{unit_path} exists and was not written by this script — move it aside first")
         texts[unit] = _render_unit(hub, env_file, sub, description)
         with tempfile.TemporaryDirectory() as tmp:
@@ -956,7 +1011,10 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
             )
 
     # Every check above and here runs before the first write, so a refusal leaves every file as it was.
-    existing = env_file.read_text() if env_file.exists() else ""
+    try:
+        existing = env_file.read_text() if env_file.exists() else ""
+    except (OSError, ValueError) as exc:
+        _die(1, f"cannot read {env_file} as UTF-8 text: {exc}")
     present = _read_env(existing, warn=True)
     missing = [(k, v_) for k, v_ in _env_defaults(home) if k not in present]
     sep = "" if not existing or existing.endswith("\n") else "\n"
@@ -977,6 +1035,14 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
                     f"127.0.0.1:{ports[unit]} is already in use — stop the process holding it, then re-run with --start",
                 )
 
+    new_config = _config_yaml_text(old_config, ports[UNIT_NAME])
+    settings_text = _profile_text(settings)
+    # the backups go first: a backup that fails stops the run before any file is written
+    if new_config != old_config:
+        _backup_or_die(config_yaml, _backups(home))
+    if settings_text is not None:
+        _backup_or_die(_settings_path(home), _backups(home))
+
     if missing:
         if existing:
             print(
@@ -984,11 +1050,10 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
                 file=sys.stderr,
             )
         _atomic_write(env_file, merged)
-    new_config = _config_yaml_text(old_config, ports[UNIT_NAME])
     if new_config != old_config:
-        _backup(config_yaml, _backups(home))
         _atomic_write(config_yaml, new_config, new_mode=0o600)
-    _write_profile(home, settings)
+    if settings_text is not None:
+        _atomic_write(_settings_path(home), settings_text)
     for unit, *_ in UNITS:
         _atomic_write(unit_dir / unit, texts[unit])
     _systemctl("daemon-reload")

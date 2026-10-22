@@ -1221,6 +1221,12 @@ def test_install_refuses_a_foreign_bat_before_any_write(box):
         "install", "--hub", str(box.hub), "--desktop", str(box.tmp / "desk"), "--distro", "Ubuntu"
     )
     assert r.returncode == 1 and not box.unit_path.exists() and not box.settings.exists()
+    assert (
+        not box.deck_unit_path.exists()
+        and not box.env_file.exists()
+        and not box.config_yaml.exists()
+    )
+    assert not box.backups.exists() and box.calls("systemctl") == []
 
 
 def test_install_start_does_not_refuse_the_port_of_an_active_unit(box):
@@ -1255,8 +1261,8 @@ def test_up_exports_the_bus_starts_inactive_free_units_and_prints_the_deck_port(
         with socket.socket() as held:
             held.bind(("127.0.0.1", 0))
             held.listen()
-            deck_port = held.getsockname()[1]
-            code_port = _free_port()
+            code_port = held.getsockname()[1]  # a hand-started code-server
+            deck_port = _free_port()
             box.env_file.parent.mkdir(parents=True)
             box.env_file.write_text(
                 f"FABRIK_DECK_CODE_PORT={code_port}\nFABRIK_DECK_PORT={deck_port}\n"
@@ -1268,10 +1274,10 @@ def test_up_exports_the_bus_starts_inactive_free_units_and_prints_the_deck_port(
                 XDG_RUNTIME_DIR="",
                 FAKE_SYSTEMCTL_FAIL_VERB="is-active",
             )
-        assert r.stdout.strip() == str(deck_port), (r.stdout, r.stderr)
+        assert r.returncode == 0 and r.stdout.strip() == str(deck_port), (r.stdout, r.stderr)
         starts = [a for a in box.calls("systemctl") if a[1] == "start"]
-        assert starts == [["--user", "start", UNIT]]
-        assert DECK_UNIT in r.stderr and str(deck_port) in r.stderr
+        assert starts == [["--user", "start", DECK_UNIT]]
+        assert UNIT in r.stderr and str(code_port) in r.stderr
         xdgs = {json.loads(line)["xdg"] for line in box.log.read_text().splitlines()}
         assert xdgs == {str(rt / str(os.getuid()))}
     finally:
@@ -1279,12 +1285,176 @@ def test_up_exports_the_bus_starts_inactive_free_units_and_prints_the_deck_port(
         shutil.rmtree(rt)
 
 
-def test_up_leaves_the_bus_unset_without_a_socket_and_skips_active_units(box):
+@pytest.mark.parametrize("bus", ["none", "plain-file"])
+def test_up_without_a_bus_socket_says_so_and_starts_nothing(box, bus):
     rt = _runtime_dir()
+    if bus == "plain-file":
+        (rt / str(os.getuid()) / "bus").write_text("not a socket")
     try:
         r = box.run("up", "--runtime-dir", str(rt), XDG_RUNTIME_DIR="")
-        assert r.returncode == 0 and r.stdout.strip() == "8445", (r.stdout, r.stderr)
-        assert [a for a in box.calls("systemctl") if a[1] == "start"] == []
-        assert {json.loads(line)["xdg"] for line in box.log.read_text().splitlines()} <= {"", None}
+        assert r.returncode == 1 and r.stdout.strip() == "8445", (r.stdout, r.stderr)
+        assert "no user bus" in r.stderr
+        assert box.calls("systemctl") == []
     finally:
         shutil.rmtree(rt)
+
+
+def test_up_skips_active_units(box):
+    r = box.run("up", XDG_RUNTIME_DIR="/run/user/0")  # the fake answers is-active with 0
+    assert r.returncode == 0 and r.stdout.strip() == "8445", (r.stdout, r.stderr)
+    assert [a for a in box.calls("systemctl") if a[1] == "start"] == []
+
+
+def test_up_prints_no_port_when_a_foreign_process_holds_the_boards(box):
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        deck_port = held.getsockname()[1]
+        box.env_file.parent.mkdir(parents=True)
+        box.env_file.write_text(
+            f"FABRIK_DECK_CODE_PORT={_free_port()}\nFABRIK_DECK_PORT={deck_port}\n"
+        )
+        r = box.run("up", XDG_RUNTIME_DIR="/run/user/0", FAKE_SYSTEMCTL_FAIL_VERB="is-active")
+    assert r.returncode == 1 and r.stdout == "" and DECK_UNIT in r.stderr
+
+
+def test_up_reports_a_failed_start_and_still_prints_the_port(box):
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text(
+        f"FABRIK_DECK_CODE_PORT={_free_port()}\nFABRIK_DECK_PORT={_free_port()}\n"
+    )
+    r = box.run("up", XDG_RUNTIME_DIR="/run/user/0", FAKE_SYSTEMCTL_RC="1")
+    assert r.returncode == 1 and r.stdout.strip().isdigit() and "start" in r.stderr
+
+
+# --- Phase C review pass 1 -----------------------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "hub", ["/opt/a&calc", "/opt/a b", "/opt/x)y", "/opt/f\u00e4brik", "/opt/50%", "relative/hub"]
+)
+def test_launcher_refuses_a_hub_cmd_or_systemd_would_split(box, hub):
+    (box.tmp / "desk").mkdir()
+    r = box.run("launcher", "--desktop", str(box.tmp / "desk"), "--distro", "Ubuntu", "--hub", hub)
+    assert r.returncode == 2 and not _bat(box).exists() and "Traceback" not in r.stderr, r.stderr
+
+
+def test_install_refuses_a_non_ascii_hub_before_any_write(box):
+    hub = box.tmp / "f\u00e4brik"
+    (hub / "scripts" / "sysadmin").mkdir(parents=True)
+    (hub / "scripts" / "sysadmin" / "fabrik_deck.py").write_text("#\n")
+    (box.tmp / "desk").mkdir()
+    r = box.run(
+        "install", "--hub", str(hub), "--desktop", str(box.tmp / "desk"), "--distro", "Ubuntu"
+    )
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+    assert not box.env_file.exists() and not box.unit_path.exists() and not _bat(box).exists()
+
+
+@pytest.mark.parametrize(
+    "browser", ["", "/usr/bin/vivaldi", "C:\\x\\vivaldi", "C:\\a|b\\v.exe", "C:\\v\u00e9.exe"]
+)
+def test_launcher_refuses_a_browser_that_is_not_a_windows_exe(box, browser):
+    (box.tmp / "desk").mkdir()
+    args = [
+        "launcher",
+        "--desktop",
+        str(box.tmp / "desk"),
+        "--distro",
+        "Ubuntu",
+        "--hub",
+        str(box.hub),
+    ]
+    r = box.run(*args, "--browser", browser)
+    assert r.returncode == 2 and not _bat(box).exists() and "Traceback" not in r.stderr, r.stderr
+
+
+@pytest.mark.parametrize("distro", ["", "-x", "a|b", "a\nb"])
+def test_launcher_refuses_a_bad_distro(box, distro):
+    (box.tmp / "desk").mkdir()
+    args = [
+        "launcher",
+        "--desktop",
+        str(box.tmp / "desk"),
+        "--hub",
+        str(box.hub),
+        "--distro",
+        distro,
+    ]
+    r = box.run(*args)
+    assert r.returncode == 2 and not _bat(box).exists()
+
+
+def test_launcher_a_bat_that_is_a_directory_is_a_clean_refusal(box):
+    _bat(box).mkdir(parents=True)
+    r = box.run(
+        "launcher", "--desktop", str(box.tmp / "desk"), "--distro", "Ubuntu", "--hub", str(box.hub)
+    )
+    assert r.returncode == 2 and "Traceback" not in r.stderr, r.stderr
+
+
+def test_launcher_first_run_opens_the_board_even_when_the_browser_runs(box):
+    (box.tmp / "desk").mkdir()
+    box.run(
+        "launcher", "--desktop", str(box.tmp / "desk"), "--distro", "Ubuntu", "--hub", str(box.hub)
+    )
+    text = _bat(box).read_bytes().decode()
+    assert text.index("if not exist") < text.index("tasklist"), (
+        "first run is handled before the running check"
+    )
+    first = text[text.index("if not exist") : text.index("tasklist")]
+    assert "http://localhost:%PORT%/" in first and "echo opened>" in first and "exit /b 0" in first
+    assert first.index("start ") < first.index("echo opened>")
+    assert "curl.exe -s -m 2 " in text
+
+
+def test_profile_treats_an_empty_settings_file_as_no_settings(box):
+    box.settings.parent.mkdir(parents=True)
+    box.settings.write_text("  \n")
+    r = box.run("profile")
+    assert r.returncode == 0, r.stderr
+    assert json.loads(box.settings.read_text()) == PROFILE
+
+
+def test_profile_rerun_takes_no_second_backup_and_keeps_non_ascii(box):
+    box.settings.parent.mkdir(parents=True)
+    box.settings.write_text(json.dumps({"x.label": "caf\u00e9"}))
+    assert box.run("profile").returncode == 0
+    assert box.run("profile").returncode == 0
+    assert len(list(box.backups.glob("settings.json.*"))) == 1
+    assert "caf\u00e9" in box.settings.read_text(encoding="utf-8")
+
+
+def test_install_refuses_both_units_on_one_port(box):
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text("FABRIK_DECK_CODE_PORT=9000\nFABRIK_DECK_PORT=9000\n")
+    r = box.run("install", "--hub", str(box.hub))
+    assert r.returncode == 1 and "9000" in r.stderr
+    assert not box.unit_path.exists() and box.calls("systemctl") == []
+
+
+def test_install_refuses_a_backup_it_cannot_write_before_any_write(box):
+    box.config_yaml.parent.mkdir(parents=True)
+    box.config_yaml.write_text("auth: password\n")
+    box.backups.parent.mkdir(parents=True)
+    box.backups.write_text("a file where the backups folder goes")
+    r = box.run("install", "--hub", str(box.hub))
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+    assert box.config_yaml.read_text() == "auth: password\n" and not box.env_file.exists()
+
+
+def test_install_refuses_a_non_utf8_env_file_cleanly(box):
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_bytes(b"FABRIK_DECK=1\n\xff\n")
+    r = box.run("install", "--hub", str(box.hub))
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+    assert box.env_file.read_bytes() == b"FABRIK_DECK=1\n\xff\n"
+
+
+def test_config_yaml_replaces_only_top_level_keys():
+    spec = importlib.util.spec_from_file_location("fabrik_deck_yaml_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    old = 'foo:\n  auth: x\n  cert: 1\n"auth": password\n# auth: y\n'
+    new = m._config_yaml_text(old, 8443).splitlines()
+    assert new[:3] == ["foo:", "  auth: x", "  cert: 1"]
+    assert new.count("auth: none") == 1 and not any(line.startswith('"auth"') for line in new)
+    assert "# auth: y" in new and "bind-addr: 127.0.0.1:8443" in new and "cert: false" in new

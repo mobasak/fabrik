@@ -480,9 +480,10 @@ Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment;
 
 ### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
 
-Read by `scripts/sysadmin/fabrik_deck.py` from `~/.config/fabrik-deck/env` (the two systemd units load it as their
-`EnvironmentFile=`; the hook and `up` read it themselves) or from the process environment; none of them goes in a
-project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
+Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve`,
+`code-server` and the hook read the process environment first (the hook falls back to the file for
+`FABRIK_DECK_STATE`), while `install` and `up` read the file only, so a value set just in a shell does not reach them.
+None of them goes in a project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
 works: `docs/workstation/fabrik-deck.md`.
 
 - `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
