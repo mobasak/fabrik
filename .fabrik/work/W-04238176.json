@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-02472911"
+  ],
+  "created": "2026-10-22T10:23:08.837860Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-04238176",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1123",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-1123 (operator-approved rotation design): the series must show the before/after of rotations or the loop measures nothing; a column set on the series intel is building = one short session",
+  "status": "open",
+  "title": "Rotation columns in the token-waste series (D-1123): per rotation — trigger, ctx_pre (sum of the three usage fields at the last pre-clear call), transcript MB, old/new sid, rebuild tokens (the new session's first 20 calls or until its first work.py claim), next-item calls, net input-equivalents; source = identity rows carrying 'predecessor' (never forced re-binds) plus infra's rotation row; control metric = tokens per CLOSED ITEM so 'never rotate' and 'rotate right after a compaction' both read as failures (D-253); also record every auto-compaction (compact_boundary rows) and the context at every boundary NOT rotated"
+}
