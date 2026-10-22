@@ -345,7 +345,7 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 
 | Trailer | Values | When |
 |---|---|---|
-| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
 | `Agent-Name` | any `[a-z0-9-]{1,32}` name — whatever the operator calls your window (`agent-1`, `reviewer`, …) | **every AI commit.** ⚠️ **Write it BY HAND.** The hub's tooling reads `CLAUDE_AGENT`, which is fixed at launch, and a window `/rename` never reaches it: measured 2026-09-16 in a 3-agent repo, all three windows named in the UI and all three `CLAUDE_AGENT=<UNSET>`, with **0 of the last 40 commits** attributable to anyone. Without this trailer nothing — not a review, not a collision on a shared-append file, not a run record — can say which of you did it. Ask the operator which name is yours; never invent one, and never sign a name that is not yours. |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
@@ -367,9 +367,9 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
 **Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the
-block did not parse. Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h
-%(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with the `orchestrator`/`subagent`/`review-fix`
-roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
+block did not parse (a parse failure is invisible in `git show`). Query: `git log --grep='Agent-Role: subagent'` ·
+`git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with the
+`orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
 ## UNIVERSAL governance markers (the drift contract)
 
