@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T23:22:54.928485Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-44213bf6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "systemctl --user reset-failed after confirming each failed scope has no live process; then reproduce the scope-start failure under load (journalctl --user -u 'run-*' around the timestamps) and fix or file the cause",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a degraded user manager and failing scope starts hit every capped test run and every agent launch on the box; the clear is one command, the cause a short journal read; box mesh is infra's",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "The user systemd manager reads 'degraded': 8 leftover failed transient scopes (OOM-killed agent panes at the old MemoryMax=3G, a 400 MB probe run-u12310) and capped_run.sh intermittently fails to start a scope ('Transport endpoint is not connected', kaizen 2026-10-23; 'Failed to start transient scope unit', infra-3) — clear the failed units and find why scope starts fail under load; sibling of W-a49dd546 (the gate row that mis-reads it)"
+}
