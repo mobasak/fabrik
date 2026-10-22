@@ -480,17 +480,22 @@ Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment;
 
 ### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
 
-Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve`,
-`code-server` and the hook read the process environment first (the hook falls back to the file for
-`FABRIK_DECK_STATE`), while `install` and `up` read the file only, so a value set just in a shell does not reach them.
+Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve` and
+`code-server` read the two ports from the process environment only; `serve` and the hook take `FABRIK_DECK_STATE`
+from the process environment, else from the file; `install` and `up` read the file only, so a value set just in a
+shell does not reach them.
 None of them goes in a project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
 works: `docs/workstation/fabrik-deck.md`.
 
 - `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
 - `FABRIK_DECK_CODE_PORT` — code-server's port on 127.0.0.1 (default `8443`); the board's repo links point at it.
 - `FABRIK_DECK_STATE` — the folder holding `attention/`, one file per session waiting on the operator (default
-  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; a relative value falls back
-  to the default).
+  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; when read, a `~` is
+  expanded and a value still relative falls back to the default).
+
+`install` also seeds the code-server workbench's environment into the same file — `FABRIK_DECK=1` (marks a Deck tab,
+the hook's `origin: deck`), `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME`, `PATH`, `DISPLAY` and `WAYLAND_DISPLAY`; their
+defaults are in `docs/workstation/fabrik-deck.md` § The two services.
 
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 

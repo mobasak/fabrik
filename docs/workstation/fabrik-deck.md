@@ -29,7 +29,8 @@ restarts. Their logs are the journal: `journalctl --user -u fabrik-deck-code` an
   processes in the tabs. There is no ssh agent in Deck terminals (`SSH_AUTH_SOCK` is not kept).
 - **Env file:** `~/.config/fabrik-deck/env` (named by its absolute path in both units). `install` creates it; on a
   later run it keeps every line you wrote and only appends keys that are missing, naming them on stderr. To change a
-  port, edit it there and restart that unit. The hook and the launcher's `up` read the same file. The file is read the way systemd reads it: `#` and
+  port, edit it there and restart both units (the board's repo links carry code-server's port), and for the
+  code-server port re-run `install` too, which keeps `config.yaml`'s `bind-addr` in step. The hook and the launcher's `up` read the same file. The file is read the way systemd reads it: `#` and
 `;` lines are comments, `KEY="value"` loses its quotes, and a line that is not plain `KEY=value` — `export KEY=…`
 included — is ignored by systemd, so `install` ignores it too and says so.
 
@@ -54,20 +55,22 @@ python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --desktop "$DESK"   
 python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py install --start             # also start the units now
 ```
 
-`install` writes, in order: the env file (missing keys only); `~/.config/code-server/config.yaml` after a copy to
-`~/.local/share/code-server/User/backups/config.yaml.<timestamp>` — `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`,
+`install` writes, in order: the env file (missing keys only); `~/.config/code-server/config.yaml` — when it exists
+and a line would change, after a copy to `~/.local/share/code-server/User/backups/config.yaml.<timestamp>` (a `-<n>`
+suffix when that name is taken) — `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`,
 `auth: none`, `cert: false`, every other line (a `password:` line included) kept, a new file mode 0600 and an existing
 one's mode kept; the profile (§ Profile; a file that already holds the Deck's values is left as it is, with no new
 backup); both units; then `daemon-reload` and `enable`, `start` with `--start`, and
 with `--desktop` the launcher (§ Launcher).
 
-Every check runs before the first write, so a refusal (exit 1) changes nothing: linger off; a `--hub` path that is
-not absolute or holds anything but letters, digits and `/ . _ -` (the units and the `.bat` carry it unquoted); the
+Every check runs before the first write, so a refusal (exit 1) changes nothing: `systemd-analyze` not installed;
+linger off; a `--hub` path (resolved first) that holds anything but letters, digits and `/ . _ -` (the units and the `.bat` carry it unquoted); the
 hub script or `~/.local/bin/code-server` missing; a foreign unit file at either path; `systemd-analyze --user verify`
 printing anything for either unit; a port in the env file that does not parse, or the two ports equal; an env file
-that is not UTF-8; a settings.json that is not a plain JSON object (an empty one counts as no settings); a backup that
-cannot be written; with `--desktop`, a `Fabrik Deck.bat` this script did not write, or a distro or browser value
-`cmd` would split; and with `--start`, something listening on the port of a unit that is not
+that is not UTF-8; a `config.yaml` that cannot be read; a settings.json that is not a plain JSON object (an empty one
+counts as no settings); a backup that cannot be written; with `--desktop`, a desktop that is not a directory, a
+`Fabrik Deck.bat` this script did not write, a missing distro (`$WSL_DISTRO_NAME` unset and no `--distro`), or a
+distro or browser value `cmd` would split; and with `--start`, something listening on the port of a unit that is not
 active (an active unit holds its own port, so it is not refused). A failing `systemctl` after the files are written
 exits 1 and leaves them in place. It ends by printing `systemctl --user is-enabled` for each unit.
 
@@ -105,6 +108,9 @@ After a WSL restart (`wsl --shutdown`, or the next one the operator runs), with 
 which repo's agent needs an answer. It is registered user-level for `Notification`, `UserPromptSubmit`, `Stop`,
 `PostToolUse` and `SessionEnd` by `install_user_hooks.py` (its row in `docs/workstation/hooks-index.md` names the full
 contract), and keeps one file per waiting session, `<state>/attention/<session_id>.json` = `{cwd, type, origin, at}`.
+A `Notification` of type `permission_prompt`, `idle_prompt` or `elicitation_dialog` writes it, and `Stop` writes it as
+`turn_ended`; `UserPromptSubmit` and `SessionEnd` delete it, and `PostToolUse` deletes it only after a
+`permission_prompt`. `origin` is `tmux` in a tmux pane, else `deck` when `FABRIK_DECK=1`, else `other`.
 The state dir is `FABRIK_DECK_STATE`, else the value in `~/.config/fabrik-deck/env`, else
 `~/.local/state/fabrik-deck`; the hook reads the env file itself, because sessions outside the Deck never load it.
 
@@ -127,10 +133,11 @@ into a session's working directory.
 `http://localhost:<FABRIK_DECK_PORT>/` (default 8445; the registry defaults to `<hub>/data/projects.yaml`, the scan
 root to `/opt`). One row per repo — the git repositories directly under `/opt`, named by their directory, then the
 registry's other paths, named by their key; a path that no longer exists is dropped and a registry path that is not a
-repository is listed with `git: false`. A row shows a dot and the waiting agent's name while a session there waits,
-and its name links to `http://localhost:<FABRIK_DECK_CODE_PORT>/?folder=<path>` in a new tab. A session whose cwd is
-under no repo shows in an `other` row. *Enable notifications* asks the browser once, then notifies on each new waiting
-session.
+repository is listed with `git: false` (a registry path must be absolute; one that resolves to a repo already
+listed is dropped). Rows are sorted by name, case-insensitively, and a *Filter repos* box narrows them by name or
+path. A row shows its path, and a dot and the waiting agent's name while a session there waits, and its name links to `http://localhost:<FABRIK_DECK_CODE_PORT>/?folder=<path>` in a new tab. A session whose cwd is
+under no repo shows in an `other` row (hidden by a filter that does not match `other`). *Enable notifications* asks
+the browser once; after permission is granted it notifies on each session that starts waiting while the page is open.
 
 The waiting session's repo is the catalog path that is the longest whole-component prefix of its cwd, so a worktree
 under `<repo>/.claude/worktrees/` maps to `<repo>` and `/opt/fabrik-lib` never maps to `/opt/fabrik`; catalog paths
@@ -156,7 +163,8 @@ an unreadable registry at startup exits 2. It runs as `fabrik-deck.service`; by 
 ## Profile
 
 `fabrik_deck.py profile` (and `install`) copies `~/.local/share/code-server/User/settings.json` to
-`…/User/backups/settings.json.<timestamp>` and merges these keys into it; for these keys the Deck's value wins and every
+`…/User/backups/settings.json.<timestamp>` (only when the file exists and a key would change) and merges these keys
+into it; for these keys the Deck's value wins and every
 other key stays as it is: `workbench.colorTheme: "Dark 2026"` (the desktop VS Code theme), `window.autoDetectColorScheme:
 false`, `claudeCode.preferredLocation: "panel"`, `editor.minimap.enabled: false`, `breadcrumbs.enabled: false`,
 `workbench.startupEditor: "none"`, `workbench.activityBar.location: "top"` (Source Control stays one click away),
@@ -175,10 +183,11 @@ run exits 1 naming it; remove the comments, or set the keys by hand.
 1. runs `wsl.exe --distribution <D> --exec /usr/bin/python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py up`, which
    exports `XDG_RUNTIME_DIR` when the user bus is there (a `.bat` carries none), starts each unit that is not active
    and whose port is free — a port held by another process (a hand-started code-server) is named and that unit left
-   stopped — and prints the board port; it prints none when another process holds the board's own port, and with no
-   user bus it starts nothing and says so;
-2. waits up to 30 s for `http://localhost:<port>/` to answer `200` from Windows (`curl.exe`, 2 s per try), else says
-   so and pauses;
+   stopped — and prints the board port. It prints none, and exits 1, when another process holds the board's own
+   port; with no user bus it prints the port, starts nothing, says so and exits 1; a failed start or a missing
+   `systemctl` also exits 1 with the port printed;
+2. waits for `http://localhost:<port>/` to answer `200` from Windows — 30 tries, 1 s apart, each `curl.exe` try
+   bounded at 2 s, so 30 s to about 90 s — else says so and pauses;
 3. the first time, opens the board (in a new tab when the browser is already running) and writes
    `Fabrik Deck.first-run` beside the `.bat`; after that, when the browser is already running it stops there (a second
    launch opens no window), and otherwise starts it with no URL, so Vivaldi's session restore brings back the board
