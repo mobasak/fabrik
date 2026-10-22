@@ -1,3 +1,11 @@
+# Browserless v2 (open source; https://docs.browserless.io/baas/start) — the live stack is
+# /opt/browserless/compose.yaml on vps1; this is its mirror. Image ghcr.io/browserless/chromium
+# (formerly browserless/chrome, v1). ARM64: supported (linux/amd64, linux/arm64).
+# TOKEN gates every WebSocket/REST client (they pass ?token=...). Compose interpolates it from the project
+# .env beside the live compose on vps1; nothing in Fabrik writes that file. The hub .env keeps a copy
+# as BROWSERLESS_TOKEN.
+# CONCURRENT and TIMEOUT are the v2 names (v1: MAX_CONCURRENT_SESSIONS, CONNECTION_TIMEOUT); the v1-only
+# PREBOOT_CHROME, ENABLE_DEBUGGER and USE_CHROME_STABLE are gone.
 services:
   browserless:
     image: ghcr.io/browserless/chromium:latest

@@ -4408,7 +4408,7 @@ After migrating 12 infrastructure services to Coolify:
 - Verify: `dig +short service.vps1.ocoron.com`
 
 **1.3 Spec/Config Preparation**
-- Create service spec in `specs/services/` or `specs/infrastructure/`
+- Create service spec in `specs/services/` (shared infrastructure is a compose stack mirrored under `infra/vps1/`, not a spec — D-1097)
 - Prepare `compose.yaml` with:
   - `platform: linux/amd64` (MANDATORY)
   - Base image: `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`

@@ -3,7 +3,7 @@
   "created": "2026-10-21T13:00:17.111243Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "6914c2f030af1443e9afdc74959dceffc299ccff",
   "id": "W-b64d9cd7",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "MEDIUM: removes 7 drifted config-shaped files that get grepped as sources and corrects docs that call them deploy inputs; real value, nobody blocked; LOW effort: deletions plus about 8 doc edits and one guard test, one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

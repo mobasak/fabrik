@@ -279,10 +279,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
 │   └── utils/                       # Shared script utilities
 ├── specs/                           # YAML specs and planning documents
-│   ├── infrastructure/              # Infrastructure service YAML specs
-│   │   ├── apprise.yaml             # Apprise notification service — Docker Compose + Traefik config
-│   │   ├── glitchtip.yaml           # GlitchTip error tracking (errors.vps1) — declares the existing deployment
-│   │   └── n8n.yaml                 # n8n workflow automation — Docker Compose + Traefik config
 │   └── n8n-workflows/               # Importable n8n workflow JSON files
 │       ├── 01-deploy-notify.json    # Webhook → Code → Apprise on deploy.success / deploy.failure
 │       ├── 02-content-notify.json   # Webhook → Code → Apprise on content.published
@@ -2408,6 +2404,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
 | [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag |
 | [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
+| [test_specs_all_load.py](tests/test_specs_all_load.py) | every YAML under `specs/` loads through `load_spec`, except the three other-schema directories (`.archive/`, `verification/`, `sites/`); the exemptions exist and never cover `specs/services/` (D-1097 retired `specs/infrastructure/`) |
 | **src/fabrik/locks_local.py** | T2-01 G-F2 — project-scoped fcntl-based `file_lock()` context manager for WSL-side Python orchestration concurrency (NOT [reusable]; project-internal, imports fabrik.config) |
 | **src/fabrik/state.py** | T2-01 G-F3 — per-deploy state file persistence under `.fabrik/state/<id>.json`; `save()`, `load()`, `archive_destroyed()`, `find_by_spec_id()`, `DATA_BEARING_REGISTRARS` constant. Project-scoped. |
 | **src/fabrik/audit.py** | T2-02 G-G2 — per-registrar drift audit module; 9 `audit_<name>` functions mirroring each driver's transport (SSH for 7, HTTP/requests for glitchtip, n/a for grafana); `audit_all(spec)` aggregator never raises; `AuditResult` dataclass with `status ∈ {present, missing, drift, n/a, override, unknown}`. Project-scoped. |

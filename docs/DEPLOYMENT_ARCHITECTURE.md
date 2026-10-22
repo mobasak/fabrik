@@ -162,20 +162,21 @@ Site provisioning (domain → DNS → initial deploy) is not implemented inside 
 
 ## 3. Specs
 
-Specs are the **input** to every deploy. Two flavors: infrastructure specs (deploy shared services once) and service specs (one per app).
+Specs are the **input** to every `fabrik apply` deploy, one per app (§ 3.2); `specs/sites/` and `specs/verification/` hold other schemas (§ 3.3, § 3.4). Shared infrastructure services are hand-maintained compose stacks, not specs (§ 3.1).
 
-### 3.1 Infrastructure specs — `specs/infrastructure/`
+### 3.1 Infrastructure services — hand-maintained compose stacks
 
-Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` on apps.
+Each shared service runs from `/opt/<svc>/compose.yaml` on vps1 and never passes through `fabrik apply`. Its only repo copy is the mirror `infra/vps1/<svc>/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). A change is made on the host — back up the live file, apply the reviewed change, `docker compose up -d` — and the mirror is refreshed in the same change. The old `specs/infrastructure/*.yaml` files loaded nowhere and had drifted from these mirrors; they were retired (D-1097), and `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable.
 
-| File | Deploys | Current state |
+| Mirror | Service | Current state |
 |---|---|---|
-| `specs/infrastructure/authelia.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
-| `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
-| `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
-| `specs/infrastructure/gotenberg.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
-| `specs/infrastructure/meilisearch.yaml` | MeiliSearch | ✅ deployed |
-| `specs/infrastructure/n8n.yaml` | n8n (workflow automation) | ✅ deployed |
+| `infra/vps1/authelia/compose.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
+| `infra/vps1/apprise/compose.yaml` | Apprise (notifications gateway) | ✅ deployed |
+| `infra/vps1/browserless/compose.yaml` | Browserless (headless Chrome) | ✅ deployed |
+| `infra/vps1/glitchtip/compose.yaml` | GlitchTip (error tracking, the watchdog's error source) | ✅ deployed |
+| `infra/vps1/gotenberg/compose.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
+| `infra/vps1/meilisearch/compose.yaml` | MeiliSearch | ✅ deployed |
+| `infra/vps1/n8n/compose.yaml` | n8n (workflow automation) | ✅ deployed |
 
 The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, promtail, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus_outcome`; `fabrik apply` fails on a refused config and warns on an unavailable Prometheus, W-cc9b0532).
 
