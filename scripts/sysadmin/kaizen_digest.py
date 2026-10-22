@@ -133,7 +133,12 @@ def _control(root: Path, series: dict[str, Path]) -> list[str]:
     notes: list[str] = []
     in_control = 0
     for metric in waste:
-        pts = [p for p in _points(series[metric]) if _num(p.get("value")) is not None]
+        raw = _points(series[metric])
+        if raw and _num(raw[-1].get("value")) is None:
+            # the headline prints this point as the latest: judging an older one would hide it
+            notes.append(f"{metric}: {raw[-1].get('day')} is not a number — not judged")
+            continue
+        pts = [p for p in raw if _num(p.get("value")) is not None]
         if not pts:
             continue
 
@@ -176,7 +181,10 @@ def _control(root: Path, series: dict[str, Path]) -> list[str]:
         v = _num(latest["value"]) or 0.0
         rule = ""
         if sigma == 0:
-            # a flat baseline (every point equal, or a zero count) has no width: any move is a shift
+            # a flat baseline (every point equal, or a zero count) has no width: any move is a
+            # shift — compared with the baseline's own value, never the float mean of 14 copies
+            # of it, which can sit one ulp off (3432.42 x 14 / 14 != 3432.42)
+            mean = vals[0]
             rule = "departs a flat baseline" if v != mean else ""
         elif v > ucl or v < lcl:
             rule = "beyond 3 sigma"

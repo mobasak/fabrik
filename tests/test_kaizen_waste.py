@@ -102,7 +102,10 @@ def test_per_call_metrics_use_top_level_closes_only(env):
     closes = [r for r in ctx_rows if r["by"] == "total" and r["key"] == "closes"]
     assert closes[0]["value"] == 3  # top-level closes, the 20-close floor's count
     # a torn ledger value (a string, NaN) is absent for its row, never a crash of the day
-    _feedback(env, [_close(tok_msgs="7"), _close(tok_msgs=float("nan"), gap_s="1h")])
+    _feedback(
+        env,
+        [_close(tok_msgs="7"), _close(tok_msgs=float("nan"), gap_s="1h"), _close(tok_msgs=10**400)],
+    )
     assert kw.compute_day(DAY)["waste_context_per_call"][0].value == pytest.approx(200.0)
 
 
@@ -131,6 +134,9 @@ def test_seat_share_counts_four_fields_and_refuses_days_before_the_field(env):
     assert not before.measurable and "not yet recorded" in before.detail
     ctx, _ = kw.compute_day("2026-09-01")["waste_context_per_call"]
     assert not ctx.measurable and "not yet recorded" in ctx.detail
+    for mid in ("waste_output_per_call", "waste_wall_rate"):
+        early, _ = kw.compute_day("2026-09-01")[mid]
+        assert not early.measurable and "not yet recorded" in early.detail, mid
 
 
 def _identity(env: Path, rows: list[tuple[str, str, str]]) -> None:
@@ -191,9 +197,10 @@ def test_rotation_counts_rebinds_not_births_and_names_unfound_transcripts(env):
     _transcript(env, "f2", cc=1, cr=1, inp=1)
     lost, _ = kw.compute_day("2026-10-12")["waste_rotation_rebuild"]
     assert not lost.measurable and "1 of 2" in lost.detail
-    # a transcript whose message is not an object is unfound, never a crash
+    # a readable transcript with no usage line (here a non-object message) rebuilt 0, never a crash
     (env / "projects" / "-opt-x" / "k2.jsonl").write_text('{"type":"assistant","message":[1]}\n')
-    assert not kw.compute_day("2026-10-12")["waste_rotation_rebuild"][0].measurable
+    whole, _ = kw.compute_day("2026-10-12")["waste_rotation_rebuild"]
+    assert whole.measurable and whole.value == 3, whole
 
 
 def test_wall_rate_counts_quota_closes_not_operator_pauses(env):
@@ -307,9 +314,17 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         "kaizen": 1,
         "unattributed": 2,
     }
-    # the ref has nothing after 10-11: that day is unknown (a stale ref), never a quiet 0
+    # no refresh since 10-11 ended (no newer commit, no reflog, no fetch): unknown, never a quiet 0
+    _git(repo, "reflog", "expire", "--expire=now", "--all")
     stale, _ = kw.compute_day("2026-10-11")["waste_red_master_rework"]
     assert not stale.measurable and "stale" in stale.detail
+    # a fetch after the day (FETCH_HEAD) proves a quiet day quiet: measured, and 0
+    fetched = repo / ".git" / "FETCH_HEAD"
+    fetched.write_text("")
+    late = _ts("2026-10-13")
+    os.utime(fetched, (late, late))
+    quiet, _ = kw.compute_day("2026-10-12")["waste_red_master_rework"]
+    assert quiet.measurable and quiet.value == 0, quiet
     before, _ = kw.compute_day("2026-10-09")["waste_red_master_rework"]
     assert before.measurable and before.value == 0  # not yet on master that day
     old_tz = os.environ.get("TZ")
@@ -379,6 +394,21 @@ def test_backfill_is_idempotent_bounded_and_writes_breakdown(env):
     assert len((env / "kaizen" / "waste-breakdown@v1.jsonl").read_text().splitlines()) == len(bd)
     with pytest.raises(ValueError):
         kw.publish_day("2026-10-20", today="2026-10-20")  # never today
+    calls: list[str] = []
+
+    def flaky(day: str, *_a, **_k) -> list:
+        calls.append(day)
+        if day == "2026-10-08":
+            raise OSError("disk")
+        return []
+
+    real = kw.publish_day
+    kw.publish_day = flaky
+    try:
+        kw.publish_recent("2026-10-10", today="2026-10-20")
+    finally:
+        kw.publish_day = real
+    assert calls == ["2026-10-08", "2026-10-09", "2026-10-10"]
     # past the collector's newest day: the daily hook's direct call waits, writing nothing
     assert kw.publish_day("2026-10-11", today="2026-10-20") == []
     assert kw.breakdown_path(env / "kaizen").name == kd.BREAKDOWN_FILE
@@ -475,6 +505,14 @@ def test_digest_control_section_frozen_limits_and_rules(env, monkeypatch):
     lines = kd.compose(env / "kaizen").splitlines()
     assert "waste_context_per_call: 2026-09-17 under 20 closes — plotted, not judged" in lines
     assert not any(ln.startswith("OUT OF CONTROL ↑ waste_context_per_call") for ln in lines)
+    # a flat baseline of a non-round value stays in control (no float-mean ulp drift)
+    (env / "kaizen" / "series" / "waste_wall_rate@v1.jsonl").unlink()
+    _points(env, "waste_wall_rate", [3432.42] * 15, start="2026-02-01")
+    assert "waste_wall_rate" not in kd.compose(env / "kaizen").split("CONTROL:")[0]
+    # a non-numeric latest point is said, never skipped for an older one
+    with open(env / "kaizen" / "series" / "waste_wall_rate@v1.jsonl", "a") as fh:
+        fh.write(json.dumps({"day": "2026-02-16", "value": float("nan")}) + "\n")
+    assert "waste_wall_rate: 2026-02-16 is not a number — not judged" in kd.compose(env / "kaizen")
     # no close count at all is said as such, never as a small one
     _points(env, "waste_seat_share", [9], start="2026-10-30")
     bd = env / "kaizen" / "waste-breakdown@v1.jsonl"

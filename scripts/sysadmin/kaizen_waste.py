@@ -171,9 +171,13 @@ def local_day(ts: object) -> str | None:
 def _num(v: object) -> float | None:
     """A finite number, else None — a torn or hand-edited ledger value (a string, NaN, a bool)
     is absent, never a crash that costs the whole day's publish."""
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
         return None
-    return float(v)
+    try:
+        f = float(v)
+    except OverflowError:  # an int past the float range (a hand-edited row)
+        return None
+    return f if math.isfinite(f) else None
 
 
 def _int(row: dict, key: str) -> int:
@@ -324,7 +328,9 @@ def _find_transcript(sid: str, roots: list[Path]) -> Path | None:
 
 
 def _birth_context(path: Path) -> int | None:
-    """input + cache_creation + cache_read of the session's FIRST assistant message."""
+    """input + cache_creation + cache_read of the session's FIRST assistant message; 0 for a
+    readable transcript with no usage line (a session that never called the model rebuilt
+    nothing), None only when the file cannot be read — the one unknown."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -351,7 +357,7 @@ def _birth_context(path: Path) -> int | None:
                     )
     except OSError:
         return None
-    return None
+    return 0
 
 
 def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
@@ -393,7 +399,7 @@ def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
         # a partial total published as the day's value would be frozen low for good (the
         # publish is idempotent per day): the day stays unmeasured until every transcript reads
         return MetricResult.unavailable(
-            mid, f"{unfound} of {len(rotations)} rotation transcript(s) unfound or without usage"
+            mid, f"{unfound} of {len(rotations)} rotation transcript(s) unfound"
         ), []
     cut = [_bd("total", "rotations", found, found, found)]
     cut += [_bd("agent", k, v, 1, v) for k, v in sorted(per_agent.items())]
@@ -412,6 +418,28 @@ def _git(args: list[str]) -> str:
     return r.stdout
 
 
+def _refreshed_at(ref: str) -> float:
+    """When ``ref`` last learned the remote's state: the newest of its tip's commit time, its newest
+    reflog entry (a push or a fetch that moved it) and FETCH_HEAD's mtime (any fetch, even one that
+    changed nothing). A quiet day on master has no commit after it, but the ref still refreshes."""
+    stamps = [float(_git(["log", "-1", "--format=%ct", ref]).strip() or 0)]
+    try:
+        last = _git(["reflog", "show", "--date=unix", "-1", ref])
+        m = re.search(r"@\{(\d+)\}", last)
+        if m:
+            stamps.append(float(m.group(1)))
+    except RuntimeError:
+        pass  # no reflog for the ref: the other stamps decide
+    try:
+        fetch_head = Path(_git(["rev-parse", "--git-common-dir"]).strip()) / "FETCH_HEAD"
+        if not fetch_head.is_absolute():
+            fetch_head = Path(os.environ.get("KAIZEN_WASTE_GIT_REPO") or str(REPO)) / fetch_head
+        stamps.append(fetch_head.stat().st_mtime)
+    except (OSError, RuntimeError):
+        pass
+    return max(stamps)
+
+
 def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     mid = "waste_red_master_rework"
     ref = os.environ.get("KAIZEN_WASTE_GIT_REF") or "origin/master"
@@ -422,10 +450,11 @@ def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     start = dt.datetime.combine(d, dt.time()).astimezone().timestamp()
     end = dt.datetime.combine(d + dt.timedelta(days=1), dt.time()).astimezone().timestamp()
     try:
-        tip = float(_git(["log", "-1", "--format=%ct", ref]).strip() or 0)
-        if tip < end:
-            # a ref not fetched past the day reads as a quiet day — an unknown, never a 0
-            return MetricResult.unavailable(mid, f"{ref} has nothing after {day} (stale ref?)"), []
+        if _refreshed_at(ref) < end:
+            # a ref not refreshed since the day ended reads as a quiet day — an unknown, never a 0
+            return MetricResult.unavailable(
+                mid, f"{ref} not refreshed since {day} ended (stale ref)"
+            ), []
         arrivals = _git(
             [
                 "log",
@@ -540,7 +569,11 @@ def publish_recent(day: str, today: str | None = None, state: Path | None = None
     d = dt.date.fromisoformat(day)
     written: list[Path] = []
     for back in range(RETRY_DAYS - 1, -1, -1):
-        written += publish_day((d - dt.timedelta(days=back)).isoformat(), today, state)
+        one = (d - dt.timedelta(days=back)).isoformat()
+        try:
+            written += publish_day(one, today, state)
+        except Exception as exc:  # noqa: BLE001 - fail-open per day, warned
+            kc._warn(f"waste tier: {one} failed open: {exc!r}")
     return written
 
 
