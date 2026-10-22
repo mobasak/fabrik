@@ -328,9 +328,10 @@ def _find_transcript(sid: str, roots: list[Path]) -> Path | None:
 
 
 def _birth_context(path: Path) -> int | None:
-    """input + cache_creation + cache_read of the session's FIRST assistant message; 0 for a
-    readable transcript with no usage line (a session that never called the model rebuilt
-    nothing), None only when the file cannot be read — the one unknown."""
+    """input + cache_creation + cache_read of the session's FIRST assistant message, or None
+    (unknown) when the file cannot be read or holds no usage yet. An agent binds its name through
+    a tool call — a model call — so a rotated session always has a usage line once flushed: no
+    usage means not yet written, never "rebuilt nothing", and a 0 here would be published for good."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -357,7 +358,7 @@ def _birth_context(path: Path) -> int | None:
                     )
     except OSError:
         return None
-    return 0
+    return None
 
 
 def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
@@ -434,7 +435,11 @@ def _refreshed_at(ref: str) -> float:
         fetch_head = Path(_git(["rev-parse", "--git-common-dir"]).strip()) / "FETCH_HEAD"
         if not fetch_head.is_absolute():
             fetch_head = Path(os.environ.get("KAIZEN_WASTE_GIT_REPO") or str(REPO)) / fetch_head
-        stamps.append(fetch_head.stat().st_mtime)
+        # FETCH_HEAD vouches only when its last fetch carried this ref's branch: a fetch of another
+        # branch rewrites the file too and would pass a stale ref off as a quiet day
+        branch = ref.rsplit("/", 1)[-1]
+        if f"branch '{branch}' of" in fetch_head.read_text(encoding="utf-8", errors="replace"):
+            stamps.append(fetch_head.stat().st_mtime)
     except (OSError, RuntimeError):
         pass
     return max(stamps)

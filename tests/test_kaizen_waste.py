@@ -197,10 +197,9 @@ def test_rotation_counts_rebinds_not_births_and_names_unfound_transcripts(env):
     _transcript(env, "f2", cc=1, cr=1, inp=1)
     lost, _ = kw.compute_day("2026-10-12")["waste_rotation_rebuild"]
     assert not lost.measurable and "1 of 2" in lost.detail
-    # a readable transcript with no usage line (here a non-object message) rebuilt 0, never a crash
+    # a transcript with no usage line yet (here a non-object message) is unknown, never a crash or a 0
     (env / "projects" / "-opt-x" / "k2.jsonl").write_text('{"type":"assistant","message":[1]}\n')
-    whole, _ = kw.compute_day("2026-10-12")["waste_rotation_rebuild"]
-    assert whole.measurable and whole.value == 3, whole
+    assert not kw.compute_day("2026-10-12")["waste_rotation_rebuild"][0].measurable
 
 
 def test_wall_rate_counts_quota_closes_not_operator_pauses(env):
@@ -318,10 +317,14 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
     _git(repo, "reflog", "expire", "--expire=now", "--all")
     stale, _ = kw.compute_day("2026-10-11")["waste_red_master_rework"]
     assert not stale.measurable and "stale" in stale.detail
-    # a fetch after the day (FETCH_HEAD) proves a quiet day quiet: measured, and 0
+    # a later fetch of ANOTHER branch vouches for nothing: still unknown
     fetched = repo / ".git" / "FETCH_HEAD"
-    fetched.write_text("")
+    fetched.write_text("abc\t\tbranch 'feature' of example\n")
     late = _ts("2026-10-13")
+    os.utime(fetched, (late, late))
+    assert not kw.compute_day("2026-10-12")["waste_red_master_rework"][0].measurable
+    # a fetch of this ref's branch after the day proves a quiet day quiet: measured, and 0
+    fetched.write_text("abc\t\tbranch 'master' of example\n")
     os.utime(fetched, (late, late))
     quiet, _ = kw.compute_day("2026-10-12")["waste_red_master_rework"]
     assert quiet.measurable and quiet.value == 0, quiet
