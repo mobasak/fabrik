@@ -15,7 +15,7 @@
   },
   "next": "thread_anchor.cmd_harvest fails open on a >1 s session lock, then work.on_harvest fails open on a >2 s store lock; both warnings go to the harvest subprocess's stderr, which the Stop hook discards, and with no slot written the prompt-time rescue has nothing to rescue. Reproduced in the D7 review (docs/development/reviews/2026-09-24-plan-2-work-tracking-review.md, W4-O3). Candidate fix: a lock-free <sid>.pending.json the rescue also scans, or surface the loss as a kaizen event. Needs both locks contended at once, so measure how often before building.",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-3",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — accepted DECISION lost silently: data loss in hook",
   "status": "open",
