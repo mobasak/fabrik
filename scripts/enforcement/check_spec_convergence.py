@@ -52,6 +52,20 @@ SPECS_DIR = Path("docs") / "superpowers" / "specs"
 # `check_convergence.py` already applies, so both call sites agree on what "CONVERGED" looks like.
 CONVERGED_RE = re.compile(r"\*{0,2}Status:?\*{0,2}:?\s*\**\s*CONVERGED", re.IGNORECASE)
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+
+def _converged(text: str) -> bool:
+    """True when a `CONVERGED_RE` match's `Status` key sits outside every inline code span (W-f365c610, D-1114: a
+    quoted `Status: CONVERGED` is prose, so a DRAFT that quotes one is not graded as converged). Fail direction: a
+    document whose only match is span-hidden is not graded, which is the DRAFT behaviour; one real match still
+    grades. Measured over 7,201 fleet docs: the reading changed for this checker's own population only where a
+    quoted CONVERGED was the sole match (a RETIRED fabrik-lib spec)."""
+    return any(not hidden for _, hidden in _fences.status_candidates(text, CONVERGED_RE))
+
+
 # An external source citation. A bare domain is not evidence; a fetchable URL is.
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
 
@@ -310,7 +324,7 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if not CONVERGED_RE.search(text):
+        if not _converged(text):
             continue  # DRAFT/PLANNED/absent: being incomplete is what those states MEAN
         examined += 1
         findings.extend(_grade(path.name, path.name, text))
@@ -367,7 +381,7 @@ def _audit_named(root: Path, named: list[str]) -> tuple[int, int, list[Finding],
         except OSError as exc:
             notes.append(f"UNREADABLE: {label} ({type(exc).__name__})")
             continue
-        if not CONVERGED_RE.search(text):
+        if not _converged(text):
             notes.append(f"NOT-CONVERGED: {label} - a DRAFT is not graded")
             continue
         examined += 1

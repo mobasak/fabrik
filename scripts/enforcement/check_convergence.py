@@ -171,46 +171,45 @@ _LEDGER_LINE = re.compile(
 
 
 def _mask_spans(s: str) -> str:
-    """Same-length copy with every CommonMark code span blanked to `x`s — RUN-LENGTH aware (6.1): a
-    span opens with a backtick run and closes with a run of the SAME length, so ``<!--`` is one span,
-    not an empty span plus a bare opener (the single-run regex read it that way and let a comment
-    swallow a ledger — or refused a ledger whose Notes cited an earlier count in the double-backtick
-    spelling the rule's own remedy names). An unclosed run is literal text, and a span never crosses
-    a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
-    backtick before the ledger pair with one after it and swallow every row between). STATED COSTS:
-    a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
-    it opens a comment and the rule then FAILS OPEN over every row that comment swallows (0 live
-    instances); and a single pathological line holding hundreds of runs of distinct lengths is still
-    quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff from the document to
-    the line, it did not remove it."""
-    out = list(s)
-    i, n = 0, len(s)
+    """Same-length copy with every CommonMark code span's content blanked to `x`s, its backtick runs and line breaks
+    kept. The spans are `_fences.blank_code_spans`' (W-f365c610, D-1114: one span model for every reader) — RUN-LENGTH
+    aware, so ``<!--`` is one span, and a span may wrap across lines inside a paragraph but never crosses a block
+    start, so a stray backtick before a ledger cannot pair with one after it and swallow the rows between. The
+    single-line model this replaced read a legitimately wrapped span as two literal runs: a `<!--` inside it opened a
+    comment and the ledger and Board rules then FAILED OPEN over every row it swallowed, and a wrapped span holding
+    `Status:` at a line start failed the ticket ban CLOSED. The helper decides which runs pair; this function only
+    re-fills each paired span (delimiters kept, content to `x`), so the old fill's arithmetic is unchanged (pinned by
+    `test_the_span_masker_blanks_exactly_the_content_between_equal_runs`)."""
+    blanked = _fences.blank_code_spans(
+        s
+    )  # which runs pair is the helper's; this only re-fills each span
+    out, i, n = list(s), 0, len(s)
     while i < n:
-        if s[i] != "`":
+        if s[i] != "`" or blanked[i] == "`":  # not a backtick, or one the helper left literal
             i += 1
             continue
         j = i
         while j < n and s[j] == "`":
             j += 1
-        run = j - i
         k, close = j, -1
-        while k < n and s[k] != "\n":
+        while k < n:  # the closer: the next run of the same length the helper also consumed
             if s[k] != "`":
                 k += 1
                 continue
             m = k
             while m < n and s[m] == "`":
                 m += 1
-            if m - k == run:
-                close = m
+            if m - k == j - i and blanked[k] != "`":
+                close = k
                 break
             k = m
         if close < 0:
             i = j
             continue
-        for q in range(i + run, close - run):
-            out[q] = "x"  # the closer sits on the opener's line, so no newline lies in the range
-        i = close
+        for q in range(j, close):  # delimiters and line breaks kept, the content blanked
+            if s[q] not in "\r\n":
+                out[q] = "x"
+        i = close + (j - i)
     return "".join(out)
 
 
