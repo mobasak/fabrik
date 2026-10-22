@@ -32,14 +32,23 @@ def test_both_contracts_allow_an_item_boundary_rotation(rel: str) -> None:
     bullet = _bullet(rel)
     assert "at an item boundary" in bullet, bullet
     assert "D-1119" in bullet, bullet
-    assert "when an agent will stop a new work irrelevant to previous one, it can use clear command" in bullet
+    assert "once per 100 MB step from `ROTATE_ADVISE_MB`" in bullet, bullet
+    assert "never a command typed for you" in bullet, bullet
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)
 def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> None:
     bullet = _bullet(rel)
-    assert "never mid-item" in bullet, bullet
-    assert "ask your coordinator to rotate you" in bullet, bullet
+    for phrase in (
+        "messages its coordinator `rotate <name>`",
+        "keeps working until the keys arrive",
+        "tells the operator once",
+        "start no new item",
+        "`handoff --resume <artifact>`",
+        "never `blocked --wall`",
+        "never the old transcript",
+    ):
+        assert phrase in bullet, f"{rel}: missing {phrase!r}"
     assert "run `/clear <agent>-<date>` now" not in bullet, "the old 'run it now' instruction survives"
 
 
