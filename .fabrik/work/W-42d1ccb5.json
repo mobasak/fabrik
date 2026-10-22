@@ -19,5 +19,8 @@
   "priority": 0,
   "score_reason": "URGENT: operator 2026-10-21 'are we building it now' on the Deck right after naming it the product; its one-hour certificate proof (step 1) decides the product and shapes the router, so it runs first, then the router W-ea993618, then the Deck's spec chain",
   "status": "open",
+  "tags": [
+    "waits-sarp-lift"
+  ],
   "title": "Fabrik Deck — a non-coding VS Code for many repos (operator 2026-10-21: 'it will be like non coding version of vs code, vibe coding ide using vs code's claude extension for multiple repos.'; earlier: 'i want single vs code looking window for any repos to open any agents in it opened via claude vs code extension' and 'i want exact look and feel with vs code'): one browser tab, a grid of full VS Code web instances (code-server) each opened on a different repo with the real Claude Code extension, so every coordinator and any agent is a pane in one window; the chat panel, history and git view are the product, the editor is incidental"
 }
