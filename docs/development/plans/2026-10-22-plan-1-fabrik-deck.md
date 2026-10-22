@@ -1,6 +1,6 @@
 # Fabrik Deck — attention hook, board server, profile, launcher
 
-Status: DRAFT
+Status: CONVERGED
 **Owner:** fleet
 Spec: `docs/superpowers/specs/2026-10-21-fabrik-deck-design.md` (CONVERGED, approved D-1106) · Work item: W-42d1ccb5 ·
 already built: the code-server unit (W-e89a9b5b, D-1107, merged 73eec28ca).
@@ -129,7 +129,8 @@ written temp-then-rename; subcommand `fabrik_deck.py hook` (stdin JSON).
    permission DENIAL fires PostToolUseFailure, so that dot clears at Stop or the next prompt. Gate:
    `command grep -c "fabrik_deck.py hook" docs/workstation/hooks-index.md` — expect ≥1; `command grep -c PostToolUse docs/workstation/hooks-index.md` — expect ≥1.
 6. Measure the hook's cost on PostToolUse with no file: 20 runs of `/usr/bin/time -f %e /usr/bin/python3 scripts/sysadmin/fabrik_deck.py hook < <payload file>`; record the mean in `docs/workstation/fabrik-deck.md` (the spec accepted 22-35 ms for a bare start); then time the
-   SessionEnd pair the same way — this hook plus `scripts/sysadmin/mcp_orphan_reaper.py --hook`, which share the
+   SessionEnd pair the same way — this hook plus `scripts/sysadmin/mcp_orphan_reaper.py` with NO flag (its dry run;
+   `--hook` means `--apply` and kills processes, `scripts/sysadmin/mcp_orphan_reaper.py:25-37`), which share the
    1.5 s SessionEnd budget — and record that their sum stays under 1.5 s.
 7. Closing sequence: (1) the phase gates above, green; (2) a `CHANGELOG.md` entry atop `[Unreleased]`, stage the
    phase's paths by name, then `.venv/bin/python scripts/enforcement/check_doc_sync.py` (it grades STAGED files and
@@ -159,8 +160,9 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
 - Given a cwd under `<repo>/.claude/worktrees/<x>/sub`, When attention is read, Then it maps to `<repo>`; a cwd under no catalog repo lands in `other`; `/opt/fabrik-lib` never matches `/opt/fabrik` (spec § Tests 3)
 - Given a session id in that repo's `.fabrik/session-agents.json`, Then its label is the agent name; else `coordinator (<repo> tab)` for origin deck, `session <8 chars> (tmux)` for tmux, `session <8 chars>` otherwise (spec § Tests 4)
 - Given attention files older and younger than 24 h, When `/api/attention` is read, Then the older are deleted and the younger kept (spec § Tests 5)
-- Given a request with a foreign Host header, Then 421; Given POST or PUT, Then 405 — the handler defines `do_POST`, `do_PUT`, `do_DELETE`, `do_PATCH` and `do_OPTIONS` returning 405, since `BaseHTTPRequestHandler` answers an undefined method with 501 (spec § Tests 6)
+- Given a request with a foreign Host header, Then 421; Given POST, PUT or HEAD, Then 405 — the handler defines `do_POST`, `do_PUT`, `do_DELETE`, `do_PATCH`, `do_OPTIONS` and `do_HEAD` returning 405, since `BaseHTTPRequestHandler` answers an undefined method with 501 (spec § Tests 6)
 - Given `FABRIK_DECK_PORT` unset, When `serve` starts, Then it binds 8445, never the code-server port
+- Given `FABRIK_DECK_PORT=abc`, or the port already bound, When `serve` starts, Then it exits 2 with one stderr line
 - Given `FABRIK_DECK_STATE` naming a non-default dir in the env file only, When the hook writes and the server reads, Then both use that dir (R-P10)
 - Given a client on `/api/events`, When an attention file appears, Then a `data:` frame carrying it arrives within 3 s, and a closed client ends the handler without an error line
 - Given a registry with a duplicate of an `/opt` repo, a missing path and a non-repository directory, When `/api/repos` is read, Then each repo appears once, the missing path is dropped and the non-repository is listed with `git: false` (spec § Tests 7)
@@ -169,7 +171,8 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
 **Steps.**
 1. TDD: add a `deck_server` fixture to `tests/test_fabrik_deck.py` — `subprocess.Popen` of `serve --registry <tmp
    yaml> --opt-root <tmp>` with `FABRIK_DECK_PORT=<_free_port()>` (`:116-119`) and `FABRIK_DECK_STATE=<tmp>`, poll the
-   port with `socket.create_connection`, terminate in the finalizer; write the tests for the rows above; run
+   port with `socket.create_connection`, terminate in the finalizer; the R-P10 row uses a variant with
+   `FABRIK_DECK_STATE` ABSENT from the process environment and set only in `<temp HOME>/.config/fabrik-deck/env`; write the tests for the rows above; run
    `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fabrik_deck.py -k "serve or catalog or attention"` — expect FAIL.
 2. Implement `catalog`: read the registry with `yaml.safe_load` — shape `projects: {<name>: {path: …, …}}`, the name is the key and `path`
    the only universal field (Evidence E2), scan
@@ -181,7 +184,7 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
    files older than 24 h on each read.
 4. Implement the server: `ThreadingHTTPServer` with `daemon_threads = True` on `127.0.0.1:<port>`; the Host guard
    (`localhost:<port>`, `127.0.0.1:<port>`, port from `server_address` — `scripts/sysadmin/quota_dashboard.py:2806-2850`),
-   421 on a foreign Host, 405 for every method but GET, `Content-Security-Policy: frame-ancestors 'none'` and
+   421 on a foreign Host, 405 from `do_POST`, `do_PUT`, `do_DELETE`, `do_PATCH`, `do_OPTIONS` and `do_HEAD`, `Content-Security-Policy: frame-ancestors 'none'` and
    `Cache-Control: no-store` on every response; `/api/events` sends `data: <attention JSON>\n\n` every 2 s and on
    change, flushes each frame, and returns on `BrokenPipeError`/`ConnectionResetError`.
 5. The board (`GET /`): one HTML page with inline JS, no third-party code; a search box; one row per repo with the
@@ -216,6 +219,7 @@ inactive unit, print the Deck port).
 - Given a temp home, When `install` runs, Then both unit files carry `EnvironmentFile=` the env file's absolute path (D-1107) and `RestartPreventExitStatus=2`, and each passes `systemd-analyze --user verify` printing nothing (spec § Tests 10)
 - Given an existing `~/.config/code-server/config.yaml`, When `install` runs, Then a backup exists first and the file holds `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`, `auth: none`, `cert: false`, mode 0600
 - Given `up` with a bus socket at `/run/user/<uid>/bus` and `XDG_RUNTIME_DIR` unset, When it runs, Then it exports it, starts only the inactive units and prints the Deck port
+- Given `install --desktop DIR`, Then the profile keys are applied and `DIR/Fabrik Deck.bat` exists; without `--desktop`, no `.bat` is written
 - Given the written `.bat`, Then it holds the 30-try `curl.exe` wait on the Deck port with `%%` doubled, the `tasklist`/`find` check, and the first-run marker file write after the board answered
 - Given a foreign file at either unit path, When `install` runs, Then it refuses before writing anything
 
@@ -243,6 +247,9 @@ inactive unit, print the Deck port).
    `INDEX.md:1714`, `:2104` and `:2301`, which describe only code-server; § Acceptance — the spec's open-unknown rows
    2-6 as operator steps, each with what to record.
 6. Gate: `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fabrik_deck.py tests/test_install_user_hooks.py tests/test_hub_write_root.py` — expect all pass.
+6b. Hand § Acceptance (`docs/workstation/fabrik-deck.md`, written in step 5) to the coordinator as an operator gate —
+   a `DECISION NEEDED (ground: gate)` block naming `destructive` (its `wsl --shutdown` and Windows reboot end every
+   session); its results land in that doc after merge and close the spec's open unknowns.
 7. Closing sequence: (1) gates green; (2) a `CHANGELOG.md` entry atop `[Unreleased]`, stage the phase's paths by
    name, then `.venv/bin/python scripts/enforcement/check_doc_sync.py` — expect no ERROR; the doc step 5 is
    reconciled + native-verified (`scripts/doc_reconcile.py`); (3) **`/fabrik-review` on this phase's changed surface —
@@ -250,9 +257,6 @@ inactive unit, print the Deck port).
    message, merged at the orchestrator's adjudication); (4) commit by explicit paths with trailers; then
    `/fabrik-docs-review` over the plan's docs; then `.venv/bin/python scripts/final_gate.py --check --json` (expect
    `"status": "success"` — necessary, not sufficient) and `.venv/bin/python scripts/enforcement/check_convergence.py`.
-8. Hand § Acceptance (`docs/workstation/fabrik-deck.md`, written in step 5) to the coordinator as an operator gate —
-   a `DECISION NEEDED (ground: gate)` block naming `destructive` (its `wsl --shutdown` and Windows reboot end every
-   session); its results land in that doc and close the spec's open unknowns.
 
 ## Post-merge order and acceptance (operator gate)
 
@@ -261,7 +265,7 @@ After the coordinator merges: (1) the hooks-index row is on master; (2) from the
 `/usr/bin/python3 scripts/sysadmin/fabrik_deck.py install --start --desktop "<desktop>"`. The spec's
 OPEN unknowns (spec § Open / blocking unknowns rows 2-6: Vivaldi session restore, tiling reload, `localhost`
 forwarding across `wsl --shutdown` and a Windows reboot, a second launch, memory per tab) need the operator's hands
-and a reboot: Phase C step 8 hands § Acceptance to the coordinator as a gate (DECISION NEEDED, ground: gate —
+and a reboot: Phase C step 6b hands § Acceptance to the coordinator as a gate (DECISION NEEDED, ground: gate —
 destructive, the reboot ends every session), and its results land in the doc.
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
@@ -329,11 +333,11 @@ https://help.vivaldi.com/desktop/tabs/tab-tiling/ (spec).
 
 | Class | Verdict |
 |---|---|
-| Rubric classes (pasted below) | UNCHECKED |
-| Recurrence: fail-open/fail-closed | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix | UNCHECKED |
-| Recurrence: behavior-without-a-test | UNCHECKED |
-| Recurrence: denominator on every count | UNCHECKED |
+| Rubric classes (pasted below) | CLEAN (docs/development/plans/2026-10-22-plan-1-fabrik-deck.md digest rows checked against 10-python, 35-security-auth, 40-documentation and 45-testing-strategy; the paste matched a fresh review_rubric.py run) |
+| Recurrence: fail-open/fail-closed | FIXED r1 (docs/development/plans/2026-10-22-plan-1-fabrik-deck.md: check_doc_sync passed on nothing staged; serve startup failures now exit 2, rows added r2) |
+| Recurrence: boundary/sentinel/prefix | FIXED r1 (docs/development/plans/2026-10-22-plan-1-fabrik-deck.md: `_parse_port` default 8443 vs 8445; component-boundary repo match and TMUX precedence stated) |
+| Recurrence: behavior-without-a-test | FIXED r2 (docs/development/plans/2026-10-22-plan-1-fabrik-deck.md: rows for config.yaml, up, the .bat body, SSE, serve exit 2, install --desktop, the R-P10 env-file fixture) |
+| Recurrence: denominator on every count | FIXED r1 (docs/development/plans/2026-10-22-plan-1-fabrik-deck.md: Evidence counts now name their commands and the 52/50 vs 53/51 trees) |
 
 ```text
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -488,7 +492,9 @@ https://help.vivaldi.com/desktop/tabs/tab-tiling/ (spec).
   Notification test at `tests/test_install_user_hooks.py:74`, the blocking hooks-index ordering, the `main()`
   fall-through, the missing stdin in `box.run`, no SSE precedent, the component-boundary repo match, JSONC risk in
   settings.json, `%` doubling in the .bat, and a red write-root test on master (fixed before this plan, 41db66900).
-- (a) Coverage: spec Tests 1-2 → Phase A; 3-7 → Phase B; 8-10 → Phase C; R-P10 → Phase A; the docs → Phase C.
+- (a) Coverage: spec Tests 1-2 → Phase A; 3-7 → Phase B; 8-10 → Phase C; R-P10 → Phase A (hook) and Phase B (the
+  server reads the same dir); the absolute env path (D-1107) → Phase C row 3; First run (`install` applies the
+  profile, `--desktop` writes the launcher) → Phase C step 2 and its row; the docs → Phase C.
 - (b) Signatures: `_state_dir`/`_env_path` produced in A and consumed in B-C under the same names; the attention
   file shape is the one B reads.
 - Shape: a monolith of three phases, all on two shared files, so tickets would serialize; the plan runs past ~300
@@ -507,3 +513,5 @@ https://help.vivaldi.com/desktop/tabs/tab-tiling/ (spec).
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (slice O: rule and grammar sections) + sonnet×1 (slice S: Phases A-C) · all axes | found: 19, new: 19, confirmed: 18, fixed: 18, unexecuted: 0, edits: 19 | method: citation — full pass over pin-1; the lead executed each confirmed item (`_parse_port` default, D-1107 absolute env path, `check_doc_sync.py:420-421` no-op on nothing staged, 501 for an undefined method, the INDEX rows, the 10-python anchor); one duplicate (S2 = O3); the rubric paste left to the closing round | 9468182c… → 55db8569… |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 hunks + one hop | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 8 | method: re-derivation — delta over 886e1ffaf's hunks; all 7 own-fix (round 1): the reaper timing ran `--hook` (= `--apply`, kills processes; lead read `mcp_orphan_reaper.py:25-37`), 405 vs five handlers, exit-2 / install-profile / R-P10-fixture untested, Phase C step after its closing sequence, Self-audit (a) stale | 06a6a653… → 282c9c52… |
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-2 hunks + one hop | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the pass-2 hunks: reaper anchor `scripts/sysadmin/mcp_orphan_reaper.py:25-37` re-read, the six do_* handlers in row and step, Phase C numbering 1-6, 6b, 7, Self-audit (a) targets; standing clean since pass 1: digest quotes, grounding anchors, interfaces. RECORDED — measured (O: the dry-run timing omits `--grace` waits when orphans exist — Phase A executor notes it in docs/workstation/fabrik-deck.md); RECORDED — measured (O: `install` must parse settings.json before its first write — Phase C executor, step 2's every-check-before-first-write rule) | 98370cea… → 98370cea… ✓ → **CONVERGED** |
