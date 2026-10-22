@@ -396,10 +396,42 @@ def test_a_relocated_hub_warns_that_the_sync_cannot_fire(tmp_path):
     assert "CANNOT FIRE" in out and "distributes nothing" in out, out
     # W-85e4e5e4: the inert reason is a WORKTREE (the pwd guard), and the contract tells a
     # worktree agent its change ships when the hub merges it — the remedy printed beside the
-    # verdict says the same and never offers the `--force` push (CLAUDE.md § Sync-consciousness:
+    # verdict is that whole line and never offers the `--force` push (CLAUDE.md § Sync-consciousness:
     # a worktree's copy ships a mix neither tree holds).
-    assert "when the hub merges it" in out, out
+    assert (
+        "  Commit from the main checkout — a worktree's change ships when the hub merges it; "
+        "the script runs from the MAIN checkout only.\n"
+    ) in out, out
     assert "--force" not in out, "the worktree remedy must not offer the --force push"
+    assert "reinstall it" not in out, "a worktree is not a broken hook"
+
+
+def test_a_missing_wrapper_names_the_reinstall_not_the_worktree_route(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """W-85e4e5e4 review (B-1): `sync_is_inert_here` proves TWO inert states and the clean path
+    printed one remedy for both. A hook whose wrapper is missing or unreadable can be met from the
+    MAIN checkout, where "commit from the main checkout — a worktree's change ships when the hub
+    merges it" is circular; that state names the reinstall, and neither state offers `--force`."""
+    (tmp_path / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+        "        name: x\n        entry: bash scripts/gone.sh\n        files: '^nothing/'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chk, "FABRIK_ROOT", tmp_path)
+    monkeypatch.setattr(chk, "running_on_hub", lambda *a, **k: True)
+    monkeypatch.setattr(chk, "hub_shaped_without_manifest", lambda *a, **k: None)
+    monkeypatch.setattr(chk, "_manifest", lambda: type("M", (), {"SEEDED_NOT_ENFORCED": ()})())
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"templates/scaffold/scripts/rund"})
+    assert chk.main([]) == 0
+    out = capsys.readouterr().out
+    assert "CANNOT FIRE" in out and "cannot read" in out, out
+    assert (
+        "  The hook's wrapper is missing or unreadable — reinstall it "
+        "(scripts/install_post_commit_hook.sh); until it runs, no commit from here distributes.\n"
+    ) in out, out
+    assert "Commit from the main checkout" not in out, "a broken hook is not a worktree"
+    assert "--force" not in out, "no inert state advises the --force push"
 
 
 def test_the_main_checkout_gets_no_inert_caveat():
@@ -620,11 +652,13 @@ def test_the_unknown_caveat_is_distinguished_from_cannot_fire_on_both_main_branc
     """`_inert_is_unknown` had no grader: neutering it to `return False` left all 85 tests green.
 
     Two things then break at once. Every UNKNOWN prints the gate's most confident verdict
-    ("CANNOT FIRE"), and — worse — the clean branch then advises
-    `scripts/sync_enforcement_to_projects.py --force`, which is the unattended working-tree push
-    D-202 removed as a fleet hazard. Advising it on no evidence is the defect, so it is asserted
-    here directly. Round 8e found the three-state fix had landed on one of two branches; round 8f
-    found the repair itself ungraded. This pins both branches and the `--force` suppression.
+    ("CANNOT FIRE"), and — worse — the clean branch then prints a remedy for a state it never
+    proved (until W-85e4e5e4 that remedy was `scripts/sync_enforcement_to_projects.py --force`,
+    the unattended working-tree push D-202 removed as a fleet hazard; no inert state advises it
+    now). Advising anything on no evidence is the defect, so it is asserted here directly. Round
+    8e found the three-state fix had landed on one of two branches; round 8f found the repair
+    itself ungraded. This pins both branches; the `--force` assertions stay as the guard against
+    that advice returning on any path.
     """
     (tmp_path / ".pre-commit-config.yaml").write_text(
         "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"

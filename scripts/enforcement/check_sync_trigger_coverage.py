@@ -292,6 +292,17 @@ def _inert_is_unknown(inert: str) -> bool:
     return "could not be determined" in inert
 
 
+def _inert_is_pwd_guarded(inert: str) -> bool:
+    """True when the proven-inert reason is the wrapper's `$(pwd)` guard — a WORKTREE of the hub.
+
+    `sync_is_inert_here` proves two inert states and they take different remedies: from a worktree
+    the wrapper exits before syncing and the change ships when the hub merges it; a wrapper that
+    is missing or unreadable is a BROKEN hook, which no commit location fixes — "commit from the
+    main checkout" is circular advice to a main-checkout session that just lost its hook (W-85e4e5e4).
+    """
+    return "only runs when pwd is" in inert
+
+
 def sync_is_inert_here(config: Path, root: Path) -> str | None:
     """Why a commit from THIS checkout would distribute nothing, or None if the sync can fire.
 
@@ -318,7 +329,7 @@ def sync_is_inert_here(config: Path, root: Path) -> str | None:
         # evidence of a broken hook. That is the same inversion round 8c fixed twenty lines down
         # (an unreadable wrapper), recurring one frame UP the call chain: the structural fix moved
         # the fail-open rather than closing it. `main()` branches on "could not be determined",
-        # so the --force advice stays correctly suppressed.
+        # so no remedy is advised on it (a remedy needs a PROVEN inert state).
         return (
             f"the governance-sync hook's entry: could not be read from {config} — whether a "
             f"commit from {root} fires a sync could not be determined"
@@ -534,19 +545,26 @@ def main(argv: list[str] | None = None) -> int:
         inert = sync_is_inert_here(FABRIK_ROOT / ".pre-commit-config.yaml", FABRIK_ROOT)
         if inert:
             print("✓ sync-trigger coverage: the filter covers every synced surface")
-            # THREE states, not two. "could not be determined" is not "CANNOT FIRE", and the
-            # --force remediation must not be advised on an UNKNOWN: that command is the
-            # unattended working-tree push D-202 removed as a hazard, so recommending it on no
-            # evidence would have this gate advising the thing a sibling surface calls dangerous
-            # (closing sweep — two hub surfaces giving opposite advice about one command).
+            # THREE states, not two. "could not be determined" is not "CANNOT FIRE", and no
+            # remedy is advised on an UNKNOWN: a route named on no evidence would have this gate
+            # advising what a sibling surface calls dangerous (the `--force` working-tree push
+            # D-202 removed as a hazard — never advised here since W-85e4e5e4; closing sweep —
+            # two hub surfaces giving opposite advice about one command).
             if _inert_is_unknown(inert):
                 print(f"⚠ the sync's trigger could not be DETERMINED from this checkout — {inert}.")
             else:
                 print(f"⚠ but the sync CANNOT FIRE from this checkout — {inert}.")
-                print(
-                    "  Commit from the main checkout — a worktree's change ships when the hub "
-                    "merges it; the script runs from the MAIN checkout only."
-                )
+                if _inert_is_pwd_guarded(inert):
+                    print(
+                        "  Commit from the main checkout — a worktree's change ships when the hub "
+                        "merges it; the script runs from the MAIN checkout only."
+                    )
+                else:
+                    print(
+                        "  The hook's wrapper is missing or unreadable — reinstall it "
+                        "(scripts/install_post_commit_hook.sh); until it runs, no commit from here "
+                        "distributes."
+                    )
             return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")
         return 0

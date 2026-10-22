@@ -16,6 +16,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import runpy
 import sys
 import types
@@ -461,9 +462,13 @@ def test_a_complete_manifest_applies_both_lists(
     assert "PORTS.md" not in out, out
     assert "libs/retired_mod" not in out, out
     # W-85e4e5e4: the drift message is read by a PROJECT agent, who has no sync script to run —
-    # it names the hub as the distributor and never tells the reader to re-sync.
-    assert "re-sync" not in out, out
-    assert "the hub distributes it" in out, out
+    # it names the hub as the distributor (the whole two lines, so an added clause reds) and never
+    # tells the reader to re-sync under any spelling (re-sync, resync, re sync, re-syncing).
+    assert not re.search(r"re\W?sync", out), out
+    assert (
+        "project). Revert it (the next sync restores it), or, if the change is right for\n"
+        "ALL projects, edit /opt/fabrik/<path>: the hub distributes it. Never fork here.\n"
+    ) in out, out
 
 
 def test_a_manifest_that_swaps_its_module_class_cannot_answer_through_it(
