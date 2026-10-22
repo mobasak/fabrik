@@ -535,7 +535,17 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
 
     def run(env):
         return subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", *ids],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "--tb=line",
+                "-rs",
+                "-p",
+                "no:cacheprovider",
+                *ids,
+            ],
             cwd=REPO,
             env=env,
             capture_output=True,
@@ -550,8 +560,17 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
     assert inside.stdout.count("FABRIK_MERGE_CHECK") >= 2, inside.stdout  # each skip names why
     outside = run(base)
     assert outside.returncode == 1 and "2 failed" in outside.stdout, outside.stdout + outside.stderr
-    assert "drifted from commands/_agents" in outside.stdout, outside.stdout
-    assert "drift outside the two edited sources" in outside.stdout, outside.stdout
+    # Each sibling failed on the PRODUCT's own drift line — `assemble_commands.agent_drift` and
+    # `check()` emit `<item>: MISSING in <dir>` — read from that test's one-line traceback
+    # (`--tb=line`: `<file>:<n>: AssertionError: …`). Never a sibling's assertion prose
+    # (662ed84dd reworded one and this grader went red on clean master, W-45433793), and never
+    # the bare `FAILED <id>`, which an import or permission error would satisfy too.
+    for node in ids:
+        path = node.split("::")[0]
+        assert any(
+            f"{path}:" in ln and ": AssertionError: " in ln and f"MISSING in {home}" in ln
+            for ln in outside.stdout.splitlines()
+        ), (node, outside.stdout)
 
 
 def test_no_test_opts_itself_into_a_merge_check():
