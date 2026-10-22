@@ -2,9 +2,10 @@
 
 WHY. The bullet told an agent to "run `/clear <agent>-<date>` now" when the transcript-size `ROTATE:` line appears.
 D-1119 (operator, 2026-10-22) widens and corrects it: an agent may rotate at an item boundary, when the next work is
-unrelated to the last ("when an agent will stop a new work irrelevant to previous one, it can use clear command"),
-must rotate once the ROTATE line appears, and never mid-item; a builder in a pane cannot type `/clear` into itself,
-so it asks its coordinator. The hub copy and the ~46-repo template copy must say the same thing.
+unrelated to the last, must rotate at the latest at the first boundary after the ROTATE line, and never mid-item; no
+agent can type a slash command into its own prompt, so a builder asks its coordinator, who sends the keys over tmux.
+The hub copy and the ~46-repo template copy must say the same thing. Each phrase below is one clause a reader acts on;
+dropping any of them from either contract turns its test red.
 """
 
 from __future__ import annotations
@@ -27,32 +28,49 @@ def _bullet(rel: str) -> str:
     return " ".join(body.split())
 
 
+def _assert_all(rel: str, phrases: tuple[str, ...]) -> None:
+    bullet = _bullet(rel)
+    missing = [p for p in phrases if p not in bullet]
+    assert not missing, f"{rel}: missing {missing}"
+
+
 @pytest.mark.parametrize("rel", CONTRACTS)
 def test_both_contracts_allow_an_item_boundary_rotation(rel: str) -> None:
-    bullet = _bullet(rel)
-    assert "at an item boundary" in bullet, bullet
-    assert "D-1119" in bullet, bullet
-    assert "once per 100 MB step from `ROTATE_ADVISE_MB`" in bullet, bullet
-    assert "never a command typed for you" in bullet, bullet
+    _assert_all(
+        rel,
+        (
+            "at an item boundary, never mid-item",
+            "D-1119",
+            "no run record `running`",
+            "when the next work is unrelated to the last",
+            "must happen at the latest at the first boundary after the transcript-size `ROTATE:` line",
+            "once per 100 MB step from `ROTATE_ADVISE_MB` (200 MB by default)",
+            "never a command typed for you",
+        ),
+    )
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)
 def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> None:
-    bullet = _bullet(rel)
-    for phrase in (
-        "messages its coordinator `rotate <name>`",
-        "keeps working until the keys arrive",
-        "tells the operator once",
-        "start no new item",
-        "`handoff --resume <artifact>`",
-        "never `blocked --wall`",
-        "never the old transcript",
-    ):
-        assert phrase in bullet, f"{rel}: missing {phrase!r}"
-    assert "run `/clear <agent>-<date>` now" not in bullet, "the old 'run it now' instruction survives"
+    _assert_all(
+        rel,
+        (
+            "start no new item",
+            "`handoff --command <run> --reason '<why>' --resume <artifact>`",
+            "never `blocked --wall`",
+            "messages its coordinator `rotate <name>` and waits for the keys",
+            "`tmux send-keys`",
+            "`@agent <name>`",
+            "W-f975fee0",
+            "telling the builder to re-bind",
+            "`work.py next`",
+            "never the old transcript",
+            "single-window repo's one agent tells the operator once",
+        ),
+    )
+    assert "run `/clear <agent>-<date>` now" not in _bullet(rel), "the old 'run it now' instruction survives"
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)
 def test_the_rebind_command_survives(rel: str) -> None:
-    bullet = _bullet(rel)
-    assert "python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force" in bullet, bullet
+    _assert_all(rel, ("python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force",))
