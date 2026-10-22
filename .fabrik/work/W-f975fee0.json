@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-6e656dac"
+  ],
+  "created": "2026-10-22T07:34:17.370877Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f975fee0",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fold into W-6e656dac T05 (grid relaunch) or a standalone /fabrik-task after it; regression test in tests/test_agents_up.py; the identity store row is the measurement's source",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "MEDIUM: real value (rotations measured and cheap), nobody blocked — the coordinator can send the keys by hand meanwhile",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Mechanism for agent rotation at an item boundary (operator 2026-10-22; pairs with kaizen's rule item): a builder in a tmux pane cannot type /clear itself — today the coordinator sends '/clear <name>-<date>' + Enter and the re-bind to the pane by hand (D-1034 pattern). Give agents_up.sh a 'rotate <name>' verb (or fold into T05) that sends the /clear, waits for the fresh prompt, runs whoami_agent.py --as <name> --force in the pane, and records the rotation (a row the token-waste series counts); a builder requests it by message to its coordinator"
+}

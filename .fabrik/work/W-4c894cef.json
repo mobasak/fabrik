@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T07:34:17.067501Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4c894cef",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one paragraph edit in two synced files; /fabrik-task row 1 with the full /fabrik-review; one commit after it; the mechanism (how a pane gets its /clear keys) is infra's W-f975fee0 — the rule text names 'ask your coordinator to rotate you' until that lands",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "operator ask (HIGH): a rule update on the ways of working; one paragraph in two synced files, one session; kaizen's beat (wording)",
+  "status": "open",
+  "title": "Operator 2026-10-22: an agent may rotate its session (/clear) at an ITEM BOUNDARY — when the work it starts next is unrelated to the one it just closed — and must at the ROTATE size line; never mid-item. Write the rule into the session-history paragraph of BOTH contracts (CLAUDE.md § Pointers 'Session history (D-736)' and the templates/governance twin): the boundary test, the re-bind step (whoami_agent.py --as <name> --force), the resume-from-the-store step, and that the rotation is counted in the token-waste series (D-1118)"
+}
