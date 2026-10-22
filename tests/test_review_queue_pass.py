@@ -847,8 +847,9 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
     """Row 1792293982, a recurrence of held 1791980043 (delete rather than re-cut a residue site): four rounds patched
     one regex tail before its yielding branch was deleted, which ended the residue the patches kept regenerating."""
     clause = (
-        " first asking whether the yielding site, or a {} in it, can be deleted outright (a deletion is that rewrite),"
-        " since a deletion ends the residue and a re-cut restarts it,"
+        " first asking whether the yielding site, or a {} in it, can be deleted outright (a deletion is that rewrite,"
+        " and the default when the yielding site is a rule this review itself added rather than a correction of the"
+        " reviewed text itself), since a deletion ends the residue and a re-cut restarts it,"
     )
     for name, unit in (("term-coverage.md", "branch or clause"), ("term-edit.md", "clause")):
         text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / name).read_text())
