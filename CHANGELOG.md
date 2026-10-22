@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the QUOTA-line format sample shows the LANE clause (2026-10-22)
+
+- The sample in both CLAUDE.md twins and `quota_posture_hook.py`'s docstring listed no `band LANE` clause while the sentence above it says the line prints `band LANE on 5h` at the urgent-90 tier; the sample now carries the optional `[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]` tail after `successor`, where the hook appends it — the LANE words only while the rotation tick is fresh, which the bands sentence now says too; `docs/workstation/hooks-index.md`'s copy of the sample matches (W-a784a444, fabrik-lib's finding). The band field itself stays GREEN, AMBER, RED or WALL.
+
 ### Added — Token-waste series in the kaizen instrument, with control charts in the daily digest (2026-10-22)
 `scripts/sysadmin/kaizen_waste.py` (W-02472911, D-1118, D-1120, D-1127) publishes six daily waste series from the existing ledgers: context and output per API call, review-seat share, quota-wall rate, context rebuilt per session rotation, and red-master fix commits. Each series has a per-agent and per-command breakdown, `--backfill` and `--rebaseline`. `kaizen_collect_v2.daily()` publishes the series lazily and fail-open. `kaizen_digest.py` reads points in day order and opens with a CONTROL section that applies frozen XmR / c-chart limits, 8-in-a-row and a 20-close floor. An upward signal prints `OUT OF CONTROL ↑`; a downward one prints `IMPROVED ↓`, to be re-baselined. A day a source cannot vouch for publishes nothing and is retried for three days; such a day is a ref not refreshed since the day ended, or a rotation transcript not yet flushed. Categories and rules are in `docs/reference/kaizen-waste-define.md`.
 
