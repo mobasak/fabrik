@@ -47,7 +47,8 @@ Intake: 12 items — 11 IN, 1 OUT-OF-SCOPE (named above), 0 ASK.
 ## Goal
 
 Every governance text and the Stop hook say what D-1110 decided: the Opus + Fable panel decides each gate class a coordinator can
-validate; the operator decides only the five residual classes and split panels, reached only through a coordinator.
+validate; the operator decides only the residual classes D-1110 names, an irreversible act (this spec's one added
+rule, D1) and split panels, reached only through a coordinator.
 
 ## Why this exists
 
@@ -86,12 +87,14 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
   in the operator's place — design and plan approval, Gate 1, Gate 2 to our own VPS when the runbook has a backup and a rollback
   and the target is not customer-facing, a destructive act on a branch, worktree, scratch area, test repo or old volume with a
   verified backup first, a production-data window that dumps first and keeps the old volume, credentials the fleet mints itself
-  (database roles, tokens, service accounts) with a backup and a rollback, and publishing to our own surfaces — and only a split
+  (database roles, tokens, service accounts) with a backup and a rollback, publishing to our own surfaces, and spend inside a
+  ceiling the operator sets (none while it is 0) — and only a split
   panel reaches the operator, its block carrying the `Panel:` line. The operator alone decides the rest, and such a block's Why
   line carries its class token and the explicit label `operator-kept:` with one of five tokens: `public` (publishing to
   customers or the public, a customer-facing production deploy included), `above-ceiling`, `recurring`, `operator-minted`,
-  `unbacked`. Every spend and every irreversible act stays the operator's while the ceiling is 0, label or not (an
-  irreversible act has no rollback, which every panel-decided class needs). A builder's block reaches the operator only through
+  `unbacked`. Every spend stays the operator's while the ceiling is 0, and every irreversible act always, label or not (an
+  irreversible act has no rollback, which every panel-decided class needs). Money and irreversible are matched anywhere on
+  the Why line, a negation included: a false match sends a block to the operator, never money to the panel. A builder's block reaches the operator only through
   its coordinator. A label, not prose, because the reader is a hook: prose matching read "not customer-facing", a `public-api`
   path and a template Why line as operator-kept (the plan's pass-1 probe). The exact clause is the plan's Phase A step 2. No
   D-id is written into this paragraph (the twin test allows only the D-054 rewrite); the hub § Autonomy carries D-1110. The
@@ -113,7 +116,8 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
   :251-258, its block written only for a customer-facing deploy or a split, with one Why-line variant per case),
   `fabrik-release.md` (:2, :6, :188, :198, :205-212 — the VPS path hands to the deploy triad with no approval of its own, the
   store path keeps the operator's block) and the NEXT-map strings at `commands/assemble_commands.py:71`, `:73`.
-  `fabrik-deploy.md:240` (an operator act, not an approval) and `:359` (publishing to users) are read and kept. The other five
+  `fabrik-deploy.md:240` and `:311` (operator acts, not approvals) are read and kept; `:105` follows the hard gate, and
+  `:359`'s Why line (publishing to users) gains `operator-kept: public`. The other five
   command sources' single mentions are read and changed only where they state the old model.
 - **D5 — the Stop hook (infra ticket, mailed with the exact diff).** `_DECISION_GATE_RE` keeps its tokens and is checked first;
   in autonomy mode the hook then requires a split `Panel:` line for every `ground: gate` block that is not operator-kept, as it

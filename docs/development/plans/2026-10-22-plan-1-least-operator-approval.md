@@ -130,14 +130,14 @@ never take it.
    > runbook has a backup and a rollback and the target is not customer-facing, a destructive act on a branch,
    > worktree, scratch area, test repo or old volume with a verified backup first (the ad-hoc-branch disposition
    > included), a production-data window that dumps first and keeps the old volume, credentials the fleet mints
-   > itself (database roles, tokens, service accounts) with a backup and a rollback, and publishing to our own
-   > surfaces — and only a split panel reaches the operator, its block carrying the `Panel:` line. The operator alone
+   > itself (database roles, tokens, service accounts) with a backup and a rollback, publishing to our own surfaces,
+   > and spend inside a ceiling the operator sets (none while it is 0) — and only a split panel reaches the operator, its block carrying the `Panel:` line. The operator alone
    > decides the rest, and such a block's Why line carries its class token and the label `operator-kept:` with one of
    > `public` (publishing to customers or the public, a customer-facing production deploy included),
    > `above-ceiling` (spend above the operator's ceiling), `recurring` (any recurring contract), `operator-minted`
-   > (credentials only the operator can mint) or `unbacked` (deleting data with no backup); every spend and every
-   > irreversible act stays the operator's while that ceiling is 0, label or not. A builder's block reaches the
-   > operator only through its coordinator.
+   > (credentials only the operator can mint) or `unbacked` (deleting data with no backup); every spend stays the
+   > operator's while that ceiling is 0, and every irreversible act always, label or not. A builder's block reaches
+   > the operator only through its coordinator.
 
 3. **D2** — in `CLAUDE.md:639`, replace "`gate` and `owned` stay the operator's — a panel never approves a gate class
    (design approval excepted: the design-gate review commands hand it to the panel, D-613) or answers the operator's
@@ -175,16 +175,15 @@ never take it.
      operator's explicit invocation, or the panel's agreeing go for our own VPS, D-1110 — THIS turn, never
      self-triggered or auto-chained)", and "an explicit operator dispatch, never an inferred one" → "an explicit Gate 2
      go, never an inferred one"; the composed description stays under the 1024 cap (the step-7 render checks it).
-     `:311` (the store path's "the one action only the human takes") is a store publish, `operator-kept: public`, and
-     is kept.
+     `:105` "this command is operator-dispatched" → "this command is dispatched on a Gate 2 go". `:311` (the
+     OPERATOR-GATE handoff's "the one action only the human takes" — a credentialed act, not an approval) is kept.
    - `commands/_sources/fabrik-deploy.md:59-65`, the hard gate: "This command runs ONLY when the operator explicitly
      dispatched it THIS turn." → "This command runs ONLY on a Gate 2 go THIS turn — the operator's explicit dispatch,
      or, for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not
      customer-facing, the Opus + Fable panel's agreeing go recorded in `/fabrik-deploy-plan-review`'s close (D-1110)."
      and "the human deploy approval IS the operator's explicit dispatch of this command" → "the deploy approval IS that
-     go"; `:17` "previous: Gate 2 on a `CONVERGED` plan" stays. Read and kept: `:240` (an OPERATOR-GATE act no agent
-     can perform — not an approval) and `:359` (publishing to users, `operator-kept: public` — its Why line gains the
-     label).
+     go"; `:17` "previous: Gate 2 on a `CONVERGED` plan" stays. `:240` (an OPERATOR-GATE act no agent can perform —
+     not an approval) is read and kept; `:359`'s Why line (publishing to users) gains `operator-kept: public`.
    - `commands/_sources/fabrik-deploy-plan-review.md:29`: "next: Gate 2 (the operator's explicit go)" → "next: Gate 2
      (the panel's go for our own VPS; the operator's for customer-facing deploys or a split)". `:251-258`: the
      paragraph that leads into the block (the line holding "not inside a code fence", which
@@ -231,7 +230,7 @@ never take it.
 - **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it cites D-1110 and the clarifying-question and classifier sentences, and no longer holds "`gate` and `owned` stay the operator's" (A3)
 - **Given** both contracts, **When** the grader compares their gate paragraphs, **Then** they are identical apart from "hub D-054" (A4)
 - **Given** the template's hub-request bullet, **When** the grader reads it, **Then** it sends a gate to the panel or, when kept, to the operator through the coordinator, and no longer says the closed list "still goes to the operator" alone (A5)
-- **Given** `fabrik-deploy.md`, `fabrik-deploy-plan-review.md`, `fabrik-release.md`, `deploy-chain.md` and the NEXT map, **When** the grader reads them, **Then** none holds "the operator's explicit go", "Gate 2 — human approval", "operator-dispatched only" (any case) or "the operator explicitly dispatched", `fabrik-release.md` no longer holds "only the human takes", each names the panel's go and the customer-facing case, and no Why-line variant written for the panel's split carries `operator-kept:` (A6)
+- **Given** `fabrik-deploy.md`, `fabrik-deploy-plan-review.md`, `fabrik-release.md`, `deploy-chain.md` and the NEXT map, **When** the grader reads them, **Then**, read with whitespace collapsed (`" ".join(text.split())`), none holds "the operator's explicit go", "Gate 2 — human approval", "the operator explicitly dispatched" or a match of `(?i)operator[- ]dispatched(?! on)`, `fabrik-release.md` no longer holds "only the human takes", each names the panel's go and the customer-facing case, and no Why-line variant written for the panel's split carries `operator-kept:` (A6)
 - **Given** `design-gate-panel.md`, **When** the grader reads it, **Then** it cites D-1110 and no longer says "for design approval only" or that the other gate classes "stay the operator's" (A7)
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
 
@@ -248,9 +247,11 @@ Appetite: 60
 **Steps** (sequential):
 
 1. Kaizen mails infra (`mail.py send --to fabrik --to-agent infra --kind request`, the D-035 contract) the diff below
-   — the prototype script `apply_hook_diff2.py` inline — and the Behaviour Contract B1–B7, and pings it live.
-2. Infra writes B1–B7 in `tests/test_decision_panel.py`. B1 and B6 are red on today's hook. B2–B5 and B7 pass today and
-   are proven red on mutants run in a throwaway worktree: B3 and B4 on one that drops `not operator_kept`, B5 on one
+   — the prototype script `apply_hook_diff3.py` inline — and the Behaviour Contract B1–B7, and pings it live.
+2. Infra writes B1–B7 in `tests/test_decision_panel.py`. B1 and B6's prose cases are red on today's hook; B6's
+   design- and plan-approval cases pass today and are proven red on a mutant that drops `not design_gate and`. B2–B5 and B7 pass today and
+   are proven red on mutants run in a throwaway worktree: B3 and B4 on one that drops `not operator_kept`, B4's design-Question case on one that moves
+   `_OPERATOR_CLASS_RE` back behind `not design_gate`, B5 on one
    that drops `_PANEL_MODE and`, B2 on one that removes `"split"` from the gate branch's `outcomes`, B7 on one that
    moves the class check back below the panel check. Two existing tests change by substitution, each naming the guard
    it keeps: `test_deploy_gate_needs_no_panel` (`:440-446`) becomes B1 — its Why "Gate 2, deploy to production" now
@@ -274,11 +275,15 @@ The diff (spec D5; infra may reshape it, the behaviour is fixed):
 # other gate class is the panel's: in autonomy mode its block passes only with a SPLIT `Panel:`
 # line. Design and plan approval never take the label (D-613). A label, not prose, because
 # prose matching read "not customer-facing" and a `public-api` path as operator-kept.
-# COBRA (D-253): the cheapest way past is a false label on a panel-decided block; the block
-# then reaches the coordinator, which validates the class against the Question line.
+# Money and irreversible are matched anywhere on the line, a negation included, and they beat a
+# design-approval Question: a false match sends a block to the operator, never money to the
+# panel (D-1110: every real-money spend is the operator's while the ceiling is 0).
+# COBRA (D-253): the cheapest way past is a false label, or a stray money word, on a
+# panel-decided block; the block then reaches the coordinator, which validates the class
+# against the Question line.
 _OPERATOR_KEPT_RE = re.compile(
-    r"\boperator[- ]kept\b[*_]{0,2}[ \t]*:[*_]{0,2}[ \t]*[*_`]{0,2}"
-    r"(?:public|above-ceiling|recurring|operator-minted|unbacked)\b",
+    r"(?<!\bnot )\boperator[- ]kept\b[*_]{0,2}[ \t]*:[*_]{0,2}[ \t]*[*_`]{0,2}"
+    r"(?:public|above-ceiling|recurring|operator-minted|unbacked)(?![\w-])",
     re.I,
 )
 _OPERATOR_CLASS_RE = re.compile(r"\bspend(?:s|ing)?\b|\breal money\b|\$\d|\birreversible\b", re.I)
@@ -291,8 +296,8 @@ _OPERATOR_CLASS_RE = re.compile(r"\bspend(?:s|ing)?\b|\breal money\b|\$\d|\birre
         ) or _DESIGN_ASK_RE.search(fields["Question"])
         if not _DECISION_GATE_RE.search(why):
             return False, _NO_GATE_CLASS  # the existing refusal text, unchanged
-        operator_kept = not design_gate and (
-            _OPERATOR_KEPT_RE.search(why) or _OPERATOR_CLASS_RE.search(why)
+        operator_kept = _OPERATOR_CLASS_RE.search(why) or (
+            not design_gate and _OPERATOR_KEPT_RE.search(why)
         )
         if _PANEL_MODE and not operator_kept:
             if design_gate and not _SEARCHED_EVIDENCE_RE.search(why):
@@ -319,9 +324,9 @@ GATE comment widens from a design-approval gate to every panel-decided class (D-
 - **Given** autonomy mode and a `ground: gate` block "deploy — Gate 2, deploy to our own VPS" with no `Panel:` line, **When** the hook parses it, **Then** it is refused naming D-1110 (B1)
 - **Given** autonomy mode and that block with a verified split `Panel:` line, **When** the hook parses it, **Then** it passes as `gate` (B2)
 - **Given** autonomy mode and an unpaneled block carrying the label — written five ways: "operator-kept: public", "Operator-kept: public", "**operator-kept:** public", "operator kept: `public`", "OPERATOR-KEPT:public" — and once with each other token (above-ceiling, recurring, operator-minted, unbacked), **When** the hook parses each, **Then** each passes as `gate` (B3)
-- **Given** autonomy mode and an unpaneled block naming spend ("spend — $5 of API credits", "spend — inside the ceiling") or "irreversible — drop and recreate the database", **When** the hook parses each, **Then** each passes as `gate` (B4)
+- **Given** autonomy mode and an unpaneled block naming spend ("spend — $5 of API credits", "spend — inside the ceiling") or "irreversible — drop and recreate the database", or a spend block whose Question asks to approve a spec ("spend — $40/month hosting" with "Do you approve the hosting cost in the spec?"), **When** the hook parses each, **Then** each passes as `gate` (B4)
 - **Given** autonomy mode OFF (a project repo), **When** the hook parses the B1 block, **Then** it passes as today (B5)
-- **Given** autonomy mode and an unpaneled block whose Why line uses prose instead of the label — "not customer-facing", "a customer-facing production deploy", "our own public docs site", "no backup needed", "the republic VPS", "operator-kept: whatever" — or a design or plan approval carrying the label or naming a `public-api` path, **When** the hook parses each, **Then** each is refused as panel-decided (B6)
+- **Given** autonomy mode and an unpaneled block whose Why line uses prose instead of the label — "not customer-facing", "a customer-facing production deploy", "our own public docs site", "no backup needed", "the republic VPS", "operator-kept: whatever", "not operator-kept: public", "operator-kept: public-api docs" — or a design or plan approval carrying the label or naming a `public-api` path, **When** the hook parses each, **Then** each is refused as panel-decided (B6)
 - **Given** autonomy mode and a `ground: gate` block whose Why names no gate class, **When** the hook parses it, **Then** it is refused with "names no gate class", not with the panel refusal (B7)
 - **Mocked:** nothing — the tests drive the real `parse_decision_block` over synthetic transcripts in `tmp_path`, as the file's existing cases do.
 
@@ -375,7 +380,7 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | MATCHED core/45-testing-strategy | one grader per behaviour, each seen red; the operator-kept label graded on five spellings | CLEAN — A1–A3, A5–A7 red on HEAD and A4 on a mutant (Phase A step 1); B1, B6 red today, B2–B5, B7 on named mutants (Phase B step 2); B3 carries the label's five spellings as cases, 5/5 in the v2 probe |
 | RECURRENCE fail-open vs fail-closed | an unpaneled panel-decided block must be refused, an operator-kept one must pass; a design or plan approval never exempted; a project repo (autonomy off) keeps today's rule | FIXED — pass 1: the prose regex exempted a design approval naming a `public-api` path and every block copied from a template Why line holding "customer-facing"; now the label, `not design_gate`, and split-variant Why lines with no label (B1, B3, B5, B6, A6) |
 | RECURRENCE cost/quota/limit accounting | the spend ceiling is 0 until set, so every spend gate is operator-kept today | FIXED — pass 1: the v1 regex sent any spend not phrased "above the ceiling" to the panel; `_OPERATOR_CLASS_RE` now keeps every spend token for the operator (B4); R2 |
-| RECURRENCE boundary/sentinel/prefix collisions | negations ("not customer-facing", "no backup needed"), look-alikes ("republic"), an unknown label token | FIXED — pass 1: prose matching read negations as operator-kept; the closed label has no negated form, and an unknown token is no label (B6, the v2 probe) |
+| RECURRENCE boundary/sentinel/prefix collisions | negations ("not customer-facing", "no backup needed"), look-alikes ("republic"), an unknown label token | FIXED — pass 1: prose matching read negations as operator-kept; the closed label has no negated form, an unknown token is no label, and pass 2 refused "not operator-kept:" and a `public-api` token (B6). By design, a money or irreversible word anywhere on the line, a negation included, is operator-kept: the error then lands on the operator, never on money (pass 2, opus N1, REJECTED with that reason; the v3 probe's two cases) |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A or B row | CLEAN — Self-audit mapping |
 
 Rubric invocation (verbatim output; the File Scope plus the governance files is the changed-path set; the `#
@@ -558,6 +563,25 @@ CLASSLESS (False, '`ground: gate` names no gate class on its "Why it is yours" l
 23 passed in 0.62s
 ```
 
+- Phase B's diff after pass 2 (v3: the label refuses a `not` prefix and a hyphenated token; money and irreversible
+  beat a design-approval Question), `apply_hook_diff3.py` applied to a fresh copy at 87cfa3895 in the same throwaway
+  worktree; the v3 probe (`test_zz_probe_b3.py`, the v2 cases plus six) and the hook suites:
+
+```text
+$ pytest tests/test_zz_probe_b3.py tests/test_decision_panel.py tests/test_gate_decision_blocks.py tests/test_final_gate_stop_hook.py tests/test_final_gate_stop_deferral.py tests/test_stop_mine.py -q -s
+OK  kept=True  unpaneled=True  Q='Do you approve the $40/month hosting the' 'spend — operator-kept: recurring, $40/month hostin'
+OK  kept=True  unpaneled=True  Q='Do you approve the hosting cost in the s' 'spend — $40/month hosting'
+OK  kept=False unpaneled=False Q='Do you approve this design?' 'gate — design approval of docs/superpowers/specs/x'
+OK  kept=False unpaneled=False split=True  'deploy — Gate 2, not operator-kept: public — our own VPS'
+OK  kept=False unpaneled=False split=True  'deploy — Gate 2, operator-kept: public-api docs site of our own'
+OK  kept=True  unpaneled=True  split=True  'deploy — Gate 2 to our own VPS, backup + rollback; no spend involved'
+OK  kept=True  unpaneled=True  split=True  'destructive — discard the ad-hoc branch, verified backup, nothing irre'
+… the 22 v2 cases above, each OK again …
+FAILED tests/test_decision_panel.py::test_owned_and_gate_stay_the_operators
+FAILED tests/test_decision_panel.py::test_deploy_gate_needs_no_panel
+2 failed, 463 passed, 2 skipped in 26.88s
+```
+
 - Baseline of the four suites the phases touch:
 
 ```text
@@ -603,3 +627,4 @@ $ /opt/fabrik/scripts/capped_run.sh -- timeout 300 .venv/bin/python -m pytest te
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (Phase B, Global Constraints, File Scope, Constraints Digest, Coverage Checklist, Evidence; spec The delta, Validation, Lifecycle) + sonnet×1 (every other section of both) · all axes · shape: agent-tool | found: 25, new: 25, confirmed: 21, fixed: 21, unexecuted: 0, edits: 21 | method: citation — full pass; 4 candidates were duplicates across the slices (the template Why line, `--check`, D1's scope, the stale lock commit); the orchestrator re-ran the hook diff (v1 then v2) in a throwaway worktree and the probes above | 7eaaaafc… → dc800cd7… |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners, resumed with their pass-1 context) · their own 25 claims re-verified over the fix diff since 87cfa3895 + one hop; the opus seat re-ran its probes on the v2 diff · shape: agent-tool | found: 10, new: 10, confirmed: 8, fixed: 8, unexecuted: 0, edits: 8 | method: re-derivation — delta over Phase A steps 2, 4–7, Phase B, Coverage, Evidence and spec D1, D4, D5, Goal; the composed skill-description lengths re-computed (release 995, deploy 982, deploy-plan-review 959 of 1024); 1 REJECTED by design (money or irreversible matched anywhere → operator, the Coverage row says why), 1 a note with no change (release `:31`); the orchestrator re-ran the v3 diff (29 probe cases, 0 wrong) | 28011870… → 2b2a843b… |
