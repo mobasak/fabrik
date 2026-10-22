@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "read the mail in full; mirror the lint ratchet for mypy (baseline file, may only go down, --check honours it); red-prove in a throwaway worktree; full /fabrik-review (final_gate.py is a governance-sync path); reply to youtube before ack",
-  "note": "",
+  "note": "duplicate of W-115bb429: the same youtube mail 01M5DYES0P4535FQBWX8MS5Y55, which infra's claim turned into its own item",
   "owner": "infra",
   "priority": 1,
   "score_reason": "another repo's request (HIGH, youtube D-069); one leg in one synced script plus its test, one session",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m5dyes0p4535fqbwx8ms5y55"
   ],

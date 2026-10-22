@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T23:13:46.044094Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-f365c610",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "route each reader through _fences.status_candidates (D-1114) or the span-aware mask, stating each fail direction; measure fleet reads old vs new",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "a bug in enforcement that fails open (HIGH): other Status readers still ignore code spans; same helper as D-1114, one session",
   "status": "open",
   "title": "Other enforcement Status readers ignore inline code spans: check_convergence _mask_spans masks single-line spans only (the ticket-Status ban at :464 fails closed on a wrapped span; the ledger/board/<!-- rules at :449/:1059/:1310/:1322 fail open), and check_rule_grounding:51 / check_spec_convergence:53 CONVERGED_RE count a quoted CONVERGED (fail open)"
 }
