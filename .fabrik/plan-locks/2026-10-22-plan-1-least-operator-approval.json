@@ -1,0 +1,29 @@
+{
+  "plan": "docs/development/plans/2026-10-22-plan-1-least-operator-approval.md",
+  "owned_paths": [
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md",
+    "commands/_fragments/design-gate-panel.md",
+    "commands/_fragments/deploy-chain.md",
+    "commands/_sources/fabrik-deploy.md",
+    "commands/_sources/fabrik-deploy-plan-review.md",
+    "commands/_sources/fabrik-release.md",
+    "commands/assemble_commands.py",
+    ".claude/hooks/final_gate_stop.py",
+    "tests/test_least_operator_approval.py",
+    "tests/test_decision_panel.py",
+    "docs/superpowers/specs/2026-10-22-least-operator-approval-design.md",
+    "docs/development/plans/2026-10-22-plan-1-least-operator-approval.md",
+    "docs/development/reviews/2026-10-22-plan-1-least-operator-approval-review.md",
+    "docs/development/reviews/2026-10-22-plan-1-least-operator-approval-plan-review.md"
+  ],
+  "branch": "worktree-kaizen",
+  "started_at": "2026-10-22T12:30:29Z",
+  "status": "active",
+  "baseline_commit": "f5a481f84c08ba579b3dc1cf6c903bb213ccf07a",
+  "baseline_gate": {
+    "tier": "lean",
+    "status": "success",
+    "red_checks": []
+  }
+}
