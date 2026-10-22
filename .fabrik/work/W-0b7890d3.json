@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "point modal-api.md's price section at gpu_rent.HOURLY_USD_BY_PROVIDER and PRICES_VERIFIED instead of restating it, and recompute the break-even per kind (found by the W-ec265df0 review, candidates O3 and O4)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — docs price-table polish",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet"
   ],

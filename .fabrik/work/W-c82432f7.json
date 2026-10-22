@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "**[infra]** **check_doc_links blind spots** (youtube `01M15AYX5` #2): cannot see cross-refs inside `docs/development/` or `docs/superpowers/`, and omits `CHANGELOG.md` from root sources — a Doc-Sync-mandated link class is never checked. Extend + measure the new fire rate before landing (archived plans link freely; a naive widening floods).",
-  "note": "migrated-digest:f91e72d3d7c7",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — advisory link-check coverage",
-  "status": "open",
+  "status": "dropped",
   "title": "**check_doc_links blind spots** (youtube `01M15AYX5` #2): cannot see cross-refs inside `docs/development/` or `docs/superpowers/`, and omits `CHANGELOG.md` from root sources — a Doc-Sync-mandated l..."
 }

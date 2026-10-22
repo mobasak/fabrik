@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "give each spec its own database name (the generator's id-derived default) and a shape block; the reconciler refuses a doubly-claimed database",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — spec hygiene, no breakage named",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "medium"

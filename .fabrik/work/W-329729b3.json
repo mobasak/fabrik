@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "add APP_ENV and APP_GIT_SHA to the known-names allowlists in scripts/audit_envs.py and scripts/gather_envs.py",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — allowlist two env names in audit",
-  "status": "open",
+  "status": "dropped",
   "title": "audit_envs/gather_envs: allowlist APP_ENV and APP_GIT_SHA (the scaffold now emits them)"
 }

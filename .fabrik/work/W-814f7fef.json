@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "intel",
   "priority": 3,
   "score_reason": "D-958 LOW, parked waits-workflows-reenabled (D-961). Panel 2026-10-18 SPLIT: opus=\"D — no seat receives these prompts under D-961; if pinned later prefer A\" fable=\"A — the grader runs every pytest pass; test the rendered prompt for all three seats\". Both found tests/test_review_loop_workflow.py:1539-1544: its end marker sits mid-recipe, so the git-history/clone paragraph is outside the checked span; option A supersedes it. Decide on unpark.",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06",
     "waits-workflows-reenabled"

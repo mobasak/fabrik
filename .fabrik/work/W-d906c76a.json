@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[infra]** **Store-terminal adjudication** (deploy-triad recorded residual): the plan-frozen release NEXT routes STORE surfaces post-submit to `/fabrik-deploy-verify`, whose contract is spec-driven VPS-only — a store agent dead-ends cleanly at target resolution. Options: a store analogue inside deploy-verify, or reword the store terminal across all FOUR encoding surfaces (NEXT dict + release body line + § Pipeline parenthetical + 6-release stage row, the latter two in BOTH CLAUDE.md copies). Blocked by: first real store-surface release (mobile-app etc.). **PARTIALLY CLOSED 2026-08-25 — the live dead-end is fixed; the analogue stays blocked.** `/fabrik-deploy-verify` Phase 0 now opens with a SURFACE GUARD: a store-surface target stops with a clean hand-back naming what a store release actually needs verified (build provenance from a pushed SHA, vendor-console review/rollout state, first-ring crash/ANR) instead of failing at step 1 on a `specs/services/<id>.yaml` that store types never have — which read as a missing file rather than an inapplicable command. Same rule as the enforcement-battery audit: a command that cannot ask its question must SAY so. **Still open and still correctly blocked:** the store ANALOGUE itself, plus the four-surface reword — grounding what it should probe needs the first real store release, and the guard now makes the aspirational routing honest at the point of use meanwhile.",
-  "note": "migrated-digest:0ff9d25f6194",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — store-terminal adjudication waits on release",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "waits-store-surface-release"
   ],
