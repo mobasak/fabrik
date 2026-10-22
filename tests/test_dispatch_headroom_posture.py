@@ -238,9 +238,11 @@ def test_a_fresh_posture_publishes_the_fleet_band_and_the_accounts_own_band_dist
     ],
 )
 def test_dispatch_headroom_urgent_tier_is_not_a_wall(monkeypatch, hold, walls):
-    """W-37003fa1 — only the `walled` tier holds tools (D-306). At `urgent-90` quota_stop.py denies
-    nothing and the posture hook allows Agent with a live run, so a seat budget of 0 there made the
-    three readers of one stamp disagree; the band decides the cap instead. `_hold_is_wall`'s
+    """W-37003fa1 — only the `walled` tier holds every session's tools (D-306). At `urgent-90`
+    quota_stop.py runs the D-1113 lane — it parks builders but lets a coordinator_mode merge owner
+    and an open-P0 owner continue — and the posture hook allows Agent with a live run, so a seat
+    budget of 0 there would stall the very sessions the lane keeps working; the band decides the
+    cap instead. `_hold_is_wall`'s
     semantics (claude_rotate.py), mirrored."""
     mod = _load()
     doc = json.loads(_payload(posture_ts=None))

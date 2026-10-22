@@ -6326,7 +6326,7 @@ def _print_picture(pic: dict) -> None:
         print(
             "picture: hold "
             + (
-                f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
+                f"{'HELD' if _hold_is_wall(hold) else 'LANE (urgent-90 — builders parked; coordinator_mode merge owners and open-P0 owners continue)'} since "
                 f"{_fmt_when(hold.get('since'))}, resume promised "
                 + (
                     _fmt_when(hold["resume_promised"])
@@ -6563,9 +6563,10 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
 
 def _hold_is_wall(hold: dict | None) -> bool:
     """Is the live hold the one that actually HOLDS? The WALL band asserts that
-    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
-    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
-    :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
+    `quota_stop.py` is default-denying every world-changing tool for EVERY session, and since
+    D-306 only the `walled` tier does; `urgent-90` is the D-1113 lane, which parks builders but
+    lets a coordinator_mode merge owner and an open-P0 owner continue. A hold dict with no tier
+    is a pre-tier stamp — fails closed, like :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
     reader cannot read, so it fails closed too (W-06733560 item 7)."""
     if hold is None:
         return False
@@ -7721,12 +7722,17 @@ def _humanize_lead(seconds: int) -> str:
 def _urgent_drain_message(
     active_email: str, reason: str, relief: tuple[float, str, str] | None
 ) -> str:
-    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    """The operator's wording, with the concrete time the repos must hook themselves to.
+
+    Latched once per episode, so the text must be true at BOTH tiers: an episode that opens at
+    `urgent-90` and later walls sends no second notice (W-18f559d9 F9)."""
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
         "and NO other account is available to switch to (every sibling is session-exhausted, "
-        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
-        "commit-and-push checkpoint now, then stop."
+        "weekly-walled or cap-walled). BUILDERS — STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        "commit-and-push checkpoint now, then stop. Only a coordinator_mode repo's merge owner "
+        "and the owner of an open P0 item continue, checkpointing as they go, and only while the "
+        "hold is at its 90-line lane tier (D-1113) — at the wall every session stops."
     )
     if relief is None:
         # The board's URL is env-derived (the dashboard's own knobs), never a literal — the

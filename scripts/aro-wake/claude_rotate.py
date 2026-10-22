@@ -6326,7 +6326,7 @@ def _print_picture(pic: dict) -> None:
         print(
             "picture: hold "
             + (
-                f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
+                f"{'HELD' if _hold_is_wall(hold) else 'LANE (urgent-90 — builders parked; coordinator_mode merge owners and open-P0 owners continue)'} since "
                 f"{_fmt_when(hold.get('since'))}, resume promised "
                 + (
                     _fmt_when(hold["resume_promised"])
@@ -6563,9 +6563,10 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
 
 def _hold_is_wall(hold: dict | None) -> bool:
     """Is the live hold the one that actually HOLDS? The WALL band asserts that
-    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
-    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
-    :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
+    `quota_stop.py` is default-denying every world-changing tool for EVERY session, and since
+    D-306 only the `walled` tier does; `urgent-90` is the D-1113 lane, which parks builders but
+    lets a coordinator_mode merge owner and an open-P0 owner continue. A hold dict with no tier
+    is a pre-tier stamp — fails closed, like :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
     reader cannot read, so it fails closed too (W-06733560 item 7)."""
     if hold is None:
         return False
@@ -7195,8 +7196,8 @@ def _stamp_raw_tier(stamp: Path) -> str | None:
 
 
 def _battery_arm(now: float) -> None:
-    """Low battery and no hold (no stamp, or the quota's softer `urgent-90`, which holds nothing)
-    → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    """Low battery and no full hold (no stamp, or the quota's softer `urgent-90`, the D-1113 lane, which
+    parks builders only) → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
     if not _battery_low():
         return
     stamp = _fleet_exhaustion_stamp()
@@ -7721,12 +7722,17 @@ def _humanize_lead(seconds: int) -> str:
 def _urgent_drain_message(
     active_email: str, reason: str, relief: tuple[float, str, str] | None
 ) -> str:
-    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    """The operator's wording, with the concrete time the repos must hook themselves to.
+
+    Latched once per episode, so the text must be true at BOTH tiers: an episode that opens at
+    `urgent-90` and later walls sends no second notice (W-18f559d9 F9)."""
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
         "and NO other account is available to switch to (every sibling is session-exhausted, "
-        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
-        "commit-and-push checkpoint now, then stop."
+        "weekly-walled or cap-walled). BUILDERS — STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        "commit-and-push checkpoint now, then stop. Only a coordinator_mode repo's merge owner "
+        "and the owner of an open P0 item continue, checkpointing as they go, and only while the "
+        "hold is at its 90-line lane tier (D-1113) — at the wall every session stops."
     )
     if relief is None:
         # The board's URL is env-derived (the dashboard's own knobs), never a literal — the
@@ -8237,8 +8243,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
         # fired first, and `urgent` fires up to eight points before `walled` — so without this
-        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` holds nothing once
-        # the account actually walls. One-way: never the reverse.
+        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` keeps only the lane
+        # (D-1113: coordinators and P0 owners continue) once the account actually walls. One-way: never the reverse.
         if walled:
             _upgrade_stamp_tier_to_walled(stamp)
         return  # already advised for this wall episode — one fact, one message
@@ -8268,7 +8274,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
                 # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
-                # `urgent-90` (which holds nothing), and only mains power may lift it (W-83a8ee68)
+                # `urgent-90` (the D-1113 lane, which lets coordinators and P0 owners through), and
+                # only mains power may lift it (W-83a8ee68)
                 _STAMP_TIER_BATTERY
                 if _battery_low()
                 else _STAMP_TIER_WALLED

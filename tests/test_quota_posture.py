@@ -1364,7 +1364,7 @@ def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tm
     assert "own Fable window" not in line2, "the clamped wording must not leak onto the fleet path"
 
 
-# --- the stamp TIER (D-306): the warning tier is this hook's to announce -------------------------
+# --- the stamp TIER (D-306, D-1113): the lane tier is this hook's to announce --------------------
 
 
 def test_the_prompt_line_nudges_a_checkpoint_at_the_warning_tier(tmp_path):
