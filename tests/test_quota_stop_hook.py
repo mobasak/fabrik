@@ -1488,6 +1488,17 @@ def test_an_out_of_range_lift_epoch_never_crashes_the_park(lane):
         assert r.returncode == 0 and _denied(r), (resets, r.returncode, r.stdout, r.stderr)
         msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
         assert "when the 5-hour window resets" in msg, (resets, msg)
+    # review round 2: an integer past float range (JSON reads it as an int, `float()` overflows) and a
+    # posture nested past the recursion limit (`json.loads` raises RecursionError) — neither may raise
+    for raw in (
+        '{"active":{"windows":{"five_hour":{"resets_at":1' + "0" * 400 + "}}}}",
+        "[" * 100_000 + "]" * 100_000,
+    ):
+        (lane.state / "quota-posture.json").write_text(raw)
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (raw[:40], r.returncode, r.stdout, r.stderr[-300:])
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (raw[:40], msg)
     # a past stamp promise falls through to a live posture reset
     lane.stamp(str(int(time.time()) - 3600), "urgent-90")
     resets = time.time() + 2 * 3600

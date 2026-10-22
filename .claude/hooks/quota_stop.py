@@ -1006,7 +1006,10 @@ _LIFT_FUTURE_S = 8 * 86400.0
 def _plausible_epoch(v: object, now: float) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return None
-    v = float(v)
+    try:
+        v = float(v)  # a JSON integer past float range overflows here (review round 2)
+    except OverflowError:
+        return None
     ok = math.isfinite(v) and now - _LIFT_PAST_S < v < now + _LIFT_FUTURE_S
     return v if ok else None
 
@@ -1046,12 +1049,20 @@ def _render_lift(at: float, now: float) -> str | None:
 
 
 def _lane_lift(stamp: Path) -> str:
-    """The lift line: the stamp's promise, else the posture's reset, the first still ahead."""
+    """The lift line: the stamp's promise, else the posture's reset, the first still ahead.
+
+    NEVER RAISES: it runs in `main()` outside any try, and a hook that exits non-zero is a
+    non-blocking error — Claude Code runs the tool and the parked session escapes. So any failure
+    reading either source (an int past float range, a posture nested past the recursion limit, an
+    unreadable file) is the fallback text, never an exception (review rounds 1 and 2)."""
     now = time.time()
     when = None
-    for at in (_stamp_promise(stamp, now), _posture_reset(now)):
-        if at is not None and (when := _render_lift(at, now)) is not None:
-            break
+    try:
+        for at in (_stamp_promise(stamp, now), _posture_reset(now)):
+            if at is not None and (when := _render_lift(at, now)) is not None:
+                break
+    except Exception:
+        when = None
     when = when or "when the 5-hour window resets"
     return f"The lane lifts {when}, or earlier when a successor appears — the lift wakes an armed watch"
 

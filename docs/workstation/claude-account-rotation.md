@@ -130,9 +130,9 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   this tick found no successor (`_fleet_active_wall_advisory`;
   a walled active with a headroom sibling is relieved by the same tick since trips are dwell-exempt). The same tick
   writes the `fleet-exhausted` stamp, ⚠️ **naming on its SECOND line WHICH arm wrote it (D-306)** —
-  `walled` for the wall itself, `urgent-90` for the 90-line LANE (D-1113: builders park, coordinators continue), which fires EIGHT points
-  earlier on the default `ROTATE_THRESHOLD` of 99 (it was 98 until 2026-10-14), because that runway is what a graceful stop
-  needs. ⚠️ That eight-point gap is entirely on the SESSION window: `urgent` tests `five_hour`
+  `walled` for the wall itself, `urgent-90` for the 90-line LANE (D-1113: builders park, coordinators continue), which fires NINE points
+  before the default `ROTATE_THRESHOLD` of 99 (eight while it was 98, until 2026-10-14), because that runway is what a graceful stop
+  needs. ⚠️ That gap is entirely on the SESSION window: `urgent` tests `five_hour`
   alone, while a `caps.json` cap is applied to `seven_day` alone, so a cap never shortens this
   runway — it walls a DIFFERENT window and can open an episode at `walled` with the session cool. Line 1 stays the resume promise
   `_promised_resume` reads; a stamp that does not plainly name a known tier (every stamp written
