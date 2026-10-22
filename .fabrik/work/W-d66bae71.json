@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-22T22:29:43.479467Z",
   "creator": "infra-2",
+  "effort": "low",
   "evidence": "",
   "id": "W-d66bae71",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "scripts/ci_fix_dispatcher.py:214-216 briefs the claude -p worker with Agent-Role: ci-fix and Agent-Context only; templates/governance/CLAUDE.md's Agent-Name row demands a name on every AI commit and says to ask the operator, which a headless worker cannot do. Either add 'Agent-Name: ci-fix' to the brief (tests/test_ci_fix_dispatcher.py pins the brief) or add the exemption sentence to the row in both contracts; the rules-version cron (scripts/sysadmin/rules_currency_watch.py:258) has the same gap in the hub",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "the CI-fix dispatcher's commits lack Agent-Name, so attribution queries miss them; one trailer line in one script",
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "queued"
   ],
   "title": "ci_fix_dispatcher.py's headless worker cannot obey the project contract's Agent-Name row — give its brief an Agent-Name (ci-fix) or state the exemption in the row"
 }

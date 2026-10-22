@@ -310,7 +310,10 @@ it, or name in the brief why the shape does not have it.
   CHANGELOG or ledger hunk) has that file pinned next pass, so the seat never reads the base copy.
 - Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
   to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
-  directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`
+  directory that exists; `pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories, so a
+  seat that copies the base tree runs `chmod -R u+w <dest>` right after that copy and before laying the pins over
+  it, and again after it, since a pin file the base lacks lands read-only; and it checks each overlaid file's md5
+  against the manifest before its first run. `git archive`
   omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's `.worktreeinclude`
   list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief names its own pin dir and
   digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier rounds are kept until the

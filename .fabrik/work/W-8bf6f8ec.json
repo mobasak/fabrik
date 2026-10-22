@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:53:30.739208Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-8bf6f8ec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5F41Z1V33JWKAB5JTMJD6QB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "youtube (yt1), follow-up on 01M5F32DEQ: W-994a1c68 is MERGED to youtube's trunk as 35b6e9d (full suite 1966 passed, 0 failed). Every youtube connection now reports application_name (DB_APPLICATION_NAME, else youtube:<script>), so pg_stat_activity attributes each backend; running processes pick it up"
+}

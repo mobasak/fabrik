@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/2026-10-22-plan-1-fabrik-deck.md",
+  "owned_paths": [
+    "scripts/sysadmin/fabrik_deck.py",
+    "tests/test_fabrik_deck.py",
+    "scripts/sysadmin/install_user_hooks.py",
+    "tests/test_install_user_hooks.py",
+    "docs/workstation/hooks-index.md",
+    "docs/workstation/fabrik-deck.md",
+    "docs/CONFIGURATION.md",
+    ".env.example",
+    "docs/development/reviews/2026-10-22-plan-1-fabrik-deck-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-22T11:02:33+03:00",
+  "status": "active",
+  "baseline_commit": "2c2737547c9a6070e4884e9d2b5fb722f97d29ff",
+  "baseline_gate": {
+    "status": "success",
+    "red": []
+  }
+}

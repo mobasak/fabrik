@@ -1,6 +1,6 @@
 # Plan — least operator approval: the gate model rewritten to D-1110 (W-4a03df79)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** kaizen (Phase B: infra)
 **Surface:** `git rev-parse HEAD` = bcf74f6e1 at authoring; `CLAUDE.md:614`, `:639`; `templates/governance/CLAUDE.md:616`;
