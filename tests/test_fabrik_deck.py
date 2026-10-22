@@ -507,3 +507,56 @@ def test_hook_runs_without_pyyaml(box, tmp_path):
     r = _hook(box, "Stop", state, PYTHONPATH=str(shadow))
     assert r.returncode == 0 and r.stdout == ""
     assert _att(state).exists()
+
+
+def test_hook_exits_zero_with_stderr_closed(box, tmp_path):
+    """Review pass 1: the failure handler's own print must not break the exit-0 contract when fd 2 is closed."""
+    blocked = tmp_path / "file-not-dir"
+    blocked.write_text("x")
+    env = dict(box.env, FABRIK_DECK_STATE=str(blocked / "state"))
+    payload = json.dumps({"hook_event_name": "Stop", "session_id": SID, "cwd": "/opt/youtube"})
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "hook"],
+        input=payload,
+        env=env,
+        stdout=subprocess.PIPE,
+        text=True,
+        timeout=60,
+        preexec_fn=lambda: os.close(2),
+    )
+    assert r.returncode == 0 and r.stdout == ""
+
+
+def test_hook_reads_an_env_file_holding_a_non_utf8_byte(box, tmp_path):
+    state = tmp_path / "from-file"
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_bytes(b"# caf\xe9 note\nFABRIK_DECK_STATE=" + str(state).encode() + b"\n")
+    payload = {"hook_event_name": "Stop", "session_id": SID, "cwd": "/opt/youtube"}
+    r = box.run("hook", input=json.dumps(payload))
+    assert r.returncode == 0 and r.stdout == ""
+    assert _att(state).exists()
+
+
+@pytest.mark.parametrize("value", ["relstate", "~/tilde-state"])
+def test_hook_never_writes_a_relative_state_dir_into_the_session_cwd(box, tmp_path, value):
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text(f"FABRIK_DECK_STATE={value}\n")
+    cwd = tmp_path / "some-repo"
+    cwd.mkdir()
+    payload = json.dumps({"hook_event_name": "Stop", "session_id": SID, "cwd": str(cwd)})
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "hook"],
+        input=payload,
+        env=box.env,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 0 and r.stdout == ""
+    assert not any(cwd.iterdir()), "nothing may land in the session's working directory"
+    if value.startswith("~"):
+        expected = box.home / "tilde-state"
+    else:
+        expected = box.home / ".local" / "state" / "fabrik-deck"
+    assert _att(expected).exists()

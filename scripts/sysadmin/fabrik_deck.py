@@ -168,10 +168,17 @@ def _state_dir(home: Path, environ: dict[str, str] | os._Environ[str]) -> Path:
     value = environ.get("FABRIK_DECK_STATE")
     if not value:
         try:
-            value = _read_env(_env_path(home).read_text()).get("FABRIK_DECK_STATE")
+            # errors="replace": one stray non-UTF-8 byte in the file must not silence every session's hook
+            value = _read_env(_env_path(home).read_text(errors="replace")).get("FABRIK_DECK_STATE")
         except OSError:
             value = None
-    return Path(value) if value else home / ".local" / "state" / "fabrik-deck"
+    if value:
+        # `~` is expanded; a value that is still relative would land in whatever repo the session runs in, so it
+        # falls back to the default instead.
+        path = Path(value).expanduser()
+        if path.is_absolute():
+            return path
+    return home / ".local" / "state" / "fabrik-deck"
 
 
 WAITING = ("permission_prompt", "idle_prompt", "elicitation_dialog")
@@ -182,7 +189,7 @@ def hook() -> None:
 
     Registered for Notification, UserPromptSubmit, Stop, PostToolUse and SessionEnd in every session on the box, so it
     prints nothing on stdout and main() turns every failure into exit 0. A denied permission fires PostToolUseFailure,
-    not PostToolUse, so that dot clears at the next Stop or prompt.
+    not PostToolUse, so that dot becomes `turn_ended` at the next Stop and clears at the next prompt.
     """
     if sys.stdin.isatty():
         return
@@ -205,7 +212,12 @@ def hook() -> None:
             origin = "deck"
         else:
             origin = "other"
-        record = {"cwd": str(payload.get("cwd") or ""), "type": kind, "origin": origin, "at": time.time()}
+        record = {
+            "cwd": str(payload.get("cwd") or ""),
+            "type": kind,
+            "origin": origin,
+            "at": time.time(),
+        }
         _atomic_write(path, json.dumps(record))
 
     if event == "Notification":
@@ -341,7 +353,13 @@ def main(argv: list[str] | None = None) -> None:
         try:
             hook()
         except BaseException as exc:  # noqa: BLE001 — the hook's contract is exit 0, always
-            print(f"fabrik_deck hook: {type(exc).__name__}: {exc}", file=sys.stderr)
+            # With fd 2 closed sys.stderr is None, and print(file=None) would write to STDOUT — which UserPromptSubmit
+            # injects into the session. So: stderr or nothing, and a broken stderr never becomes a non-zero exit.
+            if sys.stderr is not None:
+                try:
+                    print(f"fabrik_deck hook: {type(exc).__name__}: {exc}", file=sys.stderr)
+                except BaseException:  # noqa: BLE001
+                    pass
         sys.exit(0)
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)

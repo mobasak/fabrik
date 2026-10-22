@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py
+# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py | docs/workstation/fabrik-deck.md
 """Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
 
 The three entries — the self-watch arm check, and the gate that runs the hub's mcp_watch.py and

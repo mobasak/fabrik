@@ -30,7 +30,12 @@ FOREIGN_NOTIFICATION = {
 def _home(tmp_path: Path, dirs=("ob", "can")) -> Path:
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "settings.json").write_text(
-        json.dumps({"hooks": {"Notification": [FOREIGN_NOTIFICATION]}, "permissions": {"defaultMode": "auto"}})
+        json.dumps(
+            {
+                "hooks": {"Notification": [FOREIGN_NOTIFICATION]},
+                "permissions": {"defaultMode": "auto"},
+            }
+        )
     )
     for d in dirs:
         (tmp_path / ".claude-fleet" / d).mkdir(parents=True)
@@ -82,14 +87,20 @@ def test_install_is_idempotent_and_preserves_other_hooks(tmp_path, monkeypatch):
     assert d["permissions"]["defaultMode"] == "auto", "other keys untouched"
 
 
-def test_the_deck_attention_hook_is_registered_once_on_each_of_its_five_events(tmp_path, monkeypatch):
+def test_the_deck_attention_hook_is_registered_once_on_each_of_its_five_events(
+    tmp_path, monkeypatch
+):
     """Plan 2026-10-22-plan-1-fabrik-deck Phase A: `fabrik_deck.py hook` on Notification, UserPromptSubmit, Stop,
     PostToolUse and SessionEnd — one registration per event, no matcher, the foreign Notification entry kept."""
     home = _home(tmp_path)
     monkeypatch.setenv("HOME", str(home))
     assert iuh.run([]) == 0
     cmd = f"python3 {iuh.HUB}/scripts/sysadmin/fabrik_deck.py hook"
-    for f in (home / ".claude" / "settings.json", home / ".claude-fleet" / "ob" / "settings.json"):
+    for f in (
+        home / ".claude" / "settings.json",
+        home / ".claude-fleet" / "ob" / "settings.json",
+        home / ".claude-fleet" / "can" / "settings.json",
+    ):
         got = _has(f)
         for ev in ("Notification", "UserPromptSubmit", "Stop", "PostToolUse", "SessionEnd"):
             assert got.get(ev, []).count(cmd) == 1, (f, ev)
